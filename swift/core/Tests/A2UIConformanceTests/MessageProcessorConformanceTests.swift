@@ -37,20 +37,21 @@ private final class ConformanceActionCaptureHandler: ActionHandling,
 @MainActor
 struct MessageProcessorConformanceTests {
   /// `process_messages` cases whose payload is accepted but reports an error when it renders.
-  ///
-  /// The processor accepts these payloads by design, and the error comes from evaluating them:
-  /// - `test_v10_call_to_undeclared_function_without_strict_mode_accepted` calls `notAFunction`,
-  ///   which the surface default catalog does not declare. Default processing accepts it so a
-  ///   renderer can forward it to the agent, so local evaluation reports a missing function.
-  ///
-  /// Each successful step of these cases must report at least one error, and every error it
-  /// reports must match the expected one.
   private static let expectedRuntimeErrors: [String: ExpectedRuntimeError] = [
     "test_v10_call_to_undeclared_function_without_strict_mode_accepted": ExpectedRuntimeError(
       code: "EXPRESSION_ERROR",
       surfaceID: "s",
       messageContains: "notAFunction"
     )
+  ]
+
+  /// Cases of the optional agent_renderer_app feature
+  /// (blueprints/features/agent_renderer_app.blueprint.md), which passes a validation config to
+  /// one call. This SDK has no agent, so it does not implement the feature.
+  private static let skippedCases: Set<String> = [
+    "test_v10_call_validation_config_relaxes_strict_processor",
+    "test_v10_call_validation_config_tightens_permissive_processor",
+    "test_v10_call_validation_config_leaves_out_rules_as_strict",
   ]
 
   /// A runtime error a case expects rendering to report through the action handler.
@@ -70,7 +71,7 @@ struct MessageProcessorConformanceTests {
   @Test func messageProcessorV10Conformance() throws {
     try runMessageProcessorSuite(
       filename: "core/message_processor_v1_0.yaml",
-      defaultVersion: "v1.0"
+      defaultVersion: "1.0"
     )
   }
 
@@ -86,6 +87,7 @@ struct MessageProcessorConformanceTests {
 
     for testCase in cases {
       let name = testCase["name"] as? String ?? "<unnamed>"
+      if Self.skippedCases.contains(name) { continue }
       let action = testCase["action"] as? String ?? "process_messages"
 
       switch action {
@@ -110,12 +112,25 @@ struct MessageProcessorConformanceTests {
           defaultVersion: defaultVersion
         )
         executed += 1
+      case "resolve_path":
+        runResolvePathCase(testCase, name: name)
+        executed += 1
       default:
         continue
       }
     }
 
     #expect(executed > 0, "no case of \(filename) was executed")
+  }
+
+  private func runResolvePathCase(_ testCase: [String: Any], name: String) {
+    let args = testCase["args"] as? [String: Any] ?? [:]
+    let path = args["path"] as? String ?? ""
+    let contextPath = args["contextPath"] as? String ?? ""
+    let actual = JSONValue.absolutePath(for: path, in: contextPath)
+    if let expected = testCase["expect"] as? String {
+      #expect(actual == expected, "[\(name)] Expected resolved path '\(expected)', got '\(actual)'")
+    }
   }
 
   private func buildProcessorCatalogs(
@@ -127,166 +142,206 @@ struct MessageProcessorConformanceTests {
     let action = testCase["action"] as? String ?? "process_messages"
     let commonTypes = try? ConformanceTestHelper.commonTypesSchema(forProtocolVersion: pVer)
 
-    var catalogs: [AnyCatalog] = []
-
-    var catalogPaths = testCase["catalogPaths"] as? [String] ?? []
-    if let catalogPath = testCase["catalogPath"] as? String {
-      catalogPaths.append(catalogPath)
-    }
-    if !catalogPaths.isEmpty {
-      catalogs = try catalogPaths.map { path in
-        let catalogSchema = try ConformanceTestHelper.loadRepositoryJSON(path: path)
-        // A published catalog states its protocol version; fall back to the path for any
-        // catalog that does not.
-        let pathVersion: String?
-        if let declaredVersion = catalogSchema["protocolVersion"]?.stringValue {
-          pathVersion =
-            A2UIProtocolVersion(lenientRawValue: declaredVersion)?.rawValue ?? declaredVersion
-        } else if path.contains("v0_9_1") {
-          pathVersion = "v0.9.1"
-        } else if path.contains("v0_9") {
-          pathVersion = "v0.9"
-        } else {
-          pathVersion = explicitVer
-        }
-        let pathCommonTypes =
-          (try? ConformanceTestHelper.commonTypesSchema(
-            forProtocolVersion: pathVersion ?? pVer
-          )) ?? commonTypes
-        return ConformanceTestHelper.buildCatalog(
-          catalogSchema: catalogSchema,
-          commonTypes: pathCommonTypes,
-          protocolVersion: pathVersion
-        )
-      }
-    }
+    var catalogs = try loadPathCatalogs(
+      from: testCase,
+      explicitVersion: explicitVer,
+      defaultVersion: pVer,
+      commonTypes: commonTypes
+    )
 
     if let catalogList = testCase["catalogs"] as? [[String: Any]] {
-      let openSchema = try Schema(instance: "{\"type\": \"object\"}")
-      let containerSchema = try Schema(
-        instance: """
-          {
-            "type": "object",
-            "properties": {
-              "children": {
-                "type": "array",
-                "description": "REF:common_types.json#/$defs/ChildList",
-                "items": { "type": "string" }
-              }
-            }
-          }
-          """
+      let inlineCatalogs = try buildInlineProcessorCatalogs(
+        from: catalogList,
+        action: action,
+        commonTypes: commonTypes
       )
-      let inlineCatalogs: [AnyCatalog] = catalogList.map { dict in
-        let built = ConformanceTestHelper.buildCatalog(
-          catalogSchema: ConformanceTestHelper.toJSONValue(dict),
-          commonTypes: commonTypes
-        )
-        if action != "get_renderer_capabilities"
-          && dict["components"] == nil
-          && dict["functions"] == nil
-          && dict["theme"] == nil
-        {
-          return Catalog(
-            id: built.id,
-            protocolVersion: built.protocolVersion,
-            components: [
-              AnyComponentAPI(name: "Column", schema: containerSchema),
-              AnyComponentAPI(name: "Container", schema: containerSchema),
-              AnyComponentAPI(name: "Button", schema: openSchema),
-              AnyComponentAPI(name: "Text", schema: openSchema),
-              AnyComponentAPI(name: "Label", schema: openSchema),
-              AnyComponentAPI(name: "PieChart", schema: openSchema),
-            ],
-            functions: Array(built.functions.values),
-            themeSchema: built.themeSchema
-          )
-        }
-        return built
-      }
       catalogs.append(contentsOf: inlineCatalogs)
     }
 
     if catalogs.isEmpty {
-      let textSchema = try Schema(
-        instance: """
-          {
-            "type": "object",
-            "properties": {
-              "text": { "type": "string" }
-            }
-          }
-          """
-      )
-      let containerSchema = try Schema(
-        instance: """
-          {
-            "type": "object",
-            "properties": {
-              "children": {
-                "type": "array",
-                "description": "REF:common_types.json#/$defs/ChildList",
-                "items": { "type": "string" }
-              }
-            }
-          }
-          """
-      )
-      catalogs = [
-        Catalog(
-          id: "basic",
-          protocolVersion: pVer,
-          components: [
-            AnyComponentAPI(name: "Text", schema: textSchema),
-            AnyComponentAPI(name: "Container", schema: containerSchema),
-            AnyComponentAPI(name: "Column", schema: containerSchema),
-          ]
-        )
-      ]
+      catalogs = [try makeDefaultBasicCatalog(protocolVersion: pVer)]
     }
 
     if testCase["catalogs"] == nil {
-      let openSchema = try Schema(instance: "{\"type\": \"object\"}")
-      let containerSchema = try Schema(
-        instance: """
-          {
-            "type": "object",
-            "properties": {
-              "children": {
-                "type": "array",
-                "description": "REF:common_types.json#/$defs/ChildList",
-                "items": { "type": "string" }
-              }
-            }
-          }
-          """
-      )
-      for i in 0..<catalogs.count {
-        var comps = catalogs[i].components
-        comps["Button"] = AnyComponentAPI(name: "Button", schema: openSchema)
-        comps["Label"] = AnyComponentAPI(name: "Label", schema: openSchema)
-        if comps["Text"] == nil {
-          comps["Text"] = AnyComponentAPI(name: "Text", schema: openSchema)
-        }
-        if comps["Column"] == nil {
-          comps["Column"] = AnyComponentAPI(name: "Column", schema: containerSchema)
-        }
-        catalogs[i] = Catalog(
-          id: catalogs[i].id,
-          protocolVersion: catalogs[i].protocolVersion ?? pVer,
-          components: comps.map { $0.value },
-          functions: Array(catalogs[i].functions.values),
-          themeSchema: catalogs[i].themeSchema
-        )
-      }
+      try augmentCatalogsWithFallbackComponents(&catalogs, defaultVersion: pVer)
     }
 
+    appendMissingReferencedCatalogAliases(&catalogs, from: testCase, defaultVersion: pVer)
+    return catalogs
+  }
+
+  private func loadPathCatalogs(
+    from testCase: [String: Any],
+    explicitVersion: String?,
+    defaultVersion: String,
+    commonTypes: JSONValue?
+  ) throws -> [AnyCatalog] {
+    var catalogPaths = testCase["catalogPaths"] as? [String] ?? []
+    if let catalogPath = testCase["catalogPath"] as? String {
+      catalogPaths.append(catalogPath)
+    }
+    return try catalogPaths.map { path in
+      let catalogSchema = try ConformanceTestHelper.loadRepositoryJSON(path: path)
+      let pathVersion = inferPathCatalogVersion(
+        catalogSchema: catalogSchema,
+        path: path,
+        explicitVersion: explicitVersion
+      )
+      let pathCommonTypes =
+        (try? ConformanceTestHelper.commonTypesSchema(
+          forProtocolVersion: pathVersion ?? defaultVersion
+        )) ?? commonTypes
+      return ConformanceTestHelper.buildCatalog(
+        catalogSchema: catalogSchema,
+        commonTypes: pathCommonTypes,
+        protocolVersion: pathVersion
+      )
+    }
+  }
+
+  private func inferPathCatalogVersion(
+    catalogSchema: JSONValue,
+    path: String,
+    explicitVersion: String?
+  ) -> String? {
+    if let declaredVersion = catalogSchema["protocolVersion"]?.stringValue {
+      return A2UIProtocolVersion(lenientRawValue: declaredVersion)?.rawValue ?? declaredVersion
+    }
+    if path.contains("v0_9_1") { return "v0.9.1" }
+    if path.contains("v0_9") { return "v0.9" }
+    return explicitVersion
+  }
+
+  private func buildInlineProcessorCatalogs(
+    from catalogList: [[String: Any]],
+    action: String,
+    commonTypes: JSONValue?
+  ) throws -> [AnyCatalog] {
+    let openSchema = try Schema(instance: "{\"type\": \"object\"}")
+    let containerSchema = try makeContainerSchema()
+    return catalogList.map { dict in
+      let built = ConformanceTestHelper.buildCatalog(
+        catalogSchema: ConformanceTestHelper.toJSONValue(dict),
+        commonTypes: commonTypes
+      )
+      if action != "get_renderer_capabilities"
+        && dict["components"] == nil
+        && dict["functions"] == nil
+        && dict["theme"] == nil
+      {
+        return Catalog(
+          id: built.id,
+          protocolVersion: built.protocolVersion,
+          components: [
+            AnyComponentAPI(name: "Column", schema: containerSchema),
+            AnyComponentAPI(name: "Container", schema: containerSchema),
+            AnyComponentAPI(name: "Button", schema: openSchema),
+            AnyComponentAPI(name: "Text", schema: openSchema),
+            AnyComponentAPI(name: "Label", schema: openSchema),
+            AnyComponentAPI(name: "PieChart", schema: openSchema),
+          ],
+          functions: Array(built.functions.values),
+          themeSchema: built.themeSchema
+        )
+      }
+      return built
+    }
+  }
+
+  private func makeDefaultBasicCatalog(protocolVersion: String) throws -> AnyCatalog {
+    let textSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "text": { "type": "string" }
+          }
+        }
+        """
+    )
+    let containerSchema = try makeContainerSchema()
+    return Catalog(
+      id: "basic",
+      protocolVersion: protocolVersion,
+      components: [
+        AnyComponentAPI(name: "Text", schema: textSchema),
+        AnyComponentAPI(name: "Container", schema: containerSchema),
+        AnyComponentAPI(name: "Column", schema: containerSchema),
+      ]
+    )
+  }
+
+  private func makeContainerSchema() throws -> Schema {
+    try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "children": {
+              "type": "array",
+              "description": "REF:common_types.json#/$defs/ChildList",
+              "items": { "type": "string" }
+            }
+          }
+        }
+        """
+    )
+  }
+
+  private func augmentCatalogsWithFallbackComponents(
+    _ catalogs: inout [AnyCatalog],
+    defaultVersion: String
+  ) throws {
+    let openSchema = try Schema(instance: "{\"type\": \"object\"}")
+    let containerSchema = try makeContainerSchema()
+    for index in 0..<catalogs.count {
+      var comps = catalogs[index].components
+      comps["Button"] = AnyComponentAPI(name: "Button", schema: openSchema)
+      comps["Label"] = AnyComponentAPI(name: "Label", schema: openSchema)
+      if comps["Text"] == nil {
+        comps["Text"] = AnyComponentAPI(name: "Text", schema: openSchema)
+      }
+      if comps["Column"] == nil {
+        comps["Column"] = AnyComponentAPI(name: "Column", schema: containerSchema)
+      }
+      catalogs[index] = Catalog(
+        id: catalogs[index].id,
+        protocolVersion: catalogs[index].protocolVersion ?? defaultVersion,
+        components: comps.map { $0.value },
+        functions: Array(catalogs[index].functions.values),
+        themeSchema: catalogs[index].themeSchema
+      )
+    }
+  }
+
+  private func appendMissingReferencedCatalogAliases(
+    _ catalogs: inout [AnyCatalog],
+    from testCase: [String: Any],
+    defaultVersion: String
+  ) {
     var rawMessages = extractRawMessages(from: testCase)
     if let steps = testCase["steps"] as? [[String: Any]] {
       for step in steps {
         rawMessages.append(contentsOf: extractRawMessages(from: step))
       }
     }
+    let neededIDs = collectNeededCatalogIDs(from: rawMessages)
+    let existingIDs = Set(catalogs.map { $0.id })
+    guard let base = catalogs.first else { return }
+    for neededID in neededIDs where !existingIDs.contains(neededID) {
+      catalogs.append(
+        Catalog(
+          id: neededID,
+          protocolVersion: base.protocolVersion ?? defaultVersion,
+          components: base.components.map { $0.value },
+          functions: Array(base.functions.values),
+          themeSchema: base.themeSchema
+        )
+      )
+    }
+  }
+
+  private func collectNeededCatalogIDs(from rawMessages: [[String: Any]]) -> Set<String> {
     var neededIDs = Set<String>()
     for msg in rawMessages {
       if let create = msg["createSurface"] as? [String: Any],
@@ -302,23 +357,7 @@ struct MessageProcessorConformanceTests {
         neededIDs.insert(cId)
       }
     }
-
-    let existingIDs = Set(catalogs.map { $0.id })
-    for neededID in neededIDs where !existingIDs.contains(neededID) {
-      if let base = catalogs.first {
-        catalogs.append(
-          Catalog(
-            id: neededID,
-            protocolVersion: base.protocolVersion ?? pVer,
-            components: base.components.map { $0.value },
-            functions: Array(base.functions.values),
-            themeSchema: base.themeSchema
-          )
-        )
-      }
-    }
-
-    return catalogs
+    return neededIDs
   }
 
   private func extractRawMessages(from testCase: [String: Any]) -> [[String: Any]] {
@@ -340,84 +379,47 @@ struct MessageProcessorConformanceTests {
     defaultVersion: String
   ) throws {
     let catalogs = try buildProcessorCatalogs(from: testCase, defaultVersion: defaultVersion)
+    // A case's `validationConfig` sets its checks; without one, `strictMode` decides.
     let strictMode = testCase["strictMode"] as? Bool ?? false
+    let validationConfig: ValidationConfig
+    if let flags = testCase["validationConfig"] as? [String: Bool] {
+      validationConfig = try #require(
+        ConformanceTestHelper.validationConfig(from: flags),
+        "[\(name)] Unknown validationConfig flags \(flags.keys.sorted())"
+      )
+    } else {
+      validationConfig = strictMode ? .strict : .relaxed
+    }
     let handler = ConformanceActionCaptureHandler()
     let processor = MessageProcessor(
       catalogs: catalogs,
       actionHandler: handler,
-      validationConfig: strictMode ? .strict : .relaxed
+      validationConfig: validationConfig
     )
     let expectedRuntimeError = Self.expectedRuntimeErrors[name]
-
-    let steps: [[String: Any]]
-    if let stepList = testCase["steps"] as? [[String: Any]] {
-      steps = stepList
-    } else {
-      steps = [testCase]
-    }
+    let steps = (testCase["steps"] as? [[String: Any]]) ?? [testCase]
 
     for step in steps {
+      let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
+      handler.capturedErrors.removeAll()
+
       if let expectError = step["expectError"] as? [String: Any] {
-        let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
-        do {
-          try processor.processMessages(payload)
-          Issue.record("[\(name)] Expected error to be thrown for invalid message")
-        } catch {
-          if let category = expectError["category"] as? String {
-            switch category {
-            case "RecursionError":
-              #expect(
-                error is A2UIRecursionError, "[\(name)] Expected RecursionError, got \(error)")
-            case "IntegrityError":
-              #expect(
-                error is A2UIIntegrityError || error is A2UIRecursionError,
-                "[\(name)] Expected IntegrityError, got \(error)"
-              )
-            case "CatalogError":
-              #expect(error is A2UICatalogError, "[\(name)] Expected CatalogError, got \(error)")
-            case "ValidationError":
-              #expect(
-                error is A2UIValidationError, "[\(name)] Expected ValidationError, got \(error)")
-            default:
-              break
-            }
-          }
-        }
+        assertStepError(
+          payload: payload,
+          expectError: expectError,
+          processor: processor,
+          handler: handler,
+          name: name
+        )
         continue
       }
 
-      let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
-      handler.capturedErrors.removeAll()
       try processor.processMessages(payload)
-      if let expected = expectedRuntimeError {
-        #expect(
-          !handler.capturedErrors.isEmpty,
-          "[\(name)] Expected a runtime error from rendering the accepted payload"
-        )
-        for error in handler.capturedErrors {
-          guard case .generic(let generic) = error else {
-            Issue.record("[\(name)] Expected a generic runtime error, got \(error)")
-            continue
-          }
-          #expect(
-            generic.code == expected.code,
-            "[\(name)] Expected code \(expected.code), got \(generic.code)"
-          )
-          #expect(
-            generic.surfaceID == expected.surfaceID,
-            "[\(name)] Unexpected surface in \(generic)"
-          )
-          #expect(
-            generic.message.contains(expected.messageContains),
-            "[\(name)] Unexpected message: \(generic.message)"
-          )
-        }
-      } else {
-        #expect(
-          handler.capturedErrors.isEmpty,
-          "[\(name)] Unexpected errors: \(handler.capturedErrors)"
-        )
-      }
+      assertStepRuntimeErrors(
+        capturedErrors: handler.capturedErrors,
+        expected: expectedRuntimeError,
+        name: name
+      )
 
       let expectedDict = (step["expect"] as? [String: Any]) ?? [:]
       let expectedSurfaces =
@@ -427,73 +429,234 @@ struct MessageProcessorConformanceTests {
     }
   }
 
+  private func assertStepError(
+    payload: JSONValue,
+    expectError: [String: Any],
+    processor: MessageProcessor,
+    handler: ConformanceActionCaptureHandler,
+    name: String
+  ) {
+    do {
+      try processor.processMessages(payload)
+      Issue.record("[\(name)] Expected error to be thrown for invalid message")
+    } catch {
+      assertProcessErrorCategory(error: error, expectError: expectError, name: name)
+      if let expectedMessage = expectError["message"] as? String, !expectedMessage.isEmpty {
+        let description = (error as? (any A2UIError))?.message ?? error.localizedDescription
+        #expect(
+          ConformanceTestHelper.messageMatches(description, expected: expectedMessage),
+          "[\(name)] Expected error message containing '\(expectedMessage)', got '\(description)'"
+        )
+      }
+      if let rendererErr = ConformanceTestHelper.parseRendererError(expectError["rendererError"]) {
+        ConformanceTestHelper.assertRendererErrorMatches(
+          handler.capturedErrors.last,
+          expected: rendererErr,
+          context: name
+        )
+      }
+    }
+  }
+
+  private func assertProcessErrorCategory(
+    error: Error,
+    expectError: [String: Any],
+    name: String
+  ) {
+    guard let category = expectError["category"] as? String else { return }
+    switch category {
+    case "RecursionError":
+      #expect(error is A2UIRecursionError, "[\(name)] Expected RecursionError, got \(error)")
+    case "IntegrityError":
+      #expect(
+        error is A2UIIntegrityError || error is A2UIRecursionError,
+        "[\(name)] Expected IntegrityError, got \(error)"
+      )
+    case "CatalogError":
+      #expect(error is A2UICatalogError, "[\(name)] Expected CatalogError, got \(error)")
+    case "ValidationError":
+      #expect(error is A2UIValidationError, "[\(name)] Expected ValidationError, got \(error)")
+    default:
+      break
+    }
+  }
+
+  private func assertStepRuntimeErrors(
+    capturedErrors: [RendererError],
+    expected: ExpectedRuntimeError?,
+    name: String
+  ) {
+    if let expected {
+      #expect(
+        !capturedErrors.isEmpty,
+        "[\(name)] Expected a runtime error from rendering the accepted payload"
+      )
+      for error in capturedErrors {
+        guard case .generic(let generic) = error else {
+          Issue.record("[\(name)] Expected a generic runtime error, got \(error)")
+          continue
+        }
+        #expect(generic.code == expected.code, "[\(name)] Expected code \(expected.code)")
+        #expect(generic.surfaceID == expected.surfaceID, "[\(name)] Unexpected surface")
+        #expect(
+          generic.message.contains(expected.messageContains),
+          "[\(name)] Unexpected message: \(generic.message)"
+        )
+      }
+    } else {
+      #expect(capturedErrors.isEmpty, "[\(name)] Unexpected errors: \(capturedErrors)")
+    }
+  }
+
   private func verifyExpectedSurfaces(
     _ expectedSurfaces: [String: Any]?,
     on processor: MessageProcessor,
     name: String
   ) throws {
+    guard let expectedSurfaces else { return }
+    for (surfaceID, rawExpected) in expectedSurfaces {
+      try verifySingleExpectedSurface(
+        surfaceID: surfaceID,
+        rawExpected: rawExpected,
+        on: processor,
+        name: name
+      )
+    }
+  }
 
-    if let expectedSurfaces {
-      for (surfaceID, rawExpected) in expectedSurfaces {
-        if rawExpected is NSNull {
-          #expect(
-            processor.surfaceGroupModel.surfacesMap[surfaceID] == nil,
-            "[\(name)] Expected surface '\(surfaceID)' to be deleted"
-          )
-          continue
-        }
-        guard let expectedSurfaceDict = rawExpected as? [String: Any] else { continue }
-        if expectedSurfaceDict["exists"] as? Bool == false {
-          #expect(
-            processor.surfaceGroupModel.surfacesMap[surfaceID] == nil,
-            "[\(name)] Expected surface '\(surfaceID)' to be deleted"
-          )
-          continue
-        }
-        let surface = try #require(
-          processor.surfaceGroupModel.surfacesMap[surfaceID],
-          "[\(name)] Expected surface '\(surfaceID)' to exist"
-        )
-        if let expectedDataModel = expectedSurfaceDict["dataModel"] {
-          #expect(
-            surface.dataModel.data == ConformanceTestHelper.toJSONValue(expectedDataModel),
-            "[\(name)] DataModel mismatch on surface '\(surfaceID)'"
-          )
-        }
-        if let expectedComponents = expectedSurfaceDict["components"] {
-          if let compDict = expectedComponents as? [String: Any] {
-            #expect(
-              surface.componentsModel.components.count == compDict.count,
-              "[\(name)] Component count mismatch on surface '\(surfaceID)'"
-            )
-          } else if let compList = expectedComponents as? [Any] {
-            #expect(
-              surface.componentsModel.components.count == compList.count,
-              "[\(name)] Component count mismatch on surface '\(surfaceID)'"
-            )
+  private func verifySingleExpectedSurface(
+    surfaceID: String,
+    rawExpected: Any,
+    on processor: MessageProcessor,
+    name: String
+  ) throws {
+    if rawExpected is NSNull {
+      #expect(
+        processor.surfaceGroupModel.surfacesMap[surfaceID] == nil,
+        "[\(name)] Expected surface '\(surfaceID)' to be deleted"
+      )
+      return
+    }
+    guard let expectedSurfaceDict = rawExpected as? [String: Any] else { return }
+    if expectedSurfaceDict["exists"] as? Bool == false {
+      #expect(
+        processor.surfaceGroupModel.surfacesMap[surfaceID] == nil,
+        "[\(name)] Expected surface '\(surfaceID)' to be deleted"
+      )
+      return
+    }
+    let surface = try #require(
+      processor.surfaceGroupModel.surfacesMap[surfaceID],
+      "[\(name)] Expected surface '\(surfaceID)' to exist"
+    )
+    verifySurfaceProperties(expectedSurfaceDict, on: surface, surfaceID: surfaceID, name: name)
+    if let expectedComponents = expectedSurfaceDict["components"] {
+      try verifySurfaceComponents(expectedComponents, on: surface, surfaceID: surfaceID, name: name)
+    }
+  }
+
+  private func verifySurfaceProperties(
+    _ expectedSurfaceDict: [String: Any],
+    on surface: SurfaceViewModel,
+    surfaceID: String,
+    name: String
+  ) {
+    if let expectedDataModel = expectedSurfaceDict["dataModel"] {
+      #expect(
+        surface.dataModel.data == ConformanceTestHelper.toJSONValue(expectedDataModel),
+        "[\(name)] DataModel mismatch on surface '\(surfaceID)'"
+      )
+    }
+    if let expectedTheme = expectedSurfaceDict["theme"] {
+      let actualThemeValue: JSONValue =
+        surface.theme.map { dict in
+          var ordered = OrderedDictionary<String, JSONValue>()
+          for (key, val) in dict {
+            ordered[key] = val
           }
-        }
-        if let expectedTheme = expectedSurfaceDict["theme"] {
-          let actualThemeValue: JSONValue =
-            surface.theme.map { dict in
-              var ordered = OrderedDictionary<String, JSONValue>()
-              for (k, v) in dict {
-                ordered[k] = v
-              }
-              return .object(ordered)
-            } ?? .null
-          #expect(
-            actualThemeValue == ConformanceTestHelper.toJSONValue(expectedTheme),
-            "[\(name)] Theme mismatch on surface '\(surfaceID)'"
-          )
-        }
-        if let expectedSendDataModel = expectedSurfaceDict["sendDataModel"] as? Bool {
-          #expect(
-            surface.sendDataModel == expectedSendDataModel,
-            "[\(name)] sendDataModel mismatch on surface '\(surfaceID)'"
-          )
-        }
+          return .object(ordered)
+        } ?? .null
+      #expect(
+        actualThemeValue == ConformanceTestHelper.toJSONValue(expectedTheme),
+        "[\(name)] Theme mismatch on surface '\(surfaceID)'"
+      )
+    }
+    if let expectedSendDataModel = expectedSurfaceDict["sendDataModel"] as? Bool {
+      #expect(
+        surface.sendDataModel == expectedSendDataModel,
+        "[\(name)] sendDataModel mismatch on surface '\(surfaceID)'"
+      )
+    }
+    if let rawDefaultCatalogID = expectedSurfaceDict["defaultCatalogId"] {
+      if rawDefaultCatalogID is NSNull {
+        #expect(surface.defaultCatalogID == nil, "[\(name)] Expected nil defaultCatalogId")
+      } else if let expectedDefaultCatalogID = rawDefaultCatalogID as? String {
+        #expect(
+          surface.defaultCatalogID == expectedDefaultCatalogID,
+          "[\(name)] defaultCatalogId mismatch on surface '\(surfaceID)'"
+        )
       }
+    }
+  }
+
+  private func verifySurfaceComponents(
+    _ expectedComponents: Any,
+    on surface: SurfaceViewModel,
+    surfaceID: String,
+    name: String
+  ) throws {
+    if let compDict = expectedComponents as? [String: Any] {
+      #expect(
+        surface.componentsModel.components.count == compDict.count,
+        "[\(name)] Component count mismatch on surface '\(surfaceID)'"
+      )
+      for (compID, rawComp) in compDict {
+        guard let compObj = rawComp as? [String: Any] else { continue }
+        try verifyComponentEntry(compObj, id: compID, on: surface, surfaceID: surfaceID, name: name)
+      }
+    } else if let compList = expectedComponents as? [Any] {
+      #expect(
+        surface.componentsModel.components.count == compList.count,
+        "[\(name)] Component count mismatch on surface '\(surfaceID)'"
+      )
+      for rawComp in compList {
+        guard let compObj = rawComp as? [String: Any],
+          let compID = compObj["id"] as? String
+        else { continue }
+        try verifyComponentEntry(compObj, id: compID, on: surface, surfaceID: surfaceID, name: name)
+      }
+    }
+  }
+
+  private func verifyComponentEntry(
+    _ compObj: [String: Any],
+    id: String,
+    on surface: SurfaceViewModel,
+    surfaceID: String,
+    name: String
+  ) throws {
+    let actualComp = try #require(
+      surface.componentsModel.get(id),
+      "[\(name)] Expected component '\(id)' on surface '\(surfaceID)'"
+    )
+    if let expectedType = compObj["component"] as? String {
+      #expect(
+        actualComp.type == expectedType,
+        "[\(name)] Component '\(id)' type mismatch: expected '\(expectedType)', got '\(actualComp.type)'"
+      )
+    }
+    if let expectedCatalogID = compObj["catalogId"] as? String {
+      #expect(
+        actualComp.catalogID == expectedCatalogID,
+        "[\(name)] Component '\(id)' catalogId mismatch"
+      )
+    }
+    for (propKey, propVal) in compObj
+    where propKey != "id" && propKey != "component" && propKey != "catalogId" {
+      #expect(
+        actualComp.properties[propKey] == ConformanceTestHelper.toJSONValue(propVal),
+        "[\(name)] Component '\(id)' property '\(propKey)' mismatch"
+      )
     }
   }
 
@@ -504,13 +667,7 @@ struct MessageProcessorConformanceTests {
   ) throws {
     let catalogs = try buildProcessorCatalogs(from: testCase, defaultVersion: defaultVersion)
     let processor = MessageProcessor(catalogs: catalogs)
-
-    let steps: [[String: Any]]
-    if let stepList = testCase["steps"] as? [[String: Any]] {
-      steps = stepList
-    } else {
-      steps = [testCase]
-    }
+    let steps = (testCase["steps"] as? [[String: Any]]) ?? [testCase]
     for step in steps {
       let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
       try processor.processMessages(payload)
@@ -526,15 +683,13 @@ struct MessageProcessorConformanceTests {
     if let expectedSurfaces = expectedDict?["surfaces"] {
       #expect(
         actual?["surfaces"] == ConformanceTestHelper.toJSONValue(expectedSurfaces),
-        """
-        [\(name)] Expected renderer data model \(expectedSurfaces), \
-        got \(String(describing: actual))
-        """
+        "[\(name)] Expected renderer data model \(expectedSurfaces), got \(String(describing: actual))"
       )
     } else {
       #expect(
         actual == nil,
-        "[\(name)] Expected nil renderer data model, got \(String(describing: actual))")
+        "[\(name)] Expected nil renderer data model, got \(String(describing: actual))"
+      )
     }
   }
 
@@ -546,36 +701,67 @@ struct MessageProcessorConformanceTests {
     let catalogs = try buildProcessorCatalogs(from: testCase, defaultVersion: defaultVersion)
     let processor = MessageProcessor(catalogs: catalogs)
     let args = testCase["args"] as? [String: Any] ?? [:]
-    let includeInline = args["includeInlineCatalogs"] as? Bool ?? false
-    let versionStr = args["version"] as? String ?? "v0.9.1"
-    let protocolVersion = A2UIProtocolVersion(rawValue: versionStr) ?? .v091
-    let caps = try processor.getRendererCapabilities(
-      options: MessageProcessor.CapabilitiesOptions(
-        protocolVersion: protocolVersion,
-        includeInlineCatalogs: includeInline
-      )
-    )
+    let options = buildCapabilitiesOptions(from: args)
+
+    if let expectError = testCase["expectError"] as? [String: Any] {
+      do {
+        _ = try processor.getRendererCapabilities(options: options)
+        Issue.record("[\(name)] Expected getRendererCapabilities to throw")
+      } catch {
+        assertProcessErrorCategory(error: error, expectError: expectError, name: name)
+      }
+      return
+    }
+
+    let caps = try processor.getRendererCapabilities(options: options)
     let expectedDict =
       (testCase["expect"] as? [String: Any])
       ?? (testCase["expectedCapabilities"] as? [String: Any])
       ?? [:]
-    let expectedVersion =
-      (expectedDict[versionStr] as? [String: Any])
-      ?? (expectedDict[protocolVersion.rawValue] as? [String: Any])
-      ?? (expectedDict["v0.9"] as? [String: Any])
-    if let expectedVersion {
+    verifyCapabilitiesOutput(caps, expectedDict: expectedDict, name: name)
+  }
+
+  private func buildCapabilitiesOptions(
+    from args: [String: Any]
+  ) -> MessageProcessor.CapabilitiesOptions {
+    let includeInline = args["includeInlineCatalogs"] as? Bool ?? false
+    let componentEnvelopeRef = args["componentEnvelopeRef"] as? String
+    if let versionStrings = args["versions"] as? [String] {
+      let versions = versionStrings.compactMap { A2UIProtocolVersion(lenientRawValue: $0) }
+      return MessageProcessor.CapabilitiesOptions(
+        versions: versions,
+        includeInlineCatalogs: includeInline,
+        componentEnvelopeRef: componentEnvelopeRef
+      )
+    }
+    let versionStr = args["version"] as? String ?? "v0.9.1"
+    let protocolVersion = A2UIProtocolVersion(lenientRawValue: versionStr) ?? .v091
+    return MessageProcessor.CapabilitiesOptions(
+      protocolVersion: protocolVersion,
+      includeInlineCatalogs: includeInline,
+      componentEnvelopeRef: componentEnvelopeRef
+    )
+  }
+
+  private func verifyCapabilitiesOutput(
+    _ caps: JSONValue,
+    expectedDict: [String: Any],
+    name: String
+  ) {
+    for (verKey, rawExpectedVer) in expectedDict {
+      guard let expectedVersion = rawExpectedVer as? [String: Any] else { continue }
+      let normalizedKey = A2UIProtocolVersion(lenientRawValue: verKey)?.rawValue ?? verKey
+      let actualVerCaps = caps[verKey] ?? caps[normalizedKey]
       if let expectedIDs = expectedVersion["supportedCatalogIds"] {
         #expect(
-          caps[protocolVersion.rawValue]?["supportedCatalogIds"]
-            == ConformanceTestHelper.toJSONValue(expectedIDs),
-          "[\(name)] Supported catalog IDs mismatch"
+          actualVerCaps?["supportedCatalogIds"] == ConformanceTestHelper.toJSONValue(expectedIDs),
+          "[\(name)] Supported catalog IDs mismatch for \(verKey)"
         )
       }
       if let expectedInline = expectedVersion["inlineCatalogs"] {
         #expect(
-          caps[protocolVersion.rawValue]?["inlineCatalogs"]
-            == ConformanceTestHelper.toJSONValue(expectedInline),
-          "[\(name)] Inline catalogs mismatch"
+          actualVerCaps?["inlineCatalogs"] == ConformanceTestHelper.toJSONValue(expectedInline),
+          "[\(name)] Inline catalogs mismatch for \(verKey)"
         )
       }
     }

@@ -490,7 +490,7 @@
   expect:
     - text: "First the greeting."
     - a2ui:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "conformance/simplified"
@@ -500,7 +500,7 @@
                 text: "Hello"
     - text: "Then I take it away."
     - a2ui:
-        - version: "v1.0"
+        - version: "1.0"
           deleteSurface:
             surfaceId: "s1"
 
@@ -514,7 +514,7 @@
   input: 'root = Text("Hello")'
   expect:
     - a2ui:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "default_surface"
             catalogId: "conformance/simplified"

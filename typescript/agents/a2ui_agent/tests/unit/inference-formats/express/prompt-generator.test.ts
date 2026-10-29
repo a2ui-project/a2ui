@@ -29,7 +29,7 @@ import {compileSurfaces, surface, text} from '../../../helpers/express.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressPromptGenerator} from '../../../../src/inference-formats/express/prompt-generator.js';
 
-const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
 
 const __filename = fileURLToPath(import.meta.url);
@@ -229,14 +229,14 @@ describe('ExpressPromptGenerator', () => {
       const examples: Record<string, AgentToRendererMessage[]> = {
         [cat.id]: [
           {
-            version: 'v1.0',
+            version: '1.0',
             createSurface: {
               surfaceId: 's1',
               catalogId: 'conformance/simplified',
             },
           },
           {
-            version: 'v1.0',
+            version: '1.0',
             updateComponents: {
               surfaceId: 's1',
               components: [
@@ -316,14 +316,14 @@ describe('ExpressPromptGenerator', () => {
       const examples: Record<string, AgentToRendererMessage[]> = {
         [cat1.id]: [
           {
-            version: 'v1.0',
+            version: '1.0',
             createSurface: {
               surfaceId: 's1',
               catalogId: 'conformance/simplified',
             },
           },
           {
-            version: 'v1.0',
+            version: '1.0',
             updateComponents: {
               surfaceId: 's1',
               components: [
@@ -484,7 +484,7 @@ describe('ExpressPromptGenerator', () => {
     it('generates Multiple Catalogs rules with sorted shared names when overlapping v1.0 catalogs are active', () => {
       const c1 = catalogFromTestDocument({
         catalogId: 'cat/one',
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         components: {
           Zebra: {
             type: 'object',
@@ -510,7 +510,7 @@ describe('ExpressPromptGenerator', () => {
       });
       const c2 = catalogFromTestDocument({
         catalogId: 'cat/two',
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         components: {
           Zebra: {
             type: 'object',
@@ -554,14 +554,14 @@ describe('ExpressPromptGenerator', () => {
       const c2 = loadConformanceCatalog('custom_catalog_v1_0.json');
       const turn1: AgentToRendererMessage[] = [
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's1',
             catalogId: 'conformance/simplified',
           },
         } as AgentToRendererMessage,
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's1',
             components: [{id: 'root', component: 'Text', text: 'Hello'}],
@@ -570,14 +570,14 @@ describe('ExpressPromptGenerator', () => {
       ];
       const turn2: AgentToRendererMessage[] = [
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's1',
             catalogId: 'conformance/custom',
           },
         } as AgentToRendererMessage,
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's1',
             components: [{id: 'root', component: 'Chart', values: [1, 2, 3]}],
@@ -597,13 +597,13 @@ describe('ExpressPromptGenerator', () => {
     it('decompiles catalog instructions, keyed examples, and markdown examples with the catalog as default when 2+ catalogs are active', () => {
       const c1Doc = {
         catalogId: 'conformance/cat_one',
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         instructions:
           'Instruction example:\n```json\n' +
           JSON.stringify([
-            {version: 'v1.0', createSurface: {surfaceId: 'inst_s'}},
+            {version: '1.0', createSurface: {surfaceId: 'inst_s'}},
             {
-              version: 'v1.0',
+              version: '1.0',
               updateComponents: {
                 surfaceId: 'inst_s',
                 components: [{id: 'root', component: 'Label', text: 'FromInstructions'}],
@@ -627,9 +627,9 @@ describe('ExpressPromptGenerator', () => {
       const c2 = loadConformanceCatalog('custom_catalog_v1_0.json');
 
       const keyedMessages = [
-        {version: 'v1.0', createSurface: {surfaceId: 'keyed_s'}},
+        {version: '1.0', createSurface: {surfaceId: 'keyed_s'}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'keyed_s',
             components: [{id: 'root', component: 'Label', text: 'FromKeyedExample'}],
@@ -641,7 +641,7 @@ describe('ExpressPromptGenerator', () => {
         'Markdown example:\n```json\n' +
         JSON.stringify([
           {
-            version: 'v1.0',
+            version: '1.0',
             updateComponents: {
               surfaceId: 'md_s',
               components: [{id: 'root', component: 'Chart', values: [4, 5]}],

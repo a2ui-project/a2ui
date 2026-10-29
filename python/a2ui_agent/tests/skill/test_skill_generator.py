@@ -20,6 +20,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from a2ui.core import A2uiValidationError, Catalog
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.inference_formats.express import ExpressFormat
 from a2ui.processor import CatalogConfig
 from a2ui.skill import Skill, SkillGenerator, SkillSet
@@ -290,7 +291,10 @@ class TestSkillGenerator(unittest.TestCase):
     def test_examples_shared_by_catalogs_are_added_once(self):
         """Verifies examples the format returns for every catalog aren't repeated."""
         other = Catalog.from_json(
-            catalog_schema={"catalogId": "https://a2ui.org/other", "components": {}},
+            catalog_schema={
+                "catalogId": "https://a2ui.org/other",
+                "components": {},
+            },
             protocol_version="1.0",
         )
         mock_fmt = MagicMock()
@@ -311,6 +315,40 @@ class TestSkillGenerator(unittest.TestCase):
         self.assertEqual(sorted(examples_per_skill), [0, 0, 1])
         # Each catalog's examples are loaded and transformed once.
         self.assertEqual(mock_fmt.prompt_generator.generate_examples.call_count, 2)
+
+    def test_direct_json_skills_hold_the_protocol_schemas_once(self):
+        """Verifies Direct JSON skills don't repeat the protocol schemas per catalog."""
+        vegachart_path = os.path.join(
+            _repo_root, "catalogs", "vegachart", "v1", "catalog.json"
+        )
+        vegachart = CatalogConfig.from_path(vegachart_path).transformed_catalog
+        fmt = DirectJsonFormat([self.catalog, vegachart])
+        gen = SkillGenerator(fmt)
+        a2r = "### Agent to Renderer Schema:"
+        catalog_section = "### Catalog Schema:"
+
+        mono = gen.generate_skill().content
+        self.assertEqual(mono.count(a2r), 1)
+        self.assertEqual(mono.count(catalog_section), 2)
+
+        skill_set = gen.generate_skillset()
+        core = skill_set["a2ui-core/SKILL.md"].content
+        self.assertEqual(core.count(a2r), 1)
+        self.assertEqual(core.count(catalog_section), 0)
+        catalog_skills = [
+            skill.content
+            for filename, skill in skill_set.items()
+            if filename != "a2ui-core/SKILL.md"
+        ]
+        self.assertEqual(len(catalog_skills), 2)
+        for content in catalog_skills:
+            self.assertEqual(content.count(a2r), 0)
+            self.assertEqual(content.count(catalog_section), 1)
+
+        # The prompt snippet is unchanged: one schema block for every catalog.
+        snippet = fmt.prompt_generator.generate()
+        self.assertEqual(snippet.count(a2r), 1)
+        self.assertEqual(snippet.count(catalog_section), 2)
 
 
 if __name__ == "__main__":

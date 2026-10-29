@@ -42,6 +42,7 @@ from a2ui.inference_formats.express import (
     ExpressParser,
     ExpressUndefinedRootError,
     ExpressUnknownPropertyError,
+    ExpressValidationError,
 )
 
 from ..repo_paths import find_repo_root
@@ -319,6 +320,324 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         # A2uiParseError).
         with self.assertRaises(SyntaxError):
             compiler.compile('root = Column([t], weight=.)\nt = Text("Hi")')
+
+
+def _links_catalog(protocol_version: str) -> Catalog:
+    """Builds a catalog whose `Links` component nests an action inside each list item.
+
+    `items[].action` and `primary` are `Action` slots, `tags[]` is a plain
+    string list, and `openUrl`/`concat` are catalog functions.
+    """
+    call_key = "@call" if protocol_version == "1.0" else "call"
+    return Catalog.from_json(
+        {
+            "catalogId": "test/links",
+            "components": {
+                "Links": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "Links"},
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "label": {"type": "string"},
+                                    "action": {
+                                        "$ref": "common_types.json#/$defs/Action"
+                                    },
+                                },
+                                "required": ["label", "action"],
+                            },
+                        },
+                        "primary": {"$ref": "common_types.json#/$defs/Action"},
+                        "tags": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["component", "items"],
+                },
+            },
+            "functions": {
+                "openUrl": {
+                    "type": "object",
+                    "returnType": "void",
+                    "properties": {
+                        call_key: {"const": "openUrl"},
+                        "args": {
+                            "type": "object",
+                            "properties": {"url": {"type": "string"}},
+                            "required": ["url"],
+                        },
+                    },
+                    "required": [call_key, "args"],
+                },
+                "concat": {
+                    "type": "object",
+                    "returnType": "string",
+                    "properties": {
+                        call_key: {"const": "concat"},
+                        "args": {
+                            "type": "object",
+                            "properties": {
+                                "a": {"type": "string"},
+                                "b": {"type": "string"},
+                            },
+                            "required": ["a", "b"],
+                        },
+                    },
+                    "required": [call_key, "args"],
+                },
+            },
+        },
+        protocol_version=protocol_version,
+    )
+
+
+class TestExpressEventAndNestedActionSlots(unittest.TestCase):
+    """Covers the `Event(...)` keyword signature and action slots nested in list items."""
+
+    def setUp(self):
+        self.catalog = _links_catalog("1.0")
+        self.compiler = ExpressCompiler([self.catalog], version="1.0")
+
+    def _root(self, dsl: str) -> dict:
+        messages = to_message_dicts(self.compiler.compile(dsl))
+        comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
+        return comps["root"]
+
+    def test_event_user_message_compiles_to_v1_field(self):
+        root = self._root(
+            'root = Links([{label: "Reply", action: Event("reply",'
+            ' userMessage="Now")}])'
+        )
+        self.assertEqual(
+            root["items"][0]["action"],
+            {"event": {"name": "reply", "userMessage": "Now"}},
+        )
+
+    def test_event_context_keeps_a_function_call_a_plain_call(self):
+        root = self._root(
+            'root = Links([{label: "Go", action: Event("go",'
+            ' {label: concat("a", "b")})}])'
+        )
+        self.assertEqual(
+            root["items"][0]["action"]["event"]["context"]["label"],
+            {"@call": "concat", "args": {"a": "a", "b": "b"}},
+        )
+
+    def test_event_user_message_binding_with_positional_context(self):
+        root = self._root(
+            'root = Links([{label: "Reply", action: Event("reply", {threadId:'
+            ' "t1"}, userMessage=$/draft/message)}])'
+        )
+        self.assertEqual(
+            root["items"][0]["action"],
+            {
+                "event": {
+                    "name": "reply",
+                    "userMessage": {"@path": "/draft/message"},
+                    "context": {"threadId": "t1"},
+                }
+            },
+        )
+
+    def test_event_context_keyword(self):
+        root = self._root(
+            'root = Links([{label: "Go", action: Event("submit", context={itemId:'
+            ' "42"})}])'
+        )
+        self.assertEqual(
+            root["items"][0]["action"],
+            {"event": {"name": "submit", "context": {"itemId": "42"}}},
+        )
+
+    def test_event_duplicate_context_is_a_validation_error(self):
+        with self.assertRaises(ExpressDuplicateParamError) as ctx:
+            self.compiler.compile(
+                'root = Links([{label: "Go", action: Event("submit", {a: 1},'
+                " context={b: 2})}])"
+            )
+        self.assertIsInstance(ctx.exception, ExpressValidationError)
+
+    def test_event_unknown_keyword_is_a_validation_error(self):
+        with self.assertRaises(ExpressInvalidParamError) as ctx:
+            self.compiler.compile(
+                'root = Links([{label: "Reply", action: Event("reply",'
+                ' message="Now")}])'
+            )
+        self.assertIsInstance(ctx.exception, ExpressValidationError)
+        self.assertIn("message", str(ctx.exception))
+
+    def test_event_user_message_accepts_a_function_call(self):
+        root = self._root(
+            'root = Links([{label: "Reply", action: Event("reply",'
+            ' userMessage=concat("a", "b"))}])'
+        )
+        self.assertEqual(
+            root["items"][0]["action"],
+            {
+                "event": {
+                    "name": "reply",
+                    "userMessage": {
+                        "@call": "concat",
+                        "args": {"a": "a", "b": "b"},
+                    },
+                }
+            },
+        )
+
+    def test_event_user_message_that_is_not_a_dynamic_string_is_an_error(self):
+        with self.assertRaises(ExpressValidationError) as ctx:
+            self.compiler.compile(
+                'root = Links([{label: "Reply", action: Event("reply",'
+                " userMessage=42)}])"
+            )
+        self.assertEqual(
+            str(ctx.exception),
+            "Event userMessage must be a string, a $path data binding or a"
+            " function call, got the number 42.",
+        )
+        with self.assertRaises(ExpressValidationError) as ctx:
+            self.compiler.compile(
+                'root = Links([{label: "Reply", action: Event("reply",'
+                " userMessage={a: 1})}])"
+            )
+        self.assertIn("got a map literal.", str(ctx.exception))
+
+    def test_property_named_items_is_a_property_not_the_array_items(self):
+        """A map key `items` is an object property; its item schema is reached through a local $ref."""
+        catalog = Catalog.from_json(
+            {
+                "catalogId": "test/menu",
+                "components": {
+                    "Menu": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Menu"},
+                            "menu": {
+                                "type": "object",
+                                "properties": {
+                                    "items": {
+                                        "type": "array",
+                                        "items": {"$ref": "#/$defs/MenuItem"},
+                                    }
+                                },
+                            },
+                        },
+                        "required": ["component", "menu"],
+                    }
+                },
+                "functions": {
+                    "openUrl": {
+                        "type": "object",
+                        "returnType": "void",
+                        "properties": {
+                            "@call": {"const": "openUrl"},
+                            "args": {
+                                "type": "object",
+                                "properties": {"url": {"type": "string"}},
+                                "required": ["url"],
+                            },
+                        },
+                        "required": ["@call", "args"],
+                    }
+                },
+                "$defs": {
+                    "MenuItem": {
+                        "type": "object",
+                        "properties": {
+                            "label": {"type": "string"},
+                            "action": {"$ref": "common_types.json#/$defs/Action"},
+                        },
+                        "required": ["label", "action"],
+                    }
+                },
+            },
+            protocol_version="1.0",
+        )
+        compiler = ExpressCompiler([catalog], version="1.0")
+        messages = to_message_dicts(
+            compiler.compile(
+                'root = Menu({items: [{label: "Docs", action:'
+                ' openUrl("https://a2ui.org")}]})'
+            )
+        )
+        root = messages[0]["createSurface"]["components"][0]
+        self.assertEqual(
+            root["menu"]["items"],
+            [{
+                "label": "Docs",
+                "action": {
+                    "functionCall": {
+                        "@call": "openUrl",
+                        "args": {"url": "https://a2ui.org"},
+                    }
+                },
+            }],
+        )
+
+    def test_event_too_many_positional_args_is_a_validation_error(self):
+        with self.assertRaises(ExpressValidationError):
+            self.compiler.compile(
+                'root = Links([{label: "Reply", action: Event("reply", {}, "extra")}])'
+            )
+
+    def test_event_user_message_before_v1_is_a_validation_error(self):
+        compiler = ExpressCompiler([_links_catalog("0.9")], version="v0.9")
+        with self.assertRaises(ExpressValidationError) as ctx:
+            compiler.compile(
+                'root = Links([{label: "Reply", action: Event("reply",'
+                ' userMessage="Now")}])'
+            )
+        self.assertIn("v1.0", str(ctx.exception))
+
+    def test_function_call_in_list_item_action_slot_is_wrapped(self):
+        root = self._root(
+            'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}],'
+            ' primary=openUrl("https://a2ui.org/start"))'
+        )
+        self.assertEqual(
+            root["items"][0]["action"],
+            {
+                "functionCall": {
+                    "@call": "openUrl",
+                    "args": {"url": "https://a2ui.org"},
+                }
+            },
+        )
+        self.assertEqual(
+            root["primary"],
+            {
+                "functionCall": {
+                    "@call": "openUrl",
+                    "args": {"url": "https://a2ui.org/start"},
+                }
+            },
+        )
+
+    def test_function_call_in_list_item_action_slot_through_variable(self):
+        root = self._root(
+            'docs = {label: "Docs", action: openUrl("https://a2ui.org")}\n'
+            "root = Links([docs])"
+        )
+        self.assertEqual(
+            root["items"][0]["action"],
+            {
+                "functionCall": {
+                    "@call": "openUrl",
+                    "args": {"url": "https://a2ui.org"},
+                }
+            },
+        )
+
+    def test_function_call_in_non_action_nested_slot_stays_a_plain_call(self):
+        root = self._root(
+            'root = Links([{label: "Go", action: Event("go")}], tags=[concat("a",'
+            ' "b")])'
+        )
+        self.assertEqual(
+            root["tags"],
+            [{"@call": "concat", "args": {"a": "a", "b": "b"}}],
+        )
 
 
 if __name__ == "__main__":

@@ -155,6 +155,34 @@ if (a == i) {}`;
     assert.deepStrictEqual(res, {enum: ['__REF__DynamicNumberSchema__']});
   });
 
+  it('rewrites key-presence oneOf branches into object schemas', () => {
+    const node = {
+      type: 'object',
+      properties: {a: {type: 'string', description: 'A.'}, b: {type: 'number'}},
+      oneOf: [
+        {required: ['a'], not: {required: ['b']}},
+        {required: ['b'], not: {required: ['a']}},
+      ],
+    };
+    const res = prepareRef(node, 'Parent');
+    assert.deepStrictEqual(res.anyOf, [
+      {type: 'object', properties: {a: {type: 'string'}, b: false}, required: ['a']},
+      {type: 'object', properties: {b: {type: 'number'}, a: false}, required: ['b']},
+    ]);
+  });
+
+  it('leaves oneOf branches it cannot express as key presence unchanged', () => {
+    const multiKeyNot = {not: {required: ['a', 'b']}};
+    const unknownKey = {required: ['c']};
+    const node = {
+      type: 'object',
+      properties: {a: {type: 'string'}, b: {type: 'number'}},
+      oneOf: [multiKeyNot, unknownKey],
+    };
+    const res = prepareRef(node, 'Parent');
+    assert.deepStrictEqual(res.anyOf, [multiKeyNot, unknownKey]);
+  });
+
   it('compiles a JSON Schema definition into Zod code', () => {
     const def = {
       type: 'object',
@@ -561,12 +589,12 @@ describe('generate-catalog-schemas.mjs', () => {
       },
     };
 
-    const compFile = generateComponentsFile('v1.0', catalogJson, {});
+    const compFile = generateComponentsFile('1.0', catalogJson, {});
     assert.ok(compFile.includes('export const CardApi = {'));
     assert.ok(compFile.includes('satisfies ComponentApi;'));
     assert.ok(compFile.includes('BASIC_COMPONENTS: ComponentApi[]'));
 
-    const funcFile = generateFunctionsFile('v1.0', catalogJson, {});
+    const funcFile = generateFunctionsFile('1.0', catalogJson, {});
     assert.ok(funcFile.includes('export const FormatCurrencyApi = {'));
     assert.ok(funcFile.includes("name: 'formatCurrency' as const"));
     assert.ok(funcFile.includes("returnType: 'string' as const"));

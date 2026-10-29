@@ -18,15 +18,32 @@ import json
 import os
 import re
 import sys
+from pathlib import Path
 from collections.abc import Callable
 from typing import Any
+from pydantic import TypeAdapter
 import pytest
 import yaml
 
+try:
+    from .node_resolution_runner import run_node_resolution_case
+except ImportError:
+    import importlib.util as _importlib_util
+
+    _nr_spec = _importlib_util.spec_from_file_location(
+        "node_resolution_runner",
+        os.path.join(os.path.dirname(__file__), "node_resolution_runner.py"),
+    )
+    assert _nr_spec and _nr_spec.loader
+    _nr_mod = _importlib_util.module_from_spec(_nr_spec)
+    _nr_spec.loader.exec_module(_nr_mod)
+    run_node_resolution_case = _nr_mod.run_node_resolution_case
 from a2ui.core.catalog import Catalog, CatalogApi
 from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
 from a2ui.core.common import to_canonical_version
 from a2ui.core.schema import ProtocolVersion
+from a2ui.core.schema.v0_9 import ClientToServerMessage
+from a2ui.core.schema.v1_0 import RendererToAgentMessage
 from a2ui.core.state import DataModel, SurfaceModel
 from a2ui.core.resolution import DataContext
 from a2ui.core.processing import (
@@ -38,6 +55,7 @@ from a2ui.core.validation import (
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
     PayloadValidator,
+    ValidationConfig,
 )
 from a2ui.core.exceptions import (
     A2uiCatalogError,
@@ -79,6 +97,13 @@ SKIP_TEST_NAMES: set[str] = {
     # surface holds, which the TypeScript and Kotlin cores do not.
     "test_v08_topology_plain_string_property_not_treated_as_child_ref",
     "test_v08_topology_plain_string_property_does_not_close_cycle",
+    # Cases of the optional agent_renderer_app feature
+    # (blueprints/features/agent_renderer_app.blueprint.md), which takes the
+    # validation rules for one call. This SDK has no renderer, so it does not
+    # implement the feature.
+    "test_v10_call_validation_config_relaxes_strict_processor",
+    "test_v10_call_validation_config_tightens_permissive_processor",
+    "test_v10_call_validation_config_leaves_out_rules_as_strict",
 }
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
@@ -94,7 +119,7 @@ UNRUNNABLE_SUITES: dict[str, str] = {
         " (Lit, React, Angular, Flutter, SwiftUI), which the core library does"
         " not have access to. Pending v1.0 catalogs for those renderers."
     ),
-    "core/node_resolution.yaml": "The Python core has no node resolution layer.",
+    "core/adapter_conformance.yaml": "UI framework adapter suite",
 }
 
 # Actions that time an operation rather than check what it returns. Their cases
@@ -163,7 +188,7 @@ def resolve_protocol_version(case: dict[str, Any]) -> str | None:
     if "v09" in cat_id or "v0_9" in cat_id:
         return "v0.9"
     if "v10" in cat_id or "v1_0" in cat_id or "v1.0" in cat_id:
-        return "v1.0"
+        return "1.0"
     return "v0.9"
 
 
@@ -246,17 +271,17 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
     version = resolve_protocol_version(case) or "v0.9"
     cur_basic = (
         v10_catalog
-        if version == "v1.0"
+        if version in ("1.0", "v1.0")
         else (v08_catalog if version == "v0.8" else v09_catalog)
     )
     v10_basic_alias = Catalog(
         catalog_id="basic",
-        protocol_version="v1.0",
+        protocol_version="1.0",
         components=list(v10_catalog.components.values()),
         functions=list(v10_catalog.functions.values()),
     )
 
-    if version == "v1.0":
+    if version in ("1.0", "v1.0"):
         catalogs_map["basic"] = v10_basic_alias
 
     def add_catalog_id(cat_id: str, ver: str | None = None):
@@ -478,8 +503,151 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
     )
 
 
+def _assert_renderer_error_message(
+    exp_re: dict[str, Any], err_obj: dict[str, Any]
+) -> None:
+    if "message" not in exp_re or not exp_re["message"]:
+        return
+    exp_m = str(exp_re["message"]).lower()
+    act_m = str(err_obj.get("message") or "").lower()
+    type_ok = "not of type" in exp_m and any(
+        t in act_m for t in ("input should be", "type_mismatch", "must be")
+    )
+    req_ok = "is a required property" in exp_m and any(
+        t in act_m for t in ("field required", "missing")
+    )
+    dict_ok = "non-dict" in exp_m and ("primitive" in act_m or "non-dict" in act_m)
+    assert exp_m in act_m or type_ok or req_ok or dict_ok, (
+        f"rendererError.message expected '{exp_re['message']}' in"
+        f" '{err_obj.get('message')}'"
+    )
+
+
+def _assert_renderer_error(
+    exp_re: dict[str, Any],
+    captured_renderer_errors: list[dict[str, Any]] | None,
+) -> None:
+    assert (
+        captured_renderer_errors
+    ), f"Expected rendererError {exp_re!r} to be emitted, but none was captured."
+    msg = captured_renderer_errors[-1]
+    ver = str(msg.get("version") or "v0.9")
+    schema_cls = RendererToAgentMessage if "1.0" in ver else ClientToServerMessage
+    TypeAdapter(schema_cls).validate_python(msg)
+    err_obj = msg.get("error") or {}
+    for key in ("code", "surfaceId", "functionCallId", "path"):
+        if key in exp_re:
+            assert (
+                err_obj.get(key) == exp_re[key]
+            ), f"rendererError.{key} expected {exp_re[key]!r}, got {err_obj.get(key)!r}"
+    _assert_renderer_error_message(exp_re, err_obj)
+
+
+def _candidate_detail_paths(d: Any) -> list[str]:
+    paths = [d.path]
+    if getattr(d, "code", None) == "missing_field":
+        m = re.match(r"^'([^']+)' is a required property", getattr(d, "message", ""))
+        if m:
+            paths.append(f"{d.path}.{m.group(1)}" if d.path else m.group(1))
+    return paths
+
+
+def _detail_path_matches(d: Any, exp_path_val: str | None) -> bool:
+    from a2ui.core.processing.format_pydantic_error import to_json_pointer
+
+    if exp_path_val is None:
+        return True
+    for actual_path in _candidate_detail_paths(d):
+        if actual_path == exp_path_val or to_json_pointer(
+            actual_path
+        ) == to_json_pointer(exp_path_val):
+            return True
+        if actual_path.startswith("components."):
+            rel = ".".join(actual_path.split(".")[2:])
+            if rel == exp_path_val or to_json_pointer(rel) == exp_path_val:
+                return True
+    return False
+
+
+def _detail_matches_expected(d: Any, exp_d: dict[str, Any]) -> bool:
+    if not _detail_path_matches(d, exp_d.get("path")):
+        return False
+    exp_code = exp_d.get("code")
+    code_ok = (
+        exp_code is None
+        or d.code == exp_code
+        or (
+            exp_code == "invalid_value"
+            and d.code in ("type_mismatch", "unrecognized_component")
+        )
+    )
+    if not code_ok:
+        return False
+    exp_msg = exp_d.get("message")
+    return exp_msg is None or exp_msg.lower() in d.message.lower()
+
+
+def _assert_error_details_list(
+    expected_details: list[Any], err_details: list[Any]
+) -> None:
+    for exp_d in expected_details:
+        if isinstance(exp_d, dict):
+            assert any(
+                _detail_matches_expected(d, exp_d) for d in err_details
+            ), f"Expected detail {exp_d!r} not found in {err_details!r}"
+
+
+def _assert_error_scalar_fields(
+    expect_error: dict[str, Any], exc_val: Any, err_details: list[Any]
+) -> None:
+    if expect_error.get("code"):
+        expected_code = expect_error["code"]
+        detail_codes = [d.code for d in err_details]
+        exc_code = getattr(exc_val, "code", None)
+        assert (
+            expected_code in detail_codes
+            or expected_code == exc_code
+            or expected_code in str(exc_val)
+        ), f"Expected error code '{expected_code}' not found"
+    if expect_error.get("path") is not None:
+        exp_path = expect_error["path"]
+        exc_path = getattr(exc_val, "path", None)
+        detail_paths = [d.path for d in err_details]
+        assert exc_path == exp_path or exp_path in detail_paths, (
+            f"Expected error path {exp_path!r}, got path={exc_path!r},"
+            f" details={detail_paths!r}"
+        )
+
+
+def _assert_error_dict_expectations(
+    expect_error: dict[str, Any],
+    exc_val: Any,
+    captured_renderer_errors: list[dict[str, Any]] | None,
+) -> None:
+    err_details = getattr(exc_val, "details", []) or []
+    _assert_error_scalar_fields(expect_error, exc_val, err_details)
+    if expect_error.get("surfaceId") is not None:
+        exp_sid = expect_error["surfaceId"]
+        exc_sid = getattr(exc_val, "surface_id", None)
+        detail_sids = [getattr(d, "surface_id", None) for d in err_details]
+        assert (
+            exc_sid == exp_sid or exp_sid in detail_sids
+        ), f"Expected error surfaceId {exp_sid!r}, got surface_id={exc_sid!r}"
+    if expect_error.get("functionCallId") is not None:
+        assert (
+            getattr(exc_val, "function_call_id", None) == expect_error["functionCallId"]
+        )
+    if isinstance(expect_error.get("details"), list):
+        _assert_error_details_list(expect_error["details"], err_details)
+    if isinstance(expect_error.get("rendererError"), dict):
+        _assert_renderer_error(expect_error["rendererError"], captured_renderer_errors)
+
+
 @contextlib.contextmanager
-def assert_raises(expect_error: Any):
+def assert_raises(
+    expect_error: Any,
+    captured_renderer_errors: list[dict[str, Any]] | None = None,
+):
     if isinstance(expect_error, dict):
         category = expect_error.get("category")
         message = expect_error.get("message", "")
@@ -491,6 +659,22 @@ def assert_raises(expect_error: Any):
     with pytest.raises(expected_class) as excinfo:
         yield
 
+    if isinstance(expect_error, dict) and expect_error.get("code"):
+        expected_code = expect_error["code"]
+        err_details = getattr(excinfo.value, "details", [])
+        err_code = getattr(excinfo.value, "code", None)
+        assert (
+            err_code == expected_code
+            or expected_code in str(excinfo.value)
+            or (
+                err_details
+                and any(getattr(d, "code", None) == expected_code for d in err_details)
+            )
+        ), (
+            f"Expected error code '{expected_code}' not found in exception"
+            f" '{excinfo.value}'"
+        )
+
     if message:
         msg_norm = message.lower()
         err_details = getattr(excinfo.value, "details", [])
@@ -500,6 +684,7 @@ def assert_raises(expect_error: Any):
         err_str = f"{str(excinfo.value).lower()} {detail_msgs}"
         match = (
             message in str(excinfo.value)
+            or msg_norm in err_str
             or (err_details and any(message in d.message for d in err_details))
             or re.search(re.escape(message), str(excinfo.value))
             or re.search(message, str(excinfo.value))
@@ -536,6 +721,10 @@ def assert_raises(expect_error: Any):
                 and "cannot be placed under parent" in err_str
             )
             or (
+                "non-dict" in msg_norm
+                and ("primitive" in err_str or "non-dict" in err_str)
+            )
+            or (
                 (
                     "protocol version mismatch" in msg_norm
                     or "mismatched protocol" in msg_norm
@@ -550,18 +739,9 @@ def assert_raises(expect_error: Any):
             match
         ), f"Expected error '{message}' not found in exception '{excinfo.value}'"
 
-    if isinstance(expect_error, dict) and expect_error.get("code"):
-        expected_code = expect_error["code"]
-        err_details = getattr(excinfo.value, "details", [])
-        detail_codes = [d.code for d in err_details] if err_details else []
-        exc_code = getattr(excinfo.value, "code", None)
-        assert (
-            expected_code in detail_codes
-            or expected_code == exc_code
-            or expected_code in str(excinfo.value)
-        ), (
-            f"Expected error code '{expected_code}' not found in exception details"
-            f" ({detail_codes}), code ({exc_code}), or message ('{excinfo.value}')"
+    if isinstance(expect_error, dict):
+        _assert_error_dict_expectations(
+            expect_error, excinfo.value, captured_renderer_errors
         )
 
 
@@ -593,12 +773,17 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
             f"Test case '{test_id}' specifies unsupported protocol version '{ver}'."
         )
 
+    if rel_path in UNRUNNABLE_SUITES:
+        pytest.skip(UNRUNNABLE_SUITES[rel_path])
+
     action = case.get("action")
     if not action:
         pytest.fail(f"Test case '{test_id}' missing required 'action' field.")
 
     if action == "from_json":
         validate_from_json_case(case)
+    elif action == "derive":
+        validate_derive_case(case)
     elif action == "validation_schema":
         validate_validation_schema_case(case)
     elif action == "round_trip":
@@ -634,8 +819,11 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_accessibility_check_case(case)
     elif action == "parse_expression_template":
         validate_parse_expression_template_case(case)
-    elif action == "resolve_nodes" and rel_path == "core/node_resolution.yaml":
-        pytest.skip(UNRUNNABLE_SUITES[rel_path])
+    elif action == "resolve_nodes":
+        assert (
+            rel_path == "core/node_resolution.yaml"
+        ), "resolve_nodes is only supported in core/node_resolution.yaml"
+        run_node_resolution_case(case, Path(CONFORMANCE_ROOT))
     elif action == "evaluate_function":
         validate_evaluate_function_case(case)
     elif action == "dispatch_action":
@@ -647,7 +835,9 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         )
 
 
-def _timed_processing(case: dict[str, Any]) -> Callable[[str], Callable[[], object]]:
+def _timed_processing(
+    case: dict[str, Any],
+) -> Callable[[str], Callable[[], object]]:
     """Returns how a `process_messages` timing case prepares a timed run.
 
     The catalogs are built and the payload decoded before the timing starts.
@@ -701,11 +891,10 @@ def test_conformance_timing(
 
 def test_resolve_nodes_outside_its_suite_is_unsupported() -> None:
     case = {"name": "stray", "action": "resolve_nodes"}
-    with pytest.raises(BaseException) as outcome:
+    with pytest.raises((pytest.fail.Exception, AssertionError)):
         test_conformance_suite(
             "core/data_model.yaml::stray", "core/data_model.yaml", case
         )
-    assert isinstance(outcome.value, pytest.fail.Exception), outcome.value
 
 
 def test_catalog_conformance_covers_published_catalogs() -> None:
@@ -736,6 +925,55 @@ def test_catalog_conformance_covers_published_catalogs() -> None:
     )
 
 
+def _normalize_prop_value(raw_val: Any) -> Any:
+    if isinstance(raw_val, list):
+        return [
+            item.component_id if hasattr(item, "component_id") else item
+            for item in raw_val
+        ]
+    if hasattr(raw_val, "component_id"):
+        return raw_val.component_id
+    return raw_val
+
+
+def _assert_surface_validation_fields(
+    s_id: str, s_exp: dict[str, Any], surface: Any
+) -> None:
+    for val_field in (
+        "validationResult",
+        "validationResults",
+        "isValid",
+        "validationErrors",
+    ):
+        if val_field in s_exp:
+            resolved_nodes = _resolve_surface_components(surface)
+            field_exp = s_exp[val_field]
+            for c_id, exp_v in field_exp.items():
+                node_info = resolved_nodes.get(c_id)
+                assert (
+                    node_info is not None
+                ), f"Component node '{c_id}' missing from surface '{s_id}'"
+                actual_v = node_info["props"].get(val_field)
+                assert actual_v == exp_v, (
+                    f"{val_field} mismatch for '{c_id}': got {actual_v!r},"
+                    f" expected {exp_v!r}"
+                )
+
+
+def _indexed_suffix_for_path(data_path: str) -> str | None:
+    parts = [p for p in data_path.strip("/").split("/") if p]
+    return parts[-1] if parts and parts[-1].isdigit() else None
+
+
+def _extract_template_binding(p_val: Any) -> tuple[str, str] | None:
+    if not isinstance(p_val, dict) or "componentId" not in p_val:
+        return None
+    raw_tpl_path = p_val.get("@path") or p_val.get("path")
+    if not isinstance(raw_tpl_path, str):
+        return None
+    return p_val["componentId"], raw_tpl_path
+
+
 def _resolve_surface_components(surface: Any) -> dict[str, dict[str, Any]]:
     from a2ui.core.resolution import ComponentContext, GenericBinder
 
@@ -755,9 +993,10 @@ def _resolve_surface_components(surface: Any) -> dict[str, dict[str, Any]]:
         binder.dispose()
 
         for _, p_val in list(props.items()):
-            if isinstance(p_val, dict) and "componentId" in p_val and "path" in p_val:
-                tpl_comp_id = p_val["componentId"]
-                tpl_path = ctx.data_context.resolve_path(p_val["path"])
+            tpl_info = _extract_template_binding(p_val)
+            if tpl_info is not None:
+                tpl_comp_id, raw_tpl_path = tpl_info
+                tpl_path = ctx.data_context.resolve_path(raw_tpl_path)
                 arr = surface.data_model.get(tpl_path)
                 if isinstance(arr, list):
                     base_tpl_path = tpl_path.rstrip("/")
@@ -765,14 +1004,16 @@ def _resolve_surface_components(surface: Any) -> dict[str, dict[str, Any]]:
                         scoped_path = f"{base_tpl_path}/{i}"
                         _resolve_one(tpl_comp_id, scoped_path, f"{tpl_comp_id}_{i}")
                         _resolve_one(
-                            tpl_comp_id, scoped_path, f"{tpl_comp_id}-[{scoped_path}]"
+                            tpl_comp_id,
+                            scoped_path,
+                            f"{tpl_comp_id}-[{scoped_path}]",
                         )
 
-        parts = [p for p in data_path.strip("/").split("/") if p]
-        idx_suffix = parts[-1] if parts and parts[-1].isdigit() else None
-        if idx_suffix is not None:
-            known_ids = set(surface.components_model.keys)
-            for child_id, _ in comp.get_child_references(known_ids):
+        idx_suffix = _indexed_suffix_for_path(data_path)
+        if idx_suffix:
+            for child_id, _ in comp.get_child_references(
+                set(surface.components_model.keys)
+            ):
                 _resolve_one(child_id, data_path, f"{child_id}_{idx_suffix}")
                 _resolve_one(child_id, data_path, f"{child_id}-[{data_path}]")
 
@@ -833,24 +1074,16 @@ def _assert_expected_surface_state(
                             for p_key, p_val in c_exp.items():
                                 if p_key in ("id", "component"):
                                     continue
-                                raw_val = node_props.get(p_key)
-                                if isinstance(raw_val, list):
-                                    norm_val = [
-                                        (
-                                            item.component_id
-                                            if hasattr(item, "component_id")
-                                            else item
-                                        )
-                                        for item in raw_val
-                                    ]
-                                elif hasattr(raw_val, "component_id"):
-                                    norm_val = raw_val.component_id
-                                else:
-                                    norm_val = raw_val
-                                assert str(norm_val) == str(p_val), (
+                                norm_val = _normalize_prop_value(node_props.get(p_key))
+                                assert norm_val == p_val or (
+                                    isinstance(norm_val, int)
+                                    and not isinstance(norm_val, bool)
+                                    and isinstance(p_val, str)
+                                    and str(norm_val) == p_val
+                                ), (
                                     f"Property '{p_key}' mismatch on component"
-                                    f" '{c_id}': got {norm_val}, expected"
-                                    f" {p_val}"
+                                    f" '{c_id}': got {norm_val!r}, expected"
+                                    f" {p_val!r}"
                                 )
 
                 if isinstance(comps_expected, list) and all(
@@ -863,32 +1096,41 @@ def _assert_expected_surface_state(
                         f" {len(surface.components_model.keys)}"
                     )
 
-            if "validationResult" in s_exp:
-                resolved_nodes = _resolve_surface_components(surface)
-                val_res_exp = s_exp["validationResult"]
-                for c_id, exp_vr in val_res_exp.items():
-                    node_info = resolved_nodes.get(c_id)
-                    assert (
-                        node_info is not None
-                    ), f"Component node '{c_id}' missing from surface '{s_id}'"
-                    node_props = node_info["props"]
-                    vr = node_props.get("validationResult")
-                    assert vr == exp_vr, (
-                        f"ValidationResult mismatch for '{c_id}': got {vr}, expected"
-                        f" {exp_vr}"
-                    )
+            _assert_surface_validation_fields(s_id, s_exp, surface)
+
+
+def _run_pure_validation_step_with_error(
+    processor: MessageProcessor, messages: Any
+) -> None:
+    errors: list[dict[str, Any]] = []
+    for s in processor.model.surfaces.values():
+        s.on_error.subscribe(lambda err: errors.append(err))
+    processor.process_messages(messages)
+    for s in processor.model.surfaces.values():
+        s.on_error.subscribe(lambda err: errors.append(err))
+        _resolve_surface_components(s)
+    if errors:
+        err = errors[0]
+        raise A2uiValidationError(
+            err.get("message", "Expression error"),
+            code=err.get("code"),
+            path=err.get("path"),
+            surface_id=err.get("surfaceId"),
+        )
 
 
 def validate_pure_validation_case(case: dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
-    val_config = STRICT_VALIDATION
+    val_config = (
+        RELAXED_VALIDATION if case.get("strictMode") is False else STRICT_VALIDATION
+    )
     processor = MessageProcessor(
         catalogs, options=MessageProcessorOptions(validation_config=val_config)
     )
+    captured_renderer_errors: list[dict[str, Any]] = []
+    processor.model.on_error.subscribe(lambda msg: captured_renderer_errors.append(msg))
 
-    steps = case.get("steps")
-    if not steps:
-        steps = [case]
+    steps = case.get("steps") or [case]
 
     for idx, step in enumerate(steps):
         messages = step.get("messages") or step.get("payload")
@@ -902,17 +1144,9 @@ def validate_pure_validation_case(case: dict[str, Any]) -> None:
         )
 
         if expect_error:
-            with assert_raises(expect_error):
-                errors = []
-                for s in processor.model.surfaces.values():
-                    s.on_error.subscribe(lambda err: errors.append(err))
-                processor.process_messages(messages)
-                for s in processor.model.surfaces.values():
-                    s.on_error.subscribe(lambda err: errors.append(err))
-                    _resolve_surface_components(s)
-                if errors:
-                    err = errors[0]
-                    raise A2uiValidationError(err.get("message", "Expression error"))
+            captured_renderer_errors.clear()
+            with assert_raises(expect_error, captured_renderer_errors):
+                _run_pure_validation_step_with_error(processor, messages)
         else:
             processor.process_messages(messages)
             expected = step.get("expect")
@@ -922,17 +1156,45 @@ def validate_pure_validation_case(case: dict[str, Any]) -> None:
                 _assert_expected_surface_state(processor, expected)
 
 
+# The flags a case's `validationConfig` may set (`validationConfig` in
+# conformance/conformance_schema.json), with the ValidationConfig field each
+# sets. A flag the case leaves out is False.
+_CASE_VALIDATION_FLAGS = {
+    "allowOrphanComponents": "allow_orphan_components",
+    "allowDanglingReferences": "allow_dangling_references",
+    "allowMissingRoot": "allow_missing_root",
+    "allowUnknownElements": "allow_unknown_elements",
+}
+
+
+def _case_validation_config(flags: dict[str, bool]) -> ValidationConfig:
+    """Builds the ValidationConfig a case's `validationConfig` flags describe."""
+    unknown = set(flags) - set(_CASE_VALIDATION_FLAGS)
+    assert not unknown, f"Unknown validationConfig flags: {sorted(unknown)}"
+    return ValidationConfig(
+        **{_CASE_VALIDATION_FLAGS[name]: value for name, value in flags.items()}
+    )
+
+
 def validate_process_messages_case(case: dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
-    is_strict = bool(
-        case.get("strictMode")
-        or case.get("strict_mode")
-        or case.get("options", {}).get("strict_mode")
-    )
-    val_config = STRICT_VALIDATION if is_strict else None
+    if "validationConfig" in case:
+        # The case sets its checks, so they don't depend on this harness.
+        val_config: ValidationConfig | None = _case_validation_config(
+            case["validationConfig"]
+        )
+    else:
+        is_strict = bool(
+            case.get("strictMode")
+            or case.get("strict_mode")
+            or case.get("options", {}).get("strict_mode")
+        )
+        val_config = STRICT_VALIDATION if is_strict else None
     processor = MessageProcessor(
         catalogs, options=MessageProcessorOptions(validation_config=val_config)
     )
+    captured_renderer_errors: list[dict[str, Any]] = []
+    processor.model.on_error.subscribe(lambda msg: captured_renderer_errors.append(msg))
 
     messages = case.get("messages") or (
         [case["payload"]] if "payload" in case else None
@@ -941,7 +1203,8 @@ def validate_process_messages_case(case: dict[str, Any]) -> None:
 
     if messages:
         if expect_error:
-            with assert_raises(expect_error):
+            captured_renderer_errors.clear()
+            with assert_raises(expect_error, captured_renderer_errors):
                 processor.process_messages(messages)
         else:
             processor.process_messages(messages)
@@ -962,7 +1225,8 @@ def validate_process_messages_case(case: dict[str, Any]) -> None:
         )
 
         if expect_error:
-            with assert_raises(expect_error):
+            captured_renderer_errors.clear()
+            with assert_raises(expect_error, captured_renderer_errors):
                 processor.process_messages(messages)
         else:
             processor.process_messages(messages)
@@ -1152,9 +1416,7 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
         with assert_raises(expect_err):
             Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
     else:
-        cat = _with_case_peers(
-            Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver), case
-        )
+        cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
         expected = case.get("expect", {})
         unknown_keys = set(expected) - _FROM_JSON_EXPECT_KEYS
         assert (
@@ -1186,6 +1448,93 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
             for component in expected.get("invalidComponents", []):
                 with pytest.raises(A2uiValidationError):
                     validator.validate_component(component)
+
+
+# The `expect` keys a `derive` case may use (`DeriveExpect` in
+# conformance_schema.json).
+_DERIVE_EXPECT_KEYS = frozenset({
+    "absentKeys",
+    "catalogId",
+    "components",
+    "functions",
+    "instructions",
+    "protocolVersion",
+    "theme",
+})
+
+
+def validate_derive_case(case: dict[str, Any]) -> None:
+    """Runs a `derive` case.
+
+    Loads the source catalog with `from_json`, derives a catalog from it, and
+    checks the derived catalog and its `to_json()` document.
+    """
+    document, _ = _load_case_catalog(case)
+    source = Catalog.from_json(document)
+    args = case["args"]
+
+    def entries(kind: str) -> list[Any] | None:
+        # A map with one key is a new entry, built by loading it into a
+        # catalog of the source's version.
+        listed = args.get(kind)
+        if listed is None:
+            return None
+        picked: list[Any] = []
+        for item in listed:
+            if isinstance(item, str):
+                picked.append(item)
+                continue
+            [(name, definition)] = item.items()
+            holder = Catalog.from_json({
+                "catalogId": "conformance:derive-entries",
+                "protocolVersion": document.get("protocolVersion"),
+                kind: {name: definition},
+            })
+            picked.append(getattr(holder, kind)[name])
+        return picked
+
+    def derive() -> CatalogApi:
+        return source.derive(
+            catalog_id=args["catalogId"],
+            components=entries("components"),
+            functions=entries("functions"),
+            instructions=args.get("instructions"),
+        )
+
+    if "expectError" in case:
+        with assert_raises(case["expectError"]):
+            derive()
+        return
+
+    expected = case["expect"]
+    unknown_keys = set(expected) - _DERIVE_EXPECT_KEYS
+    assert not unknown_keys, f"Unknown derive expect keys: {sorted(unknown_keys)}"
+    derived = derive()
+    out = derived.to_json()
+    if "catalogId" in expected:
+        assert derived.catalog_id == expected["catalogId"]
+    if "protocolVersion" in expected:
+        assert to_canonical_version(derived.protocol_version) == to_canonical_version(
+            expected["protocolVersion"]
+        )
+    for kind in ("components", "functions"):
+        if kind not in expected:
+            continue
+        listed = expected[kind]
+        assert sorted(getattr(derived, kind)) == sorted(listed), f"{kind} mismatch"
+        if isinstance(listed, dict):
+            for name, definition in listed.items():
+                assert normalize_set_keywords(
+                    out[kind][name]
+                ) == normalize_set_keywords(definition), f"{kind} '{name}' differs"
+    if "theme" in expected:
+        assert normalize_set_keywords(out.get("theme")) == normalize_set_keywords(
+            expected["theme"]
+        )
+    if "instructions" in expected:
+        assert out.get("instructions") == expected["instructions"]
+    for key in expected.get("absentKeys", []):
+        assert key not in out, f"Expected to_json() to carry no '{key}'"
 
 
 def normalize_set_keywords(node: Any) -> Any:
@@ -1221,27 +1570,6 @@ def sdk_catalog(catalog_id: Any) -> CatalogApi | None:
         if catalog.catalog_id == catalog_id:
             return catalog
     return None
-
-
-def _with_case_peers(catalog: CatalogApi, case: dict[str, Any]) -> CatalogApi:
-    """Links the catalogs that a case lists in `peerCatalogPaths` to `catalog`.
-
-    Returns the catalog that `with_peer_catalogs` returns, which resolves
-    cross-catalog references into the peers.
-    """
-    paths = case.get("peerCatalogPaths")
-    if not paths:
-        return catalog
-    peers: list[CatalogApi] = []
-    for path in paths:
-        full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", path))
-        with open(full_p, "r", encoding="utf-8") as f:
-            peers.append(
-                Catalog.from_json(
-                    json.load(f), protocol_version=catalog.protocol_version
-                )
-            )
-    return catalog.with_peer_catalogs(peers)
 
 
 def _load_case_catalog(case: dict[str, Any]) -> tuple[Any, str | None]:
@@ -1280,9 +1608,7 @@ def validate_validation_schema_case(case: dict[str, Any]) -> None:
                 c_schema, catalog_id=c_id, protocol_version=p_ver
             ).validation_schema
         return
-    cat = _with_case_peers(
-        Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver), case
-    )
+    cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
 
     expect_file = case.get("expectFile")
     assert expect_file, "validation_schema cases require expectFile or expectError"
@@ -1400,7 +1726,12 @@ def validate_common_type_case(case: dict[str, Any]) -> None:
 
     from a2ui.core.schema import v0_9 as schema_v0_9, v1_0 as schema_v1_0
 
-    schema_packages = {"v0.9": schema_v0_9, "v0.9.1": schema_v0_9, "v1.0": schema_v1_0}
+    schema_packages = {
+        "v0.9": schema_v0_9,
+        "v0.9.1": schema_v0_9,
+        "1.0": schema_v1_0,
+        "v1.0": schema_v1_0,
+    }
     p_ver = resolve_protocol_version(case)
     assert (
         p_ver in schema_packages
@@ -1602,11 +1933,13 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
                 elif name == "calculateTax":
                     amount = (fn_args or {}).get("amount", 0)
                     return amount * 0.1
+                elif name == "echoArgs":
+                    return dict(fn_args or {})
                 return None
 
             return execute
 
-        fn_schema = meta.get("schema") or meta.get("parameters")
+        fn_schema = meta.get("schema") or meta.get("parameters") or {"type": "object"}
         funcs.append(
             FunctionImplementation(
                 name=fn_name,
@@ -1618,96 +1951,34 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             )
         )
 
-    cat_id = args.get("catalogId")
-    if not cat_id and isinstance(message, dict) and "callRendererFunction" in message:
-        msg_cat_id = (
-            message.get("callRendererFunction", {})
-            .get("callFunction", {})
-            .get("catalogId")
-        )
-        expect_err_msg = (
-            case.get("expect", {})
-            .get("response", {})
-            .get("rendererFunctionResponse", {})
-            .get("error", {})
-            .get("message", "")
-        )
-        if "Catalog not found" not in expect_err_msg:
-            cat_id = msg_cat_id
-    if not cat_id and isinstance(outbound_call, dict):
-        cat_id = outbound_call.get("callFunction", {}).get("catalogId")
-    if not cat_id:
-        cat_id = "basic"
-
-    cat_version = (
-        args.get("catalogVersion")
-        or (case.get("catalog") if isinstance(case.get("catalog"), dict) else {}).get(
-            "protocolVersion"
-        )
-        or case.get("protocolVersion")
-        or "v1.0"
-    )
-
-    cat = Catalog(
-        catalog_id=cat_id,
-        protocol_version=cat_version,
-        components=[],
-        functions=funcs,
-    )
+    cat_id, cat_version = _resolve_rpc_catalog_info(args, message, outbound_call, case)
+    catalogs = _build_rpc_catalogs(cat_id, cat_version, funcs)
+    captured_renderer_errors: list[dict[str, Any]] = []
     processor = MessageProcessor(
-        catalogs=[cat],
-        options=MessageProcessorOptions(outbound_listener=lambda msg: None),
+        catalogs=catalogs,
+        options=MessageProcessorOptions(
+            outbound_listener=lambda msg: None,
+            error_handler=lambda msg: captured_renderer_errors.append(msg),
+        ),
     )
+    _setup_rpc_surface_if_needed(args, catalogs[0], catalogs, cat_version, processor)
 
     if message:
-        expect_dict = case.get("expect", {})
-        expect_err = expect_dict.get("error")
-        if expect_err:
-            from a2ui.core.exceptions import A2uiValidationError
-
-            with pytest.raises(A2uiValidationError) as exc_info:
-                processor.process_messages(message)
-            if "message" in expect_err:
-                assert expect_err["message"] in str(exc_info.value)
-        elif "response" in expect_dict:
-            from a2ui.core.processing import ExecutionContext
-
-            import asyncio
-
-            expect_resp = expect_dict["response"]
-            responses = asyncio.run(
-                processor.process_messages_async(
-                    message,
-                    context=ExecutionContext(is_user_activated=user_activation),
-                )
-            )
-            if expect_resp is None:
-                assert len(responses) == 0
-            else:
-                assert len(responses) == 1
-                actual = responses[0]
-                assert actual.get("version") == expect_resp.get("version")
-                actual_rf = actual.get("rendererFunctionResponse", {})
-                expected_rf = expect_resp.get("rendererFunctionResponse", {})
-                assert actual_rf.get("functionCallId") == expected_rf.get(
-                    "functionCallId"
-                )
-                if "value" in expected_rf:
-                    assert actual_rf.get("value") == expected_rf.get("value")
-                if "error" in expected_rf:
-                    assert actual_rf.get("error", {}).get("code") == expected_rf[
-                        "error"
-                    ].get("code")
-                    if "message" in expected_rf["error"]:
-                        assert expected_rf["error"]["message"] in actual_rf.get(
-                            "error", {}
-                        ).get("message", "")
-
-    if outbound_call and inbound_response:
-        correlated_id = case.get("expect", {}).get("correlatedCallId")
-        assert (
-            inbound_response["agentFunctionResponse"]["functionCallId"] == correlated_id
+        _verify_rpc_inbound_message(
+            message, case, processor, user_activation, captured_renderer_errors
         )
+
+    if (
+        outbound_call
+        and inbound_response
+        and not (case.get("expectError") or (case.get("expect") or {}).get("error"))
+    ):
+        correlated_id = case.get("expect", {}).get("correlatedCallId")
+        if correlated_id is not None:
+            assert (
+                inbound_response["agentFunctionResponse"]["functionCallId"]
+                == correlated_id
+            )
 
         from a2ui.core.rpc import CallOptions
         from a2ui.core.schema.v1_0.common_types import FunctionCall
@@ -1724,14 +1995,14 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             ),
             options=CallOptions(
                 function_call_id=outbound_call["functionCallId"],
-                version="v1.0",
+                version="1.0",
             ),
         )
         processor.process_messages(inbound_response)
         assert fut.done()
         assert fut.result() == case.get("expect", {}).get("result")
     elif outbound_call and (
-        case.get("expectError") or case.get("expect", {}).get("error")
+        case.get("expectError") or (case.get("expect") or {}).get("error")
     ):
         import asyncio
 
@@ -1754,7 +2025,7 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
                 ),
                 options=CallOptions(
                     function_call_id=spec["functionCallId"],
-                    version="v1.0",
+                    version="1.0",
                     timeout_ms=spec.get("timeoutMs"),
                 ),
             )
@@ -1770,6 +2041,30 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
                 pending.cancel()
 
             asyncio.run(_expect_duplicate())
+        elif inbound_response:
+
+            async def _expect_inbound_error() -> None:
+                pending = _start_call(outbound_call)
+                processor.process_messages(inbound_response)
+                with pytest.raises(A2uiRpcError) as exc_info:
+                    await pending
+                if "code" in expected_err:
+                    assert exc_info.value.code == expected_err["code"]
+                if "message" in expected_err:
+                    assert expected_err["message"] in str(exc_info.value)
+
+            asyncio.run(_expect_inbound_error())
+        elif args.get("disposeBeforeResponse"):
+
+            async def _expect_cancelled() -> None:
+                pending = _start_call(outbound_call)
+                processor.rpc.dispose()
+                with pytest.raises((A2uiRpcError, asyncio.CancelledError)) as exc_info:
+                    await pending
+                if isinstance(exc_info.value, A2uiRpcError) and "code" in expected_err:
+                    assert exc_info.value.code == expected_err["code"]
+
+            asyncio.run(_expect_cancelled())
         elif "timeoutMs" in outbound_call:
 
             async def _expect_timeout() -> None:
@@ -1797,7 +2092,7 @@ def validate_select_catalog_case(case: dict[str, Any]) -> None:
     catalogs_dict: dict[str, CatalogApi] = {}
     if "catalogs" in args and isinstance(args["catalogs"], dict):
         for cat_id, cat_def in args["catalogs"].items():
-            p_ver = cat_def.get("protocolVersion", "v1.0")
+            p_ver = cat_def.get("protocolVersion", "1.0")
             catalogs_dict[cat_id] = Catalog(
                 catalog_id=cat_id,
                 protocol_version=p_ver,
@@ -1806,12 +2101,12 @@ def validate_select_catalog_case(case: dict[str, Any]) -> None:
         for cat_id in surface_args.get("supportedCatalogIds", [default_cat_id]):
             catalogs_dict[cat_id] = Catalog(
                 catalog_id=cat_id,
-                protocol_version="v1.0",
+                protocol_version="1.0",
             )
 
     default_cat = catalogs_dict.get(
         default_cat_id,
-        Catalog(catalog_id=default_cat_id, protocol_version="v1.0"),
+        Catalog(catalog_id=default_cat_id, protocol_version="1.0"),
     )
     surface = SurfaceModel(
         surface_id=s_id,
@@ -1937,54 +2232,246 @@ def validate_parse_expression_template_case(case: dict[str, Any]) -> None:
     assert joined == expected
 
 
+def _resolve_rpc_catalog_info(
+    args: dict[str, Any],
+    message: Any,
+    outbound_call: Any,
+    case: dict[str, Any],
+) -> tuple[str, str]:
+    cat_id = args.get("catalogId")
+    if not cat_id and isinstance(message, dict) and "callRendererFunction" in message:
+        msg_cat_id = (
+            message.get("callRendererFunction", {})
+            .get("callFunction", {})
+            .get("catalogId")
+        )
+        expect_err_msg = (
+            case.get("expect", {})
+            .get("response", {})
+            .get("rendererFunctionResponse", {})
+            .get("error", {})
+            .get("message", "")
+        )
+        if "Catalog not found" not in expect_err_msg:
+            cat_id = msg_cat_id
+    if not cat_id and isinstance(outbound_call, dict):
+        cat_id = outbound_call.get("callFunction", {}).get("catalogId")
+    cat_spec = case.get("catalog") if isinstance(case.get("catalog"), dict) else {}
+    cat_version = (
+        args.get("catalogVersion")
+        or cat_spec.get("protocolVersion")
+        or case.get("protocolVersion")
+        or "1.0"
+    )
+    return cat_id or "basic", cat_version
+
+
+def _build_rpc_catalogs(
+    cat_id: str, cat_version: str, funcs: list[Any]
+) -> list[Catalog]:
+    fn_names = {f.name for f in funcs}
+    if cat_id == "basic":
+        for bf in v10_catalog.functions.values():
+            if bf.name not in fn_names:
+                funcs.append(bf)
+    cat = Catalog(
+        catalog_id=cat_id,
+        protocol_version=cat_version,
+        components=[],
+        functions=funcs,
+    )
+    if cat_id == "basic":
+        return [cat]
+    return [
+        cat,
+        Catalog(
+            catalog_id="basic",
+            protocol_version=cat_version,
+            components=[],
+            functions=list(v10_catalog.functions.values()),
+        ),
+    ]
+
+
+def _setup_rpc_surface_if_needed(
+    args: dict[str, Any],
+    cat: Catalog,
+    catalogs: list[Catalog],
+    cat_version: str,
+    processor: MessageProcessor,
+) -> None:
+    setup_sid = args.get("surfaceId")
+    if not setup_sid or not isinstance(setup_sid, str):
+        return
+    setup_surface = SurfaceModel(
+        surface_id=setup_sid,
+        default_catalog=cat,
+        available_catalogs={c.catalog_id: c for c in catalogs},
+        protocol_version=cat_version,
+    )
+    if isinstance(args.get("dataModel"), dict):
+        setup_surface.data_model.set("/", args["dataModel"])
+    processor.model.add_surface(setup_surface)
+
+
+def _assert_rpc_response_payload(
+    responses: list[Any], expect_resp: dict[str, Any] | None
+) -> None:
+    if expect_resp is None:
+        assert len(responses) == 0
+        return
+    assert len(responses) == 1
+    actual = responses[0]
+    assert actual.get("version") == expect_resp.get("version")
+    actual_rf = actual.get("rendererFunctionResponse", {})
+    expected_rf = expect_resp.get("rendererFunctionResponse", {})
+    assert actual_rf.get("functionCallId") == expected_rf.get("functionCallId")
+    if "value" in expected_rf:
+        assert actual_rf.get("value") == expected_rf.get("value")
+    if "error" in expected_rf:
+        actual_err = actual_rf.get("error", {})
+        assert actual_err.get("code") == expected_rf["error"].get("code")
+        if "message" in expected_rf["error"]:
+            assert expected_rf["error"]["message"] in actual_err.get("message", "")
+
+
+def _verify_rpc_inbound_message(
+    message: Any,
+    case: dict[str, Any],
+    processor: MessageProcessor,
+    user_activation: bool,
+    captured_renderer_errors: list[dict[str, Any]],
+) -> None:
+    import asyncio
+    from a2ui.core.processing import ExecutionContext
+
+    expect_dict = case.get("expect") or {}
+    expect_err = case.get("expectError") or expect_dict.get("error")
+    if expect_err:
+        with assert_raises(expect_err, captured_renderer_errors):
+            processor.process_messages(message)
+    elif "response" in expect_dict:
+        responses = asyncio.run(
+            processor.process_messages_async(
+                message,
+                context=ExecutionContext(is_user_activated=user_activation),
+            )
+        )
+        _assert_rpc_response_payload(responses, expect_dict["response"])
+
+
+def _assert_dispatched_action_event(
+    case: dict[str, Any],
+    expect_dispatched: dict[str, Any] | None,
+    dispatched: list[dict[str, Any]],
+) -> None:
+    if "expectDispatched" in case and expect_dispatched is None:
+        assert len(dispatched) == 0, f"Expected no dispatched event, got {dispatched}"
+        return
+    if expect_dispatched is None:
+        return
+    assert len(dispatched) >= 1, "Expected action to be dispatched, but none was"
+    actual = dispatched[0]
+    for key in ("name", "context", "userMessage", "surfaceId", "sourceComponentId"):
+        if key in expect_dispatched:
+            assert actual.get(key) == expect_dispatched[key]
+    if expect_dispatched.get("hasTimestamp") or expect_dispatched.get(
+        "timestampIso8601"
+    ):
+        assert isinstance(actual.get("timestamp"), str) and bool(
+            actual.get("timestamp")
+        )
+
+
 def validate_dispatch_action_case(case: dict[str, Any]) -> None:
+    import copy
+    from a2ui.core.catalog import FunctionImplementation
+
     action_payload = case["actionPayload"]
     data_model_dict = case.get("dataModel") or {}
     surface_id = case.get("surfaceId", "main")
+    source_comp_id = case.get("sourceComponentId", "test_comp")
     scope = case.get("scope")
+    user_activation = bool(case.get("userActivation", True))
     expect_dispatched = case.get("expectDispatched")
     expect_data_model = case.get("expectDataModel")
     expect_error = case.get("expectError")
 
     catalogs = get_catalogs_for_test_case(case)
-    default_cat = catalogs[0] if catalogs else v09_catalog
+    base_cat = catalogs[0] if catalogs else v09_catalog
+
+    def _inc_counter(args: dict[str, Any], ctx: Any = None, _sig: Any = None) -> None:
+        target_path = args.get("path", "/count")
+        step = args.get("step", 1)
+        curr = ctx.data_model.get(target_path) or 0
+        ctx.data_model.set(target_path, curr + step)
+
+    def _fail_action(_args: dict[str, Any], _ctx: Any = None, _sig: Any = None) -> None:
+        raise RuntimeError("Action execution failed")
+
+    default_cat = copy.copy(base_cat)
+    default_cat.functions = dict(getattr(base_cat, "functions", {}) or {})
+    default_cat.functions["incrementCounter"] = FunctionImplementation(
+        name="incrementCounter",
+        return_type="void",
+        schema={
+            "type": "object",
+            "properties": {"path": {"type": "string"}, "step": {"type": "number"}},
+        },
+        execute=_inc_counter,
+    )
+    default_cat.functions["failingAction"] = FunctionImplementation(
+        name="failingAction",
+        return_type="void",
+        schema={"type": "object", "properties": {}},
+        execute=_fail_action,
+    )
     data_model = DataModel(data_model_dict)
     surface = SurfaceModel(
         surface_id=surface_id,
         default_catalog=default_cat,
         data_model=data_model,
+        protocol_version=default_cat.protocol_version,
     )
     dispatched: list[dict[str, Any]] = []
+    surface_errors: list[dict[str, Any]] = []
+    captured_renderer_errors: list[dict[str, Any]] = []
     surface.on_action.subscribe(lambda evt: dispatched.append(evt))
+
+    raw_ver = str(getattr(default_cat, "protocol_version", "v0.9") or "v0.9")
+    ver = raw_ver if raw_ver.startswith("v") else f"v{raw_ver}"
+
+    def _on_surf_err(err: dict[str, Any]) -> None:
+        surface_errors.append(err)
+        captured_renderer_errors.append({"version": ver, "error": dict(err)})
+
+    surface.on_error.subscribe(_on_surf_err)
 
     context = DataContext(surface=surface, path=scope or "/")
 
     if expect_error:
-        with assert_raises(expect_error):
-            resolved = context.resolve_action(action_payload)
-            if isinstance(resolved, dict) and (
-                "event" in resolved or "name" in resolved
-            ):
-                surface.dispatch_action(resolved, source_component_id="test_comp")
+        with assert_raises(expect_error, captured_renderer_errors):
+            resolved = context.resolve_action(
+                action_payload, is_user_activated=user_activation
+            )
+            if isinstance(resolved, dict):
+                surface.dispatch_action(resolved, source_component_id=source_comp_id)
+            if surface_errors:
+                err = surface_errors[-1]
+                raise A2uiValidationError(
+                    err.get("message", "Invalid action"),
+                    code=err.get("code"),
+                    surface_id=err.get("surfaceId"),
+                )
     else:
-        resolved = context.resolve_action(action_payload)
-        if isinstance(resolved, dict) and ("event" in resolved or "name" in resolved):
-            surface.dispatch_action(resolved, source_component_id="test_comp")
-
-        if expect_dispatched is not None:
-            assert (
-                len(dispatched) >= 1
-            ), "Expected action to be dispatched, but none was"
-            actual = dispatched[0]
-            if "name" in expect_dispatched:
-                assert actual.get("name") == expect_dispatched["name"]
-            if "context" in expect_dispatched:
-                assert actual.get("context") == expect_dispatched["context"]
-            if "userMessage" in expect_dispatched:
-                assert actual.get("userMessage") == expect_dispatched["userMessage"]
-
+        resolved = context.resolve_action(
+            action_payload, is_user_activated=user_activation
+        )
+        if isinstance(resolved, dict):
+            surface.dispatch_action(resolved, source_component_id=source_comp_id)
+        _assert_dispatched_action_event(case, expect_dispatched, dispatched)
         if expect_data_model is not None:
-            assert data_model.data == expect_data_model
+            assert data_model.get("/") == expect_data_model
 
 
 def _normalize_version(version: Any) -> str:

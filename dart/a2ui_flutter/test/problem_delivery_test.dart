@@ -20,12 +20,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, Object?> _create(String surfaceId) => {
-  'version': 'v1.0',
+  'version': '1.0',
   'createSurface': {'surfaceId': surfaceId, 'catalogId': basicCatalog().id},
 };
 
 Map<String, Object?> _root(String surfaceId, String type) => {
-  'version': 'v1.0',
+  'version': '1.0',
   'updateComponents': {
     'surfaceId': surfaceId,
     'components': [

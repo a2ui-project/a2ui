@@ -19,11 +19,11 @@
 - name: test_v10_create_surface_inline_initialization
   description: Tests v1.0 createSurface message with inline components and initial dataModel initialization.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_v10"
         catalogId: "test-catalog-v10"
@@ -55,11 +55,11 @@
 - name: test_v10_create_surface_optional_catalog_id
   description: Tests that v1.0 createSurface permits omitting catalogId.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_v10_nocat"
   expect:
@@ -70,11 +70,11 @@
 - name: test_v10_create_surface_with_metadata_extensions
   description: Tests v1.0 createSurface with metadata and extension descriptors.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_v10_meta"
         catalogId: "test-catalog-v10"
@@ -90,11 +90,11 @@
 - name: test_v10_create_surface_metadata_extension_key_must_be_identifier
   description: Tests that v1.0 createSurface rejects metadata extensions whose key is not a Unicode identifier (UAX 31).
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_v10_meta_bad_key"
         catalogId: "test-catalog-v10"
@@ -108,11 +108,11 @@
 - name: test_v10_create_surface_metadata_only_holds_extensions
   description: Tests that v1.0 createSurface rejects metadata keys other than extensions.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_v10_meta_bad_field"
         catalogId: "test-catalog-v10"
@@ -126,15 +126,15 @@
   action: process_messages
   catalogs:
     - catalogId: main-catalog
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
     - catalogId: charts-catalog
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_v10_multi"
         catalogId: "main-catalog"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s_v10_multi"
         components:
@@ -160,11 +160,11 @@
 - name: test_v10_update_data_model_deletion
   description: Tests that updating a path with value null deletes the key from the data model in v1.0.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_v10_del"
         catalogId: "test-catalog-v10"
@@ -172,7 +172,7 @@
           user:
             name: "Alice"
             temporaryToken: "abc123xyz"
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "s_v10_del"
         path: "/user/temporaryToken"
@@ -189,12 +189,12 @@
   action: get_renderer_capabilities
   catalogs:
     - catalogId: cat-v10
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
   args:
     includeInlineCatalogs: false
-    version: "v1.0"
+    version: "1.0"
   expect:
-    v1.0:
+    "1.0":
       supportedCatalogIds:
         - "cat-v10"
 
@@ -204,7 +204,7 @@
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "test-catalog-v10"
@@ -221,11 +221,11 @@
     - "catalogs/basic/v1/catalog.json"
   messages:
     messages:
-      - version: "v1.0"
+      - version: "1.0"
         createSurface:
           surfaceId: "s1"
           catalogId: "test-catalog-v10"
-      - version: "v1.0"
+      - version: "1.0"
         createSurface:
           surfaceId: "s2"
           catalogId: "test-catalog-v10"
@@ -239,15 +239,15 @@
 - name: test_v10_rejects_v08_begin_rendering_action
   description: Tests that v1.0 MessageProcessor rejects v0.8 beginRendering action when protocolVersion is v1.0.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       beginRendering:
         surfaceId: "s_v10_invalid"
         catalogId: "test-catalog-v10"
   expectError:
     category: "ValidationError"
-    message: "action 'beginRendering' is not supported in protocol version v1.0"
+    message: "action 'beginRendering' is not supported in protocol version 1.0"
 
 - name: test_v10_non_string_surface_id_error
   description: Tests that a v1.0 action with a non-string surfaceId raises a ValidationError.
@@ -255,7 +255,7 @@
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: 12345
         catalogId: "test-catalog-v10"
@@ -268,15 +268,15 @@
   action: process_messages
   catalogs:
     - catalogId: cat-v10
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
     - catalogId: cat-v09
       protocolVersion: "v0.9"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_mismatch"
         catalogId: "cat-v10"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s_mismatch"
         components:
@@ -325,13 +325,13 @@
 - name: test_batch_multi_stage_lifecycle_pipeline
   description: Verifies create, component update, data update, and component mutation within a single batch array.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_pipeline"
         catalogId: "test-catalog-v10"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s_pipeline"
         components:
@@ -341,12 +341,12 @@
           - id: "text1"
             component: "Text"
             text: "Initial"
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "s_pipeline"
         path: "/status"
         value: "ready"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s_pipeline"
         components:
@@ -368,14 +368,14 @@
 - name: test_batch_duplicate_component_ids_in_same_message_error
   description: Verifies IntegrityError on duplicate component IDs within a single updateComponents message.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_dup"
         catalogId: "basic"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s_dup"
         components:
@@ -394,11 +394,11 @@
 - name: test_batch_atomic_rollback_on_candidate_topology_cycle
   description: Verifies candidate topology pre-flight cycle check aborts without mutating existing valid component tree.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s_cycle"
             catalogId: "basic"
@@ -419,7 +419,7 @@
               - id: "c1"
                 component: "Text"
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s_cycle"
             components:
@@ -435,14 +435,14 @@
 - name: test_update_components_on_deleted_surface_error
   description: Verifies updating components on a deleted surface raises IntegrityError.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s_del"
             catalogId: "basic"
-        - version: "v1.0"
+        - version: "1.0"
           deleteSurface:
             surfaceId: "s_del"
       expect:
@@ -450,7 +450,7 @@
           s_del:
             exists: false
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s_del"
             components:
@@ -463,14 +463,14 @@
 - name: test_update_data_model_on_deleted_surface_error
   description: Verifies updating data model on a deleted surface raises IntegrityError.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s_del_data"
             catalogId: "basic"
-        - version: "v1.0"
+        - version: "1.0"
           deleteSurface:
             surfaceId: "s_del_data"
       expect:
@@ -478,7 +478,7 @@
           s_del_data:
             exists: false
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateDataModel:
             surfaceId: "s_del_data"
             path: "/key"
@@ -489,9 +489,9 @@
 - name: test_delete_non_existent_surface_is_safe_noop
   description: Verifies deleting a non-existent surface ID executes cleanly as a no-op.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       deleteSurface:
         surfaceId: "non_existent_surface_id"
   expect:
@@ -502,10 +502,10 @@
 - name: test_permissive_mode_allows_orphan_components
   description: Verifies strictMode false accepts components unreachable from root.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: false
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_permissive_orphan"
         catalogId: "test-catalog-v10"
@@ -529,10 +529,10 @@
 - name: test_permissive_mode_allows_dangling_references
   description: Verifies strictMode false accepts containers referencing uncreated child IDs.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: false
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_permissive_dangling"
         catalogId: "test-catalog-v10"
@@ -548,12 +548,130 @@
           - id: "root"
             component: "Column"
 
+# A step's `validationConfig` holds the validation rules for that call only
+# (`ExecutionContext.validationConfig`), in place of the rules the processor was
+# created with. A rule the step leaves out is strict. The next call without one
+# uses the processor's own rules again.
+
+- name: test_v10_call_validation_config_relaxes_strict_processor
+  description: A strict processor accepts an orphan component in a call whose validationConfig allows orphans, and rejects one in the next call, which has no validationConfig.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  strictMode: true
+  steps:
+    - validationConfig:
+        allowOrphanComponents: true
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_relaxed_call"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Root"
+              - id: "orphan"
+                component: "Text"
+                text: "Orphan"
+      expect:
+        surfaces:
+          s_relaxed_call:
+            exists: true
+            components:
+              - id: "root"
+                component: "Text"
+              - id: "orphan"
+                component: "Text"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_strict_call"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Root"
+              - id: "orphan"
+                component: "Text"
+                text: "Orphan"
+      expectError:
+        message: "is not reachable from"
+
+- name: test_v10_call_validation_config_tightens_permissive_processor
+  description: A processor created without validation rules rejects an orphan component in a call whose validationConfig is strict, and accepts one in the next call, which has no validationConfig.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  strictMode: false
+  steps:
+    - validationConfig: {}
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_strict_call"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Root"
+              - id: "orphan"
+                component: "Text"
+                text: "Orphan"
+      expectError:
+        message: "is not reachable from"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_permissive_call"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Root"
+              - id: "orphan"
+                component: "Text"
+                text: "Orphan"
+      expect:
+        surfaces:
+          s_permissive_call:
+            exists: true
+            components:
+              - id: "root"
+                component: "Text"
+              - id: "orphan"
+                component: "Text"
+
+- name: test_v10_call_validation_config_leaves_out_rules_as_strict
+  description: A call whose validationConfig allows only orphans still rejects a dangling child reference, since the rules it leaves out are strict, even on a processor created without validation rules.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  strictMode: false
+  steps:
+    - validationConfig:
+        allowOrphanComponents: true
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_dangling_call"
+            catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["missing_child"]
+      expectError:
+        message: "Dangling reference"
+
 - name: test_composition_constraints_preserved_on_partial_parent_update
   description: Verifies updating container property without redefining children preserves existing child relationships.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s_partial_parent"
         catalogId: "test-catalog-v10"
@@ -564,7 +682,7 @@
           - id: "text_child"
             component: "Text"
             text: "Child Text"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s_partial_parent"
         components:
@@ -584,15 +702,15 @@
 - name: test_global_recursion_depth_limit_exceeded_error
   description: Verifies object nesting exceeding limit (>50) raises RecursionError.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s_rec"
             catalogId: "basic"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s_rec"
             components:
@@ -778,13 +896,13 @@
   description: >-
     A component that names no catalogId on a surface that names no default catalog cannot be resolved, so the update fails instead of falling back to the first registered catalog.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -810,10 +928,10 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -828,13 +946,13 @@
   description: >-
     A surface without a default catalog accepts components that each name their catalog.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -860,10 +978,10 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -898,11 +1016,11 @@
   description: >-
     A component's catalogId belongs to the component envelope (ComponentCommon), not to its properties. A catalog whose component schema is closed and declares no catalogId accepts a component that names that catalog.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogs:
     - catalogId: "closed-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Tag:
           type: object
@@ -912,10 +1030,10 @@
           additionalProperties: false
       functions: {}
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -936,13 +1054,13 @@
   description: >-
     Under strictMode: true (allow_unknown_elements=False), a function call that names a catalogId is validated against that catalog's function schema, which does not declare formatString. With strictMode: false, the call is accepted at processing time so a renderer can route it via callAgentFunction.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -968,11 +1086,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -991,13 +1109,13 @@
   description: >-
     A function call that names a catalogId has its args validated against that catalog's function definition.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -1023,11 +1141,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1046,13 +1164,13 @@
   description: >-
     A component from the surface default catalog may call a function from another catalog by naming its catalogId.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -1078,11 +1196,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1102,13 +1220,13 @@
   description: >-
     A function call that names a catalogId the client does not have is rejected.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -1134,11 +1252,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1157,16 +1275,16 @@
   description: >-
     A function call whose catalogId is an empty string names a catalog, so it does not fall back to the surface default. No catalog has an empty ID, so the call is rejected.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1185,16 +1303,16 @@
   description: >-
     A component's catalogId must be a string. A number is rejected as invalid instead of being ignored, which would resolve the component to the surface default.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1210,13 +1328,13 @@
   description: >-
     A function call that names no catalogId resolves against the surface default catalog, not the catalog of the component that contains it. formatString is declared by the basic catalog only.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -1242,11 +1360,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1266,16 +1384,16 @@
   description: >-
     Under strictMode: true (allow_unknown_elements=False), a function call that names no catalogId is validated against the surface default catalog's function schema, which does not declare notAFunction. With strictMode: false, the call is accepted at processing time so a renderer can route it via callAgentFunction.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1292,13 +1410,13 @@
   description: >-
     A function call that names no catalogId on a surface without a default catalog cannot be resolved, even when the component's own catalog declares the function.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -1324,10 +1442,10 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1346,15 +1464,15 @@
   description: >-
     @index is a universal system function that belongs to no catalog, so a template may call it without a catalogId on a surface that has no default catalog.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1380,16 +1498,16 @@
   description: >-
     @index is accepted on a surface whose default catalog is the basic catalog; it is not looked up as a catalog function.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1413,15 +1531,15 @@
   description: >-
     An update that names no catalogId resolves against the surface default, not the catalog of the component's earlier version, so it fails on a surface without a default catalog.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1429,7 +1547,7 @@
             component: "Text"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
             text: "Hello"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1444,13 +1562,13 @@
   description: >-
     An update that names no catalogId resolves against the surface default catalog even when the component's earlier version named another catalog. The basic catalog declares no Badge, so the update is rejected.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -1462,11 +1580,11 @@
           required: ["component", "label"]
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s"
             components:
@@ -1482,7 +1600,7 @@
               - id: "root"
                 component: "Badge"
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s"
             components:
@@ -1501,13 +1619,13 @@
   description: >-
     A call nested in the args of another call resolves its catalog on its own and does not inherit the catalog of the call around it. The outer wrap names custom-v10; the inner shout names no catalogId, so it resolves to the surface default (the basic catalog), which under strictMode: true rejects shout because the basic catalog does not declare it.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -1554,11 +1672,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1580,13 +1698,13 @@
   description: >-
     A call nested in the args of another call is accepted when it names the catalog that declares it, even though the surface default (the basic catalog) does not declare it.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -1633,11 +1751,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1661,13 +1779,13 @@
   description: >-
     On a surface without a default catalog, a call nested in the args of a call that names custom-v10 cannot be resolved when it names no catalogId itself, even though custom-v10 declares it.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -1714,10 +1832,10 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1740,13 +1858,13 @@
   description: >-
     @index needs no catalog, but a call in its args is still resolved and checked. Here the offset calls notAFunction, which under strictMode: true is rejected because the surface default (the basic catalog) does not declare it.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -1793,11 +1911,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1822,13 +1940,13 @@
   description: >-
     On a surface without a default catalog, @index itself is accepted, but a call in its args that names no catalogId cannot be resolved.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -1875,10 +1993,10 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1906,13 +2024,13 @@
   description: >-
     Calls inside a list property, and inside objects nested in that list, are resolved one by one; each names custom-v10, which declares shout.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -1959,11 +2077,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -1989,13 +2107,13 @@
   description: >-
     A call inside an object nested in a list property is resolved like any other call: it names no catalogId, so it resolves to the surface default (the basic catalog), which under strictMode: true rejects shout because the basic catalog does not declare it, even though the component and the list's first call use custom-v10.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -2042,11 +2160,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -2070,13 +2188,13 @@
   description: >-
     A call inside an object nested in a list property has its args checked against the catalog it names; custom-v10's shout requires a string phrase.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -2123,11 +2241,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -2148,13 +2266,13 @@
   description: >-
     The @ namespace is reserved for system functions, and v1.0 defines only @index. A call to @foo is rejected rather than looked up in a catalog.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -2201,11 +2319,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -2221,16 +2339,16 @@
   description: >-
     A function call's name must be a UAX #31 identifier. An empty name is not one, so the call is rejected rather than skipped.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -2246,13 +2364,13 @@
   description: >-
     Catalog resolution does not depend on strict validation. With strictMode off, a call that names no catalogId on a surface without a default catalog is still rejected.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: false
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -2299,10 +2417,10 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -2321,13 +2439,13 @@
   description: >-
     Catalog resolution does not depend on strict validation. With strictMode off, a call that names a catalogId the client does not have is still rejected.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: false
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -2374,11 +2492,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -2397,16 +2515,16 @@
   description: >-
     With strictMode off (default renderer processing), a function call whose catalog resolves is accepted even when that local catalog does not declare the function, so the renderer can forward it to the agent via callAgentFunction.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: false
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -2424,13 +2542,13 @@
   description: >-
     Every catalog a v1.0 surface uses must be built for v1.0. A call that names legacy-v09, a v0.9 catalog the client has, cannot be resolved on a v1.0 surface. The message check only requires the error to name the catalog, since SDKs word the reason differently.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -2488,11 +2606,11 @@
               $ref: "common_types.json#/$defs/DynamicString"
           required: ["component", "label"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -2511,13 +2629,13 @@
   description: >-
     A call's catalogId must be a string. A number is rejected as invalid instead of being ignored, which would resolve the call to the surface default.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -2564,11 +2682,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -2586,13 +2704,13 @@
   description: >-
     A component that names a catalogId is validated against that catalog, not the surface default. custom-v10 declares no Text, although the default (the basic catalog) does.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "custom-v10"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         Badge:
           type: object
@@ -2639,11 +2757,11 @@
               additionalProperties: false
           required: ["@call", "args"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -2659,15 +2777,15 @@
   description: >-
     There is no fallback to the catalogs the client supports, even when the case supplies only one. A component that names no catalogId on a surface without a default catalog is rejected.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: true
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s"
         components:
@@ -2686,18 +2804,18 @@
   description: >-
     A v1.0 surface created without a default catalog keeps the protocol version of the message that created it, so it is part of a v1.0 data model request. Its data model is empty.
   action: get_renderer_data_model
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         sendDataModel: true
   args:
-    version: "v1.0"
+    version: "1.0"
   expect:
-    version: "v1.0"
+    version: "1.0"
     surfaces:
       s: {}
 
@@ -2705,11 +2823,11 @@
   description: >-
     A v1.0 surface created without a default catalog is not part of a v0.9 data model request, so the request finds no surface to report.
   action: get_renderer_data_model
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s"
         sendDataModel: true
@@ -2721,13 +2839,13 @@
   description: >-
     With a v1.0 surface that has no default catalog and a v0.9 surface side by side, a v0.9 data model request reports only the v0.9 surface. The surfaces are created in separate steps, one batch per protocol version.
   action: get_renderer_data_model
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
     - "specification/v0_9/catalogs/basic/catalog.json"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s"
             sendDataModel: true

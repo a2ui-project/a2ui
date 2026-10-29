@@ -173,7 +173,7 @@ const String agentToRendererV1_0Json = r'''
       "type": "object",
       "properties": {
         "version": {
-          "const": "v1.0"
+          "const": "1.0"
         },
         "createSurface": {
           "type": "object",
@@ -251,7 +251,7 @@ const String agentToRendererV1_0Json = r'''
       "type": "object",
       "properties": {
         "version": {
-          "const": "v1.0"
+          "const": "1.0"
         },
         "updateComponents": {
           "type": "object",
@@ -276,7 +276,7 @@ const String agentToRendererV1_0Json = r'''
       "type": "object",
       "properties": {
         "version": {
-          "const": "v1.0"
+          "const": "1.0"
         },
         "updateDataModel": {
           "type": "object",
@@ -305,7 +305,7 @@ const String agentToRendererV1_0Json = r'''
       "type": "object",
       "properties": {
         "version": {
-          "const": "v1.0"
+          "const": "1.0"
         },
         "deleteSurface": {
           "type": "object",
@@ -327,7 +327,7 @@ const String agentToRendererV1_0Json = r'''
       "type": "object",
       "properties": {
         "version": {
-          "const": "v1.0"
+          "const": "1.0"
         },
         "callRendererFunction": {
           "type": "object",
@@ -363,7 +363,7 @@ const String agentToRendererV1_0Json = r'''
       "type": "object",
       "properties": {
         "version": {
-          "const": "v1.0"
+          "const": "1.0"
         },
         "agentFunctionResponse": {
           "$ref": "common_types.json#/$defs/FunctionResponse"

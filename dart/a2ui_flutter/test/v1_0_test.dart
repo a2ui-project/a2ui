@@ -30,7 +30,7 @@ Map<String, Object?> _createSurface(
   List<Map<String, Object?>> components, {
   Map<String, Object?>? dataModel,
 }) => {
-  'version': 'v1.0',
+  'version': '1.0',
   'createSurface': {
     'surfaceId': testSurfaceId,
     'catalogId': BasicCatalog.v1_0Id,
@@ -46,9 +46,13 @@ Future<SurfaceHarness> _pump(
   List<Map<String, Object?>> components, {
   Map<String, Object?>? dataModel,
   CatalogImplementation? catalog,
-}) => pumpSurface(tester, [
-  _createSurface(components, dataModel: dataModel),
-], catalog: catalog ?? basicCatalog());
+  ValidationConfig? validationConfig = ValidationConfig.strict,
+}) => pumpSurface(
+  tester,
+  [_createSurface(components, dataModel: dataModel)],
+  catalog: catalog ?? basicCatalog(),
+  validationConfig: validationConfig,
+);
 
 Map<String, Object?> _bind(String path) => {'@path': path};
 
@@ -420,6 +424,7 @@ void main() {
           },
         ],
         dataModel: {'zip': ''},
+        validationConfig: null,
       );
 
       await tester.enterText(find.byType(TextField), 'abc');

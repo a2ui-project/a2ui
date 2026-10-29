@@ -160,8 +160,8 @@ class TestSpecificationRoundtripAllFormats:
 
         if data.get("customComponents"):
             pytest.skip(
-                f"{os.path.basename(json_file)} uses custom components not in the basic"
-                " catalog"
+                f"{os.path.basename(json_file)} uses custom components not in the"
+                " basic catalog"
             )
 
         messages = data.get("messages", [data])
@@ -187,7 +187,7 @@ class TestSpecificationRoundtripAllFormats:
             pytest.skip(f"No components in {os.path.basename(json_file)}")
 
         surface_payload = to_message_models({
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": surface_id,
                 "catalogId": self.catalog.catalog_id,

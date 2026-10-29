@@ -15,17 +15,12 @@
  */
 
 import {describe, expect, test} from 'vitest';
-import {
-  A2uiCompilationParseError,
-  A2uiCompilationValidationError,
-  A2uiValidationError,
-  ParseError,
-} from '../../src/errors.js';
 import {DirectJsonParser} from '../../src/inference-formats/direct-json/parser.js';
 import {FileSystemCatalogProvider} from '../../src/processor/catalog-providers.js';
-import {ResponsePart} from '../../src/parser/response-part.js';
+import {ResponseStream} from '../../src/parser/response-stream.js';
+import {StreamPart} from '../../src/parser/response-part.js';
 import {LoadedCase, loadCases} from './loader.js';
-import {conformancePath, registerCase} from './suite-helpers.js';
+import {categoryOf, conformancePath, registerCase} from './suite-helpers.js';
 
 /**
  * Cases that run but do not pass yet, with the reason for each.
@@ -44,12 +39,20 @@ interface StreamingArgs {
   catalogs?: string[];
   progressive_keys?: string[];
   wrapped?: boolean;
+  after_rejected_block?: 'end' | 'continue';
+}
+
+interface ExpectedError {
+  category: string;
+  message?: string;
 }
 
 interface Step {
   input: string;
   expect?: Array<Record<string, unknown>>;
-  expect_error?: {category: string; message?: string};
+  expect_error?: ExpectedError;
+  expect_partial_results?: Array<Record<string, unknown>>;
+  expect_in_block?: boolean;
 }
 
 function catalogPaths(args: StreamingArgs): string[] {
@@ -82,12 +85,15 @@ function makeParser(args: StreamingArgs): DirectJsonParser {
   });
 }
 
-/** A part in the suite's shape: text or messages, never both. */
-function partToDict(part: ResponsePart): Record<string, unknown> {
-  return part.type === 'text' ? {text: part.text} : {a2ui: part.a2ui};
+/** A part in the suite's shape: text, messages or an error, one per part. */
+function partToDict(part: StreamPart): Record<string, unknown> {
+  if (part.type === 'text') return {text: part.text};
+  if (part.type === 'error') return {error: {category: categoryOf(part.error)}};
+  return {a2ui: part.a2ui};
 }
 
-function expectError(fn: () => unknown, expected: NonNullable<Step['expect_error']>): void {
+/** Runs `fn`, expects it to throw `expected`, and returns the error. */
+function expectError(fn: () => unknown, expected: ExpectedError): unknown {
   let thrown: unknown;
   try {
     fn();
@@ -95,18 +101,11 @@ function expectError(fn: () => unknown, expected: NonNullable<Step['expect_error
     thrown = e;
   }
   expect(thrown, 'the step should raise').toBeDefined();
-  if (expected.category === 'ParseError') {
-    expect(thrown instanceof ParseError || thrown instanceof A2uiCompilationParseError).toBe(true);
-  } else if (expected.category === 'ValidationError') {
-    expect(
-      thrown instanceof A2uiValidationError || thrown instanceof A2uiCompilationValidationError,
-    ).toBe(true);
-  } else {
-    throw new Error(`Unknown error category '${expected.category}'`);
-  }
+  expect(categoryOf(thrown)).toBe(expected.category);
   if (expected.message) {
     expect((thrown as Error).message).toMatch(new RegExp(expected.message));
   }
+  return thrown;
 }
 
 function mergeAdjacentText(parts: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
@@ -127,22 +126,40 @@ function runCase(testCase: LoadedCase): void {
   const args = testCase.args as unknown as StreamingArgs;
   const wrapped = args.wrapped ?? true;
   const parser = makeParser(args);
-  const stream = parser.openStream({wrapped});
+  const stream: ResponseStream<StreamPart> = parser.openStream({
+    wrapped,
+    afterRejectedBlock: args.after_rejected_block ?? 'end',
+  });
   const chunks: string[] = [];
   const yielded: Array<Record<string, unknown>> = [];
 
   for (const [index, step] of (testCase.steps as Step[]).entries()) {
     chunks.push(step.input);
     if (step.expect_error) {
-      expectError(() => stream.feed(step.input), step.expect_error);
+      const error = expectError(() => stream.feed(step.input), step.expect_error);
+      if (step.expect_partial_results) {
+        const partial = (error as {partialResults?: StreamPart[]}).partialResults ?? [];
+        expect(partial.map(partToDict), `step ${index}: partial results`).toEqual(
+          step.expect_partial_results,
+        );
+      }
+      if (step.expect_in_block !== undefined) {
+        expect(stream.isInBlock, `step ${index}: in block`).toBe(step.expect_in_block);
+      }
       return;
     }
     const parts = stream.feed(step.input).map(partToDict);
     expect(parts, `step ${index}: ${step.input}`).toEqual(step.expect);
+    if (step.expect_in_block !== undefined) {
+      expect(stream.isInBlock, `step ${index}: in block`).toBe(step.expect_in_block);
+    }
     yielded.push(...parts);
   }
 
   const closed = stream.close().map(partToDict);
+  if (testCase.expect_close) {
+    expect(closed, 'close').toEqual(testCase.expect_close);
+  }
   yielded.push(...closed);
 
   if (testCase.expect_matches_single_shot) {

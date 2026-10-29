@@ -26,7 +26,7 @@ import {
   THEME_DOCUMENT_KEYS,
   type CatalogDocumentModel,
 } from './schema_serializer.js';
-import {inlinePeerAndLocalRefs, isShorthandParameterMap} from './schema_loader.js';
+import {isShorthandParameterMap} from './schema_loader.js';
 import {schemaRequiresArgs, standardDefsForVersion} from './spec_shape.js';
 import type {CatalogInterface, ComponentApi, FunctionApi} from './types.js';
 
@@ -210,8 +210,8 @@ export interface GenerateValidationSchemaOptions {
   componentEnvelopeRef?: string;
   /** Explicit standard $defs dictionary to use when serializing catalog components and functions. */
   standardDefs?: Record<string, unknown>;
-  /** Explicit protocol version for standard $defs resolution ('v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0'). */
-  protocolVersion?: 'v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0' | string;
+  /** Explicit protocol version for standard $defs resolution ('v0.8' | 'v0.9' | 'v0.9.1' | '1.0'). */
+  protocolVersion?: 'v0.8' | 'v0.9' | 'v0.9.1' | '1.0' | string;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -257,7 +257,6 @@ interface SourceContext {
   readonly model: CatalogDocumentModel;
   readonly defs: Readonly<JsonObject>;
   readonly rootDoc: JsonObject;
-  readonly peers: readonly CatalogInterface<ComponentApi, FunctionApi>[];
   readonly isV10: boolean;
 }
 
@@ -367,22 +366,6 @@ function collectSourceSubSchemas(
       }
       continue;
     }
-    if (mixinName === undefined && !ref.startsWith('#/') && context.peers.length > 0) {
-      if (!visited.has(ref)) {
-        // `inlinePeerAndLocalRefs` records `ref` itself once it resolves it, so
-        // it is given `visited` without `ref`.
-        const resolvedPeer = inlinePeerAndLocalRefs(sub, context.rootDoc, context.peers, {
-          inlineLocalDefs: false,
-          visited,
-        });
-        if (isJsonObject(resolvedPeer) && resolvedPeer['$ref'] !== ref) {
-          const nextVisited = new Set(visited);
-          nextVisited.add(ref);
-          local.push(...collectSourceSubSchemas(resolvedPeer, context, nextVisited));
-          continue;
-        }
-      }
-    }
     const external = EXTERNAL_DEF_REF.exec(ref);
     const name = mixinName ?? (external && !external[2] ? external[1] : undefined);
     const mixin = name !== undefined ? context.standardDefs[name] : undefined;
@@ -425,9 +408,7 @@ function sourceComponentSchema(
   const copied: JsonObject = {};
   for (const [name, schema] of Object.entries(props)) {
     if (COMPONENT_ENVELOPE_KEYS.has(name)) continue;
-    const copy = inlinePeerAndLocalRefs(deepCopyJson(schema), context.rootDoc, context.peers, {
-      inlineLocalDefs: false,
-    });
+    const copy = deepCopyJson(schema);
     restoreSourceRefs(copy, context.standardDefs, true);
     copied[name] = copy;
   }
@@ -766,12 +747,7 @@ function buildFunctionArgsSchema(
   let paramSchemaObj: JsonObject;
   const authored = authoredFunctionArgs(name, context);
   if (authored) {
-    paramSchemaObj = inlinePeerAndLocalRefs(
-      deepCopyJson(authored),
-      context.rootDoc,
-      context.peers,
-      {inlineLocalDefs: false},
-    ) as JsonObject;
+    paramSchemaObj = deepCopyJson(authored);
     restoreSourceRefs(paramSchemaObj, context.standardDefs, false);
   } else if (fn.schema && typeof fn.schema === 'object' && 'safeParse' in fn.schema) {
     const rawZod = zodToJsonSchema(fn.schema, {
@@ -1036,12 +1012,7 @@ export function generateValidationSchema<
     standardDefs,
     model,
     defs: authoredDefs,
-    rootDoc: {
-      $defs: authoredDefs,
-      components: Object.fromEntries(model.components),
-      functions: Object.fromEntries(model.functions),
-    },
-    peers: catalog.peerCatalogs ?? [],
+    rootDoc: {$defs: authoredDefs},
     isV10: Boolean(version) && isAtLeastVersion(version, '1.0'),
   };
 
