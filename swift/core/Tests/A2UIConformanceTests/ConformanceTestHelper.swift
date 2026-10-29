@@ -371,6 +371,19 @@ public enum ConformanceTestHelper {
       remoteSchemas: &remoteSchemas,
       allDefinitions: &allDefinitions
     )
+    // An inline catalog that names no common types schema refers to the
+    // published one for its protocol version, as in the other SDKs, so that
+    // references such as `#/$defs/ChildList` resolve.
+    if catalogConfiguration["common_types_schema"] == nil,
+      catalogConfiguration["commonTypesSchema"] == nil,
+      let commonTypes = try? commonTypesSchema(forProtocolVersion: protocolVersion ?? "1.0")
+    {
+      loadCommonTypesDefinitions(
+        from: ["commonTypesSchema": commonTypes],
+        remoteSchemas: &remoteSchemas,
+        allDefinitions: &allDefinitions
+      )
+    }
 
     guard
       let catalogSchemaJSON = loadCatalogDefinitions(
@@ -538,6 +551,28 @@ public enum ConformanceTestHelper {
   }
 
   /// Extracts test cases from a loaded YAML object.
+  /// The flags a case's `validationConfig` may set (`validationConfig` in
+  /// `conformance_schema.json`).
+  public static let caseValidationFlags: Set<String> = [
+    "allowOrphanComponents", "allowDanglingReferences", "allowMissingRoot", "allowUnknownElements",
+  ]
+
+  /// Builds the `ValidationConfig` a case's `validationConfig` flags describe, or nil when a
+  /// flag is unknown.
+  public static func validationConfig(
+    from flags: [String: Bool],
+    targetVersion: String? = nil
+  ) -> ValidationConfig? {
+    guard Set(flags.keys).isSubset(of: caseValidationFlags) else { return nil }
+    return ValidationConfig(
+      allowOrphanComponents: flags["allowOrphanComponents"] ?? false,
+      allowDanglingReferences: flags["allowDanglingReferences"] ?? false,
+      allowMissingRoot: flags["allowMissingRoot"] ?? false,
+      allowUnknownElements: flags["allowUnknownElements"] ?? false,
+      targetVersion: targetVersion
+    )
+  }
+
   public static func parseTestCases(from loadedYAML: Any) -> [ConformanceTestCase] {
     guard let array = loadedYAML as? [[String: Any]] else { return [] }
     return array.compactMap { dictionary in
@@ -549,6 +584,7 @@ public enum ConformanceTestHelper {
       let action = dictionary["action"] as? String
       let protocolVersion = dictionary["protocolVersion"] as? String
       let strictMode = dictionary["strictMode"] as? Bool ?? false
+      let validationConfig = dictionary["validationConfig"] as? [String: Bool]
       var catalogPaths = dictionary["catalogPaths"] as? [String] ?? []
       if let catalogPath = dictionary["catalogPath"] as? String {
         catalogPaths.append(catalogPath)
@@ -605,6 +641,7 @@ public enum ConformanceTestHelper {
         action: action,
         protocolVersion: protocolVersion,
         strictMode: strictMode,
+        validationConfig: validationConfig,
         catalogPaths: catalogPaths,
         inlineCatalog: inlineCatalog,
         payload: payload,
@@ -661,6 +698,9 @@ public struct ConformanceTestCase: Sendable {
   public let protocolVersion: String?
   /// Whether the case requires strict topology validation (`strictMode: true`).
   public let strictMode: Bool
+  /// The validation flags a `process_messages` case sets (`validationConfig`), or nil when
+  /// the case leaves its checks to the harness. A flag the case leaves out is false.
+  public let validationConfig: [String: Bool]?
   /// Repository-relative catalog schema paths (`catalogPaths`, or a single `catalogPath`).
   public let catalogPaths: [String]
   /// An inline catalog schema (`catalog`), used instead of `catalogPaths` when present.
@@ -680,6 +720,7 @@ public struct ConformanceTestCase: Sendable {
     action: String? = nil,
     protocolVersion: String? = nil,
     strictMode: Bool = false,
+    validationConfig: [String: Bool]? = nil,
     catalogPaths: [String] = [],
     inlineCatalog: JSONValue? = nil,
     payload: JSONValue? = nil,
@@ -696,6 +737,7 @@ public struct ConformanceTestCase: Sendable {
     self.action = action
     self.protocolVersion = protocolVersion
     self.strictMode = strictMode
+    self.validationConfig = validationConfig
     self.catalogPaths = catalogPaths
     self.inlineCatalog = inlineCatalog
     self.payload = payload

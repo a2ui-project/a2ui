@@ -2267,13 +2267,43 @@ function assertSurfacesMatch(processor, expect) {
   }
 }
 
+/**
+ * The flags a case's `validationConfig` may set (`validationConfig` in
+ * conformance_schema.json). An unknown flag fails the case rather than being
+ * silently ignored.
+ */
+const CASE_VALIDATION_FLAGS = new Set([
+  'allowOrphanComponents',
+  'allowDanglingReferences',
+  'allowMissingRoot',
+  'allowUnknownElements',
+]);
+
+/**
+ * The processor's validation config for a process_messages case. A case's
+ * `validationConfig` sets its checks, so they don't depend on this harness: a
+ * flag it leaves out is false. Without one, `strictMode` selects strict
+ * validation and anything else none.
+ */
+function caseValidationConfig(testCase) {
+  const flags = testCase.validationConfig;
+  if (flags === undefined) {
+    return testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {};
+  }
+  const unknown = Object.keys(flags).filter(name => !CASE_VALIDATION_FLAGS.has(name));
+  if (unknown.length > 0) {
+    throw new Error(`Unknown validationConfig flags: ${unknown.join(', ')}`);
+  }
+  return {validationConfig: {...STRICT_VALIDATION, ...flags}};
+}
+
 function validateProcessMessagesTestCase(testCase) {
   const {messages, payload, steps, expect, expectError, protocolVersion} = testCase;
 
   const testCatalogs = getCatalogsForTestCase(testCase);
   const processorOptions = {
     ...(protocolVersion ? {version: protocolVersion} : {}),
-    ...(testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {}),
+    ...caseValidationConfig(testCase),
   };
   const processor = new MessageProcessor(testCatalogs, undefined, processorOptions);
 
@@ -2305,10 +2335,24 @@ function validateProcessMessagesTestCase(testCase) {
         );
       }
     }
+    if (expectedErr.code) {
+      if (
+        !err.message.includes(expectedErr.code) &&
+        err.name !== expectedErr.code &&
+        err.code !== expectedErr.code
+      ) {
+        throw new Error(
+          `Expected error matching '${expectedErr.code}' but received: ${err.message}`,
+        );
+      }
+    }
     if (expectedErr.message) {
       const expectedMsg = expectedErr.message;
+      const normalizedActual = err.message.replaceAll('"', "'").replaceAll("','", "', '");
+      const normalizedExpected = expectedMsg.replaceAll('"', "'").replaceAll("','", "', '");
       const matches =
         err.message.includes(expectedMsg) ||
+        normalizedActual.includes(normalizedExpected) ||
         (expectedMsg.includes('Unsupported protocol version') &&
           (err.message.includes('Invalid enum value') ||
             err.message.includes('Unsupported protocol version'))) ||
@@ -2325,7 +2369,9 @@ function validateProcessMessagesTestCase(testCase) {
   if (steps && Array.isArray(steps)) {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
-      let stepMsgs = step.messages || (step.payload ? [step.payload] : []);
+      let stepMsgs =
+        step.messages ||
+        (Array.isArray(step.payload) ? step.payload : step.payload ? [step.payload] : []);
       if (!stepMsgs && step.message) stepMsgs = [step.message];
       stepMsgs = normalizeMsgs(stepMsgs);
 

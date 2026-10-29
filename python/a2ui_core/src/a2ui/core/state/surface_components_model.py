@@ -28,6 +28,7 @@ from .component_model import ComponentModel
 from .validation_helpers import (
     MAX_GLOBAL_DEPTH,
     analyze_topology,
+    declares_composition_rules,
     validate_component_integrity,
     validate_composition_constraints,
 )
@@ -40,6 +41,9 @@ class SurfaceComponentsModel:
     def __init__(self, default_catalog: CatalogApi | None = None) -> None:
         self.default_catalog = default_catalog
         self._components: dict[str, ComponentModel] = {}
+        # The catalogs the components come from, keyed by identity, with the
+        # number of components from each.
+        self._catalogs: dict[int, tuple[CatalogApi, int]] = {}
         self.on_created = EventSource()
         self.on_deleted = EventSource()
         # Counts the changes to the components, so that `_bound` is used only
@@ -106,10 +110,8 @@ class SurfaceComponentsModel:
 
         Like `add_component`, but the component takes `index` in the model's
         order (see `keys`), and the components from that position on move one
-        place later. An index at or past the end appends. The order matters to
-        checks that read it, such as `allowedParents`, which takes a
-        component's last parent in that order. Inserting before the end costs
-        time in proportion to the number of components.
+        place later. An index at or past the end appends. Inserting before the
+        end costs time in proportion to the number of components.
         """
         if component.id in self._components:
             raise A2uiStateError(f"Component with id '{component.id}' already exists.")
@@ -122,6 +124,7 @@ class SurfaceComponentsModel:
             self._components.clear()
             self._components.update(entries)
         self._changes += 1
+        self._count_catalog(component.catalog, 1)
         component.on_updated.subscribe(self._note_change)
         self.on_created.emit(component)
 
@@ -131,11 +134,34 @@ class SurfaceComponentsModel:
             comp = self._components[component_id]
             del self._components[component_id]
             self._changes += 1
+            self._count_catalog(comp.catalog, -1)
             comp.dispose()
             self.on_deleted.emit(component_id)
 
     def _note_change(self, _: object = None) -> None:
         self._changes += 1
+
+    def _count_catalog(self, catalog: CatalogApi | None, delta: int) -> None:
+        """Adds `delta` to the number of components from `catalog`."""
+        if catalog is None:
+            return
+        _, count = self._catalogs.get(id(catalog), (catalog, 0))
+        if count + delta > 0:
+            self._catalogs[id(catalog)] = (catalog, count + delta)
+        else:
+            self._catalogs.pop(id(catalog), None)
+
+    def _may_have_composition_rules(self, new_components: list[ComponentModel]) -> bool:
+        """Whether a catalog of the components, held or new, declares composition rules.
+
+        Reads the catalogs rather than the components, so it costs time in
+        proportion to the catalogs, not to the number of components.
+        """
+        catalogs = {key: catalog for key, (catalog, _) in self._catalogs.items()}
+        for comp_model in new_components:
+            if comp_model.catalog is not None:
+                catalogs[id(comp_model.catalog)] = comp_model.catalog
+        return any(declares_composition_rules(c) for c in catalogs.values())
 
     def get_child_references(self, component_id: str) -> list[tuple[str, str]]:
         """Resolves child component references for a given component identifier."""
@@ -222,10 +248,21 @@ class SurfaceComponentsModel:
 
         Args:
             new_components: The inbound component models.
-            root_id: The surface root component id.
-            config: Validation settings; validation is skipped when None.
+            root_id: The surface root component id. A config whose `root_id`
+                is not the default `"root"` overrides it.
+            config: Validation settings. When None, only the composition
+                constraints are checked.
         """
+        if config is not None and config.root_id != "root":
+            root_id = config.root_id
         if config is None:
+            if self._may_have_composition_rules(new_components):
+                prospective_components = dict(self._components)
+                for comp_model in new_components:
+                    prospective_components[comp_model.id] = comp_model
+                validate_composition_constraints(
+                    prospective_components, root_id=root_id
+                )
             return
 
         seen_ids: set[str] = set()
@@ -280,12 +317,14 @@ class SurfaceComponentsModel:
             config.allow_orphan_components or config.allow_missing_root
         )
         if deferred and bound is not None:
-            if not bound.composition_holds(batch, self._components):
+            if not bound.composition_holds(batch, self._components, root_id):
                 # The whole-surface check decides, and raises the error it
                 # reports for the surface.
                 prospective_components = dict(self._components)
                 prospective_components.update(batch)
-                validate_composition_constraints(prospective_components)
+                validate_composition_constraints(
+                    prospective_components, root_id=root_id
+                )
             if (
                 not config.allow_missing_root
                 and root_id not in batch
@@ -302,7 +341,7 @@ class SurfaceComponentsModel:
                 limit,
                 lambda comp_id: comp_id in batch or comp_id in self._components,
             ):
-                bound.record_batch(batch, self._components)
+                bound.record_batch(batch)
                 self._keep_bound(bound, new_components)
                 return
             # The bound cannot show that the graph passes; walk all of it.
@@ -312,7 +351,7 @@ class SurfaceComponentsModel:
         else:
             prospective_components = dict(self._components)
             prospective_components.update(batch)
-            validate_composition_constraints(prospective_components)
+            validate_composition_constraints(prospective_components, root_id=root_id)
             validate_component_integrity(
                 prospective_components, root_id=root_id, config=config
             )
@@ -325,19 +364,7 @@ class SurfaceComponentsModel:
     def _keep_bound(
         self, bound: ComponentGraphBound, new_components: list[ComponentModel]
     ) -> None:
-        """Keeps the bound of the graph a checked batch leaves, until it is applied.
-
-        A component replaced by one of another type or catalog moves to the end
-        of the surface when it is applied, which changes the order the bound
-        records, so the bound is not kept then.
-        """
-        for comp_model in new_components:
-            existing = self._components.get(comp_model.id)
-            if existing is not None and (
-                existing.type != comp_model.type
-                or existing.catalog is not comp_model.catalog
-            ):
-                return
+        """Keeps the bound of the graph a checked batch leaves, until it is applied."""
         self._bound = bound
         self._bound_batch = new_components
 
@@ -358,6 +385,7 @@ class SurfaceComponentsModel:
         for component in list(self._components.values()):
             component.dispose()
         self._components.clear()
+        self._catalogs.clear()
         self._bound = None
         self.on_created.dispose()
         self.on_deleted.dispose()

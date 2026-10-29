@@ -38,6 +38,7 @@ from a2ui.core.validation import (
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
     PayloadValidator,
+    ValidationConfig,
 )
 from a2ui.core.exceptions import (
     A2uiCatalogError,
@@ -505,6 +506,22 @@ def assert_raises(expect_error: Any):
     with pytest.raises(expected_class) as excinfo:
         yield
 
+    if isinstance(expect_error, dict) and expect_error.get("code"):
+        expected_code = expect_error["code"]
+        err_details = getattr(excinfo.value, "details", [])
+        err_code = getattr(excinfo.value, "code", None)
+        assert (
+            err_code == expected_code
+            or expected_code in str(excinfo.value)
+            or (
+                err_details
+                and any(getattr(d, "code", None) == expected_code for d in err_details)
+            )
+        ), (
+            f"Expected error code '{expected_code}' not found in exception"
+            f" '{excinfo.value}'"
+        )
+
     if message:
         msg_norm = message.lower()
         err_details = getattr(excinfo.value, "details", [])
@@ -938,14 +955,40 @@ def validate_pure_validation_case(case: dict[str, Any]) -> None:
                 _assert_expected_surface_state(processor, expected)
 
 
+# The flags a case's `validationConfig` may set (`validationConfig` in
+# conformance/conformance_schema.json), with the ValidationConfig field each
+# sets. A flag the case leaves out is False.
+_CASE_VALIDATION_FLAGS = {
+    "allowOrphanComponents": "allow_orphan_components",
+    "allowDanglingReferences": "allow_dangling_references",
+    "allowMissingRoot": "allow_missing_root",
+    "allowUnknownElements": "allow_unknown_elements",
+}
+
+
+def _case_validation_config(flags: dict[str, bool]) -> ValidationConfig:
+    """Builds the ValidationConfig a case's `validationConfig` flags describe."""
+    unknown = set(flags) - set(_CASE_VALIDATION_FLAGS)
+    assert not unknown, f"Unknown validationConfig flags: {sorted(unknown)}"
+    return ValidationConfig(
+        **{_CASE_VALIDATION_FLAGS[name]: value for name, value in flags.items()}
+    )
+
+
 def validate_process_messages_case(case: dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
-    is_strict = bool(
-        case.get("strictMode")
-        or case.get("strict_mode")
-        or case.get("options", {}).get("strict_mode")
-    )
-    val_config = STRICT_VALIDATION if is_strict else None
+    if "validationConfig" in case:
+        # The case sets its checks, so they don't depend on this harness.
+        val_config: ValidationConfig | None = _case_validation_config(
+            case["validationConfig"]
+        )
+    else:
+        is_strict = bool(
+            case.get("strictMode")
+            or case.get("strict_mode")
+            or case.get("options", {}).get("strict_mode")
+        )
+        val_config = STRICT_VALIDATION if is_strict else None
     processor = MessageProcessor(
         catalogs, options=MessageProcessorOptions(validation_config=val_config)
     )
