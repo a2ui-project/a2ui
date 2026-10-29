@@ -287,7 +287,7 @@
     category: "CatalogError"
     surfaceId: "s_mismatch"
     rendererError:
-      version: "v1.0"
+      version: "1.0"
       error:
         code: "CATALOG_NOT_FOUND"
         surfaceId: "s_mismatch"
@@ -399,7 +399,7 @@
     category: "IntegrityError"
     surfaceId: "s_dup"
     rendererError:
-      version: "v1.0"
+      version: "1.0"
       error:
         code: "INTEGRITY_ERROR"
         surfaceId: "s_dup"
@@ -447,7 +447,7 @@
         category: "IntegrityError"
         surfaceId: "s_cycle"
         rendererError:
-          version: "v1.0"
+          version: "1.0"
           error:
             code: "RECURSION_LIMIT_EXCEEDED"
             surfaceId: "s_cycle"
@@ -964,7 +964,7 @@
     surfaceId: "s"
     message: "has no default catalogId"
     rendererError:
-      version: "v1.0"
+      version: "1.0"
       error:
         code: "CATALOG_NOT_FOUND"
         surfaceId: "s"
@@ -1134,7 +1134,7 @@
     surfaceId: "s"
     message: "Unrecognized function 'formatString'"
     rendererError:
-      version: "v1.0"
+      version: "1.0"
       error:
         code: "VALIDATION_FAILED"
         surfaceId: "s"
@@ -1197,7 +1197,7 @@
     surfaceId: "s"
     message: "phrase"
     rendererError:
-      version: "v1.0"
+      version: "1.0"
       error:
         code: "VALIDATION_FAILED"
         surfaceId: "s"
@@ -1505,7 +1505,7 @@
     surfaceId: "s"
     message: "has no default catalogId"
     rendererError:
-      version: "v1.0"
+      version: "1.0"
       error:
         code: "CATALOG_NOT_FOUND"
         surfaceId: "s"
@@ -1610,7 +1610,7 @@
     surfaceId: "s"
     message: "has no default catalogId"
     rendererError:
-      version: "v1.0"
+      version: "1.0"
       error:
         code: "CATALOG_NOT_FOUND"
         surfaceId: "s"
@@ -1913,7 +1913,7 @@
     surfaceId: "s"
     message: "has no default catalogId"
     rendererError:
-      version: "v1.0"
+      version: "1.0"
       error:
         code: "CATALOG_NOT_FOUND"
         surfaceId: "s"
@@ -2086,7 +2086,7 @@
     surfaceId: "s"
     message: "has no default catalogId"
     rendererError:
-      version: "v1.0"
+      version: "1.0"
       error:
         code: "CATALOG_NOT_FOUND"
         surfaceId: "s"
@@ -2508,7 +2508,7 @@
     surfaceId: "s"
     message: "has no default catalogId"
     rendererError:
-      version: "v1.0"
+      version: "1.0"
       error:
         code: "CATALOG_NOT_FOUND"
         surfaceId: "s"
@@ -2876,7 +2876,7 @@
     surfaceId: "s"
     message: "has no default catalogId"
     rendererError:
-      version: "v1.0"
+      version: "1.0"
       error:
         code: "CATALOG_NOT_FOUND"
         surfaceId: "s"
@@ -2952,17 +2952,17 @@
   description: >-
     Multi-step strictMode: false incremental streaming case verifying that out-of-order child components arriving before root emit zero errors and assemble cleanly once root arrives.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   strictMode: false
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s_stream"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s_stream"
             components:
@@ -2978,7 +2978,7 @@
                 component: "Text"
                 text: "Streamed Leaf"
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s_stream"
             components:
@@ -2997,7 +2997,7 @@
                 component: "Card"
                 child: "leaf_text"
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s_stream"
             components:

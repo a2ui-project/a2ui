@@ -106,11 +106,11 @@
 - name: test_validation_result_warning_and_info_non_blocking
   description: Verifies that CheckRules returning severity warning or info populate validationResults while keeping isValid true and validationErrors empty.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "form_surface"
             catalogId: "basic"
@@ -158,11 +158,11 @@
 - name: test_validation_result_multiple_rules_preserve_order
   description: Verifies that a component with two failing error rules and one failing warning rule preserves declaration order in validationErrors and validationResults.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "form_surface"
             catalogId: "basic"
@@ -221,11 +221,11 @@
 - name: test_validation_result_reactive_recovery_on_data_update
   description: Verifies that failing validation recovers reactively when updateDataModel provides a valid value in a subsequent step.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "form_surface"
             catalogId: "basic"
@@ -258,7 +258,7 @@
                   message: "Please enter a valid email address (e.g. user@example.com)."
                   severity: "error"
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           updateDataModel:
             surfaceId: "form_surface"
             path: "/email"
@@ -276,11 +276,11 @@
 - name: test_validation_result_coercion_in_logical_and_or_not
   description: Verifies that ValidationResult objects returned by functions inside logical and, or, and not expressions are coerced via their .valid boolean property.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "form_surface"
             catalogId: "basic"

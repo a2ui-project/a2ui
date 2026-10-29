@@ -132,7 +132,7 @@
             code: "invalid_value"
             surfaceId: "s1"
         rendererError:
-          version: "v1.0"
+          version: "1.0"
           error:
             code: "VALIDATION_FAILED"
             surfaceId: "s1"
@@ -154,7 +154,7 @@
             code: "missing_field"
             surfaceId: "s1"
         rendererError:
-          version: "v1.0"
+          version: "1.0"
           error:
             code: "VALIDATION_FAILED"
             surfaceId: "s1"
@@ -176,7 +176,7 @@
             code: "invalid_value"
             surfaceId: "s1"
         rendererError:
-          version: "v1.0"
+          version: "1.0"
           error:
             code: "VALIDATION_FAILED"
             surfaceId: "s1"
@@ -354,7 +354,7 @@
         surfaceId: "s1"
         path: "/components/0/component"
         rendererError:
-          version: "v1.0"
+          version: "1.0"
           error:
             code: "VALIDATION_FAILED"
             surfaceId: "s1"
@@ -385,7 +385,7 @@
         category: "ValidationError"
         surfaceId: "s1"
         rendererError:
-          version: "v1.0"
+          version: "1.0"
           error:
             code: "VALIDATION_FAILED"
             surfaceId: "s1"
@@ -423,7 +423,7 @@
         category: "ValidationError"
         surfaceId: "s1"
         rendererError:
-          version: "v1.0"
+          version: "1.0"
           error:
             code: "VALIDATION_FAILED"
             surfaceId: "s1"
@@ -484,7 +484,7 @@
         path: "/components/1/id"
         message: "Component id '123invalid_id' must be a valid"
         rendererError:
-          version: "v1.0"
+          version: "1.0"
           error:
             code: "VALIDATION_FAILED"
             surfaceId: "s1"
@@ -1745,7 +1745,7 @@
         surfaceId: s1
         path: /components/0/text/args/value
         rendererError:
-          version: v1.0
+          version: "1.0"
           error:
             code: VALIDATION_FAILED
             surfaceId: s1

@@ -18,18 +18,18 @@
 
 - name: tree_hierarchy_declared_order
   description: Verifies that nested Column, Row, Card, Text, and Button components render in declared hierarchy and order.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   action: render_surface
   steps:
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "adapter_surface"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "adapter_surface"
             components:
@@ -82,14 +82,14 @@
 
 - name: single_message_v10_surface_render
   description: Verifies that a single v1.0 createSurface message with inline components and dataModel renders immediately without follow-up messages.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   action: render_surface
   steps:
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "adapter_surface"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -115,14 +115,14 @@
 
 - name: progressive_arrival_placeholder_upgrade_in_place
   description: Verifies that a pending child renders a non-crashing placeholder and upgrades in place when its definition arrives without remounting the parent container.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   action: render_surface
   steps:
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "adapter_surface"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -138,7 +138,7 @@
             state: "pending"
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "adapter_surface"
             components:
@@ -158,14 +158,14 @@
 
 - name: dynamic_repeater_list_insert_delete_reorder_and_index
   description: Verifies List repeater rendering, @index evaluation, and item insertion, reordering, and deletion while preserving surviving view identity.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   action: render_surface
   steps:
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "adapter_surface"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -197,7 +197,7 @@
             text: "1: Beta"
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateDataModel:
             surfaceId: "adapter_surface"
             path: "/items"
@@ -223,7 +223,7 @@
         - "root/children/0"
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateDataModel:
             surfaceId: "adapter_surface"
             path: "/items"
@@ -242,14 +242,14 @@
 
 - name: two_way_binding_control_write_updates_dependents
   description: Verifies that user input on a TextField with a writable @path binding mutates the DataModel and reactively updates dependent Text components.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   action: render_surface
   steps:
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "adapter_surface"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -296,14 +296,14 @@
 
 - name: action_execution_event_vs_local_function_call
   description: Verifies that an event action dispatches an outbound action event with resolved context, whereas a local functionCall action executes locally without emitting an outbound action event.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   action: render_surface
   steps:
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "adapter_surface"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -357,14 +357,14 @@
 
 - name: user_activation_gated_function_gesture_vs_programmatic
   description: Verifies that a function with requiresUserActivation=true succeeds when triggered by a user gesture (userActivation=true) and is blocked when invoked programmatically (userActivation=false).
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   action: render_surface
   steps:
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "adapter_surface"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -395,12 +395,12 @@
 
 - name: multi_catalog_mixed_surface_rendering
   description: Verifies that a single v1.0 surface renders components from both the default basic catalog and a secondary custom catalog via component-level catalogId overrides.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   catalogs:
     - catalogId: "https://example.com/catalogs/badges/v1/catalog.json"
-      protocolVersion: "v1.0"
+      protocolVersion: "1.0"
       components:
         StatusBadge:
           type: "object"
@@ -414,7 +414,7 @@
   steps:
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "adapter_surface"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -442,14 +442,14 @@
 
 - name: validation_results_error_disables_warning_allows
   description: Verifies that a failing check with severity=error marks the control invalid (isValid=false), whereas severity=warning surfaces diagnostic feedback while keeping the control valid/enabled (isValid=true).
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   action: render_surface
   steps:
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "adapter_surface"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -505,14 +505,14 @@
 
 - name: accessibility_attributes_and_implicit_label_override
   description: Verifies that explicit AccessibilityAttributes (label, description, live, hidden) and implicit child text label inference are applied and override correctly.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   action: render_surface
   steps:
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "adapter_surface"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -566,14 +566,14 @@
 
 - name: v10_theme_ignored_parity
   description: Verifies that a v1.0 surface renders identically with default host styling without requiring or applying a wire theme property.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   action: render_surface
   steps:
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "adapter_surface"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -594,14 +594,14 @@
 
 - name: fallback_states_unknown_type_and_cyclic_diagnostics
   description: Verifies that unknown component types and same-scope cyclic references render safe fallback placeholders and emit UNKNOWN_COMPONENT_TYPE and CYCLIC_REFERENCE diagnostics on surface.onError.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   action: render_surface
   steps:
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "adapter_surface"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -633,14 +633,14 @@
 
 - name: teardown_unmount_releases_subscriptions
   description: Verifies that unmounting the surface view disposes its NodeResolver and releases all active reactive subscriptions on the SurfaceModel and DataModel.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   action: render_surface
   steps:
     - op: process_messages
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "adapter_surface"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"

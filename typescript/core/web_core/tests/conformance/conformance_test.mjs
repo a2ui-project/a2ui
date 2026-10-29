@@ -639,21 +639,21 @@ async function validateRpcTestCase(testCase) {
     );
     const storeCat = new Catalog(
       scenario.catalogId,
-      'v1.0',
+      '1.0',
       v1_0Components,
       [agentBindingFn],
       undefined,
       undefined,
     );
     procRef.current = new MessageProcessor([storeCat, v1_0BasicCatalog], undefined, {
-      version: 'v1.0',
+      version: '1.0',
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
     });
     procRef.current.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: scenario.surfaceId,
           catalogId: scenario.catalogId,
@@ -674,7 +674,7 @@ async function validateRpcTestCase(testCase) {
         expect.outboundCall.callAgentFunction.surfaceId,
       );
       procRef.current.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         agentFunctionResponse: {
           functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
           value: scenario.inboundResponseValue,
@@ -709,21 +709,21 @@ async function validateRpcTestCase(testCase) {
     );
     const storeCat = new Catalog(
       scenario.catalogId,
-      'v1.0',
+      '1.0',
       v1_0Components,
       [agentActionFn],
       undefined,
       undefined,
     );
     procRef.current = new MessageProcessor([storeCat], undefined, {
-      version: 'v1.0',
+      version: '1.0',
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
     });
     procRef.current.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: scenario.surfaceId,
           catalogId: scenario.catalogId,
@@ -740,7 +740,7 @@ async function validateRpcTestCase(testCase) {
       expect.outboundCall.callAgentFunction.surfaceId,
     );
     procRef.current.processMessages({
-      version: 'v1.0',
+      version: '1.0',
       agentFunctionResponse: {
         functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
         value: scenario.inboundResponseValue,

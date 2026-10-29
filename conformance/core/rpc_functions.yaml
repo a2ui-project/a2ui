@@ -273,7 +273,7 @@
     category: "ValidationError"
     functionCallId: "call-109"
     rendererError:
-      version: "v1.0"
+      version: "1.0"
       error:
         code: "INVALID_FUNCTION_CALL"
         functionCallId: "call-109"
@@ -282,11 +282,11 @@
 - name: test_rpc_call_renderer_function_invalid_payload_non_object_args
   description: Verifies envelope/schema validation error when callRendererFunction has non-object args.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-110"
         callFunction:
@@ -302,7 +302,7 @@
     category: "ValidationError"
     functionCallId: "call-110"
     rendererError:
-      version: "v1.0"
+      version: "1.0"
       error:
         code: "INVALID_FUNCTION_CALL"
         functionCallId: "call-110"
@@ -311,11 +311,11 @@
 - name: test_rpc_call_renderer_function_unknown_surface_id
   description: Verifies callRendererFunction targeting an unknown surfaceId returns rendererFunctionResponse with INVALID_FUNCTION_CALL.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-111"
         surfaceId: "unknown_surface"
@@ -329,7 +329,7 @@
         allowedCallers: "rendererOrAgent"
   expect:
     response:
-      version: "v1.0"
+      version: "1.0"
       rendererFunctionResponse:
         functionCallId: "call-111"
         error:
@@ -478,7 +478,7 @@
 - name: test_rpc_call_renderer_function_with_surface_id_and_dynamic_args
   description: Verifies callRendererFunction with surfaceId resolves @path and @call in callFunction.args against the target surface's root DataContext (/).
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     surfaceId: "media_surface"
@@ -487,7 +487,7 @@
         id: "video-456"
       prefix: "now-"
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-401"
         surfaceId: "media_surface"
@@ -508,7 +508,7 @@
         requiresUserActivation: false
   expect:
     response:
-      version: "v1.0"
+      version: "1.0"
       rendererFunctionResponse:
         functionCallId: "call-401"
         value:
@@ -518,14 +518,14 @@
 - name: test_rpc_call_renderer_function_without_surface_id_isolated_data_model
   description: Verifies that when surfaceId is omitted on callRendererFunction, @path in callFunction.args resolves against an isolated empty {} data model even when a surface with data exists.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     surfaceId: "existing_surface"
     dataModel:
       secret: "should-not-leak"
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-402"
         callFunction:
@@ -541,7 +541,7 @@
         requiresUserActivation: false
   expect:
     response:
-      version: "v1.0"
+      version: "1.0"
       rendererFunctionResponse:
         functionCallId: "call-402"
         value:
@@ -551,13 +551,13 @@
 - name: test_rpc_call_renderer_function_index_at_root_execution_error
   description: Verifies that evaluating @index at the root DataContext in callRendererFunction fails with EXECUTION_ERROR.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     surfaceId: "main_surface"
     dataModel: {}
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-403"
         surfaceId: "main_surface"
@@ -573,7 +573,7 @@
         requiresUserActivation: false
   expect:
     response:
-      version: "v1.0"
+      version: "1.0"
       rendererFunctionResponse:
         functionCallId: "call-403"
         error:
@@ -583,7 +583,7 @@
 - name: test_rpc_ui_binding_triggers_call_agent_function_async_resolution
   description: Verifies a component property bound to an agent function initially resolves to null/undefined while emitting outbound callAgentFunction, and updates reactively when agentFunctionResponse arrives.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     uiBindingScenario:
@@ -601,7 +601,7 @@
   expect:
     initialValue: null
     outboundCall:
-      version: "v1.0"
+      version: "1.0"
       callAgentFunction:
         surfaceId: "main_surface"
         callFunction:
@@ -614,7 +614,7 @@
 - name: test_rpc_ui_action_missing_local_function_fallback_to_agent
   description: Verifies an undeclared function invoked from a UI action in relaxed mode falls back to dispatching callAgentFunction to the agent.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     uiActionFallbackScenario:
@@ -630,7 +630,7 @@
         accepted: true
   expect:
     outboundCall:
-      version: "v1.0"
+      version: "1.0"
       callAgentFunction:
         surfaceId: "main_surface"
         callFunction:

@@ -87,7 +87,7 @@ V09_CLIENT_TO_SERVER_VALIDATOR = jsonschema.Draft202012Validator(
 
 def validate_renderer_error_payload(renderer_error):
     version = renderer_error.get("version")
-    if version == "v1.0":
+    if version == "1.0":
         V10_RENDERER_TO_AGENT_VALIDATOR.validate(renderer_error)
     elif version in ("v0.9", "v0.9.1"):
         normalized = (
@@ -192,7 +192,7 @@ def test_node_cases_require_their_fields(missing):
         {"op": "invoke", "node": "root", "property": "action"},
         {
             "op": "process_messages",
-            "messages": [{"version": "v1.0", "deleteSurface": {"surfaceId": "main"}}],
+            "messages": [{"version": "1.0", "deleteSurface": {"surfaceId": "main"}}],
         },
         {"op": "dispose"},
     ],
@@ -293,7 +293,7 @@ def test_node_catalog_must_be_a_json_object(tmp_path, catalog):
     "valid_renderer_error",
     [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "error": {
                 "code": "VALIDATION_FAILED",
                 "surfaceId": "s1",
@@ -302,7 +302,7 @@ def test_node_catalog_must_be_a_json_object(tmp_path, catalog):
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "error": {
                 "code": "UNALLOWED_PARENT",
                 "surfaceId": "s1",
@@ -311,7 +311,7 @@ def test_node_catalog_must_be_a_json_object(tmp_path, catalog):
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "error": {
                 "code": "INVALID_FUNCTION_CALL",
                 "functionCallId": "call-109",
@@ -346,7 +346,7 @@ def test_renderer_error_validates_against_spec(valid_renderer_error):
     [
         # v1.0 VALIDATION_FAILED missing required path
         {
-            "version": "v1.0",
+            "version": "1.0",
             "error": {
                 "code": "VALIDATION_FAILED",
                 "surfaceId": "s1",
@@ -355,7 +355,7 @@ def test_renderer_error_validates_against_spec(valid_renderer_error):
         },
         # v1.0 generic error with both surfaceId and functionCallId violates oneOf
         {
-            "version": "v1.0",
+            "version": "1.0",
             "error": {
                 "code": "INVALID_FUNCTION_CALL",
                 "surfaceId": "s1",
