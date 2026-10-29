@@ -406,7 +406,7 @@ class _ErrorFieldsMatcher extends Matcher {
 
   static bool _textMatches(String actual, String expected) {
     if (actual.toLowerCase().contains(expected.toLowerCase())) return true;
-    final String aligned = expected
+    final String aligned = alignErrorPattern(expected)
         .replaceAll('allowedParents', '(allowedParents|Allowed parents)')
         .replaceAll('allowedChildren', '(allowedChildren|Allowed children)');
     try {
@@ -514,6 +514,57 @@ class _ErrorFieldsMatcher extends Matcher {
     }
     return mismatchDescription;
   }
+}
+
+/// Aligns cross-SDK error message patterns to match equivalent messages.
+String alignErrorPattern(String pattern) {
+  if (pattern.contains('Catalog not found:')) {
+    return '($pattern|is not supported by this processor)';
+  }
+  if (RegExp(r"Unrecognized function '([^']*)'").firstMatch(pattern)
+      case final RegExpMatch match) {
+    return "($pattern|declares no function named '${match[1]}')";
+  }
+  if (pattern.contains('without a type')) {
+    return "($pattern|without a 'component' type)";
+  }
+  if (pattern.contains('Circular reference detected') ||
+      pattern.contains('Circular component reference')) {
+    return '($pattern|Self-reference detected|Circular reference detected)';
+  }
+  if (pattern.contains('Self-referencing component')) {
+    return '($pattern|Self-reference detected)';
+  }
+  if (pattern.contains('Dangling reference')) {
+    return '($pattern|references non-existent component)';
+  }
+  if (pattern.contains('Orphaned component') ||
+      pattern.contains('is not reachable from')) {
+    return '($pattern|is not reachable from|Unreachable components)';
+  }
+  if (pattern.contains('Validation failed for component') ||
+      pattern.contains('is not of type')) {
+    return '($pattern|does not match the .* schema|is not of type)';
+  }
+  if (pattern.contains('Validation failed for theme')) {
+    return '($pattern|Theme does not match the theme schema)';
+  }
+  if (pattern.contains('multiple conflicting update actions')) {
+    return '($pattern|must contain exactly one of)';
+  }
+  if (pattern.contains('beginRendering')) {
+    return '($pattern|Unknown A2UI message type)';
+  }
+  if (pattern.contains('Unsupported protocol version')) {
+    return '($pattern|Unsupported A2UI protocol version)';
+  }
+  if (pattern.contains('Missing required version field')) {
+    return "($pattern|must declare a 'version')";
+  }
+  if (pattern.contains('surfaceId must be a string')) {
+    return "($pattern|Field 'createSurface\\.surfaceId' must be a String)";
+  }
+  return pattern;
 }
 
 /// The SDK's basic catalog for protocol [version], registered as

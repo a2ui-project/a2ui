@@ -493,30 +493,6 @@ Matcher _messageMatches(String pattern) => isA<A2uiError>().having(
       'message',
       anyOf(
         contains(pattern),
-        matches(RegExp(_align(pattern), caseSensitive: false)),
+        matches(RegExp(alignErrorPattern(pattern), caseSensitive: false)),
       ),
     );
-
-/// Widens a case's expected message to the wording this SDK uses.
-///
-/// The suite spells some messages the way the Python SDK's JSON Schema
-/// library reports them. The reference harness does the same alignment for
-/// Pydantic's wording; this is the Dart column of the same table.
-String _align(String pattern) {
-  if (pattern.contains('is not of type')) {
-    return '($pattern|is not of type)';
-  }
-  if (pattern.contains('is not reachable from')) {
-    return '($pattern|Unreachable components)';
-  }
-  if (pattern.contains('Dangling reference')) {
-    return '($pattern|references non-existent component)';
-  }
-  if (pattern.contains('Circular component reference')) {
-    return '($pattern|Circular reference detected)';
-  }
-  if (pattern.contains('Self-referencing component')) {
-    return '($pattern|Self-reference detected)';
-  }
-  return pattern;
-}

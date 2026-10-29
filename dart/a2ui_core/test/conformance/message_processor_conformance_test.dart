@@ -134,9 +134,15 @@ ValidationConfig _validationConfigFor(
 Future<void> _runProcessMessagesCase(Map<String, Object?> testCase) async {
   final name = testCase['name']! as String;
   final isValidate = _actionOf(testCase) == 'validate';
+  final emittedErrors = <ErrorMessage>[];
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
     validationConfig: _validationConfigFor(testCase, isValidate: isValidate),
+    outboundListener: (msg) {
+      if (msg is ErrorMessage) {
+        emittedErrors.add(msg);
+      }
+    },
   );
 
   if (testCase['steps'] case final List<Object?> steps) {
@@ -145,15 +151,29 @@ Future<void> _runProcessMessagesCase(Map<String, Object?> testCase) async {
       testCase,
       steps.cast<Map<String, Object?>>(),
       resolveNodes: isValidate,
+      emittedErrors: emittedErrors,
     );
     return;
   }
 
   final Object? expectError = testCase['expectError'];
   if (expectError != null) {
+    final Object? firstRaw =
+        switch (testCase['messages'] ?? testCase['payload']) {
+      final List<Object?> list when list.isNotEmpty => list.first,
+      final Object other => other,
+      _ => null,
+    };
     await expectLater(
       () => _process(processor, testCase, resolveNodes: isValidate),
-      throwsA(_matchesError(expectError as Map<String, Object?>)),
+      throwsA(
+        _matchesError(
+          expectError as Map<String, Object?>,
+          rawMessage: firstRaw,
+          defaultVersion: _versionOf(testCase),
+          emittedErrors: emittedErrors,
+        ),
+      ),
       reason: name,
     );
     return;
@@ -176,6 +196,7 @@ Future<void> _runSteps(
   Map<String, Object?> testCase,
   List<Map<String, Object?>> steps, {
   bool resolveNodes = false,
+  List<ErrorMessage> emittedErrors = const [],
 }) async {
   final name = testCase['name']! as String;
   for (var index = 0; index < steps.length; index++) {
@@ -188,7 +209,13 @@ Future<void> _runSteps(
       final Map<String, Object?> rules => _validationConfig(rules),
       _ => null,
     };
+    emittedErrors.clear();
     if (expectError != null) {
+      final Object? firstRaw = switch (payload) {
+        final List<Object?> list when list.isNotEmpty => list.first,
+        final Object other => other,
+        _ => null,
+      };
       await expectLater(
         () => _processPayload(
           processor,
@@ -196,7 +223,14 @@ Future<void> _runSteps(
           resolveNodes: resolveNodes,
           validationConfig: validationConfig,
         ),
-        throwsA(_matchesError(expectError as Map<String, Object?>)),
+        throwsA(
+          _matchesError(
+            expectError as Map<String, Object?>,
+            rawMessage: firstRaw,
+            defaultVersion: _versionOf(testCase),
+            emittedErrors: emittedErrors,
+          ),
+        ),
         reason: '$name: step $index',
       );
     } else {
@@ -631,7 +665,12 @@ Object? _plain(Object? value) => switch (value) {
       _ => value,
     };
 
-Matcher _matchesError(Map<String, Object?> expectError) {
+Matcher _matchesError(
+  Map<String, Object?> expectError, {
+  Object? rawMessage,
+  String defaultVersion = 'v0.9',
+  List<ErrorMessage> emittedErrors = const [],
+}) {
   final category = expectError['category'] as String?;
   final message = expectError['message'] as String?;
   Matcher matcher = switch (category) {
@@ -650,7 +689,7 @@ Matcher _matchesError(Map<String, Object?> expectError) {
     _ => isA<A2uiError>(),
   };
   if (message != null) {
-    final String pattern = _align(message);
+    final String pattern = alignErrorPattern(message);
     matcher = allOf(
       matcher,
       isA<A2uiError>().having(
@@ -663,51 +702,16 @@ Matcher _matchesError(Map<String, Object?> expectError) {
       ),
     );
   }
-  return allOf(matcher, matchesErrorFields(expectError));
-}
-
-String _align(String pattern) {
-  if (pattern.contains('Catalog not found:')) {
-    return '($pattern|is not supported by this processor)';
-  }
-  if (RegExp(r"Unrecognized function '([^']*)'").firstMatch(pattern)
-      case final RegExpMatch match) {
-    return "($pattern|declares no function named '${match[1]}')";
-  }
-  if (pattern.contains('without a type')) {
-    return "($pattern|without a 'component' type)";
-  }
-  if (pattern.contains('Circular reference detected')) {
-    return '($pattern|Self-reference detected)';
-  }
-  if (pattern.contains('Dangling reference')) {
-    return '($pattern|references non-existent component)';
-  }
-  if (pattern.contains('Orphaned component')) {
-    return '($pattern|is not reachable from)';
-  }
-  if (pattern.contains('Validation failed for component')) {
-    return '($pattern|does not match the .* schema)';
-  }
-  if (pattern.contains('Validation failed for theme')) {
-    return '($pattern|Theme does not match the theme schema)';
-  }
-  if (pattern.contains('multiple conflicting update actions')) {
-    return '($pattern|must contain exactly one of)';
-  }
-  if (pattern.contains('beginRendering')) {
-    return '($pattern|Unknown A2UI message type)';
-  }
-  if (pattern.contains('Unsupported protocol version')) {
-    return '($pattern|Unsupported A2UI protocol version)';
-  }
-  if (pattern.contains('Missing required version field')) {
-    return "($pattern|must declare a 'version')";
-  }
-  if (pattern.contains('surfaceId must be a string')) {
-    return "($pattern|Field 'createSurface\\.surfaceId' must be a String)";
-  }
-  return pattern;
+  return allOf(
+    matcher,
+    matchesErrorFields(
+      expectError,
+      rawMessage: rawMessage,
+      defaultVersion: defaultVersion,
+      capturedErrorMessage:
+          emittedErrors.isNotEmpty ? emittedErrors.last : null,
+    ),
+  );
 }
 
 /// [catalog] with every component schema replaced by one that accepts any
