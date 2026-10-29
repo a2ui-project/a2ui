@@ -119,12 +119,18 @@ export class NodeResolver<
     this.rootId = surface.rootId ?? ROOT_COMPONENT_ID;
     this.rootNode = signal<ComponentNode<C> | undefined>(undefined);
 
-    this.modelSubs.push(
-      surface.componentsModel.onCreated.subscribe(component => this.onComponentCreated(component)),
-    );
-    this.modelSubs.push(
-      surface.componentsModel.onDeleted.subscribe(id => this.onComponentDeleted(id)),
-    );
+    if (surface.componentsModel?.onCreated) {
+      this.modelSubs.push(
+        surface.componentsModel.onCreated.subscribe(component =>
+          this.onComponentCreated(component),
+        ),
+      );
+    }
+    if (surface.componentsModel?.onDeleted) {
+      this.modelSubs.push(
+        surface.componentsModel.onDeleted.subscribe(id => this.onComponentDeleted(id)),
+      );
+    }
 
     if (surface.componentsModel.get(this.rootId)) {
       this.buildRoot();

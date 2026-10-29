@@ -171,7 +171,14 @@ class BaseVersionAdapter(VersionAdapter, ABC):
         """Normalizes the message object before running schema validation."""
         payload = copy.deepcopy(msg_obj)
         ver = payload.get("version")
-        if isinstance(ver, str) and not ver.startswith("v"):
+        adapter_ver = (
+            self.version.value if hasattr(self.version, "value") else str(self.version)
+        )
+        if (
+            isinstance(ver, str)
+            and adapter_ver.startswith("v")
+            and not ver.startswith("v")
+        ):
             canonical = to_canonical_version(ver)
             if canonical and canonical in self.compatible_catalog_versions:
                 payload["version"] = f"v{canonical}"

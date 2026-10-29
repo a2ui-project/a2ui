@@ -19,10 +19,6 @@ import 'package:test/test.dart';
 import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
-/// Cases in `core/message_processor_v1_0.yaml` expected to fail, with the
-/// reason each is currently failing.
-const Map<String, String> _v10ExpectedFailures = {};
-
 /// The `process_messages` cases in `core/reserved_keys.yaml` expected to
 /// fail, with the reason each is currently failing.
 const Map<String, String> _reservedKeysExpectedFailures = {};
@@ -40,10 +36,7 @@ const Map<String, String> _functionsExpectedFailures = {};
 /// and `core/multi_catalog.yaml`, which render basic-catalog components.
 void main() {
   _registerSuite('core/message_processor_v0_9.yaml');
-  _registerSuite(
-    'core/message_processor_v1_0.yaml',
-    expectedFailures: _v10ExpectedFailures,
-  );
+  _registerSuite('core/message_processor_v1_0.yaml');
   _registerSuite('core/add_catalog.yaml');
   _registerSuite(
     'core/reserved_keys.yaml',
@@ -135,7 +128,8 @@ Future<void> _runProcessMessagesCase(Map<String, Object?> testCase) async {
 /// Processes each step's payload in turn, as the validator harness does.
 ///
 /// A step's own `expectError` applies to that step, and the case's applies to
-/// the last one. The case's `expect` is checked once every step has run.
+/// the last one. A step's `validationConfig` replaces the processor's for
+/// that step. The case's `expect` is checked once every step has run.
 Future<void> _runSteps(
   MessageProcessor<ComponentApi> processor,
   Map<String, Object?> testCase,
@@ -148,12 +142,22 @@ Future<void> _runSteps(
     final Object? payload = step['messages'] ?? step['payload'];
     final List<Catalog<ComponentApi, FunctionImplementation>> added =
         _stepCatalogs(testCase, step);
+    final ValidationConfig? validationConfig =
+        switch (step['validationConfig']) {
+      final Map<String, Object?> rules => _validationConfig(rules),
+      _ => null,
+    };
     Future<void> runStep() async {
       for (final catalog in added) {
         processor.addCatalog(catalog);
       }
       if (payload != null) {
-        await _processPayload(processor, payload, resolveNodes: resolveNodes);
+        await _processPayload(
+          processor,
+          payload,
+          resolveNodes: resolveNodes,
+          validationConfig: validationConfig,
+        );
       }
     }
 
@@ -175,6 +179,15 @@ Future<void> _runSteps(
     name,
   );
 }
+
+/// The validation rules a step names, each one it leaves out strict.
+ValidationConfig _validationConfig(Map<String, Object?> rules) =>
+    ValidationConfig(
+      allowOrphanComponents: rules['allowOrphanComponents'] == true,
+      allowDanglingReferences: rules['allowDanglingReferences'] == true,
+      allowMissingRoot: rules['allowMissingRoot'] == true,
+      allowUnknownElements: rules['allowUnknownElements'] == true,
+    );
 
 /// Runs a data model request, after the case's `messages` or, one batch per
 /// step, its `steps`. `args.version` is the version requested.
@@ -270,7 +283,7 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
   ];
   final List<Map<String, Object?>> documents = [
     if (testCase['catalogPaths'] case final List<Object?> paths
-        when compareVersions(version, 'v1.0') >= 0)
+        when compareVersions(version, '1.0') >= 0)
       for (final Object? path in paths)
         if (path is String) readConformanceJson(path),
   ];
@@ -406,8 +419,9 @@ Future<void> _processPayload(
   MessageProcessor<ComponentApi> processor,
   Object? payload, {
   required bool resolveNodes,
+  ValidationConfig? validationConfig,
 }) async {
-  processor.processMessages(payload);
+  processor.processMessages(payload, validationConfig: validationConfig);
   if (!resolveNodes) return;
   for (final SurfaceModel<ComponentApi> surface
       in processor.model.allSurfaces) {

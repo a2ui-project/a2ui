@@ -7,8 +7,40 @@
   `getRendererCapabilities` see the catalog from then on; surfaces created
   before the call keep the catalogs they were created with. A catalog whose id
   the processor already holds is rejected with `A2uiCatalogError`.
-  `MessageProcessor.catalogs` is the processor's own copy of the list passed
-  to the constructor, which `addCatalog` adds to.
+  `MessageProcessor.catalogs` lists the added catalog too, and still cannot
+  be modified.
+- **Breaking:** Unify the v1.0 protocol version wire value on `'1.0'` (without
+  a `'v'` prefix) across message envelopes, `MessageProcessor.getRendererCapabilities`,
+  `RpcHandler`, and catalog documents (`A2uiProtocolVersion.v1_0.jsonValue` is
+  now `'1.0'`), while accepting `'v1.0'` in `A2uiProtocolVersion.tryParseSemVer`
+  and `Catalog.fromJson` ([#3097](https://github.com/a2ui-project/a2ui/issues/3097),
+  [#3726](https://github.com/a2ui-project/a2ui/pull/3726)).
+- (v1_0) Factored `weight` in the v1.0 basic catalog into `#/$defs/Weight`.
+  Component schemas in `BasicCatalog.v1_0`, `Catalog.fromJson` (for leaf
+  catalog `$defs`), and `Catalog.resolvedComponentSchemas` inline catalog-local
+  `$defs` with `catalogDefRef` markers so in-memory component schemas remain
+  self-contained, while `Catalog.toJson()` and `Catalog.validationSchema`
+  restore `#/$defs/...` references
+  ([#2724](https://github.com/a2ui-project/a2ui/pull/2724)).
+- **Breaking:** `MessageProcessor.catalogs` cannot be modified: it is a copy
+  of the list the processor was created with, and adding to it throws
+  `UnsupportedError`. Add a catalog with `addCatalog`
+  ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- `MessageProcessor.processMessages` and `processMessagesAsync` take a
+  `validationConfig` for one call, which replaces the processor's own while
+  the call checks and applies its messages. An agent that checks its messages
+  against a renderer's processor passes the checks it makes, whatever config
+  the renderer was created with ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `Catalog.derive`, which builds a catalog with a new id from the
+  entries of an existing one that `components` and `functions` name and the
+  new entries in `addComponents` and `addFunctions`. The new catalog keeps
+  the source's protocol version, theme and document layout, and not its
+  `$id`, title, description or instructions, which describe the source; pass
+  its own `instructions`. A name the source has no entry of throws
+  `A2uiCatalogError` ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+
+## 0.4.0
+
 - **Breaking:** Removed cross-catalog `$ref` resolution across peer
   catalogs ([#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)). A catalog's

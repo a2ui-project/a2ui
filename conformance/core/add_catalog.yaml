@@ -15,12 +15,12 @@
 - name: test_add_catalog_resolves_later_create_surface
   description: A createSurface naming a catalog the processor does not hold fails with CatalogError, and succeeds once addCatalog has added that catalog.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s_late"
             catalogId: "conformance/custom"
@@ -29,7 +29,7 @@
     - addCatalogPaths:
         - "conformance/test_data/catalogs/custom_catalog_v1_0.json"
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s_late"
             catalogId: "conformance/custom"
@@ -41,19 +41,19 @@
 - name: test_add_catalog_keeps_catalogs_of_earlier_surface
   description: A surface created before addCatalog keeps the catalogs it was created with, so a component on it that names the added catalog fails with CatalogError. A surface created afterwards can use the same component.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s_early"
             catalogId: "conformance/simplified"
     - addCatalogPaths:
         - "conformance/test_data/catalogs/custom_catalog_v1_0.json"
       messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s_early"
             components:
@@ -64,11 +64,11 @@
       expectError:
         category: "CatalogError"
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s_late"
             catalogId: "conformance/custom"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s_late"
             components:
@@ -83,7 +83,7 @@
 - name: test_add_catalog_rejects_held_catalog_id
   description: addCatalog fails with CatalogError for a catalog whose id the processor already holds.
   action: process_messages
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
   steps:

@@ -146,6 +146,17 @@ class A2uiRequestProcessor {
   ResponseStream openStream({bool wrapped = true, RendererState? state}) =>
       parser.openStream(wrapped: wrapped, state: _resolveState(state));
 
+  /// Opens a stream that reads one LLM response chunk by chunk, and reads
+  /// past a rejected block, returning an [ErrorPart] in its place. [wrapped]
+  /// and [state] are as for [openStream]. See [Parser.openContinuingStream].
+  ContinuingResponseStream openContinuingStream({
+    bool wrapped = true,
+    RendererState? state,
+  }) => parser.openContinuingStream(
+    wrapped: wrapped,
+    state: _resolveState(state),
+  );
+
   RendererState? _resolveState(RendererState? state) {
     if (state == null) return this.state;
     _checkState(state);

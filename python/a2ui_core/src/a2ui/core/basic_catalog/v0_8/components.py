@@ -125,10 +125,10 @@ class ChildrenItem(StrictBaseModel):
     template: TemplateItem | None = Field(
         default=None,
         description=(
-            "A template for generating a dynamic list of children from a data model"
-            " list. `componentId` is the component to use as a template, and"
-            " `dataBinding` is the path to the map of components in the data model."
-            " Values in the map will define the list of children."
+            "A template for generating a dynamic list of children from a data"
+            " model list. `componentId` is the component to use as a template,"
+            " and `dataBinding` is the path to the map of components in the data"
+            " model. Values in the map will define the list of children."
         ),
     )
 
@@ -138,8 +138,8 @@ class TabItemItem(StrictBaseModel):
     title: TitleItem = Field(
         ...,
         description=(
-            "The tab title. Defines the value as either a literal value or a path to"
-            " data model value (e.g. '/options/title')."
+            "The tab title. Defines the value as either a literal value or a path"
+            " to data model value (e.g. '/options/title')."
         ),
     )
     child: str = Field(...)
@@ -180,12 +180,13 @@ class OptionItem(StrictBaseModel):
     label: LabelItem = Field(
         ...,
         description=(
-            "The text to display for this option. This can be a literal string or a"
-            " reference to a value in the data model (e.g. '/option/label')."
+            "The text to display for this option. This can be a literal string or"
+            " a reference to a value in the data model (e.g. '/option/label')."
         ),
     )
     value: str = Field(
-        ..., description="The value to be associated with this option when selected."
+        ...,
+        description="The value to be associated with this option when selected.",
     )
 
 
@@ -213,8 +214,8 @@ class ContextItem(StrictBaseModel):
     value: ContextValueItem = Field(
         ...,
         description=(
-            "Defines the value to be included in the context as either a literal value"
-            " or a path to a data model value (e.g. '/user/name')."
+            "Defines the value to be included in the context as either a literal"
+            " value or a path to a data model value (e.g. '/user/name')."
         ),
     )
 
@@ -232,21 +233,22 @@ class TextComponent(ComponentCommon):
     text: TextItem = Field(
         ...,
         description=(
-            "The text content to display. This can be a literal string or a reference"
-            " to a value in the data model ('path', e.g., '/doc/title'). While simple"
-            " Markdown formatting is supported (i.e. without HTML, images, or links),"
-            " utilizing dedicated UI components is generally preferred for a richer and"
-            " more structured presentation."
+            "The text content to display. This can be a literal string or a"
+            " reference to a value in the data model ('path', e.g.,"
+            " '/doc/title'). While simple Markdown formatting is supported (i.e."
+            " without HTML, images, or links), utilizing dedicated UI components"
+            " is generally preferred for a richer and more structured"
+            " presentation."
         ),
     )
     usage_hint: Literal["h1", "h2", "h3", "h4", "h5", "caption", "body"] | None = Field(
         default=None,
         alias="usageHint",
         description=(
-            "A hint for the base text style. One of:\n- `h1`: Largest heading.\n- `h2`:"
-            " Second largest heading.\n- `h3`: Third largest heading.\n- `h4`: Fourth"
-            " largest heading.\n- `h5`: Fifth largest heading.\n- `caption`: Small text"
-            " for captions.\n- `body`: Standard body text."
+            "A hint for the base text style. One of:\n- `h1`: Largest heading.\n-"
+            " `h2`: Second largest heading.\n- `h3`: Third largest heading.\n-"
+            " `h4`: Fourth largest heading.\n- `h5`: Fifth largest heading.\n-"
+            " `caption`: Small text for captions.\n- `body`: Standard body text."
         ),
     )
 
@@ -256,17 +258,17 @@ class ImageComponent(ComponentCommon):
     url: UrlItem = Field(
         ...,
         description=(
-            "The URL of the image to display. This can be a literal string ('literal')"
-            " or a reference to a value in the data model ('path', e.g."
-            " '/thumbnail/url')."
+            "The URL of the image to display. This can be a literal string"
+            " ('literal') or a reference to a value in the data model ('path',"
+            " e.g. '/thumbnail/url')."
         ),
     )
     alt_text: AltTextItem | None = Field(
         default=None,
         alias="altText",
         description=(
-            "The alt text for the image. This can be a literal string ('literal') or a"
-            " reference to a value in the data model ('path', e.g."
+            "The alt text for the image. This can be a literal string ('literal')"
+            " or a reference to a value in the data model ('path', e.g."
             " '/thumbnail/altText')."
         ),
     )
@@ -279,7 +281,12 @@ class ImageComponent(ComponentCommon):
     )
     usage_hint: (
         Literal[
-            "icon", "avatar", "smallFeature", "mediumFeature", "largeFeature", "header"
+            "icon",
+            "avatar",
+            "smallFeature",
+            "mediumFeature",
+            "largeFeature",
+            "header",
         ]
         | None
     ) = Field(
@@ -289,8 +296,8 @@ class ImageComponent(ComponentCommon):
             "A hint for the image size and style. One of:\n- `icon`: Small square"
             " icon.\n- `avatar`: Circular avatar image.\n- `smallFeature`: Small"
             " feature image.\n- `mediumFeature`: Medium feature image.\n-"
-            " `largeFeature`: Large feature image.\n- `header`: Full-width, full bleed,"
-            " header image."
+            " `largeFeature`: Large feature image.\n- `header`: Full-width, full"
+            " bleed, header image."
         ),
     )
 
@@ -301,7 +308,8 @@ class IconComponent(ComponentCommon):
         ...,
         description=(
             "The name of the icon to display. This can be a literal string or a"
-            " reference to a value in the data model ('path', e.g. '/form/submit')."
+            " reference to a value in the data model ('path', e.g."
+            " '/form/submit')."
         ),
     )
 
@@ -323,16 +331,16 @@ class AudioPlayerComponent(ComponentCommon):
         ...,
         description=(
             "The URL of the audio to be played. This can be a literal string"
-            " ('literal') or a reference to a value in the data model ('path', e.g."
-            " '/song/url')."
+            " ('literal') or a reference to a value in the data model ('path',"
+            " e.g. '/song/url')."
         ),
     )
     description: DescriptionItem | None = Field(
         default=None,
         description=(
-            "A description of the audio, such as a title or summary. This can be a"
-            " literal string or a reference to a value in the data model ('path', e.g."
-            " '/song/title')."
+            "A description of the audio, such as a title or summary. This can be"
+            " a literal string or a reference to a value in the data model"
+            " ('path', e.g. '/song/title')."
         ),
     )
 
@@ -342,8 +350,8 @@ class RowComponent(ComponentCommon):
     children: ChildrenItem = Field(
         ...,
         description=(
-            "Defines the children. Use 'explicitList' for a fixed set of children, or"
-            " 'template' to generate children from a data list."
+            "Defines the children. Use 'explicitList' for a fixed set of"
+            " children, or 'template' to generate children from a data list."
         ),
     )
     distribution: (
@@ -352,15 +360,16 @@ class RowComponent(ComponentCommon):
     ) = Field(
         default=None,
         description=(
-            "Defines the arrangement of children along the main axis (horizontally)."
-            " This corresponds to the CSS 'justify-content' property."
+            "Defines the arrangement of children along the main axis"
+            " (horizontally). This corresponds to the CSS 'justify-content'"
+            " property."
         ),
     )
     alignment: Literal["start", "center", "end", "stretch"] | None = Field(
         default=None,
         description=(
-            "Defines the alignment of children along the cross axis (vertically). This"
-            " corresponds to the CSS 'align-items' property."
+            "Defines the alignment of children along the cross axis (vertically)."
+            " This corresponds to the CSS 'align-items' property."
         ),
     )
 
@@ -370,8 +379,8 @@ class ColumnComponent(ComponentCommon):
     children: ChildrenItem = Field(
         ...,
         description=(
-            "Defines the children. Use 'explicitList' for a fixed set of children, or"
-            " 'template' to generate children from a data list."
+            "Defines the children. Use 'explicitList' for a fixed set of"
+            " children, or 'template' to generate children from a data list."
         ),
     )
     distribution: (
@@ -380,15 +389,16 @@ class ColumnComponent(ComponentCommon):
     ) = Field(
         default=None,
         description=(
-            "Defines the arrangement of children along the main axis (vertically). This"
-            " corresponds to the CSS 'justify-content' property."
+            "Defines the arrangement of children along the main axis"
+            " (vertically). This corresponds to the CSS 'justify-content'"
+            " property."
         ),
     )
     alignment: Literal["center", "end", "start", "stretch"] | None = Field(
         default=None,
         description=(
-            "Defines the alignment of children along the cross axis (horizontally)."
-            " This corresponds to the CSS 'align-items' property."
+            "Defines the alignment of children along the cross axis"
+            " (horizontally). This corresponds to the CSS 'align-items' property."
         ),
     )
 
@@ -398,12 +408,13 @@ class ListComponent(ComponentCommon):
     children: ChildrenItem = Field(
         ...,
         description=(
-            "Defines the children. Use 'explicitList' for a fixed set of children, or"
-            " 'template' to generate children from a data list."
+            "Defines the children. Use 'explicitList' for a fixed set of"
+            " children, or 'template' to generate children from a data list."
         ),
     )
     direction: Literal["vertical", "horizontal"] | None = Field(
-        default=None, description="The direction in which the list items are laid out."
+        default=None,
+        description="The direction in which the list items are laid out.",
     )
     alignment: Literal["start", "center", "end", "stretch"] | None = Field(
         default=None,
@@ -424,8 +435,8 @@ class TabsComponent(ComponentCommon):
         ...,
         alias="tabItems",
         description=(
-            "An array of objects, where each object defines a tab with a title and a"
-            " child component."
+            "An array of objects, where each object defines a tab with a title"
+            " and a child component."
         ),
     )
 
@@ -443,8 +454,8 @@ class ModalComponent(ComponentCommon):
         ...,
         alias="entryPointChild",
         description=(
-            "The ID of the component that opens the modal when interacted with (e.g., a"
-            " button)."
+            "The ID of the component that opens the modal when interacted with"
+            " (e.g., a button)."
         ),
     )
     content_child: str = Field(
@@ -470,8 +481,8 @@ class ButtonComponent(ComponentCommon):
     action: ActionItem = Field(
         ...,
         description=(
-            "The client-side action to be dispatched when the button is clicked. It"
-            " includes the action's name and an optional context payload."
+            "The client-side action to be dispatched when the button is clicked."
+            " It includes the action's name and an optional context payload."
         ),
     )
 
@@ -481,16 +492,18 @@ class CheckBoxComponent(ComponentCommon):
     label: LabelItem = Field(
         ...,
         description=(
-            "The text to display next to the checkbox. Defines the value as either a"
-            " literal value or a path to data model ('path', e.g. '/option/label')."
+            "The text to display next to the checkbox. Defines the value as"
+            " either a literal value or a path to data model ('path', e.g."
+            " '/option/label')."
         ),
     )
     value: ValueItem = Field(
         ...,
         description=(
-            "The current state of the checkbox (true for checked, false for unchecked)."
-            " This can be a literal boolean ('literalBoolean') or a reference to a"
-            " value in the data model ('path', e.g. '/filter/open')."
+            "The current state of the checkbox (true for checked, false for"
+            " unchecked). This can be a literal boolean ('literalBoolean') or a"
+            " reference to a value in the data model ('path', e.g."
+            " '/filter/open')."
         ),
     )
 
@@ -500,15 +513,16 @@ class TextFieldComponent(ComponentCommon):
     label: LabelItem = Field(
         ...,
         description=(
-            "The text label for the input field. This can be a literal string or a"
-            " reference to a value in the data model ('path, e.g. '/user/name')."
+            "The text label for the input field. This can be a literal string or"
+            " a reference to a value in the data model ('path, e.g."
+            " '/user/name')."
         ),
     )
     text: TextItem | None = Field(
         default=None,
         description=(
-            "The value of the text field. This can be a literal string or a reference"
-            " to a value in the data model ('path', e.g. '/user/name')."
+            "The value of the text field. This can be a literal string or a"
+            " reference to a value in the data model ('path', e.g. '/user/name')."
         ),
     )
     text_field_type: (
@@ -532,9 +546,9 @@ class DateTimeInputComponent(ComponentCommon):
     value: DateTimeInputValueItem = Field(
         ...,
         description=(
-            "The selected date and/or time value in ISO 8601 format. This can be a"
-            " literal string ('literalString') or a reference to a value in the data"
-            " model ('path', e.g. '/user/dob')."
+            "The selected date and/or time value in ISO 8601 format. This can be"
+            " a literal string ('literalString') or a reference to a value in the"
+            " data model ('path', e.g. '/user/dob')."
         ),
     )
     enable_date: bool | None = Field(
@@ -554,13 +568,14 @@ class MultipleChoiceComponent(ComponentCommon):
     selections: SelectionItem = Field(
         ...,
         description=(
-            "The currently selected values for the component. This can be a literal"
-            " array of strings or a path to an array in the data model('path', e.g."
-            " '/hotel/options')."
+            "The currently selected values for the component. This can be a"
+            " literal array of strings or a path to an array in the data"
+            " model('path', e.g. '/hotel/options')."
         ),
     )
     options: list[OptionItem] = Field(
-        ..., description="An array of available options for the user to choose from."
+        ...,
+        description="An array of available options for the user to choose from.",
     )
     max_allowed_selections: int | None = Field(
         default=None,
@@ -581,23 +596,27 @@ class SliderComponent(ComponentCommon):
     label: LabelItem | None = Field(
         default=None,
         description=(
-            "The label for the slider. This can be a literal string or a reference to a"
-            " value in the data model ('path')."
+            "The label for the slider. This can be a literal string or a"
+            " reference to a value in the data model ('path')."
         ),
     )
     value: SliderValueItem = Field(
         ...,
         description=(
             "The current value of the slider. This can be a literal number"
-            " ('literalNumber') or a reference to a value in the data model ('path',"
-            " e.g. '/restaurant/cost')."
+            " ('literalNumber') or a reference to a value in the data model"
+            " ('path', e.g. '/restaurant/cost')."
         ),
     )
     min_value: float | None = Field(
-        default=None, alias="minValue", description="The minimum value of the slider."
+        default=None,
+        alias="minValue",
+        description="The minimum value of the slider.",
     )
     max_value: float | None = Field(
-        default=None, alias="maxValue", description="The maximum value of the slider."
+        default=None,
+        alias="maxValue",
+        description="The maximum value of the slider.",
     )
 
 

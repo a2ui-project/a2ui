@@ -211,6 +211,28 @@ function generateNode(schema, ctx, isRequired = true) {
     };
   }
 
+  // 1b. Schema-driven $ref resolution via catalog-local $defs
+  const localDefName =
+    typeof schema.$ref === 'string' && schema.$ref.startsWith('#/$defs/')
+      ? extractRefName(schema.$ref)
+      : null;
+  if (localDefName && ctx.catalogDefs && ctx.catalogDefs[localDefName]) {
+    if (ctx.referencedCatalogDefs) {
+      ctx.referencedCatalogDefs.add(localDefName);
+    }
+    if (ctx.commonTypesUri !== undefined) {
+      const modelName = defModelName(localDefName);
+      const code = desc ? `${modelName}.describe('${escapeStr(desc)}')` : modelName;
+      return {
+        code,
+        prediction: describe({$ref: `#/$defs/${localDefName}`}),
+      };
+    }
+    const inlined = {...ctx.catalogDefs[localDefName], ...schema};
+    delete inlined.$ref;
+    return generateNode(inlined, ctx, isRequired);
+  }
+
   // 2. OneOf / AnyOf unions
   const unionBranches = schema.oneOf || schema.anyOf;
   if (Array.isArray(unionBranches) && unionBranches.length > 0) {
@@ -279,7 +301,10 @@ function generateArrayNode(schema, ctx) {
   const items = schema.items;
   let item = {code: 'z.any()', prediction: {}};
   if (items) {
-    if (findReferencedDefName(items, ctx.commonDefs)) {
+    if (
+      findReferencedDefName(items, ctx.commonDefs) ||
+      (ctx.catalogDefs && findReferencedDefName(items, ctx.catalogDefs))
+    ) {
       item = annotatedNode(items, ctx);
     } else if (items.type === 'string' && !Array.isArray(items.enum)) {
       item = annotatedNode(items, ctx, {code: 'z.string()', prediction: {type: 'string'}});
@@ -444,9 +469,11 @@ export function generatePropertyZod(
   commonDefs,
   usedImports,
   commonTypesUri,
+  catalogDefs = {},
+  referencedCatalogDefs = undefined,
 ) {
   const isRequired = requiredList.includes(propName);
-  const ctx = {commonDefs, usedImports, commonTypesUri};
+  const ctx = {commonDefs, catalogDefs, referencedCatalogDefs, usedImports, commonTypesUri};
   const {code} = annotatedNode(propSchema, ctx, generateNode(propSchema, ctx, isRequired));
   return isRequired ? code : `${code}.optional()`;
 }
@@ -570,13 +597,69 @@ function defModelName(name) {
   return name === 'theme' ? 'ThemeDefSchema' : `${name}Schema`;
 }
 
+function collectLocalDefRefs(node, out = new Set()) {
+  if (!node || typeof node !== 'object') return out;
+  if (Array.isArray(node)) {
+    for (const item of node) collectLocalDefRefs(item, out);
+    return out;
+  }
+  if (typeof node.$ref === 'string' && node.$ref.startsWith('#/$defs/')) {
+    out.add(node.$ref.slice('#/$defs/'.length).split('/')[0]);
+  }
+  for (const val of Object.values(node)) collectLocalDefRefs(val, out);
+  return out;
+}
+
+function topologicalSortDefNames(names, catalogDefs) {
+  const nameSet = new Set(names);
+  const visited = new Set();
+  const visiting = new Set();
+  const sorted = [];
+  const visit = name => {
+    if (visited.has(name) || visiting.has(name) || !nameSet.has(name)) return;
+    visiting.add(name);
+    for (const dep of collectLocalDefRefs(catalogDefs[name])) {
+      if (dep !== name) visit(dep);
+    }
+    visiting.delete(name);
+    visited.add(name);
+    sorted.push(name);
+  };
+  for (const name of names) visit(name);
+  return sorted;
+}
+
 /**
  * Generates a catalog definition's model: a `specDef()`-named Zod object.
  */
 function generateDefModel(name, schema, ctx) {
-  const node = generateObjectNode(schema, ctx, '    ');
-  const {code, prediction} = withModifiers(node.code, node.prediction, schema);
-  const annotation = annotationFor(schema, prediction);
+  let effectiveSchema = schema;
+  if (Array.isArray(schema.allOf)) {
+    const flattened = flattenSchema(schema, ctx.catalogDefs, ctx.commonDefs);
+    if (
+      schema.type === 'object' ||
+      schema.properties ||
+      Object.keys(flattened.properties).length > 0
+    ) {
+      const restSchema = {...schema};
+      delete restSchema.allOf;
+      effectiveSchema = {
+        ...restSchema,
+        type: 'object',
+        properties: flattened.properties,
+        ...(flattened.required.length > 0 ? {required: flattened.required} : {}),
+      };
+    }
+  }
+  let code;
+  let prediction;
+  if (effectiveSchema.type === 'object') {
+    const node = generateObjectNode(effectiveSchema, ctx, '    ');
+    ({code, prediction} = withModifiers(node.code, node.prediction, effectiveSchema));
+  } else {
+    ({code, prediction} = generateNode(effectiveSchema, ctx));
+  }
+  const annotation = annotationFor(effectiveSchema, prediction);
   const extra = annotation ? `, ${literal(annotation)}` : '';
   return `export const ${defModelName(name)} = specDef('${name}', ${code}${extra});\n\n`;
 }
@@ -586,6 +669,7 @@ function generateDefModel(name, schema, ctx) {
  */
 export function generateComponentsFile(version, catalogJson, commonDefs, options = {}) {
   const catalogDefs = catalogJson.$defs || {};
+  const referencedCatalogDefs = new Set();
   const usedImports = new Set();
   const discriminatorProp = catalogJson.discriminator?.propertyName || 'component';
   const idProp = 'id';
@@ -593,7 +677,7 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
   const typesImportPath = options.typesImportPath || '../../../catalog/types.js';
   const specImportPath = typesImportPath.replace(/types\.js$/, 'spec_annotations.js');
   const commonTypesUri = options.reproduceDocument ? commonTypesUriOf(catalogJson) : undefined;
-  const ctx = {commonDefs, usedImports, commonTypesUri};
+  const ctx = {commonDefs, catalogDefs, referencedCatalogDefs, usedImports, commonTypesUri};
   const reproduce = commonTypesUri !== undefined;
 
   const compNames = Object.keys(catalogJson.components || {});
@@ -652,6 +736,8 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
         commonDefs,
         usedImports,
         reproduce && ownKeys.has(propName) ? commonTypesUri : undefined,
+        catalogDefs,
+        referencedCatalogDefs,
       );
       bodyCode += `      '${propName}': ${zodCode},\n`;
       if (ownKeys.has(propName) && required.includes(propName)) ownRequired.push(propName);
@@ -678,10 +764,37 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
 
   let defsCode = '';
   if (reproduce) {
-    for (const name of mixinDefs) defsCode += generateDefModel(name, catalogDefs[name], ctx);
+    // Expand referencedCatalogDefs transitively across local $defs.
+    const queue = [...referencedCatalogDefs, ...mixinDefs];
+    while (queue.length > 0) {
+      const current = queue.pop();
+      for (const dep of collectLocalDefRefs(catalogDefs[current])) {
+        if (catalogDefs[dep] && !mixinDefs.has(dep) && !referencedCatalogDefs.has(dep)) {
+          referencedCatalogDefs.add(dep);
+          queue.push(dep);
+        }
+      }
+    }
+    let mixinDefsCode = '';
+    for (const name of topologicalSortDefNames([...mixinDefs], catalogDefs)) {
+      mixinDefsCode += generateDefModel(name, catalogDefs[name], ctx);
+    }
+    const leafDefNames = topologicalSortDefNames(
+      [...referencedCatalogDefs].filter(name => !mixinDefs.has(name)),
+      catalogDefs,
+    );
+    for (const name of leafDefNames) {
+      defsCode += generateDefModel(name, catalogDefs[name], ctx);
+    }
+    defsCode += mixinDefsCode;
     if (catalogDefs.theme) defsCode += generateDefModel('theme', catalogDefs.theme, ctx);
     for (const name of Object.keys(catalogDefs)) {
-      if (!COMPUTED_DEFS.has(name) && !mixinDefs.has(name) && name !== 'theme') {
+      if (
+        !COMPUTED_DEFS.has(name) &&
+        !mixinDefs.has(name) &&
+        !referencedCatalogDefs.has(name) &&
+        name !== 'theme'
+      ) {
         throw new Error(`The catalog definition '${name}' has no model.`);
       }
     }

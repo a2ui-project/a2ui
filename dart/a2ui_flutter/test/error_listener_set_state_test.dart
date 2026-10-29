@@ -31,11 +31,11 @@ void main() {
     processor.processMessages(
       AgentToRendererMessagePayload.fromJson([
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 's', 'catalogId': basicCatalog().id},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateComponents': {
             'surfaceId': 's',
             'components': [
@@ -67,7 +67,7 @@ void main() {
       processor.processMessages(
         AgentToRendererMessagePayload.fromJson([
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'createSurface': {'surfaceId': 's', 'catalogId': basicCatalog().id},
           },
         ], protocolVersion: A2uiProtocolVersion.v1_0),

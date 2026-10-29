@@ -1018,7 +1018,14 @@ export class ExpressDecompiler {
         return `$${pathStr}`;
       }
 
-      if ('event' in obj && obj.event && typeof obj.event === 'object') {
+      // Before v1.0 an event has no userMessage, and the compiler rejects `userMessage=`,
+      // so such an object is written as a map literal that compiles back as written.
+      if (
+        'event' in obj &&
+        obj.event &&
+        typeof obj.event === 'object' &&
+        (this.isV1 || (obj.event as Record<string, unknown>).userMessage === undefined)
+      ) {
         const evt = obj.event as Record<string, unknown>;
         const name = typeof evt.name === 'string' ? evt.name : '';
         const ctx = optionalObjectField(evt.context, `Event '${name}'`, 'context');
@@ -1029,10 +1036,21 @@ export class ExpressDecompiler {
             `${kRepr}: ${this.decompileValue(v, varNames, false, helper, surfaceCatalogId)}`,
           );
         }
+        const eventArgs = [decompileString(name)];
         if (ctxReprs.length > 0) {
-          return `Event(${decompileString(name)}, {${ctxReprs.join(', ')}})`;
+          eventArgs.push(`{${ctxReprs.join(', ')}}`);
         }
-        return `Event(${decompileString(name)})`;
+        if (evt.userMessage !== undefined && evt.userMessage !== null) {
+          const userMessage = this.decompileValue(
+            evt.userMessage,
+            varNames,
+            false,
+            helper,
+            surfaceCatalogId,
+          );
+          eventArgs.push(`userMessage=${userMessage}`);
+        }
+        return `Event(${eventArgs.join(', ')})`;
       }
 
       if ('functionCall' in obj && obj.functionCall && typeof obj.functionCall === 'object') {

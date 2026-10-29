@@ -26,7 +26,7 @@ export function createCatalogConfig(catalogData: Record<string, unknown>): Catal
   // Legacy cases that state no version have always run as v1.0 here. The SDK has no default
   // version, so the harness states it.
   const version = toWireProtocolVersion(
-    (catalogData.protocolVersion as string | undefined) ?? 'v1.0',
+    (catalogData.protocolVersion as string | undefined) ?? '1.0',
   );
 
   // Cases give the catalog either inline or as a path relative to the conformance root.

@@ -15,11 +15,11 @@
 - name: test_composition_surface_implicit_parent_container
   description: Verifies root components treating Surface as canonical parent container when allowedParents includes Surface.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "basic"
@@ -44,7 +44,7 @@
 - name: test_composition_unallowed_parent_error
   description: Verifies validation error thrown when component is placed under an unallowed parent component type.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     catalogSchema:
       catalogId: "custom"
       components:
@@ -58,7 +58,7 @@
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "custom"
@@ -76,7 +76,7 @@
 - name: test_composition_unallowed_child_error
   description: Verifies validation error thrown when container contains an unallowed child component type.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     catalogSchema:
       catalogId: "custom"
       components:
@@ -90,7 +90,7 @@
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "custom"

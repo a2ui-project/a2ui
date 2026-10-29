@@ -152,7 +152,7 @@ function standardDefsFor(protocolVersion: string): Record<string, unknown> {
     case 'v0.9':
     case 'v0.9.1':
       return V09_STANDARD_DEFS;
-    case 'v1.0':
+    case '1.0':
       return V10_STANDARD_DEFS;
     default:
       throw new A2uiCatalogError(`No common types for protocol version '${protocolVersion}'.`);
@@ -371,7 +371,22 @@ export class CatalogSchemaHelper {
   private loadMappings(): void {
     const findEnum = (s: unknown): string[] | undefined => {
       if (s && typeof s === 'object') {
-        const obj = s as Record<string, unknown>;
+        let obj = s as Record<string, unknown>;
+        const visitedPointers = new Set<string>();
+        let ref = localRef(obj);
+        while (ref) {
+          if (visitedPointers.has(ref)) {
+            break;
+          }
+          visitedPointers.add(ref);
+          const resolved = this.resolveJsonPointer(this.catalog, ref);
+          if (resolved && typeof resolved === 'object') {
+            obj = resolved as Record<string, unknown>;
+            ref = localRef(obj);
+          } else {
+            break;
+          }
+        }
         if (Array.isArray(obj.enum)) {
           return obj.enum as string[];
         }
@@ -717,7 +732,31 @@ export class CatalogSchemaHelper {
       if (subObj.properties && typeof subObj.properties === 'object') {
         const props = subObj.properties as Record<string, unknown>;
         if (propertyName in props) {
-          return props[propertyName] as Record<string, unknown>;
+          const propVal = props[propertyName];
+          if (!propVal || typeof propVal !== 'object') {
+            return undefined;
+          }
+          const current = propVal as Record<string, unknown>;
+          const visitedPointers = new Set<string>();
+          let ref = localRef(current);
+          let merged: Record<string, unknown> = current;
+          while (ref) {
+            if (visitedPointers.has(ref)) {
+              break;
+            }
+            visitedPointers.add(ref);
+            const resolved = this.resolveJsonPointer(this.catalog, ref);
+            if (resolved && typeof resolved === 'object') {
+              merged = {
+                ...(resolved as Record<string, unknown>),
+                ...merged,
+              };
+              ref = localRef(resolved);
+            } else {
+              break;
+            }
+          }
+          return merged;
         }
       }
     }
@@ -924,16 +963,41 @@ export class CatalogSchemaHelper {
   }
 
   /**
-   * Resolves a subschema for an array item ('items') or an object property key.
+   * Resolves the schema of an array's items.
    *
    * Traverses $ref (both in common types and catalog document), allOf, oneOf, and anyOf
    * to find the declared schema at that position.
    *
-   * @param schema The parent JSON schema to inspect.
-   * @param key 'items' for array items, or property name for object properties.
-   * @returns The resolved subschema, or undefined if not declared.
+   * @param schema The array's JSON schema.
+   * @returns The resolved item schema, or undefined if not declared.
    */
-  resolveSubschema(schema: unknown, key: string): Record<string, unknown> | undefined {
+  resolveItemSchema(schema: unknown): Record<string, unknown> | undefined {
+    return this.resolveAt(schema, undefined);
+  }
+
+  /**
+   * Resolves the schema of an object's property, falling back to `additionalProperties`
+   * when the property is not declared.
+   *
+   * Traverses $ref (both in common types and catalog document), allOf, oneOf, and anyOf
+   * to find the declared schema at that position. A property named `items` is looked up
+   * as a property, not as the array items.
+   *
+   * @param schema The object's JSON schema.
+   * @param name The property name.
+   * @returns The resolved property schema, or undefined if not declared.
+   */
+  resolvePropertySchema(schema: unknown, name: string): Record<string, unknown> | undefined {
+    return this.resolveAt(schema, name);
+  }
+
+  /**
+   * @param property The property to resolve, or undefined for the array items.
+   */
+  private resolveAt(
+    schema: unknown,
+    property: string | undefined,
+  ): Record<string, unknown> | undefined {
     const visited = new Set<unknown>();
 
     const resolve = (s: unknown, inCommonTypes: boolean): Record<string, unknown> | undefined => {
@@ -947,15 +1011,16 @@ export class CatalogSchemaHelper {
 
       const obj = s as Record<string, unknown>;
 
-      if (key === 'items') {
+      if (property === undefined) {
         if (obj.items && typeof obj.items === 'object') {
           return obj.items as Record<string, unknown>;
         }
       } else {
         if (obj.properties && typeof obj.properties === 'object') {
           const props = obj.properties as Record<string, unknown>;
-          if (key in props && props[key] && typeof props[key] === 'object') {
-            return props[key] as Record<string, unknown>;
+          const declared = Object.hasOwn(props, property) ? props[property] : undefined;
+          if (declared && typeof declared === 'object') {
+            return declared as Record<string, unknown>;
           }
         }
         if (obj.additionalProperties && typeof obj.additionalProperties === 'object') {
