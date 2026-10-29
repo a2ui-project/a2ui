@@ -26,6 +26,76 @@ from typing import Any
 from pydantic import ValidationError
 from ..exceptions import A2uiErrorDetail
 
+_BRACKET_INDEX_RE = re.compile(r"\[(\d+)\]")
+
+_ENVELOPE_ACTION_KEYS = frozenset({
+    "createSurface",
+    "updateComponents",
+    "updateDataModel",
+    "deleteSurface",
+    "callRendererFunction",
+    "agentFunctionResponse",
+    "beginRendering",
+    "surfaceUpdate",
+    "dataModelUpdate",
+})
+
+
+_UNION_BRANCH_SEGMENTS = frozenset({
+    "str",
+    "int",
+    "float",
+    "bool",
+    "list",
+    "dict",
+    "DataBinding",
+    "FunctionCall",
+    "ChildList",
+})
+
+
+def _is_union_branch_segment(seg: str) -> bool:
+    """Returns whether a path segment is an internal Pydantic union branch tag."""
+    return (
+        seg in _UNION_BRANCH_SEGMENTS
+        or seg.startswith("function-after[")
+        or seg.startswith("function-before[")
+    )
+
+
+def to_json_pointer(dot_path: str | None) -> str:
+    """Converts a dot-separated validation path into an RFC 6901 JSON Pointer.
+
+    Strips leading envelope prefixes such as ``messages.<idx>`` and action names
+    (``createSurface``, ``updateComponents``, ``updateDataModel``, ``deleteSurface``,
+    ``callRendererFunction``) so the pointer is relative to the action payload.
+
+    Args:
+        dot_path: Dot-separated path or existing JSON Pointer string.
+
+    Returns:
+        An RFC 6901 JSON Pointer starting with ``/``, or ``""`` when empty.
+    """
+    if not dot_path:
+        return ""
+    if dot_path.startswith("/"):
+        return _BRACKET_INDEX_RE.sub(r"/\1", dot_path)
+
+    normalized = _BRACKET_INDEX_RE.sub(r".\1", dot_path)
+    segments = [seg for seg in normalized.split(".") if seg != ""]
+    if segments and segments[0] == "messages":
+        segments = segments[1:]
+        if segments and segments[0].isdigit():
+            segments = segments[1:]
+    if segments and segments[0] in _ENVELOPE_ACTION_KEYS:
+        segments = segments[1:]
+    while segments and _is_union_branch_segment(segments[-1]):
+        segments.pop()
+    if not segments:
+        return ""
+    escaped = [seg.replace("~", "~0").replace("/", "~1") for seg in segments]
+    return "/" + "/".join(escaped)
+
 
 def _clean_loc_part(x: str) -> str:
     """Extracts base message class names from Pydantic validator wrapper strings."""
