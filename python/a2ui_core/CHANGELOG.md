@@ -8,12 +8,6 @@
   string is read as text, as the protocol's catalog rules require. v0.8
   catalogs, and components a catalog does not declare, still infer references
   from property names and values.
-- Schema validation never fetches a `$ref` over the network. A cross-catalog
-  `$ref` whose JSON Pointer passes through an array, such as
-  `<peer>#/components/Button/allOf/1/properties/action`, now resolves against
-  the held peer catalog; previously it was left in place and jsonschema
-  downloaded the peer. A `$ref` into a catalog that isn't held now fails
-  validation with an unresolvable-reference error instead.
 - (v1_0) `DataContext` reads a `ValidationResult` dict that a function argument
   resolves to by its `valid` boolean wherever the function's argument schema
   types that argument as `DynamicBoolean`, as the specification defines the
