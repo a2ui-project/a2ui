@@ -72,6 +72,11 @@
   it is standalone.
   [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
+- Add `Catalog.derive`, which builds a catalog with a new `catalog_id` from
+  the named `components` and `functions` of an existing one and new entries,
+  with the `instructions` it is given, and does not keep the source's `$id`,
+  title, description or instructions.
+  [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
 - (v1_0) Relaxed v1.0 `CatalogDefinition` schema rules to permit non-object
   catalog `$defs` (such as primitive, enum, or union design tokens), property
   `$ref`s to `#/$defs/...`, and arbitrary vendor/metadata extension keys on
