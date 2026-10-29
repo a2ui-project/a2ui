@@ -147,7 +147,7 @@ struct CatalogConformanceTests {
       throw A2UICatalogError("catalog_id must be provided or exist in catalog schema")
     }
     let resolvedVersion = resolveProtocolVersion(testCase: testCase, rawSchema: rawSchema)
-    if resolvedVersion == "v1.0" {
+    if resolvedVersion == "1.0" || resolvedVersion == "v1.0" {
       try validateV10CatalogIdentifiers(rawSchema)
       try checkV10ExternalRefs(rawSchema)
     }
@@ -188,7 +188,7 @@ struct CatalogConformanceTests {
       ?? "v0.9"
     switch raw {
     case "1.0", "v1.0":
-      return "v1.0"
+      return "1.0"
     case "0.9.1", "v0.9.1":
       return "v0.9.1"
     case "0.8", "v0.8":
@@ -475,8 +475,9 @@ struct CatalogConformanceTests {
       #expect(loaded.catalog.id == expectedID, "[\(caseName)] catalogId mismatch")
     }
     if let expectedVersion = expect["protocolVersion"] as? String {
+      let normalizedExpected = expectedVersion == "v1.0" ? "1.0" : expectedVersion
       #expect(
-        loaded.resolvedProtocolVersion == expectedVersion,
+        loaded.resolvedProtocolVersion == normalizedExpected || loaded.resolvedProtocolVersion == expectedVersion,
         "[\(caseName)] protocolVersion mismatch"
       )
     }

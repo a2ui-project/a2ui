@@ -534,8 +534,10 @@ public final class MessageProcessor: ObservableObject {
   /// the underlying validation, integrity, recursion, or catalog error.
   public func processMessages(_ payload: JSONValue) throws {
     let operations: [InternalOperation]
+    let envelopeVersion: A2UIProtocolVersion
     do {
       let adapter = try adapterFactory.resolveFromPayload(payload)
+      envelopeVersion = adapter.version
       operations = try adapter.extractOperations(from: payload)
     } catch {
       let rawContext = extractRawEnvelopeContext(from: payload, error: error)
@@ -557,7 +559,11 @@ public final class MessageProcessor: ObservableObject {
         try processOperation(operation)
       } catch {
         let surfaceID = extractSurfaceID(from: error, fallback: operation.surfaceID ?? "")
-        let version = resolveVersion(for: operation, surfaceID: surfaceID)
+        let version = resolveVersion(
+          for: operation,
+          surfaceID: surfaceID,
+          fallbackVersion: envelopeVersion
+        )
         var functionCallID: String?
         var isCallRendererFunction = false
         if case .callRendererFunction(let op) = operation {
@@ -669,7 +675,8 @@ public final class MessageProcessor: ObservableObject {
 
   private func resolveVersion(
     for operation: InternalOperation,
-    surfaceID: String
+    surfaceID: String,
+    fallbackVersion: A2UIProtocolVersion? = nil
   ) -> A2UIProtocolVersion {
     switch operation {
     case .createSurface(let op):
@@ -684,6 +691,9 @@ public final class MessageProcessor: ObservableObject {
     if let surfaceVersion = surfaceGroupModel[surfaceID]?.protocolVersion {
       return surfaceVersion
     }
+    if let fallbackVersion {
+      return fallbackVersion
+    }
     return registeredCatalogs.first?.a2uiProtocolVersion ?? .v10
   }
 
@@ -692,13 +702,13 @@ public final class MessageProcessor: ObservableObject {
     surfaceID: String
   ) -> A2UIProtocolVersion {
     if let versionStr = payload["version"]?.stringValue,
-      let version = A2UIProtocolVersion(rawValue: versionStr)
+      let version = A2UIProtocolVersion(lenientRawValue: versionStr)
     {
       return version
     }
     if let firstItem = payload.arrayValue?.first,
       let versionStr = firstItem["version"]?.stringValue,
-      let version = A2UIProtocolVersion(rawValue: versionStr)
+      let version = A2UIProtocolVersion(lenientRawValue: versionStr)
     {
       return version
     }

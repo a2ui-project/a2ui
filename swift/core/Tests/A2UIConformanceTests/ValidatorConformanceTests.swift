@@ -72,7 +72,13 @@ struct ValidatorConformanceTests {
   private func matchesSuiteFilter(_ testCase: ConformanceTestCase, versionPrefix: String?) -> Bool {
     guard testCase.action == "validate" else { return false }
     guard let versionPrefix else { return true }
-    return testCase.protocolVersion == nil || testCase.protocolVersion?.hasPrefix(versionPrefix) == true
+    if let pv = testCase.protocolVersion {
+      if versionPrefix == "v1.0" || versionPrefix == "1.0" {
+        return pv.hasPrefix("1.0") || pv.hasPrefix("v1.0")
+      }
+      return pv.hasPrefix(versionPrefix)
+    }
+    return true
   }
 
   private func resolveTargetVersion(
@@ -80,9 +86,9 @@ struct ValidatorConformanceTests {
     versionPrefix: String?
   ) -> String {
     if let explicit = testCase.protocolVersion {
-      return explicit.hasPrefix("v1.0") ? "v1.0" : explicit
+      return (explicit.hasPrefix("v1.0") || explicit.hasPrefix("1.0")) ? "1.0" : explicit
     }
-    return versionPrefix == "v1.0" ? "v1.0" : "v0.9.1"
+    return (versionPrefix == "v1.0" || versionPrefix == "1.0") ? "1.0" : "v0.9.1"
   }
 
   private func makeValidationConfig(strictMode: Bool, targetVersion: String) -> ValidationConfig {
