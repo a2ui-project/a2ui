@@ -171,7 +171,7 @@ struct CheckSeverityTests {
     )
     let catalog = Catalog(
       id: "test",
-      protocolVersion: "v1.0",
+      protocolVersion: "1.0",
       components: [AnyComponentAPI(name: "Button", schema: buttonSchema)] as [AnyComponentAPI]
     )
     let componentsModel = SurfaceComponentsModel()

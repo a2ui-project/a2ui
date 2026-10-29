@@ -357,6 +357,7 @@ class A2uiSubagentMap:
                 del surfaces[surface_id]
 
         logging.info(
-            f"Stripped {surfaces_count - len(surfaces)} surfaces not owned by subagent"
-            f" {subagent_name} from data model. Kept surfaces: {list(surfaces.keys())}"
+            f"Stripped {surfaces_count - len(surfaces)} surfaces not owned by"
+            f" subagent {subagent_name} from data model. Kept surfaces:"
+            f" {list(surfaces.keys())}"
         )

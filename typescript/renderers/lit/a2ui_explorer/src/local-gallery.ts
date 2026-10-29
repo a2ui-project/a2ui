@@ -322,7 +322,7 @@ export class LocalGallery extends LitElement {
     const activeItem = this.demoItems[this.activeItemIndex];
     const surfaceId = activeItem?.id;
     if (surfaceId && this.processor.model.getSurface(surfaceId)) {
-      const version = activeItem.version === '1.0' ? 'v1.0' : 'v0.9';
+      const version = activeItem.version === '1.0' ? '1.0' : 'v0.9';
       this.processor.processMessages([{version, deleteSurface: {surfaceId}}]);
     }
   }

@@ -18,7 +18,7 @@ import {setupTestDom, teardownTestDom, asyncUpdate} from './dom-setup.js';
 import assert from 'node:assert';
 import {describe, it, beforeEach, after, before} from 'node:test';
 import type {A2uiSurface} from '../surface/a2ui-surface.js';
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
+import {MessageProcessor, isComponentNode} from '@a2ui/web_core/v0_9';
 
 /**
  * These tests verify that the surface element:
@@ -160,6 +160,28 @@ describe('A2uiSurface', () => {
     document.body.removeChild(el);
   });
 
+  it('should accept a surface whose componentsModel has no event sources', async () => {
+    const el = document.createElement('a2ui-surface') as unknown as A2uiSurface;
+    document.body.appendChild(el);
+
+    // A partial test double of the kind pre-1.0 renderer tests pass in: it
+    // can look up the root but has no `onCreated` or `onDeleted` to subscribe to.
+    const partialSurface = {
+      ...surfaceModel,
+      componentsModel: {get: () => undefined},
+    };
+    await asyncUpdate(el, e => {
+      e.surface = partialSurface as any;
+    });
+    assert.ok((el.renderRoot as HTMLElement).innerHTML?.includes('Loading surface'));
+
+    await asyncUpdate(el, e => {
+      e.surface = undefined;
+    });
+
+    document.body.removeChild(el);
+  });
+
   it('should render in the Light DOM without a shadowRoot', async () => {
     const el = document.createElement('a2ui-surface') as unknown as A2uiSurface;
     document.body.appendChild(el);
@@ -185,7 +207,13 @@ describe('A2uiSurface', () => {
 
     await el.updateComplete;
     assert.strictEqual(el.shadowRoot, null);
-    assert.ok(el.querySelector('a2ui-basic-text'));
+    const childEl = el.querySelector('a2ui-basic-text') as any;
+    assert.ok(childEl);
+    assert.ok(
+      isComponentNode(childEl.node),
+      'Root element should receive a resolved ComponentNode',
+    );
+    assert.strictEqual(childEl.node.componentId, 'root');
 
     document.body.removeChild(el);
   });

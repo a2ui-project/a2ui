@@ -26,7 +26,7 @@ import {AgentToRendererMessageSchema} from '../../v1_0/schema/agent-to-renderer.
  * Protocol version adapter for specification v1.0.
  */
 export class V1Point0Adapter extends BaseVersionAdapter {
-  readonly version: ProtocolVersion = 'v1.0';
+  readonly version: ProtocolVersion = '1.0';
   protected readonly schema = AgentToRendererMessageSchema;
 
   protected getNativeActionKeys(): string[] {

@@ -379,7 +379,10 @@ def test_closing_twice_returns_nothing_the_second_time():
 @pytest.mark.parametrize(
     "message, error",
     [
-        (_update({"id": "root", "component": "Unknown"}), "Unrecognized component"),
+        (
+            _update({"id": "root", "component": "Unknown"}),
+            "Unrecognized component",
+        ),
         ({**_update(_text("root")), "version": "v1.0"}, "states version"),
         (_update(_text("root"), _text("root")), "Duplicate component"),
     ],

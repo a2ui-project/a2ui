@@ -17,6 +17,7 @@ import A2UIJSON
 import BasicCatalog
 import Foundation
 import JSONSchema
+import OrderedCollections
 import OrderedJSON
 import Testing
 
@@ -27,7 +28,7 @@ struct ValidatorConformanceTests {
   }
 
   @Test func validatorV10Conformance() throws {
-    try runValidatorSuite(filename: "core/validator_v1_0.yaml", versionPrefix: "v1.0")
+    try runValidatorSuite(filename: "core/validator_v1_0.yaml", versionPrefix: "1.0")
   }
 
   private func runValidatorSuite(filename: String, versionPrefix: String) throws {
@@ -45,7 +46,7 @@ struct ValidatorConformanceTests {
         continue
       }
 
-      let targetVersion = versionPrefix == "v1.0" ? "v1.0" : "v0.9.1"
+      let targetVersion = versionPrefix == "1.0" ? "1.0" : "v0.9.1"
       let config =
         testCase.strictMode
         ? ValidationConfig(
@@ -185,9 +186,18 @@ struct ValidatorConformanceTests {
         catalogs.append(customCatalog)
       }
 
+      // Each case sets its checks in `validationConfig`.
+      guard
+        let flags = testCase.validationConfig,
+        let validationConfig = ConformanceTestHelper.validationConfig(
+          from: flags, targetVersion: "1.0")
+      else {
+        Issue.record("[\(testCase.name)] Missing or unknown validationConfig flags")
+        continue
+      }
       let processor = MessageProcessor(
         catalogs: catalogs,
-        validationConfig: ValidationConfig(targetVersion: "v1.0")
+        validationConfig: validationConfig
       )
 
       for (stepIndex, step) in testCase.steps.enumerated() {
@@ -207,14 +217,14 @@ struct ValidatorConformanceTests {
             "Expected failure for '\(testCase.name)' at step \(stepIndex)"
           )
 
-          if let expectedCode = expectedError.code, let valError = error as? A2UIValidationError {
+          if let expectedCode = expectedError.code {
+            let details = (error as? A2UIValidationError)?.details ?? []
             #expect(
-              valError.details.contains(where: { $0.code == expectedCode }),
-              "[\(testCase.name)] Expected error code '\(expectedCode)', got \(valError.details)"
+              details.contains(where: { $0.code == expectedCode }),
+              "[\(testCase.name)] Expected error code '\(expectedCode)', got \(details)"
             )
-          } else {
-            assertErrorMatches(error: error, expected: expectedError, testName: testCase.name)
           }
+          assertErrorMatches(error: error, expected: expectedError, testName: testCase.name)
         } else {
           do {
             try processor.processMessages(payload)
@@ -225,6 +235,14 @@ struct ValidatorConformanceTests {
               at step \(stepIndex), but caught: \(error)
               """
             )
+            continue
+          }
+          // The parser gives every step the case's `expect`, which describes the
+          // surface after the last step.
+          if stepIndex == testCase.steps.count - 1,
+            let expectedSurfaces = step.expect?["surfaces"]?.objectValue
+          {
+            try assertComponents(expectedSurfaces, on: processor, testName: testCase.name)
           }
         }
       }
@@ -241,7 +259,7 @@ struct ValidatorConformanceTests {
       let catalogs = try buildCatalogsWithAliases(for: testCase)
       let processor = MessageProcessor(
         catalogs: catalogs,
-        validationConfig: ValidationConfig(targetVersion: "v1.0")
+        validationConfig: ValidationConfig(targetVersion: "1.0")
       )
 
       for (stepIndex, step) in testCase.steps.enumerated() {
@@ -300,6 +318,44 @@ struct ValidatorConformanceTests {
       }
     }
     #expect(executed == testCases.count, "All cases in reserved_keys.yaml should execute")
+  }
+
+  /// Checks each expected component's type and properties on the processor's surfaces.
+  private func assertComponents(
+    _ expectedSurfaces: OrderedDictionary<String, JSONValue>,
+    on processor: MessageProcessor,
+    testName: String
+  ) throws {
+    for (surfaceID, expectedSurface) in expectedSurfaces {
+      let surface = try #require(
+        processor.surfaceGroupModel[surfaceID],
+        "[\(testName)] Expected surface '\(surfaceID)' to exist"
+      )
+      guard let expectedComponents = expectedSurface["components"]?.objectValue else { continue }
+      for (componentID, expectedComponent) in expectedComponents {
+        let component = try #require(
+          surface.componentsModel.components[componentID],
+          "[\(testName)] Expected component '\(componentID)' on surface '\(surfaceID)'"
+        )
+        guard let expectedFields = expectedComponent.objectValue else { continue }
+        for (key, expectedValue) in expectedFields {
+          if key == "component" {
+            #expect(
+              component.type == expectedValue.stringValue,
+              "[\(testName)] Component '\(componentID)' has type '\(component.type)'"
+            )
+          } else {
+            #expect(
+              component.properties[key] == expectedValue,
+              """
+              [\(testName)] Component '\(componentID)' property '\(key)' is \
+              \(String(describing: component.properties[key])), expected \(expectedValue)
+              """
+            )
+          }
+        }
+      }
+    }
   }
 
   private func assertErrorMatches(

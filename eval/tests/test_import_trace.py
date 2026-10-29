@@ -38,11 +38,11 @@ GOLDEN_PAYLOAD = (
     "<a2ui-json>"
     + json.dumps([
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {"surfaceId": "main", "catalogId": "basic"},
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "main",
                 "components": [
@@ -119,7 +119,10 @@ ADK_TRACE: dict[str, Any] = {
         },
         {
             "author": "user",
-            "content": {"role": "user", "parts": [{"text": "Render them as a list."}]},
+            "content": {
+                "role": "user",
+                "parts": [{"text": "Render them as a list."}],
+            },
         },
         {
             "author": "shop_agent",
@@ -136,7 +139,14 @@ def _write_json(tmp_path: Path, name: str, data: Any) -> Path:
 
 
 def _import_args(input_path: Path, output: Path, **extra: str) -> list[str]:
-    args = ["--input", str(input_path), "--output", str(output), "--name", "case_a"]
+    args = [
+        "--input",
+        str(input_path),
+        "--output",
+        str(output),
+        "--name",
+        "case_a",
+    ]
     for key, value in extra.items():
         args += [f"--{key.replace('_', '-')}", value]
     return args
@@ -217,7 +227,9 @@ def test_adk_event_trace_maps_tool_calls_and_responses(tmp_path: Path) -> None:
     ]
 
 
-def test_adk_event_trace_preserves_string_function_response(tmp_path: Path) -> None:
+def test_adk_event_trace_preserves_string_function_response(
+    tmp_path: Path,
+) -> None:
     trace_with_str = json.loads(json.dumps(ADK_TRACE))
     trace_with_str["events"][2]["content"]["parts"][0]["functionResponse"][
         "response"
@@ -231,7 +243,10 @@ def test_adk_event_trace_preserves_string_function_response(tmp_path: Path) -> N
 
 def test_sanitize_messages_redacts_secrets_and_pii() -> None:
     messages = [
-        {"role": "system", "content": "Contact ada@example.com or +1 555-123-4567."},
+        {
+            "role": "system",
+            "content": "Contact ada@example.com or +1 555-123-4567.",
+        },
         {
             "role": "assistant",
             "tool_calls": [{
@@ -362,7 +377,9 @@ def test_import_refuses_unencrypted_repo_location(tmp_path: Path) -> None:
     assert not output.exists()
 
 
-def test_import_without_golden_payload_has_no_assertions(tmp_path: Path) -> None:
+def test_import_without_golden_payload_has_no_assertions(
+    tmp_path: Path,
+) -> None:
     trace = [{"role": "user", "content": "Build a form."}]
     path = _write_json(tmp_path, "trace.json", trace)
     output = tmp_path / "out.yaml"
@@ -375,7 +392,7 @@ def test_import_without_golden_payload_has_no_assertions(tmp_path: Path) -> None
 def test_derive_assertions_extracts_nested_data_model_paths() -> None:
     payload = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "main",
                 "catalogId": "basic",
@@ -383,7 +400,7 @@ def test_derive_assertions_extracts_nested_data_model_paths() -> None:
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateDataModel": {
                 "surfaceId": "main",
                 "path": "/",
@@ -391,7 +408,7 @@ def test_derive_assertions_extracts_nested_data_model_paths() -> None:
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "main",
                 "components": [{
@@ -501,7 +518,7 @@ def test_expand_cases_produces_all_mutations(tmp_path: Path) -> None:
     assert stateful["messages"][-1]["content"] == expand_cases.FOLLOW_UP_PROMPT
     assert stateful["messages"][0]["content"] == "Build a form."
     create, update = stateful["initial_state"]
-    assert create["version"] == "v1.0"
+    assert create["version"] == "1.0"
     assert create["createSurface"]["surfaceId"] == "main"
     assert create["createSurface"]["catalogId"].endswith(
         "v1_0/catalogs/basic/catalog.json"
@@ -517,7 +534,9 @@ def test_expand_cases_produces_all_mutations(tmp_path: Path) -> None:
     ]
 
 
-def test_expand_cases_uses_v0_9_catalogs_for_v0_9_1_inputs(tmp_path: Path) -> None:
+def test_expand_cases_uses_v0_9_catalogs_for_v0_9_1_inputs(
+    tmp_path: Path,
+) -> None:
     source = _write_dataset(tmp_path, "core_v0_9_1.yaml")
     output = tmp_path / "expanded.yaml"
     args = [
@@ -543,7 +562,14 @@ def test_expand_cases_uses_v0_9_catalogs_for_v0_9_1_inputs(tmp_path: Path) -> No
 def test_expand_cases_dry_run_writes_nothing(tmp_path: Path, capsys: Any) -> None:
     source = _write_dataset(tmp_path)
     output = tmp_path / "expanded.yaml"
-    args = ["--input", str(source), "--output", str(output), "--mutations", "pruned"]
+    args = [
+        "--input",
+        str(source),
+        "--output",
+        str(output),
+        "--mutations",
+        "pruned",
+    ]
     assert expand_cases.main(args + ["--dry-run"]) == 0
     assert not output.exists()
     printed = yaml.safe_load(capsys.readouterr().out)
