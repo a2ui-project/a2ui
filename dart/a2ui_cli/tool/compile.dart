@@ -89,7 +89,7 @@ void main(List<String> args) {
 
   // Find package directory relative to script
   final scriptFile = File(Platform.script.toFilePath());
-  final packageDir = scriptFile.parent.parent;
+  final Directory packageDir = scriptFile.parent.parent;
   final String entrypoint = p.join(packageDir.path, 'bin', 'a2ui.dart');
 
   final String hostTarget = detectTarget();
@@ -110,7 +110,7 @@ void main(List<String> args) {
   final String rawOutput =
       (parsed['output'] as String?) ??
       p.join(packageDir.path, 'dist', 'a2ui-$target$ext');
-  final outFile = File(rawOutput).absolute;
+  final File outFile = File(rawOutput).absolute;
   final String outputPath = outFile.path;
 
   // Ensure output directory exists.
@@ -133,9 +133,9 @@ void main(List<String> args) {
     outputPath,
   ];
 
-  final dartExec = Platform.resolvedExecutable;
+  final String dartExec = Platform.resolvedExecutable;
   stdout.writeln('Running: $dartExec ${compileArgs.join(' ')}');
-  final result = Process.runSync(
+  final ProcessResult result = Process.runSync(
     dartExec,
     compileArgs,
     workingDirectory: packageDir.path,
@@ -150,8 +150,8 @@ void main(List<String> args) {
   }
 
   if (outFile.existsSync()) {
-    final sizeBytes = outFile.lengthSync();
-    final sizeMb = sizeBytes / (1024 * 1024);
+    final int sizeBytes = outFile.lengthSync();
+    final double sizeMb = sizeBytes / (1024 * 1024);
     stdout.writeln(
       'Successfully compiled $outputPath (${sizeMb.toStringAsFixed(2)} MB)',
     );
