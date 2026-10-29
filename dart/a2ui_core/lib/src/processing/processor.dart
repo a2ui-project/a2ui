@@ -620,7 +620,7 @@ class MessageProcessor<T extends ComponentApi> {
               c.protocolVersion != null &&
               c.protocolVersion!.isAtLeast(A2uiProtocolVersion.v1_0),
         );
-    return allV1 ? 'v1.0' : 'v0.9';
+    return allV1 ? '1.0' : 'v0.9';
   }
 
   ErrorMessage _emitAndForwardError(A2uiError error, {Object? rawMessage}) {

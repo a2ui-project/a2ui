@@ -416,7 +416,7 @@ List<Catalog<ComponentApi, FunctionImplementation>> _singleDocumentCatalogs(
       docId == BasicCatalog.v0_9Id || docId == BasicCatalog.v1_0Id;
   final String docVersion = switch (docId) {
     BasicCatalog.v0_9Id => 'v0.9',
-    BasicCatalog.v1_0Id => 'v1.0',
+    BasicCatalog.v1_0Id => '1.0',
     _ => (document['protocolVersion'] as String?) ?? version,
   };
   return [

@@ -320,7 +320,7 @@ Future<void> _runUiBindingScenario(
     surfaceId,
     defaultCatalog: scenarioCatalog,
     availableCatalogs: [scenarioCatalog],
-    protocolVersion: 'v1.0',
+    protocolVersion: '1.0',
     callAgentFunction: (call) => processor.callAgentFunction(surfaceId, call),
   );
   processor.model.addSurface(surface);
@@ -347,7 +347,7 @@ Future<void> _runUiBindingScenario(
   expect(outbound.callFunction, expectedCall['callFunction']);
 
   processor.processMessages({
-    'version': 'v1.0',
+    'version': '1.0',
     'agentFunctionResponse': {
       'functionCallId': outbound.functionCallId,
       'value': scenario['inboundResponseValue'],
@@ -401,7 +401,7 @@ Future<void> _runUiActionFallbackScenario(
   expect(outbound.callFunction, expectedCall['callFunction']);
 
   processor.processMessages({
-    'version': 'v1.0',
+    'version': '1.0',
     'agentFunctionResponse': {
       'functionCallId': outbound.functionCallId,
       'value': scenario['inboundResponseValue'],

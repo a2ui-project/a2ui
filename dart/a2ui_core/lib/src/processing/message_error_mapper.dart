@@ -14,6 +14,7 @@
 
 import '../core/messages.dart';
 import '../primitives/errors.dart';
+import '../primitives/semver.dart';
 
 /// Maps internal [A2uiError] exceptions thrown during message validation or
 /// processing into wire-format [ErrorMessage] envelopes.
@@ -25,6 +26,7 @@ class MessageErrorMapper {
     'v0.9',
     'v0.9.1',
     'v1.0',
+    '1.0',
   };
 
   static const List<String> _envelopeBodyKeys = [
@@ -73,11 +75,18 @@ class MessageErrorMapper {
   static String _resolveVersion(Object? rawMessage, String defaultVersion) {
     if (rawMessage is Map) {
       final Object? rawVersion = rawMessage['version'];
-      if (rawVersion is String && _knownVersions.contains(rawVersion)) {
-        return rawVersion;
+      if (rawVersion is String) {
+        if (rawVersion == '1.0' || rawVersion == 'v1.0') {
+          return '1.0';
+        }
+        if (_knownVersions.contains(rawVersion)) {
+          return rawVersion;
+        }
       }
     }
-    return defaultVersion;
+    return (defaultVersion == '1.0' || defaultVersion == 'v1.0')
+        ? '1.0'
+        : defaultVersion;
   }
 
   static bool _hasKey(Object? rawMessage, String key) =>
@@ -125,7 +134,9 @@ class MessageErrorMapper {
         error.code == A2uiRendererError.unallowedParentCode ||
             error.code == A2uiRendererError.unallowedChildCode;
     if (isCompositionCode) {
-      return version == 'v1.0'
+      return (version == '1.0' ||
+              version == 'v1.0' ||
+              isVersionAtLeast(version, '1.0'))
           ? error.code
           : A2uiRendererError.validationFailedCode;
     }
