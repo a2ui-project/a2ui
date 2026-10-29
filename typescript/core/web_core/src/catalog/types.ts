@@ -942,6 +942,9 @@ function createCatalogInvoker<F extends FunctionApi>(
                 parsed.error.errors,
               );
             }
+            // Send what a local implementation would receive: the parsed
+            // arguments, with the schema's defaults applied.
+            args = parsed.data as Record<string, unknown>;
           }
           return surface.callAgentFunction({'@call': name, catalogId, args});
         };

@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ const upper = createFunctionImplementation(
 const quote: FunctionApi = {
   name: 'quote',
   returnType: 'number',
-  schema: z.object({'symbol': z.string()}).strict(),
+  schema: z.object({'symbol': z.string(), 'currency': z.string().default('USD')}).strict(),
 };
 
 describe('Fallback routing of unimplemented functions to the agent (v1.0)', () => {
@@ -115,7 +115,7 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     assert.deepStrictEqual(errors, []);
   });
 
-  it('validates the arguments of a schema-only function before sending it', async () => {
+  it('validates and parses the arguments of a schema-only function before sending it', async () => {
     ctx.resolveDynamicValue({'@call': 'quote', 'args': {'symbol': 42}});
     await flush();
     assert.strictEqual(outbound.length, 0);
@@ -129,7 +129,11 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     });
     await flush();
     assert.strictEqual(outbound.length, 1);
-    assert.deepStrictEqual(outbound[0].callAgentFunction.callFunction.args, {'symbol': 'GOOG'});
+    assert.deepStrictEqual(
+      outbound[0].callAgentFunction.callFunction.args,
+      {'symbol': 'GOOG', 'currency': 'USD'},
+      'the parsed arguments are sent, with schema defaults applied',
+    );
     respond(0, {value: 180});
     assert.strictEqual(await result, 180);
   });
