@@ -4,10 +4,10 @@
     [
       "Here is a sign-up form for your newsletter.\n\n<a",
       "2ui-json>\n",
-      "[\n  {\n    \"version\": \"v1.0\",\n    \"createSurface\": {\n      \"surfaceId\": \"newsletter-signup\",\n      \"catalogId\": \"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json\",\n      \"sendDataModel\": true\n    }\n  },\n  {\n    \"version\": \"v1.",
+      "[\n  {\n    \"version\": \"1.0\",\n    \"createSurface\": {\n      \"surfaceId\": \"newsletter-signup\",\n      \"catalogId\": \"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json\",\n      \"sendDataModel\": true\n    }\n  },\n  {\n    \"version\": \"1.",
       "0\",\n    \"updateDataModel\": {\n      \"surfaceId\": \"newsletter-signup\",\n      \"",
       "value\": {\n        \"email\": \"\"\n      }\n    }\n  },\n  {\n    \"",
-      "version\": \"v1.0\",\n    \"updateComponents\": {\n      \"surfaceId\": \"newsletter-",
+      "version\": \"1.0\",\n    \"updateComponents\": {\n      \"surfaceId\": \"newsletter-",
       "signup\",\n      \"components\":",
       " [\n        {\n          \"id\": \"root\",\n          \"component\": \"Card\",\n          \"child\": \"container\"\n        },\n        {\n          \"id\": \"container\",\n          \"component\": \"Column\",\n          \"children\":",
       " [\n            \"title\",\n            \"description\",\n            \"emailInput\",\n            \"subscribeBtn\"\n          ]\n        },\n        {\n          \"id\": \"title\",\n          \"component\": \"",
@@ -29,7 +29,7 @@
     [
       "Thank you for subscribing! We've sent a confirmation email",
       " to ada@example.com.\n\n<a2ui-json>\n",
-      "[\n  {\n    \"version\": \"v1.0\",\n    \"updateComponents\": {\n      \"surfaceId\": \"newsletter-signup\",\n      \"components\":",
+      "[\n  {\n    \"version\": \"1.0\",\n    \"updateComponents\": {\n      \"surfaceId\": \"newsletter-signup\",\n      \"components\":",
       " [\n        {\n          \"id\": \"root\",\n          \"component\": \"Card\",\n          \"child\": \"container\"\n        },\n        {\n          \"id\": \"container\",\n          \"component\": \"Column\",\n          \"children\":",
       " [\n            \"successIcon\",\n            \"title\",\n            \"description\"\n          ],\n          \"align\": \"center\"\n        },\n        {\n          \"id",
       "\": \"successIcon\",\n          \"component\": \"Icon\",\n          \"name\": \"check\"\n        },",

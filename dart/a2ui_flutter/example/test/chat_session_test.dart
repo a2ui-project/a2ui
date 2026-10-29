@@ -32,10 +32,10 @@ void main() {
   ) async {
     final client = FakeClient([
       [
-        '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s", '
+        '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s", '
             '"catalogId": "${BasicCatalog.v1_0Id}"',
         ', "sendDataModel": true}}',
-        ', {"version": "v1.0", "updateComponents": {"surfaceId": "s", '
+        ', {"version": "1.0", "updateComponents": {"surfaceId": "s", '
             '"components": [{"id": "root", "component": "Text", '
             '"text": "Hello"}]}}]</a2ui-json>',
       ],
@@ -80,7 +80,7 @@ void main() {
       'error message', (tester) async {
     final client = FakeClient([
       [
-        '<a2ui-json>[{"version": "v1.0", "updateComponents": '
+        '<a2ui-json>[{"version": "1.0", "updateComponents": '
             '{"surfaceId": "missing", "components": [{"id": "root", '
             '"component": "Text", "text": "Hi"}]}}]</a2ui-json>',
       ],
@@ -99,7 +99,7 @@ void main() {
       'a2ui': {
         'messages': [
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'error': {
               'code': 'INTEGRITY_ERROR',
               'surfaceId': '',
@@ -147,7 +147,7 @@ void main() {
     client.reply.add(
       block([
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {
             'functionCallId': call['functionCallId'],
             'value': 42,
@@ -220,7 +220,7 @@ void main() {
           createSurface('s'),
           updateDataModel('s', {'amount': 'abc'}),
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateComponents': {
               'surfaceId': 's',
               'components': [
@@ -257,7 +257,7 @@ void main() {
       'a2ui': {
         'messages': [
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'error': allOf(
               containsPair('code', 'EXPRESSION_ERROR'),
               containsPair('surfaceId', 's'),
@@ -342,7 +342,7 @@ void main() {
     final String reply = block([
       createSurface('s'),
       {
-        'version': 'v1.0',
+        'version': '1.0',
         'updateComponents': {
           'surfaceId': 's',
           'components': [
@@ -390,7 +390,7 @@ void main() {
         block([
           createSurface('s'),
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateComponents': {
               'surfaceId': 's',
               'components': [
@@ -437,7 +437,7 @@ void main() {
       'a2ui': {
         'messages': [
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'error': allOf(
               containsPair('surfaceId', 's'),
               containsPair('message', contains('/name/first')),
@@ -455,9 +455,9 @@ void main() {
   ) async {
     final client = FakeClient([
       [
-        '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s", '
+        '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s", '
             '"catalogId": "${BasicCatalog.v1_0Id}", "sendDataModel": true}}, '
-            '{"version": "v1.0", "updateDataModel": {"surfaceId": "s", '
+            '{"version": "1.0", "updateDataModel": {"surfaceId": "s", '
             '"value": {"name": "Ada"}}}]</a2ui-json>',
       ],
       ['Hello, Ada.'],
@@ -478,7 +478,7 @@ void main() {
     expect(jsonDecode(turn.substring('Greet me.\n\n'.length)), {
       'metadata': {
         'a2uiRendererDataModel': {
-          'version': 'v1.0',
+          'version': '1.0',
           'surfaces': {
             's': {'name': 'Ada'},
           },

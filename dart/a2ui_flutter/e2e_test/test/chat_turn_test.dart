@@ -107,7 +107,7 @@ void main() {
     expect(client.requests, hasLength(2));
     final turn = jsonDecode(client.requests[1]) as Map<String, Object?>;
     expect((turn['a2ui']! as Map<String, Object?>)['messages'], [
-      {'version': 'v1.0', 'action': containsPair('surfaceId', surfaceId)},
+      {'version': '1.0', 'action': containsPair('surfaceId', surfaceId)},
     ]);
     expect(client.requests[1], contains('ada@example.com'));
   }, timeout: timeout);

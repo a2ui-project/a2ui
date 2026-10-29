@@ -25,7 +25,7 @@ Map<String, Object?> createSurface(
   String surfaceId, {
   bool sendDataModel = false,
 }) => {
-  'version': 'v1.0',
+  'version': '1.0',
   'createSurface': {
     'surfaceId': surfaceId,
     'catalogId': BasicCatalog.v1_0Id,
@@ -40,7 +40,7 @@ Map<String, Object?> rootComponent(
   String text, {
   String component = 'Text',
 }) => {
-  'version': 'v1.0',
+  'version': '1.0',
   'updateComponents': {
     'surfaceId': surfaceId,
     'components': [
@@ -55,6 +55,6 @@ Map<String, Object?> updateDataModel(
   Object? value, {
   String? path,
 }) => {
-  'version': 'v1.0',
+  'version': '1.0',
   'updateDataModel': {'surfaceId': surfaceId, 'path': ?path, 'value': value},
 };

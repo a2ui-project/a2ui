@@ -80,7 +80,7 @@ void main() {
       'a2ui': {
         'messages': [
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'action': {
               'name': 'subscribe',
               'surfaceId': 'newsletter-signup',
@@ -93,7 +93,7 @@ void main() {
       },
       'metadata': {
         'a2uiRendererDataModel': {
-          'version': 'v1.0',
+          'version': '1.0',
           'surfaces': {
             'newsletter-signup': {'email': 'ada@example.com'},
           },
