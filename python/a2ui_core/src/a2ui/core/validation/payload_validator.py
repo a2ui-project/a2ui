@@ -86,7 +86,9 @@ def _schema_has_property(schema: Any, prop_name: str) -> bool:
     return False
 
 
-def _is_unknown_property_error(err: jsonschema.exceptions.ValidationError) -> bool:
+def _is_unknown_property_error(
+    err: jsonschema.exceptions.ValidationError,
+) -> bool:
     """Returns whether a schema error reports an unknown property.
 
     Those are the errors that `allow_unknown_elements` tolerates. A key
@@ -145,7 +147,9 @@ def _component_envelope_keys(protocol_version: Any) -> tuple[str, ...]:
 
 
 @functools.cache
-def _function_call_envelope(protocol_version: ProtocolVersion) -> dict[str, Any]:
+def _function_call_envelope(
+    protocol_version: ProtocolVersion,
+) -> dict[str, Any]:
     """Returns the envelope-only `FunctionCall` def of a protocol version.
 
     It checks `@call`, `args` and `catalogId` and rejects other keys, but not

@@ -30,17 +30,15 @@ const Map<String, String> _v10ExpectedFailures = {};
 /// The `validate` cases in `core/reserved_keys.yaml` expected to fail.
 const Map<String, String> _reservedKeysExpectedFailures = {};
 
-/// Cases in `core/composition_constraints.yaml` expected to fail.
-const Map<String, String> _compositionExpectedFailures = {};
-
 /// Cases in `core/validation_result.yaml` expected to fail.
 const Map<String, String> _validationResultExpectedFailures = {};
 
 /// Runs the shared validator suites against [MessageProcessor.processMessages],
 /// the entry point for checking a payload on its own: the `validate` cases of
 /// `core/validator_v0_9.yaml`, `core/validator_v1_0.yaml`,
-/// `core/reserved_keys.yaml`, `core/composition_constraints.yaml` and
-/// `core/validation_result.yaml`.
+/// `core/reserved_keys.yaml` and `core/validation_result.yaml`. The cases of
+/// `core/composition_constraints.yaml` are all `process_messages` cases, which
+/// the message-processor harness runs.
 ///
 /// Cases targeting a protocol version this SDK does not implement are skipped
 /// with a reason, so the suite doubles as the implementation checklist.
@@ -56,10 +54,6 @@ void main() {
   _registerValidatorSuite(
     'core/reserved_keys.yaml',
     expectedFailures: _reservedKeysExpectedFailures,
-  );
-  _registerValidatorSuite(
-    'core/composition_constraints.yaml',
-    expectedFailures: _compositionExpectedFailures,
   );
   _registerValidatorSuite(
     'core/validation_result.yaml',

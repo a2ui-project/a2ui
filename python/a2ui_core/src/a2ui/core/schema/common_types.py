@@ -196,8 +196,8 @@ class FunctionCall(StrictBaseModel):
         None,
         alias="catalogId",
         description=(
-            "The catalog ID for this function, overriding any surface-level default"
-            " catalogId."
+            "The catalog ID for this function, overriding any surface-level"
+            " default catalogId."
         ),
     )
 

@@ -30,9 +30,9 @@ import {Catalog} from '../../../../src/internal/web-core.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
 
-const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
-const basicCatalogs = {'v1.0': basicCatalogV10, 'v0.9': basicCatalogV09};
+const basicCatalogs = {'1.0': basicCatalogV10, 'v0.9': basicCatalogV09};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -159,7 +159,7 @@ function declaredFunction(doc: Schema, name: string) {
 
 describe('CatalogSchemaHelper and Express schema utilities', () => {
   describe.each([
-    {version: 'v1.0' as const, specDir: 'v1_0' as const},
+    {version: '1.0' as const, specDir: 'v1_0' as const},
     {version: 'v0.9' as const, specDir: 'v0_9' as const},
   ])('reads the $version basic catalog as its JSON declares it', ({version, specDir}) => {
     const catalog = basicCatalogs[version];
@@ -194,7 +194,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
   });
 
   describe('properties that come from referenced definitions', () => {
-    const helperV10 = new CatalogSchemaHelper(basicCatalogV10, 'v1.0');
+    const helperV10 = new CatalogSchemaHelper(basicCatalogV10, '1.0');
     const helperV09 = new CatalogSchemaHelper(basicCatalogV09, 'v0.9');
 
     it('places weight from the local CatalogComponentCommon where v1.0 declares it inline', () => {
@@ -228,7 +228,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
     it('correctly discovers own check-rule property and retains declared order', () => {
       const formsCat = loadConformanceCatalog('forms_catalog_v1_0.json');
 
-      const helper = new CatalogSchemaHelper(formsCat, 'v1.0');
+      const helper = new CatalogSchemaHelper(formsCat, '1.0');
 
       expect(helper.getComponentProperties('TextField')).toEqual([
         'label',
@@ -243,7 +243,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
 
   describe('3. isActionSlot', () => {
     it('is true only for Button.action in both v1.0 and v0.9 basic catalogs', () => {
-      for (const version of ['v1.0', 'v0.9'] as const) {
+      for (const version of ['1.0', 'v0.9'] as const) {
         const cat = basicCatalogs[version];
         const helper = new CatalogSchemaHelper(cat, version);
 
@@ -276,7 +276,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
       const content = fs.readFileSync(instructionsPath, 'utf8');
 
       const cat = basicCatalogV10;
-      const helper = new CatalogSchemaHelper(cat, 'v1.0');
+      const helper = new CatalogSchemaHelper(cat, '1.0');
 
       let staticCount = 0;
       let nonStaticCount = 0;
@@ -394,7 +394,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
       };
 
       const customCat = Catalog.fromJson(mockDoc);
-      const helper = new CatalogSchemaHelper(customCat, 'v1.0');
+      const helper = new CatalogSchemaHelper(customCat, '1.0');
 
       const actionSlotSchema = helper.getPropertySchema('CustomComp', 'actionSlot');
       expect(isActionSlot(actionSlotSchema)).toBe(false);
@@ -476,7 +476,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
         },
       },
     };
-    const helper = new CatalogSchemaHelper(Catalog.fromJson(doc), 'v1.0');
+    const helper = new CatalogSchemaHelper(Catalog.fromJson(doc), '1.0');
 
     it("uses the component's own definition over an allOf entry and a local mixin", () => {
       expect(helper.getPropertyEnum('Badge', 'tone')).toEqual(['own-calm', 'own-loud']);
@@ -603,7 +603,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
   describe('helper general methods', () => {
     it('retrieves descriptions and property schemas', () => {
       const cat = basicCatalogV10;
-      const helper = new CatalogSchemaHelper(cat, 'v1.0');
+      const helper = new CatalogSchemaHelper(cat, '1.0');
 
       expect(helper.getComponentDescription('Column')).toBeDefined();
       expect(helper.getComponentDescription('Text')).toBeUndefined();
@@ -619,24 +619,24 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
 
     it('resolves subschema for array items and object properties', () => {
       const cat = basicCatalogV10;
-      const helper = new CatalogSchemaHelper(cat, 'v1.0');
+      const helper = new CatalogSchemaHelper(cat, '1.0');
 
       const tabsSchema = helper.getPropertySchema('Tabs', 'tabs');
       expect(tabsSchema).toBeDefined();
 
-      const itemsSchema = helper.resolveSubschema(tabsSchema, 'items');
+      const itemsSchema = helper.resolveItemSchema(tabsSchema);
       expect(itemsSchema).toBeDefined();
 
-      const titleSchema = helper.resolveSubschema(itemsSchema, 'title');
+      const titleSchema = helper.resolvePropertySchema(itemsSchema, 'title');
       expect(titleSchema).toBeDefined();
       expect(helper.admitsPath(titleSchema)).toBe(true);
 
-      const childSchema = helper.resolveSubschema(itemsSchema, 'child');
+      const childSchema = helper.resolvePropertySchema(itemsSchema, 'child');
       expect(childSchema).toBeDefined();
       expect(helper.admitsPath(childSchema)).toBe(false);
 
-      expect(helper.resolveSubschema(null, 'items')).toBeUndefined();
-      expect(helper.resolveSubschema({}, 'nonexistent')).toBeUndefined();
+      expect(helper.resolveItemSchema(null)).toBeUndefined();
+      expect(helper.resolvePropertySchema({}, 'nonexistent')).toBeUndefined();
     });
 
     it('reads v0.9.1 schemas with the v0.9 common types', async () => {

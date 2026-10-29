@@ -341,7 +341,12 @@ async def test_a2ui_specialist_retries_after_validation_error() -> None:
     assert meta["subagent_pass_at_1"] is False
     assert meta["subagent_validation_retries_used"] == 1
     second_call = model.calls[1]
-    assert [m.role for m in second_call] == ["system", "user", "assistant", "user"]
+    assert [m.role for m in second_call] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+    ]
     assert "Unknown component 'Widget'" in second_call[-1].content
 
 
@@ -701,8 +706,9 @@ async def test_compile_format_payload_empty_output_and_error_recovery() -> None:
 
 EXPRESS_OK = '<a2ui>\nroot = Text("Hello")\n</a2ui>'
 DIRECT_OK = (
-    '<a2ui-json>\n[{"version": "v1.0", "createSurface": {"surfaceId": "main",'
-    ' "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}]'
+    '<a2ui-json>\n[{"version": "1.0", "createSurface": {"surfaceId": "main",'
+    ' "catalogId":'
+    ' "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}]'
     "\n</a2ui-json>"
 )
 
@@ -750,7 +756,7 @@ class _ScriptedRunner:
         outcome = self.outcomes.pop(0)
         if outcome is not None:
             raise outcome
-        return {"compiled_jsons": [{"version": "v1.0"}], "parts": []}
+        return {"compiled_jsons": [{"version": "1.0"}], "parts": []}
 
 
 @pytest.mark.asyncio
@@ -771,7 +777,7 @@ async def test_compile_success_sets_compiled_messages(
     ):
         state = await solver(state, _ScriptedGenerate([]))
 
-    assert state.metadata["compiled_messages"] == [{"version": "v1.0"}]
+    assert state.metadata["compiled_messages"] == [{"version": "1.0"}]
     assert state.metadata["pass_at_1"] is True
     assert state.metadata["pass_at_k"] is True
     assert state.metadata["validation_retries_used"] == 0
@@ -795,7 +801,8 @@ async def test_compile_retry_recovers(format_name: str, bad: str, good: str) -> 
         format_name, version="1.0", max_validation_retries=1
     )
     state = _state(
-        {"catalog": str(V1_CATALOG), "inference_duration_seconds": 1.5}, completion=bad
+        {"catalog": str(V1_CATALOG), "inference_duration_seconds": 1.5},
+        completion=bad,
     )
 
     with patch(
@@ -807,7 +814,7 @@ async def test_compile_retry_recovers(format_name: str, bad: str, good: str) -> 
     assert state.metadata["pass_at_1"] is False
     assert state.metadata["pass_at_k"] is True
     assert state.metadata["validation_retries_used"] == 1
-    assert state.metadata["compiled_messages"] == [{"version": "v1.0"}]
+    assert state.metadata["compiled_messages"] == [{"version": "1.0"}]
     assert "<a2ui-json>" in state.output.completion
     assert "Compilation/validation failed" not in state.output.completion
     assert len(generate.calls) == 1

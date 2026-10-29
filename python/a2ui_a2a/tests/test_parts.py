@@ -121,11 +121,16 @@ def test_parse_content_to_parts_checks_a_canvas_turn_against_its_state():
         "updateComponents": {"surfaceId": "s", "components": [root]},
     }
     parse_content_to_parts(
-        f"<a2ui-json>{json.dumps([_CREATE, update])}</a2ui-json>", parser, state=state
+        f"<a2ui-json>{json.dumps([_CREATE, update])}</a2ui-json>",
+        parser,
+        state=state,
     )
     changed = {
         **update,
-        "updateComponents": {"surfaceId": "s", "components": [{**root, "text": "Bye"}]},
+        "updateComponents": {
+            "surfaceId": "s",
+            "components": [{**root, "text": "Bye"}],
+        },
     }
 
     parts = parse_content_to_parts(

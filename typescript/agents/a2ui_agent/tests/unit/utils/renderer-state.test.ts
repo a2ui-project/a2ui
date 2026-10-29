@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
+import {z} from 'zod';
 
 import {
   A2uiCatalogError,
@@ -24,7 +25,7 @@ import {
   RendererState,
   validatePayload,
 } from '../../../src/index.js';
-import {Catalog} from '../../../src/internal/web-core.js';
+import {Catalog, MessageProcessor} from '../../../src/internal/web-core.js';
 import {BASIC_CATALOG_IDS, loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 
 type Message = Record<string, unknown>;
@@ -225,8 +226,8 @@ describe('RendererState', () => {
   });
 
   it('rejects catalogs of incompatible versions', () => {
-    expect(() => new RendererState([BASIC, loadBasicCatalog('v1.0')])).toThrow(A2uiCatalogError);
-    expect(() => new RendererState([BASIC, loadBasicCatalog('v1.0')])).toThrow(
+    expect(() => new RendererState([BASIC, loadBasicCatalog('1.0')])).toThrow(A2uiCatalogError);
+    expect(() => new RendererState([BASIC, loadBasicCatalog('1.0')])).toThrow(
       /incompatible protocol versions/,
     );
   });
@@ -238,7 +239,7 @@ describe('RendererState', () => {
   it('rejects a message that states the wrong version', () => {
     const state = canvas();
 
-    expect(() => state.apply({...update(text('a')), version: 'v1.0'})).toThrow(A2uiValidationError);
+    expect(() => state.apply({...update(text('a')), version: '1.0'})).toThrow(A2uiValidationError);
   });
 
   it('replaces an older version of a message with a newer one', () => {
@@ -450,9 +451,9 @@ describe('RendererState', () => {
     const extra = v10Catalog('urn:extra', 'Badge');
     const state = new RendererState([primary, extra]);
     state.apply([
-      {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'urn:primary'}},
+      {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'urn:primary'}},
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's',
           components: [
@@ -466,10 +467,10 @@ describe('RendererState', () => {
 
     expect(() =>
       state.transaction(() => {
-        state.apply({version: 'v1.0', deleteSurface: {surfaceId: 's'}});
-        state.apply({version: 'v1.0', deleteSurface: {surfaceId: 'missing'}});
+        state.apply({version: '1.0', deleteSurface: {surfaceId: 's'}});
+        state.apply({version: '1.0', deleteSurface: {surfaceId: 'missing'}});
         state.apply({
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {surfaceId: 's', components: [{id: 'root', component: 'Panel'}]},
         });
       }),
@@ -596,11 +597,11 @@ describe('RendererState', () => {
     const extra = v10Catalog('urn:extra', 'Badge');
     const state = new RendererState([primary, extra]);
     const v10Update = (...components: Component[]): Message => ({
-      version: 'v1.0',
+      version: '1.0',
       updateComponents: {surfaceId: 's', components},
     });
     state.apply([
-      {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'urn:primary'}},
+      {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'urn:primary'}},
       v10Update(
         {id: 'root', component: 'Panel', text: 'Hi'},
         {id: 'b', component: 'Badge', text: 'New', catalogId: 'urn:extra'},
@@ -747,6 +748,131 @@ function v10Catalog(catalogId: string, ...components: string[]) {
         ]),
       ),
     },
-    'v1.0',
+    '1.0',
   ).load();
 }
+
+describe('RendererState.of', () => {
+  const FN_CATALOG = new Catalog(
+    'https://example.com/fn',
+    '1.0',
+    [],
+    [
+      {
+        name: 'ping',
+        returnType: 'string',
+        allowedCallers: 'rendererOrAgent',
+        schema: z.object({}),
+        execute: () => 'pong',
+      },
+    ],
+  );
+  const CALL: Message = {
+    version: '1.0',
+    callRendererFunction: {
+      functionCallId: 'c1',
+      callFunction: {'@call': 'ping', catalogId: FN_CATALOG.id, args: {}},
+    },
+  };
+
+  /** A renderer's processor, and the calls its RPC handler receives. */
+  function renderer(catalogs: Catalog<never>[]): {processor: MessageProcessor; calls: unknown[]} {
+    const processor = new MessageProcessor(catalogs);
+    const calls: unknown[] = [];
+    vi.spyOn(processor.rpc, 'handleCallRendererFunction').mockImplementation(message => {
+      calls.push(message);
+      return new Promise(() => {});
+    });
+    return {processor, calls};
+  }
+
+  it("applies the messages it accepts to the processor's model", () => {
+    const {processor} = renderer([BASIC as never]);
+    const state = RendererState.of(processor);
+
+    turn(state, CREATE, update(column(['t']), text('t')));
+
+    expect(state.catalogs).toEqual([BASIC]);
+    expect(state.getSurface('s')).toBe(processor.model.getSurface('s'));
+    expect([...processor.model.getSurface('s')!.componentsModel.keys].sort()).toEqual([
+      'root',
+      't',
+    ]);
+  });
+
+  it("checks messages by its own rules, whatever the processor's", () => {
+    const {processor} = renderer([BASIC as never]);
+    const state = RendererState.of(processor);
+    state.apply(CREATE);
+
+    expect(() => state.apply(update({id: 'root', component: 'Bogus'}))).toThrow(
+      A2uiValidationError,
+    );
+    // A component may name a child a later message adds, though the processor checks nothing
+    // of its own.
+    state.apply(update(column(['later'])));
+    expect(processor.model.getSurface('s')!.componentsModel.size).toBe(1);
+  });
+
+  it("takes a rolled-back message back out of the processor's model", () => {
+    const {processor} = renderer([BASIC as never]);
+    const state = RendererState.of(processor);
+
+    expect(() =>
+      state.transaction(() => {
+        state.apply(CREATE);
+        state.apply(update({id: 'root', component: 'Bogus'}));
+      }),
+    ).toThrow(A2uiValidationError);
+
+    expect(processor.model.getSurface('s')).toBeUndefined();
+  });
+
+  it('runs a function call once the outermost transaction succeeds', () => {
+    const {processor, calls} = renderer([FN_CATALOG as never]);
+    const state = RendererState.of(processor);
+
+    state.transaction(() => {
+      state.apply(CALL);
+      expect(calls).toEqual([]);
+    });
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it('never runs a function call that a failed transaction applied', () => {
+    const {processor, calls} = renderer([FN_CATALOG as never]);
+    const state = RendererState.of(processor);
+
+    expect(() =>
+      state.transaction(() => {
+        state.apply(CALL);
+        throw new Error('rolled back');
+      }),
+    ).toThrow('rolled back');
+    state.apply([]);
+
+    expect(calls).toEqual([]);
+  });
+
+  it('runs a function call that a failed inner transaction did not apply', () => {
+    const {processor, calls} = renderer([FN_CATALOG as never]);
+    const state = RendererState.of(processor);
+
+    state.transaction(() => {
+      state.apply(CALL);
+      expect(() =>
+        state.transaction(() => {
+          state.apply(CALL);
+          throw new Error('inner');
+        }),
+      ).toThrow('inner');
+    });
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it("rejects a processor whose catalogs can't make a state", () => {
+    expect(() => RendererState.of(new MessageProcessor([]))).toThrow(A2uiCatalogError);
+  });
+});
