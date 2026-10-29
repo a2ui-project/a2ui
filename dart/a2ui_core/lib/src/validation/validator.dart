@@ -251,38 +251,20 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   void validateComponent(Map<String, Object?> component) {
     component = _jsonMap(component);
     final Object? id = component['id'];
-    if (_v1 && id is String && !isValidUax31Identifier(id)) {
-      throw A2uiValidationError(
-        "Component id '$id' must be a valid UAX #31 identifier",
-        path: '/id',
-      );
-    }
-    final Object? type = component['component'];
-    if (type is! String) {
-      throw A2uiValidationError(
-        "Component '$id' does not name a component type.",
-        path: '/component',
-      );
-    }
+    final String type = _checkComponentHeader(component, id);
     if (_v1) {
       for (final MapEntry<String, Object?> entry in component.entries) {
-        _checkCallEnvelopes(entry.value, component['id']);
+        _checkCallEnvelopes(
+          entry.value,
+          id,
+          '/${_escape(entry.key)}',
+        );
       }
     }
     final Schema? schema = _resolvedComponentSchemas[type];
     if (schema == null && !config.allowUnknownElements) {
-      throw A2uiValidationError(
-        "Catalog '${catalog.id}' declares no component named '$type'.",
-        path: '/component',
-      );
-    }
-
-    final Object? rawCatalogId = component['catalogId'];
-    if (rawCatalogId != null && rawCatalogId is! String) {
-      throw A2uiValidationError(
-        "Component '$id' has a non-string 'catalogId'.",
-        path: '/catalogId',
-      );
+      _throwDetail('/component', 'invalid_value',
+          "Catalog '${catalog.id}' declares no component named '$type'.");
     }
 
     final Set<String> declared =
@@ -299,7 +281,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     _validateNested(
       target,
       '',
-      componentId: component['id'],
+      componentId: id,
       componentCatalogId: component['catalogId'],
     );
 
@@ -313,19 +295,67 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       "'${catalog.id}'",
     );
 
-    if (!_v1) return;
+    _checkUnknownProperties(target, declared, schema, id, type);
+    if (_v1) _validateV1EnvelopeFields(component, declared, id);
+  }
+
+  String _checkComponentHeader(Map<String, Object?> component, Object? id) {
+    if (_v1 && id is String && !isValidUax31Identifier(id)) {
+      _throwDetail('/id', 'invalid_value',
+          "Component id '$id' must be a valid UAX #31 identifier");
+    }
+    final Object? type = component['component'];
+    if (type is! String) {
+      _throwDetail('/component', 'missing_field',
+          "Component '$id' does not name a component type.");
+    }
+    final Object? rawCatalogId = component['catalogId'];
+    if (rawCatalogId != null && rawCatalogId is! String) {
+      _throwDetail('/catalogId', 'invalid_value',
+          "Component '$id' has a non-string 'catalogId'.");
+    }
+    return type;
+  }
+
+  void _checkUnknownProperties(
+    Map<String, Object?> target,
+    Set<String> declared,
+    Schema schema,
+    Object? id,
+    String type,
+  ) {
+    if (config.allowUnknownElements ||
+        declared.isEmpty ||
+        schema.value['additionalProperties'] == true) {
+      return;
+    }
+    for (final String key in target.keys) {
+      if (!declared.contains(key)) {
+        _throwDetail(
+          '/${_escape(key)}',
+          'extra_forbidden',
+          "Component '$id' ($type) has unknown property '$key' in "
+              "catalog '${catalog.id}'.",
+        );
+      }
+    }
+  }
+
+  void _validateV1EnvelopeFields(
+    Map<String, Object?> component,
+    Set<String> declared,
+    Object? id,
+  ) {
     for (final MapEntry<String, Map<String, Object?>> entry
         in _v1CommonEnvelopeTypes.entries) {
       final String key = entry.key;
       if (!component.containsKey(key) || declared.contains(key)) continue;
       final Object? value = component[key];
-      // `metadata.extensions` holds arbitrary vendor JSON, so only
-      // `accessibility` carries dynamic values to walk.
       if (key == 'accessibility') {
         _validateNested(
           value,
           '/$key',
-          componentId: component['id'],
+          componentId: id,
           componentCatalogId: component['catalogId'],
         );
       }
@@ -350,6 +380,13 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       }
     }
   }
+
+  static Never _throwDetail(String path, String code, String message) =>
+      throw A2uiValidationError(
+        message,
+        path: path,
+        errors: [A2uiErrorDetail(path: path, code: code, message: message)],
+      );
 
   /// Checks one function call's arguments against [catalog]'s schema for it.
   ///
@@ -403,8 +440,9 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     String name,
     Map<String, Object?> args, {
     Object? componentId,
+    String? path,
   }) =>
-      _checkArgs(name, _jsonMap(args), componentId: componentId);
+      _checkArgs(name, _jsonMap(args), componentId: componentId, path: path);
 
   /// Rejects a field of [call], a v1.0 function call of [catalog], that
   /// `FunctionCall` does not evaluate: one other than `@call`, `catalogId`,
@@ -447,19 +485,37 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     final Schema? schema = _resolvedFunctionSchemas[name];
     if (schema == null) {
       if (config.allowUnknownElements) return;
+      final msg =
+          "${where}Unrecognized function '$name': Catalog '${catalog.id}' "
+          "declares no function named '$name'.";
       throw A2uiValidationError(
-        "${where}Catalog '${catalog.id}' declares no function named '$name'.",
+        msg,
         path: path,
+        errors: [
+          if (path != null && path.isNotEmpty)
+            A2uiErrorDetail(
+              path: path,
+              code: 'unrecognized_function',
+              message: msg,
+            ),
+        ],
       );
     }
 
     final List<ValidationError> errors = schema.validateSync(args);
     if (errors.isNotEmpty) {
+      final argsPrefix =
+          (path != null && path.isNotEmpty) ? '$path/args' : '/args';
+      final List<A2uiErrorDetail> details = _buildErrorDetails(
+        errors,
+        argsPrefix,
+      );
       throw A2uiValidationError(
         "${where}Call to '$name' does not match the argument schema in "
         "catalog '${catalog.id}': "
         '${errors.map((e) => e.toErrorString()).join('; ')}',
         path: path,
+        errors: details,
       );
     }
   }
@@ -478,6 +534,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     _throwOnErrors(
       schema.validateSync(theme),
       "Theme does not match the theme schema in catalog '${catalog.id}'",
+      path: '/theme',
     );
   }
 
@@ -624,75 +681,162 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   ///
   /// Throws [A2uiValidationError] for the first call that breaks one.
   /// [componentId], when given, names the component [node] belongs to.
-  static void _checkCallEnvelopes(Object? node, [Object? componentId]) {
+  static void _checkCallEnvelopes(
+    Object? node, [
+    Object? componentId,
+    String path = '',
+  ]) {
     if (node is List) {
-      for (final Object? item in node) {
-        _checkCallEnvelopes(item, componentId);
+      for (var i = 0; i < node.length; i++) {
+        _checkCallEnvelopes(node[i], componentId, '$path/$i');
       }
       return;
     }
     if (node is! Map) return;
     final Object? name = node['@call'];
     if (name is String) {
-      final subject = componentId == null
-          ? "Function call '$name'"
-          : "Function call '$name' in component '$componentId'";
-      final Object? args = node['args'];
-      if (args != null && args is! Map) {
+      _checkSingleCallEnvelope(node, name, componentId, path);
+    }
+    for (final MapEntry<Object?, Object?> entry in node.entries) {
+      final childPath =
+          entry.key is String ? '$path/${_escape(entry.key as String)}' : path;
+      _checkCallEnvelopes(entry.value, componentId, childPath);
+    }
+  }
+
+  static void _checkSingleCallEnvelope(
+    Map<Object?, Object?> node,
+    String name,
+    Object? componentId,
+    String path,
+  ) {
+    final subject = componentId == null
+        ? "Function call '$name'"
+        : "Function call '$name' in component '$componentId'";
+    final Object? args = node['args'];
+    if (args != null && args is! Map) {
+      throw A2uiValidationError(
+        "$subject has non-object 'args'.",
+        path: _optPath(path, '/args'),
+      );
+    }
+    if (name.startsWith('@')) {
+      _checkSystemCallEnvelope(node, name, args, subject, path);
+      return;
+    }
+    if (!isValidUax31Identifier(name)) {
+      throw A2uiValidationError(
+        '$subject does not name a valid UAX #31 identifier.',
+        path: _optPath(path),
+      );
+    }
+    final Object? catalogId = node['catalogId'];
+    if (catalogId != null && catalogId is! String) {
+      throw A2uiValidationError(
+        "$subject has a non-string 'catalogId'.",
+        path: _optPath(path, '/catalogId'),
+      );
+    }
+    if (args is Map) _checkCallArgIdentifiers(args, subject, path);
+  }
+
+  static void _checkCallArgIdentifiers(
+    Map<Object?, Object?> args,
+    String subject,
+    String path,
+  ) {
+    for (final Object? argName in args.keys) {
+      if (argName is! String || !isValidUax31Identifier(argName)) {
         throw A2uiValidationError(
-          "$subject has non-object 'args'.",
+          "$subject has argument '$argName', which is not a valid "
+          'UAX #31 identifier.',
+          path: _optPath(path, '/args/${_escape('$argName')}'),
         );
       }
-      if (name.startsWith('@')) {
-        if (name != _indexFunction) {
-          throw A2uiValidationError(
-            "$subject names an unknown system function. The '@' namespace is "
-            "reserved; only '$_indexFunction' is defined.",
-          );
-        }
-        if (node.containsKey('catalogId')) {
-          throw A2uiValidationError(
-            "$subject names a catalogId, but '$_indexFunction' is a system "
-            'function and belongs to no catalog.',
-          );
-        }
-        if (args is Map) {
-          for (final Object? argName in args.keys) {
-            if (argName != 'offset') {
-              throw A2uiValidationError(
-                "$subject has unknown argument '$argName'; '$_indexFunction' "
-                "takes only 'offset'.",
-              );
-            }
-          }
-        }
-      } else {
-        if (!isValidUax31Identifier(name)) {
-          throw A2uiValidationError(
-            '$subject does not name a valid UAX #31 identifier.',
-          );
-        }
-        final Object? catalogId = node['catalogId'];
-        if (catalogId != null && catalogId is! String) {
-          throw A2uiValidationError(
-            "$subject has a non-string 'catalogId'.",
-          );
-        }
-        if (args is Map) {
-          for (final Object? argName in args.keys) {
-            if (argName is! String || !isValidUax31Identifier(argName)) {
-              throw A2uiValidationError(
-                "$subject has argument '$argName', which is not a valid "
-                'UAX #31 identifier.',
-              );
-            }
-          }
-        }
+    }
+  }
+
+  static void _checkSystemCallEnvelope(
+    Map<Object?, Object?> node,
+    String name,
+    Object? args,
+    String subject,
+    String path,
+  ) {
+    if (name != _indexFunction) {
+      throw A2uiValidationError(
+        "$subject names an unknown system function. The '@' namespace is "
+        "reserved; only '$_indexFunction' is defined.",
+        path: _optPath(path),
+      );
+    }
+    if (node.containsKey('catalogId')) {
+      throw A2uiValidationError(
+        "$subject names a catalogId, but '$_indexFunction' is a system "
+        'function and belongs to no catalog.',
+        path: _optPath(path, '/catalogId'),
+      );
+    }
+    if (args is! Map) return;
+    for (final Object? argName in args.keys) {
+      if (argName != 'offset') {
+        throw A2uiValidationError(
+          "$subject has unknown argument '$argName'; '$_indexFunction' "
+          "takes only 'offset'.",
+          path: _optPath(path, '/args/${_escape('$argName')}'),
+        );
       }
     }
-    for (final Object? value in node.values) {
-      _checkCallEnvelopes(value, componentId);
+  }
+
+  static String? _optPath(String path, [String suffix = '']) =>
+      path.isEmpty ? null : '$path$suffix';
+
+  static final RegExp _missingPropPattern = RegExp(
+    r'Required property "([^"]+)"',
+  );
+
+  static bool _isCombinatorError(ValidationErrorType type) =>
+      type == ValidationErrorType.oneOfNotMet ||
+      type == ValidationErrorType.anyOfNotMet ||
+      type == ValidationErrorType.allOfNotMet;
+
+  static String _detailPathFor(ValidationError error, String basePath) {
+    final pointer =
+        '$basePath${error.path.map((p) => '/${_escape(p)}').join()}';
+    if (error.error == ValidationErrorType.requiredPropertyMissing) {
+      final RegExpMatch? match =
+          _missingPropPattern.firstMatch(error.details ?? '');
+      if (match != null) {
+        return '$pointer/${_escape(match.group(1)!)}';
+      }
     }
+    return pointer.isEmpty ? '/' : pointer;
+  }
+
+  static String _detailCodeFor(ValidationError error) =>
+      error.error == ValidationErrorType.requiredPropertyMissing
+          ? 'missing_field'
+          : 'invalid_value';
+
+  static List<A2uiErrorDetail> _buildErrorDetails(
+    List<ValidationError> errors,
+    String basePath,
+  ) {
+    final List<ValidationError> ordered = [
+      for (final ValidationError e in errors)
+        if (!_isCombinatorError(e.error)) e,
+      for (final ValidationError e in errors)
+        if (_isCombinatorError(e.error)) e,
+    ];
+    return [
+      for (final ValidationError error in ordered)
+        A2uiErrorDetail(
+          path: _detailPathFor(error, basePath),
+          code: _detailCodeFor(error),
+          message: error.toErrorString(),
+        ),
+    ];
   }
 
   /// Throws an [A2uiValidationError] listing [errors], if there are any.
@@ -705,17 +849,18 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     String path = '',
   }) {
     if (errors.isEmpty) return;
+    final List<A2uiErrorDetail> details = _buildErrorDetails(errors, path);
+    final Set<String> distinctPaths = {
+      for (final A2uiErrorDetail d in details)
+        if (d.path != '/' && d.path != path) d.path,
+    };
+    final String primaryPath = distinctPaths.length == 1
+        ? distinctPaths.single
+        : (path.isEmpty ? '/' : path);
     throw A2uiValidationError(
       '$message: ${errors.map((e) => e.toErrorString()).join('; ')}',
-      path: path,
-      errors: [
-        for (final ValidationError error in errors)
-          A2uiErrorDetail(
-            path: '$path${error.path.map((p) => '/${_escape(p)}').join()}',
-            code: 'VALIDATION_FAILED',
-            message: error.toErrorString(),
-          ),
-      ],
+      path: primaryPath,
+      errors: details,
     );
   }
 

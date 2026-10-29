@@ -19,6 +19,11 @@
   of the list the processor was created with, and adding to it throws
   `UnsupportedError`. Pass every catalog when creating the processor
   ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `MessageErrorMapper`, `SurfaceGroupModel.onError`, and
+  `MessageProcessor.processMessagesWithErrors` for mapping `A2uiError`
+  exceptions into structured wire-format `ErrorMessage` envelopes, and
+  populated structured `A2uiErrorDetail` entries on `PayloadValidator`
+  component and function validation failures.
 - `MessageProcessor.processMessages` and `processMessagesAsync` take a
   `validationConfig` for one call, which replaces the processor's own while
   the call checks and applies its messages. An agent that checks its messages
@@ -77,6 +82,7 @@
   validation as `false`, and such an argument no longer fails the argument
   schema check. Catalogs below v1.0, whose validation functions return
   booleans, are unchanged.
+
 - Added `SurfaceComponentsModel.insertComponent`, which adds a component at
   a given position in the model's order rather than at the end, for putting
   a component back where it was, and `insertComponents`, which adds several
