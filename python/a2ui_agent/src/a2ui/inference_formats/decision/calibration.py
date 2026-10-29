@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Protocol, runtime_checkable
 
 from .models import (
@@ -149,14 +149,11 @@ def _build_permissive_config(
     tpl_threshold = (
         0.0 if allow_low_confidence_templates else base.template_confidence_threshold
     )
-    return SynthesisConfig(
+    return replace(
+        base,
         template_confidence_threshold=tpl_threshold,
         mutable_confidence_threshold=tpl_threshold,
         abstain_threshold=0.0,
-        uncalibrated_min_logit_margin=base.uncalibrated_min_logit_margin,
-        max_tree_depth=base.max_tree_depth,
-        max_children_per_container=base.max_children_per_container,
-        default_surface_id=base.default_surface_id,
     )
 
 

@@ -20,6 +20,7 @@ import pytest
 
 from a2ui.core import A2uiValidationError
 from a2ui.inference_formats.decision import (
+    ComponentSlot,
     DecisionBackend,
     DecisionDistribution,
     DecisionQuery,
@@ -30,8 +31,8 @@ from a2ui.inference_formats.decision import (
     SynthesisConfig,
     SynthesisOutput,
     SynthesisStage,
+    answer_from_distribution,
 )
-from a2ui.inference_formats.decision.backends import answer_from_distribution
 from a2ui.inference_formats.decision.bindings import (
     is_v10,
     make_data_binding,
@@ -586,6 +587,35 @@ def test_pointer_summary_defaults_key_and_parent() -> None:
     assert explicit.sample_pointers == ("/x/0",)
     relative = PointerSummary(path="caption", value_type="string", cardinality=1)
     assert (relative.parent, relative.key) == ("", "caption")
+
+    # Explicit SemanticType.STRING on /price is preserved without label
+    explicit_str = PointerSummary(
+        path="/price",
+        value_type="string",
+        cardinality=1,
+        semantic_type=SemanticType.STRING,
+    )
+    assert explicit_str.semantic_type == SemanticType.STRING
+
+    # Fallback uptimeHours infers integer, not duration
+    uptime = PointerSummary(path="/uptimeHours", value_type="number", cardinality=1)
+    assert uptime.semantic_type == SemanticType.INTEGER
+    assert ComponentSlot is not None
+
+
+def test_normalized_entropy_unnormalized_and_email_regex() -> None:
+    from a2ui.inference_formats.decision.semantic_types import classify_scalar
+
+    # Unnormalized probabilities should still stay in [0.0, 1.0]
+    unnorm = DecisionDistribution({"A": 5.0, "B": 5.0})
+    assert unnorm.normalized_entropy() == pytest.approx(1.0)
+    peaked = DecisionDistribution({"A": 100.0, "B": 0.0})
+    assert peaked.normalized_entropy() == pytest.approx(0.0)
+
+    # Trailing/consecutive dots in email domains are rejected as email
+    assert classify_scalar("user@example..com")[0] != SemanticType.EMAIL
+    assert classify_scalar("user@example.com.")[0] != SemanticType.EMAIL
+    assert classify_scalar("user@example.com")[0] == SemanticType.EMAIL
 
 
 def test_inspector_populates_key_and_parent() -> None:

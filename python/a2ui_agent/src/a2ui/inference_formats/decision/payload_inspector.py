@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from .models import SemanticType
 from .semantic_types import classify_array_field, classify_scalar, humanize_key
@@ -43,7 +43,7 @@ _FALLBACK_KEY_TYPES: Mapping[str, str] = {
     "date": "date",
     "due": "date",
     "skipforward": "duration",
-    "uptimehours": "duration",
+    "uptimehours": "integer",
     "duration": "duration",
     "about": "long_text",
     "description": "long_text",
@@ -121,7 +121,7 @@ class PointerSummary:
     element_keys: tuple[str, ...] = ()
     sample_type_by_key: dict[str, str] = field(default_factory=dict, hash=False)
     mutable_hint: bool = False
-    semantic_type: SemanticType = SemanticType.STRING
+    semantic_type: SemanticType = field(default=cast(SemanticType, None))
     """The payload inspector populates it; plain strings are coerced."""
     hints: Mapping[str, Any] = field(default_factory=dict, hash=False)
     """Detector hints such as `wordCount`, `unit`, `currency`, `min`, `max`."""
@@ -140,10 +140,17 @@ class PointerSummary:
 
     def __post_init__(self) -> None:
         was_unlabeled = not self.label
+        semantic_type_unset = self.semantic_type is None
         object.__setattr__(self, "element_keys", tuple(self.element_keys))
         object.__setattr__(self, "sample_type_by_key", dict(self.sample_type_by_key))
         object.__setattr__(self, "hints", dict(self.hints))
-        object.__setattr__(self, "semantic_type", SemanticType(self.semantic_type))
+        object.__setattr__(
+            self,
+            "semantic_type",
+            SemanticType.STRING
+            if semantic_type_unset
+            else SemanticType(self.semantic_type),
+        )
         object.__setattr__(
             self,
             "element_semantic_types",
@@ -157,11 +164,11 @@ class PointerSummary:
             if self.parent is None:
                 object.__setattr__(self, "parent", parent)
         if was_unlabeled:
-            self._apply_fallback_defaults()
+            self._apply_fallback_defaults(infer_semantic_type=semantic_type_unset)
 
-    def _apply_fallback_defaults(self) -> None:
+    def _apply_fallback_defaults(self, *, infer_semantic_type: bool = True) -> None:
         """Populates fallback semantics and humanized label on value-less summaries."""
-        if self.semantic_type is SemanticType.STRING:
+        if infer_semantic_type and self.semantic_type is SemanticType.STRING:
             sem_type, hints = _infer_fallback_semantics(
                 self.key, self.value_type, self.hints
             )

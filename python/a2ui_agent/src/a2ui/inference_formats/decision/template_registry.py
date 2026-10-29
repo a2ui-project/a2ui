@@ -87,7 +87,11 @@ def _normalize_extracted_component(comp: Mapping[str, Any]) -> dict[str, Any]:
     raw_comp = comp.get("component")
     if isinstance(raw_comp, Mapping) and len(raw_comp) == 1:
         comp_type, props = next(iter(raw_comp.items()))
-        out: dict[str, Any] = {"id": comp.get("id"), "component": str(comp_type)}
+        out: dict[str, Any] = {
+            k: v for k, v in comp.items() if k not in ("id", "component")
+        }
+        out["id"] = comp.get("id")
+        out["component"] = str(comp_type)
         if isinstance(props, Mapping):
             out.update(props)
         return out
@@ -380,6 +384,13 @@ class TemplateRegistry:
         Raises:
             ValueError: If the messages define no components.
         """
+        if not isinstance(template_id, str) or not template_id.strip():
+            raise A2uiValidationError("Template ID must be a non-empty string.")
+        if not isinstance(description, str) or not description.strip():
+            raise A2uiValidationError(
+                f"Template '{template_id}' must define a non-empty 'description'."
+            )
+        validated_pointers = _parse_required_pointers(template_id, required_pointers)
         envelopes = _extract_envelopes(to_message_dicts(output.messages))
         if not envelopes.components:
             raise ValueError(
@@ -394,7 +405,7 @@ class TemplateRegistry:
             catalog_id=envelopes.catalog_id,
             protocol_version=envelopes.protocol_version or "v0.9",
             components=tuple(copy.deepcopy(dict(c)) for c in envelopes.components),
-            required_pointers=tuple(required_pointers),
+            required_pointers=validated_pointers,
             is_mutable=is_mutable,
         )
         self.register(template)

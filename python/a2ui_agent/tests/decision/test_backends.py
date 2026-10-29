@@ -1256,3 +1256,97 @@ async def test_step_zero_logprob_case_insensitive_fallback_and_non_mapping_choic
             "browse": pytest.approx(0.5),
             "monitor": pytest.approx(0.5),
         }
+
+
+@pytest.mark.asyncio
+async def test_step_zero_auth_forwarding_and_jev_context_isolation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verifies H1 (StepZero auth), H2 (BatchingDecisionBackend context isolation), H4 (multi-loop batching), M3-M5."""
+    import asyncio
+    from a2ui.inference_formats.decision import backends
+    from a2ui.inference_formats.decision.batching import BatchingDecisionBackend
+    from a2ui.inference_formats.decision.models import (
+        DecisionBatch,
+        DecisionQuestion,
+        QuestionKind,
+    )
+
+    monkeypatch.setenv("A2UI_DECISION_TOKEN", "env-step0-token")
+    monkeypatch.delenv("JEV_API_KEY", raising=False)
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    b_step0 = create_decision_backend(
+        "step0", endpoint_url="http://localhost:8000/v1/completions"
+    )
+    assert isinstance(b_step0, StepZeroLogprobBackend)
+    assert b_step0._build_headers() == {"Authorization": "Bearer env-step0-token"}
+
+    callable_step0 = StepZeroLogprobBackend(
+        "http://localhost:8000/v1/completions", "m", auth=lambda: "from-callable"
+    )
+    assert callable_step0._build_headers() == {"Authorization": "Bearer from-callable"}
+
+    monkeypatch.setattr(backends, "_get_adc_token_sync", lambda: "adc-step0-tok")
+    adc_step0 = StepZeroLogprobBackend(
+        "http://localhost:8000/v1/completions", "m", auth="adc"
+    )
+    assert adc_step0._build_headers() == {"Authorization": "Bearer adc-step0-tok"}
+
+    # M3: Generic A2UI_DECISION_TOKEN without JEV_API_KEY/TYPESAFE_API_KEY does not default to TypeSafe URL
+    with pytest.raises(ValueError, match="requires an endpoint URL"):
+        create_decision_backend("jev")
+
+    # M4: Direct JevHttpBackend(auth=None) does not read env vars
+    direct_jev = JevHttpBackend("http://local/predict", auth=None)
+    assert await direct_jev._resolve_auth_token() is None
+
+    # M5: _extract_native_answer_entry does not return a different question's object by index
+    reordered = [{"id": "q2", "probabilities": {"B": 1.0}}]
+    assert backends._extract_native_answer_entry(reordered, "q1", 0) == {}
+    anon = [{"probabilities": {"A": 1.0}}]
+    assert backends._extract_native_answer_entry(anon, "q1", 0) == anon[0]
+
+    # H2: BatchingDecisionBackend keeps distinct shared_contexts separate
+    inner = DeterministicMockBackend()
+    async with BatchingDecisionBackend(inner, window_ms=2.0) as batcher:
+        b1 = DecisionBatch(
+            shared_context={"intent": "Intent One"},
+            questions=(
+                DecisionQuestion(
+                    id="q1", kind=QuestionKind.CHOICE, prompt="?", options=("a", "b")
+                ),
+            ),
+        )
+        b2 = DecisionBatch(
+            shared_context={"intent": "Intent Two"},
+            questions=(
+                DecisionQuestion(
+                    id="q2", kind=QuestionKind.CHOICE, prompt="?", options=("a", "b")
+                ),
+            ),
+        )
+        await asyncio.gather(batcher.answer(b1), batcher.answer(b2))
+    assert len(inner.batches) == 2
+    assert {b.shared_context["intent"] for b in inner.batches} == {
+        "Intent One",
+        "Intent Two",
+    }
+
+    # H4: BatchingDecisionBackend across concurrent threads/event loops
+    import concurrent.futures
+
+    multi_inner = DeterministicMockBackend()
+    multi_batcher = BatchingDecisionBackend(multi_inner, window_ms=2.0)
+
+    def _run_in_thread(idx: int) -> str:
+        q = DecisionQuery(
+            task="root_component",
+            prompt=f"Pick Target_{idx}",
+            candidates=(f"Target_{idx}", f"Other_{idx}"),
+        )
+        dist = asyncio.run(multi_batcher.predict(q))
+        return dist.top_choice()[0]
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        thread_results = list(pool.map(_run_in_thread, range(8)))
+    assert thread_results == [f"Target_{i}" for i in range(8)]

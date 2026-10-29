@@ -791,7 +791,11 @@ def _extract_native_answer_entry(
         ):
             return elem
     indexed = raw_answers[index] if index < len(raw_answers) else None
-    return indexed if isinstance(indexed, Mapping) else {}
+    if isinstance(indexed, Mapping) and indexed.get(
+        "id", indexed.get("question_id")
+    ) in (None, question_id):
+        return indexed
+    return {}
 
 
 def _parse_native_question_answer(
@@ -1016,7 +1020,7 @@ class JevHttpBackend(PredictOnlyBackend, _HttpClientOwner):
         self._init_http_client(client, timeout_seconds)
         self._adc_token: str | None = None
         self._adc_expires_at: float = 0.0
-        self._adc_lock = asyncio.Lock()
+        self._adc_lock = threading.Lock()
 
     @property
     def endpoint_url(self) -> str:
@@ -1035,37 +1039,31 @@ class JevHttpBackend(PredictOnlyBackend, _HttpClientOwner):
             and self._endpoint_url.rstrip("/").endswith("/v1/systemone")
         )
 
-    async def _resolve_adc_token(self) -> str | None:
-        """Returns this instance's cached ADC token, refreshing it when expired."""
-        now = time.time()
-        if self._adc_token and now < self._adc_expires_at:
-            return self._adc_token
-
-        async with self._adc_lock:
+    def _refresh_adc_token_sync(self) -> str | None:
+        """Refreshes the cached ADC token under a thread lock."""
+        with self._adc_lock:
             now = time.time()
             if self._adc_token and now < self._adc_expires_at:
                 return self._adc_token
-            token = await asyncio.to_thread(_get_adc_token_sync)
+            token = _get_adc_token_sync()
             if token:
                 self._adc_token = token
                 self._adc_expires_at = now + _ADC_TOKEN_TTL_SECONDS
                 return token
             return None
 
+    async def _resolve_adc_token(self) -> str | None:
+        """Returns this instance's cached ADC token, refreshing it when expired."""
+        now = time.time()
+        if self._adc_token and now < self._adc_expires_at:
+            return self._adc_token
+        return await asyncio.to_thread(self._refresh_adc_token_sync)
+
     async def _resolve_auth_token(self) -> str | None:
-        """Resolves bearer token string from auth argument or environment."""
+        """Resolves bearer token string from the configured auth argument."""
         auth_target = self._auth
         if auth_target is None:
-            import os
-
-            auth_target = (
-                os.environ.get("A2UI_DECISION_TOKEN")
-                or os.environ.get("A2UI_DECISION_AUTH")
-                or os.environ.get("JEV_API_KEY")
-                or os.environ.get("TYPESAFE_API_KEY")
-            )
-            if not auth_target:
-                return None
+            return None
 
         if auth_target == "adc":
             return await self._resolve_adc_token()
@@ -1235,9 +1233,13 @@ class StepZeroLogprobBackend(PredictOnlyBackend, _HttpClientOwner):
 
     def _build_headers(self) -> dict[str, str] | None:
         """Builds optional Bearer authorization headers."""
-        if isinstance(self._auth, str) and self._auth.strip():
-            return {"Authorization": f"Bearer {self._auth.strip()}"}
-        return None
+        if self._auth is None:
+            return None
+        raw = self._auth() if callable(self._auth) else self._auth
+        if raw == "adc":
+            raw = _get_adc_token_sync()
+        token = str(raw).strip() if raw else ""
+        return {"Authorization": f"Bearer {token}"} if token else None
 
     async def _predict_with_prefix(
         self, query: DecisionQuery, *, shared_prefix: str = ""
@@ -1575,8 +1577,9 @@ def _create_jev_backend(
     url: str | None,
     model_name: str | None,
     auth_val: str | Callable[[], str | Any] | None,
+    vendor_key: str | None = None,
 ) -> JevHttpBackend:
-    default_url, default_model = _default_jev_url_and_model(auth_val)
+    default_url, default_model = _default_jev_url_and_model(vendor_key)
     endpoint = _require_url(kind, url or default_url)
     if kind == DecisionBackendType.SYSTEMONE.value or endpoint.rstrip("/").endswith(
         "/v1/systemone"
@@ -1641,12 +1644,12 @@ def create_decision_backend(
     raw_kind = backend_type or os.environ.get("A2UI_DECISION_BACKEND")
     url = endpoint_url or os.environ.get("A2UI_DECISION_URL")
     model_name = model or os.environ.get("A2UI_DECISION_MODEL")
+    vendor_key = os.environ.get("JEV_API_KEY") or os.environ.get("TYPESAFE_API_KEY")
     auth_val = (
         auth
         or os.environ.get("A2UI_DECISION_AUTH")
         or os.environ.get("A2UI_DECISION_TOKEN")
-        or os.environ.get("JEV_API_KEY")
-        or os.environ.get("TYPESAFE_API_KEY")
+        or vendor_key
     )
     temp = _resolve_temperature(
         temperature, os.environ.get("A2UI_DECISION_TEMPERATURE")
@@ -1655,13 +1658,13 @@ def create_decision_backend(
 
     builders: dict[str, Callable[[], DecisionBackend]] = {
         DecisionBackendType.SYSTEMONE.value: lambda: _create_jev_backend(
-            kind, url, model_name, auth_val
+            kind, url, model_name, auth_val, vendor_key
         ),
         DecisionBackendType.JEV.value: lambda: _create_jev_backend(
-            kind, url, model_name, auth_val
+            kind, url, model_name, auth_val, vendor_key
         ),
         DecisionBackendType.STEP_ZERO.value: lambda: _create_step_zero_backend(
-            url, model_name, temp, auth
+            url, model_name, temp, auth_val
         ),
         DecisionBackendType.MOCK.value: DeterministicMockBackend,
     }

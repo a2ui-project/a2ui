@@ -367,10 +367,15 @@ class DecisionDistribution:
         k = len(self.probabilities)
         if k <= 1:
             return 0.0
-        entropy = -sum(p * math.log(p) for p in self.probabilities.values() if p > 0.0)
+        positive = [p for p in self.probabilities.values() if p > 0.0]
+        total = sum(positive)
+        if total <= 0.0:
+            return 0.0
+        probs = [p / total for p in positive]
+        entropy = -sum(p * math.log(p) for p in probs)
         if entropy <= 0.0:
             return 0.0
-        return entropy / math.log(k)
+        return min(1.0, entropy / math.log(k))
 
 
 @dataclass(frozen=True)

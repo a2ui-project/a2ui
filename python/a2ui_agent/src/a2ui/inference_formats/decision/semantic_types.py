@@ -26,7 +26,7 @@ from .models import SemanticType
 _CAMEL_SPLIT_RE = re.compile(r"([a-z0-9])([A-Z])|([A-Z]+)([A-Z][a-z])")
 _KEY_SEP_RE = re.compile(r"[\s_\-/~]+")
 
-_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s.]+(?:\.[^@\s.]+)+$")
 _PHONE_RE = re.compile(
     r"^(?:\+\d[\d\s().-]{6,18}\d|\(\d{3}\)\s*\d{3}[-\s]\d{4}|\d{3}[-\s]\d{3}[-\s]\d{4})$"
 )
@@ -99,7 +99,7 @@ _QUANTITY_STR_RE = re.compile(
 )
 
 _MARKDOWN_SYNTAX_RE = re.compile(
-    r"(?:^#{1,6}\s+\S|\*\*[^*\n]+\*\*|\[[^\]]+\]\(https?://[^)]+\)|^\s*[-*]\s+\S)",
+    r"(?:^#{1,6}\s+\S|\*\*[^*\n]+\*\*|\[[^\[\]\n]{1,256}\]\(https?://[^()\s]{1,1024}\)|^\s*[-*]\s+\S)",
     re.MULTILINE,
 )
 _CODE_SYNTAX_RE = re.compile(

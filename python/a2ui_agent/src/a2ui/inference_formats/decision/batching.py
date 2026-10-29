@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+import itertools
 from typing import Any
 
 from .backends import DecisionBackend, _AsyncClosable, ensure_batch_backend
@@ -108,27 +109,30 @@ class BatchingDecisionBackend(_AsyncClosable):
         self.inner: DecisionBackend = ensure_batch_backend(inner)
         self.window_ms = float(window_ms)
         self.max_pairs: int | None = None if max_pairs is None else int(max_pairs)
-        self._seq = 0
-        self._pending: list[_QueueEntry] = []
-        self._scheduled_flush: asyncio.Task[None] | None = None
+        self._seq = itertools.count(1)
+        self._pending_by_loop: dict[int, list[_QueueEntry]] = {}
+        self._scheduled_flush_by_loop: dict[int, asyncio.Task[None]] = {}
         self._active_flushes: set[asyncio.Task[None]] = set()
 
     def _enqueue(
         self, question: DecisionQuestion, shared_context: Mapping[str, Any]
     ) -> asyncio.Future[DecisionAnswer]:
-        """Appends `question` to the pending window and ensures a flush is scheduled."""
+        """Appends `question` to the running loop's pending window and schedules flush."""
         loop = asyncio.get_running_loop()
+        loop_id = id(loop)
         future: asyncio.Future[DecisionAnswer] = loop.create_future()
-        self._pending.append(
+        pending = self._pending_by_loop.setdefault(loop_id, [])
+        pending.append(
             _QueueEntry(
                 question=question,
                 shared_context=shared_context,
                 future=future,
             )
         )
-        if self._scheduled_flush is None or self._scheduled_flush.done():
-            task = loop.create_task(self._flush())
-            self._scheduled_flush = task
+        scheduled = self._scheduled_flush_by_loop.get(loop_id)
+        if scheduled is None or scheduled.done():
+            task = loop.create_task(self._flush(loop_id))
+            self._scheduled_flush_by_loop[loop_id] = task
             self._active_flushes.add(task)
             task.add_done_callback(self._active_flushes.discard)
         return future
@@ -148,7 +152,10 @@ class BatchingDecisionBackend(_AsyncClosable):
                 and self.max_pairs is not None
                 and current_pairs + q_pairs > self.max_pairs
             )
-            if q_id in current_ids or exceeds_pairs:
+            different_context = (
+                bool(current) and entry.shared_context != current[0].shared_context
+            )
+            if q_id in current_ids or exceeds_pairs or different_context:
                 chunks.append(current)
                 current = []
                 current_ids = set()
@@ -163,11 +170,9 @@ class BatchingDecisionBackend(_AsyncClosable):
 
     async def _dispatch(self, chunk: Sequence[_QueueEntry]) -> None:
         """Executes one coalesced chunk against `inner.answer` and resolves futures."""
-        merged_context: dict[str, Any] = {}
-        for entry in chunk:
-            merged_context.update(entry.shared_context)
+        shared_context = dict(chunk[0].shared_context) if chunk else {}
         batch = DecisionBatch(
-            shared_context=merged_context,
+            shared_context=shared_context,
             questions=tuple(entry.question for entry in chunk),
         )
         try:
@@ -180,31 +185,28 @@ class BatchingDecisionBackend(_AsyncClosable):
             if len(chunk) == 1:
                 _set_future_exception(chunk[0].future, exc)
                 return
-            for entry in chunk:
-                await self._dispatch((entry,))
+            await asyncio.gather(*(self._dispatch((entry,)) for entry in chunk))
             return
 
         for entry, ans in zip(chunk, answers):
             _set_future_result(entry.future, ans)
 
-    async def _flush(self) -> None:
-        """Waits one window, drains queued entries, and dispatches chunks."""
+    async def _flush(self, loop_id: int) -> None:
+        """Waits one window, drains queued entries for `loop_id`, and dispatches chunks."""
         await asyncio.sleep(self.window_ms / 1000.0)
-        if not self._pending:
+        pending = self._pending_by_loop.pop(loop_id, None)
+        self._scheduled_flush_by_loop.pop(loop_id, None)
+        if not pending:
             return
-        entries = list(self._pending)
-        self._pending.clear()
-        self._scheduled_flush = None
-        chunks = self._collect(entries)
+        chunks = self._collect(pending)
         await asyncio.gather(*(self._dispatch(chunk) for chunk in chunks))
 
     async def predict(self, query: DecisionQuery) -> DecisionDistribution:
         """Coalesces `query` into the active batch window and returns its distribution."""
         if not query.candidates:
             return await self.inner.predict(query)
-        self._seq += 1
-        question = _query_to_question(query, self._seq)
-        answer = await self._enqueue(question, query.context)
+        question = _query_to_question(query, next(self._seq))
+        answer = await self._enqueue(question, {})
         return answer.distribution
 
     async def answer(self, batch: DecisionBatch) -> tuple[DecisionAnswer, ...]:
