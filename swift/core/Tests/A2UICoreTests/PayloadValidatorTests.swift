@@ -79,7 +79,7 @@ struct PayloadValidatorTests {
     )
     return Catalog(
       id: "https://example.com/catalogs/test/v1/catalog.json",
-      protocolVersion: "v1.0",
+      protocolVersion: "1.0",
       components: [AnyComponentAPI(name: "Text", schema: textSchema)],
       functions: [MockAddFunction()],
       themeSchema: themeSchema
@@ -298,7 +298,7 @@ struct PayloadValidatorTests {
     )
     let catalog = Catalog(
       id: "family_cat",
-      protocolVersion: "v1.0",
+      protocolVersion: "1.0",
       components: [AnyComponentAPI(name: "FamilyRecord", schema: customSchema)]
     ).eraseToAnyCatalog()
 
@@ -347,7 +347,7 @@ struct PayloadValidatorTests {
     )
     let catalog = Catalog(
       id: "stack_cat",
-      protocolVersion: "v1.0",
+      protocolVersion: "1.0",
       components: [AnyComponentAPI(name: "Stack", schema: customSchema)]
     ).eraseToAnyCatalog()
 

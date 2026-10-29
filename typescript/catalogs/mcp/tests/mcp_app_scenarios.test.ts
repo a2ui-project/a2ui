@@ -75,18 +75,18 @@ function surfaceMessages(html: string) {
   return parseExampleMessages({
     messages: [
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: SURFACE_ID,
           catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {surfaceId: SURFACE_ID, value: {counter: {count: 1, label: 'clicks'}}},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: SURFACE_ID,
           components: [

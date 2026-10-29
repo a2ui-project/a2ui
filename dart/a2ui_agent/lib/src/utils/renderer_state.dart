@@ -24,7 +24,7 @@ import 'catalogs.dart';
 const Map<A2uiProtocolVersion, Set<String>> _messageVersions = {
   A2uiProtocolVersion.v0_9: {'v0.9', 'v0.9.1'},
   A2uiProtocolVersion.v0_9_1: {'v0.9', 'v0.9.1'},
-  A2uiProtocolVersion.v1_0: {'v1.0'},
+  A2uiProtocolVersion.v1_0: {'1.0'},
 };
 
 /// Messages are applied one at a time, and a component may name a child that
@@ -79,6 +79,10 @@ typedef _Undo = void Function();
 /// The state is authoritative for surfaces and their components. The data
 /// model values it holds can drift from the renderer's, since the user edits
 /// bound inputs there, but no check depends on them.
+///
+/// An app that is both the agent and the renderer makes the state with
+/// [RendererState.of], on the processor it renders from, so each message is
+/// checked and applied once.
 class RendererState {
   /// Creates the empty state of a renderer that holds [catalogs].
   ///
@@ -89,17 +93,47 @@ class RendererState {
   RendererState(List<CatalogApi> catalogs)
     : this._(catalogs, assumesUnknownSurfaces: false);
 
+  /// Creates the state of a renderer that renders from [processor].
+  ///
+  /// The state's catalogs are the processor's. It applies each message it
+  /// accepts to [processor] itself, so the renderer shows a message as soon
+  /// as the state applies it, and a rollback takes the message back out of
+  /// the renderer's model. A `callRendererFunction` is checked when it is
+  /// applied but reaches the processor only once the outermost [apply] or
+  /// transaction it was applied in succeeds, since a function that ran cannot
+  /// be rolled back.
+  ///
+  /// The state checks messages against the surfaces the processor holds,
+  /// including those it held before, by its own rules whatever
+  /// `validationConfig` the processor was created with. The processor must
+  /// take its messages from the state only: one applied around the state is
+  /// checked by nothing, and a transaction that fails after it cannot undo
+  /// it. [dispose] leaves the processor's surfaces to its owner.
+  ///
+  /// Throws [A2uiCatalogError] if the processor's catalogs could not make a
+  /// state, as for the default constructor.
+  RendererState.of(MessageProcessor<ComponentApi> processor)
+    : this._(
+        processor.catalogs,
+        assumesUnknownSurfaces: false,
+        processor: processor,
+      );
+
   RendererState._(
     List<CatalogApi> catalogs, {
     required bool assumesUnknownSurfaces,
+    MessageProcessor<ComponentApi>? processor,
   }) : catalogs = List.unmodifiable(catalogs),
        _protocolVersion = _checkCatalogs(catalogs),
-       _assumesUnknownSurfaces = assumesUnknownSurfaces {
-    _processor = MessageProcessor<ComponentApi>.forAgent(
-      catalogs: this.catalogs,
-      defaultVersion: _protocolVersion,
-      validationConfig: _inProgressValidation,
-    );
+       _assumesUnknownSurfaces = assumesUnknownSurfaces,
+       _sharesProcessor = processor != null {
+    _processor =
+        processor ??
+        MessageProcessor<ComponentApi>.forAgent(
+          catalogs: this.catalogs,
+          defaultVersion: _protocolVersion,
+          validationConfig: _inProgressValidation,
+        );
   }
 
   /// The active catalogs, in priority order.
@@ -113,6 +147,14 @@ class RendererState {
   final bool _assumesUnknownSurfaces;
 
   late final MessageProcessor<ComponentApi> _processor;
+
+  /// Whether [_processor] is a renderer's, from [RendererState.of], rather
+  /// than one the state made to check messages with.
+  final bool _sharesProcessor;
+
+  /// The function calls applied since the outermost open [apply] or
+  /// transaction began, which reach a renderer's processor once it succeeds.
+  final List<CallRendererFunctionMessage> _calls = [];
 
   /// The surfaces created as placeholders, whose trees are not checked.
   final Set<String> _assumed = {};
@@ -250,10 +292,10 @@ class RendererState {
   /// transaction.
   T transaction<T>(T Function() body) => _frame(body);
 
-  /// Releases the surfaces the state holds. The state cannot be used
-  /// afterwards.
+  /// Releases the surfaces the state holds, unless they are a renderer's
+  /// from [RendererState.of]. The state cannot be used afterwards.
   void dispose() {
-    _processor.model.dispose();
+    if (!_sharesProcessor) _processor.model.dispose();
     _disposeDetached();
   }
 
@@ -266,8 +308,9 @@ class RendererState {
   T _frame<T>(T Function() body) {
     final int mark = _log.length;
     _open++;
+    final T result;
     try {
-      return body();
+      result = body();
     } catch (_) {
       _revert(mark);
       rethrow;
@@ -278,6 +321,39 @@ class RendererState {
         _disposeDetached();
       }
     }
+    if (_open == 0) _runCalls();
+    return result;
+  }
+
+  /// Hands the function calls held back to the renderer's processor, in the
+  /// order they were applied.
+  void _runCalls() {
+    if (_calls.isEmpty) return;
+    final List<CallRendererFunctionMessage> calls = [..._calls];
+    _calls.clear();
+    _processUnlogged(calls);
+  }
+
+  /// Checks [message] and holds it back until the outermost [apply] or
+  /// transaction succeeds.
+  ///
+  /// The checks are those [_runCalls] would make, paths and nesting depth
+  /// included, so that a call it hands over is not rejected once nothing
+  /// can be rolled back.
+  void _holdCall(CallRendererFunctionMessage message) {
+    if (message.surfaceId case final String surfaceId
+        when getSurface(surfaceId) == null) {
+      throw A2uiValidationError(
+        "Function call '${message.functionCallId}' names surface "
+        "'$surfaceId', which does not exist.",
+      );
+    }
+    _asValidationError(() {
+      _processor.checkRendererFunctionCall(message);
+      checkPathsAndRecursion(message.toJson());
+    });
+    _calls.add(message);
+    _record(_calls.removeLast);
   }
 
   /// Undoes the changes logged after [mark], latest first.
@@ -351,7 +427,12 @@ class RendererState {
 
   /// Runs [messages] through the processor, logging nothing.
   void _processUnlogged(List<AgentToRendererMessage> messages) =>
-      _asValidationError(() => _processor.processMessages(messages));
+      _asValidationError(
+        () => _processor.processMessages(
+          messages,
+          validationConfig: _inProgressValidation,
+        ),
+      );
 
   /// How to undo [message], read before it is applied, or null when there is
   /// nothing to undo.
@@ -603,7 +684,11 @@ class RendererState {
     final AgentToRendererMessage message = payload[index];
     final String? surfaceId = _target(message);
     if (surfaceId == null) {
-      _process(message);
+      if (_sharesProcessor && message is CallRendererFunctionMessage) {
+        _holdCall(message);
+      } else {
+        _process(message);
+      }
       return null;
     }
     switch (message) {

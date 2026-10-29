@@ -74,6 +74,7 @@ export abstract class A2uiLitElement<
 
   private _controller?: A2uiController<Api, Props>;
   private _controllerContext?: ComponentContext;
+  private _controllerNode?: ComponentNode;
 
   /**
    * The reactive controller instance managing property bindings and state subscriptions.
@@ -251,7 +252,7 @@ export abstract class A2uiLitElement<
    *
    * @returns A Lit template result containing the rendered child component, or `nothing` if the reference is empty.
    */
-  protected renderNode(childRef?: A2uiChildRef, customPath?: string) {
+  protected renderNode(childRef?: ComponentNode | A2uiChildRef, customPath?: string) {
     if (!childRef || !this.context?.dataContext) return nothing;
     const {surface, path: parentPath} = this.context.dataContext;
     if (!surface) {
@@ -261,6 +262,10 @@ export abstract class A2uiLitElement<
     const surfaceContainsComponent = !!surface.componentsModel?.get(this.context.componentModel.id);
     if (!surfaceContainsComponent) {
       return nothing;
+    }
+
+    if (isComponentNode(childRef) && !customPath) {
+      return renderA2uiNode(childRef);
     }
 
     let componentId: ComponentId | undefined;
@@ -293,21 +298,26 @@ export abstract class A2uiLitElement<
   /**
    * Reacts to changes in the component's properties.
    *
-   * Specifically, when the `context` property changes or is initialized, this method
-   * cleans up any existing controller and invokes `createController()` to bind to
-   * the new context.
+   * Specifically, when the `node` or `context` property changes or is initialized,
+   * this method cleans up any existing controller and invokes `createController()`
+   * to bind to the new node or context.
    *
    * @param changedProperties Map of changed properties with their previous values.
    */
   override willUpdate(changedProperties: PropertyValues) {
     super.willUpdate(changedProperties);
+    const nodeChanged = changedProperties.has('node') && this.node !== this._controllerNode;
     let contextChanged = changedProperties.has('context');
     if (changedProperties.has('node') && this.node?.context && this.node.context !== this.context) {
       this.context = this.node.context;
       contextChanged = true;
     }
-    if (contextChanged && this.context) {
-      if (this._controller && bindsSameComponent(this._controllerContext, this.context)) {
+    if ((contextChanged || nodeChanged) && this.context) {
+      if (
+        this._controller &&
+        !nodeChanged &&
+        bindsSameComponent(this._controllerContext, this.context)
+      ) {
         this._controllerContext = this.context;
         return;
       }
@@ -317,6 +327,7 @@ export abstract class A2uiLitElement<
       }
       this._controller = this.createController();
       this._controllerContext = this.context;
+      this._controllerNode = this.node;
     }
   }
 

@@ -1,8 +1,9 @@
 ---
 codebase_path: dart/a2ui_core
 associated_module: a2ui_core
-module_blueprint_commit: 81f7f9bfeb2f1f8c24250fe1d79fdfe5ce77280c
-implemented_features: []
+module_blueprint_commit: 2e3d9bc434a34ba25498a11e0bfba079b52dcf29
+implemented_features:
+  node_resolution: b161f9bdc9395732b305b0adddfd182a36382f09
 local_development:
   test_command: 'dart test'
   lint_command: 'dart analyze --fatal-infos'
@@ -24,6 +25,9 @@ The official Dart implementation of the A2UI Core State Layer (`a2ui_core`), sha
 
 - **Typed Binding Wrappers in `ComponentNode.props`**: `NodeResolver` wraps dynamic component properties in `ResolvedBinding<T>` (and `WritableBinding<T>` when path-bound) so Flutter widgets can subscribe to individual reactive properties or write back two-way bindings without re-resolving the parent component node.
 - **Idiomatic Dart Concurrency Primitives**: Uses `CancellationSignal` (`lib/src/primitives/cancellation.dart`) in place of Web `AbortSignal`, and Dart `Duration` for RPC call and heartbeat timeouts.
+- **Per-call validation config**: `processMessages` and `processMessagesAsync` take the config of one call as a `validationConfig` named parameter, beside `isUserActivated`, rather than in an execution context object. Validators are cached per catalog, protocol version and `allowUnknownElements`, the only part of the config a validator reads, so a call that passes a new config object reuses the validators already built. `processMessagesAsync` applies the config while it checks and applies each message, not across its waits for function calls.
+- **`Catalog.derive` entries**: Dart has no union of a name and an entry short of `Object`, so `derive` takes the names of the entries to keep in `components` and `functions`, and the new entries in `addComponents` and `addFunctions`, which follow the kept ones and replace a kept entry of the same name.
+- **Nested values in the binder**: `GenericBinder` resolves actions, bindings and child lists inside lists and objects, as the module blueprint requires. Its props are a `Map<String, dynamic>`, so there are no prop types to follow it.
 
 ## **Validation & Execution Recipes**
 
