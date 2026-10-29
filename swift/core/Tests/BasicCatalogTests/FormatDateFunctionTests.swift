@@ -142,7 +142,7 @@ struct FormatDateFunctionTests {
   @Test func returnsEmptyStringForEpochOutOfRange() throws {
     #expect(try format(.number(1e300), "yyyy-MM-dd") == .string(""))
     #expect(try format(.number(8_640_000_000_000_001), "yyyy-MM-dd") == .string(""))
-    #expect(try format(.number(-8_640_000_000_001), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.number(-8_640_000_000_000_001), "yyyy-MM-dd") == .string(""))
     #expect(try format(.string("1e300"), "ISO") == .string(""))
   }
 
@@ -150,6 +150,30 @@ struct FormatDateFunctionTests {
     #expect(
       try format(.number(8_640_000_000_000_000), "yyyy-MM-dd HH:mm")
         == .string("275760-09-13 00:00"))
+  }
+
+  @Test func formatsPre1970MillisecondsInUTC() throws {
+    #expect(
+      try format(.number(-315_619_200_000), "yyyy-MM-dd HH:mm") == .string("1960-01-01 00:00"))
+    // The lower end of the JavaScript `Date` range is accepted. Only the time of day is checked:
+    // DateFormatter renders that era with a Julian calendar and a year of era.
+    #expect(try format(.number(-8_640_000_000_000_000), "HH:mm") == .string("00:00"))
+  }
+
+  @Test func truncatesSubMillisecondFractionWithoutRollingWallClock() throws {
+    let value = JSONValue.string("2026-09-04T23:59:59.9999-05:00")
+    #expect(try format(value, "yyyy-MM-dd HH:mm:ss") == .string("2026-09-04 23:59:59"))
+    #expect(try format(value, "ISO") == .string("2026-09-05T04:59:59.999Z"))
+    #expect(
+      try format(.string("2026-09-04T23:59:59.9999Z"), "ISO") == .string("2026-09-04T23:59:59.999Z")
+    )
+    #expect(
+      try format(.string("2026-09-04T10:00:00.5Z"), "ISO") == .string("2026-09-04T10:00:00.500Z"))
+  }
+
+  @Test func rejectsTrailingNewlineInTimestamp() throws {
+    #expect(try format(.string("2026-09-04\n"), "yyyy-MM-dd") == .string(""))
+    #expect(try format(.string("2026-09-04T23:30:00Z\n"), "ISO") == .string(""))
   }
 
   @Test func returnsEmptyStringWhenFormatIsMissing() throws {

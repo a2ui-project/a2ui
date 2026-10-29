@@ -37,24 +37,10 @@ public final class FormatDateFunction: FunctionImplementation, Sendable {
   public init() {}
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
-    guard let format = arguments["format"]?.stringValue else {
-      return .string("")
-    }
-
-    let timestamp: Timestamp
-    if let valueDouble = arguments["value"]?.doubleValue {
-      guard let parsed = Timestamp(epoch: valueDouble) else { return .string("") }
-      timestamp = parsed
-    } else if let valueString = arguments["value"]?.stringValue {
-      if let parsedNumber = Double(valueString) {
-        guard let parsed = Timestamp(epoch: parsedNumber) else { return .string("") }
-        timestamp = parsed
-      } else if let parsed = Timestamp(iso8601: valueString) {
-        timestamp = parsed
-      } else {
-        return .string("")
-      }
-    } else {
+    guard let format = arguments["format"]?.stringValue,
+      let rawValue = arguments["value"],
+      let timestamp = Timestamp(rawValue)
+    else {
       return .string("")
     }
 
@@ -84,12 +70,20 @@ public final class FormatDateFunction: FunctionImplementation, Sendable {
 private struct Timestamp {
   /// The calendar fields of an ISO 8601 timestamp: year, month, day, then optionally hour,
   /// minute, second, fraction and an offset (`Z`, `+hh`, `+hhmm` or `+hh:mm`). The `T` and
-  /// `Z` may be lowercase, as RFC 3339 allows.
-  private static let pattern = try! NSRegularExpression(
-    pattern: #"^([+-]?\d{4,6})-(\d{2})-(\d{2})"#
-      + #"(?:[Tt ](\d{2}):(\d{2})(?::(\d{2})(?:[.,](\d+))?)?"#
-      + #"(?:([zZ])|([+-])(\d{2})(?::?(\d{2}))?)?)?$"#
-  )
+  /// `Z` may be lowercase, as RFC 3339 allows. Matched with `wholeMatch(of:)`, so a trailing
+  /// newline is rejected.
+  nonisolated(unsafe) private static let pattern =
+    #/
+    (?<year>[+-]?\d{4,6}) - (?<month>\d{2}) - (?<day>\d{2})
+    (?:
+      [Tt\ ] (?<hour>\d{2}) : (?<minute>\d{2})
+      (?: : (?<second>\d{2}) (?: [.,] (?<fraction>\d+) )? )?
+      (?:
+        [zZ]
+        | (?<offsetSign>[+-]) (?<offsetHours>\d{2}) (?: :? (?<offsetMinutes>\d{2}) )?
+      )?
+    )?
+    /#.asciiOnlyDigits()
 
   let instant: Date
   let offsetSeconds: Int
@@ -98,12 +92,28 @@ private struct Timestamp {
   /// 100,000,000 days either side that a JavaScript `Date` can hold.
   private static let maxEpochSeconds = 8_640_000_000_000.0
 
-  /// Reads seconds, or milliseconds above 10^10, since 1970 as a UTC instant.
+  /// Reads a number, a numeric string or an ISO 8601 string.
+  init?(_ value: JSONValue) {
+    if let number = value.doubleValue {
+      self.init(epoch: number)
+    } else if let text = value.stringValue {
+      if let number = Double(text) {
+        self.init(epoch: number)
+      } else {
+        self.init(iso8601: text)
+      }
+    } else {
+      return nil
+    }
+  }
+
+  /// Reads seconds, or milliseconds when the magnitude is above 10^10, since 1970 as a UTC
+  /// instant.
   ///
   /// Fails for a value that is not finite or lies outside ``maxEpochSeconds``.
   init?(epoch value: Double) {
     guard value.isFinite else { return nil }
-    let seconds = value > 10_000_000_000 ? value / 1000.0 : value
+    let seconds = abs(value) > 10_000_000_000 ? value / 1000.0 : value
     guard abs(seconds) <= Self.maxEpochSeconds else { return nil }
     instant = Date(timeIntervalSince1970: seconds)
     offsetSeconds = 0
@@ -113,19 +123,23 @@ private struct Timestamp {
   /// host-local time, so its fields format as written.
   ///
   /// Fails for fields that do not exist, such as `2026-02-30` or `2026-09-04T24:30`, rather
-  /// than rolling them over into the next month or day.
+  /// than rolling them over into the next month or day. Truncates the fraction to whole
+  /// milliseconds, as web_core, Python and Dart do, so `23:59:59.9999` never rounds up into
+  /// the next second or day.
   init?(iso8601 value: String) {
-    let range = NSRange(value.startIndex..., in: value)
-    guard let match = Self.pattern.firstMatch(in: value, range: range) else { return nil }
-    func group(_ index: Int) -> String? {
-      Range(match.range(at: index), in: value).map { String(value[$0]) }
-    }
-    func number(_ index: Int) -> Int? { group(index).flatMap { Int($0) } }
-
-    guard let year = number(1), let month = number(2), let day = number(3) else { return nil }
+    guard let captures = value.wholeMatch(of: Self.pattern)?.output,
+      let year = Int(captures.year),
+      let month = Int(captures.month),
+      let day = Int(captures.day)
+    else { return nil }
     let fields = DateComponents(
-      year: year, month: month, day: day, hour: number(4) ?? 0, minute: number(5) ?? 0,
-      second: number(6) ?? 0)
+      year: year,
+      month: month,
+      day: day,
+      hour: captures.hour.flatMap { Int($0) } ?? 0,
+      minute: captures.minute.flatMap { Int($0) } ?? 0,
+      second: captures.second.flatMap { Int($0) } ?? 0
+    )
 
     var calendar = Calendar(identifier: .gregorian)
     calendar.locale = Locale(identifier: "en_US_POSIX")
@@ -139,14 +153,20 @@ private struct Timestamp {
     else { return nil }
 
     var offset = 0
-    if let sign = group(9), let hours = number(10) {
-      let minutes = number(11) ?? 0
+    if let sign = captures.offsetSign,
+      let hoursText = captures.offsetHours,
+      let hours = Int(hoursText)
+    {
+      let minutes = captures.offsetMinutes.flatMap { Int($0) } ?? 0
       guard hours < 24, minutes < 60 else { return nil }
       offset = (sign == "-" ? -1 : 1) * (hours * 3600 + minutes * 60)
     }
-    let fraction = group(7).flatMap { Double("0.\($0)") } ?? 0
+    let milliseconds =
+      captures.fraction.flatMap {
+        Int($0.prefix(3).padding(toLength: 3, withPad: "0", startingAt: 0))
+      } ?? 0
 
-    instant = wallClock.addingTimeInterval(fraction - Double(offset))
+    instant = wallClock.addingTimeInterval(Double(milliseconds) / 1000.0 - Double(offset))
     offsetSeconds = offset
   }
 }
