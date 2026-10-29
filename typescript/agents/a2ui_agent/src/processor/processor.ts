@@ -54,16 +54,16 @@ export class A2uiRequestProcessor {
     formatFactory?: InferenceFormatFactory,
     options: A2uiRequestProcessorOptions = {},
   ) {
-    this._catalogs = catalogs;
+    this._catalogs = [...catalogs];
     const factory = formatFactory || new ExpressFormatFactory();
-    this._format = factory.createFormat(catalogs, _examples);
+    this._format = factory.createFormat([...this._catalogs], _examples);
     this.checkState(options.state);
     this._state = options.state;
   }
 
   /** The negotiated catalogs active for this request. */
   get catalogs(): CatalogApi[] {
-    return this._catalogs;
+    return [...this._catalogs];
   }
 
   get examples(): Record<string, AgentToRendererMessage[] | string> | undefined {
@@ -102,7 +102,7 @@ export class A2uiRequestProcessor {
    * `parseResponse` or `openStream` on every turn, or binds it to the processor.
    */
   createState(): RendererState {
-    return new RendererState(this.catalogs);
+    return new RendererState(this._catalogs);
   }
 
   /**
@@ -150,13 +150,13 @@ export class A2uiRequestProcessor {
    * doesn't.
    */
   acceptsState(state: RendererState): boolean {
-    return catalogsKey(state.catalogs) === catalogsKey(this.catalogs);
+    return catalogsKey(state.catalogs) === catalogsKey(this._catalogs);
   }
 
   private checkState(state: RendererState | undefined): void {
     if (state === undefined || this.acceptsState(state)) return;
     throw new A2uiCatalogError(
-      `The renderer state holds catalogs [${describeCatalogs(state.catalogs)}], but the processor's active catalogs are [${describeCatalogs(this.catalogs)}].`,
+      `The renderer state holds catalogs [${describeCatalogs(state.catalogs)}], but the processor's active catalogs are [${describeCatalogs(this._catalogs)}].`,
     );
   }
 }

@@ -1,9 +1,9 @@
 ## Unreleased
 
-- **BREAKING CHANGE**: Remove duplicate and non-idiomatic APIs across `@a2ui/agent` ([#3592](https://github.com/a2ui-project/a2ui/issues/3592)):
+- **BREAKING CHANGE**: Remove duplicate and non-idiomatic APIs across `@a2ui/agent` ([#3592](https://github.com/a2ui-project/a2ui/issues/3592), [#3758](https://github.com/a2ui-project/a2ui/pull/3758)):
   - Remove `Skill.toString()`; call `skill.toMarkdown()` instead.
   - `SkillSet` now implements `Iterable<[string, Skill]>` and `[Symbol.iterator]()` yields `[filename, skill]` entries like `Map`; call `skillSet.keys()` to iterate filenames.
-  - Remove `ExpressParser.wrapDecompiledBlocks` and `ExpressDecompiler.wrapDecompiledBlocks`; pass `{type: 'a2ui', a2uiRaw, isFinal: true}` parts to `wrap(...)` instead.
+  - Remove `ExpressParser.wrapDecompiledBlocks` and `ExpressDecompiler.wrapDecompiledBlocks`; pass `[{type: 'a2ui', a2uiRaw: blocks.join('\n'), isFinal: true}]` to `wrap(...)` instead.
   - Remove `supportsStreaming` from `InferenceFormat`, `DirectJsonFormat`, and `ExpressFormat`; check `parser.supportsStreaming` instead.
   - Rename `A2uiRequestProcessor.activeCatalogs` to `A2uiRequestProcessor.catalogs`.
   - Narrow `ExpressParser.decompile` and `ExpressDecompiler.decompile` to accept `AgentToRendererMessage[]` only; wrap a single message as `[message]`.
