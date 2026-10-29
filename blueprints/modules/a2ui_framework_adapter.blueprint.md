@@ -31,7 +31,7 @@ Packaging follows this model: the package root exports the version-agnostic `Sur
 
 An adapter integrates with the Core SDK at two primary boundaries:
 
-1. **`SurfaceModel`**: The adapter's root entrypoint (`Surface`) takes `SurfaceModel` directly as its required input; the only other inputs are optional presentation settings such as fallbacks ([§4.4](#44-fallbacks)). The `SurfaceModel` encapsulates incoming message processing, the live component hierarchy, the surface's catalogs (`defaultCatalog` and `availableCatalogs`), the data model, and the event channels (`onAction`, `onError`, `onWarning`).
+1. **`SurfaceModel`**: The adapter's root entrypoint (`Surface`) takes `SurfaceModel` directly as its required input; the only other inputs are optional presentation settings such as fallbacks (§4.4). The `SurfaceModel` encapsulates incoming message processing, the live component hierarchy, the surface's catalogs (`defaultCatalog` and `availableCatalogs`), the data model, and the event channels (`onAction`, `onError`, `onWarning`).
 2. **The Node API (`NodeResolver` and `ComponentNode`)**: The adapter initializes a `NodeResolver` on the `SurfaceModel`. It never queries raw component dictionaries or evaluates JSON pointers directly. Instead, it observes the living tree of `ComponentNode` instances produced by `NodeResolver`.
 
 ```mermaid
@@ -135,7 +135,7 @@ A framework adapter exposes three categories of public APIs:
 
 The root framework view or widget embedded into the host application.
 
-**Key Requirement:** `Surface` directly accepts `SurfaceModel` from the Core SDK as its required input. Because `SurfaceModel` already contains the component catalogs, component state graph, data model, and action/error event channels, `Surface` needs no other data. The only other input is optional presentation configuration: `fallbacks` ([§4.4](#44-fallbacks)).
+**Key Requirement:** `Surface` directly accepts `SurfaceModel` from the Core SDK as its required input. Because `SurfaceModel` already contains the component catalogs, component state graph, data model, and action/error event channels, `Surface` needs no other data. The only other input is optional presentation configuration: `fallbacks` (§4.4).
 
 ```typescript
 // Generic API Sketch
