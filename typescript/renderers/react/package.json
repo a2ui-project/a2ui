@@ -165,6 +165,9 @@
       "files": [
         "src/**/*",
         "tests/**/*",
+        "../../../conformance/core/accessibility.yaml",
+        "../../../conformance/core/adapter_conformance.yaml",
+        "../../../catalogs/basic/v1/catalog.json",
         "tsconfig.json"
       ]
     },

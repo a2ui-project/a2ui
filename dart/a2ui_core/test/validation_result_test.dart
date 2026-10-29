@@ -82,5 +82,24 @@ void main() {
         );
       }
     });
+
+    test('explicitMessage overrides default function ValidationResult message',
+        () {
+      const fnResult = ValidationResult(
+        valid: false,
+        code: 'INVALID_EMAIL',
+        message: 'Must be a valid email address.',
+      );
+      final overridden = ValidationResult.fromEvaluation(
+        fnResult,
+        explicitMessage: 'Custom rule message.',
+      );
+      expect(overridden.valid, isFalse);
+      expect(overridden.code, 'INVALID_EMAIL');
+      expect(overridden.message, 'Custom rule message.');
+
+      final preserved = ValidationResult.fromEvaluation(fnResult);
+      expect(preserved.message, 'Must be a valid email address.');
+    });
   });
 }

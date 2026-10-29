@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+/// <reference types="node" />
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -154,38 +155,6 @@ function loadYamlCases<T>(fileName: string): T[] {
 }
 
 function createDefaultAdapterCatalog(): Catalog<ReactCatalogComponent> {
-  const baseFormatString = basicCatalog.functions.get('formatString')!;
-  const formatString = createFunctionImplementation(
-    {
-      name: 'formatString',
-      returnType: 'string',
-      schema: baseFormatString.schema as z.ZodType<{value: string}>,
-    },
-    (args, context, abortSignal) => {
-      const normalized = args.value.replaceAll('${@index}', String(context.index ?? ''));
-      return baseFormatString.execute({value: normalized}, context, abortSignal) as string;
-    },
-  );
-  const baseEmail = basicCatalog.functions.get('email')!;
-  const email = createFunctionImplementation(
-    {
-      name: 'email',
-      returnType: baseEmail.returnType,
-      schema: baseEmail.schema as z.ZodType<{value: string; message?: string}>,
-    },
-    (args, context, abortSignal) => {
-      const res = baseEmail.execute(args, context, abortSignal) as
-        | boolean
-        | {valid: boolean; message?: string};
-      if (typeof res === 'object' && res !== null && !res.valid) {
-        return {
-          ...res,
-          message: args.message ?? 'Please enter a valid email address (e.g. user@example.com).',
-        } as unknown as boolean;
-      }
-      return res as boolean;
-    },
-  );
   const incrementCounter = createFunctionImplementation(
     {
       name: 'incrementCounter',
@@ -207,7 +176,7 @@ function createDefaultAdapterCatalog(): Catalog<ReactCatalogComponent> {
     basicCatalog.id,
     basicCatalog.protocolVersion,
     Array.from(basicCatalog.components.values()),
-    [...Array.from(basicCatalog.functions.values()), formatString, email, incrementCounter],
+    [...Array.from(basicCatalog.functions.values()), incrementCounter],
     basicCatalog.themeSchema,
     basicCatalog.instructions,
   );

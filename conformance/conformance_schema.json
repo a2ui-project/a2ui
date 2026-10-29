@@ -738,18 +738,13 @@
           "minLength": 1,
           "description": "YAML fixture path relative to the conformance directory."
         },
-        "messages": {
-          "type": "array",
-          "items": {"type": "object"},
-          "description": "Optional initial protocol messages when fixture is omitted."
-        },
         "expect": {"$ref": "#/$defs/NodeResolutionExpectation"},
         "steps": {
           "type": "array",
           "items": {"$ref": "#/$defs/NodeResolutionStep"}
         }
       },
-      "required": ["name", "action", "expect", "steps"],
+      "required": ["name", "action", "fixture", "expect", "steps"],
       "additionalProperties": false
     },
     "EvaluateFunctionTest": {
@@ -2065,7 +2060,7 @@
       "properties": {
         "name": {"type": "string"},
         "description": {"type": "string"},
-        "protocolVersion": {"type": "string"},
+        "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
         "catalogPaths": {"type": "array", "items": {"type": "string"}},
         "catalogs": {"type": "array", "items": {"type": "object"}},
         "action": {"const": "render_surface"},

@@ -184,7 +184,7 @@
                 text:
                   "@call": "formatString"
                   args:
-                    value: "${@index}: ${name}"
+                    value: "${@index()}: ${name}"
       expectViewTree:
         id: "root"
         type: "List"
@@ -476,6 +476,7 @@
                       args:
                         value:
                           "@path": "/email"
+                    message: "Please enter a valid email address (e.g. user@example.com)."
               - id: "nickname_input"
                 component: "TextField"
                 label: "Nickname"

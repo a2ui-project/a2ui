@@ -211,6 +211,9 @@ export class ExpressionParser {
     if (scanner.peek() === '(') {
       return this.parseFunctionCall(token, scanner, depth);
     } else {
+      if (token.startsWith('@')) {
+        throw new A2uiExpressionError(`Expected '(' after function name '${token}'`);
+      }
       if (!token) {
         return '';
       }
@@ -220,6 +223,22 @@ export class ExpressionParser {
 
   private scanPathOrIdentifier(scanner: Scanner): string {
     const start = scanner.pos;
+    if (scanner.peek() === '@') {
+      const next = scanner.peek(1);
+      if (!next || !/[A-Za-z_]/.test(next)) {
+        throw new A2uiExpressionError("Invalid identifier starting with '@' in expression");
+      }
+      scanner.advance();
+      while (!scanner.isAtEnd()) {
+        const c = scanner.peek();
+        if (/[A-Za-z0-9_]/.test(c)) {
+          scanner.advance();
+        } else {
+          break;
+        }
+      }
+      return scanner.input.substring(start, scanner.pos);
+    }
     while (!scanner.isAtEnd()) {
       const c = scanner.peek();
       if (isIdContinue(c) || c === '/' || c === '.' || c === '-') {

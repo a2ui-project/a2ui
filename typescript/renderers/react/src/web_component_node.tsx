@@ -26,6 +26,7 @@ import {type HostOwner, markReactRendered} from './host_registry';
 interface ControllableElement extends Element {
   _controller?: {dispose: () => void};
   _controllerContext?: unknown;
+  _controllerNode?: unknown;
   removeController?: (controller: unknown) => void;
 }
 
@@ -41,6 +42,7 @@ function disposeElementControllers(root: Element): void {
       el._controller.dispose();
       el._controller = undefined;
       el._controllerContext = undefined;
+      el._controllerNode = undefined;
     }
   };
   disposeOne(root as ControllableElement);

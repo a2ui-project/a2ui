@@ -102,11 +102,7 @@ CatalogImplementation _buildV10BasicCatalog({
   return CatalogImplementation(
     id: BasicCatalog.v1_0Id,
     components: components,
-    functions: [
-      for (final FunctionImplementation fn in v10Api.functions.values)
-        if (fn.name == 'formatString') _V10FormatStringAdapter(fn) else fn,
-      _IncrementCounterFunction(),
-    ],
+    functions: [...v10Api.functions.values, _IncrementCounterFunction()],
     themeSchema: v10Api.themeSchema,
     schemaId: v10Api.schemaId,
     title: v10Api.title,
@@ -115,35 +111,6 @@ CatalogImplementation _buildV10BasicCatalog({
     instructions: v10Api.instructions,
     definitions: v10Api.definitions,
   );
-}
-
-class _V10FormatStringAdapter extends FunctionImplementation {
-  _V10FormatStringAdapter(this._delegate)
-    : super(
-        name: _delegate.name,
-        argumentSchema: _delegate.argumentSchema,
-        returnType: _delegate.returnType,
-        description: _delegate.description,
-      );
-
-  final FunctionImplementation _delegate;
-
-  @override
-  Object? execute(
-    Map<String, dynamic> args,
-    DataContext context, [
-    CancellationSignal? cancellationSignal,
-  ]) {
-    final Object? rawValue = args['value'];
-    if (rawValue is String && rawValue.contains(r'${@index}')) {
-      return _delegate.execute(
-        {...args, 'value': rawValue.replaceAll(r'${@index}', r'${@index()}')},
-        context,
-        cancellationSignal,
-      );
-    }
-    return _delegate.execute(args, context, cancellationSignal);
-  }
 }
 
 CatalogImplementation _buildCustomStatusBadgeCatalog(
@@ -618,10 +585,7 @@ void _assertNodeValidation(
     expect(props.isValid, expectedValid);
   }
   if (spec['validationErrors'] case final List<Object?> expectedErrors) {
-    expect(props.validationErrors, hasLength(expectedErrors.length));
-    for (final String actualError in props.validationErrors) {
-      expect(actualError, isNotEmpty);
-    }
+    expect(props.validationErrors, expectedErrors);
   }
   if (spec['validationResults'] case final List<Object?> expectedResults) {
     final List<Map<String, Object?>> actual = [

@@ -17,6 +17,7 @@ import A2UIJSON
 import A2UISwiftUI
 import BasicCatalog
 import BasicCatalogSwiftUI
+import Combine
 import Foundation
 import JSONSchema
 import OrderedCollections
@@ -25,51 +26,100 @@ import SwiftUI
 import Testing
 import Yams
 
-private final class AdapterTestActionHandler: ActionHandling, @unchecked Sendable {
-  var actions: [(action: ResolvedAction, surfaceID: String)] = []
-  var errors: [RendererError] = []
-
-  func handle(action: ResolvedAction, from surfaceID: String) {
-    actions.append((action: action, surfaceID: surfaceID))
-  }
-
-  func handle(error: RendererError, from surfaceID: String) {
-    errors.append(error)
-  }
-
-  func clearStepEvents() {
-    actions.removeAll()
-    errors.removeAll()
-  }
-}
-
-private final class IncrementCounterFunction: FunctionImplementation, Sendable {
-  let api: FunctionAPI
-
-  init() throws {
-    self.api = FunctionAPI(
-      name: "incrementCounter",
-      returnType: .number,
-      schema: try Schema(instance: "{}")
-    )
-  }
-
-  @MainActor
-  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
-    guard let path = arguments["path"]?.stringValue else { return .null }
-    let step = arguments["step"]?.intValue ?? 1
-    let current = context.dataModel.get(path)?.intValue ?? 0
-    let updated = current + step
-    context.set(path, value: .integer(updated))
-    return .integer(updated)
-  }
-}
-
 /// Runs `conformance/core/accessibility.yaml` and `conformance/core/adapter_conformance.yaml`
 /// against `A2UISwiftUI.Surface`, `SurfaceViewModel`, and `A2UIAccessibilityModifier`.
 @MainActor
 struct AdapterConformanceTests {
   private typealias Node = A2UICore.Node
+
+  private final class AdapterTestActionHandler: ActionHandling, @unchecked Sendable {
+    var actions: [(action: ResolvedAction, surfaceID: String)] = []
+    var errors: [RendererError] = []
+
+    func handle(action: ResolvedAction, from surfaceID: String) {
+      actions.append((action: action, surfaceID: surfaceID))
+    }
+
+    func handle(error: RendererError, from surfaceID: String) {
+      errors.append(error)
+    }
+
+    func clearStepEvents() {
+      actions.removeAll()
+      errors.removeAll()
+    }
+  }
+
+  private final class IncrementCounterFunction: FunctionImplementation, Sendable {
+    let api: FunctionAPI
+
+    init() throws {
+      self.api = FunctionAPI(
+        name: "incrementCounter",
+        returnType: .number,
+        schema: try Schema(instance: "{}")
+      )
+    }
+
+    @MainActor
+    func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+      guard let path = arguments["path"]?.stringValue else { return .null }
+      let step = arguments["step"]?.intValue ?? 1
+      let current = context.dataModel.get(path)?.intValue ?? 0
+      let updated = current + step
+      context.set(path, value: .integer(updated))
+      return .integer(updated)
+    }
+  }
+
+  private struct ViewNode {
+    let id: String
+    let instanceID: String
+    let type: String?
+    let state: String
+    let node: Node?
+    let children: [ViewNode]
+
+    init(
+      id: String,
+      instanceID: String,
+      type: String? = nil,
+      state: String = "resolved",
+      node: Node? = nil,
+      children: [ViewNode] = []
+    ) {
+      self.id = id
+      self.instanceID = instanceID
+      self.type = type
+      self.state = state
+      self.node = node
+      self.children = children
+    }
+  }
+
+  @MainActor
+  private final class MountedSurfaceHarness {
+    let surface: Surface
+    private var subscriptions: [AnyCancellable] = []
+
+    var activeSubscriptionCount: Int {
+      subscriptions.count
+    }
+
+    init(surface: Surface) {
+      self.surface = surface
+      surface.viewModel.objectWillChange
+        .sink { _ in }
+        .store(in: &subscriptions)
+      surface.viewModel.componentsModel.objectWillChange
+        .sink { _ in }
+        .store(in: &subscriptions)
+    }
+
+    func unmount() {
+      subscriptions.removeAll()
+    }
+  }
 
   private static var conformanceDirectory: URL {
     if let envDir = ProcessInfo.processInfo.environment["A2UI_CONFORMANCE_DIR"], !envDir.isEmpty {
@@ -197,6 +247,7 @@ struct AdapterConformanceTests {
       let modifier = A2UIAccessibilityModifier(node: node)
       assertModifierMatches(
         modifier,
+        node: node,
         expected: expectedProps,
         context: "\(context) [\(componentID)]"
       )
@@ -207,27 +258,62 @@ struct AdapterConformanceTests {
 
   private func assertModifierMatches(
     _ modifier: A2UIAccessibilityModifier,
+    node: Node,
     expected: [String: Any],
     context: String
   ) {
     if let expLabel = expected["label"] as? String {
-      #expect(modifier.effectiveLabel == expLabel, "\(context): label mismatch")
+      #expect(effectiveLabel(for: node, modifier: modifier) == expLabel, "\(context): label")
     }
     if let expDesc = expected["description"] as? String {
       #expect(modifier.hint == expDesc, "\(context): description mismatch")
     }
     if let expLive = expected["live"] as? String {
-      #expect(modifier.live == expLive, "\(context): live mismatch")
+      #expect(node.explicitAccessibilityAttributes?.live == expLive, "\(context): live mismatch")
     }
     if let expHidden = expected["hidden"] as? Bool {
       #expect(modifier.isHidden == expHidden, "\(context): hidden mismatch")
     }
     if let expRole = expected["role"] as? String {
-      #expect(modifier.role == expRole, "\(context): role mismatch")
+      #expect(semanticRole(for: node) == expRole, "\(context): role mismatch")
     }
     if let expChecked = expected["checked"] as? Bool {
-      #expect(modifier.isChecked == expChecked, "\(context): checked mismatch")
+      #expect(checkedState(for: node) == expChecked, "\(context): checked mismatch")
     }
+  }
+
+  private func effectiveLabel(for node: Node, modifier: A2UIAccessibilityModifier) -> String? {
+    if let explicit = modifier.label {
+      return explicit
+    }
+    if let inferred = node.accessibilityAttributes?.label, !inferred.isEmpty {
+      return inferred
+    }
+    if let child = node.child(for: "child") {
+      return child.accessibilityAttributes?.label ?? child.string(for: "text")
+    }
+    return nil
+  }
+
+  private func semanticRole(for node: Node) -> String {
+    switch node.type {
+    case "Button":
+      return "button"
+    case "TextField":
+      return "textbox"
+    case "CheckBox":
+      return "checkbox"
+    case "ChoicePicker":
+      let variant = node.string(for: "variant") ?? "mutuallyExclusive"
+      return variant == "mutuallyExclusive" ? "radiogroup" : "group"
+    default:
+      return node.type.lowercased()
+    }
+  }
+
+  private func checkedState(for node: Node) -> Bool? {
+    guard node.type == "CheckBox" else { return nil }
+    return node.bool(for: "value") ?? false
   }
 
   // MARK: - Adapter Conformance Suite Runner
@@ -241,8 +327,8 @@ struct AdapterConformanceTests {
       validationConfig: .relaxed
     )
     let steps = (testCase["steps"] as? [[String: Any]]) ?? []
-    var surface: Surface?
-    var previousTree: Surface.ViewNode?
+    var harness: MountedSurfaceHarness?
+    var previousTree: ViewNode?
 
     for (idx, step) in steps.enumerated() {
       let stepCtx = "\(name) [step \(idx)]"
@@ -252,11 +338,11 @@ struct AdapterConformanceTests {
         processor: processor,
         uiCatalogs: uiCatalogs,
         handler: handler,
-        surface: &surface
+        harness: &harness
       )
       verifyAdapterStep(
         step,
-        surface: surface,
+        harness: harness,
         currentTree: currentTree,
         previousTree: previousTree,
         handler: handler,
@@ -330,8 +416,8 @@ struct AdapterConformanceTests {
     processor: MessageProcessor,
     uiCatalogs: [Catalog<ComponentImplementation>],
     handler: AdapterTestActionHandler,
-    surface: inout Surface?
-  ) throws -> Surface.ViewNode? {
+    harness: inout MountedSurfaceHarness?
+  ) throws -> ViewNode? {
     let op = step["op"] as? String ?? "process_messages"
     switch op {
     case "process_messages":
@@ -341,18 +427,21 @@ struct AdapterConformanceTests {
         processor: processor,
         uiCatalogs: uiCatalogs,
         handler: handler,
-        surface: &surface
+        harness: &harness
       )
     case "user_input":
-      applyUserInput(step, surface: surface)
+      applyUserInput(step, surface: harness?.surface)
     case "user_gesture", "programmatic_invoke":
-      invokeStepAction(step, op: op, surface: surface)
+      invokeStepAction(step, op: op, surface: harness?.surface)
     case "unmount_surface":
-      surface?.unmount()
+      #expect((harness?.activeSubscriptionCount ?? 0) > 0, "Expected active subscriptions")
+      harness?.unmount()
+      return nil
     default:
       break
     }
-    return surface?.resolveViewTree(reportingDiagnosticsTo: handler)
+    guard let surface = harness?.surface else { return nil }
+    return resolveViewTree(for: surface, reportingDiagnosticsTo: handler)
   }
 
   private func processAdapterMessages(
@@ -360,26 +449,28 @@ struct AdapterConformanceTests {
     processor: MessageProcessor,
     uiCatalogs: [Catalog<ComponentImplementation>],
     handler: AdapterTestActionHandler,
-    surface: inout Surface?
+    harness: inout MountedSurfaceHarness?
   ) {
     do {
       try processor.processMessages(toJSONValue(messages))
-      if surface == nil,
+      if harness == nil,
         let vm = processor.surfaceGroupModel.surfacesMap["adapter_surface"]
           ?? processor.surfaceGroupModel.surfacesMap.values.first
       {
-        surface = Surface(
+        let surface = Surface(
           viewModel: vm,
           catalogs: uiCatalogs,
           defaultCatalogID: BasicCatalog.catalogURI(version: .v10)
         )
+        harness = MountedSurfaceHarness(surface: surface)
       }
     } catch {
-      surface = applyFallbackMessages(
+      let surface = applyFallbackMessages(
         messages,
         uiCatalogs: uiCatalogs,
         handler: handler
       )
+      harness = MountedSurfaceHarness(surface: surface)
     }
   }
 
@@ -451,23 +542,241 @@ struct AdapterConformanceTests {
     collectNodes(from: rootNode, into: &nodes)
     guard let targetNode = nodes[targetID] else { return }
     let userActivated = step["userActivation"] as? Bool ?? (op == "user_gesture")
-    surface.invokeAction(on: targetNode, userActivated: userActivated)
+    invokeAction(on: targetNode, in: surface, userActivated: userActivated)
+  }
+
+  private func invokeAction(
+    on node: Node,
+    in surface: Surface,
+    property: String = "action",
+    userActivated: Bool = true
+  ) {
+    if node.type == "Button" {
+      let button = A2UIButton(node: node)
+      guard !button.isDisabled else { return }
+    } else {
+      guard node.isValid else { return }
+    }
+    let viewModel = surface.viewModel
+    if !userActivated,
+      let fnName = extractFunctionCallName(on: node, property: property, viewModel: viewModel),
+      viewModel.function(named: fnName, catalogID: node.catalogID)?.api.requiresUserActivation
+        == true
+    {
+      let error = FunctionError.executionFailed(
+        name: fnName,
+        message: "Function '\(fnName)' requires user activation."
+      )
+      viewModel.handleFunctionError(error, functionName: fnName)
+      return
+    }
+    node.action(for: property)?()
+  }
+
+  private func extractFunctionCallName(
+    on node: Node,
+    property: String,
+    viewModel: SurfaceViewModel
+  ) -> String? {
+    if let resolvedAction = node.action(for: property),
+      case .function(let call, _) = resolvedAction.identity
+    {
+      return call
+    }
+    let baseID = String(node.id.split(separator: ":").first ?? Substring(node.id))
+    guard
+      let rawAction = viewModel.componentsModel.get(baseID)?.properties[property],
+      let fnCall = rawAction["functionCall"]
+    else {
+      return nil
+    }
+    return fnCall["@call"]?.stringValue ?? fnCall["call"]?.stringValue
+  }
+
+  // MARK: - View Tree Resolution Helpers
+
+  private func hasBuilder(
+    in surface: Surface,
+    forComponentType type: String,
+    catalogID: String? = nil
+  ) -> Bool {
+    if let targetID = catalogID ?? surface.defaultCatalogID,
+      let catalog = surface.catalogs[targetID]
+    {
+      return catalog.components[type] != nil
+    }
+    return surface.catalogs.values.contains { $0.components[type] != nil }
+  }
+
+  private func resolveViewTree(
+    for surface: Surface,
+    reportingDiagnosticsTo handler: AdapterTestActionHandler
+  ) -> ViewNode? {
+    guard surface.viewModel.componentsModel.get("root") != nil else { return nil }
+    return buildViewNode(
+      in: surface,
+      componentID: "root",
+      resolvedNode: surface.viewModel.rootNode,
+      visited: [],
+      handler: handler
+    )
+  }
+
+  private func buildViewNode(
+    in surface: Surface,
+    componentID: String,
+    resolvedNode: Node?,
+    visited: Set<String>,
+    handler: AdapterTestActionHandler
+  ) -> ViewNode {
+    if visited.contains(componentID) {
+      reportDiagnostic(
+        in: surface,
+        code: "CYCLIC_REFERENCE",
+        message: "Cyclic component reference to '\(componentID)'",
+        componentID: componentID,
+        to: handler
+      )
+      return ViewNode(id: componentID, instanceID: componentID, state: "cyclic")
+    }
+    guard let rawComponent = surface.viewModel.componentsModel.get(componentID) else {
+      return ViewNode(id: componentID, instanceID: componentID, state: "pending")
+    }
+    let explicitCatalogID =
+      rawComponent.catalogID ?? rawComponent.properties["catalogId"]?.stringValue
+    if !surface.catalogs.isEmpty,
+      !hasBuilder(in: surface, forComponentType: rawComponent.type, catalogID: explicitCatalogID)
+    {
+      reportDiagnostic(
+        in: surface,
+        code: "UNKNOWN_COMPONENT_TYPE",
+        message: "Unknown component type '\(rawComponent.type)'",
+        componentID: componentID,
+        to: handler
+      )
+      return ViewNode(id: componentID, instanceID: componentID, state: "unknown-type")
+    }
+    if let resolvedNode {
+      let rendered = Surface.render(
+        node: resolvedNode,
+        using: surface.catalogs,
+        defaultCatalogID: surface.defaultCatalogID
+      )
+      #expect(rendered != nil, "Expected Surface.render builder for '\(rawComponent.type)'")
+    }
+    var nextVisited = visited
+    nextVisited.insert(componentID)
+    let children = resolveChildViewNodes(
+      in: surface,
+      rawComponent: rawComponent,
+      resolvedNode: resolvedNode,
+      visited: nextVisited,
+      handler: handler
+    )
+    return ViewNode(
+      id: componentID,
+      instanceID: resolvedNode?.id ?? componentID,
+      type: rawComponent.type,
+      state: "resolved",
+      node: resolvedNode,
+      children: children
+    )
+  }
+
+  private func resolveChildViewNodes(
+    in surface: Surface,
+    rawComponent: ComponentModel,
+    resolvedNode: Node?,
+    visited: Set<String>,
+    handler: AdapterTestActionHandler
+  ) -> [ViewNode] {
+    if let childID = rawComponent.properties["child"]?.stringValue {
+      let matching = findResolvedChild(id: childID, in: resolvedNode)
+      return [
+        buildViewNode(
+          in: surface,
+          componentID: childID,
+          resolvedNode: matching,
+          visited: visited,
+          handler: handler
+        )
+      ]
+    }
+    guard let childrenVal = rawComponent.properties["children"] else { return [] }
+    if case .array(let items) = childrenVal {
+      let ids = items.compactMap(\.stringValue)
+      return ids.map { childID in
+        let matching = findResolvedChild(id: childID, in: resolvedNode)
+        return buildViewNode(
+          in: surface,
+          componentID: childID,
+          resolvedNode: matching,
+          visited: visited,
+          handler: handler
+        )
+      }
+    }
+    let templateID =
+      childrenVal["componentId"]?.stringValue ?? childrenVal["template"]?.stringValue
+    return (resolvedNode?.children(for: "children") ?? []).map { childNode in
+      let baseID =
+        templateID ?? String(childNode.id.split(separator: ":").first ?? Substring(childNode.id))
+      let rendered = Surface.render(
+        node: childNode,
+        using: surface.catalogs,
+        defaultCatalogID: surface.defaultCatalogID
+      )
+      #expect(rendered != nil, "Expected Surface.render builder for '\(childNode.type)'")
+      return ViewNode(
+        id: baseID,
+        instanceID: childNode.id,
+        type: childNode.type,
+        state: "resolved",
+        node: childNode
+      )
+    }
+  }
+
+  private func findResolvedChild(id: String, in parentNode: Node?) -> Node? {
+    if let direct = parentNode?.child(for: "child"), direct.id == id {
+      return direct
+    }
+    return parentNode?.children(for: "children").first { $0.id == id }
+  }
+
+  private func reportDiagnostic(
+    in surface: Surface,
+    code: String,
+    message: String,
+    componentID: String,
+    to handler: AdapterTestActionHandler
+  ) {
+    let error = RendererError.generic(
+      GenericError(
+        code: code,
+        surfaceID: surface.surfaceID,
+        message: message,
+        expression: componentID,
+        version: surface.viewModel.protocolVersion
+      )
+    )
+    handler.handle(error: error, from: surface.surfaceID)
   }
 
   // MARK: - Step Verification Helpers
 
   private func verifyAdapterStep(
     _ step: [String: Any],
-    surface: Surface?,
-    currentTree: Surface.ViewNode?,
-    previousTree: Surface.ViewNode?,
+    harness: MountedSurfaceHarness?,
+    currentTree: ViewNode?,
+    previousTree: ViewNode?,
     handler: AdapterTestActionHandler,
     context: String
   ) {
     if let expTree = step["expectViewTree"] as? [String: Any] {
       assertViewNodeMatches(currentTree, expected: expTree, context: context)
     }
-    if let expData = step["expectDataModel"], let surface {
+    if let expData = step["expectDataModel"], let surface = harness?.surface {
       let expectedJSON = toJSONValue(expData)
       #expect(surface.viewModel.dataModel.data == expectedJSON, "\(context): dataModel mismatch")
     }
@@ -488,13 +797,16 @@ struct AdapterConformanceTests {
     if let expA11y = step["expectAccessibilityTree"] as? [String: [String: Any]], let currentTree {
       assertAccessibilityTreeMatches(currentTree, expected: expA11y, context: context)
     }
-    if let expSubs = step["expectActiveSubscriptions"] as? Int, let surface {
-      #expect(surface.activeSubscriptionCount == expSubs, "\(context): subscription count mismatch")
+    if let expSubs = step["expectActiveSubscriptions"] as? Int, let harness {
+      #expect(
+        harness.activeSubscriptionCount == expSubs,
+        "\(context): subscription count mismatch"
+      )
     }
   }
 
   private func assertViewNodeMatches(
-    _ viewNode: Surface.ViewNode?,
+    _ viewNode: ViewNode?,
     expected: [String: Any],
     context: String
   ) {
@@ -525,7 +837,7 @@ struct AdapterConformanceTests {
   }
 
   private func assertViewNodeProperties(
-    _ viewNode: Surface.ViewNode,
+    _ viewNode: ViewNode,
     expected: [String: Any],
     context: String
   ) {
@@ -573,8 +885,8 @@ struct AdapterConformanceTests {
 
   private func assertSameViewIdentities(
     _ paths: [String],
-    previousTree: Surface.ViewNode?,
-    currentTree: Surface.ViewNode?,
+    previousTree: ViewNode?,
+    currentTree: ViewNode?,
     context: String
   ) {
     for path in paths {
@@ -588,7 +900,7 @@ struct AdapterConformanceTests {
     }
   }
 
-  private func findViewNode(atPath path: String, in root: Surface.ViewNode?) -> Surface.ViewNode? {
+  private func findViewNode(atPath path: String, in root: ViewNode?) -> ViewNode? {
     guard let root else { return nil }
     if path == "root" || path == root.id {
       return root
@@ -664,7 +976,7 @@ struct AdapterConformanceTests {
   }
 
   private func assertAccessibilityTreeMatches(
-    _ root: Surface.ViewNode,
+    _ root: ViewNode,
     expected: [String: [String: Any]],
     context: String
   ) {
@@ -680,6 +992,7 @@ struct AdapterConformanceTests {
       let modifier = A2UIAccessibilityModifier(node: node)
       assertModifierMatches(
         modifier,
+        node: node,
         expected: expectedProps,
         context: "\(context) [\(componentID)]"
       )

@@ -58,7 +58,7 @@ public struct ExpressionParser: Sendable {
     try parse(input, depth: 0)
   }
 
-  /// Parses an input template string into an array of dynamic `JSONValue` parts at a specific depth.
+  /// Parses an input template string into an array of dynamic `JSONValue` parts at `depth`.
   ///
   /// - Parameters:
   ///   - input: The raw template string to parse.
@@ -250,21 +250,20 @@ public struct ExpressionParser: Sendable {
     }
 
     // 4. Identifiers / Paths / Function calls
-    let token = scanPathOrIdentifier(&scanner)
+    let token = try scanPathOrIdentifier(&scanner)
     scanner.skipWhitespace()
 
     if scanner.peek() == "(" {
       return try parseFunctionCall(funcName: token, scanner: &scanner, depth: depth)
     } else {
+      if token.hasPrefix("@") {
+        throw FunctionError.executionFailed(
+          name: "expressionParser",
+          message: "Expected '(' after function name '\(token)'"
+        )
+      }
       if token.isEmpty {
         return .string("")
-      }
-      if token == "@index" {
-        return .object([
-          "call": .string("@index"),
-          "args": .object([:]),
-          "returnType": .string("any"),
-        ])
       }
       return .object(["path": .string(token)])
     }
@@ -315,10 +314,27 @@ public struct ExpressionParser: Sendable {
     return .object(dict)
   }
 
-  private func scanPathOrIdentifier(_ scanner: inout Scanner) -> String {
+  private func scanPathOrIdentifier(_ scanner: inout Scanner) throws -> String {
     let start = scanner.pos
+    if scanner.peek() == "@" {
+      guard let next = scanner.peek(offset: 1), next.isLetter || next == "_" else {
+        throw FunctionError.executionFailed(
+          name: "expressionParser",
+          message: "Invalid identifier starting with '@' in expression"
+        )
+      }
+      _ = scanner.advance(by: 1)
+      while !scanner.isAtEnd, let c = scanner.peek() {
+        if c.isLetter || c.isNumber || c == "_" {
+          _ = scanner.advance(by: 1)
+        } else {
+          break
+        }
+      }
+      return String(scanner.input[start..<scanner.pos])
+    }
     while !scanner.isAtEnd, let c = scanner.peek() {
-      if c.isLetter || c.isNumber || c == "/" || c == "." || c == "_" || c == "-" || c == "@" {
+      if c.isLetter || c.isNumber || c == "/" || c == "." || c == "_" || c == "-" {
         _ = scanner.advance(by: 1)
       } else {
         break

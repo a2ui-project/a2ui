@@ -167,34 +167,10 @@ function createIncrementCounterFn(): FunctionImplementation {
   };
 }
 
-function resolveIterationIndex(context: {explicitIndex?: number; path?: string}): number {
-  if (typeof context.explicitIndex === 'number') {
-    return context.explicitIndex;
-  }
-  const parts = (context.path ?? '').split('/').filter(Boolean);
-  const last = parts[parts.length - 1];
-  return last && /^\d+$/.test(last) ? Number(last) : 0;
-}
-
-function wrapFormatStringFn(baseFn: FunctionImplementation): FunctionImplementation {
-  return {
-    ...baseFn,
-    execute: (args: Record<string, unknown>, context, abortSignal) => {
-      const rawValue = typeof args.value === 'string' ? args.value : '';
-      const idx = resolveIterationIndex(context as {explicitIndex?: number; path?: string});
-      const normalized = rawValue.replace(/\$\{@index\}/g, String(idx));
-      return baseFn.execute({...args, value: normalized}, context, abortSignal);
-    },
-  };
-}
-
 function createAugmentedBasicCatalog(): Catalog<LitComponentApi> {
   const base = v1BasicCatalog as unknown as Catalog<LitComponentApi>;
   const components = Array.from(base.components.values());
-  const baseFunctions = Array.from(base.functions?.values() ?? []).map(fn =>
-    fn.name === 'formatString' ? wrapFormatStringFn(fn) : fn,
-  );
-  const functions = [...baseFunctions, createIncrementCounterFn()];
+  const functions = [...Array.from(base.functions?.values() ?? []), createIncrementCounterFn()];
   return new Catalog<LitComponentApi>(
     base.id,
     base.protocolVersion ?? '1.0',
@@ -359,7 +335,7 @@ function assertNodeScalarProps(
   }
   if (expected.validationErrors !== undefined) {
     const actualErrors = props.validationErrors as string[] | undefined;
-    assert.equal(actualErrors?.length, expected.validationErrors.length);
+    assert.deepEqual(actualErrors, expected.validationErrors);
   }
   if (expected.validationResults !== undefined) {
     assert.deepEqual(props.validationResults, expected.validationResults);
@@ -463,6 +439,30 @@ function assertAccessibilityNode(
   if (expected.checked !== undefined) {
     const checkbox = el.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
     assert.equal(checkbox?.checked, expected.checked);
+  }
+}
+
+function assertAxeRules(container: HTMLElement, rules: string[]): void {
+  if (rules.includes('button-name')) {
+    const buttons = Array.from(container.querySelectorAll('button'));
+    for (const btn of buttons) {
+      const host = btn.closest('a2ui-basic-button') as HTMLElement | null;
+      const name =
+        btn.getAttribute('aria-label') ||
+        host?.getAttribute('aria-label') ||
+        btn.textContent?.trim();
+      assert.ok(name, 'Expected accessible name on rendered button');
+    }
+  }
+  if (rules.includes('aria-valid-attr-value')) {
+    const liveNodes = Array.from(container.querySelectorAll('[aria-live]'));
+    for (const node of liveNodes) {
+      const val = node.getAttribute('aria-live');
+      assert.ok(
+        val !== null && ['off', 'polite', 'assertive'].includes(val),
+        `Invalid aria-live attribute value: ${String(val)}`,
+      );
+    }
   }
 }
 
@@ -663,6 +663,9 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
           const tree = step.assertions.accessibilityTree ?? {};
           for (const [compId, expected] of Object.entries(tree)) {
             assertAccessibilityNode(session.surfaceEl!, compId, expected);
+          }
+          if (step.assertions.axeCore) {
+            assertAxeRules(session.surfaceEl!, step.assertions.axeCore);
           }
         }
       });
