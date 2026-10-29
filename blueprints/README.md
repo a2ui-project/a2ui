@@ -59,4 +59,4 @@ rm -f .agents/skills/a2ui-blueprint-navigator \
 - **Feature Blueprints (`features/`)**: Standalone specification files for new features. Features begin as optional specs in `features/<feature_name>.blueprint.md`. When merged into a Module Blueprint, the feature blueprint file is moved to `features/archived/<feature_name>.blueprint.md`.
 - **Codebase Blueprints (`codebases/`)**: Track each concrete codebase implementation's compliance with its associated Module Blueprint at a specific git commit hash (`module_blueprint_commit`), along with the pinned git commit hash of each optional feature it implements (`implemented_features` mapping `{feature_name: <40-hex-commit-sha>}`, or `{}` when none).
 
-For full details on the SDD workflow, read [`docs/proposals/spec_driven_development.md`](../docs/proposals/spec_driven_development.md).
+For full details on the SDD workflow, read [`docs/proposals/spec_driven_development.md`](../docs/proposals/spec_driven_development_1.md).
