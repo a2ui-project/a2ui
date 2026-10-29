@@ -14,6 +14,7 @@
 
 import A2UICore
 import A2UIJSON
+import Combine
 import Foundation
 import JSONSchema
 import OrderedJSON
@@ -631,6 +632,57 @@ struct NodeResolverTests {
     _ = try #require(resolver.resolveTree())
     #expect(resolver.lastResolvedNodeCount == 0)
     #expect(item0.box.revision == 1)
+  }
+
+  @Test func objectWillChangeFiresOnlyForTheChangedNode() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: ["children": .array([.string("first"), .string("second")])]
+        ),
+        "first": ComponentModel(
+          id: "first",
+          type: "Text",
+          properties: ["text": .object(["path": .string("/first")])]
+        ),
+        "second": ComponentModel(
+          id: "second",
+          type: "Text",
+          properties: ["text": .object(["path": .string("/second")])]
+        ),
+      ]
+    )
+    let dataModel = DataModel(
+      initial: .object(["first": .string("Ada"), "second": .string("Lin")])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let children = root.children(for: "children")
+    #expect(children.count == 2)
+    var events: [String] = []
+    let cancellables: [AnyCancellable] = [root, children[0], children[1]].map { node in
+      node.objectWillChange.sink { _ in events.append(node.id) }
+    }
+    defer { _ = cancellables }
+
+    dataModel.set("/first", value: .string("Grace"))
+    _ = try #require(resolver.resolveTree())
+    #expect(events == ["first"])
+    #expect(children[0].string(for: "text") == "Grace")
+
+    dataModel.set("/second", value: .string("Alan"))
+    _ = try #require(resolver.resolveTree())
+    #expect(events == ["first", "second"])
   }
 
   @Test func incrementalTemplateDefinitionUpdateAndMiddleInsertion() throws {
