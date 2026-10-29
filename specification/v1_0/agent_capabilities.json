@@ -5,7 +5,7 @@
   "description": "A schema for the agent capabilities object, which is used by an A2UI Agent to advertise its supported UI features to renderers. This can be embedded in an Agent Card for A2A or used in other transport protocols like MCP.",
   "type": "object",
   "properties": {
-    "v1.0": {
+    "1.0": {
       "type": "object",
       "description": "The agent capabilities structure for version 1.0 of the A2UI protocol.",
       "properties": {
@@ -22,5 +22,5 @@
       }
     }
   },
-  "required": ["v1.0"]
+  "required": ["1.0"]
 }

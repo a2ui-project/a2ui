@@ -2584,7 +2584,7 @@ Do not migrate v0.9 payloads with a blanket find-and-replace of <code>"path":</c
 <li>Added <code>$defs/Extensions</code> to <code>common_types.json</code> and added optional <code>metadata</code> (containing <code>extensions</code>, <code>$ref: "#/$defs/Extensions"</code>) to <code>ComponentCommon</code>.</li>
 <li>Added <code>$defs/Child</code> (<code>"$ref": "#/$defs/ComponentId"</code>), <code>$defs/FunctionCommon</code>, and <code>$defs/IndexSystemFunction</code> to <code>common_types.json</code>.</li>
 <li>Added the <code>Component</code> definition in <code>agent_to_renderer.json</code> (referenced by <code>ComponentsList</code>) to compose <code>ComponentCommon</code> (<code>$ref: "common_types.json#/$defs/ComponentCommon"</code>) and updated <code>FunctionCall</code> in <code>common_types.json</code> to compose <code>FunctionCommon</code> (<code>$ref: "#/$defs/FunctionCommon"</code>), so base component and function call properties are validated at the envelope level regardless of catalog structure.</li>
-<li>Updated all protocol version references and envelopes from <code>v0.9</code> or <code>v0.9.1</code> to <code>v1.0</code>.</li>
+<li>Updated all protocol version references and envelopes from <code>v0.9</code> or <code>v0.9.1</code> to <code>1.0</code>.</li>
 </ul>
 <h3 id="24-renderer-to-agent-events">2.4. Renderer-to-agent events<a class="headerlink" href="#24-renderer-to-agent-events" title="Permanent link">&para;</a></h3>
 <ul>
@@ -2593,12 +2593,12 @@ Do not migrate v0.9 payloads with a blanket find-and-replace of <code>"path":</c
 <li>Added optional <code>userMessage</code> (string, resolved from <code>Action.event.userMessage</code>) and <code>metadata</code> (containing <code>extensions</code>, <code>$ref: "common_types.json#/$defs/Extensions"</code>) to the renderer-to-agent <code>action</code> message in <code>renderer_to_agent.json</code>.</li>
 <li>Updated renderer <code>error</code> messages to support <code>functionCallId</code> when reporting function execution failures, enforcing mutual exclusivity with <code>surfaceId</code>.</li>
 <li>Added <code>"UNALLOWED_PARENT"</code> and <code>"UNALLOWED_CHILD"</code> error code values to <code>renderer_to_agent.json</code> for reporting validation errors when a component is placed under an unallowed parent or an unallowed child is placed inside a container.</li>
-<li>Updated all protocol version references from <code>v0.9</code> or <code>v0.9.1</code> to <code>v1.0</code>.</li>
+<li>Updated all protocol version references from <code>v0.9</code> or <code>v0.9.1</code> to <code>1.0</code>.</li>
 </ul>
 <h3 id="25-agent-card-and-transport-metadata">2.5. Agent card and transport metadata<a class="headerlink" href="#25-agent-card-and-transport-metadata" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Standardized the official MIME type to <code>application/a2ui+json</code> to conform to IANA media type guidelines.</li>
-<li>Updated capabilities namespace in transport metadata and A2A metadata parameters from <code>v0.9</code>/<code>v0.9.1</code> to <code>v1.0</code>.</li>
+<li>Updated capabilities namespace in transport metadata and A2A metadata parameters from <code>v0.9</code>/<code>v0.9.1</code> to <code>1.0</code>.</li>
 <li>Clarified that <code>supportedCatalogIds</code> in <code>rendererCapabilities</code> and <code>agentCapabilities</code> are mixable within a single UI surface.</li>
 <li>Simplified <code>renderer_capabilities.json</code> by removing local inline catalog <code>$defs</code> (<code>Catalog</code>, <code>FunctionDefinition</code>) and replacing <code>inlineCatalogs</code> items with a direct <code>$ref</code> to <code>https://a2ui.org/specification/v1_0/catalog_definition.json</code>.</li>
 <li>Relocated extension specification from <code>v0_9_1/docs/a2ui_extension_specification.md</code> to <code>v1_0/extensions/a2a/docs/a2ui_extension_specification.md</code>.</li>
@@ -2640,7 +2640,7 @@ Do not migrate v0.9 payloads with a blanket find-and-replace of <code>"path":</c
 <p>This section outlines the steps required to migrate existing applications and components from version 0.9 (including 0.9.1) to version 1.0.</p>
 <h3 id="for-agents">For agents<a class="headerlink" href="#for-agents" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Set the <code>version</code> field in all streamed JSON envelopes to <code>"v1.0"</code>.</li>
+<li>Set the <code>version</code> field in all streamed JSON envelopes to <code>"1.0"</code>.</li>
 <li>Change the MIME type of A2UI payloads in transport layers from <code>application/json+a2ui</code> to <code>application/a2ui+json</code>.</li>
 <li>Remove the <code>theme</code> field from <code>createSurface</code> messages. You can pass initial <code>components</code>, <code>dataModel</code>, and optional <code>metadata.extensions</code> directly in the <code>createSurface</code> payload, and <code>catalogId</code> is now optional (acting as the default catalog for that surface).</li>
 <li>When mixing components from multiple catalogs, specify the optional <code>catalogId</code> on individual components or function calls.</li>
@@ -2659,7 +2659,7 @@ Do not migrate v0.9 payloads with a blanket find-and-replace of <code>"path":</c
 <li>Implement component and function resolution order: (1) explicit component/call <code>catalogId</code>, (2) surface default <code>catalogId</code>, (3) error if neither exists (no fallback to capabilities).</li>
 <li>Implement function execution by adding support for parsing <code>callRendererFunction</code> messages from the agent, checking authorized callers in the catalog (<code>allowedCallers</code>), rejecting invalid calls with <code>INVALID_FUNCTION_CALL</code>, and returning <code>rendererFunctionResponse</code> messages.</li>
 <li>Implement renderer-initiated function calls by sending <code>callAgentFunction</code> messages to the agent and handling incoming <code>agentFunctionResponse</code> messages.</li>
-<li>Support simultaneous version handling during session initialization by inspecting the <code>version</code> property (e.g., <code>"v1.0"</code>) to route payloads to version-specific controllers.</li>
+<li>Support simultaneous version handling during session initialization by inspecting the <code>version</code> property (e.g., <code>"1.0"</code>) to route payloads to version-specific controllers.</li>
 <li>Enforce surface uniqueness by raising an error if <code>createSurface</code> is received for an existing <code>surfaceId</code>.</li>
 <li>Update error reporting to handle <code>functionCallId</code> and enforce mutual exclusivity with <code>surfaceId</code>.</li>
 <li>Enforce Unicode identifier naming by verifying that all catalog entity names (components, functions, prop keys) conform to UAX #31 identifier rules.</li>
