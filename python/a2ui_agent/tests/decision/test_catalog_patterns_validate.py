@@ -240,5 +240,5 @@ def test_catalog_id_mismatch_and_synthetic_helpers(tmp_path: Path) -> None:
 
     g_v10 = CatalogDecisionGraph([build_design_system_catalog("1.0")])
     g_v09 = CatalogDecisionGraph([build_design_system_catalog("0.9")])
-    assert validate_patterns.surface_messages(g_v10, [], {})[0]["version"] == "v1.0"
+    assert validate_patterns.surface_messages(g_v10, [], {})[0]["version"] == "1.0"
     assert validate_patterns.surface_messages(g_v09, [], {})[0]["version"] == "v0.9"

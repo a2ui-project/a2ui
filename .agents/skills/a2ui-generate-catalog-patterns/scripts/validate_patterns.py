@@ -145,9 +145,9 @@ class ValidationReport:
 
 
 def _wire_version(protocol_version: str) -> str:
-    """Returns `'v1.0'` for 1.x protocol versions and `'v0.9'` otherwise."""
+    """Returns `'1.0'` for 1.x protocol versions and `'v0.9'` otherwise."""
     clean = protocol_version.strip().lstrip("v")
-    return "v1.0" if clean == "1" or clean.startswith("1.") else "v0.9"
+    return "1.0" if clean == "1" or clean.startswith("1.") else "v0.9"
 
 
 def surface_messages(
