@@ -112,7 +112,7 @@ instead, either directly or as an awaitable. Dicts are validated with
 
 def _wire_version(protocol_version: str) -> str:
     """Returns the canonical A2UI wire envelope version string."""
-    return "v1.0" if _is_v10(protocol_version) else "v0.9"
+    return "1.0" if _is_v10(protocol_version) else "v0.9"
 
 
 def _as_data_model(

@@ -451,7 +451,7 @@ async def test_promote_synthesized_accepts_v10_single_envelope() -> None:
         "components"
     ]
     single = [{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "s1",
             "catalogId": CATALOG_ID,
@@ -724,11 +724,11 @@ async def test_prompt_generator_validates_examples_and_factory_aclose(
     catalog = _make_catalog()
     bad_example = to_message_models([
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {"surfaceId": "s1", "catalogId": CATALOG_ID},
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [{"id": "root", "component": "UnknownWidget"}],

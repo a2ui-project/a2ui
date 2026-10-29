@@ -94,17 +94,18 @@ def _wrap_surface(
                 "children": [first_id],
             },
         )
-    catalog_id = BasicCatalog("v1.0" if version == "1.0" else "v0.9").catalog_id
+    wire_version = "1.0" if version == "1.0" else "v0.9"
+    catalog_id = BasicCatalog(wire_version).catalog_id
     return [
         {
-            "version": f"v{version}",
+            "version": wire_version,
             "createSurface": {
                 "surfaceId": "test_surface",
                 "catalogId": catalog_id,
             },
         },
         {
-            "version": f"v{version}",
+            "version": wire_version,
             "updateComponents": {
                 "surfaceId": "test_surface",
                 "components": all_comps,
