@@ -19,14 +19,17 @@
 #   curl -sSL https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/install_cli.sh | sh
 #
 # Options (via environment variables):
-#   A2UI_VERSION      Version to install (e.g., "0.1.0" or "cli-v0.1.0"). Defaults to latest release.
-#   A2UI_INSTALL_DIR  Target install directory. Defaults to $HOME/.local/bin.
-#   A2UI_REPO         GitHub repository (owner/repo). Defaults to "a2ui-project/a2ui".
+#   A2UI_VERSION        Version to install (e.g., "0.1.0" or "cli-v0.1.0"). Defaults to latest release.
+#   A2UI_INSTALL_DIR    Target install directory. Defaults to $HOME/.local/bin.
+#   A2UI_REPO           GitHub repository (owner/repo). Defaults to "a2ui-project/a2ui".
+#   A2UI_SKIP_CHECKSUM  Set to "1" to bypass SHA-256 cryptographic verification.
 
 set -eu
 
 REPO="${A2UI_REPO:-a2ui-project/a2ui}"
 INSTALL_DIR="${A2UI_INSTALL_DIR:-${XDG_BIN_HOME:-$HOME/.local/bin}}"
+# Strip trailing slash from install directory
+INSTALL_DIR="${INSTALL_DIR%/}"
 
 # Determine OS
 OS="$(uname -s)"
@@ -57,15 +60,19 @@ TARGET="${TARGET_OS}-${TARGET_ARCH}"
 VERSION="${A2UI_VERSION:-}"
 if [ -z "$VERSION" ] || [ "$VERSION" = "latest" ]; then
   echo "Resolving latest A2UI CLI release from https://github.com/$REPO..."
-  RELEASE_DATA="$(curl -sSfL -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/$REPO/releases" 2>/dev/null || true)"
+  RELEASE_DATA="$(curl -sSfL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/releases?per_page=100" 2>/dev/null || true)"
   if [ -n "$RELEASE_DATA" ]; then
-    TAG="$(printf '%s\n' "$RELEASE_DATA" | grep -m 1 '"tag_name": "cli-v' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/' || true)"
+    TAG="$(printf '%s\n' "$RELEASE_DATA" | grep -o '"tag_name": *"[^"]*"' | grep 'cli-v' | head -n 1 | sed 's/.*"cli-v/cli-v/' | sed 's/"//' || true)"
   else
     TAG=""
   fi
 
   if [ -z "$TAG" ]; then
-    echo "Notice: Could not automatically query releases via GitHub API (likely unauthenticated rate limit)." >&2
+    if [ -z "$RELEASE_DATA" ]; then
+      echo "Error: Could not query the GitHub releases API (possibly rate limited or network failure)." >&2
+    else
+      echo "Error: No 'cli-v*' release found in repository '$REPO'." >&2
+    fi
     echo "Please specify the version explicitly, e.g.:" >&2
     echo "  curl -sSL https://raw.githubusercontent.com/$REPO/main/scripts/install_cli.sh | A2UI_VERSION=0.1.0 sh" >&2
     exit 1
@@ -78,7 +85,7 @@ else
   esac
 fi
 
-RAW_VERSION="$(printf '%s' "$TAG" | sed -E 's/^cli-v//')"
+RAW_VERSION="${TAG#cli-v}"
 ARCHIVE_NAME="a2ui-v${RAW_VERSION}-${TARGET}.tar.gz"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${ARCHIVE_NAME}"
 CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${TAG}/checksums.txt"
@@ -96,9 +103,17 @@ if ! curl -sSfL "$DOWNLOAD_URL" -o "$TMP_DIR/$ARCHIVE_NAME"; then
   exit 1
 fi
 
-echo "Verifying cryptographic SHA-256 checksum..."
-if curl -sSfL "$CHECKSUMS_URL" -o "$TMP_DIR/checksums.txt" 2>/dev/null; then
-  EXPECTED_SHA="$(grep "[[:space:]]${ARCHIVE_NAME}\$" "$TMP_DIR/checksums.txt" | awk '{print $1}' || true)"
+if [ "${A2UI_SKIP_CHECKSUM:-}" = "1" ]; then
+  echo "Warning: A2UI_SKIP_CHECKSUM=1 set; skipping checksum verification." >&2
+else
+  echo "Verifying cryptographic SHA-256 checksum..."
+  if ! curl -sSfL "$CHECKSUMS_URL" -o "$TMP_DIR/checksums.txt" 2>/dev/null; then
+    echo "Error: Failed to download checksums.txt from $CHECKSUMS_URL" >&2
+    echo "Set A2UI_SKIP_CHECKSUM=1 to bypass checksum verification." >&2
+    exit 1
+  fi
+
+  EXPECTED_SHA="$(grep "[[:space:]*]${ARCHIVE_NAME}\$" "$TMP_DIR/checksums.txt" | awk '{print $1}' || true)"
   if [ -z "$EXPECTED_SHA" ]; then
     echo "Error: $ARCHIVE_NAME not found in checksums.txt!" >&2
     exit 1
@@ -109,21 +124,18 @@ if curl -sSfL "$CHECKSUMS_URL" -o "$TMP_DIR/checksums.txt" 2>/dev/null; then
   elif command -v shasum >/dev/null 2>&1; then
     ACTUAL_SHA="$(shasum -a 256 "$TMP_DIR/$ARCHIVE_NAME" | awk '{print $1}')"
   else
-    ACTUAL_SHA=""
-    echo "Warning: Neither 'sha256sum' nor 'shasum' is installed; skipping hash verification."
+    echo "Error: Neither 'sha256sum' nor 'shasum' is installed; cannot verify download." >&2
+    echo "Install sha256sum or shasum, or set A2UI_SKIP_CHECKSUM=1 to bypass." >&2
+    exit 1
   fi
 
-  if [ -n "$ACTUAL_SHA" ]; then
-    if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
-      echo "Error: Cryptographic checksum mismatch for $ARCHIVE_NAME!" >&2
-      echo "  Expected: $EXPECTED_SHA" >&2
-      echo "  Actual:   $ACTUAL_SHA" >&2
-      exit 1
-    fi
-    echo "✓ SHA-256 checksum verified."
+  if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+    echo "Error: Cryptographic checksum mismatch for $ARCHIVE_NAME!" >&2
+    echo "  Expected: $EXPECTED_SHA" >&2
+    echo "  Actual:   $ACTUAL_SHA" >&2
+    exit 1
   fi
-else
-  echo "Warning: checksums.txt not available for this release; proceeding."
+  echo "✓ SHA-256 checksum verified."
 fi
 
 echo "Installing to $INSTALL_DIR/a2ui..."
@@ -135,8 +147,11 @@ if [ ! -f "$TMP_DIR/a2ui" ]; then
   exit 1
 fi
 
-mv "$TMP_DIR/a2ui" "$INSTALL_DIR/a2ui"
-chmod +x "$INSTALL_DIR/a2ui"
+chmod 755 "$TMP_DIR/a2ui"
+# Atomically replace target binary
+TMP_TARGET="$INSTALL_DIR/.a2ui.tmp.$$"
+cp -f "$TMP_DIR/a2ui" "$TMP_TARGET"
+mv -f "$TMP_TARGET" "$INSTALL_DIR/a2ui"
 
 echo "✓ Successfully installed A2UI CLI ($TAG) to $INSTALL_DIR/a2ui"
 
@@ -154,13 +169,13 @@ case ":$PATH:" in
     echo ""
     CURRENT_SHELL="$(basename "${SHELL:-bash}")"
     if [ "$CURRENT_SHELL" = "zsh" ]; then
-      echo "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc"
+      echo "  echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> ~/.zshrc"
       echo "  source ~/.zshrc"
     elif [ "$CURRENT_SHELL" = "bash" ]; then
-      echo "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc"
+      echo "  echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> ~/.bashrc"
       echo "  source ~/.bashrc"
     else
-      echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+      echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
     fi
     echo ""
     echo "Or run directly:"

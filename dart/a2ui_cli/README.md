@@ -4,9 +4,9 @@ Developer tool and typesafe component generator for A2UI catalogs.
 
 ## Installation
 
-### Standalone Pre-Built Binaries (Recommended)
+### Standalone Pre-Built Binaries
 
-No Dart or Flutter SDK installation is required.
+Pre-built standalone executables are available for official release tags (beginning with `cli-v0.1.0`). No Dart or Flutter SDK installation is required.
 
 #### macOS & Linux (curl)
 
