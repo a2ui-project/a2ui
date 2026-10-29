@@ -93,7 +93,7 @@ class ChatSession extends ChangeNotifier {
       catalogs: [_catalog],
       defaultVersion: A2uiProtocolVersion.v1_0,
       validationConfig: ValidationConfig.relaxed,
-      outboundListener: _sendMessage,
+      outboundListener: _sendOutbound,
     );
     processor.model.onSurfaceCreated.subscribe(_addSurface);
     processor.model.onSurfaceDeleted.subscribe(_removeSurface);
@@ -282,6 +282,14 @@ class ChatSession extends ChangeNotifier {
 
   void _sendAction(A2uiRendererAction action) =>
       _sendMessage(ActionMessage(version: _version, action: action));
+
+  /// Sends [message], which [processor] sends to the agent, to the model as
+  /// the next turn. An [ErrorMessage] is dropped, as [processor] also throws
+  /// that error and the session reports it.
+  void _sendOutbound(RendererToAgentMessage message) {
+    if (message is ErrorMessage) return;
+    _sendMessage(message);
+  }
 
   /// Sends [message] to the model as the next turn.
   void _sendMessage(RendererToAgentMessage message) {
