@@ -55,14 +55,14 @@ describe('message-error-mapper', () => {
   describe('extractEnvelopeErrorContext', () => {
     it('extracts surfaceId, functionCallId, and version from payloads', () => {
       const v1Msg = {
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'call-123',
           surfaceId: 'surface-abc',
         },
       };
       const ctx = extractEnvelopeErrorContext(v1Msg);
-      assert.strictEqual(ctx.version, 'v1.0');
+      assert.strictEqual(ctx.version, '1.0');
       assert.strictEqual(ctx.functionCallId, 'call-123');
       assert.strictEqual(ctx.surfaceId, 'surface-abc');
       assert.strictEqual(ctx.actionType, 'callRendererFunction');
@@ -88,9 +88,9 @@ describe('message-error-mapper', () => {
   describe('mapErrorToRendererMessage', () => {
     it('defaults path to / for validation errors when rawPath is undefined', () => {
       const valErr = new A2uiValidationError('Validation failed without path');
-      const mapped = mapErrorToRendererMessage(valErr, {version: 'v1.0', surfaceId: 'surf-1'});
+      const mapped = mapErrorToRendererMessage(valErr, {version: '1.0', surfaceId: 'surf-1'});
 
-      assert.strictEqual(mapped.version, 'v1.0');
+      assert.strictEqual(mapped.version, '1.0');
       assert.strictEqual(mapped.error.code, 'VALIDATION_FAILED');
       assert.strictEqual(mapped.error.path, '/');
       assert.strictEqual(mapped.error.surfaceId, 'surf-1');
@@ -101,7 +101,7 @@ describe('message-error-mapper', () => {
 
     it('defaults path to / for UNALLOWED_PARENT and UNALLOWED_CHILD', () => {
       const parentErr = new A2uiValidationError('Unallowed parent', undefined, 'UNALLOWED_PARENT');
-      const mapped = mapErrorToRendererMessage(parentErr, {version: 'v1.0', surfaceId: 'surf-1'});
+      const mapped = mapErrorToRendererMessage(parentErr, {version: '1.0', surfaceId: 'surf-1'});
       assert.strictEqual(mapped.error.code, 'UNALLOWED_PARENT');
       assert.strictEqual(mapped.error.path, '/');
 
@@ -119,7 +119,7 @@ describe('message-error-mapper', () => {
       ]);
       const valErr = new A2uiValidationError('Schema failure', zodError);
       const mapped = mapErrorToRendererMessage(valErr, {
-        version: 'v1.0',
+        version: '1.0',
         surfaceId: 'surf-1',
       });
       assert.strictEqual(mapped.error.path, '/components/prop~1with~1slash/key~0with~0tilde');
@@ -148,12 +148,12 @@ describe('message-error-mapper', () => {
     it('satisfies v1.0 oneOf constraint when functionCallId is present', () => {
       const rpcErr = new A2uiRpcError('Function not found', 'INVALID_FUNCTION_CALL', 'fn-123');
       const mapped = mapErrorToRendererMessage(rpcErr, {
-        version: 'v1.0',
+        version: '1.0',
         functionCallId: 'fn-123',
         surfaceId: 'surf-should-be-omitted',
       });
 
-      assert.strictEqual(mapped.version, 'v1.0');
+      assert.strictEqual(mapped.version, '1.0');
       assert.strictEqual(mapped.error.code, 'INVALID_FUNCTION_CALL');
       assert.strictEqual(mapped.error.functionCallId, 'fn-123');
       assert.strictEqual(mapped.error.surfaceId, undefined);
@@ -163,11 +163,11 @@ describe('message-error-mapper', () => {
     it('satisfies v1.0 oneOf constraint when functionCallId is absent but surfaceId is present', () => {
       const rpcErr = new A2uiRpcError('Function invocation failed', 'INVALID_FUNCTION_CALL');
       const mapped = mapErrorToRendererMessage(rpcErr, {
-        version: 'v1.0',
+        version: '1.0',
         surfaceId: 'surf-1',
       });
 
-      assert.strictEqual(mapped.version, 'v1.0');
+      assert.strictEqual(mapped.version, '1.0');
       assert.strictEqual(mapped.error.code, 'INVALID_FUNCTION_CALL');
       assert.strictEqual(mapped.error.surfaceId, 'surf-1');
       assert.strictEqual(mapped.error.functionCallId, undefined);
@@ -177,11 +177,11 @@ describe('message-error-mapper', () => {
     it('maps non-validation errors to GenericError with surfaceId', () => {
       const integrityErr = new A2uiIntegrityError('Duplicate component id: comp-1');
       const mapped = mapErrorToRendererMessage(integrityErr, {
-        version: 'v1.0',
+        version: '1.0',
         surfaceId: 'surf-1',
       });
 
-      assert.strictEqual(mapped.version, 'v1.0');
+      assert.strictEqual(mapped.version, '1.0');
       assert.strictEqual(mapped.error.code, 'INTEGRITY_ERROR');
       assert.strictEqual(mapped.error.surfaceId, 'surf-1');
       assert.strictEqual(mapped.error.functionCallId, undefined);

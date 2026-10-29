@@ -578,7 +578,7 @@ export class GenericBinder<T> {
     if (cached && jsonEquals(cached.raw, value)) {
       return cached.closure;
     }
-    const closure = async () => {
+    const closure = () => {
       if (value && typeof value === 'object') {
         const valObj = value as Record<string, unknown>;
         const isFunctionCall =
@@ -589,11 +589,21 @@ export class GenericBinder<T> {
           value as Action | Record<string, unknown>,
           {userActivation: true},
         );
-        if (resolved === undefined || isFunctionCall) {
-          return;
+        if (isFunctionCall) {
+          if (
+            resolved instanceof Promise ||
+            (typeof resolved === 'object' && resolved !== null && 'then' in (resolved as any))
+          ) {
+            return (resolved as Promise<unknown>).then(() => undefined);
+          }
+          return Promise.resolve();
+        }
+        if (resolved === undefined) {
+          return Promise.resolve();
         }
         return this.context.dispatchAction(resolved as Action);
       }
+      return Promise.resolve();
     };
     this.actionClosures.set(cacheKey, {raw: value, closure});
     return closure;

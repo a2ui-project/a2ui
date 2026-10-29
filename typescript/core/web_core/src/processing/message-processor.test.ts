@@ -2169,16 +2169,14 @@ describe('MessageProcessor', () => {
       const handledErrors: any[] = [];
       const groupErrors: any[] = [];
       const proc = new MessageProcessor<ComponentApi>([base], undefined, {
-        version: 'v1.0',
+        version: '1.0',
         errorHandler: msg => handledErrors.push(msg),
       });
       proc.model.onError.subscribe(err => {
         groupErrors.push(err);
       });
 
-      proc.processMessages([
-        {version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: 'base'}},
-      ]);
+      proc.processMessages([{version: '1.0', createSurface: {surfaceId: 's1', catalogId: 'base'}}]);
       const surfaceErrors: any[] = [];
       proc.getSurface('s1')!.onError.subscribe(err => {
         surfaceErrors.push(err);
@@ -2186,7 +2184,7 @@ describe('MessageProcessor', () => {
 
       const errors = proc.processMessagesWithErrors([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's1',
             components: [{id: 'root', component: 'Text', text: 123 as any}],
@@ -2195,7 +2193,7 @@ describe('MessageProcessor', () => {
       ]);
 
       assert.strictEqual(errors.length, 1);
-      assert.strictEqual(errors[0].version, 'v1.0');
+      assert.strictEqual(errors[0].version, '1.0');
       assert.strictEqual(errors[0].error.code, 'VALIDATION_FAILED');
       assert.strictEqual(errors[0].error.surfaceId, 's1');
       assert.strictEqual(errors[0].error.path, '/components/0/text');
@@ -2206,7 +2204,7 @@ describe('MessageProcessor', () => {
 
     it('maps callRendererFunction envelope faults to INVALID_FUNCTION_CALL with functionCallId', () => {
       const ctx = extractEnvelopeErrorContext({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'fn-99',
           callFunction: {call: 'foo', catalogId: 'cat', args: 'bad'},

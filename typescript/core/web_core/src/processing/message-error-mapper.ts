@@ -52,7 +52,7 @@ export type A2uiRendererError = ValidationFailedErrorBody | GenericErrorBody;
 
 /** Outbound renderer-to-agent error message envelope. */
 export interface RendererErrorMessage {
-  readonly version: 'v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0';
+  readonly version: 'v0.8' | 'v0.9' | 'v0.9.1' | '1.0';
   readonly error: A2uiRendererError;
 }
 
@@ -210,10 +210,10 @@ function extractPathFromZodDetails(details: unknown, actionType?: string): strin
   return stripped.length > 0 ? `/${stripped.join('/')}` : undefined;
 }
 
-function normalizeOutputVersion(version: string | undefined): 'v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0' {
+function normalizeOutputVersion(version: string | undefined): 'v0.8' | 'v0.9' | 'v0.9.1' | '1.0' {
   if (version === 'v0.8' || version === '0.8') return 'v0.8';
   if (version === 'v0.9.1' || version === '0.9.1') return 'v0.9.1';
-  if (version && isAtLeastVersion(version, '1.0')) return 'v1.0';
+  if (version && isAtLeastVersion(version, '1.0')) return '1.0';
   return 'v0.9';
 }
 
@@ -248,7 +248,7 @@ export function mapErrorToRendererMessage(
   context: ErrorEnvelopeContext = {},
 ): RendererErrorMessage {
   const version = normalizeOutputVersion(context.version);
-  const isV1 = version === 'v1.0';
+  const isV1 = version === '1.0';
   const a2uiErr = err instanceof A2uiError ? err : undefined;
   const message = err instanceof Error ? err.message : String(err);
 

@@ -938,7 +938,18 @@ export class DataContext {
     action: Record<string, unknown>,
     options?: {userActivation?: boolean},
   ): unknown {
-    const callTarget = 'functionCall' in action ? (action as any).functionCall : action;
+    let callTarget = 'functionCall' in action ? (action as any).functionCall : action;
+    if (callTarget && typeof callTarget === 'object') {
+      const callName = (callTarget['@call'] ?? callTarget.call) as string | undefined;
+      if (typeof callName === 'string') {
+        callTarget =
+          this.atLeastV10 && !('@call' in callTarget)
+            ? {'@call': callName, ...callTarget}
+            : !this.atLeastV10 && !('call' in callTarget)
+              ? {call: callName, ...callTarget}
+              : callTarget;
+      }
+    }
     const userActivated = options?.userActivation ?? true;
     const prevAction = this._isActionExecution;
     const prevPassive = this._isPassiveEvaluation;

@@ -379,7 +379,6 @@ function validateParentConstraints(
     ];
     throw new A2uiValidationError(message, details, 'UNALLOWED_PARENT', {path, surfaceId});
   }
-  }
 
   for (const parentInfo of parents ?? []) {
     if (!allowedParents.includes(parentInfo.parentType)) {

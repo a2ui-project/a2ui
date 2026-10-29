@@ -464,13 +464,11 @@ export class NodeResolver<
         dataPath,
         `Component '${componentId}' at '${dataPath}' is referenced by one of its own descendants; rendering a placeholder instead.`,
       );
-      const model = this.surface.componentsModel.get(componentId);
-      const nodeType = model?.type ?? PLACEHOLDER_TYPE;
       return this.registerNode(
         new MutableComponentNode(
           instanceIdFor(componentId, dataPath, occurrence),
           componentId,
-          nodeType,
+          PLACEHOLDER_TYPE,
           dataPath,
           {},
           undefined,
