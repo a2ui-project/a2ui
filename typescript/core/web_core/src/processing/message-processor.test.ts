@@ -778,7 +778,7 @@ describe('MessageProcessor', () => {
     it('applies Surface allowedParents rule only to rootId and checks all parents of a component', () => {
       const compositionCatalog = Catalog.fromJson({
         catalogId: 'custom',
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         components: {
           Box: {
             type: 'object',
@@ -806,7 +806,7 @@ describe('MessageProcessor', () => {
       const relaxedProc = new MessageProcessor([compositionCatalog]);
       relaxedProc.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's1',
             catalogId: 'custom',
@@ -817,7 +817,7 @@ describe('MessageProcessor', () => {
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's1',
             components: [{id: 'root', component: 'Box', children: []}],
@@ -834,7 +834,7 @@ describe('MessageProcessor', () => {
         validationConfig: STRICT_VALIDATION,
       });
       strictProc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: 'custom',
@@ -847,7 +847,7 @@ describe('MessageProcessor', () => {
       assert.throws(
         () =>
           strictProc.processMessages({
-            version: 'v1.0',
+            version: '1.0',
             updateComponents: {
               surfaceId: 's1',
               components: [{id: 'root', component: 'Box', children: []}],
@@ -864,7 +864,7 @@ describe('MessageProcessor', () => {
       assert.throws(
         () =>
           rootRefProc.processMessages({
-            version: 'v1.0',
+            version: '1.0',
             createSurface: {
               surfaceId: 's1',
               catalogId: 'custom',
@@ -888,7 +888,7 @@ describe('MessageProcessor', () => {
       assert.throws(
         () =>
           customRootProc.processMessages({
-            version: 'v1.0',
+            version: '1.0',
             createSurface: {
               surfaceId: 's1',
               catalogId: 'custom',
@@ -926,7 +926,7 @@ describe('MessageProcessor', () => {
         assert.throws(
           () =>
             multiParentProc.processMessages({
-              version: 'v1.0',
+              version: '1.0',
               createSurface: {
                 surfaceId: 's1',
                 catalogId: 'custom',
@@ -946,7 +946,7 @@ describe('MessageProcessor', () => {
     it("checks the surface's own root id against Surface, as a v0.8 beginRendering root sets it", () => {
       const catalog = Catalog.fromJson({
         catalogId: 'custom',
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         components: {
           Box: {type: 'object', properties: {children: {$ref: '#/$defs/ChildList'}}},
           Card: {type: 'object', allowedParents: ['Box']},

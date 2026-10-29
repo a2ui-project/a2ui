@@ -190,7 +190,7 @@ struct ValidatorConformanceTests {
       guard
         let flags = testCase.validationConfig,
         let validationConfig = ConformanceTestHelper.validationConfig(
-          from: flags, targetVersion: "v1.0")
+          from: flags, targetVersion: "1.0")
       else {
         Issue.record("[\(testCase.name)] Missing or unknown validationConfig flags")
         continue

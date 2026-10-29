@@ -376,7 +376,7 @@ public enum ConformanceTestHelper {
     // references such as `#/$defs/ChildList` resolve.
     if catalogConfiguration["common_types_schema"] == nil,
       catalogConfiguration["commonTypesSchema"] == nil,
-      let commonTypes = try? commonTypesSchema(forProtocolVersion: protocolVersion ?? "v1.0")
+      let commonTypes = try? commonTypesSchema(forProtocolVersion: protocolVersion ?? "1.0")
     {
       loadCommonTypesDefinitions(
         from: ["commonTypesSchema": commonTypes],

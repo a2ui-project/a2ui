@@ -816,7 +816,7 @@ def test_composition_constraints_surface_and_multiple_parents():
     catalog = Catalog.from_json(
         {
             "catalogId": "custom",
-            "protocolVersion": "v1.0",
+            "protocolVersion": "1.0",
             "components": {
                 "Box": {
                     "type": "object",
@@ -838,7 +838,7 @@ def test_composition_constraints_surface_and_multiple_parents():
             },
         },
         catalog_id="custom",
-        protocol_version="v1.0",
+        protocol_version="1.0",
     )
 
     # 1. Container rewritten to drop a child: unreferenced non-root component is
@@ -850,7 +850,7 @@ def test_composition_constraints_surface_and_multiple_parents():
         proc = MessageProcessor([catalog], options=options)
         proc.process_messages([
             {
-                "version": "v1.0",
+                "version": "1.0",
                 "createSurface": {
                     "surfaceId": "s1",
                     "catalogId": "custom",
@@ -861,7 +861,7 @@ def test_composition_constraints_surface_and_multiple_parents():
                 },
             },
             {
-                "version": "v1.0",
+                "version": "1.0",
                 "updateComponents": {
                     "surfaceId": "s1",
                     "components": [
@@ -882,7 +882,7 @@ def test_composition_constraints_surface_and_multiple_parents():
         options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
     strict_proc.process_messages([{
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "s1",
             "catalogId": "custom",
@@ -894,7 +894,7 @@ def test_composition_constraints_surface_and_multiple_parents():
     }])
     with pytest.raises(A2uiIntegrityError, match="not reachable from 'root'"):
         strict_proc.process_messages([{
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [
@@ -914,7 +914,7 @@ def test_composition_constraints_surface_and_multiple_parents():
         ),
     ) as exc_info:
         proc_root_ref.process_messages([{
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": "custom",
@@ -970,7 +970,7 @@ def test_composition_constraints_surface_and_multiple_parents():
             ),
         ) as exc_info:
             proc_multi.process_messages([{
-                "version": "v1.0",
+                "version": "1.0",
                 "createSurface": {
                     "surfaceId": "s1",
                     "catalogId": "custom",

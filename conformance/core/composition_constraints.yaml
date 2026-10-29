@@ -15,7 +15,7 @@
 - name: test_composition_surface_implicit_parent_container
   description: Verifies root components treating Surface as canonical parent container when allowedParents includes Surface.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: process_messages
   validationConfig: {}
   steps:
@@ -46,7 +46,7 @@
   description: Verifies validation error thrown when component is placed under an unallowed parent component type.
   catalog:
     catalogId: "custom"
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       ColumnHeader:
         type: "object"
@@ -79,7 +79,7 @@
   description: Verifies validation error thrown when container contains an unallowed child component type.
   catalog:
     catalogId: "custom"
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       RestrictedBox:
         type: "object"
@@ -122,7 +122,7 @@
     checks are on, so the processor checks the whole surface.
   catalog: &box_header_catalog
     catalogId: "custom"
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       Box:
         type: "object"
@@ -137,7 +137,7 @@
     allowOrphanComponents: true
   steps:
     - payload: &create_box_holding_header
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "custom"
@@ -148,7 +148,7 @@
               - id: h
                 component: Header
     - payload: &drop_header_from_box
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -213,7 +213,7 @@
     orphan, which the config allows.
   catalog:
     catalogId: "custom"
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       Box:
         type: "object"
@@ -228,7 +228,7 @@
     allowOrphanComponents: true
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "custom"
@@ -249,7 +249,7 @@
     disallowed parent comes first in surface order.
   catalog: &box_card_header_catalog
     catalogId: "custom"
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       Box:
         type: "object"
@@ -268,7 +268,7 @@
   validationConfig: {}
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "custom"
@@ -298,7 +298,7 @@
   validationConfig: {}
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "custom"
