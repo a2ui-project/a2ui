@@ -24,7 +24,7 @@ Test suites are organized by functional domain:
 
 ### Agent (`agent/`)
 
-These suites describe the agent SDK interface specified in [`blueprints/modules/a2ui_agent.blueprint.md`](../blueprints/modules/a2ui_agent.blueprint.md). No SDK implements that interface yet, so they state what an implementation has to do rather than what one already does.
+These suites describe the agent SDK interface specified in [`blueprints/modules/a2ui_agent.blueprint.md`](../blueprints/modules/a2ui_agent.blueprint.md). See [Implementing conformance harnesses](conformance_harness_implementation_guide.md) for instructions on building a test harness for these suites on a new platform.
 
 The suites that do not depend on an inference format sit directly under `agent/`:
 
@@ -93,7 +93,7 @@ Refer to the test harnesses across Core SDKs and UI framework renderers for work
 - Dart Core and Flutter Renderer: `dart/a2ui_core/test/conformance/validator_conformance_test.dart`, `dart/a2ui_core/test/conformance/node_resolution_conformance_test.dart`, and `dart/a2ui_flutter/test/adapter_conformance_test.dart`
 - Swift Core and SwiftUI Renderer: `swift/core/Tests/A2UIConformanceTests/ValidatorConformanceTests.swift`, `swift/core/Tests/A2UIConformanceTests/NodeResolutionConformanceTests.swift`, and `swift/swiftui/Tests/A2UISwiftUITests/AdapterConformanceTests.swift`
 
-Both Dart and TypeScript locate the suite by walking up from the test file, so they need no configured path.
+Both Dart and TypeScript locate the suite by walking up from the test file, so they need no configured path. When implementing conformance harnesses for a new language or platform, across the Core SDK, Inference SDK, and framework adapter tiers, see [Implementing conformance harnesses](conformance_harness_implementation_guide.md).
 
 ## Harness Configuration & Transition Skip Lists
 
