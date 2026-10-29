@@ -1,5 +1,8 @@
 ## Unreleased
 
+- `<a2ui-surface>` tolerates a surface whose `componentsModel` has no `onCreated` or `onDeleted` event source, such as a partial test double, instead of throwing while subscribing to the root ([#3658](https://github.com/a2ui-project/a2ui/pull/3658)).
+- `<a2ui-surface>` manages a per-surface `NodeResolver` and renders the resolved root `ComponentNode` via `renderA2uiNode`. [#3705](https://github.com/a2ui-project/a2ui/pull/3705)
+
 ## 0.14.0
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.

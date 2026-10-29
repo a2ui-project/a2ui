@@ -161,7 +161,7 @@ class A2uiSurface extends StatefulWidget {
 
 1. **Resolver Lifecycle**: Instantiates and retains a `NodeResolver` for the surface for the lifetime of the view. If the `surface` prop changes identity, disposes the old resolver and creates a new one. Disposes the resolver when the view unmounts.
 2. **Root Observation**: Observes `nodeResolver.rootNode`. While `rootNode` is empty, renders a framework-appropriate loading placeholder. Once `rootNode` resolves, renders the root `NodeView`.
-3. **Ambient Context Injection**: Publishes the surface instance (which exposes the surface's catalogs and event dispatchers) and any host services implementations need, such as a markdown renderer, into the framework's ambient DI/context mechanism (React Context, Flutter `InheritedWidget`, SwiftUI `Environment`, Angular DI).
+3. **Ambient Context Injection**: Publishes the surface instance (which exposes the surface's catalogs and event dispatchers) and any host services implementations need, such as a markdown renderer, into the framework's ambient DI/context mechanism (React Context, Flutter `InheritedWidget`, SwiftUI `Environment`, Angular DI). A host app renders Markdown in the rest of its UI with its own framework-native view, so the adapter accepts that view for `Text` as well as a renderer that returns markup, and renders it inside the app's view tree, where it reads the app's context. An adapter that needs the markup renderer to reach a component written outside its framework, such as a web component, renders a placeholder there and fills it with the native view.
 4. **Rendering only**: `Surface` does not process messages, negotiate capabilities, or execute RPC. Those belong to the Core SDK's `MessageProcessor`.
 
 ---

@@ -291,7 +291,14 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
     }
     let canonical = canonicalizeVersionString(versionStr)
     guard compatibleCatalogVersions.contains(canonical) else {
-      let allowed = compatibleCatalogVersions.sorted().map { "v\($0)" }.joined(separator: ", ")
+      let allowed =
+        compatibleCatalogVersions
+        .sorted()
+        .map {
+          $0.compare("1.0", options: .numeric) != .orderedAscending || $0.hasPrefix("v")
+            ? $0 : "v\($0)"
+        }
+        .joined(separator: ", ")
       throw A2UIValidationError(
         "Invalid \(version.rawValue) message: version '\(versionStr)' is not compatible with "
           + "expected version (\(allowed)).",

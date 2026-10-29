@@ -335,7 +335,10 @@ def test_string_interpolation_complex_execution():
     cat1 = MockCatalog()
     surface = SurfaceModel("s1", cat1, data_model=data_model)
     ctx = DataContext(surface, path="/")
-    expr = {"call": "formatString", "args": {"value": "Calculated: ${add(a: 5, b: 7)}"}}
+    expr = {
+        "call": "formatString",
+        "args": {"value": "Calculated: ${add(a: 5, b: 7)}"},
+    }
 
     resolved = ctx.resolve_dynamic_value(expr)
     assert resolved == "Calculated: 12"
@@ -698,7 +701,7 @@ def test_data_context_validates_arguments_as_written():
 
 def test_data_context_index_function_on_surface_without_default_catalog():
     """@index belongs to no catalog, so it runs without a default catalog."""
-    surface = SurfaceModel("s1", None, protocol_version="v1.0")
+    surface = SurfaceModel("s1", None, protocol_version="1.0")
     ctx = DataContext(surface, path="/items/2")
 
     value = ctx.resolve_dynamic_value({"@call": "@index", "args": {"offset": 1}})
@@ -743,9 +746,9 @@ def test_surface_model_protocol_version():
     assert SurfaceModel("s1", v1_0.BasicCatalog()).protocol_version == (
         v1_0.BasicCatalog().protocol_version
     )
-    no_default = SurfaceModel("s2", None, protocol_version="v1.0")
+    no_default = SurfaceModel("s2", None, protocol_version="1.0")
     assert no_default.default_catalog is None
-    assert no_default.protocol_version == "v1.0"
+    assert no_default.protocol_version == "1.0"
     assert no_default.available_catalogs == {}
 
 
@@ -1334,7 +1337,10 @@ def test_generic_binder_binds_catalog_defined_dynamic_defs():
         "$defs": {
             "DynamicDate": {
                 "oneOf": [
-                    {"type": "object", "properties": {"year": {"type": "integer"}}},
+                    {
+                        "type": "object",
+                        "properties": {"year": {"type": "integer"}},
+                    },
                     {"$ref": f"{common_types}#/$defs/DataBinding"},
                     {
                         "allOf": [

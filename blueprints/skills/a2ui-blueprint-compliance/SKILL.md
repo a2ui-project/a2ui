@@ -29,7 +29,8 @@ This skill guides you through the process of auditing the repository's codebase 
        - Identify any features, interfaces, or protocol requirements specified in the module blueprint (including those introduced in the missing commits listed in the script's output report) that are **not** currently implemented in the code.
 
    - **Step 2.2: Audit Claimed Features (`implemented_features`)**:
-     - For each feature listed in the codebase blueprint's `implemented_features`:
+     - For each feature key and pinned commit hash in the codebase blueprint's `implemented_features` mapping (`{feature_name: <commit_sha>}`):
+       - Verify that the pinned commit matches the latest commit on `blueprints/features/<feature_name>.blueprint.md` (or inspect `git diff <pinned_sha>..HEAD -- blueprints/features/<feature_name>.blueprint.md`).
        - Search the codebase (code files, symbols, tests, or documentation) to verify if the feature is actually implemented.
        - If it is not found or is incomplete, flag it as a discrepancy (e.g. "Claimed as implemented, but missing or incomplete in code").
 

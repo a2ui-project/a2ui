@@ -414,8 +414,8 @@ class MessageProcessor:
         """
         if not options or not options.versions:
             raise A2uiValidationError(
-                "At least one protocol version must be provided in CapabilitiesOptions"
-                " to generate renderer capabilities."
+                "At least one protocol version must be provided in"
+                " CapabilitiesOptions to generate renderer capabilities."
             )
 
         effective_versions = options.versions
@@ -502,7 +502,7 @@ class MessageProcessor:
                 " get_renderer_data_model(version)."
             )
 
-        ver_str = next(iter(versions_set)) if versions_set else "v1.0"
+        ver_str = next(iter(versions_set)) if versions_set else "1.0"
         surfaces = {s.id: s.data_model.get("/") for s in enabled_surfaces}
         return {"version": ver_str, "surfaces": surfaces}
 

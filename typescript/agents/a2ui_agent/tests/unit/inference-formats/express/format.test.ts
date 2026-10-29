@@ -33,7 +33,7 @@ import {
 } from '../../../helpers/conformance-catalogs.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 
-const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
 
 describe('ExpressFormat', () => {
@@ -48,7 +48,7 @@ describe('ExpressFormat', () => {
   it('throws A2uiCatalogError when catalogs have different protocol versions', () => {
     expect(() => new ExpressFormat([catalog1, catalog2])).toThrow(A2uiCatalogError);
     expect(() => new ExpressFormat([catalog1, catalog2])).toThrow(
-      `Express catalogs must share one protocol version, but '${catalog1.id}' is 'v1.0' and '${catalog2.id}' is 'v0.9'.`,
+      `Express catalogs must share one protocol version, but '${catalog1.id}' is '1.0' and '${catalog2.id}' is 'v0.9'.`,
     );
   });
 
@@ -82,7 +82,7 @@ describe('ExpressFormat', () => {
   it('catalogsDefining returns catalog ids that define a component or function in order', () => {
     const simplified = loadConformanceCatalog('simplified_catalog_v1_0.json');
     const custom = loadConformanceCatalog('custom_catalog_v1_0.json');
-    const helpers = buildSchemaHelpers([simplified, custom], 'v1.0');
+    const helpers = buildSchemaHelpers([simplified, custom], '1.0');
     expect(catalogsDefining(helpers, 'component', 'Text')).toEqual([simplified.id]);
     expect(catalogsDefining(helpers, 'component', 'Chart')).toEqual([custom.id]);
     expect(catalogsDefining(helpers, 'component', 'NonExistent')).toEqual([]);
@@ -92,7 +92,7 @@ describe('ExpressFormat', () => {
   it('constructs successfully with exactly one catalog', () => {
     const format = new ExpressFormat([catalog1], {
       surfaceId: 'custom_surface',
-      version: 'v1.0',
+      version: '1.0',
     });
     expect(format.supportsStreaming).toBe(false);
     expect(format.promptGenerator).toBeInstanceOf(ExpressPromptGenerator);
@@ -101,12 +101,12 @@ describe('ExpressFormat', () => {
   it('createParser returns configured ExpressParser', () => {
     const format = new ExpressFormat([catalog1], {
       surfaceId: 'custom_surface',
-      version: 'v1.0',
+      version: '1.0',
     });
     const parser = format.createParser();
     expect(parser).toBeInstanceOf(ExpressParser);
     expect((parser as ExpressParser).surfaceId).toBe('custom_surface');
-    expect((parser as ExpressParser).version).toBe('v1.0');
+    expect((parser as ExpressParser).version).toBe('1.0');
     expect((parser as ExpressParser).catalogs[0]).toBe(catalog1);
   });
 
@@ -125,8 +125,8 @@ describe('ExpressFormat', () => {
     });
 
     it('throws A2uiCatalogError on explicit version mismatch', () => {
-      expect(() => new ExpressFormat([catalog2], {version: 'v1.0'})).toThrow(
-        /Requested protocol version 'v1.0' does not match catalog version 'v0.9'/,
+      expect(() => new ExpressFormat([catalog2], {version: '1.0'})).toThrow(
+        /Requested protocol version '1.0' does not match catalog version 'v0.9'/,
       );
     });
 
@@ -138,12 +138,12 @@ describe('ExpressFormat', () => {
 
   describe('ExpressFormatFactory', () => {
     it('creates an ExpressFormat instance with factory options', () => {
-      const factory = new ExpressFormatFactory({surfaceId: 'factory_surface', version: 'v1.0'});
+      const factory = new ExpressFormatFactory({surfaceId: 'factory_surface', version: '1.0'});
       const format = factory.createFormat([catalog1]);
       expect(format).toBeInstanceOf(ExpressFormat);
       const parser = format.createParser() as ExpressParser;
       expect(parser.surfaceId).toBe('factory_surface');
-      expect(parser.version).toBe('v1.0');
+      expect(parser.version).toBe('1.0');
     });
 
     it('forwards allowedMessages and multi-turn examples to ExpressPromptGenerator', () => {
@@ -152,9 +152,9 @@ describe('ExpressFormat', () => {
         allowedMessages: ['createSurface', 'updateComponents'],
       });
       const turn1 = [
-        {version: 'v1.0', createSurface: {surfaceId: 's1'}},
+        {version: '1.0', createSurface: {surfaceId: 's1'}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's1',
             components: [{id: 'root', component: 'Text', text: 'Turn 1'}],
@@ -162,9 +162,9 @@ describe('ExpressFormat', () => {
         },
       ];
       const turn2 = [
-        {version: 'v1.0', createSurface: {surfaceId: 's2'}},
+        {version: '1.0', createSurface: {surfaceId: 's2'}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's2',
             components: [{id: 'root', component: 'Text', text: 'Turn 2'}],

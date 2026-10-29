@@ -27,8 +27,8 @@ import {
 } from '../../../../src/index.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 
-const basicCatalogV10 = loadBasicCatalog('v1.0');
-const customCatalogV10 = new Catalog('https://a2ui.org/catalogs/custom', 'v1.0', [], []);
+const basicCatalogV10 = loadBasicCatalog('1.0');
+const customCatalogV10 = new Catalog('https://a2ui.org/catalogs/custom', '1.0', [], []);
 
 /** Compiles one block and checks its messages against a new renderer state. */
 function check(parser: DirectJsonParser, payload: string): unknown {
@@ -100,18 +100,18 @@ describe('DirectJsonParser', () => {
 
   it('compiles raw format content', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
-    const payload = `[{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}]`;
+    const payload = `[{"version": "1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}]`;
     const compiled = parser.compile(payload);
     expect(compiled).toEqual([
-      {version: 'v1.0', createSurface: {surfaceId: '1', catalogId: basicCatalogV10.id}},
+      {version: '1.0', createSurface: {surfaceId: '1', catalogId: basicCatalogV10.id}},
     ]);
   });
 
   it('compiles a block that holds one message on its own', () => {
     const parser = new DirectJsonParser([basicCatalogV10]);
-    const payload = `{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}`;
+    const payload = `{"version": "1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}`;
     expect(parser.compile(payload)).toEqual([
-      {version: 'v1.0', createSurface: {surfaceId: '1', catalogId: basicCatalogV10.id}},
+      {version: '1.0', createSurface: {surfaceId: '1', catalogId: basicCatalogV10.id}},
     ]);
   });
 
@@ -161,7 +161,7 @@ describe('DirectJsonParser', () => {
       );
     });
 
-    it.each(['v0.9', 'v0.9.1', 'v1.0'] as const)(
+    it.each(['v0.9', 'v0.9.1', '1.0'] as const)(
       'accepts multiple catalogs for protocol version %s',
       version => {
         const catalogs = [
@@ -202,21 +202,21 @@ describe('DirectJsonParser', () => {
 
     it('throws A2uiValidationError on unknown component', () => {
       const parser = new DirectJsonParser([basicCatalogV10]);
-      const payload = `[{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "1", "components": [{"id": "root", "component": "UnknownWidget"}]}}]`;
+      const payload = `[{"version": "1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}, {"version": "1.0", "updateComponents": {"surfaceId": "1", "components": [{"id": "root", "component": "UnknownWidget"}]}}]`;
       expect(() => check(parser, payload)).toThrow(A2uiValidationError);
       expect(() => check(parser, payload)).toThrow(/UnknownWidget/);
     });
 
     it('throws A2uiValidationError on unknown component property', () => {
       const parser = new DirectJsonParser([basicCatalogV10]);
-      const payload = `[{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "1", "components": [{"id": "root", "component": "Text", "text": "hello", "unknownProp": 1}]}}]`;
+      const payload = `[{"version": "1.0", "createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}, {"version": "1.0", "updateComponents": {"surfaceId": "1", "components": [{"id": "root", "component": "Text", "text": "hello", "unknownProp": 1}]}}]`;
       expect(() => check(parser, payload)).toThrow(A2uiValidationError);
       expect(() => check(parser, payload)).toThrow(/unknownProp/);
     });
 
     it('throws A2uiValidationError on unknown catalogId', () => {
       const parser = new DirectJsonParser([basicCatalogV10]);
-      const payload = `[{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "unknown-catalog"}}]`;
+      const payload = `[{"version": "1.0", "createSurface": {"surfaceId": "1", "catalogId": "unknown-catalog"}}]`;
       expect(() => check(parser, payload)).toThrow(A2uiValidationError);
       expect(() => check(parser, payload)).toThrow(/unknown-catalog/);
     });

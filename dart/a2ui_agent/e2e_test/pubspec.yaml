@@ -26,6 +26,7 @@ dependencies:
   a2ui_core:
     path: ../../a2ui_core
   dartantic_ai: ^3.1.0
+  googleai_dart: ^8.0.0
 
 dev_dependencies:
   test: ^1.26.2

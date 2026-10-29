@@ -22,6 +22,8 @@ import urllib.parse
 import threading
 import time
 
+import apply_triage
+
 # Global event for shutdown synchronization, and exit status
 shutdown_event = threading.Event()
 exit_status = 0
@@ -54,6 +56,21 @@ class TriageDashboardHandler(http.server.BaseHTTPRequestHandler):
                     with open(self.data_file, "r", encoding="utf-8") as f:
                         report_data = json.load(f)
 
+                    # Check for previously applied decisions
+                    applied_ids = []
+                    if os.path.exists(self.output_file):
+                        try:
+                            with open(self.output_file, "r", encoding="utf-8") as f:
+                                dec_data = json.load(f)
+                                applied_ids = [
+                                    d["id"]
+                                    for d in dec_data.get("decisions", [])
+                                    if d.get("approved")
+                                ]
+                        except Exception:
+                            pass
+                    report_data["applied_ids"] = applied_ids
+
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")
                     self.end_headers()
@@ -72,7 +89,107 @@ class TriageDashboardHandler(http.server.BaseHTTPRequestHandler):
         global exit_status
         parsed_url = urllib.parse.urlparse(self.path)
 
-        if parsed_url.path == "/api/save":
+        if parsed_url.path == "/api/apply_batch":
+            content_length = int(self.headers.get("Content-Length", 0))
+            post_data = self.rfile.read(content_length)
+
+            try:
+                data = json.loads(post_data.decode("utf-8"))
+                decisions_to_apply = data.get("decisions", [])
+                print(
+                    f"\n[Dashboard] Applying batch of {len(decisions_to_apply)}"
+                    " decisions to GitHub..."
+                )
+
+                is_stream = "text/event-stream" in self.headers.get("Accept", "")
+
+                if is_stream:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                    self.send_header("Cache-Control", "no-cache, no-transform")
+                    self.send_header("Connection", "close")
+                    self.send_header("X-Accel-Buffering", "no")
+                    self.end_headers()
+                    self.close_connection = True
+
+                    def stream_progress(issue_id, current, total, is_success, err_msg):
+                        event = {
+                            "type": "progress",
+                            "issue_id": issue_id,
+                            "current": current,
+                            "total": total,
+                            "success": is_success,
+                            "error": err_msg,
+                        }
+                        try:
+                            self.wfile.write(
+                                f"data: {json.dumps(event)}\n\n".encode("utf-8")
+                            )
+                            self.wfile.flush()
+                        except Exception:
+                            pass
+
+                    success, failed_ids, logs = apply_triage.apply_decisions(
+                        decisions_to_apply, on_progress=stream_progress
+                    )
+                else:
+                    success, failed_ids, logs = apply_triage.apply_decisions(
+                        decisions_to_apply
+                    )
+
+                # Persist applied decisions to output_file
+                existing_decisions = []
+                if os.path.exists(self.output_file):
+                    try:
+                        with open(self.output_file, "r", encoding="utf-8") as f:
+                            existing_decisions = json.load(f).get("decisions", [])
+                    except Exception:
+                        pass
+
+                merged = {d["id"]: d for d in existing_decisions}
+                for d in decisions_to_apply:
+                    merged[d["id"]] = d
+
+                with open(self.output_file, "w", encoding="utf-8") as f:
+                    json.dump({"decisions": list(merged.values())}, f, indent=2)
+
+                if is_stream:
+                    done_event = {
+                        "type": "done",
+                        "status": "success" if success else "partial",
+                        "applied_count": len(decisions_to_apply) - len(failed_ids),
+                        "failed_ids": failed_ids,
+                    }
+                    try:
+                        self.wfile.write(
+                            f"data: {json.dumps(done_event)}\n\n".encode("utf-8")
+                        )
+                        self.wfile.flush()
+                    except Exception:
+                        pass
+                else:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(
+                        json.dumps({
+                            "status": "success" if success else "partial",
+                            "applied_count": len(decisions_to_apply) - len(failed_ids),
+                            "failed_ids": failed_ids,
+                            "logs": logs,
+                        }).encode("utf-8")
+                    )
+
+                print(
+                    "[Dashboard] Batch applied."
+                    f" {len(decisions_to_apply) - len(failed_ids)} succeeded,"
+                    f" {len(failed_ids)} failed."
+                )
+
+            except Exception as e:
+                self.send_error_json(500, f"Failed to apply batch: {str(e)}")
+
+        elif parsed_url.path == "/api/save":
             content_length = int(self.headers.get("Content-Length", 0))
             post_data = self.rfile.read(content_length)
 

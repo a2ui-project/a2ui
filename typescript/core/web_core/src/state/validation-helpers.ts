@@ -222,6 +222,7 @@ function compositionHolds<T extends ComponentApi>(
   validationConfig: ValidationConfig | undefined,
 ): boolean {
   if (!hasCompositionRules(surface, batch.catalogs.values(), validationConfig)) return true;
+  const rootId = compositionRootId(surface, validationConfig);
   const model = surface.componentsModel;
   const typeMap = {
     get: (id: string) => batch.types.get(id) ?? model.get(id)?.type,
@@ -265,13 +266,7 @@ function compositionHolds<T extends ComponentApi>(
         parentId,
         parentType: typeMap.get(parentId) || 'Unknown',
       }));
-      validateParentConstraints(
-        id,
-        componentType,
-        componentApi.allowedParents,
-        parents,
-        validationConfig,
-      );
+      validateParentConstraints(id, componentType, componentApi.allowedParents, parents, rootId);
     }
   };
   const checkChildren = (id: string, children: readonly string[]) => {
@@ -345,29 +340,38 @@ function hasCompositionRules<T extends ComponentApi>(
   return false;
 }
 
+/** The id of the component the surface holds directly, which `allowedParents` checks against `Surface`. */
+function compositionRootId<T extends ComponentApi>(
+  surface: SurfaceModel<T>,
+  validationConfig: ValidationConfig | undefined,
+): string {
+  return validationConfig?.rootId ?? surface.rootId ?? 'root';
+}
+
+/**
+ * Checks a component's `allowedParents` against every parent it is under.
+ *
+ * Every component that references it is a parent, and the surface is the
+ * parent of the root component (`rootId`), which is checked first. A component
+ * no other component references is not checked unless it is the root; whether
+ * it is reachable is the topology check's concern.
+ */
 function validateParentConstraints(
   id: string,
   componentType: string,
   allowedParents: string[],
   parents: Array<{parentId: string; parentType: string}> | undefined,
-  validationConfig: ValidationConfig | undefined,
+  rootId: string,
 ): void {
-  if (!parents || parents.length === 0) {
-    const isRoot = id === 'root';
-    const enforceTopLevel =
-      isRoot ||
-      (validationConfig !== undefined && validationConfig.allowOrphanComponents === false);
-    if (enforceTopLevel && !allowedParents.includes('Surface')) {
-      throw new A2uiValidationError(
-        `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(allowedParents)}.`,
-        undefined,
-        'UNALLOWED_PARENT',
-      );
-    }
-    return;
+  if (id === rootId && !allowedParents.includes('Surface')) {
+    throw new A2uiValidationError(
+      `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(allowedParents)}.`,
+      undefined,
+      'UNALLOWED_PARENT',
+    );
   }
 
-  for (const parentInfo of parents) {
+  for (const parentInfo of parents ?? []) {
     if (!allowedParents.includes(parentInfo.parentType)) {
       throw new A2uiValidationError(
         `Component '${id}' (${componentType}) cannot be placed under parent '${parentInfo.parentId}' (${parentInfo.parentType || 'unknown'}). Allowed parents: ${JSON.stringify(allowedParents)}.`,
@@ -472,6 +476,7 @@ export function validateCompositionConstraints<T extends ComponentApi>(
     newComponents,
     resolveCatalog,
   );
+  const rootId = compositionRootId(surface, validationConfig);
 
   for (const [id, componentType] of typeMap.entries()) {
     const compCatalog = compCatalogMap.get(id);
@@ -484,7 +489,7 @@ export function validateCompositionConstraints<T extends ComponentApi>(
         componentType,
         componentApi.allowedParents,
         parentMap.get(id),
-        validationConfig,
+        rootId,
       );
     }
 
