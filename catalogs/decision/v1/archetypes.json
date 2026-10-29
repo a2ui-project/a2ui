@@ -651,7 +651,7 @@
             "grid": ["picture", "pattern:collection:grid"],
             "reel": ["picture"]
           },
-          "note": "pattern:<name>.<variant> means the option is offered only when the catalog's pattern has that variant, so a catalog that would draw grid as a reel is not asked about grid."
+          "note": "pattern:<name>:<variant> means the option is offered only when the catalog's pattern has that variant, so a catalog that would draw grid as a reel is not asked about grid."
         },
         "leading": {
           "kind": "choice",

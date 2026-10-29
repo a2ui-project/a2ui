@@ -81,7 +81,7 @@ description) or takes them from a slot with `optionsFrom`, and gets an implicit
 criteria texts. A `score` lists ordered `levels`, and the answer is the expected
 level index. `appliesWhen` asks the question only when a slot is bound or has a
 given type; `derivedWhen` answers it from key hints without asking; `requires`
-offers an option only when the named slots, knob options, `pattern:<name>.<variant>`
+offers an option only when the named slots, knob options, `pattern:<name>:<variant>`
 capabilities, or the `actions_allowed` flag are available.
 
 Slots list the semantic types they accept in `from`, most preferred first, and
@@ -117,7 +117,6 @@ directives whose keys start with `$`:
 | `$blocks`     | `true`                             | In the page pattern, where the block roots go, in archetype order.                                                                             |
 | `$knobValue`  | `knob.property`                    | A value looked up in the plan, with `$default` when absent.                                                                                    |
 | `$item`       | `true`                             | Inside `$repeat`, the current element, bound as event context.                                                                                 |
-| `$index1`     | `true`                             | Inside `$repeat`, the 1-based index of the current element.                                                                                    |
 
 Component ids in a pattern are local. The expander prefixes them with the block
 id so a pattern can appear more than once on a surface. Headings use Markdown
