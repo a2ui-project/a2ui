@@ -229,7 +229,11 @@ void main() {
         },
       });
       expect(state.value.pending, isTrue);
-      expect(agentCalls.map((c) => c.call.call).toList(), ['inner', 'outer']);
+      expect(
+        agentCalls.map((c) => c.call.call).toList(),
+        ['inner'],
+        reason: 'the outer call waits for its pending argument',
+      );
       agentCalls.first.completer.completeError(
         A2uiRpcError(
           'inner failed',
@@ -238,13 +242,68 @@ void main() {
         ),
       );
       await _flush();
-      expect(state.value.pending, isTrue);
+      expect(state.value.pending, isFalse);
+      expect(state.value.value, isNull);
       expect(
         agentCalls.map((c) => c.call.call).toList(),
-        ['inner', 'outer'],
-        reason: 'isPendingAgentCall must not re-dispatch failed inner call',
+        ['inner'],
+        reason: 'neither the failed inner call nor the outer call is sent',
       );
       expect(clientErrors, hasLength(1));
+    });
+
+    test('a local function waits for a pending agent argument', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final ReadonlySignal<Object?> value = context.resolveSignal({
+        '@call': 'upper',
+        'args': {
+          'value': {'@call': 'fetchGreeting', 'args': <String, Object?>{}},
+        },
+      });
+      expect(value.value, isNull);
+      expect(agentCalls.single.call.call, 'fetchGreeting');
+      await _flush();
+      expect(clientErrors, isEmpty,
+          reason: 'upper does not run with a null argument');
+
+      agentCalls.single.completer.complete('hello');
+      await _flush();
+      expect(value.value, 'HELLO');
+      expect(clientErrors, isEmpty);
+    });
+
+    test('an outer agent call is sent once its agent argument settles',
+        () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final ReadonlySignal<Object?> value = context.resolveSignal({
+        '@call': 'convert',
+        'args': {
+          'rate': {
+            '@call': 'fetchFxRate',
+            'args': {'base': 'EUR'},
+          },
+        },
+      });
+      expect(value.value, isNull);
+      expect(agentCalls.map((c) => c.call.call).toList(), ['fetchFxRate']);
+
+      agentCalls.first.completer.complete(1.08);
+      await _flush();
+      expect(value.value, isNull);
+      expect(agentCalls.map((c) => c.call.call).toList(),
+          ['fetchFxRate', 'convert']);
+      expect(agentCalls.last.call.args, {'rate': 1.08});
+
+      agentCalls.last.completer.complete('converted');
+      await _flush();
+      expect(value.value, 'converted');
+      expect(clientErrors, isEmpty);
     });
 
     test('NodeResolver reports agent RPC failure with EXPRESSION_ERROR and id',

@@ -356,6 +356,7 @@ class DataContext {
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
           args[entry.key] = _resolveDynamicValue(entry.value, depth + 1);
         }
+        if (_awaitsAgentArgument(call)) return null;
         final Object? result = _evaluateFunction(call, args);
         if (result is ReadonlySignal) {
           return result.value;
@@ -467,6 +468,7 @@ class DataContext {
                 in argSignals.entries)
               entry.key: entry.value.value,
           };
+          if (_awaitsAgentArgument(call, track: true)) return null;
           final Object? result = _evaluateFunction(call, args);
           if (result is ReadonlySignal) {
             return result.value;
@@ -792,6 +794,7 @@ class DataContext {
     if (existing != null) return existing;
     _agentCalls.evictIfFull();
     final String key = _agentCallKey(call.call, catalogId, args);
+    _agentCalls.failed.remove(key);
     final entry = _AgentCall(call.call, catalogId);
     _agentCalls.entries[key] = entry;
     final outbound = FunctionCall(
@@ -819,6 +822,7 @@ class DataContext {
         batch(() {
           entry.pending = false;
           _agentCalls.entries.remove(key);
+          _agentCalls.markFailed(key);
           _agentCalls.version.value++;
         });
         _report(error, call.call);
@@ -871,29 +875,65 @@ class DataContext {
       final call = FunctionCall.fromJson(_asStringKeyedMap(value));
       if (call.args.values.any(isPendingAgentCall)) return true;
       if (!_agentCalls.hasPendingFor(call.call)) return false;
-      final peek = DataContext._derived(
-        dataModel,
-        _invoke,
-        path,
-        onError: (_) {},
-        protocolVersion: protocolVersion,
-        invokerForCatalog: _invokerForCatalog,
-        isUserActivated: isUserActivated,
-        callAgentFunction: null,
-        agentCalls: _agentCalls,
-        parent: parent,
-        index: _explicitIndex,
-        onMissingData: _onMissingData,
-        warnedPaths: _warnedPaths,
-      );
-      final args = <String, dynamic>{
-        for (final MapEntry<String, dynamic> entry in call.args.entries)
-          entry.key: peek.resolveDynamicValue(entry.value),
-      };
-      final _AgentCall? entry = _agentCalls.lookup(call, null, args);
+      final _AgentCall? entry =
+          _agentCalls.lookup(call, null, _peekArguments(call));
       return entry != null && entry.pending;
     }
     return value.values.any(isPendingAgentCall);
+  }
+
+  /// Whether [value] reads an agent call whose last attempt failed.
+  bool _isFailedAgentCall(Object? value) {
+    if (_agentCalls.failed.isEmpty) return false;
+    if (value is List) return value.any(_isFailedAgentCall);
+    if (value is! Map) return false;
+    if (isFunctionCall(value)) {
+      final call = FunctionCall.fromJson(_asStringKeyedMap(value));
+      if (call.args.values.any(_isFailedAgentCall)) return true;
+      return _agentCalls.hasFailed(call, _peekArguments(call));
+    }
+    return value.values.any(_isFailedAgentCall);
+  }
+
+  /// Whether [call] must wait instead of running: one of its arguments reads
+  /// an agent call that is still awaiting its response, or whose last attempt
+  /// failed (that failure has been reported already).
+  ///
+  /// A pending argument reads as null, which a function cannot tell from a
+  /// null value, so the call waits for it to settle, as the fallback routing
+  /// requires. With [track], the caller re-evaluates when an agent call
+  /// settles, even if the argument's value stays null.
+  bool _awaitsAgentArgument(FunctionCall call, {bool track = false}) {
+    if (!atLeastV10) return false;
+    if (_agentCalls.entries.isEmpty && _agentCalls.failed.isEmpty) {
+      return false;
+    }
+    if (track) _agentCalls.version.value;
+    return call.args.values
+        .any((arg) => isPendingAgentCall(arg) || _isFailedAgentCall(arg));
+  }
+
+  /// The arguments of [call] resolved without sending any agent call.
+  Map<String, dynamic> _peekArguments(FunctionCall call) {
+    final peek = DataContext._derived(
+      dataModel,
+      _invoke,
+      path,
+      onError: (_) {},
+      protocolVersion: protocolVersion,
+      invokerForCatalog: _invokerForCatalog,
+      isUserActivated: isUserActivated,
+      callAgentFunction: null,
+      agentCalls: _agentCalls,
+      parent: parent,
+      index: _explicitIndex,
+      onMissingData: _onMissingData,
+      warnedPaths: _warnedPaths,
+    );
+    return <String, dynamic>{
+      for (final MapEntry<String, dynamic> entry in call.args.entries)
+        entry.key: peek.resolveDynamicValue(entry.value),
+    };
   }
 
   /// [resolveSignal], paired with whether the value is a placeholder for
@@ -1080,6 +1120,22 @@ class _AgentCallCache {
   /// written: a call that names no catalog is sent naming the catalog it
   /// resolved to, and so is filed under that catalog's key.
   final Map<String, String> _aliases = {};
+
+  /// Keys of agent calls whose last attempt failed, oldest first. A call that
+  /// reads one as an argument waits rather than running with a null value.
+  final Set<String> failed = <String>{};
+
+  void markFailed(String key) {
+    if (failed.length >= _maxEntries) failed.remove(failed.first);
+    failed.add(key);
+  }
+
+  /// Whether the last attempt of [call] with [args] failed.
+  bool hasFailed(FunctionCall call, Map<String, dynamic> args) {
+    final String writtenKey =
+        DataContext._agentCallKey(call.call, call.catalogId, args);
+    return failed.contains(_aliases[writtenKey] ?? writtenKey);
+  }
 
   bool hasPendingFor(String functionName) {
     for (final _AgentCall call in entries.values) {

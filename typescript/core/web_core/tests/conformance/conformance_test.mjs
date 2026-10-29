@@ -130,17 +130,7 @@ const SKIP_TEST_NAMES = new Set();
  * then case name, with the behaviour that differs. They are reported as
  * skipped with that reason. An entry that matches no case fails the run.
  */
-const KNOWN_DIVERGENCES = new Map([
-  [
-    'core/agent_function_routing.yaml',
-    new Map([
-      [
-        'test_agent_routing_agent_result_feeds_local_function',
-        'a binding runs a function while an asynchronous argument is still pending, with that argument undefined, instead of waiting for it to settle',
-      ],
-    ]),
-  ],
-]);
+const KNOWN_DIVERGENCES = new Map();
 
 /**
  * The `expect` keys a `from_json` case may use (`FromJsonExpect` in

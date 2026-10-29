@@ -36,7 +36,6 @@ void main() {
     runConformanceSuite(
       cases,
       _runCase,
-      expectedFailures: _knownDivergences,
       skipReason: (testCase) {
         final List<Object?> catalogs =
             testCase['catalogs'] as List<Object?>? ?? const [];
@@ -49,13 +48,6 @@ void main() {
     );
   });
 }
-
-/// Cases whose expected outcome Dart does not produce, with the reason.
-const Map<String, String> _knownDivergences = {
-  'test_agent_routing_agent_result_feeds_local_function':
-      'A local function runs while an agent call in its arguments is still '
-          'pending, with that argument null, instead of waiting for it.',
-};
 
 /// Why a case that declares `agentFunctions` is skipped: a known divergence.
 const String _noSchemaOnlyFunctions =

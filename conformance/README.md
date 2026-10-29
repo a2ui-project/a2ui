@@ -138,7 +138,7 @@ The case then runs its `steps` in order. An `evaluate` step evaluates a `Functio
 - `expectErrors`: the errors the surface reported during the step, in order, by `code` and, optionally, a substring of the `message`. A step without `expectErrors` must report none.
 - `expectValues`: the current value of every `binding` and `check` evaluated so far in the case, in order. A pending value is `null`, as is `undefined` or `None`. A check's value is whether its rule passes; while the rule waits for the agent its value differs between SDKs, so cases check it only once the agent has answered. An `action` has no value.
 
-The cases use no timers, so they do not cover the timeout of an agent call. An SDK that cannot run a case lists it as a known divergence with the reason: the Dart core cannot declare a function without an implementation, so it skips the cases that use `agentFunctions`, and the TypeScript web core and the Dart core run a local function before an agent call in its arguments has settled, so they list `test_agent_routing_agent_result_feeds_local_function`.
+The cases use no timers, so they do not cover the timeout of an agent call. An SDK that cannot run a case lists it as a known divergence with the reason: the Dart core cannot declare a function without an implementation, so it skips the cases that use `agentFunctions`.
 
 ### Writing cases for the agent SDK suites
 
