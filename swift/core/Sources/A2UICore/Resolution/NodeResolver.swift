@@ -1378,6 +1378,7 @@ public final class NodeResolver: Sendable {
     let ruleDict = ruleJSON.dictionaryValue
     let conditionJSON = ruleDict?["condition"] ?? ruleJSON
     let fallbackMessage = ruleDict?["message"]?.stringValue ?? "Validation failed"
+    let explicitRuleMessage = ruleDict?["message"]?.stringValue
     let bindingKey = atLeastV10 ? "@path" : "path"
 
     if let dict = conditionJSON.dictionaryValue, let pathStr = dict[bindingKey]?.stringValue {
@@ -1393,7 +1394,8 @@ public final class NodeResolver: Sendable {
     return makeEvaluatedCheck(
       conditionJSON: conditionJSON,
       evaluated: evaluated,
-      fallbackMessage: fallbackMessage
+      fallbackMessage: fallbackMessage,
+      explicitRuleMessage: explicitRuleMessage
     )
   }
 
@@ -1437,17 +1439,19 @@ public final class NodeResolver: Sendable {
   private func makeEvaluatedCheck(
     conditionJSON: JSONValue,
     evaluated: JSONValue,
-    fallbackMessage: String
+    fallbackMessage: String,
+    explicitRuleMessage: String? = nil
   ) -> ResolvedCheck {
     if let evalDict = evaluated.objectValue, let valid = evalDict["valid"]?.boolValue {
       let result = parseValidationResultObject(
         evalDict,
         valid: valid,
-        fallbackMessage: fallbackMessage
+        fallbackMessage: fallbackMessage,
+        explicitRuleMessage: explicitRuleMessage
       )
       return ResolvedCheck(
         condition: DataBinding(identity: .literal(conditionJSON), value: valid, set: { _ in }),
-        message: result.message ?? fallbackMessage,
+        message: result.message ?? explicitRuleMessage ?? fallbackMessage,
         validationResult: result
       )
     }
@@ -1455,12 +1459,12 @@ public final class NodeResolver: Sendable {
     let result = ValidationResult(
       valid: valid,
       code: nil,
-      message: fallbackMessage,
+      message: explicitRuleMessage ?? fallbackMessage,
       severity: .error
     )
     return ResolvedCheck(
       condition: DataBinding(identity: .literal(conditionJSON), value: valid, set: { _ in }),
-      message: fallbackMessage,
+      message: explicitRuleMessage ?? fallbackMessage,
       validationResult: result
     )
   }
@@ -1468,10 +1472,11 @@ public final class NodeResolver: Sendable {
   private func parseValidationResultObject(
     _ dict: OrderedDictionary<String, JSONValue>,
     valid: Bool,
-    fallbackMessage: String
+    fallbackMessage: String,
+    explicitRuleMessage: String? = nil
   ) -> ValidationResult {
     let code = dict["code"]?.stringValue
-    let msg = dict["message"]?.stringValue ?? fallbackMessage
+    let msg = explicitRuleMessage ?? dict["message"]?.stringValue ?? fallbackMessage
     let severity =
       dict["severity"]?.stringValue.flatMap { ValidationSeverity(rawValue: $0) } ?? .error
     return ValidationResult(valid: valid, code: code, message: msg, severity: severity)
