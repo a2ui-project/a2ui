@@ -15,7 +15,7 @@ for itself: choosing the bump, catching the problems that a workflow run would
 discover too late, and following through afterwards.
 
 Background for anything not covered here:
-[docs/contributing/release.md](../../../docs/contributing/release.md).
+[docs/contributing/release/release.md](../../../docs/contributing/release/release.md).
 
 > [!CAUTION]
 > **Publishing to PyPI is irreversible.** A version can be yanked but never
@@ -418,7 +418,7 @@ is updated. It also cannot be triggered from a branch or a tag, only `main`.
 **`... is already on PyPI`** — the version was published previously. It cannot be
 republished. Work out why the tag series and PyPI disagree before retrying.
 
-**`One or more packages are not in the project's allowlist` or `400 Non-user identities cannot create new projects` in Exit Gate logs**: a brand-new package name must be added to the OSS Exit Gate allowlist and registered as a Pending Publisher on `https://pypi.org/manage/account/publishing/` before its first release. Because PyPI allows only one Pending Publisher at a time for `a2ui-py@oss-exit-gate-prod.iam.gserviceaccount.com`, publish brand-new packages one at a time. See [docs/contributing/release.md](../../../docs/contributing/release.md#releasing-a-new-package-for-the-first-time) and `go/a2ui-release#pypi`.
+**`One or more packages are not in the project's allowlist` or `400 Non-user identities cannot create new projects` in Exit Gate logs**: a brand-new package name must be added to the OSS Exit Gate allowlist and registered as a Pending Publisher on `https://pypi.org/manage/account/publishing/` before its first release. Because PyPI allows only one Pending Publisher at a time for `a2ui-py@oss-exit-gate-prod.iam.gserviceaccount.com`, publish brand-new packages one at a time. See [docs/contributing/release/release.md](../../../docs/contributing/release/release.md#releasing-a-new-package-for-the-first-time) and `go/a2ui-release#pypi`.
 
 **A dry run or failed staging left artifacts behind** — the cleanup step runs
 even on partial failure, but if it was itself skipped, remove the staged version

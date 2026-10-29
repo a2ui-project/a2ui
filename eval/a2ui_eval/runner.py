@@ -45,6 +45,7 @@ from a2ui.catalog_transformers import (
     FunctionPruningTransformer,
 )
 from a2ui.core import CatalogApi
+from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat
 from a2ui.inference_formats import (
@@ -363,8 +364,11 @@ def _read_example_file(path: str) -> list[dict[str, Any]]:
 
 
 def _prefixed_version(version: str) -> str:
-    """Returns the protocol version in its `v`-prefixed wire form (`v1.0`)."""
-    return version if version.startswith("v") else f"v{version}"
+    """Returns the protocol version in its canonical wire form (e.g. `v0.9` or `1.0`)."""
+    try:
+        return to_protocol_version(version).value
+    except ValueError:
+        return version if version.startswith("v") else f"v{version}"
 
 
 def _load_examples(paths: Sequence[str], catalog: CatalogApi, version: str) -> Examples:

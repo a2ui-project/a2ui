@@ -4,6 +4,17 @@
   the `v0.9.1` entry, and falls back to the `v0.9` entry when there is none. It
   read only `v0.9`, so it rejected the `v0.9.1` entry that web_core and the
   Python core renderer write for v0.9.1.
+- **BREAKING CHANGE**: Use `'1.0'` (without a `'v'` prefix) as the `version`
+  field on v1.0 protocol messages and capabilities in inference format
+  compilers, parsers, decompilers, builders (`a2ui.builder.v1_0`),
+  `RendererState`, `resolve_catalogs`, and prompt examples.
+  [#3097](https://github.com/a2ui-project/a2ui/issues/3097),
+  [#3726](https://github.com/a2ui-project/a2ui/pull/3726)
+- **BREAKING CHANGE**: The `a2ui.extensions.file_resolve` module
+  (`FileResolver`, `FileResolverSecurityError` and `ResolvedFileConverter`) is
+  removed, and the package no longer depends on `httpx`. File pointers are not
+  part of the A2UI protocol, so resolving them is left to the agent.
+  [#3731](https://github.com/a2ui-project/a2ui/pull/3731)
 - **BREAKING**: In Express (`ExpressCompiler`), data path assignments (`$/... = ...`) in surface-updating scopes (scopes that do not create a surface with `root` or carry `update=true`) now emit one targeted `updateDataModel` message per assigned path at its JSON Pointer `path` instead of folding all assignments into a single root `updateDataModel` with `path: "/"` (which overwrote the entire surface data model on the renderer). Surface-creating scopes continue to fold data path assignments into a single root data model and now support list element traversal, canonical numeric-segment list auto-vivification, and full root replacement via `$/ = {...}` ([#3677](https://github.com/a2ui-project/a2ui/pull/3677)).
 - **BREAKING CHANGE**: `DirectJsonPromptGenerator.generate_base_rules()` now
   returns the workflow rules followed by the protocol schemas (agent-to-renderer
@@ -46,6 +57,7 @@
   standalone.
   [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
+- The Express compiler accepts `userMessage=` and `context=` keyword arguments on `Event(...)`, compiling `userMessage` to the v1.0 `event.userMessage` field, and raises `ExpressValidationError` for `userMessage` before v1.0 and for any keyword `Event` does not define, where it used to drop them. A function call in an action slot nested inside a list item or object property (such as `items: [{label, action: openUrl(...)}]`) is now compiled as a `functionCall` action. `ExpressDecompiler` writes `userMessage=` back ([#3598](https://github.com/a2ui-project/a2ui/issues/3598)).
 - The Express compiler keeps a map literal as written, quoted keys or not, when
   one of its keys shares a name with an Express construct (`variable`, `path`,
   `call`, `check`, `skipped`); before, such a map was read as a variable

@@ -15,11 +15,11 @@
 - name: test_validation_result_dynamic_object_return
   description: Verifies CheckRule evaluation capturing dynamic ValidationResult object returned from custom validation function.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "form_surface"
             catalogId: "basic"
@@ -50,11 +50,11 @@
 - name: test_validation_result_boolean_fallback
   description: Verifies CheckRule evaluation when validation function returns primitive boolean, falling back to CheckRule message.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "form_surface"
             catalogId: "basic"

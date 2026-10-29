@@ -29,14 +29,14 @@ import {EXAMPLE_CATALOGS, parseExampleMessages} from './testing/frame_test_suppo
 const toolCallExample = {
   messages: [
     {
-      version: 'v1.0',
+      version: '1.0',
       createSurface: {
         surfaceId: 'gallery-mcp-app-tool-call',
         catalogId: 'https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json',
       },
     },
     {
-      version: 'v1.0',
+      version: '1.0',
       updateComponents: {
         surfaceId: 'gallery-mcp-app-tool-call',
         components: [
@@ -56,14 +56,14 @@ const toolCallExample = {
 const dataBindingExample = {
   messages: [
     {
-      version: 'v1.0',
+      version: '1.0',
       createSurface: {
         surfaceId: 'gallery-mcp-app-data-binding',
         catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
       },
     },
     {
-      version: 'v1.0',
+      version: '1.0',
       updateDataModel: {
         surfaceId: 'gallery-mcp-app-data-binding',
         value: {
@@ -75,7 +75,7 @@ const dataBindingExample = {
       },
     },
     {
-      version: 'v1.0',
+      version: '1.0',
       updateComponents: {
         surfaceId: 'gallery-mcp-app-data-binding',
         components: [

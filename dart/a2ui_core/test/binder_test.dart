@@ -720,7 +720,7 @@ void main() {
           's-v1',
           defaultCatalog:
               catalog.copyWith(protocolVersion: A2uiProtocolVersion.v1_0),
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
         );
         addTearDown(v1Surface.dispose);
         v1Surface.dataModel.set('/val', 'initial');
@@ -767,7 +767,7 @@ void main() {
         final errors = <A2uiRendererError>[];
         final v1Surface = SurfaceModel<ComponentApi>(
           's-v1-fn',
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
           defaultCatalog: Catalog<ComponentApi, FunctionImplementation>(
             id: 'test-v1',
             protocolVersion: A2uiProtocolVersion.v1_0,
@@ -857,7 +857,7 @@ void main() {
         's-v1-tpl',
         defaultCatalog:
             catalog.copyWith(protocolVersion: A2uiProtocolVersion.v1_0),
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
       );
       addTearDown(v1Surface.dispose);
       v1Surface.dataModel.set('/todos', [

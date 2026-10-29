@@ -34,6 +34,8 @@ jobs:
     if: github.repository == 'a2ui-project/a2ui'
     runs-on: ubuntu-latest
     permissions:
+      # Lets create_issue.sh find the last passing run.
+      actions: read
       contents: read
       issues: write
     steps:
