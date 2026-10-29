@@ -19,6 +19,7 @@ import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from '../cat
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {EventEmitter, EventSource} from '../common/events.js';
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
+import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {A2uiExpressionError, A2uiRpcError, RpcErrorCode} from '../errors.js';
 import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
 
@@ -187,7 +188,7 @@ export class SurfaceModel<
    */
   agentFunctionCaller?: AgentFunctionCaller;
 
-  /** Agent function calls awaiting a response, keyed by call. */
+  /** Agent function calls awaiting a response, keyed by canonical call key. */
   private readonly inFlightAgentCalls = new Map<
     string,
     {
@@ -196,6 +197,11 @@ export class SurfaceModel<
       hasUnabortedCaller: boolean;
     }
   >();
+  /**
+   * Settled reactive agent function answers, keyed by canonical call key in
+   * insertion/access order (bounded to {@link MAX_AGENT_CALL_CACHE_Entries}).
+   */
+  private readonly settledAgentCalls = new Map<string, {value: unknown}>();
   private isDisposed = false;
 
   /**
@@ -356,18 +362,26 @@ export class SurfaceModel<
   /**
    * Sends a function call to the agent through {@link agentFunctionCaller}.
    *
-   * A call identical to one still awaiting its response (same catalog,
-   * function and arguments) shares that response instead of sending another
-   * message, so re-evaluating a binding does not repeat the request.
+   * For reactive bindings, a settled answer for the same catalog, function and
+   * canonical arguments is returned from the surface cache, and a call
+   * identical to one still awaiting its response shares that response instead
+   * of sending another message, so re-evaluating a binding or flipping a bound
+   * argument back does not repeat the request. Failed calls are evicted on
+   * failure, and imperative action calls (`bypassCache`) always execute fresh.
    *
    * @param call The call to send, naming the catalog it resolved to.
    * @param abortSignal Optional signal cancelling this caller's interest before
    *   the request leaves on the next microtask.
+   * @param options Optional settings (`bypassCache` for imperative action calls).
    * @returns A promise resolving to the agent's result.
    * @throws {A2uiExpressionError} Through the returned promise, if no
    *   {@link agentFunctionCaller} is set.
    */
-  callAgentFunction(call: AgentFunctionCall, abortSignal?: AbortSignal): Promise<unknown> {
+  callAgentFunction(
+    call: AgentFunctionCall,
+    abortSignal?: AbortSignal,
+    options?: {bypassCache?: boolean},
+  ): Promise<unknown> {
     if (this.isDisposed) {
       return Promise.reject(
         new A2uiRpcError(`Surface '${this.id}' has been disposed.`, RpcErrorCode.CANCELLED),
@@ -385,15 +399,25 @@ export class SurfaceModel<
     if (abortSignal?.aborted) {
       return Promise.resolve(undefined);
     }
-    const key = agentCallKey(call);
-    const inFlight = key === undefined ? undefined : this.inFlightAgentCalls.get(key);
-    if (inFlight) {
-      if (abortSignal) {
-        inFlight.signals.add(abortSignal);
-      } else {
-        inFlight.hasUnabortedCaller = true;
+    const bypassCache = Boolean(options?.bypassCache);
+    const key = bypassCache ? undefined : agentCallKey(call);
+    if (key !== undefined) {
+      const settled = this.settledAgentCalls.get(key);
+      if (settled !== undefined) {
+        // Refresh LRU order.
+        this.settledAgentCalls.delete(key);
+        this.settledAgentCalls.set(key, settled);
+        return Promise.resolve(settled.value);
       }
-      return inFlight.promise;
+      const inFlight = this.inFlightAgentCalls.get(key);
+      if (inFlight) {
+        if (abortSignal) {
+          inFlight.signals.add(abortSignal);
+        } else {
+          inFlight.hasUnabortedCaller = true;
+        }
+        return inFlight.promise;
+      }
     }
     const entry = {
       promise: undefined as unknown as Promise<unknown>,
@@ -417,7 +441,26 @@ export class SurfaceModel<
         release();
         return undefined;
       }
-      return caller(call);
+      return caller(call).then(
+        val => {
+          release();
+          if (key !== undefined && !this.isDisposed) {
+            this.settledAgentCalls.delete(key);
+            if (this.settledAgentCalls.size >= MAX_AGENT_CALL_CACHE_ENTRIES) {
+              const oldestKey = this.settledAgentCalls.keys().next().value;
+              if (oldestKey !== undefined) {
+                this.settledAgentCalls.delete(oldestKey);
+              }
+            }
+            this.settledAgentCalls.set(key, {value: val});
+          }
+          return val;
+        },
+        err => {
+          release();
+          throw err;
+        },
+      );
     });
     entry.promise = pending;
     if (key !== undefined) {
@@ -453,11 +496,32 @@ export class SurfaceModel<
       return;
     }
 
-    const rawContext = eventPayload.context;
+    const settledContext = settleDeep(eventPayload.context);
+    const rawContext = isThenable(settledContext) ? await settledContext : settledContext;
+    if (findFailedArgument(rawContext)) {
+      return;
+    }
     const context =
       rawContext && typeof rawContext === 'object' && !Array.isArray(rawContext)
         ? (rawContext as Record<string, unknown>)
         : {};
+
+    let resolvedUserMessage = eventPayload.userMessage;
+    if (resolvedUserMessage !== undefined) {
+      const settledMsg = settleDeep(resolvedUserMessage);
+      resolvedUserMessage = isThenable(settledMsg) ? await settledMsg : settledMsg;
+      if (findFailedArgument(resolvedUserMessage)) {
+        return;
+      }
+      if (typeof resolvedUserMessage !== 'string') {
+        await this.dispatchError({
+          code: 'INVALID_ACTION',
+          surfaceId: this.id,
+          message: "Action event 'userMessage' must resolve to a string.",
+        });
+        return;
+      }
+    }
 
     const actionToDispatch: ActionPayload = {
       name,
@@ -474,8 +538,8 @@ export class SurfaceModel<
       actionToDispatch.catalogId = catalogId;
     }
 
-    if (typeof eventPayload.userMessage === 'string' && eventPayload.userMessage.length > 0) {
-      actionToDispatch.userMessage = eventPayload.userMessage;
+    if (typeof resolvedUserMessage === 'string' && resolvedUserMessage.length > 0) {
+      actionToDispatch.userMessage = resolvedUserMessage;
     }
 
     await this._onAction.emit(actionToDispatch);
@@ -514,12 +578,37 @@ export class SurfaceModel<
     this.isDisposed = true;
     this.agentFunctionCaller = undefined;
     this.inFlightAgentCalls.clear();
+    this.settledAgentCalls.clear();
     this.dataModel.dispose();
     this.componentsModel.dispose();
     this._onAction.dispose();
     this._onError.dispose();
     this._onWarning.dispose();
   }
+}
+
+/** Maximum number of settled reactive agent call answers cached per surface. */
+const MAX_AGENT_CALL_CACHE_ENTRIES = 256;
+
+/**
+ * Recursively sorts plain-object keys while preserving array element order so
+ * structurally equivalent argument maps produce the same cache key.
+ */
+function canonicalizeJson(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeJson);
+  }
+  if (value !== null && typeof value === 'object') {
+    const proto = Object.getPrototypeOf(value);
+    if (proto === Object.prototype || proto === null) {
+      const sorted: Record<string, unknown> = {};
+      for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+        sorted[key] = canonicalizeJson((value as Record<string, unknown>)[key]);
+      }
+      return sorted;
+    }
+  }
+  return value;
 }
 
 /**
@@ -531,7 +620,7 @@ export class SurfaceModel<
  */
 function agentCallKey(call: AgentFunctionCall): string | undefined {
   try {
-    return JSON.stringify([call.catalogId, call['@call'], call.args]);
+    return JSON.stringify([call.catalogId, call['@call'], canonicalizeJson(call.args)]);
   } catch {
     return undefined;
   }

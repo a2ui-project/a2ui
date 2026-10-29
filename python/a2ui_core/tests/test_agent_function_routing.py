@@ -315,7 +315,7 @@ async def test_reports_timeout_as_expression_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_identical_calls_awaiting_response_share_one_request() -> None:
+async def test_identical_calls_share_request_and_cache_settled_answer() -> None:
     h = _Harness()
     call = {"@call": "fetchFxRate", "args": {"base": "EUR"}}
     first = h.ctx.resolve_dynamic_value(call, peek=False)
@@ -326,8 +326,102 @@ async def test_identical_calls_awaiting_response_share_one_request() -> None:
     await _flush()
     assert (first.peek(), second.peek()) == (1.08, 1.08)
 
-    # Once answered, the same call is sent again.
-    h.ctx.resolve_dynamic_value(call)
+    # Once answered, reactive bindings reuse the settled answer from the surface cache.
+    assert h.ctx.resolve_dynamic_value(call) == 1.08
+    assert len(h.outbound) == 1
+
+
+@pytest.mark.asyncio
+async def test_reactive_binding_flips_back_to_cached_answer_without_rpc() -> None:
+    h = _Harness()
+    h.surface.data_model.set("/base", "EUR")
+    changes: list[Any] = []
+    sub = h.ctx.subscribe_dynamic_value(
+        {"@call": "fetchFxRate", "args": {"base": {"@path": "/base"}}},
+        changes.append,
+    )
+    assert sub.value is None
+    assert len(h.outbound) == 1
+
+    h.respond(0, value=1.08)
+    await _flush()
+    assert changes == [1.08]
+
+    h.surface.data_model.set("/base", "USD")
+    assert len(h.outbound) == 2
+    h.respond(1, value=1.0)
+    await _flush()
+    assert changes == [1.08, None, 1.0]
+
+    # Flipping back to EUR resolves immediately from the surface cache.
+    h.surface.data_model.set("/base", "EUR")
+    assert len(h.outbound) == 2
+    assert changes == [1.08, None, 1.0, 1.08]
+    sub.unsubscribe()
+
+
+@pytest.mark.asyncio
+async def test_failed_call_is_evicted_so_retry_sends_new_request() -> None:
+    h = _Harness()
+    call = {"@call": "fetchFxRate", "args": {"base": "EUR"}}
+    first = h.ctx.resolve_dynamic_value(call, peek=False)
+    h.respond(0, error={"code": "UNKNOWN_FUNCTION", "message": "temporary error"})
+    await _flush()
+    assert first.peek() is None
+    assert len(h.errors) == 1
+
+    second = h.ctx.resolve_dynamic_value(call, peek=False)
+    assert len(h.outbound) == 2
+    h.respond(1, value=1.08)
+    await _flush()
+    assert second.peek() == 1.08
+
+
+@pytest.mark.asyncio
+async def test_action_calls_never_share_or_cache() -> None:
+    h = _Harness()
+    call = {"@call": "fetchFxRate", "args": {"base": "EUR"}}
+    # Populate the reactive cache first.
+    reactive = h.ctx.resolve_dynamic_value(call, peek=False)
+    h.respond(0, value=1.08)
+    await _flush()
+    assert reactive.peek() == 1.08
+
+    # Two concurrent action invocations each send a fresh request and ignore the cache.
+    h.ctx.resolve_action({"functionCall": call})
+    h.ctx.resolve_action({"functionCall": call})
+    assert len(h.outbound) == 3
+
+
+@pytest.mark.asyncio
+async def test_event_action_context_waits_for_agent_function_and_bypasses_cache() -> (
+    None
+):
+    h = _Harness()
+    dispatched: list[dict[str, Any]] = []
+    h.surface.on_action.subscribe(dispatched.append)
+
+    action = {
+        "event": {
+            "name": "checkout",
+            "context": {
+                "rate": {"@call": "fetchFxRate", "args": {"base": "EUR"}},
+            },
+        }
+    }
+    resolved = h.ctx.resolve_action(action)
+    h.surface.dispatch_action(resolved, "btn1")
+    assert len(h.outbound) == 1
+    assert dispatched == []
+
+    h.respond(0, value=1.08)
+    await _flush()
+    assert len(dispatched) == 1
+    assert dispatched[0]["context"] == {"rate": 1.08}
+
+    # A second event action dispatches a fresh callAgentFunction.
+    resolved2 = h.ctx.resolve_action(action)
+    h.surface.dispatch_action(resolved2, "btn1")
     assert len(h.outbound) == 2
 
 
@@ -449,7 +543,11 @@ async def test_surface_call_agent_function_shares_in_flight_calls() -> None:
     futures[0].set_result(2)
     assert await first == 2
     await _flush()
-    surface.call_agent_function(call)
+    # Settled answer is cached for reactive calls, bypassed when bypass_cache=True.
+    cached = surface.call_agent_function(call)
+    assert await cached == 2
+    assert len(calls) == 1
+    surface.call_agent_function(call, bypass_cache=True)
     assert len(calls) == 2
 
 

@@ -13,21 +13,22 @@
 # limitations under the License.
 
 import asyncio
+from collections import OrderedDict
+from collections.abc import Awaitable, Callable, Sequence
 import copy
-import json
-import warnings
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, cast
-from ..common.events import EventSource
+import json
+from typing import Any
+import warnings
+
+from ..catalog import CatalogApi
+from ..common.events import AbortSignal, EventSource
+from ..exceptions import A2uiCatalogError, A2uiExpressionError
+from ..schema import ProtocolVersion
 from .data_model import DataModel
 from .surface_components_model import SurfaceComponentsModel
-from ..catalog import CatalogApi
-from ..schema import ProtocolVersion
 
-
-from collections.abc import Sequence
-from ..exceptions import A2uiCatalogError, A2uiExpressionError
+_MAX_AGENT_CALL_CACHE_ENTRIES = 256
 
 
 @dataclass(frozen=True)
@@ -126,6 +127,8 @@ class SurfaceModel:
         self.agent_function_caller: AgentFunctionCaller | None = None
         # Agent function calls awaiting a response, keyed by call.
         self._in_flight_agent_calls: dict[str, asyncio.Future[Any]] = {}
+        # Settled reactive agent function call answers, bounded by LRU order.
+        self._settled_agent_calls: OrderedDict[str, Any] = OrderedDict()
         self._disposed = False
 
     @property
@@ -173,16 +176,28 @@ class SurfaceModel:
             )
         return self.default_catalog
 
-    def call_agent_function(self, call: AgentFunctionCall) -> asyncio.Future[Any]:
+    def call_agent_function(
+        self,
+        call: AgentFunctionCall,
+        *,
+        abort_signal: AbortSignal | None = None,
+        bypass_cache: bool = False,
+    ) -> asyncio.Future[Any]:
         """Sends a function call to the agent through `agent_function_caller`.
 
-        A call identical to one still awaiting its response (same catalog,
-        function and arguments) shares that response instead of sending
-        another message, so re-evaluating a binding does not repeat the
-        request.
+        For reactive bindings, a settled answer for the same catalog, function
+        and canonical arguments is returned from the surface cache, and a call
+        identical to one still awaiting its response shares that response
+        instead of sending another message, so re-evaluating a binding or
+        flipping a bound argument back does not repeat the request. Failed calls
+        are evicted on failure, and imperative action calls (`bypass_cache`)
+        always execute fresh.
 
         Args:
             call: The call to send, naming the catalog it resolved to.
+            abort_signal: Optional signal cancelling this caller's interest.
+            bypass_cache: When True, bypasses in-flight sharing and settled
+                answer caching (used for imperative action calls).
 
         Returns:
             A future resolving to the agent's result.
@@ -196,8 +211,18 @@ class SurfaceModel:
                 f"Function '{call.call}' is not implemented locally and surface"
                 f" '{self.id}' cannot call the agent."
             )
-        key = _agent_call_key(call)
+        key = None if bypass_cache else _agent_call_key(call)
         if key is not None:
+            if key in self._settled_agent_calls:
+                self._settled_agent_calls.move_to_end(key)
+                settled_val = self._settled_agent_calls[key]
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.get_event_loop_policy().get_event_loop()
+                settled_fut: asyncio.Future[Any] = loop.create_future()
+                settled_fut.set_result(settled_val)
+                return settled_fut
             in_flight = self._in_flight_agent_calls.get(key)
             if in_flight is not None:
                 return in_flight
@@ -208,6 +233,17 @@ class SurfaceModel:
             def _release(done: asyncio.Future[Any]) -> None:
                 if self._in_flight_agent_calls.get(key) is done:
                     del self._in_flight_agent_calls[key]
+                if (
+                    not self._disposed
+                    and not done.cancelled()
+                    and done.exception() is None
+                ):
+                    self._settled_agent_calls.pop(key, None)
+                    while (
+                        len(self._settled_agent_calls) >= _MAX_AGENT_CALL_CACHE_ENTRIES
+                    ):
+                        self._settled_agent_calls.popitem(last=False)
+                    self._settled_agent_calls[key] = done.result()
 
             pending.add_done_callback(_release)
         return pending
@@ -238,26 +274,74 @@ class SurfaceModel:
             catalog_id = event_dict.get("catalogId")
 
         raw_context = event_dict.get("context")
-        context = raw_context if isinstance(raw_context, dict) else {}
+        raw_user_message = event_dict.get("userMessage")
+        has_user_message = "userMessage" in event_dict and raw_user_message is not None
 
-        action_event: dict[str, Any] = {
-            "name": name,
-            "surfaceId": self.id,
-            "sourceComponentId": source_component_id,
-            "timestamp": (
-                datetime.datetime.now(datetime.timezone.utc)
-                .isoformat()
-                .replace("+00:00", "Z")
-            ),
-            "context": context,
-        }
-        if catalog_id and isinstance(catalog_id, str):
-            action_event["catalogId"] = catalog_id
-        user_message = event_dict.get("userMessage")
-        if isinstance(user_message, str) and user_message:
-            action_event["userMessage"] = user_message
+        pending_signals: list[Any] = []
+        _collect_pending_signals(raw_context, pending_signals)
+        user_message_had_signal = False
+        if has_user_message:
+            before_count = len(pending_signals)
+            _collect_pending_signals(raw_user_message, pending_signals)
+            user_message_had_signal = len(
+                pending_signals
+            ) > before_count or _is_settleable_signal(raw_user_message)
 
-        self.on_action.emit(action_event)
+        def _finish() -> None:
+            if self._disposed:
+                return
+            if _contains_failed_signal(raw_context) or (
+                has_user_message and _contains_failed_signal(raw_user_message)
+            ):
+                return
+            unwrapped_ctx = _unwrap_signals(raw_context)
+            context = unwrapped_ctx if isinstance(unwrapped_ctx, dict) else {}
+
+            resolved_um: Any = None
+            if has_user_message:
+                resolved_um = _unwrap_signals(raw_user_message)
+                if (
+                    user_message_had_signal
+                    and resolved_um is not None
+                    and not isinstance(resolved_um, str)
+                ):
+                    self.dispatch_error({
+                        "code": "INVALID_ACTION",
+                        "message": "Action event 'userMessage' must be a string.",
+                    })
+                    return
+
+            action_event: dict[str, Any] = {
+                "name": name,
+                "surfaceId": self.id,
+                "sourceComponentId": source_component_id,
+                "timestamp": (
+                    datetime.datetime.now(datetime.timezone.utc)
+                    .isoformat()
+                    .replace("+00:00", "Z")
+                ),
+                "context": context,
+            }
+            if catalog_id and isinstance(catalog_id, str):
+                action_event["catalogId"] = catalog_id
+            if isinstance(resolved_um, str) and resolved_um:
+                action_event["userMessage"] = resolved_um
+
+            self.on_action.emit(action_event)
+
+        if not pending_signals:
+            _finish()
+            return
+
+        remaining = [len(pending_signals)]
+
+        def _on_settled() -> None:
+            remaining[0] -= 1
+            if remaining[0] == 0:
+                _finish()
+
+        for sig in pending_signals:
+            sig.when_settled(_on_settled)
 
     def dispatch_error(self, error: dict[str, Any]) -> None:
         """Dispatches an error from this surface to listeners."""
@@ -284,6 +368,7 @@ class SurfaceModel:
         self._disposed = True
         self.agent_function_caller = None
         self._in_flight_agent_calls.clear()
+        self._settled_agent_calls.clear()
         if hasattr(self.data_model, "dispose") and callable(self.data_model.dispose):
             try:
                 self.data_model.dispose()
@@ -307,3 +392,43 @@ class SurfaceModel:
         self.on_action.dispose()
         self.on_error.dispose()
         self.on_warning.dispose()
+
+
+def _is_settleable_signal(value: Any) -> bool:
+    return (
+        hasattr(value, "settled")
+        and hasattr(value, "failed")
+        and callable(getattr(value, "when_settled", None))
+    )
+
+
+def _collect_pending_signals(value: Any, out: list[Any]) -> None:
+    if _is_settleable_signal(value):
+        if not value.settled:
+            out.append(value)
+    elif isinstance(value, dict):
+        for item in value.values():
+            _collect_pending_signals(item, out)
+    elif isinstance(value, list):
+        for item in value:
+            _collect_pending_signals(item, out)
+
+
+def _contains_failed_signal(value: Any) -> bool:
+    if _is_settleable_signal(value):
+        return bool(value.failed)
+    if isinstance(value, dict):
+        return any(_contains_failed_signal(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_failed_signal(item) for item in value)
+    return False
+
+
+def _unwrap_signals(value: Any) -> Any:
+    if _is_settleable_signal(value):
+        return value.peek() if callable(getattr(value, "peek", None)) else value.value
+    if isinstance(value, dict):
+        return {k: _unwrap_signals(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_unwrap_signals(item) for item in value]
+    return value
