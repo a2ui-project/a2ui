@@ -33,7 +33,7 @@
   `generate_base_rules()` with `schema_to_prompt()` (such as
   `SendA2uiToClientToolset` users) should use `DEFAULT_WORKFLOW_RULES` instead.
   [#3559](https://github.com/a2ui-project/a2ui/pull/3559)
-- The Direct JSON prompt rule says the JSON part is a JSON array of A2UI messages that follows the schema, instead of "a single, raw JSON object (usually a list of A2UI messages)" that "MUST validate" against it. [#3721](https://github.com/a2ui-project/a2ui/pull/3721)
+- The Direct JSON prompt rule says the JSON part is a JSON array of A2UI messages, each following the schema, instead of "a single, raw JSON object (usually a list of A2UI messages)" that "MUST validate" against it. [#3721](https://github.com/a2ui-project/a2ui/pull/3721)
 - `open_stream` takes `after_rejected_block="continue"` to read past a
   rejected block. The stream then returns an `ErrorPart` in its place, skips
   the rest of the block, and reads the text and blocks after it; the messages

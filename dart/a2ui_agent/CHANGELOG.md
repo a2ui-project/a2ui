@@ -349,7 +349,7 @@
 - An Express integer too large for `int` compiles to a double instead of
   throwing `FormatException`.
 - The Direct JSON prompt rule says the JSON part is a JSON array of A2UI
-  messages that follows the schema, instead of "a single, raw JSON object
+  messages, each following the schema, instead of "a single, raw JSON object
   (usually a list of A2UI messages)" that "MUST validate" against it
   ([#3721](https://github.com/a2ui-project/a2ui/pull/3721)).
 
