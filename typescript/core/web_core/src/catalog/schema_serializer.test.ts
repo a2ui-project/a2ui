@@ -98,7 +98,7 @@ function evaluateJsonSchema(
       (schema.type === 'null' && value === null);
     if (!ok) return fail;
   }
-  if ('const' in schema && !isDeepStrictEqual(value, schema.const)) return fail;
+  if (Object.hasOwn(schema, 'const') && !isDeepStrictEqual(value, schema.const)) return fail;
   if (Array.isArray(schema.enum) && !schema.enum.some(entry => isDeepStrictEqual(value, entry))) {
     return fail;
   }
@@ -109,12 +109,12 @@ function evaluateJsonSchema(
   if (isPlainRecord(value)) {
     if (Array.isArray(schema.required)) {
       for (const reqKey of schema.required) {
-        if (typeof reqKey === 'string' && !(reqKey in value)) return fail;
+        if (typeof reqKey === 'string' && !Object.hasOwn(value, reqKey)) return fail;
       }
     }
     if (isPlainRecord(schema.properties)) {
       for (const [propKey, propSchema] of Object.entries(schema.properties)) {
-        if (propKey in value) {
+        if (Object.hasOwn(value, propKey)) {
           if (!evaluateJsonSchema(value[propKey], propSchema, docName, docs).valid) return fail;
           localEvaluated.add(propKey);
           evaluatedProps.add(propKey);
@@ -133,7 +133,10 @@ function evaluateJsonSchema(
         }
       }
     }
-    if ('additionalProperties' in schema && schema.additionalProperties !== undefined) {
+    if (
+      Object.hasOwn(schema, 'additionalProperties') &&
+      schema.additionalProperties !== undefined
+    ) {
       for (const propKey of Object.keys(value)) {
         if (!localEvaluated.has(propKey)) {
           if (
@@ -192,13 +195,13 @@ function evaluateJsonSchema(
       for (const p of m.evaluatedProps) evaluatedProps.add(p);
     }
   }
-  if ('not' in schema && schema.not !== undefined) {
+  if (Object.hasOwn(schema, 'not') && schema.not !== undefined) {
     if (evaluateJsonSchema(value, schema.not, docName, docs).valid) return fail;
   }
 
   if (
     isPlainRecord(value) &&
-    'unevaluatedProperties' in schema &&
+    Object.hasOwn(schema, 'unevaluatedProperties') &&
     schema.unevaluatedProperties !== undefined
   ) {
     for (const propKey of Object.keys(value)) {
@@ -431,7 +434,7 @@ describe('Catalog.toJson', () => {
     assert.deepStrictEqual(text.properties.component, {const: 'Text'});
     assert.ok(text.required.includes('component'));
     assert.ok(!('id' in text.properties));
-    assert.strictEqual('unevaluatedProperties' in text, false);
+    assert.strictEqual(Object.hasOwn(text, 'unevaluatedProperties'), false);
   });
 
   it('omits unevaluatedProperties: false on v1.0 code-defined components while keeping v0.9 closed and passthrough open', () => {
@@ -459,8 +462,8 @@ describe('Catalog.toJson', () => {
       CatchallComp,
     ]).toJson();
     const v10Comps = v10Doc.components as Record<string, Record<string, unknown>>;
-    assert.strictEqual('unevaluatedProperties' in v10Comps.DefaultComp, false);
-    assert.strictEqual('unevaluatedProperties' in v10Comps.StrictComp, false);
+    assert.strictEqual(Object.hasOwn(v10Comps.DefaultComp, 'unevaluatedProperties'), false);
+    assert.strictEqual(Object.hasOwn(v10Comps.StrictComp, 'unevaluatedProperties'), false);
     assert.strictEqual(v10Comps.OpenComp.unevaluatedProperties, true);
     assert.deepStrictEqual(v10Comps.CatchallComp.unevaluatedProperties, {type: 'number'});
 

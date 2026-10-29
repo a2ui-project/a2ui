@@ -416,8 +416,14 @@ describe('Catalog.validationSchema & schema_generator', () => {
       string,
       Record<string, unknown>
     >;
-    assert.strictEqual('unevaluatedProperties' in codedComponents['SimpleWidget'], false);
-    assert.strictEqual('unevaluatedProperties' in codedComponents['StrictWidget'], false);
+    assert.strictEqual(
+      Object.hasOwn(codedComponents['SimpleWidget'], 'unevaluatedProperties'),
+      false,
+    );
+    assert.strictEqual(
+      Object.hasOwn(codedComponents['StrictWidget'], 'unevaluatedProperties'),
+      false,
+    );
     assert.strictEqual(codedComponents['OpenWidget'].unevaluatedProperties, true);
 
     const loaded = Catalog.fromJson({

@@ -1,6 +1,6 @@
 ## Unreleased
 
-- (v1_0) `Catalog.toJson()` no longer emits `unevaluatedProperties: false` on code-defined component schemas, matching published v1.0 catalog documents so that components reloaded with `Catalog.fromJson()` accept `ComponentCommon` fields (`id`, `catalogId`, `accessibility`, and `metadata`) in `Catalog.validationSchema` and protocol JSON Schema validation, while preserving explicit open closure (`unevaluatedProperties: true` or a catchall schema) across `Catalog.toJson()` and `Catalog.validationSchema` ([#3513](https://github.com/a2ui-project/a2ui/issues/3513)).
+- (v1_0) `Catalog.toJson()` no longer emits `unevaluatedProperties: false` on code-defined component schemas, matching published v1.0 catalog documents so that components reloaded with `Catalog.fromJson()` accept `ComponentCommon` fields (`id`, `catalogId`, `accessibility`, and `metadata`) in `Catalog.validationSchema` and protocol JSON Schema validation, while preserving explicit open closure (`unevaluatedProperties: true` or a catchall schema) across `Catalog.toJson()` and `Catalog.validationSchema` ([#3513](https://github.com/a2ui-project/a2ui/issues/3513), [#3760](https://github.com/a2ui-project/a2ui/pull/3760)).
 
 ## 0.15.0
 
