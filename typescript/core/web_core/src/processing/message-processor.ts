@@ -182,6 +182,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private readonly registeredCatalogs: Catalog<any>[];
   /** The processor's own rules, or the rules of the call in progress. */
   private validationConfig?: ValidationConfig;
+  /** Whether outbound messages, and so `callAgentFunction`, can reach the agent. */
+  private readonly hasOutboundListener: boolean;
   /**
    * What the last check of each surface's components found, under a config
    * that defers the reference and reachability checks, with the number of
@@ -209,6 +211,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       outboundListener: options?.outboundListener,
       defaultTimeoutMs: options?.defaultTimeoutMs,
     });
+    this.hasOutboundListener = Boolean(options?.outboundListener);
     this.validationConfig = options?.validationConfig
       ? withStrictDefaults(options.validationConfig)
       : undefined;
@@ -887,6 +890,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       op.metadata,
       surfaceVersion,
     );
+    // From v1.0, a function the renderer does not implement runs on the agent.
+    // Without an outbound listener there is no way to reach it, so such calls
+    // keep failing locally.
+    if (this.hasOutboundListener && isAtLeastVersion(surface.protocolVersion, '1.0')) {
+      surface.agentFunctionCaller = call =>
+        this.rpc.callAgentFunction(surfaceId, call, {version: surface.protocolVersion});
+    }
     this.model.addSurface(surface);
 
     if (dataModel) {

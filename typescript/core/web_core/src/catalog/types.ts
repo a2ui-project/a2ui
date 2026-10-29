@@ -911,17 +911,54 @@ function createCatalogInvoker<F extends FunctionApi>(
   protocolVersion: ProtocolVersion | string,
   functions: ReadonlyMap<string, F>,
 ): FunctionInvoker {
+  const atLeastV10 = isAtLeastVersion(protocolVersion, SpecVersion.V1_0);
   return (name, rawArgs, ctx, abortSignal) => {
     const fn =
       functions.get(name) ??
-      (isAtLeastVersion(protocolVersion, SpecVersion.V1_0) && name === '@index'
-        ? (IndexImplementation as unknown as F)
-        : undefined);
+      (atLeastV10 && name === '@index' ? (IndexImplementation as unknown as F) : undefined);
+    const execute = (fn as Partial<FunctionImplementation> | undefined)?.execute;
+
+    if (typeof execute !== 'function') {
+      // From v1.0, a function the renderer does not implement (undeclared, or
+      // declared schema-only) runs on the agent: the fallback routing of
+      // `callAgentFunction`. The call always names this catalog, so the agent
+      // never has to know the surface's default catalog.
+      const surface = atLeastV10 && !name.startsWith('@') ? ctx?.surface : undefined;
+      if (surface?.agentFunctionCaller) {
+        if (fn) {
+          assertUserActivation(fn, ctx);
+        }
+        const sendToAgent = (resolvedArgs: unknown): Promise<unknown> => {
+          let args = (resolvedArgs ?? {}) as Record<string, unknown>;
+          if (fn) {
+            // A declared function's arguments are checked against its schema
+            // before the call leaves the renderer.
+            args = coerceValidationResults(fn.schema, args) as Record<string, unknown>;
+            const parsed = fn.schema.safeParse(args);
+            if (!parsed.success) {
+              throw new A2uiExpressionError(
+                `Validation failed for function '${name}': ${parsed.error.message}`,
+                name,
+                parsed.error.errors,
+              );
+            }
+          }
+          return surface.callAgentFunction({'@call': name, catalogId, args});
+        };
+        const settledArgs = settleDeep(rawArgs);
+        if (!isThenable(settledArgs)) {
+          return sendToAgent(settledArgs);
+        }
+        return Promise.resolve(settledArgs).then(resolvedArgs =>
+          abortSignal?.aborted ? undefined : sendToAgent(resolvedArgs),
+        );
+      }
+    }
+
     if (!fn) {
       throw new A2uiExpressionError(`Function not found in catalog '${catalogId}': ${name}`, name);
     }
     assertUserActivation(fn, ctx);
-    const execute = (fn as Partial<FunctionImplementation>).execute;
     if (typeof execute !== 'function') {
       throw new A2uiExpressionError(
         `Function '${name}' in catalog '${catalogId}' is schema-only and has no implementation.`,
@@ -934,9 +971,7 @@ function createCatalogInvoker<F extends FunctionApi>(
         // From v1.0 a `DynamicBoolean` argument may resolve to the
         // `ValidationResult` a validation function returns; it is read by its
         // validity, as the specification defines the type.
-        const args = isAtLeastVersion(protocolVersion, SpecVersion.V1_0)
-          ? coerceValidationResults(fn.schema, resolvedArgs)
-          : resolvedArgs;
+        const args = atLeastV10 ? coerceValidationResults(fn.schema, resolvedArgs) : resolvedArgs;
         const safeArgs = fn.schema.parse(args);
         return execute.call(fn, safeArgs, ctx, abortSignal);
       } catch (e: any) {

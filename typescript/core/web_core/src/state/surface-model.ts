@@ -19,6 +19,7 @@ import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from '../cat
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {EventEmitter, EventSource} from '../common/events.js';
 import {toCanonicalVersion} from '../common/semver.js';
+import {A2uiExpressionError} from '../errors.js';
 import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
 
 /**
@@ -95,6 +96,30 @@ export interface A2uiWarningPayload {
 export type ActionListener = (action: ActionPayload) => void | Promise<void>;
 
 /**
+ * A function call that a surface routes to the agent.
+ *
+ * Unlike a `FunctionCall` in a payload, it always names the catalog the call
+ * resolved to, and its arguments are resolved values.
+ */
+export interface AgentFunctionCall {
+  /** Name of the function to call. */
+  '@call': string;
+  /** Identifier of the catalog the call resolved to on the surface. */
+  catalogId: string;
+  /** Resolved argument values. */
+  args: Record<string, unknown>;
+}
+
+/**
+ * Sends a function call to the agent and resolves with the agent's result.
+ *
+ * `MessageProcessor` installs one on each v1.0 surface when it has an
+ * outbound listener; it dispatches `callAgentFunction` through the
+ * processor's `RpcHandler`.
+ */
+export type AgentFunctionCaller = (call: AgentFunctionCall) => Promise<unknown>;
+
+/**
  * State model for a single UI surface.
  *
  * Coordinates data binding, component state, and action dispatching.
@@ -150,6 +175,19 @@ export class SurfaceModel<
 
   /** Whether the surface sends its full data model back with actions. */
   readonly sendDataModel: boolean;
+
+  /**
+   * Sends calls to functions the renderer does not implement to the agent.
+   *
+   * When set, a v1.0 catalog's invoker routes a call whose function has no
+   * local implementation in that catalog (undeclared, or declared
+   * schema-only) here instead of failing, as the v1.0 fallback routing
+   * defines. When unset, such a call fails with an `EXPRESSION_ERROR`.
+   */
+  agentFunctionCaller?: AgentFunctionCaller;
+
+  /** Agent function calls awaiting a response, keyed by call. */
+  private readonly inFlightAgentCalls = new Map<string, Promise<unknown>>();
 
   /**
    * Initializes a new `SurfaceModel` instance.
@@ -300,6 +338,46 @@ export class SurfaceModel<
   }
 
   /**
+   * Sends a function call to the agent through {@link agentFunctionCaller}.
+   *
+   * A call identical to one still awaiting its response (same catalog,
+   * function and arguments) shares that response instead of sending another
+   * message, so re-evaluating a binding does not repeat the request.
+   *
+   * @param call The call to send, naming the catalog it resolved to.
+   * @returns A promise resolving to the agent's result.
+   * @throws {A2uiExpressionError} Through the returned promise, if no
+   *   {@link agentFunctionCaller} is set.
+   */
+  callAgentFunction(call: AgentFunctionCall): Promise<unknown> {
+    const caller = this.agentFunctionCaller;
+    if (!caller) {
+      return Promise.reject(
+        new A2uiExpressionError(
+          `Function '${call['@call']}' is not implemented locally and surface '${this.id}' cannot call the agent.`,
+          call['@call'],
+        ),
+      );
+    }
+    const key = agentCallKey(call);
+    const inFlight = key === undefined ? undefined : this.inFlightAgentCalls.get(key);
+    if (inFlight) {
+      return inFlight;
+    }
+    const pending = Promise.resolve().then(() => caller(call));
+    if (key !== undefined) {
+      this.inFlightAgentCalls.set(key, pending);
+      const release = () => {
+        if (this.inFlightAgentCalls.get(key) === pending) {
+          this.inFlightAgentCalls.delete(key);
+        }
+      };
+      pending.then(release, release);
+    }
+    return pending;
+  }
+
+  /**
    * Dispatches an action from this surface to registered listeners.
    *
    * Resolves event action payload details, propagates any explicit `catalogId`,
@@ -383,11 +461,27 @@ export class SurfaceModel<
    * Disposes the surface, data model, components, and event emitters.
    */
   dispose(): void {
+    this.inFlightAgentCalls.clear();
     this.dataModel.dispose();
     this.componentsModel.dispose();
     this._onAction.dispose();
     this._onError.dispose();
     this._onWarning.dispose();
+  }
+}
+
+/**
+ * Builds the key that identifies identical agent function calls.
+ *
+ * @param call The agent function call.
+ * @returns The key, or `undefined` if the arguments cannot be serialized, in
+ *   which case the call is not shared.
+ */
+function agentCallKey(call: AgentFunctionCall): string | undefined {
+  try {
+    return JSON.stringify([call.catalogId, call['@call'], call.args]);
+  } catch {
+    return undefined;
   }
 }
 
