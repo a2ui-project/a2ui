@@ -296,6 +296,9 @@ so a v1.0 agent reads it with `version: A2uiProtocolVersion.v1_0`.
 them goes back to the model. [e2e_test](e2e_test) runs it against the live
 model.
 
+[example_v0_9](example_v0_9) is the same app on v0.9, and
+[e2e_test_v0_9](e2e_test_v0_9) runs it against the live model.
+
 ## Gallery
 
 [a2ui_explorer](a2ui_explorer) is the gallery app. It renders the v0.9 and
