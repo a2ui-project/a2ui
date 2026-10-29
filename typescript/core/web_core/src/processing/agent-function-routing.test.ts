@@ -115,6 +115,64 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     assert.deepStrictEqual(errors, []);
   });
 
+  it('waits for a pending agent argument in a binding before running', async () => {
+    const values: unknown[] = [];
+    const sub = ctx.subscribeDynamicValue<string>(
+      {'@call': 'upper', 'args': {'value': {'@call': 'fetchGreeting', 'args': {}}}},
+      value => values.push(value),
+    );
+    await flush();
+    assert.strictEqual(outbound.length, 1);
+    assert.strictEqual(sub.value, undefined);
+    assert.deepStrictEqual(
+      errors,
+      [],
+      'the local function does not run while its argument is pending',
+    );
+
+    respond(0, {value: 'hello'});
+    await flush();
+    assert.strictEqual(sub.value, 'HELLO');
+    assert.deepStrictEqual(values, ['HELLO']);
+    assert.deepStrictEqual(errors, []);
+    sub.unsubscribe();
+  });
+
+  it('reports a failed agent argument in a binding once', async () => {
+    const sub = ctx.subscribeDynamicValue<string>(
+      {'@call': 'upper', 'args': {'value': {'@call': 'fetchGreeting', 'args': {}}}},
+      () => {},
+    );
+    await flush();
+    respond(0, {error: {code: 'UNKNOWN_FUNCTION', message: 'No such function: fetchGreeting'}});
+    await flush();
+    assert.strictEqual(sub.value, undefined);
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.match(errors[0].message, /No such function: fetchGreeting/);
+    sub.unsubscribe();
+  });
+
+  it('sends an outer agent call only once its agent argument has settled', async () => {
+    const sig = ctx.resolveSignal({
+      '@call': 'convert',
+      'args': {'rate': {'@call': 'fetchFxRate', 'args': {'base': 'EUR'}}},
+    });
+    await flush();
+    assert.deepStrictEqual(
+      outbound.map(m => m.callAgentFunction.callFunction['@call']),
+      ['fetchFxRate'],
+    );
+
+    respond(0, {value: 1.08});
+    await flush();
+    assert.deepStrictEqual(outbound[1].callAgentFunction.callFunction.args, {'rate': 1.08});
+    respond(1, {value: 'converted'});
+    await flush();
+    assert.strictEqual(getValue(sig), 'converted');
+    assert.deepStrictEqual(errors, []);
+  });
+
   it('validates and parses the arguments of a schema-only function before sending it', async () => {
     ctx.resolveDynamicValue({'@call': 'quote', 'args': {'symbol': 42}});
     await flush();
