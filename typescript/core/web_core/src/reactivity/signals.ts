@@ -65,14 +65,35 @@ export const _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION: SignalImplementations = {
   effect: preactEffect as SignalImplementations['effect'],
   batchWrite: preactBatch as SignalImplementations['batchWrite'],
   isSignal: (val: unknown): val is Signal<unknown> =>
-    !!val && typeof val === 'object' && 'value' in val && 'peek' in val,
-  getValue: <T>(signal: Signal<T>): T => (signal as PreactSignal<T>).value,
+    typeof val === 'function' ||
+    (!!val && typeof val === 'object' && ('value' in val || 'peek' in val)),
+  getValue: <T>(signal: Signal<T>): T => {
+    if (typeof signal === 'function') {
+      return (signal as () => T)();
+    }
+    return (signal as PreactSignal<T>).value;
+  },
   setValue: <T>(signal: Signal<T>, value: T): void => {
+    if (typeof (signal as any)?.set === 'function') {
+      (signal as any).set(value);
+      return;
+    }
     if (!(signal instanceof PreactComputed)) {
       (signal as PreactSignal<T>).value = value;
     }
   },
-  peekValue: <T>(signal: Signal<T>): T => (signal as PreactSignal<T>).peek(),
+  peekValue: <T>(signal: Signal<T>): T => {
+    if (typeof (signal as any)?.peek === 'function') {
+      return (signal as PreactSignal<T>).peek();
+    }
+    if (typeof signal === 'function') {
+      return (signal as () => T)();
+    }
+    if (signal && typeof signal === 'object' && 'value' in signal) {
+      return (signal as any).value;
+    }
+    return signal as unknown as T;
+  },
 };
 
 setSignalImplementation(_PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION);

@@ -101,12 +101,15 @@ export class DataModel {
    *
    * @param path The JSON pointer path to set value for.
    * @param value The value to set at the specified path.
+   * @param preserveNull Whether to store `null` as a value instead of treating
+   *     it like `undefined`. Pre-1.0 data models stored `null`; the v1.0
+   *     protocol removes the entry.
    * @returns This `DataModel` instance for chaining.
    * @throws {A2uiDataError} If path is null, undefined, invalid for
    *     arrays/primitives, exceeds max array bounds, or contains forbidden
    *     segments (`__proto__`, `constructor`, `prototype`).
    */
-  set(path: string, value: any): this {
+  set(path: string, value: any, preserveNull = false): this {
     if (path === null || path === undefined) {
       throw new A2uiDataError('Path cannot be null or undefined.');
     }
@@ -120,7 +123,8 @@ export class DataModel {
 
     const lastSegment = segments.pop()!;
 
-    if ((value === undefined || value === null) && this.get(path) === undefined) {
+    const removes = value === undefined || (!preserveNull && value === null);
+    if (removes && this.get(path) === undefined) {
       return this;
     }
 
@@ -235,7 +239,7 @@ export class DataModel {
       }
     }
 
-    if (value === undefined || value === null) {
+    if (removes) {
       if (Array.isArray(current)) {
         const idx = parseInt(lastSegment, 10);
         // Deleting an index past the end of the array is a no-op. Assigning

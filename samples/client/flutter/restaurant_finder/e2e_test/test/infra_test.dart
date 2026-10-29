@@ -27,7 +27,7 @@ void main() {
     print('API Key: ${key.substring(0, 1)}...${key.substring(key.length - 1)}');
   });
 
-  test('test can talk with AI', () async {
+  modelTest('test can talk with AI', () async {
     final aiClient = DartanticAiClient();
     addTearDown(aiClient.dispose);
 

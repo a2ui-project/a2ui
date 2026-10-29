@@ -38,7 +38,7 @@ import {V1Point0Adapter} from './v1_0.js';
 describe('VersionAdapterFactory', () => {
   it('resolves v1.0 adapter and extracts operations with initial state and surface properties', () => {
     const payload = {
-      version: 'v1.0',
+      version: '1.0',
       createSurface: {
         surfaceId: 's1',
         catalogId: 'basic',
@@ -51,7 +51,7 @@ describe('VersionAdapterFactory', () => {
     };
 
     const adapter = VersionAdapterFactory.resolveFromPayload(payload);
-    assert.strictEqual(adapter.version, 'v1.0');
+    assert.strictEqual(adapter.version, '1.0');
 
     const ops = adapter.extractOperations(payload);
     assert.strictEqual(ops.length, 1);
@@ -165,7 +165,7 @@ describe('VersionAdapterFactory', () => {
     assert.throws(
       () =>
         v09Adapter.extractOperations({
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {surfaceId: 's1', catalogId: 'c1'},
         }),
       err => err instanceof A2uiValidationError && /Invalid v0.9 message/.test(err.message),
@@ -178,7 +178,7 @@ describe('VersionAdapterFactory', () => {
           version: 'v0.9',
           createSurface: {surfaceId: 's1', catalogId: 'c1'},
         }),
-      err => err instanceof A2uiValidationError && /Invalid v1.0 message/.test(err.message),
+      err => err instanceof A2uiValidationError && /Invalid 1.0 message/.test(err.message),
     );
   });
 
@@ -240,12 +240,12 @@ describe('VersionAdapterFactory', () => {
 
   it('resolves adapter and extracts operations from batch array payloads', () => {
     const payload = [
-      {version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: 'basic'}},
-      {version: 'v1.0', deleteSurface: {surfaceId: 's1'}},
+      {version: '1.0', createSurface: {surfaceId: 's1', catalogId: 'basic'}},
+      {version: '1.0', deleteSurface: {surfaceId: 's1'}},
     ];
 
     const adapter = VersionAdapterFactory.resolveFromPayload(payload);
-    assert.strictEqual(adapter.version, 'v1.0');
+    assert.strictEqual(adapter.version, '1.0');
 
     const ops = adapter.extractOperations(payload);
     assert.strictEqual(ops.length, 2);
@@ -256,9 +256,9 @@ describe('VersionAdapterFactory', () => {
   it('resolves adapter and extracts operations from wrapped { messages: [...] } payload', () => {
     const payload = {
       messages: [
-        {version: 'v1.0', createSurface: {surfaceId: 's1'}},
+        {version: '1.0', createSurface: {surfaceId: 's1'}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's1',
             components: [{id: 'root', component: 'Column'}],
@@ -268,7 +268,7 @@ describe('VersionAdapterFactory', () => {
     };
 
     const adapter = VersionAdapterFactory.resolveFromPayload(payload);
-    assert.strictEqual(adapter.version, 'v1.0');
+    assert.strictEqual(adapter.version, '1.0');
 
     const ops = adapter.extractOperations(payload);
     assert.strictEqual(ops.length, 2);
@@ -280,7 +280,7 @@ describe('VersionAdapterFactory', () => {
     const adapter = VersionAdapterFactory.getAdapter('v1.0');
 
     const ucOps = adapter.extractOperations({
-      version: 'v1.0',
+      version: '1.0',
       updateComponents: {
         surfaceId: 's1',
         components: [{id: 'c1', component: 'Text', text: 'Hi'}],
@@ -293,7 +293,7 @@ describe('VersionAdapterFactory', () => {
     assert.deepStrictEqual(ucOp.components, [{id: 'c1', component: 'Text', text: 'Hi'}]);
 
     const udOps = adapter.extractOperations({
-      version: 'v1.0',
+      version: '1.0',
       updateDataModel: {
         surfaceId: 's1',
         path: '/user/name',
@@ -308,7 +308,7 @@ describe('VersionAdapterFactory', () => {
     assert.strictEqual(udOp.value, 'Alice');
 
     const dsOps = adapter.extractOperations({
-      version: 'v1.0',
+      version: '1.0',
       deleteSurface: {
         surfaceId: 's1',
       },
@@ -393,7 +393,7 @@ describe('MessageProcessor Dependency Injection', () => {
     const processor = new MessageProcessor([catalog]);
 
     processor.processMessages({
-      version: 'v1.0',
+      version: '1.0',
       createSurface: {
         surfaceId: 's1',
         catalogId: 'basic',
@@ -402,7 +402,7 @@ describe('MessageProcessor Dependency Injection', () => {
     });
 
     processor.processMessages({
-      version: 'v1.0',
+      version: '1.0',
       updateComponents: {
         surfaceId: 's1',
         components: [{id: 't1', component: 'Text', text: 'Hello', color: 'blue'}],
@@ -530,11 +530,11 @@ describe('MessageProcessor Dependency Injection', () => {
 
   it('resolves adapters by canonical and formatted version strings', () => {
     const factory = new VersionAdapterFactory();
-    assert.strictEqual(factory.getAdapter('v1.0').version, 'v1.0');
-    assert.strictEqual(factory.getAdapter('1.0').version, 'v1.0');
-    assert.strictEqual(factory.getAdapter('1.0.0').version, 'v1.0');
-    assert.strictEqual(factory.getAdapter('v1_0').version, 'v1.0');
-    assert.strictEqual(factory.getAdapter('V1.0').version, 'v1.0');
+    assert.strictEqual(factory.getAdapter('v1.0').version, '1.0');
+    assert.strictEqual(factory.getAdapter('1.0').version, '1.0');
+    assert.strictEqual(factory.getAdapter('1.0.0').version, '1.0');
+    assert.strictEqual(factory.getAdapter('v1_0').version, '1.0');
+    assert.strictEqual(factory.getAdapter('V1.0').version, '1.0');
     assert.strictEqual(factory.getAdapter('v0.9.1').version, 'v0.9');
     assert.strictEqual(factory.getAdapter('0.9.1').version, 'v0.9');
     assert.strictEqual(factory.getAdapter('v0.9').version, 'v0.9');
@@ -583,12 +583,12 @@ describe('MessageProcessor Dependency Injection', () => {
     assert.throws(
       () =>
         v10.extractOperations({
-          version: 'v1.0',
+          version: '1.0',
           beginRendering: {surfaceId: 's1'},
         }),
       (err: any) =>
         err instanceof A2uiValidationError &&
-        /action 'beginRendering' is not supported in protocol version v1.0/.test(err.message),
+        /action 'beginRendering' is not supported in protocol version 1.0/.test(err.message),
     );
 
     const v08 = VersionAdapterFactory.getAdapter('v0.8');

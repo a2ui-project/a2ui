@@ -189,7 +189,11 @@ class MacroExpander:
         result: list[AgentToRendererMessage] = []
         for msg in messages:
             msg_dict: dict[str, Any] = msg.model_dump(by_alias=True, exclude_none=True)
-            for envelope_key in ("surfaceUpdate", "createSurface", "updateComponents"):
+            for envelope_key in (
+                "surfaceUpdate",
+                "createSurface",
+                "updateComponents",
+            ):
                 if envelope_key in msg_dict and isinstance(
                     msg_dict[envelope_key], dict
                 ):

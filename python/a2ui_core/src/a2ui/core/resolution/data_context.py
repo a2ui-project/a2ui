@@ -214,7 +214,10 @@ class DataContext:
         return obj
 
     def resolve_dynamic_value(
-        self, value: Any, peek: bool = True, abort_signal: AbortSignal | None = None
+        self,
+        value: Any,
+        peek: bool = True,
+        abort_signal: AbortSignal | None = None,
     ) -> Any:
         """Recursively evaluates Literals, Data Paths, and Function Calls against the active DataModel."""
         if value is None:
@@ -292,7 +295,7 @@ class DataContext:
         # 4. Recurse into normal objects/dictionaries (with v1.0 escaping and validation)
         if isinstance(value, dict):
             if at_least_v10:
-                validate_reserved_directives(value.keys(), proto_ver or "v1.0")
+                validate_reserved_directives(value.keys(), proto_ver or "1.0")
                 return {
                     unescape_object_key(k): self.resolve_dynamic_value(
                         v, peek=peek, abort_signal=abort_signal

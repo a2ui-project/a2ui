@@ -30,7 +30,7 @@ public protocol CatalogProtocol: Sendable {
   /// Unique catalog identifier (conventionally a URI string).
   var id: String { get }
 
-  /// Optional protocol version this catalog conforms to (e.g. "v1.0" or "v0.9.1").
+  /// Optional protocol version this catalog conforms to (e.g. "1.0" or "v0.9.1").
   var protocolVersion: String? { get }
 
   /// Optional theme schema for this catalog.

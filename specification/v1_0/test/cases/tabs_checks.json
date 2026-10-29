@@ -5,7 +5,7 @@
       "description": "Tabs with empty tabs array (should fail)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [
@@ -22,7 +22,7 @@
       "description": "Tabs with valid tabs array",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [

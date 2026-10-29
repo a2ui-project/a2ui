@@ -116,7 +116,7 @@ function loadCatalogConfig(entry: unknown): CatalogConfig {
   if (ref && typeof ref === 'object') {
     const rawDoc = ref as Record<string, unknown>;
     const doc = {
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       catalogId: 'inline',
       ...rawDoc,
     };
