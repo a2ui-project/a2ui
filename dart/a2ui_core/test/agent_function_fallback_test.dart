@@ -461,6 +461,35 @@ void main() {
       expect(agentCalls, hasLength(1));
     });
 
+    test('a pending call keeps its alias when the alias table is full',
+        () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final Map<String, Object?> pending = {
+        '@call': 'lookup',
+        'args': {'id': 'pending'},
+      };
+      expect(context.resolveDynamicValue(pending), isNull);
+
+      // Fill the alias table past its limit with calls that are answered.
+      for (var i = 0; i < 300; i++) {
+        context.resolveDynamicValue({
+          '@call': 'lookup',
+          'args': {'id': i},
+        });
+        agentCalls.last.completer.complete(i);
+        await _flush();
+      }
+
+      expect(context.isPendingAgentCall(pending), isTrue);
+      agentCalls.first.completer.complete('done');
+      await _flush();
+      expect(context.isPendingAgentCall(pending), isFalse);
+      expect(context.resolveDynamicValue(pending), 'done');
+    });
+
     test('a reserved system function is never sent', () async {
       final SurfaceModel<ComponentApi> surface = makeSurface();
       final DataContext context =
