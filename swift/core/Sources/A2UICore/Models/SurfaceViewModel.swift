@@ -257,6 +257,14 @@ public final class SurfaceViewModel: ObservableObject {
       self.rootNode = newRoot
     }
   }
+
+  /// Disposes the surface, cancelling subscriptions and clearing in-flight agent calls.
+  public func dispose() {
+    agentFunctionCaller = nil
+    cancellables.removeAll()
+    nodeResolver.dispose()
+    inFlightAgentCalls.removeAll()
+  }
 }
 
 // MARK: - FunctionHandler Conformance

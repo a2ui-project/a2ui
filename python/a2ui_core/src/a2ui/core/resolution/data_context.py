@@ -340,6 +340,7 @@ class DataContext:
         value: Any,
         peek: bool = True,
         abort_signal: AbortSignal | None = None,
+        _keep_failed: bool = False,
     ) -> Any:
         """Recursively evaluates Literals, Data Paths, and Function Calls against the active DataModel."""
         if value is None:
@@ -404,13 +405,19 @@ class DataContext:
                     catalog_id=cat_id,
                     abort_signal=abort_signal,
                     names_catalog=names_catalog,
+                    _keep_failed=_keep_failed,
                 )
                 return self._peek_value(res) if peek else res
 
         # 3. Recurse into lists/arrays
         if isinstance(value, list):
             return [
-                self.resolve_dynamic_value(item, peek=peek, abort_signal=abort_signal)
+                self.resolve_dynamic_value(
+                    item,
+                    peek=peek,
+                    abort_signal=abort_signal,
+                    _keep_failed=_keep_failed,
+                )
                 for item in value
             ]
 
@@ -420,12 +427,20 @@ class DataContext:
                 validate_reserved_directives(value.keys(), proto_ver or "1.0")
                 return {
                     unescape_object_key(k): self.resolve_dynamic_value(
-                        v, peek=peek, abort_signal=abort_signal
+                        v,
+                        peek=peek,
+                        abort_signal=abort_signal,
+                        _keep_failed=_keep_failed,
                     )
                     for k, v in value.items()
                 }
             return {
-                k: self.resolve_dynamic_value(v, peek=peek, abort_signal=abort_signal)
+                k: self.resolve_dynamic_value(
+                    v,
+                    peek=peek,
+                    abort_signal=abort_signal,
+                    _keep_failed=_keep_failed,
+                )
                 for k, v in value.items()
             }
 
@@ -579,6 +594,7 @@ class DataContext:
         catalog_id: str | None = None,
         abort_signal: AbortSignal | None = None,
         names_catalog: bool = False,
+        _keep_failed: bool = False,
     ) -> Any:
         """Validates, resolves and runs a function call.
 
@@ -663,7 +679,10 @@ class DataContext:
             return self._run_when_args_settled(
                 name,
                 self.resolve_dynamic_value(
-                    raw_args, peek=False, abort_signal=abort_signal
+                    raw_args,
+                    peek=False,
+                    abort_signal=abort_signal,
+                    _keep_failed=True,
                 ),
                 lambda args: self._run_local_function(
                     local_fn, local_catalog, args, abort_signal
@@ -672,6 +691,10 @@ class DataContext:
             )
         except Exception as e:
             if self._dispatch_function_error(e, name):
+                if _keep_failed:
+                    failed = _PendingResult()
+                    failed.fail()
+                    return failed
                 return None
             raise
 
@@ -686,6 +709,8 @@ class DataContext:
 
         if not (self.surface and hasattr(self.surface, "dispatch_error")):
             return False
+        if getattr(self.surface, "disposed", False):
+            return True
         # A call whose catalog can't be resolved is a catalog fault, not a
         # broken expression: the function may exist in a catalog this surface
         # doesn't have.
@@ -757,6 +782,10 @@ class DataContext:
         pending: list[_PendingResult] = []
         _collect_pending(resolved_args, pending)
         if not pending:
+            if _has_failed_result(resolved_args):
+                failed = _PendingResult()
+                failed.fail()
+                return failed
             return run(self._settled_value(resolved_args))
 
         deferred = _PendingResult()
@@ -766,7 +795,9 @@ class DataContext:
             remaining[0] -= 1
             if remaining[0] > 0:
                 return
-            if abort_signal is not None and abort_signal.aborted:
+            if (abort_signal is not None and abort_signal.aborted) or getattr(
+                self.surface, "disposed", False
+            ):
                 return
             if _has_failed_result(resolved_args):
                 deferred.fail()
@@ -895,8 +926,10 @@ class DataContext:
                     )
                 else:
                     error = done.exception()
-                if abort_signal is not None and abort_signal.aborted:
-                    # A newer evaluation replaced this one.
+                if (abort_signal is not None and abort_signal.aborted) or getattr(
+                    self.surface, "disposed", False
+                ):
+                    # A newer evaluation replaced this one, or the surface was disposed.
                     return
                 if error is None:
                     result.settle(done.result())
@@ -909,7 +942,12 @@ class DataContext:
 
         return self._run_when_args_settled(
             name,
-            self.resolve_dynamic_value(raw_args, peek=False, abort_signal=abort_signal),
+            self.resolve_dynamic_value(
+                raw_args,
+                peek=False,
+                abort_signal=abort_signal,
+                _keep_failed=True,
+            ),
             _send,
             abort_signal,
         )

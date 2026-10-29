@@ -28,7 +28,7 @@ import {
   CallAgentFunctionMessage,
 } from '../v1_0/schema/renderer-to-agent.js';
 import {isCatalogVersionCompatible} from '../processing/adapters/base.js';
-import {settleDeep} from '../common/settle_deep.js';
+import {findFailedArgument, settleDeep} from '../common/settle_deep.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
 import {A2uiRpcError, RpcErrorCode} from '../errors.js';
 
@@ -69,6 +69,7 @@ export interface CallOptions {
  * Pending agent function callback record.
  */
 interface PendingAgentCall {
+  surfaceId: string;
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
 }
@@ -221,6 +222,17 @@ export class RpcHandler {
       await this.emitOutboundResponse(errorResponse);
       return errorResponse;
     }
+    const failedArg = findFailedArgument(settledArgs);
+    if (failedArg) {
+      const errorResponse = this.createResponseError(
+        functionCallId,
+        RpcErrorCode.EXECUTION_ERROR,
+        this.extractErrorMessage(failedArg.error) || 'An error occurred during function execution.',
+        version,
+      );
+      await this.emitOutboundResponse(errorResponse);
+      return errorResponse;
+    }
 
     const parsedArgsResult = this.parseArguments(
       resolved.catalog,
@@ -335,12 +347,31 @@ export class RpcHandler {
   }
 
   /**
+   * Cancels all pending agent function calls originating from the given surface.
+   *
+   * @param surfaceId Identifier of the surface whose pending calls should be cancelled.
+   */
+  cancelSurfaceCalls(surfaceId: string): void {
+    for (const [id, pending] of Array.from(this.pendingAgentCalls.entries())) {
+      if (pending.surfaceId === surfaceId) {
+        pending.reject(
+          new A2uiRpcError(
+            `Surface '${surfaceId}' was deleted while call '${id}' was pending.`,
+            RpcErrorCode.CANCELLED,
+            id,
+          ),
+        );
+      }
+    }
+  }
+
+  /**
    * Disposes the RPC handler and cancels all pending agent function calls with a `CANCELLED` error.
    */
   dispose(): void {
     if (this.isDisposed) return;
     this.isDisposed = true;
-    for (const [id, pending] of this.pendingAgentCalls.entries()) {
+    for (const [id, pending] of Array.from(this.pendingAgentCalls.entries())) {
       pending.reject(
         new A2uiRpcError(
           `RpcHandler disposed while call '${id}' was pending.`,
@@ -511,7 +542,7 @@ export class RpcHandler {
     });
     try {
       for (const [key, val] of Object.entries(args)) {
-        resolvedArgs[key] = context.resolveDynamicValue(val, 1, isUserActivated);
+        resolvedArgs[key] = context.resolveDynamicValue(val, 1, isUserActivated, true);
       }
     } catch (err: unknown) {
       expressionError =
@@ -669,6 +700,7 @@ export class RpcHandler {
       );
 
       this.pendingAgentCalls.set(functionCallId, {
+        surfaceId,
         resolve: val => {
           cleanup();
           resolve(val as T);
