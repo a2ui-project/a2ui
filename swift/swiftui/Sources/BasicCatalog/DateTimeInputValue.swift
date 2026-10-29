@@ -43,20 +43,32 @@ package struct DateTimeInputValue {
 
   /// Parses an ISO 8601 date, time or date-time, or returns `nil` when `string` is not one.
   package init?(parsing string: String) {
-    guard let tIndex = string.firstIndex(where: { $0 == "T" || $0 == "t" }) else {
-      if string.count == 10, let date = Self.date(from: string, format: "yyyy-MM-dd", in: .current)
-      {
-        self.init(date: date, shape: .date)
-      } else if let includesSeconds = Self.includesSeconds(string),
-        let date = Self.date(from: string, format: Self.time(includesSeconds), in: .current)
-      {
-        self.init(date: date, shape: .time(includesSeconds: includesSeconds))
-      } else {
-        return nil
-      }
-      return
+    if let tIndex = string.firstIndex(where: { $0 == "T" || $0 == "t" }) {
+      guard let parsed = Self.dateTime(from: string, separatedAt: tIndex) else { return nil }
+      self = parsed
+    } else if string.count == 10,
+      let date = Self.date(from: string, format: "yyyy-MM-dd", in: .current)
+    {
+      self.init(date: date, shape: .date)
+    } else if let includesSeconds = Self.includesSeconds(string),
+      let date = Self.date(from: string, format: Self.time(includesSeconds), in: .current)
+    {
+      self.init(date: date, shape: .time(includesSeconds: includesSeconds))
+    } else {
+      return nil
     }
+  }
 
+  private init(date: Date, shape: Shape) {
+    self.date = date
+    self.shape = shape
+  }
+
+  /// Parses a date-time whose `T` separator is at `tIndex`.
+  private static func dateTime(
+    from string: String,
+    separatedAt tIndex: String.Index
+  ) -> DateTimeInputValue? {
     let day = string[..<tIndex]
     guard day.count == 10 else { return nil }
     var rest = string[string.index(after: tIndex)...]
@@ -80,15 +92,10 @@ package struct DateTimeInputValue {
         in: timeZone
       )
     else { return nil }
-    self.init(
+    return DateTimeInputValue(
       date: date.addingTimeInterval(fraction ?? 0),
       shape: .dateTime(includesSeconds: includesSeconds, zoneDesignator: designator)
     )
-  }
-
-  private init(date: Date, shape: Shape) {
-    self.date = date
-    self.shape = shape
   }
 
   /// Formats `date` for a `DateTimeInput` with the given `enableDate` and `enableTime`.
@@ -146,13 +153,27 @@ package struct DateTimeInputValue {
     case "Z": return .gmt
     default:
       // `±HH`, `±HHmm` or `±HH:mm`.
-      let digits = designator.dropFirst().filter { $0 != ":" }
-      guard digits.count == 2 || digits.count == 4,
-        (digits.allSatisfy { $0.isASCII && $0.isNumber }),
-        designator.count == digits.count + 1
-          || (designator.count == 6 && designator.dropFirst(3).first == ":"),
-        let hours = Int(digits.prefix(2)),
-        let minutes = digits.count == 2 ? 0 : Int(digits.suffix(2)),
+      guard designator.first == "+" || designator.first == "-" else { return nil }
+      let body = designator.dropFirst()
+      let hoursDigits: Substring
+      let minutesDigits: Substring
+      switch body.count {
+      case 2:
+        hoursDigits = body
+        minutesDigits = "00"
+      case 4:
+        hoursDigits = body.prefix(2)
+        minutesDigits = body.suffix(2)
+      case 5 where body.dropFirst(2).first == ":":
+        hoursDigits = body.prefix(2)
+        minutesDigits = body.suffix(2)
+      default:
+        return nil
+      }
+      guard (hoursDigits.allSatisfy { $0.isASCII && $0.isNumber }),
+        (minutesDigits.allSatisfy { $0.isASCII && $0.isNumber }),
+        let hours = Int(hoursDigits),
+        let minutes = Int(minutesDigits),
         hours <= 18, minutes < 60
       else { return nil }
       let seconds = (hours * 60 + minutes) * 60
@@ -174,8 +195,17 @@ package struct DateTimeInputValue {
     includesSeconds ? "HH:mm:ss" : "HH:mm"
   }
 
+  /// Parses `string`, or returns `nil` unless formatting the result gives `string` back.
+  ///
+  /// `DateFormatter` rolls over out-of-range fields (`2026-02-29` reads as March 1, `24:00` as
+  /// midnight), trims spaces and ignores field widths, so the round trip is what rejects such
+  /// values. Every format used here writes fixed-width ASCII fields, so a valid value round-trips.
   private static func date(from string: String, format: String, in timeZone: TimeZone) -> Date? {
-    formatter(format, in: timeZone).date(from: string)
+    let formatter = formatter(format, in: timeZone)
+    guard let date = formatter.date(from: string), formatter.string(from: date) == string else {
+      return nil
+    }
+    return date
   }
 
   private static func string(from date: Date, format: String, in timeZone: TimeZone) -> String {

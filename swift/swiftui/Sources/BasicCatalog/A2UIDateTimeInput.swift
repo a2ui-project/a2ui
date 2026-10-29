@@ -54,13 +54,11 @@ public struct A2UIDateTimeInput: View {
   }
 
   private var minDate: Date? {
-    guard let minStr = node.string(for: "min"), !minStr.isEmpty else { return nil }
-    return DateTimeInputValue(parsing: minStr)?.date
+    node.string(for: "min").flatMap(DateTimeInputValue.init(parsing:))?.date
   }
 
   private var maxDate: Date? {
-    guard let maxStr = node.string(for: "max"), !maxStr.isEmpty else { return nil }
-    return DateTimeInputValue(parsing: maxStr)?.date
+    node.string(for: "max").flatMap(DateTimeInputValue.init(parsing:))?.date
   }
 
   private var displayedComponents: DatePickerComponents {
@@ -76,12 +74,7 @@ public struct A2UIDateTimeInput: View {
   private var dateBinding: Binding<Date> {
     Binding(
       get: {
-        if let dateStr = node.string(for: "value"),
-          let parsed = DateTimeInputValue(parsing: dateStr)
-        {
-          return parsed.date
-        }
-        return internalDate
+        node.string(for: "value").flatMap(DateTimeInputValue.init(parsing:))?.date ?? internalDate
       },
       set: { newDate in
         internalDate = newDate
