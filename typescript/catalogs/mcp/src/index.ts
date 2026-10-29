@@ -16,8 +16,8 @@
 
 /**
  * `@a2ui/catalog-mcp`: the A2UI MCP catalog with the `McpApp` universal component, the
- * `callMcpTool` function and `updateDataModel`, configured once per host with
- * `configureMcpCatalog`.
+ * `callMcpTool` function and the data functions that shape its results, configured once per host
+ * with `configureMcpCatalog`.
  */
 
 export {MCP_CATALOG_ID, mcpCatalog} from './catalog.js';
@@ -32,4 +32,5 @@ export {
   type McpToolDataPayload,
   type McpToolClient,
 } from './functions/callMcpTool.js';
+export {TransformDataApi, TransformDataImplementation} from './functions/transform_data.js';
 export {UpdateDataModelApi, UpdateDataModelImplementation} from './functions/update_data_model.js';

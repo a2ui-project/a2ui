@@ -2,7 +2,7 @@
 
 > **Experimental.** This package is under active development. Its API and the catalog schema may change between releases without notice.
 
-The A2UI MCP catalog lets A2UI surfaces invoke [Model Context Protocol](https://modelcontextprotocol.io/) tools, write values to the data model, and render [MCP Apps](https://github.com/modelcontextprotocol/ext-apps). It defines the `callMcpTool` function, the `updateDataModel` data function, and the `McpApp` component, allowing agents to emit declarative payloads whose controls and bindings interact with MCP servers directly.
+The A2UI MCP catalog lets A2UI surfaces invoke [Model Context Protocol](https://modelcontextprotocol.io/) tools, shape what they return, and render [MCP Apps](https://github.com/modelcontextprotocol/ext-apps). It defines the `callMcpTool` function, the `transformData` and `updateDataModel` data functions, and the `McpApp` component, allowing agents to emit declarative payloads whose controls and bindings interact with MCP servers directly.
 
 ## Overview
 
@@ -11,7 +11,7 @@ A2UI separates UI layout from backend logic through catalogs. This catalog provi
 - The host supplies one hook, `getMcpClientForTool(toolName)`. The catalog uses the returned client for tool execution, UI resource reads, and tool discovery.
 - Tool results are processed automatically. The catalog fetches and caches UI resources referenced by results, then applies any A2UI messages embedded in the result content.
 - Tool arguments support data bindings, allowing form state to pass directly into tool calls.
-- `callMcpTool` returns the text, parsed JSON and structured content of each result, and can write them to `targetDataPath`. `updateDataModel` writes path-value pairs to the surface data model, so a payload can update several paths at once from a literal object, a binding or a function call.
+- `callMcpTool` returns the text, parsed JSON and structured content of each result, and can write them to `targetDataPath`. The `transformData` and `updateDataModel` data functions shape them into data model updates, so a payload can render the output of a tool that knows nothing about A2UI.
 - The `McpApp` component embeds MCP Apps in a sandboxed double-iframe and connects them to the host through `AppBridge`.
 - The catalog works with any A2UI web renderer built on `MessageProcessor`.
 
@@ -42,13 +42,18 @@ The function returns a payload with these fields:
 
 When the result has an MCP App resource, the payload also carries its `resourceUri`, `html`, `csp` and `permissions`. With `targetDataPath`, each call replaces the object at that path with its payload. A call whose response arrives after a newer call to the same path has started does not write, so out-of-order responses, such as autocomplete suggestions, never overwrite newer ones; it still returns its payload. The function throws an `A2uiExpressionError`, and writes nothing, if the client cannot be resolved, the call returns no result, or the result has `isError: true`.
 
-`updateDataModel` writes path-value pairs to the surface data model:
+Two data functions turn that payload into data model updates (see [Shape a headless tool result](#shape-a-headless-tool-result)):
 
-| Function          | Arguments               | Returns                                                                     |
-| :---------------- | :---------------------- | :-------------------------------------------------------------------------- |
-| `updateDataModel` | `updates: DynamicValue` | Nothing. Writes each key-value pair in `updates` to the surface data model. |
+| Function          | Arguments                                       | Returns                                                                                                                                   |
+| :---------------- | :---------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| `transformData`   | `jmespath: DynamicString`, `data: DynamicValue` | The result of evaluating the [JMESPath](https://jmespath.org/specification.html) expression against `data`, or `null` for missing fields. |
+| `updateDataModel` | `updates: DynamicValue`                         | Nothing. Writes each key-value pair in `updates` to the surface data model.                                                               |
 
-The `updates` argument is required, and a `null` or missing argument is rejected by validation. `updateDataModel` throws an `A2uiExpressionError` for `updates` that are not a non-null plain object, or for a key that is empty or contains a `__proto__`, `constructor` or `prototype` segment. It checks every key before it writes anything, so a rejected key leaves the data model unchanged. Keys starting with `/` are absolute paths and relative keys resolve against the calling data context, such as the current row of a template list. It does not evaluate `@path` or `@call` objects found inside the values it writes: a tool result is data, not an expression.
+Every argument is required, and a `null` or missing argument is rejected by validation. None of the functions evaluates `@path` or `@call` objects found inside its data: a tool result is data, not an expression.
+
+`transformData` implements standard JMESPath, with no extensions. It throws an `A2uiExpressionError` for an expression that does not parse (`Invalid JMESPath expression: ...`) or fails to evaluate.
+
+`updateDataModel` throws an `A2uiExpressionError` for `updates` that are not a non-null plain object, or for a key that is empty or contains a `__proto__`, `constructor` or `prototype` segment. It checks every key before it writes anything, so a rejected key leaves the data model unchanged. Keys starting with `/` are absolute paths and relative keys resolve against the calling data context, such as the current row of a template list.
 
 ## Installation
 
@@ -112,7 +117,7 @@ const processor = new MessageProcessor(
 configureMcpCatalog({getMcpClientForTool: () => client, processor});
 ```
 
-A host that only wants some of the functions registers the `*Implementation` exports it needs (`CallMcpToolImplementation`, `UpdateDataModelImplementation`) in a catalog of its own instead of `mcpCatalog`.
+A host that only wants some of the functions registers the `*Implementation` exports it needs (`CallMcpToolImplementation`, `TransformDataImplementation`, `UpdateDataModelImplementation`) in a catalog of its own instead of `mcpCatalog`.
 
 For multi-server setups, keep a registry of which server advertises each tool, usually built from `listTools()` at connection time, and resolve it in the same hook:
 
@@ -186,6 +191,40 @@ A v1.0 payload calls `callMcpTool` from any surface whose host registered `mcpCa
 ```
 
 A surface created with the MCP catalog id as its default needs no `catalogId` on the call.
+
+### Shape a headless tool result
+
+Most MCP tools return plain `content` blocks rather than A2UI resources. The payload `callMcpTool` returns already holds their `text` and its `json` parse, so `transformData` reads it directly and builds an object of data model paths, and `updateDataModel` writes it. A button action that loads the open issues of a repository into `/issues`:
+
+```json
+{
+  "functionCall": {
+    "@call": "updateDataModel",
+    "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+    "args": {
+      "updates": {
+        "@call": "transformData",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+        "args": {
+          "jmespath": "{\"/issues\": json[?state == 'open'].{number: to_string(number), title: title}}",
+          "data": {
+            "@call": "callMcpTool",
+            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+            "args": {
+              "name": "list_issues",
+              "arguments": {"repository": {"@path": "/repository"}}
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+`callMcpTool` is asynchronous, so its result reaches the enclosing `transformData` as a pending Promise. The runtime awaits the pending arguments of a call before it validates them and runs the function, so each function in the chain returns a Promise in turn, which is why the action resolves to a Promise a host can await; with settled arguments the functions run synchronously, so a binding that uses them stays reactive.
+
+When the data needs no reshaping, `targetDataPath` alone is enough: a second action writes the payload to `/issueResponse`, and a list binds to `/issueResponse/structuredContent/issues`. Only writes to `targetDataPath` follow the latest-call rule, so bind autocomplete results there rather than writing them with `updateDataModel`.
 
 ## The `McpApp` component
 
@@ -334,9 +373,10 @@ The component owns its bridge: `McpAppBridge` (`src/components/mcp_app_bridge.ts
 | :------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/catalog.json`                     | Copy of `catalogs/mcp/v1/catalog.json` made by the `copy-catalog` build step                                                                                                         |
 | `src/index.ts`                         | Package entry: `mcpCatalog`, `A2uiMcpApp`, `configureMcpCatalog` and the `*Api` and `*Implementation` of every function                                                              |
-| `src/catalog.ts`                       | `MCP_CATALOG_ID` and `mcpCatalog`: the `McpApp` component, `callMcpTool` and `updateDataModel`                                                                                       |
+| `src/catalog.ts`                       | `MCP_CATALOG_ID` and `mcpCatalog`: the `McpApp` component, `callMcpTool` and the data functions                                                                                      |
 | `src/mcp_catalog_config.ts`            | `configureMcpCatalog`: the host's MCP client resolver, message processor and sandbox location                                                                                        |
 | `src/functions/callMcpTool.ts`         | MCP tool execution, the tool data payload, UI resource discovery, caching, and message decoding                                                                                      |
+| `src/functions/transform_data.ts`      | `transformData`                                                                                                                                                                      |
 | `src/functions/update_data_model.ts`   | `updateDataModel`                                                                                                                                                                    |
 | `src/dynamic-values.ts`                | Resolution of dynamic values nested in literal containers                                                                                                                            |
 | `src/components/mcp_app.ts`            | The `McpApp` universal component and its API                                                                                                                                         |

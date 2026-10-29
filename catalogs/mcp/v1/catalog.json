@@ -3,7 +3,7 @@
   "$id": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
   "protocolVersion": "1.0",
   "title": "A2UI MCP Catalog",
-  "description": "A2UI catalog for Model Context Protocol (MCP) integrations. It defines the `callMcpTool` function, the `updateDataModel` function that writes values to the surface data model, and the `McpApp` component that renders a sandboxed MCP App connected to the host through the MCP Apps bridge.",
+  "description": "A2UI catalog for Model Context Protocol (MCP) integrations. It defines the `callMcpTool` function, the data functions that turn a tool result into data model updates, and the `McpApp` component that renders a sandboxed MCP App connected to the host through the MCP Apps bridge.",
   "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
   "components": {
     "McpApp": {
@@ -147,6 +147,32 @@
       },
       "required": ["@call", "args"]
     },
+    "transformData": {
+      "type": "object",
+      "description": "Evaluates a JMESPath expression (https://jmespath.org/specification.html) against `data`. Standard JMESPath only, no extensions.",
+      "returnType": "any",
+      "properties": {
+        "@call": {
+          "const": "transformData"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "jmespath": {
+              "$ref": "common_types.json#/$defs/DynamicString",
+              "description": "A JMESPath expression (https://jmespath.org/specification.html) evaluated against `data`. Standard JMESPath only, no extensions."
+            },
+            "data": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "The input data to evaluate the expression against."
+            }
+          },
+          "required": ["jmespath", "data"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    },
     "updateDataModel": {
       "type": "object",
       "description": "Writes key-value pairs to the surface data model.",
@@ -185,6 +211,9 @@
       "oneOf": [
         {
           "$ref": "#/functions/callMcpTool"
+        },
+        {
+          "$ref": "#/functions/transformData"
         },
         {
           "$ref": "#/functions/updateDataModel"
