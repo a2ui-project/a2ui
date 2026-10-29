@@ -30,9 +30,10 @@ const Map<String, String> _functionsExpectedFailures = {};
 /// Runs the shared message-processor suites against [MessageProcessor] and
 /// [DataContext]: `core/message_processor_v0_9.yaml`,
 /// `core/message_processor_v1_0.yaml`, the `process_messages` cases of
-/// `core/reserved_keys.yaml`, and the `validate` cases of
-/// `core/functions.yaml`, `core/expressions.yaml`, `core/index_function.yaml`,
-/// and `core/multi_catalog.yaml`, which render basic-catalog components.
+/// `core/reserved_keys.yaml` and `core/composition_constraints.yaml`, and the
+/// `validate` cases of `core/functions.yaml`, `core/expressions.yaml`,
+/// `core/index_function.yaml`, and `core/multi_catalog.yaml`, which render
+/// basic-catalog components.
 void main() {
   _registerSuite('core/message_processor_v0_9.yaml');
   _registerSuite('core/message_processor_v1_0.yaml');
@@ -40,6 +41,10 @@ void main() {
     'core/reserved_keys.yaml',
     onlyAction: 'process_messages',
     expectedFailures: _reservedKeysExpectedFailures,
+  );
+  _registerSuite(
+    'core/composition_constraints.yaml',
+    onlyAction: 'process_messages',
   );
   _registerSuite(
     'core/functions.yaml',
@@ -86,14 +91,52 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   }
 }
 
+/// The flags a case's `validationConfig` may set (`validationConfig` in
+/// `conformance_schema.json`).
+const Set<String> _caseValidationFlags = {
+  'allowOrphanComponents',
+  'allowDanglingReferences',
+  'allowMissingRoot',
+  'allowUnknownElements',
+};
+
+/// The processor's validation config for [testCase].
+///
+/// A case's `validationConfig` sets its checks, so they don't depend on this
+/// harness: a flag it leaves out is false. Without one, a `validate` case or a
+/// case with `strictMode` is checked strictly, and any other case with the
+/// relaxed config.
+ValidationConfig _validationConfigFor(
+  Map<String, Object?> testCase, {
+  required bool isValidate,
+}) {
+  final Object? raw = testCase['validationConfig'];
+  if (raw == null) {
+    return isValidate || testCase['strictMode'] == true
+        ? ValidationConfig.strict
+        : ValidationConfig.relaxed;
+  }
+  final Map<String, Object?> flags = (raw as Map).cast<String, Object?>();
+  final Iterable<String> unknown =
+      flags.keys.where((name) => !_caseValidationFlags.contains(name));
+  if (unknown.isNotEmpty) {
+    throw UnsupportedError('Unknown validationConfig flags: $unknown');
+  }
+  bool flag(String name) => flags[name] as bool? ?? false;
+  return ValidationConfig(
+    allowOrphanComponents: flag('allowOrphanComponents'),
+    allowDanglingReferences: flag('allowDanglingReferences'),
+    allowMissingRoot: flag('allowMissingRoot'),
+    allowUnknownElements: flag('allowUnknownElements'),
+  );
+}
+
 Future<void> _runProcessMessagesCase(Map<String, Object?> testCase) async {
   final name = testCase['name']! as String;
   final isValidate = _actionOf(testCase) == 'validate';
-  final bool strictMode = isValidate || testCase['strictMode'] == true;
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
-    validationConfig:
-        strictMode ? ValidationConfig.strict : ValidationConfig.relaxed,
+    validationConfig: _validationConfigFor(testCase, isValidate: isValidate),
   );
 
   if (testCase['steps'] case final List<Object?> steps) {
@@ -275,7 +318,7 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
   ];
   final List<Map<String, Object?>> documents = [
     if (testCase['catalogPaths'] case final List<Object?> paths
-        when compareVersions(version, 'v1.0') >= 0)
+        when compareVersions(version, '1.0') >= 0)
       for (final Object? path in paths)
         if (path is String) readConformanceJson(path),
   ];
@@ -613,11 +656,14 @@ Matcher _matchesError(Map<String, Object?> expectError) {
       isA<A2uiError>().having(
         (e) => e.message,
         'message',
-        matches(RegExp(pattern, caseSensitive: false)),
+        anyOf(
+          contains(message),
+          matches(RegExp(pattern, caseSensitive: false)),
+        ),
       ),
     );
   }
-  return matcher;
+  return allOf(matcher, matchesErrorFields(expectError));
 }
 
 String _align(String pattern) {

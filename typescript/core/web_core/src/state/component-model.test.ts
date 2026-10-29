@@ -33,6 +33,12 @@ describe('ComponentModel', () => {
     assert.strictEqual(component.properties.label, 'Click Me');
   });
 
+  it('constructs without a catalog for pre-1.0 callers', () => {
+    const legacy = new ComponentModel('c2', 'Text', {text: 'Hi'});
+    assert.strictEqual(legacy.catalog, undefined);
+    assert.strictEqual(legacy.properties.text, 'Hi');
+  });
+
   it('updates properties', () => {
     component.properties = {label: 'Clicked'};
     assert.strictEqual(component.properties.label, 'Clicked');

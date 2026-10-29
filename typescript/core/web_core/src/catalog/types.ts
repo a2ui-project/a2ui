@@ -20,6 +20,7 @@ import {DataContext} from '../resolution/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
+import {isThenable, settleDeep} from '../common/settle_deep.js';
 import {SpecVersion} from '../spec_versions.js';
 import {parseCatalogSchema} from './schema_loader.js';
 import type {JsonSchemaObject} from './spec_annotations.js';
@@ -113,18 +114,16 @@ export interface FunctionImplementation extends FunctionApi {
 /**
  * Recursively unwraps dynamic wire AST nodes into their evaluated runtime values.
  */
-export type ResolvedDynamic<T> = T extends {path: string} | {call: string}
-  ? never
-  : T extends (infer U)[]
-    ? ResolvedDynamic<U>[]
-    : T extends object
-      ? {[K in keyof T]: ResolvedDynamic<T[K]>}
-      : T;
+export type ResolvedDynamic<T> = T extends (infer U)[]
+  ? ResolvedDynamic<U>[]
+  : T extends object
+    ? {[K in keyof T]: ResolvedDynamic<T[K]>}
+    : T;
 
 /**
  * Extracts and resolves execution-time argument types from a function's Zod validation schema.
  */
-export type ResolvedFunctionArgs<Schema extends z.ZodTypeAny> = ResolvedDynamic<z.infer<Schema>>;
+export type ResolvedFunctionArgs<Schema extends z.ZodTypeAny> = z.infer<Schema>;
 
 /**
  * Creates a typed FunctionImplementation from an API definition and an execution callback.
@@ -725,11 +724,66 @@ export class Catalog<
   constructor(
     id: string,
     protocolVersion: ProtocolVersion | string,
-    components: T[] = [],
-    functions: F[] = [],
+    components?: ReadonlyArray<T>,
+    functions?: ReadonlyArray<F>,
     themeSchemaOrOptions?: z.ZodTypeAny | CatalogOptions,
     instructions?: string,
+  );
+  /**
+   * Initializes a new v0.9 `Catalog` with the pre-1.0 argument order.
+   *
+   * @deprecated Pass the protocol version as the second argument instead.
+   *   Kept so catalogs written against `@a2ui/web_core` 0.9.x keep
+   *   constructing without a `protocolVersion`.
+   * @param id Unique identifier for the catalog, usually a URI.
+   * @param components Component definitions to register.
+   * @param functions Function definitions to register.
+   * @param themeSchemaOrOptions Optional schema for this catalog's theme
+   *   parameters, or a `CatalogOptions` object.
+   * @param instructions Optional system instructions or usage guidelines.
+   */
+  constructor(
+    id: string,
+    components?: ReadonlyArray<T>,
+    functions?: ReadonlyArray<F>,
+    themeSchemaOrOptions?: z.ZodTypeAny | CatalogOptions,
+    instructions?: string,
+  );
+  constructor(
+    id: string,
+    protocolVersionOrComponents?: ProtocolVersion | string | ReadonlyArray<T>,
+    componentsOrFunctions?: ReadonlyArray<T> | ReadonlyArray<F>,
+    functionsOrThemeSchemaOrOptions?: ReadonlyArray<F> | z.ZodTypeAny | CatalogOptions,
+    themeSchemaOrOptionsOrInstructions?: z.ZodTypeAny | CatalogOptions | string,
+    instructions?: string,
   ) {
+    let protocolVersion: ProtocolVersion | string;
+    let components: ReadonlyArray<T>;
+    let functions: ReadonlyArray<F>;
+    let themeSchemaOrOptions: z.ZodTypeAny | CatalogOptions | undefined;
+    let resolvedInstructions: string | undefined;
+
+    if (typeof protocolVersionOrComponents !== 'string') {
+      // Legacy v0.9 signature: `new Catalog(id, components, functions, ...)`.
+      protocolVersion = '0.9';
+      components = protocolVersionOrComponents ?? [];
+      functions = (componentsOrFunctions as ReadonlyArray<F>) ?? [];
+      themeSchemaOrOptions = functionsOrThemeSchemaOrOptions as
+        | z.ZodTypeAny
+        | CatalogOptions
+        | undefined;
+      resolvedInstructions = themeSchemaOrOptionsOrInstructions as string | undefined;
+    } else {
+      protocolVersion = protocolVersionOrComponents;
+      components = (componentsOrFunctions as ReadonlyArray<T>) ?? [];
+      functions = (functionsOrThemeSchemaOrOptions as ReadonlyArray<F> | undefined) ?? [];
+      themeSchemaOrOptions = themeSchemaOrOptionsOrInstructions as
+        | z.ZodTypeAny
+        | CatalogOptions
+        | undefined;
+      resolvedInstructions = instructions;
+    }
+
     if (!protocolVersion) {
       throw new A2uiCatalogError('protocolVersion must be provided.');
     }
@@ -753,7 +807,7 @@ export class Catalog<
       ? {themeSchema: themeSchemaOrOptions}
       : (themeSchemaOrOptions ?? {});
     this.themeSchema = options.themeSchema;
-    this.instructions = options.instructions ?? instructions;
+    this.instructions = options.instructions ?? resolvedInstructions;
     this.schemaUri = options.schemaUri;
     this.schemaId = options.schemaId;
     this.title = options.title;
@@ -875,25 +929,38 @@ function createCatalogInvoker<F extends FunctionApi>(
       );
     }
 
-    try {
-      // From v1.0 a `DynamicBoolean` argument may resolve to the
-      // `ValidationResult` a validation function returns; it is read by its
-      // validity, as the specification defines the type.
-      const args = isAtLeastVersion(protocolVersion, SpecVersion.V1_0)
-        ? coerceValidationResults(fn.schema, rawArgs)
-        : rawArgs;
-      const safeArgs = fn.schema.parse(args);
-      return execute.call(fn, safeArgs, ctx, abortSignal);
-    } catch (e: any) {
-      if (e?.name === 'ZodError' || e instanceof z.ZodError) {
-        throw new A2uiExpressionError(
-          `Validation failed for function '${name}': ${e.message}`,
-          name,
-          e.errors ?? e.issues,
-        );
+    const parseAndExecute = (resolvedArgs: unknown): unknown => {
+      try {
+        // From v1.0 a `DynamicBoolean` argument may resolve to the
+        // `ValidationResult` a validation function returns; it is read by its
+        // validity, as the specification defines the type.
+        const args = isAtLeastVersion(protocolVersion, SpecVersion.V1_0)
+          ? coerceValidationResults(fn.schema, resolvedArgs)
+          : resolvedArgs;
+        const safeArgs = fn.schema.parse(args);
+        return execute.call(fn, safeArgs, ctx, abortSignal);
+      } catch (e: any) {
+        if (e?.name === 'ZodError' || e instanceof z.ZodError) {
+          throw new A2uiExpressionError(
+            `Validation failed for function '${name}': ${e.message}`,
+            name,
+            e.errors ?? e.issues,
+          );
+        }
+        throw e;
       }
-      throw e;
+    };
+
+    // An argument produced by an asynchronous function arrives as a pending
+    // Promise. Validation and execution wait for every such argument, while
+    // fully settled arguments keep the call synchronous.
+    const settledArgs = settleDeep(rawArgs);
+    if (!isThenable(settledArgs)) {
+      return parseAndExecute(settledArgs);
     }
+    return Promise.resolve(settledArgs).then(resolvedArgs =>
+      abortSignal?.aborted ? undefined : parseAndExecute(resolvedArgs),
+    );
   };
 }
 

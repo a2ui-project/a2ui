@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Breaking:** Unify the v1.0 protocol version wire value on `'1.0'` (without
+  a `'v'` prefix) across message envelopes, `MessageProcessor.getRendererCapabilities`,
+  `RpcHandler`, and catalog documents (`A2uiProtocolVersion.v1_0.jsonValue` is
+  now `'1.0'`), while accepting `'v1.0'` in `A2uiProtocolVersion.tryParseSemVer`
+  and `Catalog.fromJson` ([#3097](https://github.com/a2ui-project/a2ui/issues/3097),
+  [#3726](https://github.com/a2ui-project/a2ui/pull/3726)).
+- (v1_0) Factored `weight` in the v1.0 basic catalog into `#/$defs/Weight`.
+  Component schemas in `BasicCatalog.v1_0`, `Catalog.fromJson` (for leaf
+  catalog `$defs`), and `Catalog.resolvedComponentSchemas` inline catalog-local
+  `$defs` with `catalogDefRef` markers so in-memory component schemas remain
+  self-contained, while `Catalog.toJson()` and `Catalog.validationSchema`
+  restore `#/$defs/...` references
+  ([#2724](https://github.com/a2ui-project/a2ui/pull/2724)).
 - **Breaking:** `MessageProcessor.catalogs` cannot be modified: it is a copy
   of the list the processor was created with, and adding to it throws
   `UnsupportedError`. Pass every catalog when creating the processor

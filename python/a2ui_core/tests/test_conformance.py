@@ -38,6 +38,7 @@ from a2ui.core.validation import (
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
     PayloadValidator,
+    ValidationConfig,
 )
 from a2ui.core.exceptions import (
     A2uiCatalogError,
@@ -177,7 +178,7 @@ def resolve_protocol_version(case: dict[str, Any]) -> str | None:
     if "v09" in cat_id or "v0_9" in cat_id:
         return "v0.9"
     if "v10" in cat_id or "v1_0" in cat_id or "v1.0" in cat_id:
-        return "v1.0"
+        return "1.0"
     return "v0.9"
 
 
@@ -260,17 +261,17 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
     version = resolve_protocol_version(case) or "v0.9"
     cur_basic = (
         v10_catalog
-        if version == "v1.0"
+        if version in ("1.0", "v1.0")
         else (v08_catalog if version == "v0.8" else v09_catalog)
     )
     v10_basic_alias = Catalog(
         catalog_id="basic",
-        protocol_version="v1.0",
+        protocol_version="1.0",
         components=list(v10_catalog.components.values()),
         functions=list(v10_catalog.functions.values()),
     )
 
-    if version == "v1.0":
+    if version in ("1.0", "v1.0"):
         catalogs_map["basic"] = v10_basic_alias
 
     def add_catalog_id(cat_id: str, ver: str | None = None):
@@ -505,6 +506,22 @@ def assert_raises(expect_error: Any):
     with pytest.raises(expected_class) as excinfo:
         yield
 
+    if isinstance(expect_error, dict) and expect_error.get("code"):
+        expected_code = expect_error["code"]
+        err_details = getattr(excinfo.value, "details", [])
+        err_code = getattr(excinfo.value, "code", None)
+        assert (
+            err_code == expected_code
+            or expected_code in str(excinfo.value)
+            or (
+                err_details
+                and any(getattr(d, "code", None) == expected_code for d in err_details)
+            )
+        ), (
+            f"Expected error code '{expected_code}' not found in exception"
+            f" '{excinfo.value}'"
+        )
+
     if message:
         msg_norm = message.lower()
         err_details = getattr(excinfo.value, "details", [])
@@ -661,7 +678,9 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         )
 
 
-def _timed_processing(case: dict[str, Any]) -> Callable[[str], Callable[[], object]]:
+def _timed_processing(
+    case: dict[str, Any],
+) -> Callable[[str], Callable[[], object]]:
     """Returns how a `process_messages` timing case prepares a timed run.
 
     The catalogs are built and the payload decoded before the timing starts.
@@ -936,14 +955,40 @@ def validate_pure_validation_case(case: dict[str, Any]) -> None:
                 _assert_expected_surface_state(processor, expected)
 
 
+# The flags a case's `validationConfig` may set (`validationConfig` in
+# conformance/conformance_schema.json), with the ValidationConfig field each
+# sets. A flag the case leaves out is False.
+_CASE_VALIDATION_FLAGS = {
+    "allowOrphanComponents": "allow_orphan_components",
+    "allowDanglingReferences": "allow_dangling_references",
+    "allowMissingRoot": "allow_missing_root",
+    "allowUnknownElements": "allow_unknown_elements",
+}
+
+
+def _case_validation_config(flags: dict[str, bool]) -> ValidationConfig:
+    """Builds the ValidationConfig a case's `validationConfig` flags describe."""
+    unknown = set(flags) - set(_CASE_VALIDATION_FLAGS)
+    assert not unknown, f"Unknown validationConfig flags: {sorted(unknown)}"
+    return ValidationConfig(
+        **{_CASE_VALIDATION_FLAGS[name]: value for name, value in flags.items()}
+    )
+
+
 def validate_process_messages_case(case: dict[str, Any]) -> None:
     catalogs = get_catalogs_for_test_case(case)
-    is_strict = bool(
-        case.get("strictMode")
-        or case.get("strict_mode")
-        or case.get("options", {}).get("strict_mode")
-    )
-    val_config = STRICT_VALIDATION if is_strict else None
+    if "validationConfig" in case:
+        # The case sets its checks, so they don't depend on this harness.
+        val_config: ValidationConfig | None = _case_validation_config(
+            case["validationConfig"]
+        )
+    else:
+        is_strict = bool(
+            case.get("strictMode")
+            or case.get("strict_mode")
+            or case.get("options", {}).get("strict_mode")
+        )
+        val_config = STRICT_VALIDATION if is_strict else None
     processor = MessageProcessor(
         catalogs, options=MessageProcessorOptions(validation_config=val_config)
     )
@@ -1389,7 +1434,12 @@ def validate_common_type_case(case: dict[str, Any]) -> None:
 
     from a2ui.core.schema import v0_9 as schema_v0_9, v1_0 as schema_v1_0
 
-    schema_packages = {"v0.9": schema_v0_9, "v0.9.1": schema_v0_9, "v1.0": schema_v1_0}
+    schema_packages = {
+        "v0.9": schema_v0_9,
+        "v0.9.1": schema_v0_9,
+        "1.0": schema_v1_0,
+        "v1.0": schema_v1_0,
+    }
     p_ver = resolve_protocol_version(case)
     assert (
         p_ver in schema_packages
@@ -1634,7 +1684,7 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             "protocolVersion"
         )
         or case.get("protocolVersion")
-        or "v1.0"
+        or "1.0"
     )
 
     cat = Catalog(
@@ -1713,7 +1763,7 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
             ),
             options=CallOptions(
                 function_call_id=outbound_call["functionCallId"],
-                version="v1.0",
+                version="1.0",
             ),
         )
         processor.process_messages(inbound_response)
@@ -1743,7 +1793,7 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
                 ),
                 options=CallOptions(
                     function_call_id=spec["functionCallId"],
-                    version="v1.0",
+                    version="1.0",
                     timeout_ms=spec.get("timeoutMs"),
                 ),
             )
@@ -1786,7 +1836,7 @@ def validate_select_catalog_case(case: dict[str, Any]) -> None:
     catalogs_dict: dict[str, CatalogApi] = {}
     if "catalogs" in args and isinstance(args["catalogs"], dict):
         for cat_id, cat_def in args["catalogs"].items():
-            p_ver = cat_def.get("protocolVersion", "v1.0")
+            p_ver = cat_def.get("protocolVersion", "1.0")
             catalogs_dict[cat_id] = Catalog(
                 catalog_id=cat_id,
                 protocol_version=p_ver,
@@ -1795,12 +1845,12 @@ def validate_select_catalog_case(case: dict[str, Any]) -> None:
         for cat_id in surface_args.get("supportedCatalogIds", [default_cat_id]):
             catalogs_dict[cat_id] = Catalog(
                 catalog_id=cat_id,
-                protocol_version="v1.0",
+                protocol_version="1.0",
             )
 
     default_cat = catalogs_dict.get(
         default_cat_id,
-        Catalog(catalog_id=default_cat_id, protocol_version="v1.0"),
+        Catalog(catalog_id=default_cat_id, protocol_version="1.0"),
     )
     surface = SurfaceModel(
         surface_id=s_id,

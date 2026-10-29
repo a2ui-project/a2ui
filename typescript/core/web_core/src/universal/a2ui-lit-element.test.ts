@@ -82,14 +82,14 @@ describe('A2uiLitElement', () => {
     processor = new MessageProcessor([testCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'test-surface',
           catalogId: testCatalog.id,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'test-surface',
           components: [
@@ -107,7 +107,7 @@ describe('A2uiLitElement', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'test-surface',
           value: {
@@ -245,7 +245,7 @@ describe('A2uiLitElement', () => {
     surface.componentsModel.removeComponent('root');
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'test-surface',
           components: [{id: 'root', component: 'Text', text: 'Recreated'}],
@@ -266,14 +266,14 @@ describe('A2uiLitElement', () => {
     const nodeProcessor = new MessageProcessor([basicCatalog]);
     nodeProcessor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'node-surface',
           catalogId: basicCatalog.id,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'node-surface',
           components: [
@@ -401,9 +401,9 @@ describe('A2uiLitElement', () => {
       const catalog = new Catalog<ComponentApi>(catalogId, '1.0', [api]);
       const catalogProcessor = new MessageProcessor([catalog]);
       catalogProcessor.processMessages([
-        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId}},
+        {version: '1.0', createSurface: {surfaceId: 's', catalogId}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's',
             components: [{id: 'root', component: 'Label', text: 'Hi'}],
@@ -458,14 +458,14 @@ describe('A2uiLitElement', () => {
     const columnProcessor = new MessageProcessor([basicCatalog]);
     columnProcessor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'leak-surface',
           catalogId: basicCatalog.id,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'leak-surface',
           components: [
@@ -476,7 +476,7 @@ describe('A2uiLitElement', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'leak-surface',
           value: {label: 'Initial'},
@@ -508,7 +508,7 @@ describe('A2uiLitElement', () => {
       await asyncUpdate(rootEl, (e: any) => {
         columnProcessor.processMessages([
           {
-            version: 'v1.0',
+            version: '1.0',
             updateDataModel: {
               surfaceId: 'leak-surface',
               value: {label: `Tick ${i}`},

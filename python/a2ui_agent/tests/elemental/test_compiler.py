@@ -85,7 +85,7 @@ class TestElementalCompiler(unittest.TestCase):
         )
         result = to_message_dicts(compiler_v1.compile(html_input))
         expected = [{
-            "version": "v1.0",
+            "version": "1.0",
             "callRendererFunction": {
                 "functionCallId": "call_1",
                 "callFunction": {
@@ -193,11 +193,16 @@ class TestElementalCompiler(unittest.TestCase):
         result = self._compile_dict(html_input)
         create_op = result["createSurface"]
         self.assertEqual(
-            create_op, {"surfaceId": "test-surf", "catalogId": self.catalog.catalog_id}
+            create_op,
+            {"surfaceId": "test-surf", "catalogId": self.catalog.catalog_id},
         )
         self.assertEqual(
             result["updateDataModel"],
-            {"surfaceId": "test-surf", "path": "/", "value": {"title": "Hello World"}},
+            {
+                "surfaceId": "test-surf",
+                "path": "/",
+                "value": {"title": "Hello World"},
+            },
         )
         self.assertEqual(result["updateComponents"]["surfaceId"], "test-surf")
 
@@ -473,16 +478,12 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_component_with_slots(self):
         # Modal is not a standard container tag but has slot properties (trigger, content)
         html_input = (
-            '<body id="test-surf">\n'
-            '  <ui-modal id="delete_modal">\n'
-            '    <ui-button id="delete_trigger_btn" slot="trigger">\n'
-            '      <ui-text id="delete_trigger_text" text="Delete Account" />\n'
-            "    </ui-button>\n"
-            '    <ui-column id="delete_confirmation_col" slot="content">\n'
-            '      <ui-text id="confirm_title" text="# Confirm Account Deletion" />\n'
-            "    </ui-column>\n"
-            "  </ui-modal>\n"
-            "</body>"
+            '<body id="test-surf">\n  <ui-modal id="delete_modal">\n    <ui-button'
+            ' id="delete_trigger_btn" slot="trigger">\n      <ui-text'
+            ' id="delete_trigger_text" text="Delete Account" />\n    </ui-button>\n'
+            '    <ui-column id="delete_confirmation_col" slot="content">\n     '
+            ' <ui-text id="confirm_title" text="# Confirm Account Deletion" />\n   '
+            " </ui-column>\n  </ui-modal>\n</body>"
         )
         result = self._compile_dict(html_input)
         components = result["updateComponents"]["components"]
@@ -647,8 +648,8 @@ class TestElementalCompiler(unittest.TestCase):
 
         # 2. Function calls with positional args and action functions
         html_fn = (
-            '<body><ui-text id="t1" text="{formatDate(user.created, \'YYYY-MM-DD\')}"'
-            " /></body>"
+            '<body><ui-text id="t1" text="{formatDate(user.created,'
+            " 'YYYY-MM-DD')}\" /></body>"
         )
         result_fn = self._compile_dict(html_fn)
         comps_fn = result_fn["updateComponents"]["components"]
@@ -750,8 +751,8 @@ class TestElementalCompiler(unittest.TestCase):
 
         # 3. dataModel script in body
         html_dm = (
-            '<body><script type="application/json">{"user": "Alice"}</script><ui-text'
-            ' id="t1" text="Hi" /></body>'
+            '<body><script type="application/json">{"user":'
+            ' "Alice"}</script><ui-text id="t1" text="Hi" /></body>'
         )
         res_dm = self._compile_dict(html_dm)
         self.assertEqual(res_dm["updateDataModel"]["value"], {"user": "Alice"})
@@ -861,7 +862,8 @@ class TestElementalCompiler(unittest.TestCase):
 
         # 3. Case-insensitive $ref
         self.assertEqual(
-            _get_primitive_property_type({"$ref": "#/$defs/dynamicboolean"}), "boolean"
+            _get_primitive_property_type({"$ref": "#/$defs/dynamicboolean"}),
+            "boolean",
         )
         self.assertEqual(
             _get_primitive_property_type(
@@ -870,13 +872,16 @@ class TestElementalCompiler(unittest.TestCase):
             "boolean",
         )
         self.assertEqual(
-            _get_primitive_property_type({"$ref": "#/$defs/dynamicinteger"}), "integer"
+            _get_primitive_property_type({"$ref": "#/$defs/dynamicinteger"}),
+            "integer",
         )
         self.assertEqual(
-            _get_primitive_property_type({"$ref": "#/$defs/dynamicnumber"}), "number"
+            _get_primitive_property_type({"$ref": "#/$defs/dynamicnumber"}),
+            "number",
         )
         self.assertEqual(
-            _get_primitive_property_type({"$ref": "#/$defs/dynamicstring"}), "string"
+            _get_primitive_property_type({"$ref": "#/$defs/dynamicstring"}),
+            "string",
         )
 
 

@@ -39,6 +39,7 @@ import {AgentStubV08Service} from './agent-stub-v08.service';
 import {AgentStubV09Service} from './agent-stub-v09.service';
 import {provideMarkdownRenderer, Surface as SurfaceV08} from '@a2ui/angular/v0_8';
 import {DemoCatalog, DemoCatalogV10, McpDemoCatalog} from './demo-catalog';
+import {compareSemVer} from '@a2ui/web_core';
 import {A2uiClientAction, A2uiMessage} from '@a2ui/web_core/v0_9';
 import {ServerToClientMessage} from 'src/v0_8/types';
 import {A2uiExample, A2UI_VERSION, A2UI_EXAMPLES, Version} from './types';
@@ -1146,7 +1147,8 @@ export class DemoComponent implements OnInit, OnDestroy {
     return messages.map(msg => {
       if (
         'createSurface' in msg &&
-        (msg as {version?: string}).version !== 'v1.0' &&
+        typeof (msg as {version?: string}).version === 'string' &&
+        compareSemVer((msg as {version: string}).version, '1.0') < 0 &&
         msg.createSurface
       ) {
         return {
