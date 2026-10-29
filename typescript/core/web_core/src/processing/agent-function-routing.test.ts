@@ -33,6 +33,15 @@ const upper = createFunctionImplementation(
   args => args.value.toUpperCase(),
 );
 
+const concat = createFunctionImplementation(
+  {
+    name: 'concat',
+    returnType: 'string',
+    schema: z.object({'a': z.string(), 'b': z.string()}),
+  },
+  args => `${args.a}:${args.b}`,
+);
+
 /** Declared in the catalog, but implemented on the agent (schema-only). */
 const quote: FunctionApi = {
   name: 'quote',
@@ -60,7 +69,7 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
   const setUp = (options: {outboundListener?: boolean; defaultTimeoutMs?: number} = {}) => {
     outbound = [];
     errors = [];
-    const catalog = new Catalog<any, any>(FIN_CATALOG_ID, '1.0', [], [upper, quote]);
+    const catalog = new Catalog<any, any>(FIN_CATALOG_ID, '1.0', [], [upper, concat, quote]);
     proc = new MessageProcessor([catalog], undefined, {
       outboundListener:
         options.outboundListener === false
@@ -138,9 +147,17 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     sub.unsubscribe();
   });
 
-  it('reports a failed agent argument in a binding once', async () => {
+  it('reports a failed agent argument in a binding once with the inner function name', async () => {
+    const surface = proc.model.getSurface('s1')!;
+    surface.dataModel.set('/b', 'first');
     const sub = ctx.subscribeDynamicValue<string>(
-      {'@call': 'upper', 'args': {'value': {'@call': 'fetchGreeting', 'args': {}}}},
+      {
+        '@call': 'concat',
+        'args': {
+          'a': {'@call': 'fetchGreeting', 'args': {}},
+          'b': {'@path': '/b'},
+        },
+      },
       () => {},
     );
     await flush();
@@ -149,8 +166,103 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     assert.strictEqual(sub.value, undefined);
     assert.strictEqual(errors.length, 1);
     assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.strictEqual(errors[0].expression, 'fetchGreeting');
     assert.match(errors[0].message, /No such function: fetchGreeting/);
+
+    // Updating a sibling reactive argument does not re-dispatch the inner failure.
+    surface.dataModel.set('/b', 'second');
+    await flush();
+    assert.strictEqual(sub.value, undefined);
+    assert.strictEqual(errors.length, 1);
     sub.unsubscribe();
+  });
+
+  it('re-evaluates synchronously when a sibling reactive argument changes after an agent argument settles', async () => {
+    const surface = proc.model.getSurface('s1')!;
+    surface.dataModel.set('/b', 'first');
+    const values: Array<string | undefined> = [];
+    const sub = ctx.subscribeDynamicValue<string>(
+      {
+        '@call': 'concat',
+        'args': {
+          'a': {'@call': 'fetchGreeting', 'args': {}},
+          'b': {'@path': '/b'},
+        },
+      },
+      val => values.push(val),
+    );
+    await flush();
+    respond(0, {value: 'hello'});
+    await flush();
+    assert.strictEqual(sub.value, 'hello:first');
+
+    surface.dataModel.set('/b', 'second');
+    assert.strictEqual(sub.value, 'hello:second');
+    assert.deepStrictEqual(values, ['hello:first', 'hello:second']);
+    assert.deepStrictEqual(errors, []);
+    sub.unsubscribe();
+  });
+
+  it('stops an enclosing call when a nested schema-only argument fails validation synchronously', async () => {
+    const res = ctx.resolveDynamicValue({
+      '@call': 'convert',
+      'args': {'rate': {'@call': 'quote', 'args': {'symbol': 42}}},
+    });
+    const sig = ctx.resolveSignal({
+      '@call': 'upper',
+      'args': {'value': {'@call': 'quote', 'args': {'symbol': 42}}},
+    });
+    await flush();
+    assert.strictEqual(res, undefined);
+    assert.strictEqual(getValue(sig), undefined);
+    assert.strictEqual(outbound.length, 0);
+    assert.strictEqual(errors.length, 2);
+    assert.strictEqual(errors[0].expression, 'quote');
+    assert.strictEqual(errors[1].expression, 'quote');
+  });
+
+  it('dispatches EXPRESSION_ERROR when an agent call nested inside a plain object or array rejects in resolveDynamicValue', async () => {
+    const obj = ctx.resolveDynamicValue<{rate: Promise<unknown>}>({
+      rate: {'@call': 'fetchFxRate', 'args': {'base': 'EUR'}},
+    });
+    await flush();
+    assert.strictEqual(outbound.length, 1);
+    respond(0, {error: {code: 'UNKNOWN_FUNCTION', message: 'rate unavailable'}});
+    assert.strictEqual(await obj.rate, undefined);
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.strictEqual(errors[0].expression, 'fetchFxRate');
+  });
+
+  it('cancels pre-microtask and in-flight agent calls when the surface is deleted or processor is disposed', async () => {
+    ctx.resolveDynamicValue({'@call': 'preMicrotaskCall', 'args': {}});
+    proc.processMessages({
+      version: '1.0',
+      deleteSurface: {surfaceId: 's1'},
+    } as any);
+    await flush();
+    assert.strictEqual(
+      outbound.length,
+      0,
+      'deleting a surface before the microtask prevents sending the outbound call',
+    );
+    assert.deepStrictEqual(errors, []);
+
+    setUp({defaultTimeoutMs: 50});
+    const sig = ctx.resolveSignal({'@call': 'fetchFxRate', 'args': {'base': 'EUR'}});
+    await flush();
+    assert.strictEqual(outbound.length, 1);
+    proc.processMessages({
+      version: '1.0',
+      deleteSurface: {surfaceId: 's1'},
+    } as any);
+    await new Promise(resolve => setTimeout(resolve, 80));
+    assert.strictEqual(getValue(sig), undefined);
+    assert.deepStrictEqual(
+      errors,
+      [],
+      'deleting a surface cancels its pending RPC timer without emitting a timeout error',
+    );
   });
 
   it('sends an outer agent call only once its agent argument has settled', async () => {
