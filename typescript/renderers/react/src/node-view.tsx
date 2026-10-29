@@ -70,38 +70,16 @@ function contextOf(node: ComponentNode): ComponentContext {
   return node.context;
 }
 
-/** Stands in for a component that has not arrived, or has just been removed. */
-export const LoadingPlaceholder: React.FC<{componentId: string}> = ({componentId}) => (
-  <div
-    data-a2ui-component-id={componentId}
-    data-a2ui-state="pending"
-    style={{color: 'gray', padding: '4px'}}
-  >
-    [Loading {componentId}...]
-  </div>
-);
-
-/** Stands in for a component reference that forms a cycle in the ancestor chain. */
-export const CyclicPlaceholder: React.FC<{componentId: string}> = ({componentId}) => (
-  <div
-    data-a2ui-component-id={componentId}
-    data-a2ui-state="cyclic"
-    style={{color: 'orange', padding: '4px'}}
-  >
-    [Cyclic reference: {componentId}]
-  </div>
-);
-
 /** Unresolved-reference reports already dispatched, per surface. */
 const reportedUnresolved = new WeakMap<SurfaceModel<ReactCatalogComponent>, Set<string>>();
 
 /**
- * The in-tree notice for a child reference the resolver built no node for.
- * Also reports it through the surface's error channel once per (id, path)
- * so agents see it too, matching how the resolver reports unknown types and
- * cycles. The report runs in an effect: dispatching during render would
- * invoke onError subscribers while React is rendering, and a subscriber
- * that sets state would then warn.
+ * Stands in for a child reference the resolver built no node for. It renders
+ * nothing, like the other unresolved states, and reports the reference
+ * through the surface's error channel once per (id, path), as the resolver
+ * does for unknown types and cycles. The report runs in an effect:
+ * dispatching during render would invoke onError subscribers while React is
+ * rendering, and a subscriber that sets state would then warn.
  */
 export const UnresolvedChildReference: React.FC<{
   surface: SurfaceModel<ReactCatalogComponent>;
@@ -122,7 +100,7 @@ export const UnresolvedChildReference: React.FC<{
       void surface.dispatchError({code: 'UNRESOLVED_CHILD_REFERENCE', message});
     }
   }, [surface, id, requestedPath, message]);
-  return <div style={{color: 'red'}}>{message}</div>;
+  return null;
 };
 
 export function useSignalValue<T>(signal: Signal<T>): T {
@@ -297,28 +275,15 @@ const RenderFallback: React.FC<{
 };
 
 /**
- * Renders a node as its implementation's custom element. A node that has not
- * arrived renders a `LoadingPlaceholder`; one of an unknown type renders an
- * inline error.
+ * Renders a node as its implementation's custom element. A pending,
+ * unknown-type or cyclic node renders nothing: the resolver has already
+ * reported unknown types and cycles to the surface, and a pending node is
+ * replaced in place when its component arrives.
  */
 export const ChildElement = memo(({node}: {node: ComponentNode<ReactCatalogComponent>}) => {
   const owner = useMemo(() => new HostOwner(), []);
-  if (node.state === 'unknown-type') {
-    return (
-      <div
-        data-a2ui-component-id={node.componentId}
-        data-a2ui-state="unknown-type"
-        style={{color: 'red'}}
-      >
-        Unknown component type: {node.type}
-      </div>
-    );
-  }
-  if (node.state === 'cyclic') {
-    return <CyclicPlaceholder componentId={node.componentId} />;
-  }
   if (node.isPlaceholder || !node.impl || !node.context) {
-    return <LoadingPlaceholder componentId={node.componentId} />;
+    return null;
   }
   if ('render' in node.impl) {
     // A React implementation: its host is React's own element, so its content
