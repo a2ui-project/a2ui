@@ -279,7 +279,7 @@ struct ComponentGraphBatchCheckTests {
     try processor.processMessages(
       .array([
         .object([
-          "version": "v1.0",
+          "version": "1.0",
           "createSurface": .object([
             "surfaceId": "s", "catalogId": .string(Self.catalogID),
           ]),
@@ -294,7 +294,7 @@ struct ComponentGraphBatchCheckTests {
     try processor.processMessages(
       .array([
         .object([
-          "version": "v1.0",
+          "version": "1.0",
           "updateComponents": .object([
             "surfaceId": "s",
             "components": .array(batch.map(object)),
@@ -378,7 +378,7 @@ struct ComponentGraphBatchCheckTests {
     ]
     return Catalog(
       id: Self.catalogID,
-      protocolVersion: "v1.0",
+      protocolVersion: "1.0",
       components: schemas.map { name, schema in
         AnyComponentAPI(
           name: name,
