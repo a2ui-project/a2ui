@@ -205,7 +205,7 @@ To test access and artifact staging without publishing anything, run the
 
 ### Swift Package Manager
 
-The Swift package is defined by [Package.swift](../../Package.swift) at the
+The Swift package is defined by [Package.swift](../../../Package.swift) at the
 repository root. Its four libraries, `A2UISwiftCore`, `A2UISwiftUI`,
 `BasicCatalog` and `BasicCatalogSwiftUI`, are released together under one
 version, following [Semver](https://semver.org/). Before 1.0.0, a breaking change bumps the minor
@@ -232,10 +232,20 @@ two places:
     and name it `a2ui-swift` in their product dependencies, for example
     `.product(name: "A2UISwiftUI", package: "a2ui-swift")`.
 
+**One-time setup**
+
+Before the first release, a maintainer creates the public repository
+`a2ui-project/a2ui-swift` under the Apache 2.0 license and gives push access to
+the people who release.
+
+Optionally, once the mirror has its first version tag, list it on
+[Swift Package Index](https://swiftpackageindex.com) through its
+[add a package](https://swiftpackageindex.com/add-a-package) page.
+
 **1. Choose the commit**
 
 Pick a commit on `main` where the
-[Swift Core (iOS)](../../.github/workflows/swift_build_and_test.yml) workflow
+[Swift Core (iOS)](../../../.github/workflows/swift_build_and_test.yml) workflow
 passed. Its `test` job runs `swift test`, and its `ios-build` job builds the
 libraries and the sample app for the iOS Simulator.
 
@@ -271,16 +281,6 @@ plugin reads JSON schemas from `specification/` and `catalogs/`, and the test
 targets read the conformance suites from `conformance/`. If `swift build`
 fails in the mirror, a target has started reading a path that is missing from
 this list.
-
-**One-time setup**
-
-Before the first release, a maintainer creates the public repository
-`a2ui-project/a2ui-swift` under the Apache 2.0 license and gives push access to
-the people who release.
-
-Optionally, list the mirror on [Swift Package Index](https://swiftpackageindex.com)
-through its [add a package](https://swiftpackageindex.com/add-a-package) page.
-It needs at least one version tag first.
 
 ### Documentation website
 
