@@ -27,7 +27,7 @@ import {ComponentsListSchema} from './helpers.js';
 
 export const CreateSurfaceMessageSchema = z
   .object({
-    'version': z.literal('v1.0'),
+    'version': z.literal('1.0'),
     'createSurface': z
       .object({
         'surfaceId': z
@@ -68,7 +68,7 @@ export type CreateSurfaceMessage = z.infer<typeof CreateSurfaceMessageSchema>;
 
 export const UpdateComponentsMessageSchema = z
   .object({
-    'version': z.literal('v1.0'),
+    'version': z.literal('1.0'),
     'updateComponents': z
       .object({
         'surfaceId': z
@@ -88,7 +88,7 @@ export type UpdateComponentsMessage = z.infer<typeof UpdateComponentsMessageSche
 
 export const UpdateDataModelMessageSchema = z
   .object({
-    'version': z.literal('v1.0'),
+    'version': z.literal('1.0'),
     'updateDataModel': z
       .object({
         'surfaceId': z
@@ -118,7 +118,7 @@ export type UpdateDataModelMessage = z.infer<typeof UpdateDataModelMessageSchema
 
 export const DeleteSurfaceMessageSchema = z
   .object({
-    'version': z.literal('v1.0'),
+    'version': z.literal('1.0'),
     'deleteSurface': z
       .object({
         'surfaceId': z
@@ -137,7 +137,7 @@ export type DeleteSurfaceMessage = z.infer<typeof DeleteSurfaceMessageSchema>;
 
 export const CallRendererFunctionMessageSchema = z
   .object({
-    'version': z.literal('v1.0'),
+    'version': z.literal('1.0'),
     'callRendererFunction': z
       .object({
         'surfaceId': z
@@ -159,7 +159,7 @@ export const CallRendererFunctionMessageSchema = z
 export type CallRendererFunctionMessage = z.infer<typeof CallRendererFunctionMessageSchema>;
 
 export const AgentFunctionResponseMessageSchema = z
-  .object({'version': z.literal('v1.0'), 'agentFunctionResponse': FunctionResponseSchema})
+  .object({'version': z.literal('1.0'), 'agentFunctionResponse': FunctionResponseSchema})
   .strict();
 export type AgentFunctionResponseMessage = z.infer<typeof AgentFunctionResponseMessageSchema>;
 

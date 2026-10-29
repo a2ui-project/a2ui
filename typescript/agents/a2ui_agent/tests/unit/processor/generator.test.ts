@@ -25,7 +25,7 @@ import {A2uiGenerator} from '../../../src/processor/generator.js';
 import {RendererState} from '../../../src/utils/renderer-state.js';
 import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 
-const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('1.0');
 
 describe('A2uiGenerator', () => {
   const mockCapabilities: V10RendererCapabilities = {
@@ -54,7 +54,7 @@ describe('A2uiGenerator', () => {
     const examples = {
       'test_turn': [
         {
-          version: 'v1.0' as const,
+          version: '1.0' as const,
           updateComponents: {
             surfaceId: 's1',
             components: [
@@ -83,7 +83,7 @@ describe('A2uiGenerator', () => {
     const examples = {
       'test_turn': [
         {
-          version: 'v1.0' as const,
+          version: '1.0' as const,
           createSurface: {
             surfaceId: 's1',
             catalogId: basicCatalogV10.id,
@@ -117,7 +117,7 @@ describe('A2uiGenerator', () => {
     const examples = {
       'dangling_turn': [
         {
-          version: 'v1.0' as const,
+          version: '1.0' as const,
           createSurface: {
             surfaceId: 's1',
             catalogId: basicCatalogV10.id,
@@ -158,7 +158,7 @@ describe('A2uiGenerator', () => {
   test('rejects a state for other catalogs', () => {
     const generator = new A2uiGenerator([new CatalogConfig(basicCatalogV10)]);
     const other = new RendererState([
-      new InMemoryCatalogProvider({catalogId: 'other', components: {}}, 'v1.0').load(),
+      new InMemoryCatalogProvider({catalogId: 'other', components: {}}, '1.0').load(),
     ]);
 
     expect(() => generator.createProcessor(mockCapabilities, undefined, {state: other})).toThrow(
@@ -173,7 +173,7 @@ describe('A2uiGenerator', () => {
     const generator = new A2uiGenerator([new CatalogConfig(basicCatalogV10)]);
 
     const processor = generator.createProcessor({
-      'v1.0': {supportedCatalogIds: [basicCatalogV10.id]},
+      '1.0': {supportedCatalogIds: [basicCatalogV10.id]},
     });
     expect(processor.activeCatalogs[0].id).toBe(basicCatalogV10.id);
 

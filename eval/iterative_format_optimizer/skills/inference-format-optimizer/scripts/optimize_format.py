@@ -181,12 +181,13 @@ def regenerate_master_index(target_dir: str) -> None:
         "# Master Optimization Run History",
         "",
         (
-            "| Format | Run ID | Model | Budget | Hypothesis | Pytest | Overall Acc |"
-            " Algo Acc | Latency | Input Tok | Output Tok | Status | Notes |"
+            "| Format | Run ID | Model | Budget | Hypothesis | Pytest | Overall"
+            " Acc | Algo Acc | Latency | Input Tok | Output Tok | Status |"
+            " Notes |"
         ),
         (
-            "| :--- | :--- | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---:"
-            " | :---: | :---: | :--- |"
+            "| :--- | :--- | :--- | :--- | :--- | :---: | :---: | :---: | :---: |"
+            " :---: | :---: | :---: | :--- |"
         ),
     ]
     for r in all_master_runs:
@@ -522,7 +523,8 @@ def main(argv: list[str] | None = None) -> None:
                 "schema_acc": metrics_ext.get("algo_accuracy", 0.0),
                 "quality_acc": metrics_ext.get("overall_accuracy", 0.0),
                 "code_tokens_median": metrics_ext.get(
-                    "median_output_tokens", metrics_ext.get("avg_output_tokens", 0.0)
+                    "median_output_tokens",
+                    metrics_ext.get("avg_output_tokens", 0.0),
                 ),
                 "reasoning_tokens_median": metrics_ext.get(
                     "median_reasoning_tokens",
@@ -585,14 +587,16 @@ def main(argv: list[str] | None = None) -> None:
             "schema_acc": metrics_extracted.get("algo_accuracy", 0.0),
             "quality_acc": metrics_extracted.get("overall_accuracy", 0.0),
             "code_tokens_median": metrics_extracted.get(
-                "median_output_tokens", metrics_extracted.get("avg_output_tokens", 0.0)
+                "median_output_tokens",
+                metrics_extracted.get("avg_output_tokens", 0.0),
             ),
             "reasoning_tokens_median": metrics_extracted.get(
                 "median_reasoning_tokens",
                 metrics_extracted.get("avg_reasoning_tokens", 0.0),
             ),
             "input_tokens_median": metrics_extracted.get(
-                "median_input_tokens", metrics_extracted.get("avg_input_tokens", 0.0)
+                "median_input_tokens",
+                metrics_extracted.get("avg_input_tokens", 0.0),
             ),
             "latency_seconds_median": metrics_extracted.get(
                 "median_latency_seconds",

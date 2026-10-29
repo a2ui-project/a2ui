@@ -1318,7 +1318,7 @@ describe('NodeResolver on a surface without a default catalog', () => {
       undefined,
       undefined,
       undefined,
-      'v1.0',
+      '1.0',
     );
     const errors: Array<Record<string, unknown>> = [];
     surface.onError.subscribe(e => {
