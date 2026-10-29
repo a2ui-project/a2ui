@@ -22,13 +22,13 @@ import OrderedJSON
 /// awaiting a response only once.
 public struct AgentFunctionCall: Hashable, Sendable {
   /// The name of the function to call.
-  public var name: String
+  public let name: String
 
   /// The identifier of the catalog the call resolved to on the surface.
-  public var catalogID: String
+  public let catalogID: String
 
   /// The resolved argument values.
-  public var args: [String: JSONValue]
+  public let args: [String: JSONValue]
 
   /// Creates an agent function call.
   ///

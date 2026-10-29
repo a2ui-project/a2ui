@@ -95,6 +95,16 @@ struct AgentFunctionRoutingTests {
     )
   )
 
+  /// Declared in the catalog, implemented on the agent, and callable only by the agent.
+  private static let auditLog = SchemaOnlyFunction(
+    api: FunctionAPI(
+      name: "auditLog",
+      returnType: .boolean,
+      schema: try! Schema(instance: "{\"type\": \"object\"}"),
+      allowedCallers: .agentOnly
+    )
+  )
+
   /// Collects the processor's outbound messages, and keeps the processor alive.
   private final class Outbound: @unchecked Sendable {
     var messages: [RendererToAgentMessage] = []
@@ -128,6 +138,7 @@ struct AgentFunctionRoutingTests {
           "type": "object",
           "properties": {
             "text": { "$ref": "\(dynamicString)" },
+            "label": { "$ref": "\(dynamicString)" },
             "checks": { "type": "array", "items": { "$ref": "\(checkRule)" } },
             "onClick": { "$ref": "\(action)" }
           }
@@ -139,7 +150,7 @@ struct AgentFunctionRoutingTests {
       id: Self.finCatalogID,
       protocolVersion: protocolVersion,
       components: [AnyComponentAPI(name: "Text", schema: schema)],
-      functions: [UpperFunction(), Self.quote, Self.confirmOrder]
+      functions: [UpperFunction(), Self.quote, Self.confirmOrder, Self.auditLog]
     ).eraseToAnyCatalog()
   }
 
@@ -211,17 +222,26 @@ struct AgentFunctionRoutingTests {
     )
   }
 
-  /// Waits for asynchronous work, until `condition` holds or about two seconds pass.
-  private func waitUntil(_ condition: () -> Bool) async {
+  /// Waits for asynchronous work until `condition` holds, recording an issue if it still doesn't
+  /// after about two seconds.
+  private func waitUntil(
+    _ condition: () -> Bool,
+    sourceLocation: SourceLocation = #_sourceLocation
+  ) async {
     for _ in 0..<400 where !condition() {
+      await Task.yield()
+      if condition() { return }
       try? await Task.sleep(nanoseconds: 5_000_000)
+    }
+    if !condition() {
+      Issue.record("Timed out waiting for condition", sourceLocation: sourceLocation)
     }
   }
 
-  /// Lets pending tasks run, for checks that something did not happen.
+  /// Lets ready main-actor tasks run, for checks that something did not happen.
   private func settle() async {
-    for _ in 0..<10 {
-      try? await Task.sleep(nanoseconds: 5_000_000)
+    for _ in 0..<5 {
+      await Task.yield()
     }
   }
 
@@ -278,6 +298,82 @@ struct AgentFunctionRoutingTests {
     await waitUntil { text(surface) != nil }
     #expect(text(surface) == "HELLO")
     #expect(handler.capturedErrors.isEmpty)
+  }
+
+  @Test func doesNotRunEnclosingFunctionWhenNestedAgentCallFails() async throws {
+    let (processor, surface) = try makeProcessor()
+    try process(processor, Self.setSymbol(#""GOOG""#))
+    try render(
+      processor,
+      """
+      {"id": "root", "component": "Text", "label": {"@path": "/symbol"},
+       "text": {"@call": "upper", "args": {"value": {"@call": "fetchGreeting"}}}}
+      """
+    )
+    await waitUntil { outbound.agentCalls.count == 1 }
+
+    try respond(processor, 0, #""error": {"code": "FAIL", "message": "boom"}"#)
+    await waitUntil { !errors.isEmpty }
+    // Resolving the node again must not run `upper` with a `null` value, nor resend the call.
+    try process(processor, Self.setSymbol(#""AAPL""#))
+    await settle()
+    #expect(text(surface) == nil)
+    #expect(errors.count == 1)
+    #expect(errors.first?.expression == "fetchGreeting")
+    #expect(errors.first?.message.contains("boom") == true)
+    #expect(outbound.agentCalls.count == 1)
+  }
+
+  @Test func chainsNestedAgentCallsInOrder() async throws {
+    let (processor, surface) = try makeProcessor()
+    try render(
+      processor,
+      """
+      {"id": "root", "component": "Text",
+       "text": {"@call": "convert",
+                "args": {"rate": {"@call": "fetchFxRate", "args": {"base": "EUR"}}}}}
+      """
+    )
+    await waitUntil { outbound.agentCalls.count == 1 }
+    await settle()
+    #expect(outbound.agentCalls.map(\.callFunction.call) == ["fetchFxRate"])
+
+    try respond(processor, 0, #""value": 1.08"#)
+    await waitUntil { outbound.agentCalls.count == 2 }
+    #expect(outbound.agentCalls[1].callFunction.call == "convert")
+    #expect(outbound.agentCalls[1].callFunction.catalogID == Self.finCatalogID)
+    #expect(outbound.agentCalls[1].callFunction.args == ["rate": 1.08])
+
+    try respond(processor, 1, #""value": "108.00""#)
+    await waitUntil { text(surface) != nil }
+    #expect(text(surface) == "108.00")
+    #expect(handler.capturedErrors.isEmpty)
+  }
+
+  @Test func directDataContextReadsSettledValue() async throws {
+    let (processor, surface) = try makeProcessor()
+    let dataContext = context(surface)
+    let call: JSONValue = ["@call": "fetchFxRate", "args": ["base": "EUR"]]
+    #expect(dataContext.resolveDynamicValue(call) == .null)
+    await waitUntil { outbound.agentCalls.count == 1 }
+
+    try respond(processor, 0, #""value": 1.08"#)
+    await waitUntil { dataContext.resolveDynamicValue(call) != .null }
+    #expect(dataContext.resolveDynamicValue(call) == .number(1.08))
+    #expect(context(surface).resolveDynamicValue(call) == .number(1.08))
+    #expect(outbound.agentCalls.count == 1, "reading the settled value sends nothing")
+  }
+
+  @Test func doesNotReportFailureOfCallNoLongerMade() async throws {
+    let (processor, surface) = try makeProcessor()
+    try render(processor, Self.fetchFxRateText)
+    await waitUntil { outbound.agentCalls.count == 1 }
+    try render(processor, #"{"id": "root", "component": "Text", "text": "static"}"#)
+    #expect(text(surface) == "static")
+
+    try respond(processor, 0, #""error": {"code": "FAIL", "message": "boom"}"#)
+    await settle()
+    #expect(handler.capturedErrors.isEmpty, "no node makes the call anymore")
   }
 
   @Test func validatesAndParsesSchemaOnlyFunctionArguments() async throws {
@@ -372,6 +468,7 @@ struct AgentFunctionRoutingTests {
       ["@call": "fetchFxRate", "args": ["base": "EUR"]]
     )
     #expect(second == .null)
+    await waitUntil { outbound.agentCalls.count == 1 }
     await settle()
     #expect(outbound.agentCalls.count == 1)
 
@@ -407,9 +504,9 @@ struct AgentFunctionRoutingTests {
 
   @Test func sendsSeparateRequestsForDifferentArguments() async throws {
     let (_, surface) = try makeProcessor()
-    let ctx = context(surface)
-    _ = ctx.resolveDynamicValue(["@call": "fetchFxRate", "args": ["base": "EUR"]])
-    _ = ctx.resolveDynamicValue(["@call": "fetchFxRate", "args": ["base": "USD"]])
+    let dataContext = context(surface)
+    _ = dataContext.resolveDynamicValue(["@call": "fetchFxRate", "args": ["base": "EUR"]])
+    _ = dataContext.resolveDynamicValue(["@call": "fetchFxRate", "args": ["base": "USD"]])
     await waitUntil { outbound.agentCalls.count == 2 }
     #expect(outbound.agentCalls.count == 2)
   }
@@ -432,6 +529,56 @@ struct AgentFunctionRoutingTests {
     let call = try #require(outbound.agentCalls.first)
     #expect(call.callFunction.call == "submitOrder")
     #expect(call.callFunction.args == ["id": "o-1"])
+  }
+
+  @Test func sendsActionFunctionCallOnceNestedAgentArgumentSettles() async throws {
+    let (processor, surface) = try makeProcessor()
+    try render(
+      processor,
+      """
+      {"id": "root", "component": "Text",
+       "onClick": {"functionCall": {"@call": "submitOrder",
+                                    "args": {"token": {"@call": "mintToken"}}}}}
+      """
+    )
+    let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
+    action()
+    await waitUntil { outbound.agentCalls.count == 1 }
+    await settle()
+    #expect(outbound.agentCalls.map(\.callFunction.call) == ["mintToken"])
+
+    try respond(processor, 0, #""value": "t-1""#)
+    await waitUntil { outbound.agentCalls.count == 2 }
+    #expect(outbound.agentCalls[1].callFunction.call == "submitOrder")
+    #expect(outbound.agentCalls[1].callFunction.args == ["token": "t-1"])
+    #expect(handler.capturedErrors.isEmpty)
+  }
+
+  @Test func stopsActionFunctionCallWhenNestedAgentArgumentFails() async throws {
+    let (processor, surface) = try makeProcessor()
+    try render(
+      processor,
+      """
+      {"id": "root", "component": "Text",
+       "onClick": {"functionCall": {"@call": "submitOrder",
+                                    "args": {"token": {"@call": "mintToken"}}}}}
+      """
+    )
+    let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
+    action()
+    await waitUntil { outbound.agentCalls.count == 1 }
+
+    try respond(processor, 0, #""error": {"code": "FAIL", "message": "no token"}"#)
+    await waitUntil { !errors.isEmpty }
+    await settle()
+    #expect(outbound.agentCalls.map(\.callFunction.call) == ["mintToken"])
+    #expect(errors.count == 1)
+    #expect(errors.first?.message.contains("no token") == true)
+
+    // Running the action again retries the failed call.
+    action()
+    await waitUntil { outbound.agentCalls.count == 2 }
+    #expect(outbound.agentCalls[1].callFunction.call == "mintToken")
   }
 
   @Test func sendsCheckRuleFunctionCall() async throws {
@@ -472,6 +619,17 @@ struct AgentFunctionRoutingTests {
     action()
     await waitUntil { outbound.agentCalls.count == 1 }
     #expect(outbound.agentCalls.first?.callFunction.call == "confirmOrder")
+  }
+
+  @Test func rejectsAgentOnlyDeclaredFunction() async throws {
+    let (_, surface) = try makeProcessor()
+    let value = context(surface).resolveDynamicValue(["@call": "auditLog"])
+    #expect(value == .null)
+    await settle()
+    #expect(outbound.agentCalls.isEmpty)
+    #expect(errors.count == 1)
+    #expect(errors.first?.code == "EXPRESSION_ERROR")
+    #expect(errors.first?.message.contains("Caller 'renderer' is not allowed") == true)
   }
 
   @Test func reportsUnavailableCatalogAsCatalogError() async throws {
@@ -542,6 +700,28 @@ struct AgentFunctionRoutingTests {
 
     processor.outboundListener = nil
     #expect(surface.agentFunctionCaller == nil)
+  }
+
+  @Test func routesRenderedCallsOnceOutboundListenerIsSet() async throws {
+    let (processor, surface) = try makeProcessor(listening: false)
+    try render(processor, Self.fetchFxRateText)
+    await settle()
+    #expect(text(surface) == nil)
+    #expect(outbound.agentCalls.isEmpty)
+    #expect(!handler.capturedErrors.isEmpty, "the call fails locally without a listener")
+
+    let outbound = self.outbound
+    processor.outboundListener = { message in
+      MainActor.assumeIsolated {
+        outbound.messages.append(message)
+      }
+    }
+    await waitUntil { outbound.agentCalls.count == 1 }
+    #expect(outbound.agentCalls.first?.callFunction.call == "fetchFxRate")
+
+    try respond(processor, 0, #""value": 1.08"#)
+    await waitUntil { text(surface) != nil }
+    #expect(text(surface) == "1.08")
   }
 
   /// An agent-initiated call is unaffected: the renderer can't run a schema-only function.

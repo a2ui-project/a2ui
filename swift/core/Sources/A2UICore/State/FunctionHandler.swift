@@ -49,7 +49,8 @@ public protocol FunctionHandler: AnyObject, Sendable {
   /// implementation sends nothing and returns `nil`.
   ///
   /// - Parameter call: The call, naming the catalog it resolved to and its resolved arguments.
-  /// - Returns: The agent's result, or `nil` while the call awaits it (the value is pending).
+  /// - Returns: The agent's result, or `nil` while the call awaits it or after it failed. A
+  ///   function call that takes the value as an argument then doesn't run.
   func agentFunctionValue(for call: AgentFunctionCall) -> JSONValue?
 }
 
