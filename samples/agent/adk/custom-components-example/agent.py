@@ -42,6 +42,7 @@ from a2ui.a2a import (
     stream_response_to_parts,
     to_a2a_parts,
 )
+from a2ui.adk import A2uiInstruction
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core import CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
@@ -254,7 +255,6 @@ class ContactAgent:
                 ROLE_DESCRIPTION,
                 f"## Workflow Description:\n{WORKFLOW_DESCRIPTION}",
                 f"## UI Description:\n{UI_DESCRIPTION}",
-                processor.prompt_snippet,
             ]
             # Missing inline_catalogs for OrgChart and WebFrame validation
             examples = load_examples(
@@ -262,7 +262,14 @@ class ContactAgent:
             )
             if examples:
                 prompt_parts.append(f"### Examples:\n{examples}")
-            instruction = "\n\n".join(prompt_parts)
+            base_prompt = "\n\n".join(prompt_parts)
+            # A2uiInstruction appends the processor's prompt outside ADK's
+            # session state templates. The agent's own prompt is given as a
+            # provider too, since the raw example files hold data bindings
+            # such as `{"path": "/items"}` that are not state keys either.
+            instruction = A2uiInstruction(
+                lambda _ctx: base_prompt, a2ui_processor=processor
+            )
         else:
             instruction = get_text_prompt()
 

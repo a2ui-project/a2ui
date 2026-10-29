@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from collections.abc import AsyncIterable
+import glob
 import json
 import logging
 import os
@@ -41,9 +42,11 @@ from a2ui.a2a import (
     stream_response_to_parts,
     to_a2a_parts,
 )
+from a2ui.adk import A2uiInstruction
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats import to_message_models
 from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.parser import A2uiPart
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
@@ -56,6 +59,20 @@ from prompt_builder import (
 from tools import get_restaurants
 
 logger = logging.getLogger(__name__)
+
+
+def _load_example_turns(version: str) -> list[list[Any]]:
+    """Reads the version's few-shot examples, each file being one turn.
+
+    The generator validates them against its catalogs, so an invalid example
+    stops the server at startup.
+    """
+    pattern = os.path.join("examples", to_version_number(version), "*.json")
+    turns = []
+    for path in sorted(glob.glob(pattern)):
+        with open(path, encoding="utf-8") as f:
+            turns.append(to_message_models(json.load(f)))
+    return turns
 
 
 class RestaurantAgent:
@@ -78,9 +95,7 @@ class RestaurantAgent:
             processor = self._build_processor(version, generator)
             self._generators[version] = generator
             self._processors[version] = processor
-            agent = self._build_llm_agent(
-                processor, examples_path=f"examples/{to_version_number(version)}"
-            )
+            agent = self._build_llm_agent(processor)
             self._ui_runners[version] = self._build_runner(agent)
 
         self._agent_card = self._build_agent_card()
@@ -92,6 +107,7 @@ class RestaurantAgent:
     def _build_generator(self, version: str) -> A2uiGenerator:
         return A2uiGenerator(
             [CatalogConfig(BasicCatalog(version))],
+            examples=_load_example_turns(version),
             inference_format_factory=DirectJsonFormatFactory(),
         )
 
@@ -157,30 +173,24 @@ class RestaurantAgent:
         return "Finding restaurants that match your criteria..."
 
     def _build_llm_agent(
-        self,
-        processor: A2uiRequestProcessor | None = None,
-        examples_path: str | None = None,
+        self, processor: A2uiRequestProcessor | None = None
     ) -> LlmAgent:
         """Builds the LLM agent for the restaurant agent."""
-        from a2ui.utils import load_examples
-
         model_env = (
             os.getenv("MODEL_NAME") or os.getenv("LITELLM_MODEL") or "gemini-3.6-flash"
         )
         model_name = model_env.split("/")[-1]
 
         if processor:
-            prompt_parts = [
-                ROLE_DESCRIPTION,
-                f"## UI Description:\n{UI_DESCRIPTION}",
-                processor.prompt_snippet,
-            ]
-            examples = load_examples(
-                processor.active_catalogs, examples_path, validate=True
+            # A2uiInstruction appends the processor's prompt, with the catalog
+            # schemas and the examples, outside ADK's session state templates:
+            # the `${expression}` and data bindings in it are not state keys.
+            instruction = A2uiInstruction(
+                "\n\n".join(
+                    [ROLE_DESCRIPTION, f"## UI Description:\n{UI_DESCRIPTION}"]
+                ),
+                a2ui_processor=processor,
             )
-            if examples:
-                prompt_parts.append(f"### Examples:\n{examples}")
-            instruction = "\n\n".join(prompt_parts)
         else:
             instruction = get_text_prompt()
 
@@ -204,7 +214,7 @@ class RestaurantAgent:
         ui_version: str | None = None,
         use_streaming: bool = True,
     ) -> AsyncIterable[dict[str, Any]]:
-        session_state = {"base_url": self.base_url, "expression": "{expression}"}
+        session_state = {"base_url": self.base_url}
 
         # Determine which runner to use based on whether the a2ui extension is active.
         if ui_version:

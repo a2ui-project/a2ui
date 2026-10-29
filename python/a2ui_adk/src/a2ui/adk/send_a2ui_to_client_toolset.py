@@ -290,8 +290,12 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
             The prompt comes from the inference format's prompt generator: its
             rules, its catalog instructions and its examples. A section that the
-            system instructions already hold, as when the agent's instruction
-            includes `processor.prompt_snippet`, is not added again.
+            system instructions already hold is not added again. When the
+            instructions hold the processor's whole `prompt_snippet`, as when
+            the agent's instruction is an `A2uiInstruction`, only the tool's
+            own instruction is added: a format may lay the snippet out
+            differently from its sections, as Direct JSON does with its
+            schemas, so the sections are not looked for one by one.
             """
             await super().process_llm_request(
                 tool_context=tool_context, llm_request=llm_request
@@ -299,23 +303,25 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
             processor = await self._resolve_processor(tool_context)
             generator = processor.format.prompt_generator
-
-            rules = generator.generate_base_rules()
-            sections: list[tuple[str, str]] = []
-            if rules:
-                sections.append((rules, f"## Workflow Description:\n{rules}"))
-            catalog_instructions = generator.generate_catalog_instructions(
-                include_schema=True
-            )
-            if catalog_instructions:
-                sections.append((catalog_instructions, catalog_instructions))
-            examples = generator.generate_examples()
-            if examples:
-                sections.append((examples, f"### Examples:\n{examples}"))
+            existing = _instruction_text(llm_request)
             tool_instruction = self._tool_instruction()
+
+            sections: list[tuple[str, str]] = []
+            snippet = processor.prompt_snippet
+            if not snippet or snippet not in existing:
+                rules = generator.generate_base_rules()
+                if rules:
+                    sections.append((rules, f"## Workflow Description:\n{rules}"))
+                catalog_instructions = generator.generate_catalog_instructions(
+                    include_schema=True
+                )
+                if catalog_instructions:
+                    sections.append((catalog_instructions, catalog_instructions))
+                examples = generator.generate_examples()
+                if examples:
+                    sections.append((examples, f"### Examples:\n{examples}"))
             sections.append((tool_instruction, tool_instruction))
 
-            existing = _instruction_text(llm_request)
             to_append = [text for key, text in sections if key not in existing]
             if to_append:
                 llm_request.append_instructions(to_append)

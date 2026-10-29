@@ -256,6 +256,18 @@ agent.tools = [
 ]
 ```
 
+An agent that writes A2UI in its text response instead of a tool call puts the processor's prompt in its instruction with [A2uiInstruction](../../../python/a2ui_adk/src/a2ui/adk/instruction.py), wired to the same store, and pairs it with the `A2uiEventConverter` of the next section. A string instruction would not do: ADK reads `{name}` session state templates out of it, and the A2UI prompt holds braces that are not state keys.
+
+```python
+from a2ui.adk import A2uiInstruction
+
+agent.instruction = A2uiInstruction(
+    AGENT_INSTRUCTION,
+    a2ui_enabled=processors.is_enabled,
+    a2ui_processor=processors.get,
+)
+```
+
 ### 4.3 Tool Execution
 
 Invocations of the tool in [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/send_a2ui_to_client_toolset.py) by the LLM are intercepted in the A2A Agent Executor using the [A2uiEventConverter](../../../python/a2ui_adk/src/a2ui/adk/a2a/event_converter.py). This automatically translates tool calls into A2A Dataparts with the A2UI payload. The converter gets the request's processor from the same store.

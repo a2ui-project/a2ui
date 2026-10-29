@@ -98,59 +98,54 @@ Select `my_agent` from the list, and ask questions about restaurants in New York
 
 ## Generating A2UI Messages
 
-Getting the LLM to generate A2UI messages requires some prompt engineering. The SDK provides the `DirectJsonFormat` inference format to help you generate a system prompt that includes the A2UI schema and examples from your component catalog.
+Getting the LLM to generate A2UI messages requires some prompt engineering. The SDK's `A2uiRequestProcessor` builds a system prompt snippet for an inference format (Express by default) that includes the rules of the format, the component catalog, and your few-shot examples.
 
-First, make sure you have `a2ui-agent-sdk` installed (it is included in the samples). The agent SDK does not depend on an agent framework. The A2A and ADK integrations are separate packages: install `a2ui-a2a` to serve A2UI over A2A, and `a2ui-adk[a2a]` to use the ADK toolset and converters.
+First, make sure you have `a2ui-agent-sdk` and `a2ui-adk` installed (both are included in the samples). The agent SDK does not depend on an agent framework. The A2A and ADK integrations are separate packages: install `a2ui-a2a` to serve A2UI over A2A, `a2ui-adk` to add the A2UI prompt to an ADK agent, and `a2ui-adk[a2a]` to also use the ADK-to-A2A converters.
 
 In your agent file (e.g., `agent.py`), import the necessary classes:
 
 ```python
+from a2ui.adk import A2uiInstruction
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
-from a2ui.inference_formats.direct_json import DirectJsonFormat
+from a2ui.processor import A2uiRequestProcessor
 ```
 
-Then, you can use `DirectJsonFormat` to generate the system prompt. This ensures that the schema and examples are correctly formatted and up to date.
+Then, build an `A2uiRequestProcessor` for the catalogs your agent supports, and pass an `A2uiInstruction` as the agent's instruction. It appends the processor's prompt snippet to your own instruction, so the schema and examples are correctly formatted and up to date.
 
 ```python
 # Define your agent's role
 ROLE_DESCRIPTION = (
-    "You are a helpful restaurant finding assistant. Your final output MUST be a a2ui"
-    " UI JSON response."
+    "You are a helpful restaurant finding assistant. Your final output MUST be an"
+    " A2UI UI definition."
 )
 
 # Define rules for when to use which UI template
 UI_DESCRIPTION = """
--   If the query is for a list of restaurants, use the restaurant data you have already received from the `get_restaurants` tool to populate the `dataModelUpdate.contents` (v0.8) or `updateDataModel.value` (v0.9+) object (e.g., for the "items" key).
+-   If the query is for a list of restaurants, use the restaurant data you have already received from the `get_restaurants` tool to populate the `updateDataModel.value` object (e.g., for the "items" key).
 -   If the number of restaurants is 5 or fewer, you MUST use the `SINGLE_COLUMN_LIST_EXAMPLE` template.
 -   If the number of restaurants is more than 5, you MUST use the `TWO_COLUMN_LIST_EXAMPLE` template.
 -   If the query is to book a restaurant (e.g., "USER_WANTS_TO_BOOK..."), you MUST use the `BOOKING_FORM_EXAMPLE` template.
 -   If the query is a booking submission (e.g., "User submitted a booking..."), you MUST use the `CONFIRMATION_EXAMPLE` template.
 """
 
-# Initialize the inference format with the Basic Catalog
-inference_format = DirectJsonFormat(
-    [BasicCatalog(ProtocolVersion.V0_8)],  # Use ProtocolVersion.V0_9 for newer protocol
-    examples_path="examples/0.8",
-)
-
-# Generate the full system prompt
-A2UI_AND_AGENT_INSTRUCTION = inference_format.prompt_generator.generate(
-    role_description=ROLE_DESCRIPTION,
-    ui_description=UI_DESCRIPTION,
-    include_schema=True,
-    include_examples=True,
-    validate_examples=True,
-)
+# Initialize the processor with the Basic Catalog. Pass `examples=` to add
+# few-shot example turns to the prompt.
+processor = A2uiRequestProcessor([BasicCatalog(ProtocolVersion.V0_9)])
 
 root_agent = Agent(
     model='gemini-2.5-flash',
     name="restaurant_agent",
     description="An agent that finds restaurants and helps book tables.",
-    instruction=A2UI_AND_AGENT_INSTRUCTION,
+    instruction=A2uiInstruction(
+        f"{ROLE_DESCRIPTION}\n\n## UI Description:\n{UI_DESCRIPTION}",
+        a2ui_processor=processor,
+    ),
     tools=[get_restaurants],
 )
 ```
+
+> **WARNING**: Do not pass `processor.prompt_snippet` to `Agent(instruction=...)` as a string. ADK reads `{name}` templates in a string instruction and replaces them with session state, and the A2UI prompt holds braces that are not state keys, such as the `${expression}` in the basic catalog's `formatString` and the data bindings in the examples. Under `adk run` or `adk web` the agent then fails with `KeyError: "Context variable not found: 'expression'."`. `A2uiInstruction` avoids this: it is a callable instruction provider, which ADK uses as it is, and it still reads `{name}` templates out of your own instruction string. If you only have `a2ui-agent-sdk` and `google-adk` installed, a plain callable has the same effect on the templates: `instruction=lambda _ctx: A2UI_AND_AGENT_INSTRUCTION`.
 
 ## Understanding the Output
 
