@@ -379,19 +379,24 @@ def _solver_failure_score(state: TaskState) -> Score | None:
         )
     answer_text = state.output.completion or ""
     if answer_text.strip().startswith("Compilation/validation failed:"):
-        lines = [
-            line.strip() for line in answer_text.strip().splitlines() if line.strip()
-        ]
-        first_line = (
-            f"Compilation/validation failed: {lines[1]}"
-            if len(lines) > 1 and lines[0] == "Compilation/validation failed:"
-            else lines[0]
+        # Keep the full (possibly multi-line) error, but drop the raw model
+        # output and any traceback appended by the solver.
+        head = (
+            answer_text.strip()
+            .split("\nRaw output:", 1)[0]
+            .split("\nTraceback (most recent call last):", 1)[0]
+        )
+        detail = head.removeprefix("Compilation/validation failed:").strip()
+        explanation = (
+            f"Compilation/validation failed: {detail}"
+            if detail
+            else "Compilation/validation failed:"
         )
         return _stage12_score(
             state,
             0.0,
             answer=answer_text,
-            explanation=first_line,
+            explanation=explanation,
         )
     return None
 

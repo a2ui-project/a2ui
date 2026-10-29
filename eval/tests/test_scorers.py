@@ -641,15 +641,29 @@ async def test_scorer_marks_solver_failure_in_metadata() -> None:
 @pytest.mark.asyncio
 async def test_scorer_preserves_multiline_solver_failure_explanation() -> None:
     state = _state_with_completion(
-        "Compilation/validation failed:\nComponent 'root' references missing node"
+        "Compilation/validation failed: Invalid A2UI message payload: 1 validation"
+        " error\n0.CreateSurfaceMessage.createSurface.catalogId\n  Field"
+        " required\nTraceback (most recent call last):\n  File 'runner.py', line 1, in"
+        " <module>\nRaw output:\n<a2ui-json>[]</a2ui-json>"
     )
     score = await a2ui_scorer(version="0.9.1")(state, Target(""))
     assert score is not None
     assert score.value == 0.0
-    assert (
-        score.explanation
-        == "Compilation/validation failed: Component 'root' references missing node"
+    assert score.explanation == (
+        "Compilation/validation failed: Invalid A2UI message payload: 1 validation"
+        " error\n0.CreateSurfaceMessage.createSurface.catalogId\n  Field required"
     )
+
+
+@pytest.mark.asyncio
+async def test_scorer_solver_failure_with_empty_error_omits_raw_output() -> None:
+    state = _state_with_completion(
+        "Compilation/validation failed: \nRaw output:\n<a2ui-json>[]</a2ui-json>"
+    )
+    score = await a2ui_scorer(version="0.9.1")(state, Target(""))
+    assert score is not None
+    assert score.value == 0.0
+    assert score.explanation == "Compilation/validation failed:"
 
 
 # --- measured_model_graded_qa: Stage 3 gating ------------------------------
