@@ -20,6 +20,7 @@ import itertools
 from typing import Any, Callable, Final, Literal, TypeGuard
 
 from ..common.events import EventSource
+from ..common.metadata import A2uiMetadata, clone_metadata, normalize_metadata
 from .component_context import ComponentContext
 from .data_context import DataContext
 from .resolved_binding import ResolvedBinding, WritableBinding, is_writable
@@ -68,6 +69,7 @@ class ComponentNode:
         is_valid: bool = True,
         validation_errors: list[str] | None = None,
         validation_results: list[dict[str, Any]] | None = None,
+        metadata: A2uiMetadata | None = None,
     ) -> None:
         self.id = _next_node_id()
         self.instance_id = instance_id
@@ -75,6 +77,7 @@ class ComponentNode:
         self.type = type
         self.data_path = data_path.rstrip("/") or "/"
         self.props: dict[str, Any] = props if props is not None else {}
+        self._metadata: A2uiMetadata | None = normalize_metadata(metadata)
         self.impl = impl
         self.context = context
         self.state: NodeState = state
@@ -92,9 +95,15 @@ class ComponentNode:
             validation_results if validation_results is not None else []
         )
         self.on_updated: EventSource = EventSource()
+        self.on_metadata_changed: EventSource = EventSource()
         self.on_destroyed: EventSource = EventSource()
         self._cleanups: list[Callable[[], None]] = []
         self._disposed = False
+
+    @property
+    def metadata(self) -> A2uiMetadata | None:
+        """Returns a defensive copy of the component's envelope metadata, or None."""
+        return clone_metadata(self._metadata)
 
     @property
     def disposed(self) -> bool:
@@ -122,6 +131,15 @@ class MutableComponentNode(ComponentNode):
             self.props = next_props
             self.on_updated.emit(self.props)
 
+    def set_metadata(self, next_metadata: A2uiMetadata | None) -> None:
+        """Replaces envelope metadata and notifies listeners when changed."""
+        if self._disposed:
+            return
+        normalized = normalize_metadata(next_metadata)
+        if self._metadata != normalized:
+            self._metadata = normalized
+            self.on_metadata_changed.emit(clone_metadata(self._metadata))
+
     def dispose(self) -> None:
         """Tears down the node idempotently and fires on_destroyed once."""
         if self._disposed:
@@ -132,6 +150,7 @@ class MutableComponentNode(ComponentNode):
         self._cleanups.clear()
         self.on_destroyed.emit(None)
         self.on_destroyed.dispose()
+        self.on_metadata_changed.dispose()
         self.on_updated.dispose()
 
 

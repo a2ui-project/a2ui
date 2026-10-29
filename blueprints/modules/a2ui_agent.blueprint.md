@@ -984,6 +984,8 @@ class ExpressFormatFactory(InferenceFormatFactory):
 
 Express does not stream. `ExpressParser.supports_streaming` is False and it does not implement `open_stream`: an Express block resolves references across its whole body, so a partial block names components that are not yet defined and cannot be compiled into anything. An agent using Express buffers the response and parses it whole.
 
+For protocol v1.0 and later, `surface(...)` and every component call accept one reserved keyword argument, `extensions=`, that compiles to the envelope's `metadata: {extensions: ...}` container (`createSurface.metadata` or `ComponentCommon.metadata`). The compiler validates each key as a UAX #31 identifier and rejects the block otherwise, and the decompiler emits `extensions=` back for any envelope that carries `metadata.extensions`. The keyword is catalog-agnostic and is never listed in the default prompt instructions, so an agent that does not use extensions spends no prompt tokens on it. There is no `metadata=` keyword: the v1.0 common envelope already appears as a `metadata` property on every component schema, so a `metadata=` keyword would be ambiguous between the property and the envelope.
+
 #### Data Model Compilation and Decompilation
 
 `ExpressCompiler` distinguishes between surface creation scopes and surface update scopes when compiling data path assignments (`$/... = ...`):

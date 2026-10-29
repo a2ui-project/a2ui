@@ -603,6 +603,14 @@ void _checkComponents(
             reason: '$reason: $id type');
         return;
       }
+      if (key == 'metadata') {
+        expect(
+          node?.metadata.peek() ?? component!.metadata,
+          equals(value),
+          reason: '$reason: $id.metadata',
+        );
+        return;
+      }
       final Object? propVal =
           node == null || node.state == NodeState.unknownType
               ? component!.properties[key]

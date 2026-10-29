@@ -300,3 +300,151 @@
         emissions: {}
         same_nodes: [root, root/child]
         functions: [{name: openUrl, args: {url: "https://example.test"}}]
+
+- name: metadata_only_update_emits_metadata_not_props
+  description: >-
+    Given v1.0 components carrying envelope metadata, when the tree resolves,
+    each node exposes its own metadata apart from props and a component without
+    metadata exposes none; when an update changes only envelope metadata,
+    the node's metadata emits once, its props stay silent, and every node keeps identity.
+  action: resolve_nodes
+  fixture: test_data/node/metadata.yaml
+  expect:
+    nodes:
+      root:
+        component_id: root
+        type: Card
+        state: resolved
+        props: {child: {node: root/child}}
+        metadata: {extensions: {com_example_policy: restricted}}
+      root/child:
+        component_id: button
+        type: Button
+        props: {action: {action: true}, child: {node: root/child/child}}
+        metadata: {extensions: {com_example_trace: t1}}
+      root/child/child:
+        component_id: label
+        type: Text
+        metadata: null
+  steps:
+    - op: update_components
+      components:
+        - id: button
+          component: Button
+          child: label
+          action:
+            event:
+              name: save
+              context: {name: {"@path": /name}}
+          metadata: {extensions: {com_example_trace: t2, com_example_state: verified}}
+      expect:
+        nodes:
+          root: {metadata: {extensions: {com_example_policy: restricted}}}
+          root/child:
+            props: {action: {action: true}, child: {node: root/child/child}}
+            metadata: {extensions: {com_example_trace: t2, com_example_state: verified}}
+          root/child/child: {metadata: null}
+        emissions: {}
+        metadata_emissions: {root/child: 1}
+        same_nodes: [root, root/child, root/child/child]
+
+- name: metadata_cleared_when_update_omits_it
+  description: >-
+    Given a resolved node with metadata, when a full component update omits
+    metadata, the node's metadata clears and emits once while props stay silent.
+  action: resolve_nodes
+  fixture: test_data/node/metadata.yaml
+  expect:
+    nodes: {root: {}, root/child: {}, root/child/child: {}}
+  steps:
+    - op: update_components
+      components:
+        - id: button
+          component: Button
+          child: label
+          action:
+            event:
+              name: save
+              context: {name: {"@path": /name}}
+      expect:
+        nodes:
+          root: {metadata: {extensions: {com_example_policy: restricted}}}
+          root/child: {metadata: null}
+          root/child/child: {metadata: null}
+        emissions: {}
+        metadata_emissions: {root/child: 1}
+        same_nodes: [root, root/child, root/child/child]
+    - op: update_components
+      components:
+        - id: button
+          component: Button
+          child: label
+          action:
+            event:
+              name: save
+              context: {name: {"@path": /name}}
+      expect:
+        nodes: {root: {}, root/child: {metadata: null}, root/child/child: {}}
+        emissions: {}
+        metadata_emissions: {}
+        same_nodes: [root, root/child, root/child/child]
+
+- name: metadata_and_props_update_together
+  description: >-
+    Given a resolved node, when one update changes both a property and the
+    envelope metadata, props and metadata each emit exactly once.
+  action: resolve_nodes
+  fixture: test_data/node/metadata.yaml
+  expect:
+    nodes: {root: {}, root/child: {}, root/child/child: {}}
+  steps:
+    - op: update_components
+      components:
+        - id: label
+          component: Text
+          text: Saved
+          metadata: {extensions: {com_example_trace: label_1}}
+      expect:
+        nodes:
+          root: {}
+          root/child: {}
+          root/child/child:
+            props: {text: {value: Saved, writable: false}}
+            metadata: {extensions: {com_example_trace: label_1}}
+        emissions: {root/child/child: 1}
+        metadata_emissions: {root/child/child: 1}
+        same_nodes: [root, root/child, root/child/child]
+
+- name: invoke_action_with_dispatch_metadata
+  description: >-
+    Given an event action, when it is invoked with dispatch metadata,
+    the emitted event carries that metadata envelope; without it, the event carries none.
+  action: resolve_nodes
+  fixture: test_data/node/metadata.yaml
+  expect:
+    nodes: {root: {}, root/child: {props: {action: {action: true}}}, root/child/child: {}}
+  steps:
+    - op: invoke
+      node: root/child
+      property: action
+      metadata: {extensions: {com_example_attestation: signed}}
+      expect:
+        nodes: {root: {}, root/child: {}, root/child/child: {}}
+        emissions: {}
+        same_nodes: [root, root/child, root/child/child]
+        events:
+          - name: save
+            source_component_id: button
+            context: {name: Ada}
+            metadata: {extensions: {com_example_attestation: signed}}
+    - op: invoke
+      node: root/child
+      property: action
+      expect:
+        nodes: {root: {}, root/child: {}, root/child/child: {}}
+        emissions: {}
+        same_nodes: [root, root/child, root/child/child]
+        events:
+          - name: save
+            source_component_id: button
+            context: {name: Ada}

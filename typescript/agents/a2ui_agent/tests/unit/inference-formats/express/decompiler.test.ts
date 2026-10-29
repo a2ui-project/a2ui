@@ -1245,5 +1245,34 @@ describe('ExpressDecompiler', () => {
       } as unknown as AgentToRendererMessage;
       expect(() => decompiler.decompile(unknownExprFn)).toThrow(ExpressUnknownFunctionError);
     });
+
+    it('decompiles and round-trips surface and component metadata.extensions in v1.0 mode', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler([catalog], version);
+      const parser = new ExpressParser([catalog], 's1', version);
+
+      const msg: AgentToRendererMessage = {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          metadata: {extensions: {agui: {mode: 'live'}}},
+          components: [
+            {
+              id: 'root',
+              component: 'Text',
+              text: 'Hello',
+              metadata: {extensions: {annot: {rank: 1}}},
+            },
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+
+      const dsl = decompiler.decompile(msg);
+      expect(dsl).toBe(
+        'surface("s1", extensions={agui: {mode: "live"}})\nroot = Text("Hello", extensions={annot: {rank: 1}})',
+      );
+      expect(parser.compile(dsl)).toEqual([msg]);
+    });
   });
 });

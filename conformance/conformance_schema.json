@@ -495,6 +495,11 @@
           "type": "array",
           "items": {"type": "object"},
           "description": "Component instances that must fail validation against the loaded catalog."
+        },
+        "componentMetadata": {
+          "type": "object",
+          "description": "Map of component name to the expected ComponentDefinition.metadata envelope ({extensions}) the loaded catalog reports, or null when the component defines none.",
+          "additionalProperties": {"type": ["object", "null"]}
         }
       },
       "additionalProperties": false
@@ -823,12 +828,20 @@
           "type": "object",
           "description": "Action definition object (event or functionCall)."
         },
+        "metadata": {
+          "type": ["object", "null"],
+          "description": "Optional action.metadata envelope ({extensions}) passed to dispatchAction."
+        },
         "expectDispatched": {
           "type": "object",
           "properties": {
             "name": {"type": "string"},
             "context": {"type": "object"},
-            "userMessage": {"type": "string"}
+            "userMessage": {"type": "string"},
+            "metadata": {
+              "type": ["object", "null"],
+              "description": "Expected action.metadata envelope on the dispatched action."
+            }
           },
           "description": "Expected dispatched client action payload for server-bound events."
         },
@@ -875,7 +888,11 @@
         "type": {"type": "string"},
         "state": {"enum": ["resolved", "pending", "unknown-type", "cyclic"]},
         "data_path": {"type": "string"},
-        "props": {"type": "object"}
+        "props": {"type": "object"},
+        "metadata": {
+          "type": ["object", "null"],
+          "description": "Expected envelope metadata ({extensions}) on the node; null asserts no metadata."
+        }
       },
       "additionalProperties": false
     },
@@ -900,6 +917,10 @@
           "additionalProperties": {"$ref": "#/$defs/NodeResolutionNode"}
         },
         "emissions": {"$ref": "#/$defs/NodeResolutionCounts"},
+        "metadata_emissions": {
+          "$ref": "#/$defs/NodeResolutionCounts",
+          "description": "Node paths whose metadata signal emitted during the step, with counts. Omitted paths must not emit."
+        },
         "same_nodes": {"$ref": "#/$defs/NodeResolutionPaths"},
         "replaced_nodes": {"$ref": "#/$defs/NodeResolutionPaths"},
         "destroyed": {"$ref": "#/$defs/NodeResolutionCounts"},
@@ -911,7 +932,11 @@
             "properties": {
               "name": {"type": "string"},
               "source_component_id": {"type": "string"},
-              "context": {"type": "object"}
+              "context": {"type": "object"},
+              "metadata": {
+                "type": ["object", "null"],
+                "description": "Expected action.metadata envelope on the emitted event."
+              }
             },
             "required": ["name", "source_component_id", "context"],
             "additionalProperties": false
@@ -978,7 +1003,11 @@
           "properties": {
             "op": {"const": "invoke"},
             "node": {"type": "string"},
-            "property": {"type": "string"}
+            "property": {"type": "string"},
+            "metadata": {
+              "type": "object",
+              "description": "Optional action.metadata envelope passed as ActionDispatchOptions to the NodeAction."
+            }
           },
           "required": ["node", "property"]
         },

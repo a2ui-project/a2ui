@@ -16,6 +16,7 @@
 
 import {LitElement, css, nothing, type CSSResult, type PropertyValues} from 'lit';
 import {property} from 'lit/decorators.js';
+import {type A2uiMetadata, type Extensions} from '../common/metadata.js';
 import {ComponentContext} from '../resolution/component-context.js';
 import {isComponentNode, type ComponentNode} from '../resolution/component-node.js';
 import {ResolvedBinding} from '../resolution/resolved-binding.js';
@@ -81,6 +82,34 @@ export abstract class A2uiLitElement<
    */
   public get controller(): A2uiController<Api, Props> {
     return this._controller!;
+  }
+
+  /**
+   * The component's current metadata envelope, lazily subscribing on first read.
+   */
+  public get metadata(): A2uiMetadata | undefined {
+    return this._controller?.metadata;
+  }
+
+  /**
+   * The component's current `extensions` map, lazily subscribing on first read.
+   */
+  public get extensions(): Extensions | undefined {
+    return this._controller?.extensions;
+  }
+
+  /**
+   * The containing surface's metadata envelope, lazily subscribing on first read.
+   */
+  public get surfaceMetadata(): A2uiMetadata | undefined {
+    return this._controller?.surfaceMetadata;
+  }
+
+  /**
+   * The containing surface's `extensions` map, lazily subscribing on first read.
+   */
+  public get surfaceExtensions(): Extensions | undefined {
+    return this._controller?.surfaceExtensions;
   }
 
   /**

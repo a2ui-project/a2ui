@@ -7,6 +7,7 @@
   `ExpressDecompiler`, `DirectJsonParser`, `RendererState`, `resolveCatalogs`,
   and prompt examples ([#3097](https://github.com/a2ui-project/a2ui/issues/3097),
   [#3726](https://github.com/a2ui-project/a2ui/pull/3726)).
+- Support the reserved `extensions=` keyword argument on `surface(...)` and component calls in v1.0 A2UI Express (`ExpressCompiler` and `ExpressDecompiler`), compiling to and decompiling from `metadata.extensions` with UAX 31 extension key validation ([#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)).
 
 - Bumped `a2ui_core` constraint to `^0.4.0`.
 

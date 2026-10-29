@@ -335,6 +335,9 @@ function serializeComponentModel(
   if (comp.allowedChildren && comp.allowedChildren.length > 0) {
     result.allowedChildren = [...comp.allowedChildren];
   }
+  if (comp.metadata !== undefined) {
+    result.metadata = deepCopyJson(comp.metadata);
+  }
   return result;
 }
 
@@ -484,6 +487,9 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
       comp.allowedParents,
       comp.allowedChildren,
     );
+    if (comp.metadata !== undefined) {
+      schema['metadata'] = deepCopyJson(comp.metadata);
+    }
     shapedComponents.set(name, deepFreeze(schema));
     for (const [defName, defModel] of catalogDefs) computedDefs.set(defName, defModel);
   }

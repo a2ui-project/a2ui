@@ -38,9 +38,10 @@
  */
 
 import type React from 'react';
-import {memo, useCallback, useEffect, useMemo, useSyncExternalStore} from 'react';
+import {memo, useCallback, useEffect, useMemo, useRef, useSyncExternalStore} from 'react';
 import {createPortal} from 'react-dom';
 import {
+  type A2uiMetadata,
   type ComponentContext,
   type ComponentNode,
   isComponentNode,
@@ -205,6 +206,7 @@ export function useNodeView(
   buildChild: NodeBuildChild,
 ): {
   viewProps: NodeProps;
+  metadata: A2uiMetadata | undefined;
   context: ComponentContext;
   viewBuildChild: (id: string, basePath?: string) => React.ReactNode;
   rawBuildChild: (id: string, basePath?: string) => React.ReactNode;
@@ -212,6 +214,22 @@ export function useNodeView(
   const context = contextOf(node);
   const surface = context.dataContext.surface as SurfaceModel<ReactCatalogComponent>;
   const resolved = useSignalValue(node.props);
+  const metadataReadRef = useRef(false);
+  const subscribeMetadata = useCallback(
+    (onChange: () => void) =>
+      effect(() => {
+        getValue(node.metadata);
+        if (metadataReadRef.current) {
+          onChange();
+        }
+      }),
+    [node.metadata],
+  );
+  const getMetadataSnapshot = useCallback(
+    () => (metadataReadRef.current ? peekValue(node.metadata) : undefined),
+    [node.metadata],
+  );
+  useSyncExternalStore(subscribeMetadata, getMetadataSnapshot);
 
   const {viewProps, childIndex} = useMemo(() => {
     const index: ChildIndex = new Map();
@@ -258,7 +276,26 @@ export function useNodeView(
     [buildChild, rawBuildChild, childIndex],
   );
 
-  return {viewProps, context, viewBuildChild, rawBuildChild};
+  const result = {
+    viewProps,
+    context,
+    viewBuildChild,
+    rawBuildChild,
+  } as {
+    viewProps: NodeProps;
+    metadata: A2uiMetadata | undefined;
+    context: ComponentContext;
+    viewBuildChild: (id: string, basePath?: string) => React.ReactNode;
+    rawBuildChild: (id: string, basePath?: string) => React.ReactNode;
+  };
+  Object.defineProperty(result, 'metadata', {
+    enumerable: true,
+    get() {
+      metadataReadRef.current = true;
+      return peekValue(node.metadata);
+    },
+  });
+  return result;
 }
 
 /** Renders an implementation that has no `view`: its wrapper binds itself. */

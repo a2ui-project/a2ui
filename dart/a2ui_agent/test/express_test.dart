@@ -427,6 +427,56 @@ surface("s1")
         {'id': 'root', 'component': 'Gauge', 'value': 0.5},
       ]);
     });
+
+    test('v1.0 surface and component extensions kwargs', () {
+      final CatalogApi v1Basic = Catalog.fromJson(
+        jsonDecode(
+              File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
+            )
+            as Map<String, Object?>,
+        protocolVersion: A2uiProtocolVersion.v1_0,
+      );
+      final List<AgentToRendererMessage> compiled = ExpressCompiler([v1Basic])
+          .compile(
+            'surface("s", extensions={surf_ext: {version: 1}})\n'
+            'root = Text("Hello", extensions={comp_ext: true})',
+          );
+      expect(compiled.single.toJson(), {
+        'version': '1.0',
+        'createSurface': {
+          'surfaceId': 's',
+          'catalogId': v1Basic.id,
+          'sendDataModel': false,
+          'metadata': {
+            'extensions': {
+              'surf_ext': {'version': 1},
+            },
+          },
+          'components': [
+            {
+              'id': 'root',
+              'component': 'Text',
+              'text': 'Hello',
+              'metadata': {
+                'extensions': {'comp_ext': true},
+              },
+            },
+          ],
+        },
+      });
+      expect(
+        () => ExpressCompiler([
+          v1Basic,
+        ]).compile('root = Text("Hello", extensions={"bad-key": true})'),
+        throwsError<A2uiValidationError>(),
+      );
+      expect(
+        () => ExpressCompiler([
+          basic,
+        ]).compile('root = Text("Hello", extensions={comp_ext: true})'),
+        throwsError<A2uiValidationError>(),
+      );
+    });
   });
 
   group('rejects', () {

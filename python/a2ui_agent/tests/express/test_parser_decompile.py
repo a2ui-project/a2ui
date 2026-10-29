@@ -258,6 +258,21 @@ class TestExpressParser(unittest.TestCase):
         comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
         self.assertEqual(comps["root"]["weight"], 1e-7)
 
+    def test_v10_extensions_round_trip(self):
+        """Verifies surface and component metadata.extensions round-trip through Express decompile and compile."""
+        compiler = ExpressCompiler([self.catalog], version="1.0")
+        decompiler = ExpressParser([self.catalog])
+        dsl = (
+            'surface("main", extensions={surfaceTheme: "dark"})\n'
+            'root = Text("Hello", extensions={badge: 1})'
+        )
+        compiled = compiler.compile(dsl)
+        decompiled = decompiler.decompile(compiled)
+        self.assertIn("extensions={surfaceTheme:", decompiled)
+        self.assertIn("extensions={badge: 1}", decompiled)
+        recompiled = to_message_dicts(compiler.compile(decompiled))
+        self.assertEqual(recompiled, to_message_dicts(compiled))
+
 
 class TestExpressDecompileEventAndNestedActions(unittest.TestCase):
     """Covers writing `Event` keyword arguments and nested action slots back out."""

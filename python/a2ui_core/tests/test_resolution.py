@@ -325,11 +325,11 @@ def test_string_interpolation_complex_execution():
                 _format_string,
             )
 
-            self.functions["add"] = (
-                lambda args, context, abort_signal=None: args["a"] + args["b"]
+            self.functions["add"] = lambda args, context, abort_signal=None: (
+                args["a"] + args["b"]
             )
-            self.functions["formatString"] = (
-                lambda args, context, abort_signal=None: _format_string(args, context)
+            self.functions["formatString"] = lambda args, context, abort_signal=None: (
+                _format_string(args, context)
             )
 
     cat1 = MockCatalog()
@@ -351,15 +351,13 @@ def test_subscribe_dynamic_value_chained_functions():
 
         def __init__(self):
             super().__init__("string", "v0_9_1", [], [])
-            self.functions["trim"] = (
-                lambda args, context, abort_signal=None: args.get("value", "").strip()
+            self.functions["trim"] = lambda args, context, abort_signal=None: (
+                args.get("value", "").strip()
                 if isinstance(args.get("value", ""), str)
                 else args.get("value", "")
             )
-            self.functions["capitalize"] = (
-                lambda args, context, abort_signal=None: args.get(
-                    "value", ""
-                ).capitalize()
+            self.functions["capitalize"] = lambda args, context, abort_signal=None: (
+                args.get("value", "").capitalize()
                 if isinstance(args.get("value", ""), str)
                 else args.get("value", "")
             )

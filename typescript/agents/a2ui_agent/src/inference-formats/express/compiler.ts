@@ -354,13 +354,20 @@ class SurfaceScope {
   readonly surfaceId: string;
   readonly sendDataModel?: boolean;
   readonly update: boolean;
+  readonly rawExtensions?: ExpressValue;
   readonly rawSymbols: Record<string, unknown> = {};
   readonly dataPathAssignments: Record<string, unknown> = {};
 
-  constructor(surfaceId: string, sendDataModel?: boolean, update = false) {
+  constructor(
+    surfaceId: string,
+    sendDataModel?: boolean,
+    update = false,
+    rawExtensions?: ExpressValue,
+  ) {
     this.surfaceId = surfaceId;
     this.sendDataModel = sendDataModel;
     this.update = update;
+    this.rawExtensions = rawExtensions;
   }
 }
 
@@ -465,11 +472,15 @@ export class ExpressCompiler {
   /**
    * Parses and validates a `surface(...)` statement.
    */
-  private parseSurfaceCall(callVal: ExpressCallNode): {
+  private parseSurfaceCall(
+    callVal: ExpressCallNode,
+    targetMajorMinor: [number, number],
+  ): {
     surfaceId: string;
     catalogId: string;
     sendDataModel?: boolean;
     update: boolean;
+    rawExtensions?: ExpressValue;
   } {
     const args = callVal.args;
     const kwargs = callVal.kwargs;
@@ -506,6 +517,7 @@ export class ExpressCompiler {
 
     let sendDataModel: boolean | undefined;
     let update = false;
+    let rawExtensions: ExpressValue | undefined;
 
     for (const [k, val] of Object.entries(kwargs)) {
       if (k === 'catalogId') {
@@ -525,9 +537,20 @@ export class ExpressCompiler {
           throw new ExpressValidationError('The update argument to surface() must be a boolean.');
         }
         update = val;
+      } else if (k === 'extensions') {
+        if (targetMajorMinor[0] < 1) {
+          throw new ExpressValidationError(
+            'extensions on surface() is only supported in A2UI v1.0 or later.',
+          );
+        }
+        rawExtensions = val;
       } else {
         throw new ExpressValidationError(`Unknown keyword argument '${k}' in surface().`);
       }
+    }
+
+    if (update && rawExtensions !== undefined) {
+      throw new ExpressValidationError('surface() with update=true does not accept extensions.');
     }
 
     if (catalogId) {
@@ -541,7 +564,36 @@ export class ExpressCompiler {
       }
     }
 
-    return {surfaceId, catalogId, sendDataModel, update};
+    return {surfaceId, catalogId, sendDataModel, update, rawExtensions};
+  }
+
+  /**
+   * Compiles and validates an `extensions=` keyword argument into a UAX #31-keyed map.
+   */
+  private compileExtensionsMap(
+    rawExt: ExpressValue,
+    rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+    subject: string,
+  ): Record<string, unknown> {
+    if (resolvesToPath(rawExt, rawSymbols)) {
+      throw new ExpressValidationError(`extensions on ${subject} must be a map.`);
+    }
+    const compiled = this._compileValue(rawExt, rawSymbols, compIds, ctx, targetMajorMinor, false);
+    if (!compiled || typeof compiled !== 'object' || Array.isArray(compiled)) {
+      throw new ExpressValidationError(`extensions on ${subject} must be a map.`);
+    }
+    const record = compiled as Record<string, unknown>;
+    for (const extKey of Object.keys(record)) {
+      if (!isValidUax31Identifier(extKey)) {
+        throw new ExpressValidationError(
+          `Extension key '${extKey}' on ${subject} is not a valid UAX 31 identifier.`,
+        );
+      }
+    }
+    return record;
   }
 
   /**
@@ -639,8 +691,13 @@ export class ExpressCompiler {
       if (stmtType === 'EXPR') {
         const parsedVal = stmtArgs[0];
         if (isExpressNode(parsedVal, 'call') && parsedVal.name === 'surface') {
-          const parsed = this.parseSurfaceCall(parsedVal);
-          currentScope = new SurfaceScope(parsed.surfaceId, parsed.sendDataModel, parsed.update);
+          const parsed = this.parseSurfaceCall(parsedVal, targetMajorMinor);
+          currentScope = new SurfaceScope(
+            parsed.surfaceId,
+            parsed.sendDataModel,
+            parsed.update,
+            parsed.rawExtensions,
+          );
           units.push({kind: 'scope', scope: currentScope});
         } else if (isExpressNode(parsedVal, 'call') && parsedVal.name === 'deleteSurface') {
           const args = parsedVal.args;
@@ -789,6 +846,11 @@ export class ExpressCompiler {
     const hasRootComponent = compiledComponents.some(c => c.id === 'root');
 
     if (scope.update || !hasRootComponent) {
+      if (scope.rawExtensions !== undefined) {
+        throw new ExpressValidationError(
+          'surface() extensions require a surface-creating scope with a root component.',
+        );
+      }
       const dataUpdates: AgentToRendererMessage[] = [];
       for (const [pathName, astVal] of Object.entries(scope.dataPathAssignments)) {
         const pointer = toJsonPointer(pathName);
@@ -859,6 +921,17 @@ export class ExpressCompiler {
     }
     if (scope.sendDataModel !== undefined) {
       createPayload.sendDataModel = scope.sendDataModel;
+    }
+    if (scope.rawExtensions !== undefined) {
+      const compiledExt = this.compileExtensionsMap(
+        scope.rawExtensions,
+        scope.rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        `surface '${scopeSurfId}'`,
+      );
+      createPayload.metadata = {extensions: compiledExt};
     }
 
     if (isAtLeastVersion(targetVersion, 'v1.0')) {
@@ -935,6 +1008,9 @@ export class ExpressCompiler {
     const explicitId = rawKwargs.id;
     delete rawKwargs.id;
 
+    const rawExtensions = rawKwargs.extensions;
+    delete rawKwargs.extensions;
+
     if (explicitId !== undefined) {
       if (typeof explicitId !== 'string' || explicitId.length === 0) {
         throw new ExpressValidationError(
@@ -975,6 +1051,22 @@ export class ExpressCompiler {
     };
     if (resolvedCatalogId !== undefined) {
       compDict.catalogId = resolvedCatalogId;
+    }
+    if (rawExtensions !== undefined) {
+      if (targetMajorMinor[0] < 1) {
+        throw new ExpressValidationError(
+          `extensions on component '${compName}' is only supported in A2UI v1.0 or later.`,
+        );
+      }
+      const compiledExt = this.compileExtensionsMap(
+        rawExtensions,
+        rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        `component '${compName}'`,
+      );
+      compDict.metadata = {extensions: compiledExt};
     }
 
     // Sanctioned departure §5.2 item 4: check-rule property

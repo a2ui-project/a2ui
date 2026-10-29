@@ -1056,21 +1056,13 @@ void main() {
       expect(parser.compile(block), [isA<CallRendererFunctionMessage>()]);
     });
 
-    test('has no notation for a renderer call on a surface, a response to '
-        "the renderer's call, or surface metadata", () {
+    test('has no notation for a renderer call on a surface or a response to '
+        "the renderer's call", () {
       final decompiler = ExpressDecompiler([basic]);
       for (final Map<String, Object?> body in [
         callRendererFunction('formatString', {'value': 'Hi'}, surfaceId: 's'),
         {
           'agentFunctionResponse': {'functionCallId': 'call_1', 'value': 1},
-        },
-        {
-          'createSurface': {
-            ...helloSurface['createSurface']! as Map<String, Object?>,
-            'metadata': {
-              'extensions': {'theme': 'dark'},
-            },
-          },
         },
       ]) {
         expect(
@@ -1079,6 +1071,26 @@ void main() {
           reason: '$body',
         );
       }
+    });
+
+    test('round-trips surface metadata through extensions={...}', () {
+      final parser = ExpressParser([basic]);
+      final AgentToRendererMessage withMetadata = message({
+        'createSurface': {
+          ...helloSurface['createSurface']! as Map<String, Object?>,
+          'metadata': {
+            'extensions': {'theme': 'dark'},
+          },
+        },
+      });
+      final String block = parser.decompile([withMetadata]);
+      expect(
+        block,
+        'surface("s", extensions={theme: "dark"})\nroot = Text("Hello")',
+      );
+      expect(parser.compile(block).map((m) => m.toJson()).toList(), [
+        withMetadata.toJson(),
+      ]);
     });
 
     test('teaches the functions the agent may call on their own', () {

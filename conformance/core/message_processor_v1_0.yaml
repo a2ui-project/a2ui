@@ -2861,3 +2861,186 @@
     version: "v0.9"
     surfaces:
       t: {}
+
+# ------------------------------------------------------------------------------
+# v1.0 component metadata envelopes (ComponentCommon.metadata.extensions)
+# ------------------------------------------------------------------------------
+
+- name: test_v10_update_components_stores_component_metadata
+  description: Tests that v1.0 updateComponents keeps ComponentCommon.metadata apart from component properties and exposes it as component metadata.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_comp_meta"
+        catalogId: "test-catalog-v10"
+        metadata:
+          extensions:
+            com_example_session: "abc"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_comp_meta"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            metadata:
+              extensions:
+                com_example_trace: "t1"
+  expect:
+    surfaces:
+      s_v10_comp_meta:
+        exists: true
+        metadata:
+          extensions:
+            com_example_session: "abc"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            metadata:
+              extensions:
+                com_example_trace: "t1"
+
+- name: test_v10_update_components_replaces_component_metadata
+  description: Tests that a later v1.0 updateComponents entry replaces a component's metadata in full rather than merging it.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_comp_meta_replace"
+        catalogId: "test-catalog-v10"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_comp_meta_replace"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            metadata:
+              extensions:
+                com_example_trace: "t1"
+                com_example_state: "draft"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_comp_meta_replace"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            metadata:
+              extensions:
+                com_example_state: "final"
+  expect:
+    surfaces:
+      s_v10_comp_meta_replace:
+        exists: true
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            metadata:
+              extensions:
+                com_example_state: "final"
+
+- name: test_v10_update_components_omitted_metadata_clears_component_metadata
+  description: Tests that a v1.0 updateComponents entry without metadata clears the component's previously stored metadata, because an update replaces the definition in full.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_comp_meta_clear"
+        catalogId: "test-catalog-v10"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_comp_meta_clear"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            metadata:
+              extensions:
+                com_example_trace: "t1"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_comp_meta_clear"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+  expect:
+    surfaces:
+      s_v10_comp_meta_clear:
+        exists: true
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            metadata: null
+
+- name: test_v10_update_components_metadata_extension_key_must_be_identifier
+  description: Tests that v1.0 updateComponents rejects component metadata extensions whose key is not a Unicode identifier (UAX 31) when the component is first created.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_comp_meta_bad_key"
+        catalogId: "test-catalog-v10"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_comp_meta_bad_key"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            metadata:
+              extensions:
+                "com.example.trace": "t1"
+  expectError:
+    category: "ValidationError"
+
+- name: test_v10_update_components_metadata_extension_key_must_be_identifier_on_update
+  description: Tests that v1.0 updateComponents rejects an invalid UAX 31 extension key on an existing component and leaves the previously stored metadata untouched.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_comp_meta_bad_key_update"
+        catalogId: "test-catalog-v10"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_comp_meta_bad_key_update"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            metadata:
+              extensions:
+                com_example_trace: "t1"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_comp_meta_bad_key_update"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            metadata:
+              extensions:
+                "com-example-trace": "t2"
+  expectError:
+    category: "ValidationError"

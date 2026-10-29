@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 from typing import Any, Callable
 from ..state.component_model import ComponentModel
 from ..state.surface_components_model import SurfaceComponentsModel
@@ -27,13 +28,23 @@ class ComponentContext:
         component_model: ComponentModel,
         data_context: DataContext,
         surface_components: SurfaceComponentsModel | None = None,
-        dispatch_action_callback: Callable[[dict[str, Any], str], Any] | None = None,
+        dispatch_action_callback: Callable[..., Any] | None = None,
     ):
         self.component_model = component_model
         self.data_context = data_context
         self.surface_components = surface_components or SurfaceComponentsModel()
         self.theme: dict[str, Any] = {}
         self._dispatch_action = dispatch_action_callback
+
+    @property
+    def metadata(self) -> dict[str, Any] | None:
+        """Returns the component's metadata object (defensive copy), or None."""
+        return self.component_model.metadata
+
+    @property
+    def extensions(self) -> dict[str, Any] | None:
+        """Returns the component's metadata extensions dictionary (defensive copy), or None."""
+        return self.component_model.extensions
 
     @classmethod
     def from_surface(
@@ -55,14 +66,41 @@ class ComponentContext:
             component_model=model,
             data_context=data_ctx,
             surface_components=surface.components_model,
-            dispatch_action_callback=lambda act, cid: surface.dispatch_action(act, cid),
+            dispatch_action_callback=lambda act, cid, meta=None: (
+                surface.dispatch_action(act, cid, metadata=meta)
+            ),
         )
         inst.theme = getattr(surface, "theme", {})
         return inst
 
-    def dispatch_action(self, action_payload: dict[str, Any]) -> Any:
+    def dispatch_action(
+        self,
+        action_payload: dict[str, Any],
+        metadata: dict[str, Any] | None = None,
+    ) -> Any:
         """Dispatches a user-initiated action back to the global controller handler."""
         if self._dispatch_action:
+            if metadata is None:
+                return self._dispatch_action(action_payload, self.component_model.id)
+            params = inspect.signature(self._dispatch_action).parameters.values()
+            accepts_metadata = any(
+                p.kind == inspect.Parameter.VAR_POSITIONAL for p in params
+            ) or (
+                sum(
+                    1
+                    for p in params
+                    if p.kind
+                    in (
+                        inspect.Parameter.POSITIONAL_ONLY,
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    )
+                )
+                >= 3
+            )
+            if accepts_metadata:
+                return self._dispatch_action(
+                    action_payload, self.component_model.id, metadata
+                )
             return self._dispatch_action(action_payload, self.component_model.id)
         elif (
             self.data_context
@@ -70,6 +108,6 @@ class ComponentContext:
             and self.data_context.surface
         ):
             return self.data_context.surface.dispatch_action(
-                action_payload, self.component_model.id
+                action_payload, self.component_model.id, metadata=metadata
             )
         return None

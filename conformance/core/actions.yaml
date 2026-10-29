@@ -132,3 +132,49 @@
     name: "click"
     context:
       target: "btn1"
+
+- name: test_action_event_with_dispatch_metadata
+  description: Verifies that metadata passed to dispatchAction is attached to the dispatched action as action.metadata (v1.0 extension envelope).
+  action: dispatch_action
+  protocolVersion: "1.0"
+  actionPayload:
+    event:
+      name: "submit"
+      context:
+        form: "signup"
+  metadata:
+    extensions:
+      com_example_attestation: "signed"
+      a2ui_experimental: {trace: 7}
+  expectDispatched:
+    name: "submit"
+    context:
+      form: "signup"
+    metadata:
+      extensions:
+        com_example_attestation: "signed"
+        a2ui_experimental: {trace: 7}
+
+- name: test_action_event_without_dispatch_metadata_has_none
+  description: Verifies that an action dispatched without metadata carries no action.metadata envelope.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  actionPayload:
+    event:
+      name: "submit"
+  expectDispatched:
+    name: "submit"
+    metadata: null
+
+- name: test_action_event_dispatch_metadata_invalid_uax31_key_error
+  description: Verifies that dispatchAction rejects metadata whose extensions key is not a UAX 31 identifier and dispatches nothing.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  actionPayload:
+    event:
+      name: "submit"
+  metadata:
+    extensions:
+      "com-example-attestation": "signed"
+  expectError:
+    category: "ValidationError"

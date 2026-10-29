@@ -100,6 +100,7 @@ export function createComponentImplementation<Api extends ComponentApi>(
   return {
     name: api.name,
     schema: api.schema,
+    ...(api.metadata !== undefined ? {metadata: api.metadata} : {}),
     render: ReactWrapper,
     view: NodeView,
   };
@@ -124,6 +125,7 @@ export function createBinderlessComponentImplementation(
   return {
     name: api.name,
     schema: api.schema,
+    ...(api.metadata !== undefined ? {metadata: api.metadata} : {}),
     render: RenderComponent,
     view: NodeView,
   };

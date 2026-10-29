@@ -14,6 +14,7 @@
 """Common utilities for A2UI core, including event handling and SemVer parsing."""
 
 from .events import Subscription, EventSource, Signal, AbortSignal
+from .metadata import A2uiMetadata, clone_metadata, validate_metadata
 from .semver import (
     SemVer,
     compare_semver,
@@ -28,18 +29,21 @@ from .semver import (
 from .uax31 import assert_uax31_identifier, is_valid_uax31_identifier
 
 __all__ = [
-    "Subscription",
-    "EventSource",
-    "Signal",
+    "A2uiMetadata",
     "AbortSignal",
+    "EventSource",
     "SemVer",
+    "Signal",
+    "Subscription",
+    "assert_uax31_identifier",
+    "clone_metadata",
+    "compare_semver",
+    "is_at_least_version",
+    "is_valid_uax31_identifier",
     "normalize_version_string",
     "parse_semver",
     "to_canonical_version",
     "to_protocol_version",
     "to_semver",
-    "compare_semver",
-    "is_at_least_version",
-    "is_valid_uax31_identifier",
-    "assert_uax31_identifier",
+    "validate_metadata",
 ]

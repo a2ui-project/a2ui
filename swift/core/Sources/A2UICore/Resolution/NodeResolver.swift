@@ -153,6 +153,12 @@ public final class NodeResolver: Sendable {
       }
       .store(in: &modelCancellables)
 
+    resolvedComponentsModel.metadataChangedSubject
+      .sink { [weak self] compID, newMetadata in
+        self?.applyMetadataUpdate(forComponentID: compID, newMetadata: newMetadata)
+      }
+      .store(in: &modelCancellables)
+
     resolvedDataModel.pathChangeSubject
       .sink { [weak self] path in
         self?.dirtyDataPaths.insert(path)
@@ -310,7 +316,18 @@ public final class NodeResolver: Sendable {
               type: record.componentSnapshot.type,
               catalogID: record.componentSnapshot.catalogID ?? defaultCatalogID
             )
-            if currentIdentity == previousIdentity || nodeKey == "root" {
+            if let currentComp,
+              !hadClearedErrors,
+              currentIdentity == previousIdentity,
+              record.componentSnapshot.properties == currentComp.properties
+            {
+              var updatedRecord = record
+              updatedRecord.componentSnapshot = currentComp
+              nodeRecords[nodeKey] = updatedRecord
+              if let existing = activeNodes[nodeKey] {
+                activeNodes[nodeKey] = existing.updatingMetadata(currentComp.metadata)
+              }
+            } else if currentIdentity == previousIdentity || nodeKey == "root" {
               affectedNodeIDs.insert(nodeKey)
             }
           }
@@ -415,6 +432,28 @@ public final class NodeResolver: Sendable {
       type: comp.type,
       catalogID: comp.catalogID ?? defaultCatalogID
     )
+  }
+
+  private func applyMetadataUpdate(
+    forComponentID compID: String,
+    newMetadata: [String: JSONValue]?
+  ) {
+    guard let instances = nodesByDefinitionID[compID] else { return }
+    let currentComp = componentsModel.get(compID)
+    for nodeKey in instances {
+      if let existing = activeNodes[nodeKey] {
+        activeNodes[nodeKey] = existing.updatingMetadata(newMetadata)
+      }
+      if var record = nodeRecords[nodeKey],
+        let currentComp,
+        record.componentSnapshot.type == currentComp.type,
+        record.componentSnapshot.catalogID == currentComp.catalogID,
+        record.componentSnapshot.properties == currentComp.properties
+      {
+        record.componentSnapshot = currentComp
+        nodeRecords[nodeKey] = record
+      }
+    }
   }
 
   private func makeNodeKey(instanceID: String, basePath: String?) -> String {
@@ -712,7 +751,7 @@ public final class NodeResolver: Sendable {
     if let existing = activeNodes[nodeKey],
       existing.type == type && existing.catalogID == effectiveCatalogID
     {
-      let updated = existing.updatingProperties(resolvedProperties)
+      let updated = existing.updatingProperties(resolvedProperties, metadata: component.metadata)
       activeNodes[nodeKey] = updated
       return updated
     }
@@ -721,7 +760,8 @@ public final class NodeResolver: Sendable {
       id: instanceID,
       type: type,
       catalogID: effectiveCatalogID,
-      properties: resolvedProperties
+      properties: resolvedProperties,
+      metadata: component.metadata
     )
     activeNodes[nodeKey] = node
     return node
@@ -1499,6 +1539,7 @@ public final class NodeResolver: Sendable {
       return makeEventResolvedAction(
         name: name,
         eventObject: eventObj,
+        outerObject: dict,
         checks: checks,
         basePath: basePath,
         index: index,
@@ -1542,6 +1583,7 @@ public final class NodeResolver: Sendable {
   private func makeEventResolvedAction(
     name: String,
     eventObject: [String: JSONValue],
+    outerObject: [String: JSONValue],
     checks: [ResolvedCheck],
     basePath: String?,
     index: Int?,
@@ -1549,6 +1591,11 @@ public final class NodeResolver: Sendable {
   ) -> ResolvedAction {
     let contextDictionary = eventObject["context"]?.dictionaryValue
     let userMessageValue = eventObject["userMessage"]
+    let rawMetadata = eventObject["metadata"] ?? outerObject["metadata"]
+    let actionMetadata = try? MetadataValidator.validate(
+      rawMetadata,
+      pathPrefix: "action.metadata"
+    )
     let unresolvedIdentity = ResolvedAction.Identity.event(
       name: name,
       context: contextDictionary,
@@ -1559,7 +1606,8 @@ public final class NodeResolver: Sendable {
       sourceComponentID: componentID,
       dataContextPath: basePath,
       rawUserMessage: userMessageValue,
-      trigger: { [weak self] in
+      metadata: actionMetadata,
+      triggerWithMetadata: { [weak self] callMetadata in
         guard let self else { return }
         guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
           return
@@ -1572,6 +1620,10 @@ public final class NodeResolver: Sendable {
         let resolvedUserMessage = userMessageValue.flatMap {
           self.evaluateDynamicValue($0, basePath: basePath, index: index).stringValue
         }
+        let mergedMetadata = try MetadataValidator.mergeActionMetadata(
+          base: actionMetadata,
+          override: callMetadata
+        )
         let triggerAction = ResolvedAction(
           identity: .event(
             name: name,
@@ -1579,6 +1631,7 @@ public final class NodeResolver: Sendable {
             userMessage: resolvedUserMessage
           ),
           sourceComponentID: componentID,
+          metadata: mergedMetadata,
           trigger: {}
         )
         self.actionHandler?.handle(action: triggerAction, from: self.surfaceID)

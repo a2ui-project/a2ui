@@ -73,12 +73,14 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
     let sendDataModel = try parseSendDataModel(actionObject["sendDataModel"])
     let components = try parseV10ComponentsArray(actionObject["components"], action: action)
     let dataModel = try parseCreateSurfaceDataModel(actionObject["dataModel"])
-    let metadata: [String: JSONValue]? =
-      if let rawMetadata = actionObject["metadata"], rawMetadata != .null {
-        try validateMetadata(rawMetadata, pathPrefix: "messages.0.createSurface.metadata")
-      } else {
-        nil
-      }
+    var metadata: [String: JSONValue]?
+    if let rawMetadata = actionObject["metadata"], rawMetadata != .null {
+      _ = try validateMetadata(rawMetadata, pathPrefix: "messages.0.createSurface.metadata")
+      metadata = try MetadataValidator.validate(
+        rawMetadata,
+        pathPrefix: "messages.0.createSurface.metadata"
+      )
+    }
     return [
       .createSurface(
         InternalCreateSurfaceOp(
