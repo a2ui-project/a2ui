@@ -71,6 +71,12 @@ jobs:
       - name: Check license headers
         run: ./scripts/fix_licenses.py --check
 
+      - uses: ./.github/actions/setup-python
+
+      # See .agents/skills/ci-workflows/SKILL.md for the rules.
+      - name: Check that CI workflows run nightly
+        run: uv run --no-project --with pyyaml==6.0.3 python3 .agents/skills/ci-workflows/scripts/check_workflows.py
+
   format-check:
     runs-on: ubuntu-24.04 # setup-swift does not support Ubuntu 26.04 yet
     steps:
