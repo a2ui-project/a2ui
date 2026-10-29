@@ -31,7 +31,12 @@ import unittest
 
 from a2ui.core import Catalog
 from a2ui.inference_formats import to_message_dicts
-from a2ui.inference_formats.express import ExpressCompiler, ExpressParser
+from a2ui.inference_formats.express import (
+    ExpressCompiler,
+    ExpressParser,
+    ExpressValidationError,
+)
+from a2ui.inference_formats.express.decompiler import _decompile_number
 
 from ..repo_paths import find_repo_root
 
@@ -126,7 +131,8 @@ class TestExpressParser(unittest.TestCase):
 
         # Unescaped nested parentheses in multi-line strings
         self.assertEqual(
-            get_compiled_text('"""hello ) world\nline 2"""'), "hello ) world\nline 2"
+            get_compiled_text('"""hello ) world\nline 2"""'),
+            "hello ) world\nline 2",
         )
 
         # 7. Streaming Compatibility and Tolerance (is_final=False)
@@ -135,8 +141,17 @@ class TestExpressParser(unittest.TestCase):
             compiler.compile(incomplete_dsl)
 
         res_partial = to_message_dicts(compiler.compile(incomplete_dsl, is_final=False))
-        self.assertEqual(res_partial[0]["updateDataModel"]["value"]["foo"], 123)
-        self.assertNotIn("bar", res_partial[0]["updateDataModel"]["value"])
+        self.assertEqual(
+            res_partial,
+            [{
+                "version": "1.0",
+                "updateDataModel": {
+                    "surfaceId": "default_surface",
+                    "path": "/foo",
+                    "value": 123,
+                },
+            }],
+        )
 
     def test_schema_driven_child_reference_helper(self):
         """Verify that _is_component_reference_property correctly inspects JSON schema structures."""
@@ -207,6 +222,169 @@ class TestExpressParser(unittest.TestCase):
         self.assertEqual(parts[0].part.text, "Intro")
         self.assertIn("root = Text('Hi')", parts[1].part.a2ui_raw)
         self.assertEqual(parts[2].part.text, "Outro")
+
+    def test_number_spelling_matches_ecmascript(self):
+        """Verifies numbers are written as ECMAScript `Number.prototype.toString` spells them."""
+        cases = [
+            (1e-7, "1e-7"),
+            (1.5e-5, "0.000015"),
+            (1e16, "10000000000000000.0"),
+            (1e21, "1e+21"),
+            (1.5e300, "1.5e+300"),
+            (123456.789, "123456.789"),
+            (3.0, "3.0"),
+            (-0.0, "-0.0"),
+            (7, "7"),
+        ]
+        for value, expected in cases:
+            with self.subTest(value=value):
+                self.assertEqual(_decompile_number(value), expected)
+
+    def test_non_finite_numbers_have_no_notation(self):
+        """Verifies infinite and NaN values raise ExpressValidationError."""
+        for value in [float("inf"), float("-inf"), float("nan")]:
+            with self.subTest(value=value):
+                with self.assertRaises(ExpressValidationError):
+                    _decompile_number(value)
+
+    def test_decompiled_numbers_round_trip(self):
+        """Verifies a decompiled exponent-form double compiles back to the same value."""
+        compiler = ExpressCompiler([self.catalog])
+        decompiler = ExpressParser([self.catalog])
+        dsl = 'root = Column([t], weight=1e-7)\nt = Text("Hi")'
+        decompiled = decompiler.decompile(compiler.compile(dsl))
+        self.assertIn("1e-7)", decompiled)
+        messages = to_message_dicts(compiler.compile(decompiled))
+        comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
+        self.assertEqual(comps["root"]["weight"], 1e-7)
+
+
+class TestExpressDecompileEventAndNestedActions(unittest.TestCase):
+    """Covers writing `Event` keyword arguments and nested action slots back out."""
+
+    def setUp(self):
+        self.catalog = Catalog.from_json(
+            {
+                "catalogId": "test/links",
+                "components": {
+                    "Links": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Links"},
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "label": {"type": "string"},
+                                        "action": {
+                                            "$ref": "common_types.json#/$defs/Action"
+                                        },
+                                    },
+                                    "required": ["label", "action"],
+                                },
+                            },
+                        },
+                        "required": ["component", "items"],
+                    },
+                },
+                "functions": {
+                    "openUrl": {
+                        "type": "object",
+                        "returnType": "void",
+                        "properties": {
+                            "@call": {"const": "openUrl"},
+                            "args": {
+                                "type": "object",
+                                "properties": {"url": {"type": "string"}},
+                                "required": ["url"],
+                            },
+                        },
+                        "required": ["@call", "args"],
+                    },
+                },
+            },
+            protocol_version="1.0",
+        )
+        self.compiler = ExpressCompiler([self.catalog], version="1.0")
+        self.decompiler = ExpressParser([self.catalog])
+
+    def _round_trip(self, dsl: str) -> str:
+        """Decompiles the compiled DSL and checks the text compiles back the same."""
+        compiled = self.compiler.compile(dsl)
+        decompiled = self.decompiler.decompile(compiled)
+        self.assertEqual(
+            to_message_dicts(self.compiler.compile(decompiled)),
+            to_message_dicts(compiled),
+        )
+        return decompiled
+
+    def test_event_user_message_is_written_as_keyword(self):
+        decompiled = self._round_trip(
+            'root = Links([{label: "Reply", action: Event("reply",'
+            ' userMessage="Now")}])'
+        )
+        self.assertIn('Event("reply", userMessage="Now")', decompiled)
+
+    def test_event_user_message_binding_follows_context(self):
+        decompiled = self._round_trip(
+            'root = Links([{label: "Reply", action: Event("reply", {threadId:'
+            ' "t1"}, userMessage=$/draft/message)}])'
+        )
+        self.assertIn(
+            'Event("reply", {threadId: "t1"}, userMessage=$/draft/message)',
+            decompiled,
+        )
+
+    def test_event_user_message_function_call_round_trips(self):
+        decompiled = self._round_trip(
+            'root = Links([{label: "Reply", action: Event("reply",'
+            ' userMessage=openUrl("https://a2ui.org"))}])'
+        )
+        self.assertIn(
+            'Event("reply", userMessage=openUrl("https://a2ui.org"))', decompiled
+        )
+
+    def test_event_with_user_message_is_a_map_literal_before_v1(self):
+        """v0.9 has no userMessage and its compiler rejects `userMessage=`, so the object stays data."""
+        catalog = Catalog.from_json(
+            {
+                "catalogId": "test/v09",
+                "components": {
+                    "Card": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Card"},
+                            "child": {"type": "object"},
+                        },
+                        "required": ["component", "child"],
+                    }
+                },
+            },
+            protocol_version="0.9",
+        )
+        decompiled = ExpressParser([catalog], version="v0.9").decompile([{
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [{
+                    "id": "root",
+                    "component": "Card",
+                    "child": {"event": {"name": "go", "userMessage": "hi"}},
+                }],
+            },
+        }])
+        self.assertNotIn("Event(", decompiled)
+        self.assertIn("{event: {name:", decompiled)
+
+    def test_function_call_in_list_item_action_slot_is_written_as_a_call(self):
+        decompiled = self._round_trip(
+            'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}])'
+        )
+        self.assertIn(
+            'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}])',
+            decompiled,
+        )
 
 
 if __name__ == "__main__":

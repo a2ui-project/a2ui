@@ -75,6 +75,7 @@ from .agent_to_renderer import (
     AGENT_TO_RENDERER_DEFS,
 )
 from .catalog_definition import (
+    CatalogMetadata,
     FunctionCallValidationSchema,
     FunctionDefinition,
     ComponentDefinition,
@@ -167,6 +168,7 @@ __all__ = [
     "AgentToRendererMessageList",
     "AgentToRendererMessageListWrapper",
     "AGENT_TO_RENDERER_DEFS",
+    "CatalogMetadata",
     "FunctionCallValidationSchema",
     "FunctionDefinition",
     "ComponentDefinition",

@@ -16,7 +16,8 @@ import 'dart:async';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:a2ui_flutter/basic_catalog.dart' as v1_0;
+import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -158,6 +159,75 @@ void main() {
     expect(find.byIcon(Icons.star), findsNWidgets(4));
     expect(harness.actions.single.name, 'rated');
     expect(harness.actions.single.context, {'stars': 4});
+  });
+
+  testWidgets('on v1.0, renders a component from its own catalog beside the '
+      'basic one, and writes back', (tester) async {
+    const ratingsId = 'https://example.com/ratings/catalog.json';
+    final CatalogImplementation ratings = CatalogImplementation(
+      id: ratingsId,
+      protocolVersion: A2uiProtocolVersion.v1_0,
+      components: [
+        ComponentImplementation(
+          name: 'Rating',
+          schema: Schema.object(
+            properties: {
+              'label': CommonSchemasV1.dynamicString,
+              'value': CommonSchemasV1.dynamicNumber,
+              'onChanged': Schema.fromMap({
+                r'$ref': r'common_types.json#/$defs/Action',
+              }),
+            },
+            required: ['value'],
+          ),
+          builder: _rating.builder,
+        ),
+      ],
+    );
+    final SurfaceHarness harness = await pumpSurface(
+      tester,
+      [
+        {
+          'version': '1.0',
+          'createSurface': {
+            'surfaceId': testSurfaceId,
+            'catalogId': BasicCatalog.v1_0Id,
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': ['title', 'rating'],
+              },
+              {'id': 'title', 'component': 'Text', 'text': 'Your review'},
+              {
+                'id': 'rating',
+                'component': 'Rating',
+                'catalogId': ratingsId,
+                'label': 'Stars',
+                'value': {'@path': '/stars'},
+                'onChanged': {
+                  'event': {'name': 'rated'},
+                },
+              },
+            ],
+            'dataModel': {'stars': 2},
+          },
+        },
+      ],
+      catalog: v1_0.basicCatalog(),
+      moreCatalogs: [ratings],
+    );
+
+    expect(find.text('Your review'), findsOneWidget);
+    expect(find.byIcon(Icons.star), findsNWidgets(2));
+
+    await tester.tap(find.byTooltip('4'));
+    await tester.pump();
+
+    expect(harness.data('/stars'), 4);
+    expect(find.byIcon(Icons.star), findsNWidgets(4));
+    expect(harness.actions.single.name, 'rated');
+    expect(harness.errors, isEmpty);
   });
 
   testWidgets('leaves an app key equal to a component id or type to the '

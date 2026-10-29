@@ -20,7 +20,7 @@ import PackageDescription
 let package = Package(
   name: "A2UISwiftCore",
   platforms: [
-    .iOS(.v16),
+    .iOS(.v17),
     .macOS(.v14),
   ],
   products: [
@@ -88,7 +88,6 @@ let package = Package(
       dependencies: [
         "A2UICore",
         .product(name: "JSONSchema", package: "swift-json-schema"),
-        .product(name: "JSONSchemaBuilder", package: "swift-json-schema"),
       ],
       path: "swift/core/Sources/BasicCatalog",
       resources: [.process("Resources")],

@@ -65,7 +65,8 @@ public struct Surface: View {
         .environment(\.a2uiCatalogs, catalogs)
         .environment(\.a2uiDefaultCatalogID, defaultCatalogID)
     } else {
-      ProgressView()
+      // Nothing to show until the root component arrives.
+      EmptyView()
     }
   }
 }

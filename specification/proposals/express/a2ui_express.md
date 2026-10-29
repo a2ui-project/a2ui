@@ -33,10 +33,12 @@ The syntax rules define how types, structures, data paths, and validation action
 
 Every component definition is assigned to a unique variable identifier, or constructed inline directly within a parent component's argument list. A reserved variable named `root` acts as the primary entry point for the interface tree.
 
-To support multi-lingual models while ensuring syntax safety for future extensions (such as math or conditional expressions), all variable identifiers MUST conform to the Unicode Identifier standard ([UAX #31](https://www.unicode.org/reports/tr31/)):
+To support multi-lingual models while ensuring syntax safety for future extensions (such as math or conditional expressions), all variable identifiers MUST conform to the Unicode Identifier standard ([UAX #31](https://www.unicode.org/reports/tr31/)), matching the [Catalog Entity Naming Rules](../../v1_0/docs/a2ui_protocol.md#catalog-entity-naming-rules):
 
-- An identifier must start with a Unicode letter or an underscore `_`.
-- Subsequent characters must be Unicode letters, digits (`0-9`), or underscores `_`.
+- The first character must be in the Unicode property class `XID_Start` or an underscore (`_`, `U+005F`).
+- Subsequent characters must be in the Unicode property class `XID_Continue`.
+- In canonical regular-expression syntax: `^[\p{XID_Start}_][\p{XID_Continue}]*$`.
+- Reserved tokens (`true`, `false`, `null`, `_`) cannot be used as variable identifiers, and `root` is reserved for the surface root component.
 
 A2UI Express supports flexible hybrid component nesting: child components can either be defined inline (e.g., `Card(child=Text("Hello"))`) or assigned to top-level variables and referenced by name (e.g., `header = Text("Hello")` and `root = Card(child=header)`).
 
@@ -44,14 +46,14 @@ A2UI Express supports flexible hybrid component nesting: child components can ei
 
 By default, a component's Express variable name becomes its A2UI component `"id"` in the compiled JSON (for example, `root = Column([grid])` compiles to a component with `"id": "root"`).
 
-In the A2UI JSON protocol, a component `"id"` can be any string (such as `"content-grid"`, which contains a hyphen `-`), whereas an Express variable name can only contain letters, digits, and underscores (`_`) so `-` is not mistaken for subtraction. To produce an A2UI component `"id"` that contains characters like hyphens, assign the component to a valid Express variable name (such as `grid`), reference that variable in parent child lists, and pass the target A2UI ID via the reserved `id=` keyword argument:
+In protocol versions before v1.0, a component `"id"` can be any string (such as `"content-grid"`, which contains a hyphen `-`), whereas an Express variable name must be a UAX #31 identifier so `-` is not mistaken for subtraction. To produce an A2UI component `"id"` that differs from its Express variable name (such as a pre-v1.0 hyphenated ID, or a reserved word like `"true"`), assign the component to a valid Express variable name (such as `grid`), reference that variable in parent child lists, and pass the target A2UI ID via the reserved `id=` keyword argument:
 
 ```
 root = Column([grid])
 grid = Row([left, right], id="content-grid")
 ```
 
-Here `root` compiles with `"id": "root"` and `"children": ["content-grid"]`, while `grid` compiles with `"id": "content-grid"`. The `id=` keyword argument works the same way on an inline component, and every catalog accepts it. When the decompiler encounters a component ID like `"content-grid"`, it derives a valid variable name (`content_grid`) and emits `id="content-grid"`.
+Here `root` compiles with `"id": "root"` and `"children": ["content-grid"]`, while `grid` compiles with `"id": "content-grid"`. The `id=` keyword argument works the same way on an inline component, and every catalog accepts it. For protocol versions before v1.0, when the decompiler encounters a component ID like `"content-grid"`, it derives a valid variable name (`content_grid`) and emits `id="content-grid"`. From protocol v1.0 onward, component IDs must themselves be valid UAX #31 identifiers, so the decompiler rejects non-UAX #31 component IDs rather than deriving a variable name (reserved words such as `"true"` are valid UAX #31 identifiers and continue to be derived as `_true` with `id="true"`).
 
 When updating an existing surface and referencing a child component ID that was created in an earlier turn (and is not defined in the current block), write the ID as a bare identifier if it is a valid variable name, or as a quoted string if it contains characters like hyphens:
 
@@ -75,7 +77,7 @@ The syntax supports three literal primitive types:
 - **Strings** are represented in two formats:
   - **Standard Strings**: Enclosed in single double quotes (e.g., `"Enter your name"`) or triple double quotes (e.g., `"""Line 1\nLine 2"""`). Standard strings support common escape sequences: `\n` (newline), `\t` (tab), `\\` (backslash), and `\"` (double quote). Embedded newlines are allowed.
   - **Raw Strings**: Prefaced by `r` (e.g., `r"^[a-zA-Z]+$"` or `r"""Raw multi-line content"""`). In raw strings, no escape sequences are processed, and backslashes are interpreted as literal characters. This is particularly useful for validation regex patterns containing backslashes. Embedded newlines are allowed.
-- **Numbers** are written as plain integers or decimals, for example `42` or `3.14` or `-1`.
+- **Numbers** are JSON numbers with an optional leading `+`, for example `42`, `3.14`, `-1`, `.5`, `1e-7` or `2.5E+3`. The grammar is `[+-]? ([0-9]+ ('.' [0-9]*)? | '.' [0-9]+) ([eE] [+-]? [0-9]+)?`, the same one the core `${...}` expression parsers use. A literal outside the range of a double (such as `1e999`) is a parse error. Integers beyond ±(2^53−1) are not portable across SDKs, because an implementation may read them as doubles. `3` and `3.0` are the same value. Decompilers write numbers the way ECMAScript `Number.prototype.toString` does (exponent notation only below 1e-6 or at or above 1e21, written `2.5e-7` or `1.5e+21`), and may keep a `.0` on an integral double.
 - **Booleans** are represented by `true` or `false`.
 - **Null values** are represented by `null`.
 
@@ -116,22 +118,32 @@ $/title = "Enable notification"
 $/user = {firstName: "Alice", age: 30}
 ```
 
-The compiler resolves these statements and generates the structured `dataModel` JSON object at the root of the `createSurface` payload.
+The compiler resolves these statements according to whether the scope creates a new surface or updates an existing surface:
 
-If an A2UI Express block contains only data path assignments and omits the reserved `root` component variable entirely, the compiler produces a standalone `updateDataModel` protocol message instead of a `createSurface` layout payload:
+- When a scope creates a surface (defines `root` without `update=true`), the compiler folds all `$/...` assignments in the scope into the structured `dataModel` JSON object at the root of the `createSurface` payload (or a single initial root `updateDataModel` message in v0.9). Path folding traverses existing arrays and auto-vivifies an array when an unassigned path segment is followed by a canonical non-negative integer index (`0` through `10000`), so subsequent assignments in the same scope can populate or override individual list items (such as `$/items = [{id: "w1", state: "Draft"}]` followed by `$/items/0/state = "Ready"`). When a path segment already holds a map, a numeric next segment (such as `$/m/0 = "x"` after `$/m = {a: 1}`) sets string key `"0"` on that map. Assigning to a list index past the current end of a list pads intermediate slots with `null` (for example, `$/items/3 = "x"` on a new list produces `[null, null, null, "x"]`).
+- When a scope updates an existing surface (omits `root` or declares `surface(..., update=true)`), each `$/path = value` assignment compiles to its own `updateDataModel` message with `path: "/path"` and `value: value` in statement order, preserving unmodified sibling keys in the surface's data model. Assigning a map to `$/` (or `$`) replaces the entire root data model (`path: "/"`), while assigning a non-map value to `$/` is a validation error in both creating and updating scopes.
+
+For example, if an A2UI Express block contains only data path assignments (`$/icon = "check"` and `$/title = "Enable notification"`) and omits the reserved `root` component variable, the compiler produces one targeted `updateDataModel` protocol message per assigned path:
 
 ```json
-{
-  "version": "v1.0",
-  "updateDataModel": {
-    "surfaceId": "default_surface",
-    "path": "/",
-    "value": {
-      "icon": "check",
-      "title": "Enable notification"
+[
+  {
+    "version": "v1.0",
+    "updateDataModel": {
+      "surfaceId": "default_surface",
+      "path": "/icon",
+      "value": "check"
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateDataModel": {
+      "surfaceId": "default_surface",
+      "path": "/title",
+      "value": "Enable notification"
     }
   }
-}
+]
 ```
 
 ### Nested function calls and actions
@@ -142,6 +154,10 @@ To support catalog flexibility and avoid hardcoding specific formatting or actio
 - If the client catalog contains a text formatting helper (such as `formatString`), it is called explicitly: `welcomeText = Text(formatString("Welcome, ${/user/firstName}!"))`. This prevents failures if a client catalog uses a different naming convention for interpolation.
 - Local actions use this same signature to trigger behaviors, for example `openUrl("https://example.com")`. The compiler maps these to standard client function actions.
 - Server events use a reserved `Event` signature to declare backend actions, for example `Event("save_deal", {rep: $/form/rep})`.
+  - `Event(name, context?)` takes the event name and an optional context map positionally. The context can also be given by keyword: `Event("save_deal", context={rep: $/form/rep})`.
+  - `userMessage=` sets the message shown on the user's behalf when the event fires. It takes what the v1.0 `DynamicString` type takes: a string, a `$path` binding or a function call, as in `Event("reply", userMessage="Replying now")` or `Event("reply", userMessage=formatString("Replying to ${/thread/title}"))`. It maps to the v1.0 `Action.event.userMessage` field, so the compiler rejects it when targeting an earlier protocol version.
+  - Any other keyword argument on `Event` is an error, rather than being dropped from the compiled action.
+- An action slot is any catalog property whose schema is the common `Action` type, including one nested inside a list item or object property (for example `Cards([{label: "Docs", action: openUrl("https://a2ui.org")}])`). A function call in an action slot compiles to a `functionCall` action; outside an action slot, it compiles to a plain function call value.
 
 ### Validation and logic expressions
 

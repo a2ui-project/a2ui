@@ -23,7 +23,7 @@ import {SemVer, normalizeVersionString, toSemVer, toCanonicalVersion} from '../.
 /**
  * Union of supported A2UI protocol version strings.
  */
-export type ProtocolVersion = 'v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0' | (string & {});
+export type ProtocolVersion = 'v0.8' | 'v0.9' | 'v0.9.1' | '1.0' | (string & {});
 
 /**
  * Canonical protocol versions supported by the A2UI runtime.

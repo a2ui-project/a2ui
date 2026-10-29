@@ -1,0 +1,139 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Reading a streamed answer for an app that is both the agent and the renderer.
+#
+# A case builds a request processor for the catalogs in `args`, and a renderer's
+# message processor for the same catalogs, or for `args.renderer_catalogs` when
+# the case gives them. It opens a `StreamedAnswer` on the two and feeds it the
+# answer in chunks. The answer reads the response through
+# `RendererState.of(renderer)`, applying each message to the renderer, and reads
+# past a rejected block.
+#
+# Each step states the answer's parts after the chunk, as a whole rather than as
+# a delta: `{text: ...}` for text, `{surface: <id>}` for a surface the answer
+# created, which is the surface of that id the renderer holds, and
+# `{error: {category: ...}}` for a rejected block. Text that arrives in pieces
+# joins one part until a block comes between, and a surface the answer deletes
+# leaves the parts. `expect_close` states the parts after the answer is closed,
+# and `expect_in_block` follows `ResponseStream.is_in_block`, as in
+# `direct_json/response_streaming.yaml`. A case with `expect_error` fails to
+# open the answer.
+
+- name: test_answer_keeps_text_and_surfaces_in_the_order_written
+  description: The answer's parts are its text and its surfaces in the order the model wrote them, with text that arrived in pieces joined.
+  action: stream_answer
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: "Here "
+      expect_parts:
+        - text: "Here"
+    - input: "it is: "
+      expect_parts:
+        - text: "Here it is:"
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "a", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "a", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json>'
+      expect_parts:
+        - text: "Here it is:"
+        - surface: "a"
+    - input: ' and <a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "b", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "b", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json> Done.'
+      expect_parts:
+        - text: "Here it is:"
+        - surface: "a"
+        - text: "and"
+        - surface: "b"
+        - text: "Done."
+  expect_close:
+    - text: "Here it is:"
+    - surface: "a"
+    - text: "and"
+    - surface: "b"
+    - text: "Done."
+
+- name: test_answer_reads_past_a_rejected_block
+  description: A rejected block becomes an error part, and the text and surfaces after it are read as usual.
+  action: stream_answer
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: 'Before <a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "bad", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "bad", "components": [{"id": "root", "component": "Bogus"}]}}]</a2ui-json> after <a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "good", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "good", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json>'
+      expect_parts:
+        - text: "Before"
+        - error:
+            category: "ValidationError"
+        - text: "after"
+        - surface: "good"
+
+- name: test_answer_keeps_a_surface_its_rejected_block_created_first
+  description: A surface that a block created before the block was rejected stays in the answer, before the error part.
+  action: stream_answer
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "a", "catalogId": "conformance/simplified"}}, '
+      expect_parts:
+        - surface: "a"
+      expect_in_block: true
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "a", "components": [{"id": "root", "component": "Bogus"}]}}]</a2ui-json> after'
+      expect_parts:
+        - surface: "a"
+        - error:
+            category: "ValidationError"
+        - text: "after"
+      expect_in_block: false
+
+- name: test_answer_drops_a_surface_it_deletes
+  description: A surface the answer deletes leaves its parts.
+  action: stream_answer
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "a", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "a", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json> <a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "b", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "b", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json>'
+      expect_parts:
+        - surface: "a"
+        - surface: "b"
+    - input: ' <a2ui-json>{"version": "1.0", "deleteSurface": {"surfaceId": "a"}}</a2ui-json>'
+      expect_parts:
+        - surface: "b"
+
+- name: test_answer_ends_with_an_error_part_for_a_block_still_open
+  description: A block still open when the answer is closed becomes an error part.
+  action: stream_answer
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: "Text <a2ui-json>["
+      expect_parts:
+        - text: "Text"
+      expect_in_block: true
+  expect_close:
+    - text: "Text"
+    - error:
+        category: "ParseError"
+
+- name: test_answer_rejects_a_renderer_with_other_catalogs
+  description: An answer cannot be opened on a renderer whose catalogs are not the request processor's active catalogs.
+  action: stream_answer
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_catalogs:
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  expect_error:
+    category: "CatalogError"

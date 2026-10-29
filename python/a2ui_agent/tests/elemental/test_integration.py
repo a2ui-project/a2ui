@@ -36,8 +36,7 @@ class TestElementalIntegration(unittest.TestCase):
                     "Column": {
                         "properties": {
                             "children": {
-                                "type": "array",
-                                "items": {"type": "object"},
+                                "$ref": "common_types.json#/$defs/ChildList",
                                 "positionalIndex": 0,
                             }
                         }
@@ -56,7 +55,7 @@ class TestElementalIntegration(unittest.TestCase):
             "Here is the UI:\n"
             "<a2ui>\n"
             '  <body id="welcome">\n'
-            "    <ui-Column>\n"
+            '    <ui-Column id="root">\n'
             '      <ui-Text text="Hello" />\n'
             "    </ui-Column>\n"
             "  </body>\n"
@@ -81,9 +80,10 @@ class TestElementalIntegration(unittest.TestCase):
         self.assertEqual(messages[1]["updateComponents"]["surfaceId"], "welcome")
         compiled_components = messages[1]["updateComponents"]["components"]
         self.assertEqual(len(compiled_components), 2)
-        self.assertEqual(compiled_components[0]["id"], "comp_1")
-        self.assertEqual(compiled_components[1]["id"], "comp_2")
-        self.assertEqual(compiled_components[1]["text"], "Hello")
+        by_id = {c["id"]: c for c in compiled_components}
+        self.assertEqual(set(by_id), {"root", "comp_1"})
+        self.assertEqual(by_id["root"]["children"], ["comp_1"])
+        self.assertEqual(by_id["comp_1"]["text"], "Hello")
 
     def test_elemental_parser_preserves_custom_surface_id(self):
         """Verifies parsing preserves surface ID defined on `<a2ui>` start tag attributes."""
@@ -91,7 +91,7 @@ class TestElementalIntegration(unittest.TestCase):
             "Here is the UI:\n"
             "<a2ui>\n"
             '  <body id="my-custom-surface-id">\n'
-            "    <ui-Column>\n"
+            '    <ui-Column id="root">\n'
             '      <ui-Text text="Hello" />\n'
             "    </ui-Column>\n"
             "  </body>\n"
@@ -115,8 +115,8 @@ class TestElementalIntegration(unittest.TestCase):
     def test_elemental_parser_unclosed_tag_parsing(self):
         """Verify parser unclosed tag auto-closing and compilation with is_final=False."""
         truncated_response = (
-            'Conversational preamble:\n<a2ui>\n  <body id="welcome">\n    <ui-Column>\n'
-            '      <ui-Text text="Hello"'
+            'Conversational preamble:\n<a2ui>\n  <body id="welcome">\n   '
+            ' <ui-Column>\n      <ui-Text text="Hello"'
         )
 
         parts = ElementalParser([self.catalog]).parse_response(truncated_response)
@@ -130,9 +130,10 @@ class TestElementalIntegration(unittest.TestCase):
         compiled_components = messages[1]["updateComponents"]["components"]
         # Column and Text should both be parsed. Text is closed gracefully.
         self.assertEqual(len(compiled_components), 2)
-        self.assertEqual(compiled_components[0]["id"], "comp_1")
-        self.assertEqual(compiled_components[1]["id"], "comp_2")
-        self.assertEqual(compiled_components[1]["text"], "Hello")
+        by_id = {c["id"]: c for c in compiled_components}
+        self.assertEqual(set(by_id), {"comp_1", "comp_2"})
+        texts = [c for c in compiled_components if c["component"] == "Text"]
+        self.assertEqual([c["text"] for c in texts], ["Hello"])
 
     def test_elemental_parser_compilation_error_handling(self):
         """Verify that parsing invalid Elemental HTML raises A2uiCompilationError."""

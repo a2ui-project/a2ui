@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// ignore_for_file: avoid_print
+
 import 'dart:async';
 
 import 'package:dartantic_ai/dartantic_ai.dart' as dartantic;
+import 'package:flutter_test/flutter_test.dart';
+import 'package:googleai_dart/googleai_dart.dart' as ga;
 
 import 'api_key.dart';
 
@@ -62,8 +66,14 @@ class DartanticAiClient implements AiClient {
           yield result.output;
         }
         return;
-      } on Exception {
-        if (yielded || attempt == 3) rethrow;
+      } on Exception catch (e) {
+        if (yielded) rethrow;
+        if (attempt == 3) {
+          if (ModelUnavailableException.isUnavailable(e)) {
+            throw ModelUnavailableException(e);
+          }
+          rethrow;
+        }
         await Future<void>.delayed(Duration(seconds: 5 * attempt));
       }
     }
@@ -74,4 +84,44 @@ class DartanticAiClient implements AiClient {
     // Dartantic Agent/Provider doesn't strictly require disposal currently,
     // but good to have the hook.
   }
+}
+
+/// Thrown when the model stays unavailable through every retry: the API key
+/// is out of quota (HTTP 429) or the model is overloaded (HTTP 503).
+///
+/// This says nothing about the code under test, so [modelTest] skips the test
+/// instead of failing it.
+class ModelUnavailableException implements Exception {
+  ModelUnavailableException(this.cause);
+
+  /// The last error the API returned.
+  final Exception cause;
+
+  /// Whether [e] means the model is unavailable, not that the request is
+  /// wrong.
+  static bool isUnavailable(Exception e) =>
+      e is ga.ApiException && (e.statusCode == 429 || e.statusCode == 503);
+
+  @override
+  String toString() => 'The model is unavailable: $cause';
+}
+
+/// Declares a test that calls the model, as [test] does.
+///
+/// If the model is unavailable, the test is skipped and a GitHub Actions
+/// warning is printed, so the run passes without filing a failure issue, and
+/// the warning still shows on the run.
+void modelTest(
+  String description,
+  Future<void> Function() body, {
+  Timeout? timeout,
+}) {
+  test(description, () async {
+    try {
+      await body();
+    } on ModelUnavailableException catch (e) {
+      print('::warning title=Model unavailable::Skipped "$description": $e');
+      markTestSkipped('$e');
+    }
+  }, timeout: timeout);
 }

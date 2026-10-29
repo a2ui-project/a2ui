@@ -36,14 +36,14 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Some blueprint conformance suites are not run
 
-- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness still reads `legacy/parser.yaml` and `legacy/inference_format.yaml` there, skipping the cases the newer suites replaced. The blueprint suites `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/catalog_transformer.yaml`, `agent/multi_catalog_formats.yaml`, `agent/request_processor.yaml`, every `agent/direct_json/*.yaml` file and every `agent/express/*.yaml` file run. The timing suites among them, `agent/direct_json/scaling.yaml` and `agent/express/scaling.yaml`, run with `yarn test:timing` rather than `yarn test`. `agent/builder/` and `agent/macros/` do not run.
+- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness still reads `legacy/parser.yaml` and `legacy/inference_format.yaml` there, skipping the cases the newer suites replaced. The blueprint suites `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/catalog_transformer.yaml`, `agent/multi_catalog_formats.yaml`, `agent/request_processor.yaml`, `agent/skill.yaml`, every `agent/direct_json/*.yaml` file and every `agent/express/*.yaml` file run. The timing suites among them, `agent/direct_json/scaling.yaml` and `agent/express/scaling.yaml`, run with `yarn test:timing` rather than `yarn test`. `agent/builder/` and `agent/macros/` do not run.
 - **Why it exists:** Those suites exercise blueprint APIs this package does not implement yet.
 - **What it risks:** Behaviour they pin can drift in this package without a failing test.
 - **Done looks like:** The harness runs every blueprint suite and stops reading `agent/legacy/`, which the conformance README keeps for the earlier agent interface.
 
 ### `no-explicit-any` lint warnings
 
-- **What it is:** There are eslint warnings for `no-explicit-any` in `tests/conformance/conformance.test.ts` and `tests/conformance/direct-json-conformance.test.ts`. The package source has none.
+- **What it is:** There are eslint warnings for `no-explicit-any` in `tests/conformance/direct-json-conformance.test.ts`. The package source has none.
 - **Why it exists:** The harnesses read untyped YAML cases and walk them with loosely typed helpers.
 - **What it risks:** Mild technical debt.
 - **Done looks like:** The harness helpers take `unknown` with runtime type guards, allowing the warnings to be cleanly resolved.
@@ -84,7 +84,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Behaviours TypeScript enforces that no conformance case pins
 
-- **What it is:** TypeScript's Express throws in several places where no conformance case says what should happen: an inline component id that collides with a declared variable (`ExpressIdCollisionError`); decompiling a component id that is not an Express identifier, such as `title-heading` or `true` (`ExpressInvalidIdentifierError`); decompiling messages for a catalog the decompiler was not given (`A2uiCatalogError`); and catalogs, or a requested version, from different release lines such as v0.9 and v1.0 (`A2uiCatalogError`).
+- **What it is:** TypeScript's Express throws in several places where no conformance case says what should happen: an inline component id that collides with a declared variable (`ExpressIdCollisionError`); decompiling messages for a catalog the decompiler was not given (`A2uiCatalogError`); and catalogs, or a requested version, from different release lines such as v0.9 and v1.0 (`A2uiCatalogError`).
 - **Why it exists:** Each was decided while making TypeScript follow the suite: throwing is preferred to silently producing wrong output.
 - **What it risks:** Python may choose differently, and nothing would catch the drift.
 - **Done looks like:** Conformance cases pin each behaviour, so both SDKs are held to it.
@@ -134,12 +134,11 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Express grammar rules name basic-catalog components
 
-- **What it is:** The fixed Express rules that head every Express prompt in Python (`EXPRESS_RULES` in `prompt_generator.py`) name catalog-specific things. Rule 15's example is `root = Card(...)`, the dates rule mentions `DateTimeInput`, rule 11 uses `itemTemplate = Image($url)`, and rule 14 refers to parameters named `action`. With a catalog that has no `Card`, the prompt still shows one. Python fails `test_express_snippet_omits_a_pruned_component` for this reason (though Python's harness doesn't run that suite, so the failure is not visible there).
-- **TypeScript:** The rules have been rewritten to be catalog-agnostic (using generic placeholder components such as `ComponentA(...)` and generic descriptions for date-time properties and action parameters). TypeScript now passes `test_express_snippet_omits_a_pruned_component`.
-- **Contradiction in conformance suite:** The conformance suite contradicts itself: the skill golden `conformance/test_data/skills/express_base_rules.txt` still contains `Card(...)`, which the pruning conformance case `test_express_snippet_omits_a_pruned_component` forbids. The TypeScript unit test comparing base rules against `express_base_rules.txt` was adapted in favor of following the pruning case. Upstream needs to regenerate the golden when Python changes its rules.
-- **Why it exists in Python:** The rules text was written against the basic catalog.
-- **What it risks:** The model may be told to use components or properties that the negotiated catalog does not have. This conflicts with the repository rule that inference formats stay catalog-agnostic.
-- **Done looks like:** Upstream Python rewrites its rules to be catalog-agnostic and regenerates the `express_base_rules.txt` golden.
+- **What it is:** The fixed Express rules that head every Express prompt (`EXPRESS_RULES` in both SDKs' prompt generators, and the shared golden `conformance/test_data/skills/express_base_rules.txt`) name two basic-catalog components: rule 3 mentions `DateTimeInput`, and rule 11 uses `itemTemplate = Image($url)`. With a catalog that has neither, the prompt still shows them.
+- **TypeScript:** Matches Python and the golden byte for byte. Rule 15's `root = ...(...)` example is the one catalog-dependent line, and both SDKs fill it from the active catalogs (the first component with a single child reference, else the first component), so `test_express_snippet_omits_a_pruned_component` passes without the rules naming `Card`.
+- **Why it exists:** The rules text was written against the basic catalog.
+- **What it risks:** The model may be told about a component or property that the negotiated catalog does not have. No conformance case forbids these two names today.
+- **Done looks like:** Upstream rewrites rules 3 and 11 to be catalog-agnostic, regenerates the golden, and both SDKs pick the change up ([#3462](https://github.com/a2ui-project/a2ui/issues/3462)).
 
 ### Python's Express ignores common properties defined inside a v0.9 catalog
 
@@ -150,11 +149,11 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Python's Express cannot decompile the restaurant finder's v0.9 examples
 
-- **What it is:** Decompiling `samples/agent/adk/restaurant_finder/examples/0.9/*.json` to Express gives text that does not compile in Python. Component ids such as `title-heading` are not Express identifiers, so the lexer stops at the `-`. In Python, `updateDataModel.path` is ignored, so `{"path": "/title", "value": "Found Restaurants"}` becomes `$ = "Found Restaurants"` instead of `$/title = ...`. `createSurface` and `updateComponents` each write a `surface("default")` line, and a program with two `surface` lines fails with "Root target 'root' is not defined". `createSurface.theme` is dropped without notice.
-- **TypeScript:** The TypeScript decompiler honours `updateDataModel.path` (mapping non-root paths to `$/path` leaf assignments), groups messages per surface to emit a single `surface` block, decompiles standalone `updateComponents` into blocks without a `root`, quotes keyword dictionary keys, and throws `ExpressInvalidIdentifierError` on invalid component ids like `title-heading` or `true`. The TS compiler now successfully compiles blocks with component assignments but no `root` target into `updateComponents`. Python still fails all these cases.
+- **What it is:** Decompiling `samples/agent/adk/restaurant_finder/examples/0.9/*.json` to Express gives text that does not compile in Python. Although Python now derives variable names with `id="..."` for pre-v1.0 non-identifier component ids such as `title-heading`, `updateDataModel.path` is still ignored (so `{"path": "/title", "value": "Found Restaurants"}` becomes `$ = "Found Restaurants"` instead of `$/title = ...`), `createSurface` and `updateComponents` each write a `surface("default")` line (and a program with two `surface` lines fails with "Root target 'root' is not defined"), and `createSurface.theme` is dropped without notice.
+- **TypeScript:** The TypeScript decompiler honours `updateDataModel.path` (mapping non-root paths to `$/path` leaf assignments), groups messages per surface to emit a single `surface` block, decompiles standalone `updateComponents` into blocks without a `root`, quotes keyword dictionary keys, and derives variable names with `id="..."` for pre-v1.0 non-identifier component ids like `title-heading` (while rejecting non-UAX 31 component ids from v1.0 with `A2uiValidationError`). The TS compiler now successfully compiles blocks with component assignments but no `root` target into `updateComponents`.
 - **Why it exists:** The decompiler handles each message on its own and was written against v1.0, where one `createSurface` carries the components and the data model.
-- **What it risks:** Examples written for Direct JSON cannot be reused for Express as they are. In TypeScript the only remaining obstacle is ids that are not identifiers, which now throw instead of producing broken text; the Node sample keeps its own copies of the examples with underscore ids for that reason. It no longer drops `createSurface` before decompiling.
-- **Done looks like:** Python's decompiler honours `updateDataModel.path`, writes one `surface` line per surface, and either rejects or rewrites ids that are not identifiers.
+- **What it risks:** In Python, v0.9 examples written for Direct JSON that use `updateDataModel.path` or separate `createSurface` and `updateComponents` messages cannot be reused for Express as they are. TypeScript handles both and derives variable names with `id="..."` for pre-v1.0 non-identifier component ids.
+- **Done looks like:** Python's decompiler honours `updateDataModel.path` and writes one `surface` line per surface.
 
 ### Python's Express leaves v0.9 JSON examples untranslated
 

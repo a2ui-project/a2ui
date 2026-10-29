@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import copy
+from collections.abc import Container
 from typing import Any, Final, Iterator
 from ..common.events import EventSource
+from ..common.semver import is_at_least_version
 from ..catalog import CatalogApi
 from ..catalog.reference_map import (
     ComponentRefSpec,
@@ -24,6 +26,7 @@ from ..catalog.reference_map import (
     CHILD_KEY,
 )
 from ..exceptions import A2uiErrorDetail, A2uiValidationError
+from ..schema import ProtocolVersion
 from ..schema.common_types import (
     ComponentReference,
     SingleReference,
@@ -50,7 +53,7 @@ V0_8_LIST_REF_FIELDS: Final[set[str]] = {
 def is_v0_8_heuristic_child_prop_key(
     key: str,
     val: Any = None,
-    known_ids: set[str] | None = None,
+    known_ids: Container[str] | None = None,
 ) -> bool:
     """Heuristically checks if a property key represents a child component.
 
@@ -184,7 +187,7 @@ class ComponentModel:
 
     def get_child_references(
         self,
-        known_component_ids: set[str] | None = None,
+        known_component_ids: Container[str] | None = None,
         catalog: CatalogApi | None = None,
     ) -> Iterator[tuple[str, str]]:
         """Recursively extracts referenced child ComponentIds and their property paths from properties.
@@ -218,13 +221,19 @@ class ComponentModel:
             return
 
         # Fallback for legacy v0.8 protocol support where catalog schemas don't define formal ComponentId/ChildList refs
+        # From v0.9 a catalog declares every child with a $ref, so a component it
+        # declares with no reference props has no children to infer.
+        infer_refs = ref_spec is None or not is_at_least_version(
+            target_catalog.protocol_version, ProtocolVersion.V0_9
+        )
         for key, value in props.items():
             if key in ("id", "component"):
                 continue
 
-            if isinstance(
-                value, ComponentReference
-            ) or is_v0_8_heuristic_child_prop_key(key, value, known_component_ids):
+            if isinstance(value, ComponentReference) or (
+                infer_refs
+                and is_v0_8_heuristic_child_prop_key(key, value, known_component_ids)
+            ):
                 for ref_id, sub_path in extract_child_refs_from_val(value):
                     full_path = f"{key}.{sub_path}" if sub_path else key
                     yield ref_id, full_path

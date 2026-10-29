@@ -261,6 +261,33 @@ void main() {
       expect(written, contains('surface("g", "${custom.id}")'));
     });
 
+    group('a double the way ECMAScript Number.prototype.toString does', () {
+      /// What a `Gauge` with [value] is written as, after a round trip.
+      String gauge(double value) => roundTrip([
+        create('g', custom.id),
+        components('g', [
+          {'id': 'root', 'component': 'Gauge', 'value': value},
+        ]),
+      ]);
+
+      // Plain decimal for 1e-6 <= |v| < 1e21, exponent form otherwise, with
+      // `.0` kept on integral doubles.
+      final cases = <double, String>{
+        1e-7: '1e-7',
+        0.000015: '0.000015',
+        1e16: '10000000000000000.0',
+        1e21: '1e+21',
+        1.5e300: '1.5e+300',
+        3.0: '3.0',
+        -0.0: '-0.0',
+      };
+      for (final MapEntry<double, String> entry in cases.entries) {
+        test(entry.value, () {
+          expect(gauge(entry.key), contains('root = Gauge(${entry.value})'));
+        });
+      }
+    });
+
     test('an empty data model', () {
       roundTrip([
         {
@@ -271,6 +298,19 @@ void main() {
           },
         },
       ]);
+    });
+
+    test('an update of an item of a list in the data model', () {
+      final String written = roundTrip([
+        {
+          'updateDataModel': {
+            'surfaceId': 's',
+            'path': '/items/0',
+            'value': 'x',
+          },
+        },
+      ]);
+      expect(written, 'surface("s")\n\$/items/0 = "x"');
     });
 
     test('several operations as paragraphs', () {
@@ -285,17 +325,55 @@ void main() {
       ]);
       expect(written.split('\n\n'), hasLength(2));
     });
+
+    test('non-identifier and reserved component ids before v1.0 with derived '
+        'variables and id=', () {
+      final String written = roundTrip([
+        create('s'),
+        components('s', [
+          {
+            'id': 'root',
+            'component': 'Column',
+            'children': ['main-title', 'main_title', 'true'],
+          },
+          {'id': 'main-title', 'component': 'Text', 'text': 'First'},
+          {'id': 'main_title', 'component': 'Text', 'text': 'Second'},
+          {'id': 'true', 'component': 'Text', 'text': 'Third'},
+        ]),
+      ]);
+      expect(
+        written,
+        contains('root = Column([main_title_2, main_title, _true])'),
+      );
+      expect(
+        written,
+        contains('main_title_2 = Text("First", id="main-title")'),
+      );
+      expect(written, contains('main_title = Text("Second")'));
+      expect(written, contains('_true = Text("Third", id="true")'));
+    });
+
+    test('Unicode UAX 31 identifiers as bare variable names', () {
+      final String written = roundTrip([
+        create('s'),
+        components('s', [
+          {
+            'id': 'root',
+            'component': 'Column',
+            'children': ['entête', '見出し_1'],
+          },
+          {'id': 'entête', 'component': 'Text', 'text': 'Bonjour'},
+          {'id': '見出し_1', 'component': 'Text', 'text': 'こんにちは'},
+        ]),
+      ]);
+      expect(written, contains('root = Column([entête, 見出し_1])'));
+      expect(written, contains('entête = Text("Bonjour")'));
+      expect(written, contains('見出し_1 = Text("こんにちは")'));
+    });
   });
 
   group('rejects', () {
     final Map<String, List<Map<String, Object?>>> cases = {
-      'an id that is not an identifier': [
-        create('s'),
-        components('s', [
-          {'id': 'root', 'component': 'Card', 'child': 'main-title'},
-          {'id': 'main-title', 'component': 'Text', 'text': 'x'},
-        ]),
-      ],
       'an undeclared component property': [
         create('s'),
         components('s', [
@@ -324,12 +402,6 @@ void main() {
               },
             ],
           },
-        ]),
-      ],
-      'a number written with an exponent': [
-        create('s'),
-        components('s', [
-          {'id': 'root', 'component': 'Slider', 'max': 1e21},
         ]),
       ],
       'sendDataModel': [
@@ -362,21 +434,16 @@ void main() {
           {'id': 'root', 'component': 'Text', 'text': 'x'},
         ]),
       ],
-      'an update of an item of a list in the data model': [
-        {
-          'updateDataModel': {
-            'surfaceId': 's',
-            'path': '/items/0',
-            'value': 'x',
-          },
-        },
-      ],
       'a removal below the root of the data model': [
         {
           'updateDataModel': {'surfaceId': 's', 'path': '/name'},
         },
       ],
       'a data model key that is not a path segment': [
+        create('s'),
+        components('s', [
+          {'id': 'root', 'component': 'Text', 'text': 'x'},
+        ]),
         {
           'updateDataModel': {
             'surfaceId': 's',
@@ -401,6 +468,22 @@ void main() {
       });
     }
 
+    for (final double value in [double.infinity, double.nan]) {
+      test('a non-finite number ($value)', () {
+        expect(
+          () => parser.decompile(
+            messages([
+              create('g', custom.id),
+              components('g', [
+                {'id': 'root', 'component': 'Gauge', 'value': value},
+              ]),
+            ]),
+          ),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      });
+    }
+
     test('without catalogs', () {
       expect(
         () => const ExpressFormatFactory()
@@ -408,6 +491,349 @@ void main() {
             .createParser()
             .decompile(const []),
         throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('a non-UAX 31 component id in protocol v1.0', () {
+      final CatalogApi v1Basic = Catalog.fromJson(
+        jsonDecode(
+              File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
+            )
+            as Map<String, Object?>,
+        protocolVersion: A2uiProtocolVersion.v1_0,
+      );
+      final Parser v1Parser = const ExpressFormatFactory().createFormat([
+        v1Basic,
+      ]).createParser();
+      final List<AgentToRendererMessage> v1Messages =
+          AgentToRendererMessage.parseAll([
+            {
+              'version': '1.0',
+              'createSurface': {
+                'surfaceId': 's',
+                'components': [
+                  {'id': 'root', 'component': 'Card', 'child': 'main-title'},
+                  {'id': 'main-title', 'component': 'Text', 'text': 'x'},
+                ],
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v1_0).messages;
+      expect(
+        () => v1Parser.decompile(v1Messages),
+        throwsA(
+          isA<A2uiValidationError>()
+              .having((e) => e.path, 'path', 'components.main-title.id')
+              .having((e) => e.errors.map((d) => d.code).toList(), 'codes', [
+                'invalid_identifier',
+              ]),
+        ),
+      );
+      expect(
+        () => v1Parser.compile(
+          'root = Card(child=t); t = Text("x", id="main-title")',
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+  });
+
+  group('writes v1.0 actions', () {
+    final CatalogApi links = Catalog.fromJson({
+      'catalogId': 'https://example.com/links.json',
+      'protocolVersion': '1.0',
+      'components': {
+        'Text': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Text'},
+            'text': {r'$ref': r'common_types.json#/$defs/DynamicString'},
+          },
+          'required': ['component', 'text'],
+        },
+        'Button': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Button'},
+            'child': {r'$ref': r'common_types.json#/$defs/Child'},
+            'action': {r'$ref': r'common_types.json#/$defs/Action'},
+          },
+          'required': ['component', 'child', 'action'],
+        },
+        'Links': {
+          'type': 'object',
+          'properties': {
+            'component': {'const': 'Links'},
+            'items': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'properties': {
+                  'label': {'type': 'string'},
+                  'action': {r'$ref': r'common_types.json#/$defs/Action'},
+                },
+                'required': ['label', 'action'],
+              },
+            },
+          },
+          'required': ['component', 'items'],
+        },
+      },
+      'functions': {
+        'openUrl': {
+          'type': 'object',
+          'returnType': 'void',
+          'properties': {
+            '@call': {'const': 'openUrl'},
+            'args': {
+              'type': 'object',
+              'properties': {
+                'url': {'type': 'string'},
+              },
+              'required': ['url'],
+            },
+          },
+          'required': ['@call', 'args'],
+        },
+      },
+    });
+    final Parser v1Parser = const ExpressFormatFactory().createFormat([
+      links,
+    ]).createParser();
+
+    /// Writes a v1.0 surface of [components] in Express, checks that
+    /// compiling the result returns it, and returns what was written.
+    String roundTripV1(List<Map<String, Object?>> components) {
+      final List<AgentToRendererMessage> original =
+          AgentToRendererMessage.parseAll([
+            {
+              'version': '1.0',
+              'createSurface': {
+                'surfaceId': 's',
+                'catalogId': links.id,
+                'components': components,
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v1_0).messages;
+      final String written = v1Parser.decompile(original);
+      expect(
+        v1Parser.compile(written).map((m) => m.toJson()),
+        original.map((m) => m.toJson()),
+        reason: 'Express written:\n$written',
+      );
+      return written;
+    }
+
+    test('an event with userMessage=, after its context', () {
+      expect(
+        roundTripV1([
+          {
+            'id': 'root',
+            'component': 'Button',
+            'child': 'label',
+            'action': {
+              'event': {'name': 'reply', 'userMessage': 'Replying now'},
+            },
+          },
+          {'id': 'label', 'component': 'Text', 'text': 'Reply'},
+        ]),
+        contains('Event("reply", userMessage="Replying now")'),
+      );
+      expect(
+        roundTripV1([
+          {
+            'id': 'root',
+            'component': 'Button',
+            'child': 'label',
+            'action': {
+              'event': {
+                'name': 'reply',
+                'userMessage': {'@path': '/draft'},
+                'context': {'id': 1},
+              },
+            },
+          },
+          {'id': 'label', 'component': 'Text', 'text': 'Reply'},
+        ]),
+        contains(r'Event("reply", {id: 1}, userMessage=$/draft)'),
+      );
+    });
+
+    test('an event with a function call userMessage', () {
+      expect(
+        roundTripV1([
+          {
+            'id': 'root',
+            'component': 'Links',
+            'items': [
+              {
+                'label': 'Reply',
+                'action': {
+                  'event': {
+                    'name': 'reply',
+                    'userMessage': {
+                      '@call': 'openUrl',
+                      'args': {'url': 'https://a2ui.org'},
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        ]),
+        contains('Event("reply", userMessage=openUrl("https://a2ui.org"))'),
+      );
+    });
+
+    test('a functionCall in an item slot reached through a \$ref', () {
+      final CatalogApi menu = Catalog.fromJson({
+        'catalogId': 'https://example.com/menu.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'Menu': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'Menu'},
+              'items': {
+                'type': 'array',
+                'items': {r'$ref': r'#/$defs/MenuItem'},
+              },
+            },
+            'required': ['component', 'items'],
+          },
+        },
+        'functions': {
+          'openUrl': {
+            'type': 'object',
+            'returnType': 'void',
+            'properties': {
+              '@call': {'const': 'openUrl'},
+              'args': {
+                'type': 'object',
+                'properties': {
+                  'url': {'type': 'string'},
+                },
+                'required': ['url'],
+              },
+            },
+            'required': ['@call', 'args'],
+          },
+        },
+        r'$defs': {
+          'MenuItem': {
+            'type': 'object',
+            'properties': {
+              'label': {'type': 'string'},
+              'action': {r'$ref': r'common_types.json#/$defs/Action'},
+            },
+            'required': ['label', 'action'],
+          },
+        },
+      });
+      final String written = ExpressDecompiler([menu]).decompile([
+        AgentToRendererMessage.fromJson({
+          'version': '1.0',
+          'createSurface': {
+            'surfaceId': 's1',
+            'catalogId': menu.id,
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Menu',
+                'items': [
+                  {
+                    'label': 'Docs',
+                    'action': {
+                      'functionCall': {
+                        '@call': 'openUrl',
+                        'args': {'url': 'https://a2ui.org'},
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      ]);
+      expect(
+        written,
+        contains(
+          'root = Menu([{label: "Docs", action: openUrl("https://a2ui.org")}])',
+        ),
+      );
+    });
+
+    test('an event with a userMessage as a map literal before v1.0', () {
+      // v0.9 has no userMessage and its compiler rejects `userMessage=`, so
+      // the object stays data that compiles back as written.
+      final CatalogApi v09 = Catalog.fromJson({
+        'catalogId': 'https://example.com/v09.json',
+        'protocolVersion': '0.9',
+        'components': {
+          'Card': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'Card'},
+              'child': {'type': 'object'},
+            },
+            'required': ['component', 'child'],
+          },
+        },
+      });
+      final String written = ExpressDecompiler([v09]).decompile([
+        AgentToRendererMessage.fromJson({
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 's1', 'catalogId': v09.id},
+        }),
+        AgentToRendererMessage.fromJson({
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's1',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Card',
+                'child': {
+                  'event': {'name': 'go', 'userMessage': 'hi'},
+                },
+              },
+            ],
+          },
+        }),
+      ]);
+      expect(written, isNot(contains('Event(')));
+      expect(written, contains('{event: {name:'));
+    });
+
+    test('a functionCall in a list item action slot as a plain call', () {
+      expect(
+        roundTripV1([
+          {
+            'id': 'root',
+            'component': 'Links',
+            'items': [
+              {
+                'label': 'Docs',
+                'action': {
+                  'functionCall': {
+                    '@call': 'openUrl',
+                    'args': {'url': 'https://a2ui.org'},
+                  },
+                },
+              },
+              {
+                'label': 'Go',
+                'action': {
+                  'event': {'name': 'go'},
+                },
+              },
+            ],
+          },
+        ]),
+        contains(
+          'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}, '
+          '{label: "Go", action: Event("go")}])',
+        ),
       );
     });
   });

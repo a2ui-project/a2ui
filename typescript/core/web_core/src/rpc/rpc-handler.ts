@@ -28,6 +28,7 @@ import {
   CallAgentFunctionMessage,
 } from '../v1_0/schema/renderer-to-agent.js';
 import {isCatalogVersionCompatible} from '../processing/adapters/base.js';
+import {settleDeep} from '../common/settle_deep.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
 import {A2uiRpcError, RpcErrorCode} from '../errors.js';
 
@@ -203,10 +204,28 @@ export class RpcHandler {
       return errorResponse;
     }
 
+    // A nested asynchronous call leaves a pending Promise in the resolved
+    // arguments; wait for it before validating them.
+    let settledArgs: Record<string, unknown> | undefined;
+    try {
+      settledArgs = (await settleDeep(resolvedArgsResult.args)) as
+        | Record<string, unknown>
+        | undefined;
+    } catch (err: unknown) {
+      const errorResponse = this.createResponseError(
+        functionCallId,
+        RpcErrorCode.EXECUTION_ERROR,
+        this.extractErrorMessage(err) || 'An error occurred during function execution.',
+        version,
+      );
+      await this.emitOutboundResponse(errorResponse);
+      return errorResponse;
+    }
+
     const parsedArgsResult = this.parseArguments(
       resolved.catalog,
       resolved.funcImpl,
-      resolvedArgsResult.args,
+      settledArgs,
       call,
     );
     if ('error' in parsedArgsResult) {
@@ -492,7 +511,7 @@ export class RpcHandler {
     });
     try {
       for (const [key, val] of Object.entries(args)) {
-        resolvedArgs[key] = context.resolveDynamicValue(val, 0, isUserActivated);
+        resolvedArgs[key] = context.resolveDynamicValue(val, 1, isUserActivated);
       }
     } catch (err: unknown) {
       expressionError =
@@ -576,7 +595,7 @@ export class RpcHandler {
     functionCallId: string,
     version: string,
   ): Promise<RendererFunctionResponseMessage> {
-    const respVersion = (version || 'v1.0') as RendererFunctionResponseMessage['version'];
+    const respVersion = (version || '1.0') as RendererFunctionResponseMessage['version'];
     try {
       const rawResult = await Promise.resolve(funcImpl.execute(args, context));
       const unwrapped = isSignal(rawResult) ? getValue(rawResult) : rawResult;
@@ -714,12 +733,16 @@ export class RpcHandler {
     cleanup: () => void,
     reject: (reason?: any) => void,
   ): void {
+    // callAgentFunction only exists in v1.0, whose FunctionCall names the function with
+    // '@call'. Rewrite a v0.9-style `call` key so the outbound message is valid on the wire.
+    const {call: legacyCallName, '@call': callName, ...rest} = call as Record<string, unknown>;
+    const callFunction = {'@call': callName ?? legacyCallName, ...rest} as FunctionCall;
     const outboundMsg: CallAgentFunctionMessage = {
-      version: (version || 'v1.0') as CallAgentFunctionMessage['version'],
+      version: (version || '1.0') as CallAgentFunctionMessage['version'],
       callAgentFunction: {
         surfaceId,
         functionCallId,
-        callFunction: call,
+        callFunction,
       },
     };
 
@@ -763,7 +786,7 @@ export class RpcHandler {
     version: string,
   ): RendererFunctionResponseMessage {
     return {
-      version: (version || 'v1.0') as RendererFunctionResponseMessage['version'],
+      version: (version || '1.0') as RendererFunctionResponseMessage['version'],
       rendererFunctionResponse: {
         functionCallId,
         error: {code, message},

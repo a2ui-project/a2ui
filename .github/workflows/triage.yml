@@ -36,10 +36,12 @@ on:
     types: [submitted]
   pull_request_review_comment:
     types: [created]
-  # PR lifecycle events (opened/synchronize/...) are deliberately absent: the
-  # only PR rule needs a day of maintainer silence, and pushes and edits are
-  # not contributions, so none of those events can change a flag when they
-  # fire. Comments, reviews and the daily cron cover every transition.
+  # PR lifecycle events (opened, labeled, assigned, ...) are deliberately
+  # absent, so a new PR or a label or assignee change on a PR waits for the
+  # daily cron. The `issues` events above fire for issues only, and a plain
+  # `pull_request` trigger gets a read-only token on PRs from forks, so it
+  # cannot label them. `pull_request_target` could, but zizmor rejects it as
+  # an insecure trigger.
   # Allow manual runs from the Actions tab.
   workflow_dispatch:
 
@@ -79,9 +81,15 @@ jobs:
       pull-requests: write
 
     steps:
+      # Always run the rules from main. A PR review event otherwise checks out
+      # the PR's merge commit, whose copy of triage.mjs can predate a rule
+      # change, and the two copies then add and remove each other's labels on
+      # every run. It also keeps a PR's own edits to the script from running
+      # with this job's write token.
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           persist-credentials: false
 
       - name: Reconcile triage flag labels

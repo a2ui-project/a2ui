@@ -41,10 +41,11 @@ abstract class Parser {
 
   /// Whether [content] carries a payload block in this format.
   ///
-  /// Reads the sentinel tags only and never compiles, so a caller can decide
-  /// whether a response is this format's business without paying for a parse.
-  /// When [complete] is false an opening tag is enough, which tells a
-  /// streaming caller that a payload has started.
+  /// Tokenizes blocks through [unwrap] without compiling, so a caller can
+  /// decide whether a response is this format's business without paying for a
+  /// compile. Counts a block recovered by [unwrap] when its opening sentinel
+  /// tag was omitted. When [complete] is false an opening tag is enough, which
+  /// tells a streaming caller that a payload has started.
   bool hasFormatContent(String content, {bool complete = false});
 
   /// Writes [parts] out as one response: text as it is, and each raw payload
@@ -55,6 +56,10 @@ abstract class Parser {
 
   /// Splits [content] into text and raw payload blocks, in the order the LLM
   /// wrote them.
+  ///
+  /// In one-shot parsing, also recovers at most one payload block whose opening
+  /// sentinel tag was omitted when closed by this format's closing tag
+  /// ([openStream] requires the opening sentinel tag).
   List<RawResponsePart> unwrap(String content);
 
   /// Translates the content of one payload block, without its sentinel tags,
@@ -97,7 +102,10 @@ abstract class Parser {
   ///
   /// Throws what [unwrap] and [compile] throw, [A2uiValidationError] if a
   /// renderer in the state would reject a message, and [A2uiCatalogError] if
-  /// a new state cannot be created for [catalogs].
+  /// a new state cannot be created for [catalogs]. A thrown [A2uiError]'s
+  /// [A2uiErrorPartialResults.partialResults] holds the parts before the
+  /// failing block, or only the text when a tree check fails, since that
+  /// check spans every block. None of them is applied to the state.
   List<ResponsePart> parseResponse(
     String content, {
     bool wrapped = true,
@@ -112,20 +120,32 @@ abstract class Parser {
       final List<RawResponsePart> rawParts = wrapped
           ? unwrap(content)
           : [RawA2uiPart(content)];
-      for (final part in rawParts) {
-        switch (part) {
-          case TextPart():
-            parts.add(part);
-          case RawA2uiPart(:final String a2uiRaw, :final bool isFinal):
-            final List<AgentToRendererMessage> messages = compile(a2uiRaw);
-            final List<String> blockTouched = target().apply(messages);
-            touched.addAll(blockTouched);
-            if (!isFinal) incomplete.addAll(blockTouched);
-            parts.add(A2uiPart(messages));
+      try {
+        for (final part in rawParts) {
+          switch (part) {
+            case TextPart():
+              parts.add(part);
+            case RawA2uiPart(:final String a2uiRaw, :final bool isFinal):
+              final List<AgentToRendererMessage> messages = compile(a2uiRaw);
+              final List<String> blockTouched = target().apply(messages);
+              touched.addAll(blockTouched);
+              if (!isFinal) incomplete.addAll(blockTouched);
+              parts.add(A2uiPart(messages));
+          }
         }
+      } catch (error) {
+        attachPartialResults(error, parts);
+        rethrow;
       }
       final Set<String> complete = touched.difference(incomplete);
-      if (complete.isNotEmpty) target().checkTopology(complete);
+      try {
+        if (complete.isNotEmpty) target().checkTopology(complete);
+      } catch (error) {
+        // The tree check spans every block, so no block is known to be good:
+        // only the text is kept.
+        attachPartialResults(error, parts.whereType<TextPart>().toList());
+        rethrow;
+      }
       // A truncated block's messages are kept, as the renderer the caller
       // sends them to will hold them, but its trees are not checked: a
       // cut-off block is missing what it would have added. Its components are
@@ -153,7 +173,8 @@ abstract class Parser {
   /// [parseResponse].
   bool get supportsStreaming => false;
 
-  /// Opens a stream that reads one response chunk by chunk.
+  /// Opens a stream that reads one response chunk by chunk, and ends at the
+  /// first rejected block.
   ///
   /// Each message the stream emits is checked against [state] and applied to
   /// it as it is emitted. Without a [state], the response is checked against
@@ -163,4 +184,20 @@ abstract class Parser {
   /// Throws [UnsupportedError] unless [supportsStreaming] is true.
   ResponseStream openStream({bool wrapped = true, RendererState? state}) =>
       throw UnsupportedError('$runtimeType does not support streaming.');
+
+  /// Opens a stream that reads one response chunk by chunk, and reads past a
+  /// rejected block.
+  ///
+  /// The stream returns an [ErrorPart] in place of a rejected block: the
+  /// messages the block emitted before it was rejected stay, the rest of the
+  /// block is skipped, and the text and blocks after it are read as usual. A
+  /// block is rejected when it cannot be read or [state] rejects one of its
+  /// messages; any other error ends the stream. [wrapped] and [state] are as
+  /// for [openStream].
+  ///
+  /// Throws [UnsupportedError] unless [supportsStreaming] is true.
+  ContinuingResponseStream openContinuingStream({
+    bool wrapped = true,
+    RendererState? state,
+  }) => throw UnsupportedError('$runtimeType does not support streaming.');
 }
