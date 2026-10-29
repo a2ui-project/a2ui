@@ -115,6 +115,68 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
     )
   }
 
+  /// Creates a catalog with a new ID from entries of this one, plus new entries.
+  ///
+  /// Use it to keep part of a catalog, such as the basic catalog, under an ID of your own:
+  ///
+  /// ```swift
+  /// let chatCatalog = try basicCatalog.derive(
+  ///   id: "https://example.com/catalogs/chat.json",
+  ///   components: ["Text", "Image", "Row", "Column", "Button", .add(MyCarousel())],
+  ///   functions: ["openUrl"]
+  /// )
+  /// ```
+  ///
+  /// The derived catalog keeps this catalog's protocol version and theme schema.
+  ///
+  /// - Parameters:
+  ///   - id: The derived catalog's ID.
+  ///   - components: The components of the derived catalog. A name keeps this catalog's
+  ///     component of that name, and a new entry is added. If `nil`, the derived catalog keeps
+  ///     every component of this one.
+  ///   - functions: The functions of the derived catalog, as for `components`. If `nil`, the
+  ///     derived catalog keeps every function of this one.
+  /// - Throws: ``A2UICatalogError`` if a name is not an entry of this catalog.
+  public func derive(
+    id: String,
+    components: [DerivedCatalogEntry<Component>]? = nil,
+    functions: [DerivedCatalogEntry<any FunctionImplementation>]? = nil
+  ) throws -> Catalog<Component> {
+    let derivedComponents = try components.map { entries in
+      try entries.map { entry -> Component in
+        switch entry {
+        case .keep(let name):
+          guard let component = self.components[name] else {
+            throw A2UICatalogError("Catalog \"\(self.id)\" has no component \"\(name)\".")
+          }
+          return component
+        case .add(let component):
+          return component
+        }
+      }
+    }
+    let derivedFunctions = try functions.map { entries in
+      try entries.map { entry -> any FunctionImplementation in
+        switch entry {
+        case .keep(let name):
+          guard let function = self.functions[name] else {
+            throw A2UICatalogError("Catalog \"\(self.id)\" has no function \"\(name)\".")
+          }
+          return function
+        case .add(let function):
+          return function
+        }
+      }
+    }
+    return Catalog(
+      id: id,
+      protocolVersion: protocolVersion,
+      components: derivedComponents ?? Array(self.components.values),
+      functions: derivedFunctions ?? Array(self.functions.values),
+      themeSchema: themeSchema
+    )
+  }
+
   /// Creates a catalog with an `A2UIProtocolVersion` enum.
   public init(
     id: String,

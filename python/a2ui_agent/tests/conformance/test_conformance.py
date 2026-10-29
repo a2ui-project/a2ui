@@ -39,6 +39,7 @@ from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.express import ExpressFormat
 from a2ui.parser import A2uiCompilationError
 from a2ui.parser import A2uiPart
+from a2ui.parser import ErrorPart
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
@@ -63,20 +64,7 @@ CATEGORY_TO_EXCEPTION = {
 SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "1.0"}
 
 # Transition skip list containing specific test case names to skip during active feature transitions.
-SKIP_TEST_NAMES: set[str] = {
-    # partial_results, after_rejected_block and is_in_block on a response
-    # stream, which this SDK does not implement yet:
-    # https://github.com/a2ui-project/a2ui/issues/3699
-    "test_chunk_error_carries_the_text_before_the_failing_block",
-    "test_chunk_error_carries_a_block_finished_in_the_same_chunk",
-    "test_chunk_continue_returns_an_error_part_for_an_unreadable_block",
-    "test_chunk_continue_takes_back_a_block_rejected_whole",
-    "test_chunk_continue_keeps_the_messages_emitted_before_the_rejection",
-    "test_chunk_continue_skips_the_rest_of_a_rejected_block",
-    "test_chunk_continue_returns_an_error_part_for_a_block_still_open_at_the_end",
-    "test_chunk_in_block_from_the_open_tag_to_the_close_tag",
-    "test_chunk_in_block_for_an_unwrapped_response",
-}
+SKIP_TEST_NAMES: set[str] = set()
 
 # Transition skip list containing specific test suite files to skip during active feature transitions.
 SKIP_TEST_SUITES = {
@@ -97,7 +85,7 @@ def assert_raises(expect_error):
         expected_details = None
 
     with pytest.raises(expected_class) as excinfo:
-        yield
+        yield excinfo
 
     if message:
         assert re.search(_align_error_match(message), str(excinfo.value))
@@ -135,11 +123,21 @@ def _align_error_match(expect_error: str) -> str:
     return expect_error
 
 
+def category_of(error: BaseException) -> str:
+    """The suite's category for an error, or its class name if it has none."""
+    for category, cls in CATEGORY_TO_EXCEPTION.items():
+        if isinstance(error, cls):
+            return category
+    return type(error).__name__
+
+
 def part_to_dict(part) -> dict:
     if isinstance(part, TextPart):
         return {"text": part.text}
     if isinstance(part, A2uiPart):
         return {"a2ui": to_message_dicts(part.a2ui)}
+    if isinstance(part, ErrorPart):
+        return {"error": {"category": category_of(part.error)}}
     raise TypeError(f"Unexpected part type: {type(part)}")
 
 
@@ -606,7 +604,10 @@ def _merge_text_parts(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def test_response_streaming_conformance(name, test_case):
     args = test_case["args"]
     wrapped = args.get("wrapped", True)
-    stream = make_parser(args).open_stream(wrapped=wrapped)
+    stream = make_parser(args).open_stream(
+        wrapped=wrapped,
+        after_rejected_block=args.get("after_rejected_block", "end"),
+    )
     chunks: list[str] = []
     yielded: list[dict] = []
 
@@ -614,14 +615,24 @@ def test_response_streaming_conformance(name, test_case):
         chunk = step["input"]
         chunks.append(chunk)
         if "expect_error" in step:
-            with assert_raises(step["expect_error"]):
+            with assert_raises(step["expect_error"]) as excinfo:
                 stream.feed(chunk)
+            if "expect_partial_results" in step:
+                partial = getattr(excinfo.value, "partial_results", [])
+                assert_parts_match(partial, step["expect_partial_results"])
+            if "expect_in_block" in step:
+                assert stream.is_in_block == step["expect_in_block"]
             return
         parts = stream.feed(chunk)
         assert_parts_match(parts, step["expect"])
+        if "expect_in_block" in step:
+            assert stream.is_in_block == step["expect_in_block"]
         yielded.extend(part_to_dict(p) for p in parts)
 
-    yielded.extend(part_to_dict(p) for p in stream.close())
+    closed = stream.close()
+    if "expect_close" in test_case:
+        assert_parts_match(closed, test_case["expect_close"])
+    yielded.extend(part_to_dict(p) for p in closed)
 
     if test_case.get("expect_matches_single_shot"):
         fresh_parser = make_parser(args)
@@ -631,6 +642,14 @@ def test_response_streaming_conformance(name, test_case):
         assert _merge_text_parts(yielded) == _merge_text_parts(
             [part_to_dict(p) for p in single_shot_parts]
         )
+
+
+# --- Streamed Answer Conformance ---
+
+# agent/streamed_answer.yaml covers the optional agent_renderer_app feature
+# (blueprints/features/agent_renderer_app.blueprint.md), for an app that is
+# both the agent and the renderer. This SDK has no renderer, so it does not
+# implement the feature and has no runner for the suite.
 
 
 # --- Multi-Catalog Formats Conformance (Express, Elemental, Atom, Direct JSON) ---
