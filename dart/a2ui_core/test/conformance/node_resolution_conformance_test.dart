@@ -135,9 +135,11 @@ class _RecordingFunction extends FunctionImplementation {
 
 class _Runner {
   late final SurfaceModel<ComponentApi> surface;
+  late final MessageProcessor<ComponentApi> processor;
   late final NodeResolver<ComponentApi> resolver;
   final List<_Json> events = [];
   final List<_Json> functions = [];
+  final List<_Json> errors = [];
   final Map<_Node, int> emissions = Map.identity();
   final List<_Node> destroyedNodes = [];
   final Map<String, int> destroyed = {};
@@ -163,6 +165,8 @@ class _Runner {
       definitions: parsed.definitions,
     );
     surface = SurfaceModel('s', defaultCatalog: catalog);
+    processor = MessageProcessor<ComponentApi>(catalogs: [catalog]);
+    processor.model.addSurface(surface);
     surface.dataModel.set('/', _copy(fixture['data']));
     updateComponents(fixture['components']! as List<Object?>);
     surface.onAction.subscribe((event) {
@@ -171,6 +175,9 @@ class _Runner {
         'source_component_id': event.sourceComponentId,
         'context': _copy(event.context),
       });
+    });
+    surface.onError.subscribe((err) {
+      errors.add({'code': err.code, 'surfaceId': err.surfaceId});
     });
     resolver = NodeResolver(surface);
   }
@@ -237,6 +244,7 @@ class _Runner {
     lastEmission.clear();
     events.clear();
     functions.clear();
+    errors.clear();
   }
 
   void updateComponents(List<Object?> components) {
@@ -248,16 +256,11 @@ class _Runner {
         ..remove('id')
         ..remove('component');
       final ComponentModel? existing = surface.componentsModel.get(id);
-      if (existing == null) {
+      if (existing == null || existing.type != type) {
         surface.componentsModel.addComponent(
           ComponentModel(id, type, properties),
         );
       } else {
-        expect(
-          existing.type,
-          type,
-          reason: 'update_components preserves component type',
-        );
         existing.properties = properties;
       }
     }
@@ -273,6 +276,8 @@ class _Runner {
         surface.componentsModel.removeComponent(
           step['component_id']! as String,
         );
+      case 'process_messages':
+        processor.processMessages(step['messages']! as List<Object?>);
       case 'write':
         final Object? binding =
             before[step['node']]!.props.peek()[step['property']];
@@ -299,39 +304,12 @@ class _Runner {
       reason: '$reason: mounted paths',
     );
     for (final MapEntry<String, Object?> entry in assertions.entries) {
-      final _Node node = current[entry.key]!;
-      final actual = <String, Object?>{
-        'component_id': node.componentId,
-        'type': node.type,
-        'state': node.state.jsonValue,
-        'data_path': node.dataPath,
-        'props': _normalize(node.props.peek(), entry.key),
-      };
-      for (final MapEntry<String, Object?> assertion
-          in (entry.value! as _Json).entries) {
-        if (assertion.key == 'props') {
-          final props = actual['props']! as _Json;
-          for (final MapEntry<String, Object?> prop
-              in (assertion.value! as _Json).entries) {
-            expect(
-              props.containsKey(prop.key),
-              isTrue,
-              reason: '$reason: ${entry.key}.${prop.key} exists',
-            );
-            expect(
-              props[prop.key],
-              prop.value,
-              reason: '$reason: ${entry.key}.${prop.key}',
-            );
-          }
-        } else {
-          expect(
-            actual[assertion.key],
-            assertion.value,
-            reason: '$reason: ${entry.key}.${assertion.key}',
-          );
-        }
-      }
+      _checkNodeAssertions(
+        current[entry.key]!,
+        entry.key,
+        entry.value! as _Json,
+        reason,
+      );
     }
     // Creation and retirement scheduling is not part of the props contract.
     final retainedEmissions = <String, int>{};
@@ -364,6 +342,9 @@ class _Runner {
       expected['functions'] ?? [],
       reason: '$reason: functions',
     );
+    if (expected.containsKey('errors')) {
+      expect(errors, expected['errors'], reason: '$reason: errors');
+    }
     for (final MapEntry<_Node, Object?> entry in lastEmission.entries) {
       if (current.values.any((node) => identical(node, entry.key))) {
         expect(
@@ -397,11 +378,65 @@ class _Runner {
     }
   }
 
+  void _checkNodeAssertions(
+    _Node node,
+    String nodeKey,
+    _Json nodeAssertions,
+    String reason,
+  ) {
+    final Map<String, Object?> rawProps = node.props.peek();
+    final String nodeType =
+        node.state == NodeState.cyclic && node.type == placeholderType
+            ? (surface.componentsModel.get(node.componentId)?.type ?? node.type)
+            : node.type;
+    final actual = <String, Object?>{
+      'component_id': node.componentId,
+      'type': nodeType,
+      'state': node.state.jsonValue,
+      'data_path': node.dataPath,
+      'isValid': rawProps['isValid'],
+      'validationErrors': rawProps['validationErrors'],
+      'validationResults': rawProps['validationResults'] is List
+          ? [
+              for (final Object? item
+                  in rawProps['validationResults']! as List<Object?>)
+                item is ValidationResult ? item.toJson() : item,
+            ]
+          : rawProps['validationResults'],
+      'props': _normalize(rawProps, nodeKey),
+    };
+    for (final MapEntry<String, Object?> assertion in nodeAssertions.entries) {
+      if (assertion.key == 'props') {
+        final props = actual['props']! as _Json;
+        for (final MapEntry<String, Object?> prop
+            in (assertion.value! as _Json).entries) {
+          expect(
+            props.containsKey(prop.key),
+            isTrue,
+            reason: '$reason: $nodeKey.${prop.key} exists',
+          );
+          expect(
+            props[prop.key],
+            prop.value,
+            reason: '$reason: $nodeKey.${prop.key}',
+          );
+        }
+      } else {
+        expect(
+          actual[assertion.key],
+          assertion.value,
+          reason: '$reason: $nodeKey.${assertion.key}',
+        );
+      }
+    }
+  }
+
   void close() {
     for (final void Function() unsubscribe in subscriptions) {
       unsubscribe();
     }
     resolver.dispose();
+    processor.dispose();
     surface.dispose();
   }
 }

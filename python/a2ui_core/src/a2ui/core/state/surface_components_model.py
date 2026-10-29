@@ -17,6 +17,7 @@ from ..catalog import CatalogApi
 from ..common.events import EventSource
 from ..common.semver import is_at_least_version
 from ..exceptions import (
+    A2uiError,
     A2uiErrorDetail,
     A2uiIntegrityError,
     A2uiStateError,
@@ -138,6 +139,19 @@ class SurfaceComponentsModel:
             comp.dispose()
             self.on_deleted.emit(component_id)
 
+    def replace_component(self, component: ComponentModel) -> None:
+        """Replaces an existing component model, emitting on_deleted and on_created."""
+        old = self._components.get(component.id)
+        if old is not None:
+            del self._components[component.id]
+            old.dispose()
+        self._components[component.id] = component
+        self._changes += 1
+        component.on_updated.subscribe(self._note_change)
+        if old is not None:
+            self.on_deleted.emit(component.id)
+        self.on_created.emit(component)
+
     def _note_change(self, _: object = None) -> None:
         self._changes += 1
 
@@ -171,7 +185,12 @@ class SurfaceComponentsModel:
         return list(comp.get_child_references(set(self._components.keys())))
 
     def _validate_component(
-        self, comp: ComponentModel, config: ValidationConfig
+        self,
+        comp: ComponentModel,
+        config: ValidationConfig,
+        *,
+        component_index: int | None = None,
+        surface_id: str | None = None,
     ) -> None:
         """Validates one component, telling the validator which catalog it is in.
 
@@ -188,7 +207,74 @@ class SurfaceComponentsModel:
             and is_at_least_version(ver, ProtocolVersion.V1_0)
         ):
             comp_dict["catalogId"] = comp.catalog.catalog_id
-        PayloadValidator(comp.catalog, config=config).validate_component(comp_dict)
+        PayloadValidator(comp.catalog, config=config).validate_component(
+            comp_dict,
+            component_index=component_index,
+            surface_id=surface_id,
+        )
+
+    @staticmethod
+    def _build_batch_index_map(
+        new_components: list[ComponentModel], surface_id: str | None
+    ) -> dict[str, int]:
+        """Checks for duplicate component IDs in the batch and returns ID-to-index map."""
+        batch_index_map: dict[str, int] = {}
+        for idx, comp_model in enumerate(new_components):
+            if comp_model.id in batch_index_map:
+                msg = f"Duplicate component ID '{comp_model.id}' in update payload."
+                raise A2uiIntegrityError(
+                    msg,
+                    details=[
+                        A2uiErrorDetail(
+                            path=f"components.{comp_model.id}",
+                            code="duplicate_id",
+                            message=msg,
+                            surface_id=surface_id,
+                        )
+                    ],
+                    path=f"/components/{idx}/id",
+                    surface_id=surface_id,
+                )
+            batch_index_map[comp_model.id] = idx
+        return batch_index_map
+
+    def _collect_batch_component_errors(
+        self,
+        new_components: list[ComponentModel],
+        config: ValidationConfig,
+        surface_id: str | None,
+    ) -> None:
+        """Validates each component in the batch and raises if any fail."""
+        all_errors: list[A2uiErrorDetail] = []
+        comp_summaries: list[str] = []
+        first_err_path: str | None = None
+        for idx, comp_model in enumerate(new_components):
+            try:
+                self._validate_component(
+                    comp_model,
+                    config,
+                    component_index=idx,
+                    surface_id=surface_id,
+                )
+            except A2uiValidationError as e:
+                if first_err_path is None:
+                    first_err_path = e.path
+                all_errors.extend(e.details)
+                comp_type = comp_model.type
+                comp_str = f"'{comp_type}'" if comp_type else f"id '{comp_model.id}'"
+                comp_summary = "\n".join(
+                    f"{detail.path}: {detail.message}" for detail in e.details
+                )
+                comp_summaries.append(f"{comp_str}: {comp_summary}")
+
+        if all_errors:
+            summary = "\n".join(comp_summaries)
+            raise A2uiValidationError(
+                f"Validation failed for component {summary}",
+                details=all_errors,
+                path=first_err_path,
+                surface_id=surface_id,
+            )
 
     def get_child_ids(self, component_id: str) -> list[str]:
         """Returns list of referenced child component IDs for a given component identifier."""
@@ -235,6 +321,8 @@ class SurfaceComponentsModel:
         new_components: list[ComponentModel],
         root_id: str = "root",
         config: ValidationConfig | None = None,
+        *,
+        surface_id: str | None = None,
     ) -> None:
         """Validates inbound component models schema, composition constraints, and graph completeness BEFORE updating surface state.
 
@@ -250,59 +338,26 @@ class SurfaceComponentsModel:
             new_components: The inbound component models.
             root_id: The surface root component id. A config whose `root_id`
                 is not the default `"root"` overrides it.
-            config: Validation settings. When None, only the composition
-                constraints are checked.
+            config: Validation settings; validation is skipped when None.
+            surface_id: Optional ID of the target surface for error metadata.
         """
         if config is not None and config.root_id != "root":
             root_id = config.root_id
+        batch_index_map = self._build_batch_index_map(new_components, surface_id)
         if config is None:
             if self._may_have_composition_rules(new_components):
                 prospective_components = dict(self._components)
                 for comp_model in new_components:
                     prospective_components[comp_model.id] = comp_model
                 validate_composition_constraints(
-                    prospective_components, root_id=root_id
+                    prospective_components,
+                    root_id=root_id,
+                    batch_index_map=batch_index_map,
+                    surface_id=surface_id,
                 )
             return
 
-        seen_ids: set[str] = set()
-        for comp_model in new_components:
-            if comp_model.id in seen_ids:
-                raise A2uiIntegrityError(
-                    f"Duplicate component ID '{comp_model.id}' in update payload.",
-                    details=[
-                        A2uiErrorDetail(
-                            path=f"components.{comp_model.id}",
-                            code="duplicate_id",
-                            message=(
-                                f"Duplicate component ID '{comp_model.id}' in update"
-                                " payload."
-                            ),
-                        )
-                    ],
-                )
-            seen_ids.add(comp_model.id)
-
-        all_errors: list[A2uiErrorDetail] = []
-        comp_summaries: list[str] = []
-        for comp_model in new_components:
-            try:
-                self._validate_component(comp_model, config)
-            except A2uiValidationError as e:
-                all_errors.extend(e.details)
-                comp_type = comp_model.type
-                comp_str = f"'{comp_type}'" if comp_type else f"id '{comp_model.id}'"
-                comp_summary = "\n".join(
-                    f"{detail.path}: {detail.message}" for detail in e.details
-                )
-                comp_summaries.append(f"{comp_str}: {comp_summary}")
-
-        if all_errors:
-            summary = "\n".join(comp_summaries)
-            raise A2uiValidationError(
-                f"Validation failed for component {summary}",
-                details=all_errors,
-            )
+        self._collect_batch_component_errors(new_components, config, surface_id)
 
         batch = {comp_model.id: comp_model for comp_model in new_components}
         bound = self._bound if self._bound_at == self._changes else None
@@ -316,46 +371,62 @@ class SurfaceComponentsModel:
         deferred = config.allow_dangling_references and (
             config.allow_orphan_components or config.allow_missing_root
         )
-        if deferred and bound is not None:
-            if not bound.composition_holds(batch, self._components, root_id):
-                # The whole-surface check decides, and raises the error it
-                # reports for the surface.
+        try:
+            if deferred and bound is not None:
+                if not bound.composition_holds(batch, self._components, root_id):
+                    # The whole-surface check decides, and raises the error it
+                    # reports for the surface.
+                    prospective_components = dict(self._components)
+                    prospective_components.update(batch)
+                    validate_composition_constraints(
+                        prospective_components,
+                        root_id=root_id,
+                        batch_index_map=batch_index_map,
+                        surface_id=surface_id,
+                    )
+                if (
+                    not config.allow_missing_root
+                    and root_id not in batch
+                    and root_id not in self._components
+                ):
+                    raise A2uiIntegrityError(
+                        f"Missing root component: No component has id='{root_id}'",
+                        surface_id=surface_id,
+                    )
+                limit = (
+                    config.max_depth
+                    if config.max_depth is not None
+                    else MAX_GLOBAL_DEPTH
+                )
+                if bound.admits(
+                    batch,
+                    limit,
+                    lambda comp_id: comp_id in batch or comp_id in self._components,
+                ):
+                    bound.record_batch(batch)
+                    self._keep_bound(bound, new_components)
+                    return
+                # The bound cannot show that the graph passes; walk all of it.
+                prospective_components = dict(self._components)
+                prospective_components.update(batch)
+                analyze_topology(prospective_components, root_id=root_id, config=config)
+            else:
                 prospective_components = dict(self._components)
                 prospective_components.update(batch)
                 validate_composition_constraints(
-                    prospective_components, root_id=root_id
+                    prospective_components,
+                    root_id=root_id,
+                    batch_index_map=batch_index_map,
+                    surface_id=surface_id,
                 )
-            if (
-                not config.allow_missing_root
-                and root_id not in batch
-                and root_id not in self._components
-            ):
-                raise A2uiIntegrityError(
-                    f"Missing root component: No component has id='{root_id}'"
+                validate_component_integrity(
+                    prospective_components, root_id=root_id, config=config
                 )
-            limit = (
-                config.max_depth if config.max_depth is not None else MAX_GLOBAL_DEPTH
-            )
-            if bound.admits(
-                batch,
-                limit,
-                lambda comp_id: comp_id in batch or comp_id in self._components,
-            ):
-                bound.record_batch(batch)
-                self._keep_bound(bound, new_components)
-                return
-            # The bound cannot show that the graph passes; walk all of it.
-            prospective_components = dict(self._components)
-            prospective_components.update(batch)
-            analyze_topology(prospective_components, root_id=root_id, config=config)
-        else:
-            prospective_components = dict(self._components)
-            prospective_components.update(batch)
-            validate_composition_constraints(prospective_components, root_id=root_id)
-            validate_component_integrity(
-                prospective_components, root_id=root_id, config=config
-            )
-            analyze_topology(prospective_components, root_id=root_id, config=config)
+                analyze_topology(prospective_components, root_id=root_id, config=config)
+        except A2uiError as err:
+            if err.surface_id is None and surface_id is not None:
+                err.surface_id = surface_id
+            raise
         if deferred:
             self._keep_bound(
                 ComponentGraphBound.of(prospective_components), new_components
@@ -382,8 +453,8 @@ class SurfaceComponentsModel:
 
     def dispose(self) -> None:
         """Disposes of the model and all its components."""
-        for component in list(self._components.values()):
-            component.dispose()
+        for comp_id in list(self._components.keys()):
+            self.remove_component(comp_id)
         self._components.clear()
         self._catalogs.clear()
         self._bound = None
