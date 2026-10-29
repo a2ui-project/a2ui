@@ -18,14 +18,14 @@ Tool mode is the most efficient way to render user interfaces in A2UI. In this f
 from a2ui.inference_formats.decision import DecisionRenderTool
 
 # Provide the tool to your agent framework (e.g. ADK):
-render_tool = DecisionRenderTool(catalogs=catalogs)
+render_tool = DecisionRenderTool.create(catalogs)
 
 # When an ADK tool produces data, render it directly:
-result = render_tool.call(
-    intent="Show host health status",
-    payload={"host": "prod-01", "cpu": 0.94, "status": "critical"},
-    mutable_paths=["/status"],
-)
+result = render_tool.run_sync({
+    "intent": "Show host health status",
+    "payload": {"host": "prod-01", "cpu": 0.94, "status": "critical"},
+    "mutablePaths": ["/status"],
+})
 ```
 
 Key benefits of tool mode:
@@ -73,6 +73,7 @@ Custom catalogs can define `patterns.json` and `templates.json` sidecar files al
 Load those sidecars directly from the catalog directory at runtime:
 
 ```python
+import json
 from pathlib import Path
 from a2ui.core import Catalog
 from a2ui.inference_formats.decision import (
@@ -84,17 +85,17 @@ from a2ui.inference_formats.decision import (
 )
 
 catalog_dir = Path("/path/to/custom_catalog")
-catalog = Catalog.from_file(catalog_dir / "catalog.json")
-graph = CatalogDecisionGraph.from_catalogs([catalog])
+catalog = Catalog.from_json(json.loads((catalog_dir / "catalog.json").read_text()))
+graph = CatalogDecisionGraph([catalog])
 
 pattern_lib = MergedPatternLibrary([PatternLibrary.from_file(catalog_dir)])
 template_registry = TemplateRegistry.from_file(catalog_dir)
 
 synthesizer = DecisionSynthesizer(
-    backend,
     graph,
-    template_registry=template_registry,
-    pattern_library=pattern_lib,
+    backend,
+    registry=template_registry,
+    patterns=pattern_lib,
 )
 ```
 
@@ -102,18 +103,24 @@ synthesizer = DecisionSynthesizer(
 
 The decision model backend is selected through `A2UI_DECISION_BACKEND` or configured directly in code:
 
-| Backend | Setup                                                               | Characteristics                                  |
-| :------ | :------------------------------------------------------------------ | :----------------------------------------------- |
-| `jev`   | Set `A2UI_DECISION_URL` and `JEV_API_KEY` (or `A2UI_DECISION_AUTH`) | Remote TypeSafe Jev model over HTTP.             |
-| `gev`   | Set `A2UI_DECISION_URL`                                             | Remote step-zero logprob scorer over HTTP.       |
-| `mock`  | Default offline fallback                                            | Deterministic keyword-based heuristic for tests. |
+| Backend     | Setup                                                               | Characteristics                                          |
+| :---------- | :------------------------------------------------------------------ | :------------------------------------------------------- |
+| `systemone` | Set `A2UI_DECISION_URL` and `JEV_API_KEY` (or `A2UI_DECISION_AUTH`) | Hosted or local `/v1/systemone` decision API over HTTP.  |
+| `jev`       | Set `A2UI_DECISION_URL` and `JEV_API_KEY` (or `A2UI_DECISION_AUTH`) | Remote TypeSafe Jev `/predict` or `/v1/systemone` HTTP.  |
+| `step0`     | Set `A2UI_DECISION_URL`                                             | Remote step-zero logprob scorer over HTTP (`gev` alias). |
+| `mock`      | Default offline fallback                                            | Deterministic keyword-based heuristic for tests.         |
 
 ### Environment Variables
 
-- `A2UI_DECISION_BACKEND`: `jev`, `gev`, or `mock`.
+- `A2UI_DECISION_BACKEND`: `systemone`, `jev`, `step0`, or `mock`.
 - `A2UI_DECISION_TEMPERATURE`: Temperature scaling parameter applied to logits before computing softmax probabilities (defaults to 1.0).
 - `A2UI_DECISION_URL`: Endpoint URL for remote HTTP backends.
-- `A2UI_DECISION_AUTH` / `JEV_API_KEY`: Authentication token for remote backends.
+- `A2UI_DECISION_AUTH` / `A2UI_DECISION_TOKEN` / `JEV_API_KEY` / `TYPESAFE_API_KEY`: Authentication token for remote backends.
+
+### Operational Notes
+
+- **Payload Privacy**: When using remote HTTP backends (`systemone`, `jev`, `step0`), question prompts and shared context include pointer paths, humanized labels, and sample scalar values from the payload so the decision model can score instance questions (such as form control types and tone). Do not pass unredacted secrets in payload fields sent to third-party endpoints.
+- **Payload Size and Planning Scale**: The layout planner caps speculative batch size via `SynthesisConfig.max_pairs` (default 150) and unrolled array items via `max_children_per_container` (default 25). For payloads with hundreds of nested keys, filter or project the payload to surface-relevant fields before synthesis.
 
 ## Catalog-Agnostic Prompt Generation Rules
 

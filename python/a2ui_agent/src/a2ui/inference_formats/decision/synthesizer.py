@@ -969,7 +969,16 @@ class DecisionSynthesizer:
             if (title is not None or summary is not None)
             else None
         )
-        pointers = inspect_payload_pointers(data, mutable_paths=mutable_paths or ())
+        pointers = self._prepare_archetype_pointers(
+            inspect_payload_pointers(data, mutable_paths=mutable_paths or ()),
+            brief_obj,
+        )
+        ans_q_ids = {a.question_id for a in answers}
+        if not any(p.mutable_hint for p in pointers) and any(
+            qid == "archetype:input" or qid.startswith("instance:form.")
+            for qid in ans_q_ids
+        ):
+            pointers = _promote_mutable_pointers(pointers, brief_obj)
 
         config_with_variety = replace(self.config, variety=VarietyMode.NEAR_TOP)
         planner = LayoutPlanner(
@@ -980,9 +989,18 @@ class DecisionSynthesizer:
         )
 
         batch_q_ids = {q.id for q in batch.questions}
-        ans_q_ids = {a.question_id for a in answers}
         if batch_q_ids != ans_q_ids:
-            raise ValueError("answers do not match this intent and payload")
+            s1_batch, s1_state = planner.build_stage1_batch(
+                intent, pointers, brief=brief_obj, payload=data, copy=copy
+            )
+            s1_ids = {q.id for q in s1_batch.questions}
+            if s1_ids and s1_ids <= ans_q_ids:
+                s1_answers = [a for a in answers if a.question_id in s1_ids]
+                planner.build_stage2_batch(s1_state, s1_answers)
+                state = s1_state
+                batch_q_ids = {q.id for q in state.batch.questions}
+            if batch_q_ids != ans_q_ids:
+                raise ValueError("answers do not match this intent and payload")
 
         outcome = planner.read(state, answers, seed=seed)
         if outcome.plan is None:
@@ -1082,6 +1100,7 @@ class DecisionSynthesizer:
             trace=abstained.trace,
             decision_latency_ms=abstained.decision_latency_ms,
             decision_calls=abstained.decision_calls,
+            decision_answers=abstained.decision_answers,
         )
 
     def _compile_fallback_dsl(
@@ -1233,10 +1252,11 @@ class DecisionSynthesizer:
             if config == self.config
             else LayoutPlanner(self.archetypes, config, capabilities=self.patterns)
         )
+        inner_backend = getattr(self.backend, "inner", self.backend)
         use_two_stage = (
             config.two_stage_batching
             if config.two_stage_batching is not None
-            else isinstance(self.backend, StepZeroLogprobBackend)
+            else isinstance(inner_backend, StepZeroLogprobBackend)
         )
         if use_two_stage:
             stage1_batch, state = planner.build_stage1_batch(
@@ -1249,13 +1269,16 @@ class DecisionSynthesizer:
                 if stage2_batch.questions
                 else ()
             )
-            answers = (*stage1_answers, *stage2_answers)
-            return planner.read(state, answers, seed=variety_seed), state
-
-        batch, state = planner.build_batch(
-            intent, pointers, brief=brief, payload=data, copy=copy
-        )
-        answers = await self._backend_answer(batch)
+            answers: tuple[DecisionAnswer, ...] = (
+                *stage1_answers,
+                *stage2_answers,
+            )
+            batch = state.batch
+        else:
+            batch, state = planner.build_batch(
+                intent, pointers, brief=brief, payload=data, copy=copy
+            )
+            answers = await self._backend_answer(batch)
         outcome = planner.read(state, answers, seed=variety_seed)
         if outcome.plan is None:
             return outcome, state
@@ -1272,6 +1295,13 @@ class DecisionSynthesizer:
         merged = tuple(reask_by_id.get(a.question_id, a) for a in answers) + tuple(
             ans for ans in reask_answers if ans.question_id not in existing_ids
         )
+        existing_q_ids = {q.id for q in state.batch.questions}
+        extra_questions = tuple(q for q in reask if q.id not in existing_q_ids)
+        if extra_questions:
+            state.batch = DecisionBatch(
+                shared_context=dict(state.batch.shared_context),
+                questions=(*state.batch.questions, *extra_questions),
+            )
         state.trace.clear()
         return planner.read(state, merged, seed=variety_seed), state
 

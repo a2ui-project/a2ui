@@ -74,6 +74,12 @@ git_describe_command = [
 packages = ["src/a2ui"]
 core-metadata-version = "2.4"
 
+[tool.hatch.build.targets.wheel.force-include]
+"../../catalogs/decision/v1/archetypes.json" = "a2ui/inference_formats/decision/assets/archetypes.json"
+"../../catalogs/decision/v1/archetype_definition.json" = "a2ui/inference_formats/decision/assets/archetype_definition.json"
+"../../catalogs/decision/v1/pattern_definition.json" = "a2ui/inference_formats/decision/assets/pattern_definition.json"
+"../../catalogs/basic/v1/patterns.json" = "a2ui/inference_formats/decision/assets/patterns/basic_v1_0.json"
+
 [tool.hatch.build.targets.sdist]
 core-metadata-version = "2.4"
 

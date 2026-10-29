@@ -621,8 +621,7 @@ def _mutable_matches(mutable: bool | None, pointers: Sequence[PointerSummary]) -
     """Returns whether `pointers` satisfy the `mutable` filter."""
     if mutable is None:
         return True
-    has_mutable = any(p.mutable_hint for p in pointers)
-    return has_mutable if mutable else not has_mutable
+    return any(p.mutable_hint == mutable for p in pointers)
 
 
 def _pointer_count_matches(
@@ -1266,6 +1265,7 @@ _VALID_ICON_NAMES = frozenset({
     "person",
     "phone",
     "photo",
+    "play",
     "print",
     "refresh",
     "rewind",
@@ -1279,6 +1279,7 @@ _VALID_ICON_NAMES = frozenset({
     "star",
     "starHalf",
     "starOff",
+    "stop",
     "upload",
     "visibility",
     "visibilityOff",

@@ -460,9 +460,13 @@ def _collect_absorbed_siblings(
 ) -> set[str]:
     """Returns paths of pointers absorbed as delta, bound, or currency siblings."""
     has_currency = any(p.semantic_type == "currency" for p in pointers)
+    by_parent: dict[str | None, list[PointerSummary]] = {}
+    for ptr in pointers:
+        by_parent.setdefault(ptr.parent, []).append(ptr)
     absorbed: set[str] = set()
     for ptr in pointers:
-        absorbed.update(_absorbed_for_single_pointer(ptr, pointers, has_currency))
+        siblings = by_parent.get(ptr.parent, ())
+        absorbed.update(_absorbed_for_single_pointer(ptr, siblings, has_currency))
     return absorbed
 
 
@@ -658,9 +662,15 @@ def _bind_array_element_fields(
 
 
 def _unroll_array_items(
-    ptr: PointerSummary, fields: Mapping[str, SlotBinding]
+    ptr: PointerSummary,
+    fields: Mapping[str, SlotBinding],
+    *,
+    max_items: int | None = None,
 ) -> tuple[dict[str, SlotBinding], ...]:
     """Unrolls `fields` into indexed element bindings across `ptr.cardinality`."""
+    limit = (
+        min(ptr.cardinality, max_items) if max_items is not None else ptr.cardinality
+    )
     return tuple(
         {
             f_name: SlotBinding(
@@ -674,7 +684,7 @@ def _unroll_array_items(
             for f_name, f_bind in fields.items()
             if f_bind.bound
         }
-        for idx in range(ptr.cardinality)
+        for idx in range(limit)
     )
 
 
@@ -696,7 +706,9 @@ def _bind_array_repeated_slot(
             for f_name, f_spec in slot.fields.items()
         ):
             items = (
-                _unroll_array_items(ptr, fields)
+                _unroll_array_items(
+                    ptr, fields, max_items=slot.max if slot.max is not None else 25
+                )
                 if (block_id == "steps" or not ptr.element_keys)
                 else ()
             )
@@ -1375,9 +1387,16 @@ def _try_recover_orphan_collection(
     planner: LayoutPlanner,
 ) -> None:
     """Appends a `collection` block when an unclaimed data array exists."""
-    if planner.config.threshold_overrides or (
-        present_ids & {"collection", "steps", "comparison"}
-    ):
+    arch_block_ids = (
+        set(state.selected_archetype.block_ids())
+        if state.selected_archetype is not None
+        else set()
+    )
+    gate_overridden = "collection" in arch_block_ids and (
+        "optional" in planner.config.threshold_overrides
+        or "expected" in planner.config.threshold_overrides
+    )
+    if gate_overridden or (present_ids & {"collection", "steps", "comparison"}):
         return
     if not _has_uncovered_data_array(state.pointers, claimed):
         return
@@ -1417,6 +1436,9 @@ def _try_recover_orphan_collection(
     present_ids.add("collection")
 
 
+_SECRET_FACT_AVOID_KEYS = ("ssn", "api_key", "token", "iban", "password", "secret")
+
+
 def _uncovered_scalar_fact_pointers(
     state: PlannerState,
     claimed: set[str],
@@ -1431,6 +1453,7 @@ def _uncovered_scalar_fact_pointers(
         if not p.parent
         and p.value_type in {"string", "number", "boolean"}
         and not _is_nested_mutable_setting(p, state.pointers)
+        and not _is_avoided_key(p, _SECRET_FACT_AVOID_KEYS)
         and not _is_pointer_covered(p.path, claimed)
         and (
             p.semantic_type not in _NON_FACT_SEMANTIC_TYPES
@@ -2391,8 +2414,18 @@ class LayoutPlanner:
             return False
         if ptr.semantic_type in _NON_FACT_SEMANTIC_TYPES:
             return False
-        headline_types = self._grammar.block("headline").slots["items"].from_types
-        facts_types = self._grammar.block("facts").slots["rows"].from_types
+        headline_block = self._grammar.blocks.get("headline")
+        facts_block = self._grammar.blocks.get("facts")
+        headline_types = (
+            headline_block.slots["items"].from_types
+            if headline_block is not None and "items" in headline_block.slots
+            else ()
+        )
+        facts_types = (
+            facts_block.slots["rows"].from_types
+            if facts_block is not None and "rows" in facts_block.slots
+            else ()
+        )
         return _pointer_matches_types(ptr, headline_types) or _pointer_matches_types(
             ptr, facts_types
         )
@@ -2406,7 +2439,8 @@ class LayoutPlanner:
             for arch in state.eligible
             for ref in arch.blocks
         )
-        sal_spec = self._grammar.block("headline").salience
+        headline_block = self._grammar.blocks.get("headline")
+        sal_spec = headline_block.salience if headline_block is not None else None
         if not has_salience_block or sal_spec is None:
             return
         seen_ids = {q.id for q in questions}

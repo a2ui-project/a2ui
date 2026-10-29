@@ -650,3 +650,83 @@ async def test_resort_planning_and_expansion_micro_benchmark() -> None:
 
     median_ms = statistics.median(samples_ms)
     assert median_ms < 10.0, f"Median latency {median_ms:.2f} ms exceeded 10 ms"
+
+
+@pytest.mark.asyncio
+async def test_remix_mutable_promotion_two_stage_and_multithreaded_factory() -> None:
+    """Verifies H4 (multithreaded factory compile), H6 (remix with mutable promotion & two-stage), M12-M14."""
+    import concurrent.futures
+    import json
+    from a2ui.inference_formats.decision import (
+        DecisionFormatFactory,
+        DecisionRenderTool,
+    )
+
+    catalog = BasicCatalog("v1.0")
+    # 1. H6: remix_sync after mutable promotion and two-stage batching
+    scripted = ScriptedAnswers(
+        answers={
+            "family": ("input", 0.90),
+            "stakes": 0.4,
+            "urgency": 0.2,
+            "archetype:input": ("form", 0.90),
+            "gate:form": 0.95,
+            "gate:actions": 0.90,
+        }
+    )
+    synth = DecisionSynthesizer(
+        [catalog],
+        scripted.backend(),
+        config=SynthesisConfig(two_stage_batching=True),
+    )
+    form_payload = {
+        "name": "Alice",
+        "email": "alice@example.com",
+        "actions": [{"label": "Save"}],
+    }
+    out = await synth.synthesize("Edit profile", form_payload)
+    assert out.stage is SynthesisStage.ARCHETYPE
+    assert out.decision_answers
+    remixed = synth.remix_sync(
+        "Edit profile", form_payload, out.decision_answers, seed=7
+    )
+    assert remixed.stage is SynthesisStage.ARCHETYPE
+    assert remixed.messages
+
+    # 2. M13: DecisionRenderTool.format_result serializes stage.value
+    tool = DecisionRenderTool.create([catalog], backend=scripted.backend())
+    formatted = tool.format_result(out)
+    assert formatted["stage"] == "archetype"
+
+    # 3. M14: Secret keys (api_key, ssn, token) are not recovered into facts
+    secret_payload = {
+        "title": "Service Account",
+        "status": "Active",
+        "api_key": "sk-live-secret-12345",
+        "ssn": "000-00-0000",
+    }
+    sec_out = await DecisionSynthesizer(
+        [catalog], DeterministicMockBackend()
+    ).synthesize("Show account status", secret_payload)
+    dump = json.dumps(sec_out.component_tree_spec)
+    assert "/api_key" not in dump
+    assert "/ssn" not in dump
+
+    # 4. H4: DecisionFormatFactory(batch_backend=True) is thread-safe across compile() calls
+    factory = DecisionFormatFactory(
+        backend=DeterministicMockBackend(), batch_backend=True
+    )
+
+    def _compile_in_thread(idx: int) -> int:
+        parser = factory.create_format([catalog]).create_parser()
+        raw = json.dumps({
+            "intent": f"Show metric {idx}",
+            "payload": {"title": f"Host {idx}", "cpu": 0.5 + idx * 0.01},
+        })
+        msgs = parser.compile(f"<a2ui>{raw}</a2ui>")
+        return len(msgs)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        counts = list(pool.map(_compile_in_thread, range(6)))
+    assert all(c >= 2 for c in counts)
+    await factory.aclose()

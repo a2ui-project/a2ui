@@ -215,7 +215,7 @@ class DecisionParser(Parser):
         """
         del is_final
         messages_by_surface: dict[str, list[AgentToRendererMessage]] = {}
-        blocks = self.read_blocks(format_content)
+        blocks = self._extract_blocks(format_content)
         for idx, block in enumerate(blocks, start=1):
             default_id = (
                 self.surface_id if len(blocks) == 1 else f"{self.surface_id}_{idx}"

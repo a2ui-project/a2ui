@@ -252,7 +252,7 @@ class DecisionRenderTool:
         """Serializes a `SynthesisOutput` into a tool-result dictionary."""
         with_trace = self.include_trace if include_trace is None else include_trace
         result: dict[str, Any] = {
-            "stage": str(output.stage),
+            "stage": output.stage.value,
             "confidence": output.confidence,
             "entropy": output.entropy,
             "messages": to_message_dicts(output.messages),
