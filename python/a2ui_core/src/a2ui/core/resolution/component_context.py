@@ -82,8 +82,12 @@ class ComponentContext:
         if self._dispatch_action:
             if metadata is None:
                 return self._dispatch_action(action_payload, self.component_model.id)
-            params = inspect.signature(self._dispatch_action).parameters.values()
-            accepts_metadata = any(
+            try:
+                sig = inspect.signature(self._dispatch_action)
+            except (ValueError, TypeError):
+                return self._dispatch_action(action_payload, self.component_model.id)
+            params = sig.parameters.values()
+            accepts_positional = any(
                 p.kind == inspect.Parameter.VAR_POSITIONAL for p in params
             ) or (
                 sum(
@@ -97,9 +101,17 @@ class ComponentContext:
                 )
                 >= 3
             )
-            if accepts_metadata:
+            if accepts_positional:
                 return self._dispatch_action(
                     action_payload, self.component_model.id, metadata
+                )
+            accepts_keyword = (
+                "metadata" in sig.parameters
+                and sig.parameters["metadata"].kind == inspect.Parameter.KEYWORD_ONLY
+            ) or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params)
+            if accepts_keyword:
+                return self._dispatch_action(
+                    action_payload, self.component_model.id, metadata=metadata
                 )
             return self._dispatch_action(action_payload, self.component_model.id)
         elif (

@@ -555,18 +555,26 @@ class _SurfaceCompiler {
       rawExt,
       _Context(idPrefix: 'extensions', hoisted: _noHoisting),
     );
-    if (compiled is! Map<String, Object?>) {
-      throw A2uiValidationError('extensions on $subject must be a map.');
-    }
-    for (final String extKey in compiled.keys) {
-      if (!isValidUax31Identifier(extKey)) {
-        throw A2uiValidationError(
-          "Extension key '$extKey' on $subject is not a valid "
-          'UAX 31 identifier.',
-        );
+    if (compiled case final Map<Object?, Object?> map) {
+      final result = <String, Object?>{};
+      for (final MapEntry(:Object? key, :Object? value) in map.entries) {
+        if (key case final String extKey) {
+          if (!isValidUax31Identifier(extKey)) {
+            throw A2uiValidationError(
+              "Extension key '$extKey' on $subject is not a valid "
+              'UAX 31 identifier.',
+            );
+          }
+          result[extKey] = value;
+        } else {
+          throw A2uiValidationError(
+            'extensions on $subject must have string keys.',
+          );
+        }
       }
+      return result;
     }
-    return compiled;
+    throw A2uiValidationError('extensions on $subject must be a map.');
   }
 
   bool _resolvesToPath(ExpressNode node) {

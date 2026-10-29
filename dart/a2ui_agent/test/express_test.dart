@@ -476,6 +476,30 @@ surface("s1")
         ]).compile('root = Text("Hello", extensions={comp_ext: true})'),
         throwsError<A2uiValidationError>(),
       );
+      expect(
+        () => ExpressCompiler([
+          v1Basic,
+        ]).compile('root = Text("Hello", extensions=[1, 2])'),
+        throwsError<A2uiValidationError>(),
+      );
+      final List<AgentToRendererMessage> viaVar = ExpressCompiler([v1Basic])
+          .compile(
+            'ext = {comp_ext: 42}\n'
+            'root = Text("Hello", extensions=ext)',
+          );
+      expect(
+        viaVar.single.toJson()['createSurface'],
+        containsPair('components', [
+          {
+            'id': 'root',
+            'component': 'Text',
+            'text': 'Hello',
+            'metadata': {
+              'extensions': {'comp_ext': 42},
+            },
+          },
+        ]),
+      );
     });
   });
 
