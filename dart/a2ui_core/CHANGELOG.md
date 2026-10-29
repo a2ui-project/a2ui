@@ -18,6 +18,12 @@
     only when the surface is v1.0 and the processor has an
     `outboundListener`. Without one, a call to a missing function stays a
     local `EXPRESSION_ERROR` instead of failing with `NO_LISTENER`.
+  - A function call whose argument reads an agent call that is still pending
+    waits for it to settle instead of running with a null argument. This
+    applies to local functions and to agent calls, so an outer agent call is
+    sent only once its agent arguments have settled. If an argument's agent
+    call fails, the enclosing call does not run, and the failure is reported
+    once.
 - A function call naming a `catalogId` on a `DataContext` created without
   `invokerForCatalog` is now reported as a `CATALOG_ERROR` rather than an
   `EXPRESSION_ERROR`.
