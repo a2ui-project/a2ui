@@ -491,7 +491,7 @@ selected_catalog = inference_format.catalogs[0]
 validate_payload([selected_catalog], a2ui_payload)
 ```
 
-See the full [Agent Development Guide](agent-development.md) for details on schema management, dynamic catalogs, and streaming.
+See the full [Agent Development Guide](../integrations/agent-development.md) for details on schema management, dynamic catalogs, and streaming.
 
 ## Next Steps
 
