@@ -15,11 +15,11 @@
 - name: test_function_format_date_tr35_tokens
   description: Verifies formatDate TR35 token expansion (yyyy-MM-dd).
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "basic"
@@ -42,11 +42,11 @@
 - name: test_function_format_currency_locale_and_symbol
   description: Verifies formatCurrency with currency symbol, decimals, and grouping separators.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "basic"
@@ -70,11 +70,11 @@
 - name: test_function_pluralize_categories
   description: Verifies pluralize resolving CLDR categories (one, other).
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "basic"
@@ -112,11 +112,11 @@
 - name: test_function_logical_and_or_not
   description: Verifies and, or, and not logical function evaluations.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "basic"
@@ -159,11 +159,11 @@
 - name: test_function_invalid_argument_schema_error
   description: Verifies ValidationError when a function is invoked with an argument of the wrong type.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "basic"
@@ -494,7 +494,7 @@
 # a boolean `valid` member is truthy by its validity, not by being an object.
 - name: test_evaluate_function_and_validation_result_operands
   description: Verifies and reads a failing ValidationResult operand as false in v1.0.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   action: evaluate_function
   function: and
   args:
@@ -507,7 +507,7 @@
 
 - name: test_evaluate_function_or_validation_result_operands
   description: Verifies or over two failing ValidationResult operands is false in v1.0.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   action: evaluate_function
   function: or
   args:
@@ -518,7 +518,7 @@
 
 - name: test_evaluate_function_not_validation_result_operand
   description: Verifies not inverts the validity of a ValidationResult operand in v1.0.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   action: evaluate_function
   function: not
   args:
@@ -716,7 +716,7 @@
   description: >-
     Verifies a v1.0 call that names a catalogId runs in that catalog rather than the surface default. The default is the conformance custom catalog, which declares no formatString; the call names the basic catalog, which does.
   action: evaluate_function
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
     - "conformance/test_data/catalogs/custom_catalog_v1_0.json"
@@ -732,7 +732,7 @@
   description: >-
     Verifies a v1.0 call that names a catalogId runs on a surface that has no default catalog.
   action: evaluate_function
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   surface: {}
@@ -746,7 +746,7 @@
   description: >-
     Verifies a v1.0 call that names no catalogId runs in the surface default catalog (the basic catalog), while the conformance custom catalog is also available on the surface.
   action: evaluate_function
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
     - "conformance/test_data/catalogs/custom_catalog_v1_0.json"
@@ -761,7 +761,7 @@
   description: >-
     Verifies a v1.0 call that names no catalogId fails with a CatalogError on a surface that has no default catalog, even though the only available catalog declares the function. There is no fallback to the available catalogs.
   action: evaluate_function
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   surface: {}
@@ -776,7 +776,7 @@
   description: >-
     Verifies a v1.0 call that names a catalogId the surface does not have fails with a CatalogError, rather than falling back to the surface default, which declares the function.
   action: evaluate_function
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   surface:
@@ -793,7 +793,7 @@
   description: >-
     Verifies a v1.0 call that names the v0.9 basic catalog fails with a CatalogError. The client has that catalog, but a v1.0 surface only makes v1.0 catalogs available.
   action: evaluate_function
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
     - "specification/v0_9/catalogs/basic/catalog.json"
@@ -811,7 +811,7 @@
   description: >-
     Verifies a call nested in the args of a v1.0 call resolves its catalog on its own. The outer call names the basic catalog; the inner call names no catalogId, and the surface has no default catalog, so the inner call fails with a CatalogError.
   action: evaluate_function
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   surface: {}
@@ -840,3 +840,96 @@
   args:
     value: "Hello"
   expect: "Hello"
+
+# ==============================================================================
+# DynamicBoolean coercion of ValidationResult (v1.0)
+# ==============================================================================
+# From v1.0 the validation functions return a ValidationResult object, and the
+# specification defines DynamicBoolean as a boolean, a path, or a call
+# returning a boolean or a validation result object, coerced to its 'valid'
+# boolean. The coercion is a property of the DynamicBoolean type, so it applies
+# to every DynamicBoolean argument of every function, not only to the operands
+# of and, or and not. These cases run on a surface so that the nested call is
+# resolved by the engine and its result reaches the outer function through the
+# engine's argument handling, rather than being handed to the implementation
+# directly.
+
+- name: test_evaluate_function_v10_validation_result_coerced_in_format_number_grouping
+  description: >-
+    Verifies a failing ValidationResult bound to formatNumber's DynamicBoolean grouping argument reads as false, turning grouping off. An object is truthy in most languages, so an engine that does not coerce it groups the digits.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface:
+    catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  function: formatNumber
+  args:
+    value: 1234
+    decimals: 0
+    grouping:
+      "@call": required
+      args:
+        value: ""
+  expect: "1234"
+
+- name: test_evaluate_function_v10_validation_result_coerced_in_format_number_grouping_valid
+  description: >-
+    Verifies a passing ValidationResult bound to formatNumber's DynamicBoolean grouping argument reads as true, keeping grouping on.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface:
+    catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  function: formatNumber
+  args:
+    value: 1234
+    decimals: 0
+    grouping:
+      "@call": required
+      args:
+        value: "x"
+  expect: "1,234"
+
+- name: test_evaluate_function_v10_validation_result_coerced_in_not_operand_on_surface
+  description: >-
+    Verifies a ValidationResult resolved from a nested validation call into not's DynamicBoolean operand is read by its validity when the call runs on a surface.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface:
+    catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  function: not
+  args:
+    value:
+      "@call": required
+      args:
+        value: ""
+  expect: true
+
+- name: test_evaluate_function_v10_validation_result_coerced_in_and_operands_on_surface
+  description: >-
+    Verifies the ValidationResults resolved from nested validation calls into and's DynamicBoolean operands are read by their validity when the call runs on a surface, as in the specification's enable-when-valid example.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface:
+    catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  dataModel:
+    email: "a@b.c"
+    phone: ""
+  function: and
+  args:
+    values:
+      - "@call": required
+        args:
+          value:
+            "@path": "/email"
+      - "@call": required
+        args:
+          value:
+            "@path": "/phone"
+  expect: false

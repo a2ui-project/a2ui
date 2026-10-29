@@ -33,6 +33,10 @@
 #    emits the self-contained, bundled JSON Schema. Each case loads a published
 #    basic catalog with `fromJson` and compares the whole schema with a golden
 #    artifact under conformance/test_data/validation_schema/.
+# 5. derive: `catalog.derive(...)` builds a catalog with a new ID from named
+#    entries of a catalog and new entries. Each case loads a catalog with
+#    `fromJson`, derives a catalog from it, and checks the derived
+#    catalog's entries and its `toJson()` document.
 #
 # Comparisons ignore object key order and the order of `enum` values and
 # `required` names.
@@ -67,7 +71,7 @@
 - name: test_v10_basic_catalog_from_json
   description: Tests that the published v1 basic catalog loads with fromJson into a catalog equivalent to the SDK's own v1 basic catalog implementation, with its common_types references localised so every $ref resolves within the resolved catalog schema.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   expect:
     selfContained: true
@@ -106,7 +110,7 @@
   description: Tests parsing allowedParents, allowedChildren, allowedCallers, and requiresUserActivation in a v1.0 catalog schema.
   action: from_json
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     catalogId: "https://a2ui.org/catalogs/v10/attributes"
     components:
       CustomCard:
@@ -121,7 +125,7 @@
         requiresUserActivation: false
   expect:
     catalogId: "https://a2ui.org/catalogs/v10/attributes"
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       CustomCard:
         type: object
@@ -138,7 +142,7 @@
   description: Tests parsing valid UAX#31 component and function identifiers in a v1.0 catalog.
   action: from_json
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     catalogId: "https://a2ui.org/catalogs/v10/uax31"
     components:
       MyComponent_1:
@@ -148,7 +152,7 @@
         returnType: string
   expect:
     catalogId: "https://a2ui.org/catalogs/v10/uax31"
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       MyComponent_1:
         type: object
@@ -160,7 +164,7 @@
   description: Tests that @-prefixed function names (such as @index) are reserved for protocol system functions and cannot be declared in a v1.0 catalog.
   action: from_json
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     catalogId: "https://a2ui.org/catalogs/v10/reserved_at_function"
     functions:
       "@index":
@@ -172,7 +176,7 @@
   description: Tests that invalid UAX#31 component identifier with hyphen raises CatalogError under v1.0.
   action: from_json
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     catalogId: "https://a2ui.org/catalogs/v10/invalid_uax31"
     components:
       My-Component:
@@ -180,6 +184,92 @@
   expectError:
     category: "CatalogError"
     message: "Invalid UAX #31 component identifier"
+
+- name: test_v10_catalog_from_json_rejects_ref_to_another_catalog
+  description: Tests that a v1.0 catalog whose component inherits a component of another catalog through an external $ref raises CatalogError when loaded.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/other_catalog_ref"
+    components:
+      FancyText:
+        type: object
+        allOf:
+          - $ref: "basic_catalog.json#/components/Text"
+        properties:
+          component: {const: "FancyText"}
+          badge: {type: string}
+        required: ["component"]
+  expectError:
+    category: "CatalogError"
+    message: "Unsupported external $ref"
+
+- name: test_v10_catalog_from_json_rejects_absolute_uri_ref
+  description: Tests that a v1.0 catalog property that references another catalog by absolute URI raises CatalogError when loaded, without fetching the URI.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/absolute_uri_ref"
+    components:
+      FancyButton:
+        type: object
+        properties:
+          component: {const: "FancyButton"}
+          action:
+            $ref: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json#/components/Button/properties/action"
+        required: ["component", "action"]
+  expectError:
+    category: "CatalogError"
+    message: "Unsupported external $ref"
+
+- name: test_v10_catalog_from_json_rejects_external_ref_in_function_args
+  description: Tests that a v1.0 function whose argument schema references another catalog raises CatalogError when loaded.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/function_arg_ref"
+    functions:
+      formatBadge:
+        type: object
+        returnType: string
+        properties:
+          "@call": {const: "formatBadge"}
+          args:
+            type: object
+            properties:
+              value:
+                $ref: "other_catalog.json#/functions/formatString/properties/args/properties/value"
+            required: ["value"]
+        required: ["@call", "args"]
+  expectError:
+    category: "CatalogError"
+    message: "Unsupported external $ref"
+
+- name: test_v10_catalog_from_json_accepts_local_and_common_types_refs
+  description: Tests that local references and common_types.json references, in relative or absolute form, remain valid $ref targets in a v1.0 catalog.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/allowed_refs"
+    components:
+      Label:
+        type: object
+        allOf:
+          - $ref: "common_types.json#/$defs/Checkable"
+        properties:
+          component: {const: "Label"}
+          text: {$ref: "common_types.json#/$defs/DynamicString"}
+          caption:
+            $ref: "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
+        required: ["component", "text"]
+      Wrapper:
+        type: object
+        properties:
+          component: {const: "Wrapper"}
+          child: {$ref: "common_types.json#/$defs/ComponentId"}
+        required: ["component", "child"]
+  expect:
+    components: ["Label", "Wrapper"]
 
 - name: test_v09_catalog_from_json_allows_hyphen_identifiers
   description: Tests that v0.9 catalogs permit hyphenated component identifiers.
@@ -200,7 +290,7 @@
 - name: test_v10_uax31_invalid_component_name
   description: Tests that component type names violating UAX#31 fail catalog validation in v1.0.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogId: "custom"
   catalog:
     components:
@@ -212,7 +302,7 @@
 - name: test_v10_uax31_invalid_property_name
   description: Tests that component property names violating UAX#31 fail catalog validation in v1.0.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogId: "custom"
   catalog:
     components:
@@ -226,7 +316,7 @@
 - name: test_v10_uax31_invalid_function_name
   description: Tests that function names violating UAX#31 fail catalog validation in v1.0.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogId: "custom"
   catalog:
     functions:
@@ -238,7 +328,7 @@
 - name: test_v10_uax31_invalid_argument_name
   description: Tests that function argument names violating UAX#31 fail catalog validation in v1.0.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogId: "custom"
   catalog:
     functions:
@@ -252,7 +342,7 @@
 - name: test_v10_uax31_valid_non_ascii_identifier
   description: Tests that valid non-ASCII UAX#31 identifiers (e.g. Mathematical Script Small L ℓ, U+2112) pass catalog validation in v1.0.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogId: "custom"
   catalog:
     components:
@@ -269,7 +359,7 @@
 - name: test_v10_uax31_invalid_en_dash_component_name
   description: Tests that component names containing En Dash (–, U+2013) fail UAX#31 catalog validation in v1.0.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogId: "custom"
   catalog:
     components:
@@ -281,7 +371,7 @@
 - name: test_v10_uax31_invalid_em_dash_property_name
   description: Tests that property names containing Em Dash (—, U+2014) fail UAX#31 catalog validation in v1.0.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogId: "custom"
   catalog:
     components:
@@ -295,7 +385,7 @@
 - name: test_v10_uax31_invalid_armenian_hyphen_function_name
   description: Tests that function names containing Armenian Hyphen (֊, U+058A) fail UAX#31 catalog validation in v1.0.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogId: "custom"
   catalog:
     functions:
@@ -455,7 +545,7 @@
 - name: test_v10_published_basic_catalog_validates_function_calls
   description: Tests that the published v1.0 basic catalog accepts a Button whose action calls a catalog function, and rejects a call to a function the catalog does not define.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   expect:
     validComponents:
@@ -478,7 +568,7 @@
 - name: test_v10_published_basic_catalog_rejects_function_call_extra_key
   description: Tests that the published v1.0 basic catalog rejects a function call carrying a key that its function definition does not declare.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   expect:
     invalidComponents:
@@ -494,7 +584,7 @@
 - name: test_v10_published_mcp_catalog_is_self_contained
   description: Tests that the published v1.0 MCP catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/mcp/v1/catalog.json"
   expect:
     selfContained: true
@@ -510,7 +600,7 @@
 - name: test_v10_published_vegachart_catalog_is_self_contained
   description: Tests that the published v1.0 VegaChart catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/vegachart/v1/catalog.json"
   expect:
     selfContained: true
@@ -519,7 +609,7 @@
   description: >-
     Tests that validating a component against the published v1.0 basic catalog alone checks every nested function call that names no catalogId, or names this catalog, against this catalog. That includes a call nested in another call's args, in @index's args, and in the args of a call that names another catalog. A call that names another catalog runs there, so this catalog cannot judge its function or args and accepts it; the message processor checks it against the catalog it resolves to.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   expect:
     validComponents:
@@ -583,7 +673,7 @@
   description: >-
     Tests that validating a component against the published v1.0 basic catalog alone still rejects what it can judge without resolving a nested call's catalog: a function name that is not a valid identifier (even when the call names another catalog), an argument name that is not a valid identifier, and a call to @foo in the reserved @ namespace, where v1.0 defines only @index.
   action: from_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   expect:
     invalidComponents:
@@ -608,7 +698,7 @@
   description: Tests that a catalog loaded from a document whose anyComponent and anyFunction unions list only some of its entries defines only the listed ones.
   action: from_json
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     catalogId: "https://a2ui.org/catalogs/v10/filtered"
     components:
       Listed: {type: object}
@@ -626,89 +716,115 @@
     components: [Listed]
     functions: [listed]
 
-# ------------------------------------------------------------------------------
-# 1d. Cross-catalog references to peer catalogs
-#
-# A catalog can reference components, property subschemas and definitions in
-# peer catalogs that the agent or renderer already holds locally. A case lists
-# those peers in `peerCatalogPaths`: the harness loads each with `fromJson` and
-# links them to the case's catalog with `withPeerCatalogs`, then checks the
-# catalog that call returns. The fixtures under test_data/catalogs/peer_matching/
-# cover the peer matching rules: an exact or path-suffix match on a peer's
-# `catalogId` or `$id` wins over a match on the file name, and only a document
-# named exactly `catalog.json` is treated as generic.
-# ------------------------------------------------------------------------------
-
-- name: test_v10_cross_catalog_refs_inherit_peer_components
-  description: Tests that a catalog whose components inherit components and property subschemas from a peer catalog validates instances against the inherited properties and required names.
+- name: test_v10_catalog_from_json_leaf_defs
+  description: Tests that a v1.0 catalog declaring leaf $defs (token enums, open string unions, nested objects with a component property, and allOf-composed leaf definitions) resolves them in memory, produces a self-contained validationSchema, and validates component instances against all leaf definition constraints.
   action: from_json
-  protocolVersion: "v1.0"
-  catalogPath: "conformance/test_data/catalogs/cross_ref_catalog_v1_0.json"
-  peerCatalogPaths:
-    - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
+  protocolVersion: "1.0"
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/leaf_defs"
+    metadata:
+      displayName: "Leaf Defs Catalog"
+      extensions:
+        x-vendor: "acme"
+    components:
+      SelectBox:
+        type: object
+        description: "A selector with reusable leaf definitions."
+        allOf:
+          - $ref: "common_types.json#/$defs/ComponentCommon"
+          - type: object
+            properties:
+              component: {const: SelectBox}
+              label: {$ref: "common_types.json#/$defs/DynamicString"}
+              color: {$ref: "#/$defs/ColorValue"}
+              weight:
+                $ref: "#/$defs/Weight"
+                description: "Custom flex weight override."
+                default: 2
+              options:
+                type: array
+                items: {$ref: "#/$defs/SelectOption"}
+              composite: {$ref: "#/$defs/CompositeOption"}
+            required: [component, label]
+        unevaluatedProperties: false
+    $defs:
+      Weight:
+        type: number
+        description: "Relative flex weight."
+        minimum: 1
+      ColorToken:
+        type: string
+        enum: [primary, secondary, accent]
+      ColorValue:
+        anyOf:
+          - $ref: "#/$defs/ColorToken"
+          - type: string
+            pattern: "^#[0-9a-fA-F]{6}$"
+      SelectOption:
+        type: object
+        properties:
+          label: {type: string}
+          value: {type: string}
+          component: {type: string}
+        required: [label, value]
+      CompositeOption:
+        type: object
+        allOf:
+          - $ref: "#/$defs/SelectOption"
+          - type: object
+            properties:
+              disabled: {type: boolean}
+        unevaluatedProperties: false
+      anyComponent:
+        oneOf:
+          - $ref: "#/components/SelectBox"
+        discriminator:
+          propertyName: component
   expect:
-    catalogId: "conformance/cross_ref"
-    components: ["CustomText", "StyledCard"]
-    functions: ["formatBadge"]
+    catalogId: "https://a2ui.org/catalogs/v10/leaf_defs"
+    protocolVersion: "1.0"
+    components: [SelectBox]
+    selfContained: true
     validComponents:
-      - id: t1
-        component: CustomText
-        badge: "NEW"
-        text: "Quarterly Revenue"
-        variant: caption
-      - id: c1
-        component: StyledCard
-        subtitle: "Q1"
-        child: t1
-        action:
-          event: {name: expand}
+      - id: sb1
+        component: SelectBox
+        label: "Choose a theme"
+        color: primary
+        weight: 3
+        options:
+          - label: "Dark"
+            value: "dark"
+            component: "Icon"
+        composite:
+          label: "Default"
+          value: "default"
+          disabled: false
+      - id: sb2
+        component: SelectBox
+        label: "Custom hex color"
+        color: "#1a2b3c"
     invalidComponents:
-      - id: t1
-        component: CustomText
-        badge: "NEW"
-      - id: t1
-        component: CustomText
-        badge: "NEW"
-        text: "Quarterly Revenue"
-        variant: headline
-      - id: c1
-        component: StyledCard
-        subtitle: "Q1"
-        action:
-          event: {name: expand}
-
-- name: test_v10_cross_catalog_refs_prefer_exact_id_over_file_name
-  description: Tests the peer matching rules. Two peers have $ids ending in /catalog.json and a third is named mcp_catalog.json. A reference to a peer's full $id or to a path suffix of it resolves to that peer rather than to the first peer whose file name matches, and a reference to mcp_catalog.json resolves to that peer instead of being treated as the referencing catalog itself.
-  action: from_json
-  protocolVersion: "v1.0"
-  catalogPath: "conformance/test_data/catalogs/peer_matching/referencing_catalog_v1_0.json"
-  peerCatalogPaths:
-    - "conformance/test_data/catalogs/peer_matching/alpha/catalog.json"
-    - "conformance/test_data/catalogs/peer_matching/beta/catalog.json"
-    - "conformance/test_data/catalogs/peer_matching/mcp_catalog.json"
-  expect:
-    catalogId: "conformance/peer_matching/referencing"
-    components: ["AlphaBadge", "BetaBadge", "McpBadge"]
-    validComponents:
-      - id: b1
-        component: BetaBadge
-        count: 3
-      - id: a1
-        component: AlphaBadge
-        label: "New"
-      - id: m1
-        component: McpBadge
-        icon: "star"
-    invalidComponents:
-      - id: b1
-        component: BetaBadge
-        label: "New"
-      - id: a1
-        component: AlphaBadge
-        count: 3
-      - id: m1
-        component: McpBadge
-
+      - id: sb_bad_color
+        component: SelectBox
+        label: "Invalid color"
+        color: "not-a-color"
+      - id: sb_bad_weight
+        component: SelectBox
+        label: "Invalid weight"
+        weight: 0
+      - id: sb_bad_option
+        component: SelectBox
+        label: "Missing required value in SelectOption"
+        options:
+          - label: "Only label"
+      - id: sb_extra_composite_prop
+        component: SelectBox
+        label: "Extra property on closed CompositeOption"
+        composite:
+          label: "Default"
+          value: "default"
+          extra: true
 # ==============================================================================
 # 2. to_json
 # ==============================================================================
@@ -730,7 +846,7 @@
 - name: test_v10_basic_catalog_to_json
   description: Tests that toJson of the SDK's own v1 basic catalog equals the published v1 basic catalog.
   action: to_json
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   builtinCatalog: basic
   expectFile: "catalogs/basic/v1/catalog.json"
 
@@ -748,7 +864,7 @@
 - name: test_v10_basic_catalog_round_trip
   description: Tests that the published v1 basic catalog round-trips with its allOf mixins, common_types.json references, metadata and $defs unions intact.
   action: round_trip
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
 
 - name: test_v09_basic_catalog_round_trip
@@ -780,6 +896,73 @@
   action: round_trip
   catalogPath: "conformance/test_data/catalogs/function_metadata_catalog_v1_0.json"
 
+- name: test_v10_custom_catalog_round_trip_leaf_defs
+  description: Tests that a v1.0 catalog with leaf $defs, chained leaf $defs, call-site description and default overrides on $ref properties, unused leaf $defs, and metadata.extensions round-trips with its $defs and property $ref pointers intact.
+  action: round_trip
+  protocolVersion: "1.0"
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/leaf_defs_round_trip"
+    metadata:
+      displayName: "Leaf Defs Round Trip"
+      extensions:
+        x-vendor: "acme"
+    components:
+      SelectBox:
+        type: object
+        description: "A selector with reusable leaf definitions."
+        allOf:
+          - $ref: "common_types.json#/$defs/ComponentCommon"
+          - type: object
+            properties:
+              component: {const: SelectBox}
+              label: {$ref: "common_types.json#/$defs/DynamicString"}
+              weight: {$ref: "#/$defs/Weight"}
+              customWeight:
+                $ref: "#/$defs/Weight"
+                description: "Custom flex weight override."
+                default: 2
+              primaryWeight: {$ref: "#/$defs/PrimaryWeight"}
+              color: {$ref: "#/$defs/ColorValue"}
+              options:
+                type: array
+                items: {$ref: "#/$defs/SelectOption"}
+            required: [component, label]
+        unevaluatedProperties: false
+    $defs:
+      Weight:
+        type: number
+        description: "Relative flex weight."
+        minimum: 1
+      PrimaryWeight:
+        $ref: "#/$defs/Weight"
+      ColorToken:
+        type: string
+        enum: [primary, secondary, accent]
+      ColorValue:
+        anyOf:
+          - $ref: "#/$defs/ColorToken"
+          - type: string
+            pattern: "^#[0-9a-fA-F]{6}$"
+      SelectOption:
+        type: object
+        properties:
+          label: {type: string}
+          value: {type: string}
+          component: {type: string}
+        required: [label, value]
+        additionalProperties: false
+      UnusedToken:
+        type: string
+        const: "unused"
+      anyComponent:
+        oneOf:
+          - $ref: "#/components/SelectBox"
+        discriminator:
+          propertyName: component
+      anyFunction:
+        not: {}
+
 # ==============================================================================
 # 4. validation_schema
 # ==============================================================================
@@ -802,7 +985,7 @@
 - name: test_v10_basic_validation_schema
   description: Tests that the validationSchema of the published v1 basic catalog, loaded with fromJson, equals the golden bundled schema, which flattens envelopes, adds the id envelope and inlines the referenced v1 common types.
   action: validation_schema
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   expectFile: "conformance/test_data/validation_schema/test_v10_basic_validation_schema.json"
 
@@ -833,12 +1016,212 @@
         properties:
           weight: {type: number}
   expectFile: "conformance/test_data/validation_schema/test_v09_custom_validation_schema_flattening.json"
-
-- name: test_v10_cross_catalog_validation_schema
-  description: Tests that the validationSchema of a catalog whose components inherit components and property subschemas from a linked peer catalog flattens the peer's properties and required names into each component, as if they were authored locally.
+- name: test_v10_custom_validation_schema_leaf_defs
+  description: Tests that the validationSchema of a v1.0 catalog with leaf $defs and call-site overrides preserves the leaf $defs and property $ref pointers while flattening ComponentCommon and inlining referenced common types.
   action: validation_schema
-  protocolVersion: "v1.0"
-  catalogPath: "conformance/test_data/catalogs/cross_ref_catalog_v1_0.json"
-  peerCatalogPaths:
-    - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
-  expectFile: "conformance/test_data/validation_schema/test_v10_cross_catalog_validation_schema.json"
+  protocolVersion: "1.0"
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/leaf_defs_validation_schema"
+    components:
+      SelectBox:
+        type: object
+        description: "A selector with reusable leaf definitions."
+        allOf:
+          - $ref: "common_types.json#/$defs/ComponentCommon"
+          - type: object
+            properties:
+              component: {const: SelectBox}
+              label: {$ref: "common_types.json#/$defs/DynamicString"}
+              weight: {$ref: "#/$defs/Weight"}
+              customWeight:
+                $ref: "#/$defs/Weight"
+                description: "Custom flex weight override."
+                default: 2
+              color: {$ref: "#/$defs/ColorValue"}
+            required: [component, label]
+        unevaluatedProperties: false
+    $defs:
+      Weight:
+        type: number
+        description: "Relative flex weight."
+        minimum: 1
+      ColorToken:
+        type: string
+        enum: [primary, secondary, accent]
+      ColorValue:
+        anyOf:
+          - $ref: "#/$defs/ColorToken"
+          - type: string
+            pattern: "^#[0-9a-fA-F]{6}$"
+      anyComponent:
+        oneOf:
+          - $ref: "#/components/SelectBox"
+        discriminator:
+          propertyName: component
+  expectFile: "conformance/test_data/validation_schema/test_v10_custom_validation_schema_leaf_defs.json"
+
+# ==============================================================================
+# 5. derive
+# ==============================================================================
+#
+# A name in `args.components` or `args.functions` keeps the source catalog's
+# entry of that name, and a map with one key is a new entry. The derived catalog
+# keeps the source's protocol version and theme. It does not keep the source's
+# `$id`, title, description or instructions, which describe the source: the
+# basic catalog's instructions name its ID in their examples, so they would
+# teach a model to write messages for the wrong catalog.
+
+- name: test_v10_catalog_derive_keeps_named_entries
+  description: A name keeps the source catalog's entry of that name, and the entries the lists leave out are not in the derived catalog.
+  action: derive
+  catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
+  args:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    components: [Text, Button]
+    functions: [upper]
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    protocolVersion: "1.0"
+    components:
+      Text:
+        type: object
+        properties:
+          text: {type: string}
+        required: [text]
+      Button:
+        type: object
+        properties:
+          label: {type: string}
+    functions: [upper]
+
+- name: test_v10_catalog_derive_adds_and_replaces_entries
+  description: A new entry is added to the derived catalog, and a new entry with the name of one of the source's entries replaces it.
+  action: derive
+  catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
+  args:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    components:
+      - Text
+      - Card:
+          type: object
+          properties:
+            title: {type: string}
+      - Button:
+          type: object
+          properties:
+            label: {type: string}
+            primary: {type: boolean}
+    functions:
+      - upper
+      - reverse:
+          type: object
+          properties:
+            call: {const: reverse}
+            args: {type: object}
+            returnType: {const: string}
+  expect:
+    components:
+      Text:
+        type: object
+        properties:
+          text: {type: string}
+        required: [text]
+      Card:
+        type: object
+        properties:
+          title: {type: string}
+      Button:
+        type: object
+        properties:
+          label: {type: string}
+          primary: {type: boolean}
+    functions: [upper, reverse]
+
+- name: test_v10_catalog_derive_keeps_every_entry_of_an_omitted_list
+  description: Leaving a list out keeps all of the source catalog's entries of that kind.
+  action: derive
+  catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
+  args:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    components: [Text]
+  expect:
+    components: [Text]
+    functions: [upper, lower]
+
+- name: test_v10_catalog_derive_drops_fields_that_describe_the_source
+  description: The derived catalog keeps the source's protocol version and theme, and drops its $id, title, description and instructions.
+  action: derive
+  catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
+  args:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    protocolVersion: "1.0"
+    components: [Text, Image, Button]
+    functions: [upper, lower]
+    theme:
+      type: object
+      properties:
+        primaryColor: {type: string}
+    absentKeys: ["$id", "title", "description", "instructions"]
+
+- name: test_v10_catalog_derive_sets_instructions
+  description: The derived catalog carries the instructions passed to derive, in place of the source's.
+  action: derive
+  catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
+  args:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    components: [Text]
+    instructions: "Write components of https://a2ui.org/catalogs/v10/derived."
+  expect:
+    instructions: "Write components of https://a2ui.org/catalogs/v10/derived."
+
+- name: test_v10_catalog_derive_unknown_component_error
+  description: A component name that is not an entry of the source catalog raises CatalogError.
+  action: derive
+  catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
+  args:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    components: [Text, Slider]
+  expectError:
+    category: "CatalogError"
+    message: "Slider"
+
+- name: test_v10_catalog_derive_unknown_function_error
+  description: A function name that is not an entry of the source catalog raises CatalogError.
+  action: derive
+  catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
+  args:
+    catalogId: "https://a2ui.org/catalogs/v10/derived"
+    functions: [capitalize]
+  expectError:
+    category: "CatalogError"
+    message: "capitalize"
+
+- name: test_v09_catalog_derive_keeps_protocol_version
+  description: A catalog derived from a v0.9 catalog is a v0.9 catalog.
+  action: derive
+  catalog:
+    catalogId: "https://a2ui.org/catalogs/v09/derive_source"
+    protocolVersion: "v0.9"
+    components:
+      Text:
+        type: object
+        properties:
+          text: {type: string}
+      Image:
+        type: object
+        properties:
+          url: {type: string}
+  args:
+    catalogId: "https://a2ui.org/catalogs/v09/derived"
+    components: [Image]
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v09/derived"
+    protocolVersion: "v0.9"
+    components:
+      Image:
+        type: object
+        properties:
+          url: {type: string}

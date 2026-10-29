@@ -74,8 +74,8 @@ class FunctionCommon(SpecBaseModel):
         default=None,
         alias="catalogId",
         description=(
-            "The catalog ID for this function, overriding any surface-level default"
-            " catalogId."
+            "The catalog ID for this function, overriding any surface-level"
+            " default catalogId."
         ),
     )
 
@@ -89,7 +89,12 @@ class FunctionCall(SpecBaseModel):
                 "type": "object",
                 "allOf": [
                     def_ref("FunctionCommon"),
-                    {"oneOf": [catalog_functions(), def_ref("IndexSystemFunction")]},
+                    {
+                        "oneOf": [
+                            catalog_functions(),
+                            def_ref("IndexSystemFunction"),
+                        ]
+                    },
                 ],
                 "unevaluatedProperties": False,
             },
@@ -108,8 +113,8 @@ class FunctionCall(SpecBaseModel):
         default=None,
         alias="catalogId",
         description=(
-            "The catalog ID for this function, overriding any surface-level default"
-            " catalogId."
+            "The catalog ID for this function, overriding any surface-level"
+            " default catalogId."
         ),
     )
 
@@ -130,19 +135,19 @@ class AccessibilityAttributes(SpecBaseModel):
     label: DynamicString | None = Field(
         default=None,
         description=(
-            "A short string, typically 1 to 3 words, used by assistive technologies to"
-            " convey the purpose or intent of an element. For example, an input field"
-            " might have an accessible label of 'User ID' or a button might be labeled"
-            " 'Submit'."
+            "A short string, typically 1 to 3 words, used by assistive"
+            " technologies to convey the purpose or intent of an element. For"
+            " example, an input field might have an accessible label of 'User ID'"
+            " or a button might be labeled 'Submit'."
         ),
     )
     description: DynamicString | None = Field(
         default=None,
         description=(
-            "Additional information provided by assistive technologies about an element"
-            " such as instructions, format requirements, or result of an action. For"
-            " example, a mute button might have a label of 'Mute' and a description of"
-            " 'Silences notifications about this conversation'."
+            "Additional information provided by assistive technologies about an"
+            " element such as instructions, format requirements, or result of an"
+            " action. For example, a mute button might have a label of 'Mute' and"
+            " a description of 'Silences notifications about this conversation'."
         ),
     )
     live: Literal["off", "polite", "assertive"] | None = Field(
@@ -157,8 +162,8 @@ class AccessibilityAttributes(SpecBaseModel):
     hidden: DynamicBoolean | None = Field(
         default=None,
         description=(
-            "Hides the element and its children from assistive technologies when true."
-            " Default is false."
+            "Hides the element and its children from assistive technologies when"
+            " true. Default is false."
         ),
     )
 
@@ -202,8 +207,8 @@ class ComponentCommon(SpecBaseModel):
         default=None,
         alias="catalogId",
         description=(
-            "The catalog ID for this component, overriding any surface-level default"
-            " catalogId."
+            "The catalog ID for this component, overriding any surface-level"
+            " default catalogId."
         ),
     )
     accessibility: AccessibilityAttributes | None = Field(default=None)
@@ -304,8 +309,8 @@ class CheckRule(SpecBaseModel):
     condition: DataBinding | FunctionCall = Field(
         ...,
         description=(
-            "Path or function call evaluating to a structured validation result object"
-            " or a boolean."
+            "Path or function call evaluating to a structured validation result"
+            " object or a boolean."
         ),
     )
     message: str | None = Field(
@@ -338,17 +343,18 @@ class ActionEvent(SpecBaseModel):
         default=None,
         alias="userMessage",
         description=(
-            "An optional human-readable message describing the action performed by the"
-            " user, resolved by the renderer and included in the outbound action"
-            " message."
+            "An optional human-readable message describing the action performed"
+            " by the user, resolved by the renderer and included in the outbound"
+            " action message."
         ),
     )
     context: dict[str, DynamicValue] | None = Field(
         default=None,
         description=(
             "A JSON object containing the key-value pairs for the action context."
-            " Values can be literals or paths. Use literal values unless the value must"
-            " be dynamically bound to the data model. Do NOT use paths for static IDs."
+            " Values can be literals or paths. Use literal values unless the"
+            " value must be dynamically bound to the data model. Do NOT use paths"
+            " for static IDs."
         ),
     )
 
@@ -421,8 +427,8 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         ComponentId,
         Field(
             description=(
-                "The unique identifier for a component, used for both definitions and"
-                " references within the same surface."
+                "The unique identifier for a component, used for both"
+                " definitions and references within the same surface."
             )
         ),
     ],
@@ -434,9 +440,9 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         Extensions,
         Field(
             description=(
-                "Optional extension metadata. Keys MUST be Unicode identifiers (UAX"
-                " #31). Keys starting with 'a2ui_' are reserved for official"
-                " extensions."
+                "Optional extension metadata. Keys MUST be Unicode identifiers"
+                " (UAX #31). Keys starting with 'a2ui_' are reserved for"
+                " official extensions."
             )
         ),
     ],
@@ -456,8 +462,8 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         DynamicValue,
         Field(
             description=(
-                "A value that can be a literal, a path, or a function call returning"
-                " any type."
+                "A value that can be a literal, a path, or a function call"
+                " returning any type."
             )
         ),
     ],
@@ -466,8 +472,9 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         DynamicNumber,
         Field(
             description=(
-                "Represents a value that can be either a literal number, a path to a"
-                " number in the data model, or a function call returning a number."
+                "Represents a value that can be either a literal number, a path"
+                " to a number in the data model, or a function call returning a"
+                " number."
             )
         ),
     ],
@@ -475,9 +482,9 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         DynamicBoolean,
         Field(
             description=(
-                "A boolean value that can be a literal, a path, or a function call"
-                " returning a boolean or a validation result object (coerced to its"
-                " 'valid' boolean)."
+                "A boolean value that can be a literal, a path, or a function"
+                " call returning a boolean or a validation result object"
+                " (coerced to its 'valid' boolean)."
             )
         ),
     ],
@@ -485,9 +492,9 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         DynamicStringList,
         Field(
             description=(
-                "Represents a value that can be either a literal array of strings, a"
-                " path to a string array in the data model, or a function call"
-                " returning a string array."
+                "Represents a value that can be either a literal array of"
+                " strings, a path to a string array in the data model, or a"
+                " function call returning a string array."
             )
         ),
     ],
@@ -500,8 +507,8 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         Action,
         Field(
             description=(
-                "Defines an interaction handler that can either trigger an agent-side"
-                " event or execute a local renderer-side function."
+                "Defines an interaction handler that can either trigger an"
+                " agent-side event or execute a local renderer-side function."
             )
         ),
     ],

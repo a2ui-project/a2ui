@@ -65,7 +65,8 @@ class FunctionApi:
                 as its catalog document writes it (a call schema, or a
                 schema that declares `returnType`), without the `name` of a
                 list entry. `Catalog.from_json` keeps each definition here
-                unchanged, and `Catalog.to_json` writes it back.
+                unchanged, and `Catalog.to_json` writes it back. None, the
+                default, means the function takes any args.
             allowed_callers: Who may call the function.
             requires_user_activation: Whether a call needs a user gesture.
             description: What the function does, published in the catalog

@@ -89,7 +89,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const context = new DataContext(surface, '/');
 
     const message = {
-      version: 'v1.0' as const,
+      version: '1.0' as const,
       callRendererFunction: {
         functionCallId: 'rpc-listener-1',
         callFunction: {
@@ -103,7 +103,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const response = await handler.handleCallRendererFunction(message, context, false);
     assert.strictEqual(response.rendererFunctionResponse.value, 'Processed: Streaming test');
     assert.strictEqual(emittedMessages.length, 1);
-    assert.strictEqual(emittedMessages[0].version, 'v1.0');
+    assert.strictEqual(emittedMessages[0].version, '1.0');
     assert.strictEqual(
       emittedMessages[0].rendererFunctionResponse?.functionCallId,
       'rpc-listener-1',
@@ -130,14 +130,19 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
         catalogId: 'basic',
         args: {query: 'test'},
       },
-      {functionCallId: 'agent-call-100', version: 'v1.0'},
+      {functionCallId: 'agent-call-100', version: '1.0'},
     );
 
-    assert.strictEqual(emittedMessage.version, 'v1.0');
+    assert.strictEqual(emittedMessage.version, '1.0');
     assert.strictEqual(emittedMessage.callAgentFunction.functionCallId, 'agent-call-100');
+    assert.deepStrictEqual(emittedMessage.callAgentFunction.callFunction, {
+      '@call': 'fetchRemoteData',
+      catalogId: 'basic',
+      args: {query: 'test'},
+    });
 
     handler.handleAgentFunctionResponse({
-      version: 'v1.0',
+      version: '1.0',
       agentFunctionResponse: {
         functionCallId: 'agent-call-100',
         value: {items: [1, 2, 3]},
@@ -228,7 +233,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const context = new DataContext(surface, '/');
     const response = await handler.handleCallRendererFunction(
       {
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'call-post-dispose',
           callFunction: {call: 'customRpc', catalogId: 'basic', args: {text: 'hi'}},
@@ -324,7 +329,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       {functionCallId: 'err-call-1'},
     );
     handler.handleAgentFunctionResponse({
-      version: 'v1.0',
+      version: '1.0',
       agentFunctionResponse: {
         functionCallId: 'err-call-1',
         error: {code: 'SERVER_FAULT', message: 'Internal server failure'},
@@ -346,7 +351,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       {functionCallId: 'err-call-partial'},
     );
     handler.handleAgentFunctionResponse({
-      version: 'v1.0',
+      version: '1.0',
       agentFunctionResponse: {
         functionCallId: 'err-call-partial',
         error: {} as any,
@@ -391,7 +396,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
     assert.strictEqual(emittedMsg.callAgentFunction.functionCallId, 'custom-id-99');
     handler.handleAgentFunctionResponse({
-      version: 'v1.0',
+      version: '1.0',
       agentFunctionResponse: {
         functionCallId: 'custom-id-99',
         value: {data: 'payload'},
@@ -409,7 +414,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
     const res = await handler.handleCallRendererFunction(
       {
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'call-signal-1',
           callFunction: {
@@ -431,7 +436,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
     const res = await handler.handleCallRendererFunction(
       {
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'call-no-surface-default',
           callFunction: {
@@ -456,7 +461,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const surfaceContext = new DataContext(surface, '/');
     const resWithSurface = await handler.handleCallRendererFunction(
       {
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           surfaceId: 's1',
           functionCallId: 'call-with-surface-no-catalog',
@@ -480,6 +485,81 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
         'No catalog available for function resolution',
       ),
     );
+  });
+
+  it('awaits an asynchronous nested call in the arguments before validating a callRendererFunction', async () => {
+    const asyncEchoImpl = createFunctionImplementation(
+      {
+        name: 'asyncEcho',
+        returnType: 'any' as const,
+        schema: z.object({value: z.string()}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      async args => {
+        await Promise.resolve();
+        return args.value;
+      },
+    );
+    const catalog = new Catalog('basic', '1.0', [], [customRpcImpl, asyncEchoImpl]);
+    const handler = new RpcHandler({catalogs: [catalog]});
+    const surface = new SurfaceModel('s1', catalog);
+    const context = new DataContext(surface, '/');
+
+    const response = await handler.handleCallRendererFunction(
+      {
+        version: '1.0' as const,
+        callRendererFunction: {
+          functionCallId: 'rpc-async-arg',
+          callFunction: {
+            '@call': 'customRpc',
+            catalogId: 'basic',
+            args: {text: {'@call': 'asyncEcho', args: {value: 'settled'}}},
+          },
+        },
+      } as any,
+      context,
+      false,
+    );
+    assert.strictEqual(response.rendererFunctionResponse.error, undefined);
+    assert.strictEqual(response.rendererFunctionResponse.value, 'Processed: settled');
+  });
+
+  it('answers with an error when an asynchronous nested argument rejects', async () => {
+    const asyncFailImpl = createFunctionImplementation(
+      {
+        name: 'asyncFail',
+        returnType: 'any' as const,
+        schema: z.object({}),
+        allowedCallers: 'rendererOrAgent' as const,
+      },
+      async () => {
+        await Promise.resolve();
+        throw new Error('upstream failed');
+      },
+    );
+    const catalog = new Catalog('basic', '1.0', [], [customRpcImpl, asyncFailImpl]);
+    const handler = new RpcHandler({catalogs: [catalog]});
+    const surface = new SurfaceModel('s1', catalog);
+    const context = new DataContext(surface, '/');
+
+    const response = await handler.handleCallRendererFunction(
+      {
+        version: '1.0' as const,
+        callRendererFunction: {
+          functionCallId: 'rpc-async-fail',
+          callFunction: {
+            '@call': 'customRpc',
+            catalogId: 'basic',
+            args: {text: {'@call': 'asyncFail', args: {}}},
+          },
+        },
+      } as any,
+      context,
+      false,
+    );
+    assert.strictEqual(response.rendererFunctionResponse.error?.code, RpcErrorCode.EXECUTION_ERROR);
+    assert.match(response.rendererFunctionResponse.error?.message ?? '', /upstream failed/);
+    assert.strictEqual(response.rendererFunctionResponse.value, undefined);
   });
 
   it('formats A2uiRpcError with the blueprint-standard (message, code, functionCallId, details) signature', () => {

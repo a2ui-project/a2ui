@@ -148,7 +148,9 @@ def test_event_converter_passes_its_options_to_the_part_converter():
 
     part_converter = _convert(
         A2uiEventConverter(
-            bypass_tool_check=True, fallback_text="Sorry.", a2ui_processor=processor
+            bypass_tool_check=True,
+            fallback_text="Sorry.",
+            a2ui_processor=processor,
         )
     ).__self__
 
@@ -442,7 +444,10 @@ def test_event_converter_drops_a_stream_that_gets_no_event(caplog):
         with patch("time.monotonic", return_value=1030.0):
             converter(_event(partial=True), _context("live"))
             mock_base_converter.call_args[0][4](genai_types.Part(text="Hi"))
-        assert set(converter._streams) == {("cancelled", "agent"), ("live", "agent")}
+        assert set(converter._streams) == {
+            ("cancelled", "agent"),
+            ("live", "agent"),
+        }
 
         with patch("time.monotonic", return_value=1061.0), caplog.at_level("WARNING"):
             converter(_event(partial=True), _context("live"))

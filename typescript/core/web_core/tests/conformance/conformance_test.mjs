@@ -80,7 +80,7 @@ const v0_9Catalog = new Catalog(
 );
 const v1_0Catalog = new Catalog(
   'v1.0:basic',
-  'v1.0',
+  '1.0',
   v1_0Components,
   V1_0_BASIC_FUNCTIONS,
   undefined,
@@ -104,7 +104,7 @@ const v0_9BasicCatalog = new Catalog(
 );
 const v1_0BasicCatalog = new Catalog(
   'basic',
-  'v1.0',
+  '1.0',
   v1_0Components,
   V1_0_BASIC_FUNCTIONS,
   undefined,
@@ -221,6 +221,7 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['wrap', 'web_core has no inference-format wrapper'],
   ['parse_response', 'web_core has no inference-format parser'],
   ['parse_chunk', 'web_core has no streaming inference parser'],
+  ['stream_answer', 'streamed answers are agent-side only'],
   ['create_format', 'inference format factories are agent-side only'],
   ['create_processor', 'request processors are agent-side only'],
   ['transform_catalog', 'catalog transformers are agent-side only'],
@@ -408,6 +409,9 @@ async function runConformanceHarness() {
           case 'from_json':
             validateFromJsonTestCase(testCase);
             break;
+          case 'derive':
+            validateDeriveTestCase(testCase);
+            break;
           case 'select_catalog':
             validateSelectCatalogTestCase(testCase);
             break;
@@ -556,12 +560,12 @@ async function validateRpcTestCase(testCase) {
   }
 
   const catVersion =
-    args.catalogVersion || testCase.catalog?.protocolVersion || testCase.protocolVersion || 'v1.0';
+    args.catalogVersion || testCase.catalog?.protocolVersion || testCase.protocolVersion || '1.0';
 
   const cat = new Catalog(catId, catVersion, [], funcs, undefined, undefined);
   let sentOutboundMsg;
   const processor = new MessageProcessor([cat], undefined, {
-    version: 'v1.0',
+    version: '1.0',
     outboundListener: msg => {
       sentOutboundMsg = msg;
     },
@@ -820,7 +824,7 @@ function validateSelectCatalogTestCase(testCase) {
   const catalogsDict = new Map();
   if (args.catalogs && typeof args.catalogs === 'object') {
     for (const [catId, catDef] of Object.entries(args.catalogs)) {
-      const pVer = catDef.protocolVersion || 'v1.0';
+      const pVer = catDef.protocolVersion || '1.0';
       catalogsDict.set(
         catId,
         new Catalog(catId, pVer, flexibleComponents, [], undefined, undefined),
@@ -831,14 +835,14 @@ function validateSelectCatalogTestCase(testCase) {
     for (const catId of supported) {
       catalogsDict.set(
         catId,
-        new Catalog(catId, 'v1.0', flexibleComponents, [], undefined, undefined),
+        new Catalog(catId, '1.0', flexibleComponents, [], undefined, undefined),
       );
     }
   }
 
   const defaultCat =
     catalogsDict.get(defaultCatId) ||
-    new Catalog(defaultCatId, 'v1.0', flexibleComponents, [], undefined, undefined);
+    new Catalog(defaultCatId, '1.0', flexibleComponents, [], undefined, undefined);
 
   const executeSelect = () => {
     // 1. Check protocol version consistency across catalogs
@@ -943,7 +947,7 @@ function validateValidateTestCase(testCase) {
 
   const testCatalogs = getCatalogsForTestCase(testCase);
   const processor = new MessageProcessor(testCatalogs, undefined, {
-    version: testCase.protocolVersion || 'v1.0',
+    version: testCase.protocolVersion || '1.0',
     validationConfig: STRICT_VALIDATION,
   });
 
@@ -1163,23 +1167,6 @@ function assertMatchesBuiltinCatalog(loaded) {
   );
 }
 
-/**
- * Loads the case's `peerCatalogPaths` with `Catalog.fromJson` and returns the
- * catalog `withPeerCatalogs` links to them, in the listed order, or `catalog`
- * itself when the case lists no peers.
- */
-function linkPeerCatalogs(testCase, catalog, pVer) {
-  const peerPaths = testCase.peerCatalogPaths ?? [];
-  if (peerPaths.length === 0) return catalog;
-  const peers = peerPaths.map(peerPath =>
-    Catalog.fromJson(
-      JSON.parse(fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', peerPath), 'utf8')),
-      pVer,
-    ),
-  );
-  return catalog.withPeerCatalogs(peers);
-}
-
 function validateFromJsonTestCase(testCase) {
   const rawSchema = testCase.catalogPath
     ? JSON.parse(
@@ -1212,7 +1199,7 @@ function validateFromJsonTestCase(testCase) {
     return;
   }
 
-  const catalog = linkPeerCatalogs(testCase, load(), pVer);
+  const catalog = load();
   assert.ok(catalog, 'Catalog should be initialized from schema');
 
   if (testCase.expect) {
@@ -1266,6 +1253,88 @@ function validateFromJsonTestCase(testCase) {
         );
       }
     }
+  }
+}
+
+/**
+ * The `expect` keys a `derive` case may use (`DeriveExpect` in
+ * conformance_schema.json).
+ */
+const DERIVE_EXPECT_KEYS = new Set([
+  'absentKeys',
+  'catalogId',
+  'components',
+  'functions',
+  'instructions',
+  'protocolVersion',
+  'theme',
+]);
+
+/**
+ * Runs a `derive` case: loads the source catalog with `fromJson`, derives a
+ * catalog from it, and checks the derived catalog and its `toJson()` document.
+ */
+function validateDeriveTestCase(testCase) {
+  const source = Catalog.fromJson(readCaseCatalogDocument(testCase));
+  const {catalogId, components, functions, instructions} = testCase.args;
+  // A map with one key is a new entry, built by loading it into a catalog of
+  // the source's version.
+  const entries = (list, kind) =>
+    list?.map(item => {
+      if (typeof item === 'string') return item;
+      const [name, definition] = Object.entries(item)[0];
+      const holder = Catalog.fromJson({
+        catalogId: 'conformance:derive-entries',
+        protocolVersion: source.protocolVersion,
+        [kind]: {[name]: definition},
+      });
+      return holder[kind].get(name);
+    });
+  const derive = () =>
+    source.derive({
+      catalogId,
+      components: entries(components, 'components'),
+      functions: entries(functions, 'functions'),
+      instructions,
+    });
+
+  if (testCase.expectError) {
+    assert.throws(derive, err => {
+      if (!matchesErrorCategory(err, testCase.expectError.category)) return false;
+      return !testCase.expectError.message || err.message.includes(testCase.expectError.message);
+    });
+    return;
+  }
+
+  const expected = testCase.expect;
+  const unknownKeys = Object.keys(expected).filter(key => !DERIVE_EXPECT_KEYS.has(key));
+  assert.deepStrictEqual(unknownKeys, [], `Unknown derive expect keys: ${unknownKeys}`);
+  const derived = derive();
+  const document = derived.toJson();
+  if (expected.catalogId) assert.strictEqual(derived.id, expected.catalogId);
+  if (expected.protocolVersion) {
+    assert.strictEqual(
+      toCanonicalVersion(derived.protocolVersion),
+      toCanonicalVersion(expected.protocolVersion),
+    );
+  }
+  for (const kind of ['components', 'functions']) {
+    const listed = expected[kind];
+    if (!listed) continue;
+    const names = Array.isArray(listed) ? listed : Object.keys(listed);
+    assert.deepStrictEqual([...derived[kind].keys()].sort(), [...names].sort(), `${kind} mismatch`);
+    if (!Array.isArray(listed)) {
+      for (const [name, definition] of Object.entries(listed)) {
+        assertJsonSetEqual(document[kind][name], definition, `${kind} '${name}' differs`);
+      }
+    }
+  }
+  if (expected.theme) assertJsonSetEqual(document.theme, expected.theme, 'theme differs');
+  if (expected.instructions !== undefined) {
+    assert.strictEqual(document.instructions, expected.instructions);
+  }
+  for (const key of expected.absentKeys ?? []) {
+    assert.ok(!(key in document), `Expected toJson() to carry no '${key}'`);
   }
 }
 
@@ -1463,11 +1532,10 @@ function sortKeysDeep(node) {
 /**
  * Returns the catalog a `validation_schema` case checks: the authored catalog
  * loaded with `fromJson`, even when it is one web_core implements. Built-in
- * equivalence is covered by `matchesBuiltinCatalog`. When the case lists
- * `peerCatalogPaths`, the catalog linked to them.
+ * equivalence is covered by `matchesBuiltinCatalog`.
  */
 function loadValidationSchemaCatalog(testCase, rawSchema, pVer) {
-  return linkPeerCatalogs(testCase, Catalog.fromJson(rawSchema, pVer, testCase.catalogId), pVer);
+  return Catalog.fromJson(rawSchema, pVer, testCase.catalogId);
 }
 
 /** Runs a `validation_schema` case against its golden `expectFile`. */
@@ -1690,7 +1758,7 @@ function resolveProtocolVersion(testCase) {
   const catId = String(testCase.catalogId || catSpec.catalogId || caseSchema.catalogId || '');
   if (catId.includes('v08') || catId.includes('v0_8')) return 'v0.8';
   if (catId.includes('v09') || catId.includes('v0_9')) return 'v0.9';
-  if (catId.includes('v10') || catId.includes('v1_0') || catId.includes('v1.0')) return 'v1.0';
+  if (catId.includes('v10') || catId.includes('v1_0') || catId.includes('v1.0')) return '1.0';
   return 'v0.9';
 }
 
@@ -2199,13 +2267,43 @@ function assertSurfacesMatch(processor, expect) {
   }
 }
 
+/**
+ * The flags a case's `validationConfig` may set (`validationConfig` in
+ * conformance_schema.json). An unknown flag fails the case rather than being
+ * silently ignored.
+ */
+const CASE_VALIDATION_FLAGS = new Set([
+  'allowOrphanComponents',
+  'allowDanglingReferences',
+  'allowMissingRoot',
+  'allowUnknownElements',
+]);
+
+/**
+ * The processor's validation config for a process_messages case. A case's
+ * `validationConfig` sets its checks, so they don't depend on this harness: a
+ * flag it leaves out is false. Without one, `strictMode` selects strict
+ * validation and anything else none.
+ */
+function caseValidationConfig(testCase) {
+  const flags = testCase.validationConfig;
+  if (flags === undefined) {
+    return testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {};
+  }
+  const unknown = Object.keys(flags).filter(name => !CASE_VALIDATION_FLAGS.has(name));
+  if (unknown.length > 0) {
+    throw new Error(`Unknown validationConfig flags: ${unknown.join(', ')}`);
+  }
+  return {validationConfig: {...STRICT_VALIDATION, ...flags}};
+}
+
 function validateProcessMessagesTestCase(testCase) {
   const {messages, payload, steps, expect, expectError, protocolVersion} = testCase;
 
   const testCatalogs = getCatalogsForTestCase(testCase);
   const processorOptions = {
     ...(protocolVersion ? {version: protocolVersion} : {}),
-    ...(testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {}),
+    ...caseValidationConfig(testCase),
   };
   const processor = new MessageProcessor(testCatalogs, undefined, processorOptions);
 
@@ -2237,10 +2335,24 @@ function validateProcessMessagesTestCase(testCase) {
         );
       }
     }
+    if (expectedErr.code) {
+      if (
+        !err.message.includes(expectedErr.code) &&
+        err.name !== expectedErr.code &&
+        err.code !== expectedErr.code
+      ) {
+        throw new Error(
+          `Expected error matching '${expectedErr.code}' but received: ${err.message}`,
+        );
+      }
+    }
     if (expectedErr.message) {
       const expectedMsg = expectedErr.message;
+      const normalizedActual = err.message.replaceAll('"', "'").replaceAll("','", "', '");
+      const normalizedExpected = expectedMsg.replaceAll('"', "'").replaceAll("','", "', '");
       const matches =
         err.message.includes(expectedMsg) ||
+        normalizedActual.includes(normalizedExpected) ||
         (expectedMsg.includes('Unsupported protocol version') &&
           (err.message.includes('Invalid enum value') ||
             err.message.includes('Unsupported protocol version'))) ||
@@ -2257,16 +2369,20 @@ function validateProcessMessagesTestCase(testCase) {
   if (steps && Array.isArray(steps)) {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
-      let stepMsgs = step.messages || (step.payload ? [step.payload] : []);
+      let stepMsgs =
+        step.messages ||
+        (Array.isArray(step.payload) ? step.payload : step.payload ? [step.payload] : []);
       if (!stepMsgs && step.message) stepMsgs = [step.message];
       stepMsgs = normalizeMsgs(stepMsgs);
 
+      // A step's validationConfig applies to that call only.
+      const context = step.validationConfig ? {validationConfig: step.validationConfig} : undefined;
       const stepExpectError =
         step.expectError || (i === steps.length - 1 ? expectError : undefined);
       if (stepExpectError) {
         let thrown;
         try {
-          processor.processMessages(stepMsgs);
+          processor.processMessages(stepMsgs, context);
         } catch (err) {
           thrown = err;
         }
@@ -2277,7 +2393,7 @@ function validateProcessMessagesTestCase(testCase) {
         }
         assertExpectedProcessError(thrown, stepExpectError);
       } else {
-        processor.processMessages(stepMsgs);
+        processor.processMessages(stepMsgs, context);
         const stepExpect = step.expect || (i === steps.length - 1 ? expect : undefined);
         if (stepExpect) {
           assertSurfacesMatch(processor, stepExpect);

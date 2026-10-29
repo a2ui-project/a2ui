@@ -399,11 +399,11 @@
 - name: test_expression_parser_string_interpolation_multiple_bindings
   description: Verifies ${/path} interpolation across multiple variables and static text.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "basic"
@@ -429,11 +429,11 @@
 - name: test_expression_parser_escaped_interpolation_sequence
   description: Verifies \${...} renders literal ${...} without evaluation.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "basic"
@@ -457,11 +457,11 @@
 - name: test_expression_parser_nested_function_call
   description: Verifies evaluating nested function calls with named arguments inside ${...}.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "basic"
@@ -485,11 +485,11 @@
 - name: test_expression_parser_data_type_coercion_matrix
   description: Verifies expression string coercion for booleans, numbers, and missing values.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "basic"
@@ -514,11 +514,11 @@
 - name: test_expression_parser_syntax_error_unclosed_brace
   description: Verifies error when expression contains unclosed interpolation brace.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "basic"
@@ -539,11 +539,11 @@
     The value nests 101 interpolations, one past the limit of 100 that every
     engine applies.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   steps:
     - payload:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "basic"

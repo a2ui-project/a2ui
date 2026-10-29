@@ -24,8 +24,8 @@ import {
   A2uiIntegrityError,
   A2uiValidationError,
   CatalogApi,
+  ComponentApi,
   ComponentModel,
-  linkCatalogs,
   MessageProcessor,
   STRICT_VALIDATION,
   SurfaceModel,
@@ -42,7 +42,7 @@ import {toReleaseLine} from './protocol-version.js';
  */
 const MESSAGE_VERSIONS: Readonly<Record<string, readonly string[]>> = {
   'v0.9': ['v0.9', 'v0.9.1'],
-  'v1.0': ['v1.0'],
+  '1.0': ['1.0'],
 };
 
 const CREATE_ACTIONS = ['createSurface'] as const;
@@ -68,6 +68,9 @@ type Undo = () => void;
 
 /** A non-negative array index, as a JSON Pointer segment spells it. */
 const INDEX = /^(0|[1-9][0-9]*)$/;
+
+/** The processor that `RendererState.of` hands to the constructor it calls. */
+let sharedProcessor: MessageProcessor | undefined;
 
 /**
  * The agent's mirror of the surfaces a renderer holds.
@@ -105,6 +108,9 @@ const INDEX = /^(0|[1-9][0-9]*)$/;
  * The state is authoritative for surfaces and their components. The data model values it
  * holds can drift from the renderer's, since the user edits bound inputs there, but no
  * check depends on them.
+ *
+ * An app that is both the agent and the renderer makes the state with `RendererState.of`,
+ * on the processor it renders from, so each message is checked and applied once.
  */
 export class RendererState {
   private readonly _catalogs: CatalogApi[];
@@ -119,6 +125,8 @@ export class RendererState {
   private open = 0;
   /** How many promises that transaction functions returned are still running. */
   private runaway = 0;
+  /** The function calls applied since the outermost open `apply` or transaction began. */
+  private readonly calls: Message[] = [];
 
   /**
    * Creates the empty state of a renderer that holds the catalogs.
@@ -144,10 +152,34 @@ export class RendererState {
           .join(', ')}.`,
       );
     }
-    this._catalogs = linkCatalogs(catalogs);
-    this.processor = new MessageProcessor(this._catalogs as never, undefined, {
-      validationConfig: IN_PROGRESS_VALIDATION,
-    });
+    this._catalogs = [...catalogs];
+    this.processor = sharedProcessor ?? new MessageProcessor(this._catalogs as never);
+  }
+
+  /**
+   * Creates the state of a renderer that renders from `processor`.
+   *
+   * The state applies each message it accepts to `processor` itself, so the renderer shows a
+   * message as soon as the state applies it, and a rollback takes the message back out of the
+   * renderer's model. A function call reaches the processor only once the outermost `apply` or
+   * transaction it was applied in succeeds, since a function that ran cannot be rolled back.
+   *
+   * The state checks messages against the surfaces the processor holds, including those it
+   * held before, under its own rules whatever rules the processor was created with. The
+   * processor must take its messages from the state only: one applied around the state is
+   * checked by nothing, and a transaction that fails after it cannot undo it.
+   *
+   * @param processor The renderer's processor. Its catalogs are the state's catalogs.
+   * @throws {A2uiCatalogError} If the processor's catalogs could not make a state, as for the
+   *     constructor.
+   */
+  static of<T extends ComponentApi>(processor: MessageProcessor<T>): RendererState {
+    sharedProcessor = processor as unknown as MessageProcessor;
+    try {
+      return new RendererState(processor.catalogs as unknown as CatalogApi[]);
+    } finally {
+      sharedProcessor = undefined;
+    }
   }
 
   /** The active catalogs in priority order. */
@@ -324,8 +356,9 @@ export class RendererState {
   private frame<T>(fn: () => T): T {
     const mark = this.log.length;
     this.open++;
+    let result: T;
     try {
-      return fn();
+      result = fn();
     } catch (e) {
       this.revert(mark);
       throw e;
@@ -333,6 +366,14 @@ export class RendererState {
       this.open--;
       if (this.open === 0) this.log.length = 0;
     }
+    if (this.open === 0) this.runCalls();
+    return result;
+  }
+
+  /** Hands the function calls held back to the processor, in the order they were applied. */
+  private runCalls(): void {
+    const calls = this.calls.splice(0);
+    if (calls.length > 0) this.processUnlogged(calls);
   }
 
   /**
@@ -391,6 +432,15 @@ export class RendererState {
     }
   }
 
+  /**
+   * Holds a function call back until the outermost `apply` or transaction succeeds. The
+   * processor reads nothing of it but its envelope, which `checkMessage` has checked.
+   */
+  private holdCall(message: Message): void {
+    this.calls.push(message);
+    this.record(() => this.calls.pop());
+  }
+
   /** Stops holding what a surface changed against its next tree check. */
   private forgetChanged(surfaceId: string): void {
     const changed = this.changed.get(surfaceId);
@@ -423,7 +473,9 @@ export class RendererState {
 
   /** Runs messages through the processor, logging nothing. */
   private processUnlogged(messages: Message[]): void {
-    asValidationError(() => this.processor.processMessages(messages as never));
+    asValidationError(() =>
+      this.processor.processMessages(messages as never, {validationConfig: IN_PROGRESS_VALIDATION}),
+    );
   }
 
   /** Returns how to undo a message, read before it is applied, or nothing to undo. */
@@ -691,7 +743,11 @@ export class RendererState {
     const message = payload[index];
     const [surfaceId, creates] = target(message);
     if (surfaceId === undefined) {
-      this.process(message);
+      if ('callRendererFunction' in message) {
+        this.holdCall(message);
+      } else {
+        this.process(message);
+      }
       return undefined;
     }
 

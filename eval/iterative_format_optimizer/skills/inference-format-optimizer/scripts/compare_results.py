@@ -431,7 +431,8 @@ def extract_metrics(
         input_tokens, primary_usage.get("input_tokens", 0) / max(sample_count, 1)
     )
     avg_output_tokens = _calc_stat(
-        output_tokens, primary_usage.get("output_tokens", 0) / max(sample_count, 1)
+        output_tokens,
+        primary_usage.get("output_tokens", 0) / max(sample_count, 1),
     )
     avg_cached_tokens = _calc_stat(
         cached_tokens,
@@ -717,8 +718,8 @@ def generate_markdown_table(
     lines.append("")
     lines.append("#### Metric Definitions & Derivation Key")
     lines.append(
-        "- **Run / Results Directory**: Identifier or directory path of the evaluation"
-        " run."
+        "- **Run / Results Directory**: Identifier or directory path of the"
+        " evaluation run."
     )
     lines.append(
         "- **Samples**: Total number of evaluation sample prompts executed in the run."
@@ -726,8 +727,8 @@ def generate_markdown_table(
     lines.append(
         "- **Score (S_opt)**: Composite Format Score `S_opt = 0.50×SchemaAcc +"
         " 0.30×QualityScore - 0.15×(CodeTok/BaseCodeTok) -"
-        " 0.05×(ReasonTok/BaseReasonTok) - 0.03×(InputTok/BaseInputTok)`. Higher score"
-        " indicates superior accuracy and token efficiency."
+        " 0.05×(ReasonTok/BaseReasonTok) - 0.03×(InputTok/BaseInputTok)`. Higher"
+        " score indicates superior accuracy and token efficiency."
     )
     lines.append(
         "- **Schema Acc (Delta)**: Percentage of outputs passing strict compiler"
@@ -739,9 +740,9 @@ def generate_markdown_table(
         " (`measured_model_graded_qa`), with point diff vs baseline."
     )
     lines.append(
-        "- **Parallel Wall Latency (Delta)**: Total wall-clock run duration divided by"
-        " sample count `(completed_at - started_at) / samples`, measuring parallel"
-        " batch throughput under concurrency."
+        "- **Parallel Wall Latency (Delta)**: Total wall-clock run duration"
+        " divided by sample count `(completed_at - started_at) / samples`,"
+        " measuring parallel batch throughput under concurrency."
     )
     lines.append(
         "- **Sample Working Time (Delta)**: Sample pure HTTP execution duration"
@@ -749,13 +750,13 @@ def generate_markdown_table(
         " times."
     )
     lines.append(
-        "- **Non-reasoning Output Time (Delta)**: Estimated time spent emitting final"
-        " code output, calculated as `Working Time × (Code Output Tokens / Total"
-        " Generated Tokens)`."
+        "- **Non-reasoning Output Time (Delta)**: Estimated time spent emitting"
+        " final code output, calculated as `Working Time × (Code Output Tokens /"
+        " Total Generated Tokens)`."
     )
     lines.append(
-        "- **Input Tok (Delta)**: Prompt input tokens sent per sample, including system"
-        " instructions and catalog schema definitions."
+        "- **Input Tok (Delta)**: Prompt input tokens sent per sample, including"
+        " system instructions and catalog schema definitions."
     )
     lines.append(
         "- **Reasoning Tok (Delta)**: Internal thinking/reasoning tokens"
@@ -768,9 +769,9 @@ def generate_markdown_table(
     lines.append("")
     stat_note = "medians" if use_median else "averages"
     lines.append(
-        f"*Notes: Latency and token metrics represent per-sample {stat_note}. Delta"
-        " percentages indicate relative gain (+) or reduction (-) against the"
-        " baseline.*"
+        f"*Notes: Latency and token metrics represent per-sample {stat_note}."
+        " Delta percentages indicate relative gain (+) or reduction (-) against"
+        " the baseline.*"
     )
     return "\n".join(lines)
 
@@ -794,16 +795,16 @@ def main(argv: list[str] | None = None) -> None:
         "results_dirs",
         nargs="+",
         help=(
-            "One or more target results directories or json files to compare against"
-            " baseline"
+            "One or more target results directories or json files to compare"
+            " against baseline"
         ),
     )
     parser.add_argument(
         "--average",
         action="store_true",
         help=(
-            "Compute and display sample averages instead of default medians for latency"
-            " and token metrics"
+            "Compute and display sample averages instead of default medians for"
+            " latency and token metrics"
         ),
     )
     parser.add_argument(

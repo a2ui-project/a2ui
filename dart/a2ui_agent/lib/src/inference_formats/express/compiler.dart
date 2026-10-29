@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../utils/catalogs.dart';
@@ -29,6 +30,9 @@ String defaultCheckMessage(String check) =>
 
 /// The helpers that belong to no catalog.
 const Set<String> _reservedHelpers = {'Event', '_template'};
+
+/// The keyword arguments the reserved `Event(...)` signature accepts.
+const List<String> _eventKeywords = ['userMessage', 'context'];
 
 /// Compiles Express blocks into A2UI messages of the protocol version the
 /// catalogs target.
@@ -57,13 +61,8 @@ const Set<String> _reservedHelpers = {'Event', '_template'};
 class ExpressCompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ///
-  /// [catalogs] are linked with one another, as by [linkCatalogs], so a
-  /// cross-catalog `$ref` resolves; the catalogs passed in are not changed.
-  ExpressCompiler(List<CatalogApi> catalogs)
-    : catalogs = linkCatalogs(catalogs);
+  ExpressCompiler(this.catalogs);
 
-  /// The catalogs this compiler knows, linked with one another.
   final List<CatalogApi> catalogs;
 
   late final Map<String, CatalogSchemaHelper> _catalogHelpers = {
@@ -193,6 +192,7 @@ class ExpressCompiler {
           // when a call before it named its variables.
           if (!operations.contains(current)) operations.add(current);
           if (statement.isDataPath) {
+            current.data.removeWhere((e) => e.$1 == statement.target);
             current.data.add((statement.target, statement.value));
           } else {
             current.symbols[statement.target] = statement.value;
@@ -315,13 +315,37 @@ class _StandaloneCall {
   final _Surface? surface;
 }
 
+/// The catalog schema declared at a value's position, with the helper whose
+/// catalog declares it.
+class _Slot {
+  const _Slot(this.schema, this.helper);
+
+  final Map<String, Object?> schema;
+  final CatalogSchemaHelper helper;
+
+  /// Whether the slot takes an action.
+  bool get holdsAction => isAction(schema);
+
+  /// The slot of the items of an array, or null when the schema declares
+  /// none.
+  _Slot? get item => _of(helper.resolveItemSchema(schema));
+
+  /// The slot of the property [name] of an object, whatever the property is
+  /// named, or null when the schema declares none.
+  _Slot? property(String name) =>
+      _of(helper.resolvePropertySchema(schema, name));
+
+  _Slot? _of(Map<String, Object?>? found) =>
+      found == null ? null : _Slot(found, helper);
+}
+
 /// Where a value is being compiled.
 class _Context {
   _Context({
     required this.idPrefix,
     required this.hoisted,
-    this.isAction = false,
     this.valueBinding,
+    this.slot,
   });
 
   /// The id a component written inline here takes.
@@ -330,16 +354,31 @@ class _Context {
   /// Components written inline, to emit after their parent.
   final List<Map<String, Object?>> hoisted;
 
-  /// Whether the value fills an action slot.
-  final bool isAction;
+  /// Whether the value fills an action slot, which its schema says.
+  bool get isAction => slot?.holdsAction ?? false;
 
   /// The binding of the enclosing component's `value`, which a check tests.
   final Map<String, Object?>? valueBinding;
+
+  /// The schema declared at this position, when known. Array items and map
+  /// entries resolve their own sub-schema from it, so an action slot nested
+  /// inside a list item (such as `items: [{label, action}]`) is compiled as
+  /// an action too.
+  final _Slot? slot;
 
   _Context child(Object suffix) => _Context(
     idPrefix: '${idPrefix}_$suffix',
     hoisted: hoisted,
     valueBinding: valueBinding,
+  );
+
+  /// The context of the value at [suffix] inside this one, in [slot]: an
+  /// array item's or a map entry's.
+  _Context at(Object suffix, _Slot? slot) => _Context(
+    idPrefix: '${idPrefix}_$suffix',
+    hoisted: hoisted,
+    valueBinding: valueBinding,
+    slot: slot,
   );
 }
 
@@ -378,21 +417,31 @@ class _SurfaceCompiler {
       ? 'any active catalog (${compiler._catalogHelpers.keys.join(', ')})'
       : "catalog '${surface.helper!.catalog.id}'";
 
+  List<Map<String, Object?>> _dataUpdates(String surfaceId) => [
+    for (final (String path, ExpressNode node) in surface.data)
+      () {
+        final jsonPath = path.isEmpty
+            ? '/'
+            : (path.startsWith('/') ? path : '/$path');
+        final Object? value = _value(
+          node,
+          _Context(idPrefix: 'data', hoisted: _noHoisting),
+        );
+        if (jsonPath == '/' && value is! Map<String, Object?>) {
+          throw A2uiValidationError(
+            r'Only a map can be assigned to the whole data model, $/.',
+          );
+        }
+        return compiler._envelope('updateDataModel', {
+          'surfaceId': surfaceId,
+          'path': jsonPath,
+          'value': value,
+        });
+      }(),
+  ];
+
   List<Map<String, Object?>> compile() {
     final String surfaceId = surface.surfaceId;
-    final dataModel = <String, Object?>{};
-    for (final (String path, ExpressNode node) in surface.data) {
-      final Object? value = _value(
-        node,
-        _Context(idPrefix: 'data', hoisted: _noHoisting),
-      );
-      _setPath(dataModel, path, value);
-    }
-    final Map<String, Object?> dataUpdate = compiler._envelope(
-      'updateDataModel',
-      {'surfaceId': surfaceId, 'path': '/', 'value': dataModel},
-    );
-
     final bool hasComponents = surface.symbols.values.any(
       (node) => node is CallNode && _isComponent(node),
     );
@@ -400,7 +449,7 @@ class _SurfaceCompiler {
     // surface created by an earlier response.
     final bool creates = surface.symbols.containsKey('root');
     if (!creates && !hasComponents) {
-      if (surface.data.isNotEmpty) return [dataUpdate];
+      if (surface.data.isNotEmpty) return _dataUpdates(surfaceId);
       throw A2uiValidationError(
         "Surface '$surfaceId' has no components and no data. Assign the top "
         "component to 'root', such as 'root = Column([...])'.",
@@ -420,39 +469,56 @@ class _SurfaceCompiler {
       }
     }
 
-    if (!_v1) {
-      final CatalogSchemaHelper helper = surface.helper!;
-      components.forEach(helper.validator.validateComponent);
+    if (!creates) {
+      if (!_v1) {
+        components.forEach(surface.helper!.validator.validateComponent);
+      }
       return [
-        if (creates)
-          compiler._envelope('createSurface', {
-            'surfaceId': surfaceId,
-            'catalogId': helper.catalog.id,
-          }),
         compiler._envelope('updateComponents', {
           'surfaceId': surfaceId,
           'components': components,
         }),
-        if (surface.data.isNotEmpty) dataUpdate,
+        ..._dataUpdates(surfaceId),
       ];
     }
-    if (creates) {
+
+    final dataModel = <String, Object?>{};
+    for (final (String path, ExpressNode node) in surface.data) {
+      final Object? value = _value(
+        node,
+        _Context(idPrefix: 'data', hoisted: _noHoisting),
+      );
+      _setPath(dataModel, path, value);
+    }
+
+    if (!_v1) {
+      final CatalogSchemaHelper helper = surface.helper!;
+      components.forEach(helper.validator.validateComponent);
       return [
         compiler._envelope('createSurface', {
           'surfaceId': surfaceId,
-          if (surface.helper case final CatalogSchemaHelper helper)
-            'catalogId': helper.catalog.id,
-          'components': components,
-          if (surface.data.isNotEmpty) 'dataModel': dataModel,
+          'catalogId': helper.catalog.id,
         }),
+        compiler._envelope('updateComponents', {
+          'surfaceId': surfaceId,
+          'components': components,
+        }),
+        if (surface.data.isNotEmpty)
+          compiler._envelope('updateDataModel', {
+            'surfaceId': surfaceId,
+            'path': '/',
+            'value': dataModel,
+          }),
       ];
     }
     return [
-      compiler._envelope('updateComponents', {
+      compiler._envelope('createSurface', {
         'surfaceId': surfaceId,
+        if (surface.helper case final CatalogSchemaHelper helper)
+          'catalogId': helper.catalog.id,
         'components': components,
+        if (surface.data.isNotEmpty) 'dataModel': dataModel,
       }),
-      if (surface.data.isNotEmpty) dataUpdate,
     ];
   }
 
@@ -725,7 +791,7 @@ class _SurfaceCompiler {
         _Context(
           idPrefix: '${id}_$property',
           hoisted: hoisted,
-          isAction: isAction(schema),
+          slot: schema == null ? null : _Slot(schema, helper),
         ),
       );
       if (value is List && expectsOptionObjects(schema)) {
@@ -874,13 +940,13 @@ class _SurfaceCompiler {
     SkippedNode() => throw A2uiValidationError(
       "'_' can only stand in for an argument.",
     ),
-    ArrayNode(:final List<ExpressNode> items) => [
-      for (final (int index, ExpressNode item) in items.indexed)
-        _value(item, context.child(index)),
-    ],
+    ArrayNode(:final List<ExpressNode> items) => _list(items, context),
     MapNode(:final Map<String, ExpressNode> entries) => {
       for (final MapEntry<String, ExpressNode> entry in entries.entries)
-        entry.key: _value(entry.value, context.child(entry.key)),
+        entry.key: _value(
+          entry.value,
+          context.at(entry.key, context.slot?.property(entry.key)),
+        ),
     },
     VariableNode(:final String name) => _variable(name, context),
     CheckNode() => _check(node, context).$1,
@@ -1029,20 +1095,77 @@ class _SurfaceCompiler {
     };
   }
 
-  /// `Event(name, context?)`: an action sent to the agent.
-  Map<String, Object?> _event(CallNode call, _Context context) {
-    ExpressNode? argument(int index, String name) =>
-        call.kwargs[name] ??
-        (index < call.args.length ? call.args[index] : null);
+  /// The values of an array, each in the slot of the array's items, which is
+  /// resolved once since every item shares it.
+  List<Object?> _list(List<ExpressNode> items, _Context context) {
+    final _Slot? itemSlot = context.slot?.item;
+    return [
+      for (final (int index, ExpressNode item) in items.indexed)
+        _value(item, context.at(index, itemSlot)),
+    ];
+  }
 
-    final ExpressNode? nameNode = argument(0, 'name');
+  /// `Event(name, context?, userMessage=?, context=?)`: an action sent to
+  /// the agent.
+  ///
+  /// `userMessage` is a v1.0 field of the Action, so before v1.0 it is
+  /// rejected, as is any keyword the signature does not define, rather than
+  /// dropped from the compiled action.
+  Map<String, Object?> _event(CallNode call, _Context context) {
+    if (call.args.length > 2) {
+      throw A2uiValidationError(
+        'Event takes at most 2 positional arguments (name, context), but '
+        '${call.args.length} are given.',
+      );
+    }
+    for (final String key in call.kwargs.keys) {
+      if (!_eventKeywords.contains(key)) {
+        throw A2uiValidationError(
+          "Event has no keyword parameter '$key'. Its keyword parameters "
+          'are: ${_eventKeywords.join(', ')}.',
+        );
+      }
+    }
+    if (call.args.length == 2 && call.kwargs.containsKey('context')) {
+      throw A2uiValidationError("Parameter 'context' of Event is given twice.");
+    }
+
+    final ExpressNode? nameNode = call.args.firstOrNull;
     final Object? eventName = nameNode == null
         ? null
         : _value(nameNode, context.child('name'));
     if (eventName is! String) {
       throw A2uiValidationError('Event needs a name, such as Event("submit").');
     }
-    final ExpressNode? contextNode = argument(1, 'context');
+    final event = <String, Object?>{'name': eventName};
+
+    if (call.kwargs['userMessage'] case final ExpressNode userMessageNode) {
+      if (!_v1) {
+        throw A2uiValidationError(
+          'Event userMessage requires protocol v1.0 or later; the target '
+          'version ${compiler._version.jsonValue} has no userMessage field.',
+        );
+      }
+      final Object? userMessage = _value(
+        userMessageNode,
+        context.child('userMessage'),
+      );
+      // `userMessage` is a DynamicString: a string, a data binding or a
+      // function call.
+      if (userMessage is! String &&
+          !_isBinding(userMessage) &&
+          !_isCall(userMessage)) {
+        throw A2uiValidationError(
+          'Event userMessage must be a string, a \$path data binding or a '
+          'function call, got ${_describe(userMessageNode)}.',
+        );
+      }
+      event['userMessage'] = userMessage;
+    }
+
+    final ExpressNode? contextNode = call.args.length == 2
+        ? call.args[1]
+        : call.kwargs['context'];
     final Object? eventContext = contextNode == null
         ? null
         : _value(contextNode, context.child('context'));
@@ -1052,13 +1175,10 @@ class _SurfaceCompiler {
         'Event("submit", {id: \$/item/id}).',
       );
     }
-    return {
-      'event': {
-        'name': eventName,
-        if (eventContext is Map && eventContext.isNotEmpty)
-          'context': eventContext,
-      },
-    };
+    if (eventContext is Map && eventContext.isNotEmpty) {
+      event['context'] = eventContext;
+    }
+    return {'event': event};
   }
 
   /// [id], the id an inline component takes from where it is written, such
@@ -1079,12 +1199,94 @@ class _SurfaceCompiler {
 
   bool _isBinding(Object? value) =>
       value is Map && value.length == 1 && value[_pathKey] is String;
+
+  bool _isCall(Object? value) => value is Map && value[_callKey] is String;
+
+  /// Names a parsed value for an error message in the terms the model wrote
+  /// it in, rather than as the node's type.
+  String _describe(ExpressNode node) => switch (node) {
+    CallNode(:final String name) => 'a call to $name(...)',
+    CheckNode(:final String name) => 'a check (?$name)',
+    VariableNode(:final String name) => 'the variable $name',
+    PathNode(:final String path) => 'the data binding \$$path',
+    SkippedNode() => "'_'",
+    MapNode() => 'a map literal',
+    ArrayNode() => 'a list',
+    LiteralNode(value: null) => 'null',
+    LiteralNode(value: final bool value) => 'the boolean $value',
+    LiteralNode(value: final num value) => 'the number ${jsonEncode(value)}',
+    LiteralNode(value: final String value) => 'the string ${jsonEncode(value)}',
+    LiteralNode(:final Object? value) => 'a ${value.runtimeType}',
+  };
 }
 
 /// Marks a context in which a component cannot be written.
 final List<Map<String, Object?>> _noHoisting = List.unmodifiable(
   <Map<String, Object?>>[],
 );
+
+final RegExp _canonicalIndex = RegExp(r'^(?:0|[1-9][0-9]*)$');
+const int _maxAutovivifyIndex = 10000;
+
+int? _parseArrayIndex(String segment) {
+  if (!_canonicalIndex.hasMatch(segment)) return null;
+  final int? index = int.tryParse(segment);
+  if (index == null || index > _maxAutovivifyIndex) {
+    throw A2uiValidationError(
+      'Array index $segment exceeds maximum supported index '
+      '($_maxAutovivifyIndex).',
+    );
+  }
+  return index;
+}
+
+Object _materializeChild(
+  Object? existing,
+  String key,
+  String nextKey,
+  int? nextIdx,
+) {
+  if (existing == null) {
+    return nextIdx != null ? <Object?>[] : <String, Object?>{};
+  }
+  // A map or list assigned earlier is copied rather than written into: its
+  // element type may be narrower than Object?, as it is for an Event's map.
+  // Copying produces the same output as mutating in place (as the Python and
+  // TypeScript compilers do) because _value compiles a fresh container for
+  // each path assignment, so no two branches share a container instance.
+  if (existing is Map) return Map<String, Object?>.from(existing);
+  if (existing is List) return List<Object?>.from(existing);
+  throw A2uiValidationError(
+    "Cannot traverse path segment '$nextKey' through primitive value at "
+    "'$key'.",
+  );
+}
+
+Object _stepPathContainer(Object current, String key, String nextKey) {
+  final int? nextIdx = _parseArrayIndex(nextKey);
+  if (current is List<Object?>) {
+    final int? idx = _parseArrayIndex(key);
+    if (idx == null) {
+      throw A2uiValidationError(
+        "Cannot traverse non-numeric segment '$key' on a list in data model.",
+      );
+    }
+    while (current.length <= idx) {
+      current.add(null);
+    }
+    final Object child = _materializeChild(current[idx], key, nextKey, nextIdx);
+    current[idx] = child;
+    return child;
+  }
+  if (current is Map<String, Object?>) {
+    final Object child = _materializeChild(current[key], key, nextKey, nextIdx);
+    current[key] = child;
+    return child;
+  }
+  throw A2uiValidationError(
+    "Cannot traverse path segment '$key' through primitive value.",
+  );
+}
 
 /// Sets [value] at [path], a data path such as `/user/name`, in [model].
 void _setPath(Map<String, Object?> model, String path, Object? value) {
@@ -1100,18 +1302,28 @@ void _setPath(Map<String, Object?> model, String path, Object? value) {
         r'Only a map can be assigned to the whole data model, $/.',
       );
     }
-    model.addAll(value);
+    model
+      ..clear()
+      ..addAll(value);
     return;
   }
-  var current = model;
-  for (final String key in keys.take(keys.length - 1)) {
-    // A map assigned earlier is copied rather than written into: its value
-    // type may be narrower than Object?, as it is for an Event's map.
-    final Object? existing = current[key];
-    final child = existing is Map
-        ? Map<String, Object?>.from(existing)
-        : <String, Object?>{};
-    current = current[key] = child;
+  Object current = model;
+  for (var i = 0; i < keys.length - 1; i++) {
+    current = _stepPathContainer(current, keys[i], keys[i + 1]);
   }
-  current[keys.last] = value;
+  final String lastKey = keys.last;
+  if (current is List<Object?>) {
+    final int? idx = _parseArrayIndex(lastKey);
+    if (idx == null) {
+      throw A2uiValidationError(
+        "Cannot assign non-numeric segment '$lastKey' on a list in data model.",
+      );
+    }
+    while (current.length <= idx) {
+      current.add(null);
+    }
+    current[idx] = value;
+  } else if (current is Map<String, Object?>) {
+    current[lastKey] = value;
+  }
 }

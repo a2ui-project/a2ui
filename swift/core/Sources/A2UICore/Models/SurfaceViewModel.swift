@@ -77,44 +77,27 @@ public final class SurfaceViewModel: ObservableObject {
     protocolVersion: A2UIProtocolVersion? = nil
   ) {
     self.surfaceID = surfaceID
-    self.catalogs = catalogs
-    let allCatalogsAtLeastV10 =
-      !catalogs.isEmpty && catalogs.values.allSatisfy(\.isAtLeastV10)
-    let isAtLeastV10 = protocolVersion?.isAtLeastV10 ?? allCatalogsAtLeastV10
-    let resolvedDefaultCatalogID: String?
-    if let defaultCatalogID {
-      resolvedDefaultCatalogID = defaultCatalogID
-    } else if !isAtLeastV10, catalogs.count == 1 {
-      resolvedDefaultCatalogID = catalogs.keys.first
-    } else {
-      resolvedDefaultCatalogID = nil
-    }
+    let compatibleCatalogs = catalogs.filterCompatible(with: protocolVersion)
+    self.catalogs = compatibleCatalogs
+    let resolvedDefaultCatalogID = compatibleCatalogs.resolveDefaultCatalogID(
+      explicitDefaultID: defaultCatalogID,
+      protocolVersion: protocolVersion
+    )
     self.defaultCatalogID = resolvedDefaultCatalogID
     self.theme = theme
     self.metadata = metadata
     self.sendDataModel = sendDataModel
     self.actionHandler = actionHandler
-    let explicitVersion: A2UIProtocolVersion?
-    if let protocolVersion {
-      explicitVersion = protocolVersion
-    } else if let resolvedDefaultCatalogID,
-      let defaultCat = catalogs[resolvedDefaultCatalogID],
-      let catVer = defaultCat.a2uiProtocolVersion
-    {
-      explicitVersion = catVer
-    } else if allCatalogsAtLeastV10 {
-      explicitVersion = .v10
-    } else if catalogs.count == 1, let onlyCatVer = catalogs.values.first?.a2uiProtocolVersion {
-      explicitVersion = onlyCatVer
-    } else {
-      explicitVersion = nil
-    }
+    let explicitVersion = compatibleCatalogs.resolveExplicitProtocolVersion(
+      requestedVersion: protocolVersion,
+      defaultCatalogID: resolvedDefaultCatalogID
+    )
     self.protocolVersion = explicitVersion ?? .v091
     self.dataModel = DataModel()
     self.componentsModel = SurfaceComponentsModel()
     self.nodeResolver = NodeResolver(
       surfaceID: surfaceID,
-      catalogs: catalogs,
+      catalogs: compatibleCatalogs,
       defaultCatalogID: resolvedDefaultCatalogID,
       componentsModel: self.componentsModel,
       dataModel: self.dataModel,
@@ -177,8 +160,14 @@ public final class SurfaceViewModel: ObservableObject {
   }
 
   private func setUpSubscriptions() {
-    Publishers.CombineLatest(componentsModel.componentsPublisher, dataModel.dataPublisher)
-      .sink { [weak self] _, _ in
+    componentsModel.componentsPublisher
+      .sink { [weak self] _ in
+        self?.rebuildTree()
+      }
+      .store(in: &cancellables)
+
+    dataModel.dataPublisher
+      .sink { [weak self] _ in
         self?.rebuildTree()
       }
       .store(in: &cancellables)
@@ -186,10 +175,12 @@ public final class SurfaceViewModel: ObservableObject {
 
   // MARK: - Tree Rebuilding
 
-  /// Rebuilds the node tree and publishes the new root.
+  /// Rebuilds the node tree and publishes the new root only if the root node identity changed.
   private func rebuildTree() {
     let newRoot = nodeResolver.resolveTree()
-    self.rootNode = newRoot
+    if self.rootNode?.box !== newRoot?.box {
+      self.rootNode = newRoot
+    }
   }
 }
 

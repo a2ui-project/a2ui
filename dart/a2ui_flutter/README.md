@@ -16,7 +16,7 @@ same commit, and keep the override:
 
 ```yaml
 dependencies:
-  a2ui_core: ^0.3.0
+  a2ui_core: ^0.4.0
   a2ui_flutter:
     git:
       url: https://github.com/a2ui-project/a2ui.git
@@ -293,10 +293,13 @@ so a v1.0 agent reads it with `version: A2uiProtocolVersion.v1_0`.
 
 ## Example
 
-[example_v0_9](example_v0_9) is a chat app in which a Gemini model, prompted
-through `a2ui_agent`, answers with v0.9 surfaces, and each event action and
-error on them goes back to the model. [e2e_test_v0_9](e2e_test_v0_9) runs it
-against the live model.
+[example](example) is a chat app in which a Gemini model, prompted through
+`a2ui_agent`, answers with v1.0 surfaces, and each event action and error on
+them goes back to the model. [e2e_test](e2e_test) runs it against the live
+model.
+
+[example_v0_9](example_v0_9) is the same app on v0.9, and
+[e2e_test_v0_9](e2e_test_v0_9) runs it against the live model.
 
 ## Tests
 

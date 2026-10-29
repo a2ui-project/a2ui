@@ -48,7 +48,7 @@ class _AgentOnlyFn extends FunctionImplementation {
 
 Map<String, Object?> _document(Map<String, Object?> function) => {
       'catalogId': 'cat',
-      'protocolVersion': 'v1.0',
+      'protocolVersion': '1.0',
       'components': <String, Object?>{},
       'functions': {'fn': function},
     };
@@ -108,7 +108,7 @@ void main() {
     test('parses both fields from the inline list form', () {
       final CatalogApi catalog = Catalog.fromJson({
         'catalogId': 'cat',
-        'protocolVersion': 'v1.0',
+        'protocolVersion': '1.0',
         'components': <String, Object?>{},
         'functions': [
           {

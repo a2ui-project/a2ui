@@ -265,7 +265,7 @@ struct RendererToAgentMessageTests {
     let message = RendererToAgentMessage.action(action)
     let data = try JSONEncoder().encode(message)
     let json = try #require(String(data: data, encoding: .utf8))
-    #expect(json.contains("\"version\":\"v1.0\""))
+    #expect(json.contains("\"version\":\"1.0\""))
   }
 
   @Test func encodeProducesFlatActionPayload() throws {
@@ -340,7 +340,7 @@ struct RendererToAgentMessageTests {
     let json = try #require(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "callAgentFunction": {
           "surfaceId": "main",
           "functionCallId": "call_1",
@@ -363,11 +363,43 @@ struct RendererToAgentMessageTests {
     }
   }
 
+  @Test func encodeCallAgentFunctionUsesAtCallWithoutReturnType() throws {
+    let message = RendererToAgentMessage.callAgentFunction(
+      CallAgentFunctionMessage(
+        surfaceID: "main",
+        functionCallID: "call_1",
+        callFunction: CallFunctionPayload(
+          call: "fetchData",
+          catalogID: "custom",
+          args: ["query": .string("weather")]
+        ),
+        version: .v10
+      )
+    )
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .sortedKeys
+
+    let json = try #require(String(data: try encoder.encode(message), encoding: .utf8))
+
+    #expect(
+      json == """
+        {"callAgentFunction":{"callFunction":{"@call":"fetchData","args":{"query":"weather"},\
+        "catalogId":"custom"},"functionCallId":"call_1","surfaceId":"main"},"version":"1.0"}
+        """
+    )
+    let decoded = try JSONDecoder().decode(RendererToAgentMessage.self, from: Data(json.utf8))
+    guard case .callAgentFunction(let call) = decoded else {
+      Issue.record("Expected .callAgentFunction")
+      return
+    }
+    #expect(call.callFunction.call == "fetchData")
+  }
+
   @Test func decodeRendererFunctionResponse() throws {
     let json = try #require(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "rendererFunctionResponse": {
           "functionCallId": "call_2",
           "value": "ok"

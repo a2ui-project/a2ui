@@ -14,7 +14,7 @@
 
 - name: test_accessibility_attributes_plumbing
   description: Verifies plumbing of AccessibilityAttributes (label, description, live, hidden) to accessibility node trees and axe-core rules.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
   surface:
@@ -47,7 +47,7 @@
 
 - name: test_accessibility_live_region_assertive
   description: Verifies assertive live region announcement for critical alert banner updates.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
   surface:
@@ -71,7 +71,7 @@
 
 - name: test_accessibility_hidden_subtree
   description: Verifies that setting hidden=true hides the component and its children from assistive technologies.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
   surface:
@@ -96,7 +96,7 @@
 
 - name: test_accessibility_implicit_label_inference
   description: Verifies default screen reader semantic inference from visible text properties when explicit accessibility attributes are omitted.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
   surface:
@@ -116,7 +116,7 @@
 
 - name: test_accessibility_interactive_roles_and_states
   description: Verifies accessibility role mapping and ARIA states for Button, TextField, CheckBox, ChoicePicker.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
   surface:
@@ -172,7 +172,7 @@
 
 - name: test_accessibility_dynamic_label_and_hidden_binding
   description: Verifies dynamic data bindings in accessibility attributes (label, hidden) reactively update accessibility trees.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   action: accessibility_check
   surface:
