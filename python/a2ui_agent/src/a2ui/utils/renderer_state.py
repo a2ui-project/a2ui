@@ -329,6 +329,48 @@ class RendererState:
         for surface_id in dict.fromkeys(surface_ids):
             self._forget_changed(surface_id)
 
+    def drop_provisional_component(self, surface_id: str, component_id: str) -> None:
+        """Removes a provisional component whose ID was superseded during streaming.
+
+        When a streamed statement is healed before its `id=` argument arrives,
+        the component is first applied under its variable name and later
+        re-emitted under its explicit ID. Dropping the provisional component
+        keeps the surface model and reachability checks free of the stale ID,
+        and logs an undo record so a failed transaction restores it.
+        """
+        surface = self._processor.model.get_surface(surface_id)
+        if surface is None:
+            return
+        components_model = surface.components_model
+        existing = components_model.get(component_id)
+        if existing is not None:
+            position = next(
+                (
+                    idx
+                    for idx, comp_id in enumerate(components_model.keys)
+                    if comp_id == component_id
+                ),
+                sys.maxsize,
+            )
+            saved = ComponentModel(
+                component_id,
+                existing.type,
+                existing.catalog,
+                copy.deepcopy(existing.properties),
+            )
+            components_model.remove_component(component_id)
+
+            def undo_component() -> None:
+                surf = self._processor.model.get_surface(surface_id)
+                if surf is not None:
+                    surf.components_model.insert_component(position, saved)
+
+            self._record(undo_component)
+        changed = self._changed.get(surface_id)
+        if changed is not None and component_id in changed:
+            changed.discard(component_id)
+            self._record(lambda: changed.add(component_id))
+
     @contextlib.contextmanager
     def transaction(self) -> Iterator[RendererState]:
         """Applies everything inside the block atomically.

@@ -389,31 +389,168 @@ function resolvePropertyType(
   return undefined;
 }
 
-function stripSentinelTags(dslText: string): string {
-  const hasSentinels = dslText.includes('<a2ui>');
-  const lines: string[] = [];
-  let insideA2ui = !hasSentinels;
-  for (const line of dslText.split(/\r?\n/)) {
-    let curLine = line;
-    let trimmed = curLine.trim();
-    if (trimmed.includes('<a2ui>')) {
-      insideA2ui = true;
-      curLine = curLine.replace('<a2ui>', '');
-      trimmed = curLine.trim();
-    }
-    if (trimmed.includes('</a2ui>')) {
-      insideA2ui = false;
-      curLine = curLine.split('</a2ui>')[0];
-      if (curLine.trim()) {
-        lines.push(curLine);
-      }
+const OPEN_SENTINEL_RE = /<a2ui(?:\s[^>]*)?>/iy;
+const CLOSE_SENTINEL_RE = /<\/a2ui\s*>/iy;
+
+function matchSentinelAt(
+  dslText: string,
+  pos: number,
+): {kind: 'open' | 'close'; end: number} | undefined {
+  if (dslText[pos] !== '<') {
+    return undefined;
+  }
+  OPEN_SENTINEL_RE.lastIndex = pos;
+  const openMatch = OPEN_SENTINEL_RE.exec(dslText);
+  if (openMatch) {
+    return {kind: 'open', end: OPEN_SENTINEL_RE.lastIndex};
+  }
+  CLOSE_SENTINEL_RE.lastIndex = pos;
+  const closeMatch = CLOSE_SENTINEL_RE.exec(dslText);
+  if (closeMatch) {
+    return {kind: 'close', end: CLOSE_SENTINEL_RE.lastIndex};
+  }
+  return undefined;
+}
+
+function advanceCommentInSentinelScan(dslText: string, pos: number): number | undefined {
+  const n = dslText.length;
+  if (dslText.startsWith('//', pos) || dslText[pos] === '#' || dslText.startsWith('--', pos)) {
+    const nl = dslText.indexOf('\n', pos);
+    return nl < 0 ? n : nl;
+  }
+  if (dslText.startsWith('/*', pos)) {
+    const end = dslText.indexOf('*/', pos + 2);
+    return end < 0 ? n : end + 2;
+  }
+  return undefined;
+}
+
+function advanceStringInSentinelScan(dslText: string, pos: number): number | undefined {
+  const n = dslText.length;
+  let isRaw = false;
+  let qPos = pos;
+  if (
+    (dslText[pos] === 'r' || dslText[pos] === 'R') &&
+    pos + 1 < n &&
+    dslText[pos + 1] === '"' &&
+    (pos === 0 || !/[a-zA-Z0-9_]/.test(dslText[pos - 1]))
+  ) {
+    isRaw = true;
+    qPos = pos + 1;
+  } else if (dslText[pos] !== '"') {
+    return undefined;
+  }
+  const triple = dslText.startsWith('"""', qPos);
+  let i = qPos + (triple ? 3 : 1);
+  while (i < n) {
+    if (!isRaw && dslText[i] === '\\') {
+      i += 2;
       continue;
     }
-    if (insideA2ui) {
-      lines.push(curLine);
+    if (triple && dslText.startsWith('"""', i)) {
+      return i + 3;
     }
+    if (!triple && dslText[i] === '"') {
+      return i + 1;
+    }
+    i += 1;
   }
-  return lines.join('\n');
+  return n;
+}
+
+function stripSentinelTags(dslText: string): string {
+  let hasOpenSentinel = false;
+  let scanPos = 0;
+  const n = dslText.length;
+  while (scanPos < n) {
+    const strEnd = advanceStringInSentinelScan(dslText, scanPos);
+    if (strEnd !== undefined) {
+      scanPos = strEnd;
+      continue;
+    }
+    const cmtEnd = advanceCommentInSentinelScan(dslText, scanPos);
+    if (cmtEnd !== undefined) {
+      scanPos = cmtEnd;
+      continue;
+    }
+    const m = matchSentinelAt(dslText, scanPos);
+    if (m?.kind === 'open') {
+      hasOpenSentinel = true;
+      break;
+    }
+    scanPos += 1;
+  }
+
+  const out: string[] = [];
+  let insideA2ui = !hasOpenSentinel;
+  let i = 0;
+  let segStart = insideA2ui ? 0 : -1;
+  while (i < n) {
+    const strEnd = advanceStringInSentinelScan(dslText, i);
+    if (strEnd !== undefined) {
+      i = strEnd;
+      continue;
+    }
+    const cmtEnd = advanceCommentInSentinelScan(dslText, i);
+    if (cmtEnd !== undefined) {
+      i = cmtEnd;
+      continue;
+    }
+    const m = matchSentinelAt(dslText, i);
+    if (m) {
+      if (m.kind === 'open') {
+        if (insideA2ui && segStart >= 0) {
+          out.push(dslText.slice(segStart, i));
+        }
+        insideA2ui = true;
+        segStart = m.end;
+      } else {
+        if (insideA2ui && segStart >= 0) {
+          out.push(dslText.slice(segStart, i));
+        }
+        insideA2ui = false;
+        segStart = -1;
+      }
+      i = m.end;
+      continue;
+    }
+    i += 1;
+  }
+  if (insideA2ui && segStart >= 0 && segStart < n) {
+    out.push(dslText.slice(segStart));
+  }
+  return out.join('');
+}
+
+const CONTINUATION_OPERATORS = new Set([
+  '+',
+  '-',
+  '*',
+  '/',
+  '%',
+  '=',
+  '<',
+  '>',
+  '!',
+  '&',
+  '|',
+  '.',
+  ',',
+  ':',
+]);
+
+function isValidPrefixBoundary(dslText: string, prefixLen: number): boolean {
+  if (prefixLen <= 0 || prefixLen >= dslText.length) {
+    return true;
+  }
+  const rest = dslText.slice(prefixLen).trimStart();
+  if (!rest) {
+    return true;
+  }
+  if (rest.startsWith('//') || rest.startsWith('/*') || rest.startsWith('--')) {
+    return true;
+  }
+  return !CONTINUATION_OPERATORS.has(rest[0]);
 }
 
 /**
@@ -438,6 +575,8 @@ class CompileContext {
   activeBoundPaths: Map<string, Record<string, unknown>> = new Map();
   /** The variables whose values are being compiled, to catch a variable whose value refers back to it. */
   readonly resolving: Set<string> = new Set();
+  /** Variable names referenced while compiling a single node or data path. */
+  readonly referencedVars: Set<string> = new Set();
   readonly keys: ReservedKeys;
   readonly allowPending: boolean;
 
@@ -476,10 +615,27 @@ type CompilationUnit =
   | {kind: 'delete'; surfaceId: string}
   | {kind: 'call'; stmt: ExpressCallNode; scope: SurfaceScope | null};
 
+interface CachedComponentEntry {
+  ast: unknown;
+  comps: Record<string, unknown>[];
+  deps: Map<string, [unknown, string | undefined]>;
+  inlineDelta: number;
+  generatedIds: string[];
+}
+
+interface CachedDataEntry {
+  ast: unknown;
+  val: unknown;
+  deps: Map<string, [unknown, string | undefined]>;
+}
+
 interface ScopeStreamState {
   surfaceCreated: boolean;
   emittedComponents: Map<string, string>;
   emittedDataPaths: Map<string, string>;
+  varIds: Map<string, string>;
+  compiledCache: Map<string, CachedComponentEntry>;
+  dataCache: Map<string, CachedDataEntry>;
 }
 
 /**
@@ -498,6 +654,7 @@ export class ExpressScopeSession {
   readonly surfaceId: string;
   readonly version: string;
   hasEmitted = false;
+  supersededComponents: Array<[string, string]> = [];
   private scopeStates = new Map<number, ScopeStreamState>();
   private emittedUnits = new Set<number>();
   private cachedPrefix = '';
@@ -516,6 +673,7 @@ export class ExpressScopeSession {
    */
   snapshot(): {
     hasEmitted: boolean;
+    supersededComponents: Array<[string, string]>;
     scopeStates: Map<number, ScopeStreamState>;
     emittedUnits: Set<number>;
     cachedPrefix: string;
@@ -527,10 +685,14 @@ export class ExpressScopeSession {
         surfaceCreated: st.surfaceCreated,
         emittedComponents: new Map(st.emittedComponents),
         emittedDataPaths: new Map(st.emittedDataPaths),
+        varIds: new Map(st.varIds),
+        compiledCache: new Map(st.compiledCache),
+        dataCache: new Map(st.dataCache),
       });
     }
     return {
       hasEmitted: this.hasEmitted,
+      supersededComponents: [...this.supersededComponents],
       scopeStates,
       emittedUnits: new Set(this.emittedUnits),
       cachedPrefix: this.cachedPrefix,
@@ -543,6 +705,7 @@ export class ExpressScopeSession {
    */
   restore(saved: ReturnType<ExpressScopeSession['snapshot']>): void {
     this.hasEmitted = saved.hasEmitted;
+    this.supersededComponents = saved.supersededComponents;
     this.scopeStates = saved.scopeStates;
     this.emittedUnits = saved.emittedUnits;
     this.cachedPrefix = saved.cachedPrefix;
@@ -556,6 +719,7 @@ export class ExpressScopeSession {
     dslText: string,
     options: {isFinal: boolean; existingSurfaces: ReadonlySet<string>; cachePrefix?: boolean},
   ): AgentToRendererMessage[] {
+    this.supersededComponents = [];
     const vNums = parseVersionNumbers(this.version);
     const targetMajorMinor: [number, number] = [vNums[0] ?? 0, vNums[1] ?? 0];
     if (this.compiler.catalogs.length > 1 && targetMajorMinor[0] < 1) {
@@ -598,12 +762,16 @@ export class ExpressScopeSession {
 
   private parseIncrementalStatements(
     dslText: string,
-    isFinal: boolean,
+    _isFinal: boolean,
     cachePrefix: boolean,
   ): ExpressStatement[] {
-    if (this.cachedPrefix && dslText.startsWith(this.cachedPrefix)) {
+    if (
+      this.cachedPrefix &&
+      dslText.startsWith(this.cachedPrefix) &&
+      isValidPrefixBoundary(dslText, this.cachedPrefix.length)
+    ) {
       const tail = dslText.slice(this.cachedPrefix.length);
-      const tailStatements = tail.trim() ? this.compiler.parseStatements(tail, isFinal) : [];
+      const tailStatements = tail.trim() ? this.compiler.parseStatements(tail, true, false) : [];
       const statements = [...this.cachedStatements, ...tailStatements];
       if (cachePrefix) {
         this.cachedPrefix = dslText;
@@ -611,7 +779,7 @@ export class ExpressScopeSession {
       }
       return statements;
     }
-    const statements = this.compiler.parseStatements(dslText, isFinal);
+    const statements = this.compiler.parseStatements(dslText, true, false);
     if (cachePrefix) {
       this.cachedPrefix = dslText;
       this.cachedStatements = statements;
@@ -650,6 +818,9 @@ export class ExpressScopeSession {
         surfaceCreated: false,
         emittedComponents: new Map(),
         emittedDataPaths: new Map(),
+        varIds: new Map(),
+        compiledCache: new Map(),
+        dataCache: new Map(),
       };
       this.scopeStates.set(idx, state);
     }
@@ -708,12 +879,14 @@ export class ExpressScopeSession {
     const compIds = this.compiler.collectComponentIds(scope, targetMajorMinor);
     const {compiled: compiledComponents, hasPending} = this.collectReadyComponents(
       scope,
+      state,
       compIds,
       ctx,
       targetMajorMinor,
     );
-    const compiledData = this.collectReadyData(scope, compIds, ctx, targetMajorMinor);
-    const needsCreate = !scope.update && !state.surfaceCreated && !surfaceExists;
+    const compiledData = this.collectReadyData(scope, state, compIds, ctx, targetMajorMinor);
+    const hasRoot = compiledComponents.some(c => c.id === 'root');
+    const needsCreate = !scope.update && !state.surfaceCreated && (!surfaceExists || hasRoot);
     if (needsCreate) {
       return this.compileInitialCreate(scope, state, compiledComponents, compiledData, isFinal);
     }
@@ -724,6 +897,7 @@ export class ExpressScopeSession {
       compiledData,
       isFinal,
       hasPending,
+      surfaceExists,
     );
   }
 
@@ -746,6 +920,7 @@ export class ExpressScopeSession {
           compiledComponents,
           compiledData,
           true,
+          false,
           false,
         );
       }
@@ -771,6 +946,7 @@ export class ExpressScopeSession {
     compiledData: Map<string, unknown>,
     isFinal: boolean,
     hasPending: boolean,
+    surfaceExists = false,
   ): AgentToRendererMessage[] {
     const deltaComponents = compiledComponents.filter(
       c => state.emittedComponents.get(String(c.id)) !== JSON.stringify(c),
@@ -790,7 +966,7 @@ export class ExpressScopeSession {
 
     const messages: AgentToRendererMessage[] = [];
     if (deltaComponents.length > 0) {
-      if (!scope.hasSurfaceDirective && !state.surfaceCreated) {
+      if (!scope.hasSurfaceDirective && !state.surfaceCreated && !surfaceExists) {
         throw new ExpressUndefinedRootError('root');
       }
       messages.push(
@@ -812,6 +988,7 @@ export class ExpressScopeSession {
 
   private collectReadyComponents(
     scope: SurfaceScope,
+    state: ScopeStreamState,
     compIds: Map<string, string>,
     ctx: CompileContext,
     targetMajorMinor: [number, number],
@@ -820,8 +997,38 @@ export class ExpressScopeSession {
     const extras: Record<string, unknown>[] = [];
     let hasPending = false;
     for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
+      const cached = state.compiledCache.get(varName);
+      if (cached && cached.ast === ast) {
+        let depsUnchanged = true;
+        for (const [dep, [depAst, depId]] of cached.deps.entries()) {
+          if (scope.rawSymbols[dep] !== depAst || compIds.get(dep) !== depId) {
+            depsUnchanged = false;
+            break;
+          }
+        }
+        if (depsUnchanged && cached.generatedIds.every(gid => !ctx.generatedIds.has(gid))) {
+          ctx.inlineCounter += cached.inlineDelta;
+          for (const gid of cached.generatedIds) {
+            ctx.generatedIds.add(gid);
+          }
+          if (cached.comps.length > 0) {
+            const compDict = cached.comps[0];
+            const compId = String(compDict.id);
+            const prevId = state.varIds.get(varName);
+            if (prevId !== undefined && prevId !== compId) {
+              state.emittedComponents.delete(prevId);
+              this.supersededComponents.push([scope.surfaceId, prevId]);
+            }
+            state.varIds.set(varName, compId);
+            compiled.push(compDict);
+            extras.push(...cached.comps.slice(1));
+          }
+          continue;
+        }
+      }
       const prevInlineCounter = ctx.inlineCounter;
       const prevGeneratedIds = new Set(ctx.generatedIds);
+      ctx.referencedVars.clear();
       try {
         const compDict = this.compiler.compileAstNodeForSession(
           varName,
@@ -831,10 +1038,39 @@ export class ExpressScopeSession {
           ctx,
           targetMajorMinor,
         );
+        const deps = new Map<string, [unknown, string | undefined]>();
+        for (const dep of ctx.referencedVars) {
+          deps.set(dep, [scope.rawSymbols[dep], compIds.get(dep)]);
+        }
+        const newGeneratedIds = [...ctx.generatedIds].filter(gid => !prevGeneratedIds.has(gid));
+        const inlineDelta = ctx.inlineCounter - prevInlineCounter;
         if (compDict) {
-          compiled.push(compDict);
-          extras.push(...ctx.extraComponents);
+          const compId = String(compDict.id);
+          const prevId = state.varIds.get(varName);
+          if (prevId !== undefined && prevId !== compId) {
+            state.emittedComponents.delete(prevId);
+            this.supersededComponents.push([scope.surfaceId, prevId]);
+          }
+          state.varIds.set(varName, compId);
+          const nodeExtras = [...ctx.extraComponents];
           ctx.extraComponents = [];
+          state.compiledCache.set(varName, {
+            ast,
+            comps: [compDict, ...nodeExtras],
+            deps,
+            inlineDelta,
+            generatedIds: newGeneratedIds,
+          });
+          compiled.push(compDict);
+          extras.push(...nodeExtras);
+        } else {
+          state.compiledCache.set(varName, {
+            ast,
+            comps: [],
+            deps,
+            inlineDelta,
+            generatedIds: newGeneratedIds,
+          });
         }
       } catch (e) {
         if (e instanceof PendingVariableError) {
@@ -853,14 +1089,35 @@ export class ExpressScopeSession {
 
   private collectReadyData(
     scope: SurfaceScope,
+    state: ScopeStreamState,
     compIds: Map<string, string>,
     ctx: CompileContext,
     targetMajorMinor: [number, number],
   ): Map<string, unknown> {
     const compiled = new Map<string, unknown>();
     for (const [pathName, astVal] of Object.entries(scope.dataPathAssignments)) {
+      const cached = state.dataCache.get(pathName);
+      if (cached && cached.ast === astVal) {
+        let depsUnchanged = true;
+        for (const [dep, [depAst, depId]] of cached.deps.entries()) {
+          if (scope.rawSymbols[dep] !== depAst || compIds.get(dep) !== depId) {
+            depsUnchanged = false;
+            break;
+          }
+        }
+        if (depsUnchanged) {
+          compiled.set(pathName, cached.val);
+          continue;
+        }
+      }
+      ctx.referencedVars.clear();
       try {
         const val = this.compiler.compileDataValue(scope, astVal, compIds, ctx, targetMajorMinor);
+        const deps = new Map<string, [unknown, string | undefined]>();
+        for (const dep of ctx.referencedVars) {
+          deps.set(dep, [scope.rawSymbols[dep], compIds.get(dep)]);
+        }
+        state.dataCache.set(pathName, {ast: astVal, val, deps});
         compiled.set(pathName, val);
       } catch (e) {
         if (e instanceof PendingVariableError) {
@@ -1083,8 +1340,8 @@ export class ExpressCompiler {
   /**
    * Strips sentinel tags and parses the DSL body into statements.
    */
-  parseStatements(dslText: string, isFinal: boolean): ExpressStatement[] {
-    const dslBody = stripSentinelTags(dslText);
+  parseStatements(dslText: string, isFinal: boolean, stripSentinels = true): ExpressStatement[] {
+    const dslBody = stripSentinels ? stripSentinelTags(dslText) : dslText;
     try {
       const parsed = parseExpress(dslBody);
       if (isFinal && parsed.errors.length > 0) {
@@ -2133,6 +2390,13 @@ export class ExpressCompiler {
       // Resolved once for the array, since every item shares the schema.
       const itemsSlot = itemSlot(slot);
       const itemIsAction = isAction || isActionSlot(itemsSlot?.schema);
+      const itemPropType = itemsSlot
+        ? resolvePropertyType(
+            itemsSlot.helper,
+            '',
+            itemsSlot.schema as Record<string, unknown> | undefined,
+          )
+        : undefined;
       return val.map((item, index) =>
         this._compileValue(
           item,
@@ -2142,8 +2406,8 @@ export class ExpressCompiler {
           targetMajorMinor,
           itemIsAction,
           inlineCtx ? {...inlineCtx, index} : undefined,
-          allowListComponentRefs,
-          false,
+          allowListComponentRefs || itemPropType === 'Child',
+          itemPropType === 'ChildList' && Array.isArray(item),
           itemsSlot,
         ),
       );
@@ -2224,6 +2488,13 @@ export class ExpressCompiler {
     for (const [k, v] of Object.entries(entries)) {
       const entrySlot = propertySlot(slot, k);
       const entryIsAction = isAction || isActionSlot(entrySlot?.schema);
+      const entryPropType = entrySlot
+        ? resolvePropertyType(
+            entrySlot.helper,
+            k,
+            entrySlot.schema as Record<string, unknown> | undefined,
+          )
+        : undefined;
       setOwnEntry(
         dictRes,
         k,
@@ -2235,8 +2506,8 @@ export class ExpressCompiler {
           targetMajorMinor,
           entryIsAction,
           undefined,
-          false,
-          false,
+          entryPropType === 'Child',
+          entryPropType === 'ChildList' && Array.isArray(v),
           entrySlot,
         ),
       );
@@ -2255,6 +2526,7 @@ export class ExpressCompiler {
     allowListComponentRefs: boolean,
     slot?: ValueSlot,
   ): unknown {
+    ctx.referencedVars.add(refName);
     if (compIds.has(refName)) {
       return compIds.get(refName)!;
     }

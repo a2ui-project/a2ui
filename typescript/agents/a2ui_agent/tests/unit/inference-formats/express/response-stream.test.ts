@@ -61,6 +61,16 @@ function coalesceText(parts: ResponsePart[]): ResponsePart[] {
 }
 
 describe('ExpressResponseStream unit tests', () => {
+  it('DEFAULT_EXPRESS_PROGRESSIVE_KEYS is frozen at runtime', () => {
+    expect(Object.isFrozen(DEFAULT_EXPRESS_PROGRESSIVE_KEYS)).toBe(true);
+    expect(() => (DEFAULT_EXPRESS_PROGRESSIVE_KEYS as Set<string>).add('title')).toThrow(TypeError);
+    expect(() => (DEFAULT_EXPRESS_PROGRESSIVE_KEYS as Set<string>).delete('text')).toThrow(
+      TypeError,
+    );
+    expect(() => (DEFAULT_EXPRESS_PROGRESSIVE_KEYS as Set<string>).clear()).toThrow(TypeError);
+    expect(DEFAULT_EXPRESS_PROGRESSIVE_KEYS.has('text')).toBe(true);
+  });
+
   it('splitCompleteStatements handles multiline and semicolons', () => {
     const src = 'surface("main")\nroot = Column(\n  [a, b]\n)\na = Text("Hi';
     const [prefix, tail] = splitCompleteStatements(src, false);

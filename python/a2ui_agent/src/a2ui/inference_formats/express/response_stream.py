@@ -58,8 +58,15 @@ _OUTER_TRAILING_FENCE_RE = re.compile(
 _OUTER_TRAILING_FENCE_PREFIX_RE = re.compile(
     r"(?:```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)\Z"
 )
-_OUTER_LEADING_FENCE_RE = re.compile(r"^(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|\Z)|`+)")
+_OUTER_INLINE_OPEN_BACKTICK_RE = re.compile(r"(?<!`)`{1,2}\Z")
+_OUTER_LEADING_FENCE_RE = re.compile(r"^\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|\Z)")
 _OUTER_LEADING_FENCE_PREFIX_RE = re.compile(
+    r"^\s*(?:`{0,2}|```[a-zA-Z0-9_-]*[ \t]*\r?)\Z"
+)
+_OUTER_LEADING_FENCE_INLINE_RE = re.compile(
+    r"^(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|\Z)|`+)"
+)
+_OUTER_LEADING_FENCE_INLINE_PREFIX_RE = re.compile(
     r"^(?:`+|\s*`{0,2}|\s*```[a-zA-Z0-9_-]*[ \t]*\r?)\Z"
 )
 _TRAILING_FENCE_CLOSE_RE = re.compile(r"\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n?\Z")
@@ -86,35 +93,52 @@ def _is_tag_prefix(text: str, idx: int, tag: str) -> bool:
     return len(text) - idx < len(tag) and tag.startswith(text[idx:].lower())
 
 
-def scan_express_block(content: str) -> tuple[int | None, int]:
+def scan_express_block(content: str, start: int = 0) -> tuple[int | None, int]:
     """Finds `</a2ui>` outside string literals, or holds a partial close-tag tail."""
-    i = 0
+    close_start, readable_end, _ = _scan_express_block_from(content, start)
+    return close_start, readable_end
+
+
+def _scan_express_block_from(
+    content: str, start: int = 0
+) -> tuple[int | None, int, int]:
+    """Scans `content` from `start`, returning `(close_start, readable_end, resume_pos)`."""
+    i = start
     n = len(content)
     while i < n:
-        next_i = _skip_block_literal_or_comment(content, i, n)
+        next_i, completed = _skip_block_literal_or_comment(content, i, n)
         if next_i > i:
+            if not completed:
+                return None, n, i
             i = next_i
             continue
         if content[i] == "<":
             hit = _check_close_tag_at(content, i)
             if hit is not None:
-                return hit
+                return hit[0], hit[1], i
         i += 1
-    return None, n
+    resume_pos = n - 1 if n > 0 and content[n - 1] in ("r", "R", "/") else n
+    return None, n, resume_pos
 
 
-def _skip_block_literal_or_comment(content: str, i: int, n: int) -> int:
+def _skip_block_literal_or_comment(content: str, i: int, n: int) -> tuple[int, bool]:
+    if content[i] in ("r", "R") and i + 1 < n and content[i + 1] == '"':
+        end = _skip_string_literal(content, i + 1, n, raw=True)
+        return (end, True) if end is not None else (n, False)
     if content[i] == '"':
-        return _skip_string_literal(content, i, n)
+        end = _skip_string_literal(content, i, n, raw=False)
+        return (end, True) if end is not None else (n, False)
     if content.startswith("/*", i):
         end_comment = content.find("*/", i + 2)
-        return n if end_comment < 0 else end_comment + 2
-    if content.startswith(("#", "//", "--"), i):
+        return (end_comment + 2, True) if end_comment >= 0 else (n, False)
+    if content.startswith(("#", "//"), i):
         newline = content.find("\n", i)
         end = n if newline < 0 else newline
         close = CLOSE_TAG_RE.search(content, i, end)
-        return close.start() if close else end
-    return i
+        if close:
+            return close.start(), True
+        return (newline + 1, True) if newline >= 0 else (n, False)
+    return i, True
 
 
 def _check_close_tag_at(content: str, i: int) -> tuple[int | None, int] | None:
@@ -125,19 +149,26 @@ def _check_close_tag_at(content: str, i: int) -> tuple[int | None, int] | None:
     return None
 
 
-def _skip_string_literal(content: str, start: int, n: int) -> int:
+def _skip_string_literal(
+    content: str, start: int, n: int, *, raw: bool = False
+) -> int | None:
     quote = content[start]
     triple = content.startswith(quote * 3, start)
     delim = quote * 3 if triple else quote
     i = start + len(delim)
     while i < n:
-        if content[i] == "\\":
+        if not raw and content[i] == "\\":
+            if i + 1 >= n:
+                return None
             i += 2
             continue
         if content.startswith(delim, i):
-            return i + len(delim)
+            end = i + len(delim)
+            if not triple and end == n and end - start == 2:
+                return None
+            return end
         i += 1
-    return n
+    return None
 
 
 def clean_express_payload(block: str, end: int) -> str | None:
@@ -198,14 +229,18 @@ def _step_string_or_comment(source: str, i: int, n: int) -> tuple[int, bool]:
     """Advances past a string literal or comment starting at `i`, if any."""
     if source[i] in ("r", "R") and i + 1 < n and source[i + 1] == '"':
         end = _scan_double_quoted(source, i + 1, n, raw=True)
-        return (end, True) if end is not None else (n, False)
+        if end is None or (end == n and end - (i + 1) == 2):
+            return n, False
+        return end, True
     if source[i] == '"':
         end = _scan_double_quoted(source, i, n, raw=False)
-        return (end, True) if end is not None else (n, False)
+        if end is None or (end == n and end - i == 2):
+            return n, False
+        return end, True
     if source.startswith("/*", i):
         close = source.find("*/", i + 2)
         return (close + 2, False) if close >= 0 else (n, False)
-    if source[i] == "#" or source.startswith("//", i) or source.startswith("--", i):
+    if source[i] == "#" or source.startswith("//", i):
         nl = source.find("\n", i)
         return (nl, False) if nl >= 0 else (n, False)
     return i, False
@@ -364,11 +399,7 @@ def _try_skip_fragment_comment(fragment: str, i: int, n: int) -> int | None:
     if fragment.startswith("/*", i):
         close = fragment.find("*/", i + 2)
         return -1 if close < 0 else close + 2
-    if (
-        fragment[i] == "#"
-        or fragment.startswith("//", i)
-        or fragment.startswith("--", i)
-    ):
+    if fragment[i] == "#" or fragment.startswith("//", i):
         nl = fragment.find("\n", i)
         return -1 if nl < 0 else nl + 1
     return None
@@ -555,8 +586,10 @@ class ExpressResponseStream(ResponseStream):
         self._held = ""
         self._text = TextRun()
         self._after_block = False
+        self._wrapped_in_inline_backticks = False
         self._in_block = not wrapped
         self._block = ""
+        self._scan_pos = 0
         self._last_compiled_prefix = ""
         self._touched: dict[str, None] = {}
         self._initial_surfaces: frozenset[str] = frozenset(self._state.surface_ids)
@@ -571,6 +604,7 @@ class ExpressResponseStream(ResponseStream):
 
     def _reset_block(self) -> None:
         self._block = ""
+        self._scan_pos = 0
         self._last_compiled_prefix = ""
         self._touched = {}
         self._initial_surfaces = frozenset(self._state.surface_ids)
@@ -612,7 +646,12 @@ class ExpressResponseStream(ResponseStream):
             rest = self._held
             self._held = ""
             if self._after_block:
-                rest = _OUTER_LEADING_FENCE_RE.sub("", rest, count=1)
+                leading_re = (
+                    _OUTER_LEADING_FENCE_INLINE_RE
+                    if self._wrapped_in_inline_backticks
+                    else _OUTER_LEADING_FENCE_RE
+                )
+                rest = leading_re.sub("", rest, count=1)
             self._text.emit(parts, _TRAILING_FENCE_CLOSE_RE.sub("", rest, count=1))
         return parts
 
@@ -634,18 +673,31 @@ class ExpressResponseStream(ResponseStream):
                 input_str = self._consume_block_text(parts, input_str)
                 continue
             if self._after_block:
-                if _OUTER_LEADING_FENCE_PREFIX_RE.match(input_str):
+                prefix_re = (
+                    _OUTER_LEADING_FENCE_INLINE_PREFIX_RE
+                    if self._wrapped_in_inline_backticks
+                    else _OUTER_LEADING_FENCE_PREFIX_RE
+                )
+                if prefix_re.match(input_str):
                     self._held = input_str
                     return parts
                 self._after_block = False
-                input_str = _OUTER_LEADING_FENCE_RE.sub("", input_str, count=1)
+                leading_re = (
+                    _OUTER_LEADING_FENCE_INLINE_RE
+                    if self._wrapped_in_inline_backticks
+                    else _OUTER_LEADING_FENCE_RE
+                )
+                self._wrapped_in_inline_backticks = False
+                input_str = leading_re.sub("", input_str, count=1)
                 continue
             input_str = self._consume_outside_text(parts, input_str)
         return parts
 
     def _consume_block_text(self, parts: list[ResponsePart], input_str: str) -> str:
         self._block += input_str
-        close_start, readable_end = scan_express_block(self._block)
+        close_start, readable_end, self._scan_pos = _scan_express_block_from(
+            self._block, self._scan_pos
+        )
         if close_start is None:
             self._emit_ready(parts, readable_end)
             return ""
@@ -661,9 +713,11 @@ class ExpressResponseStream(ResponseStream):
     def _consume_outside_text(self, parts: list[ResponsePart], input_str: str) -> str:
         open_match = OPEN_TAG_RE.search(input_str)
         if open_match:
-            text_before = _OUTER_TRAILING_FENCE_RE.sub(
-                "", input_str[: open_match.start()], count=1
+            before_open = input_str[: open_match.start()]
+            self._wrapped_in_inline_backticks = bool(
+                _OUTER_INLINE_OPEN_BACKTICK_RE.search(before_open)
             )
+            text_before = _OUTER_TRAILING_FENCE_RE.sub("", before_open, count=1)
             self._text.emit(parts, text_before)
             self._text.reset()
             self._in_block = True
@@ -680,9 +734,17 @@ class ExpressResponseStream(ResponseStream):
         payload = clean_express_payload(self._block, end)
         if not payload or not payload.strip():
             return
-        complete_prefix, trailing_fragment = split_complete_statements(
-            payload, is_final=False
-        )
+        if self._last_compiled_prefix.endswith(("\n", ";")) and payload.startswith(
+            self._last_compiled_prefix
+        ):
+            tail_complete, trailing_fragment = split_complete_statements(
+                payload[len(self._last_compiled_prefix) :], is_final=False
+            )
+            complete_prefix = self._last_compiled_prefix + tail_complete
+        else:
+            complete_prefix, trailing_fragment = split_complete_statements(
+                payload, is_final=False
+            )
         prefix_messages: list[dict[str, Any]] = []
         if complete_prefix.strip() and complete_prefix != self._last_compiled_prefix:
             prefix_messages = self._compile_step(
@@ -728,7 +790,7 @@ class ExpressResponseStream(ResponseStream):
     def _finish_block(self, parts: list[ResponsePart], end: int) -> None:
         payload = clean_express_payload(self._block, end) or ""
         with self._state.transaction():
-            if not self._session.has_emitted:
+            if not self._session.has_emitted and not self._initial_surfaces:
                 try:
                     raw_models = self._parser.compile(payload, is_final=True)
                 except A2uiError:
@@ -762,5 +824,8 @@ class ExpressResponseStream(ResponseStream):
     def _apply(
         self, messages: Iterable[AgentToRendererMessage | Mapping[str, Any]]
     ) -> None:
+        for surface_id, comp_id in self._session.superseded_components:
+            self._state.drop_provisional_component(surface_id, comp_id)
+        self._session.superseded_components = []
         touched = self._state.apply(messages)
         self._touched.update(dict.fromkeys(touched))

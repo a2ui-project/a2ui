@@ -73,7 +73,7 @@ function makeParser(args: StreamingArgs): ExpressParser {
   );
   return new ExpressParser(
     catalogs,
-    'main',
+    'default_surface',
     undefined,
     args.progressive_keys !== undefined ? {progressiveKeys: args.progressive_keys} : {},
   );

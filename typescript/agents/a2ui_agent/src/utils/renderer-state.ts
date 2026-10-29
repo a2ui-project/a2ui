@@ -198,6 +198,33 @@ export class RendererState {
   }
 
   /**
+   * Removes a provisional component from `surfaceId` when a later statement in the same
+   * scope supersedes its wire ID.
+   */
+  dropProvisionalComponent(surfaceId: string, componentId: string): void {
+    const surface = this.processor.model.getSurface(surfaceId);
+    if (!surface) {
+      return;
+    }
+    const existing = surface.componentsModel.get(componentId);
+    if (!existing) {
+      return;
+    }
+    const changedSet = this.changed.get(surfaceId);
+    const wasChanged = changedSet?.has(componentId) ?? false;
+    if (this.open > 0) {
+      this.log.push(() => {
+        surface.componentsModel.addComponent(existing);
+        if (wasChanged) {
+          this.changed.get(surfaceId)?.add(componentId);
+        }
+      });
+    }
+    surface.componentsModel.removeComponent(componentId);
+    changedSet?.delete(componentId);
+  }
+
+  /**
    * Whether an update to a surface the state never saw created makes an empty placeholder
    * for it instead of being rejected. Only a state that checks one payload on its own, with
    * no record of earlier ones, says yes.

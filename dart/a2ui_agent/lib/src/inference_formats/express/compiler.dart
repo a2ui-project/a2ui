@@ -34,6 +34,40 @@ const Set<String> _reservedHelpers = {'Event', '_template'};
 /// The keyword arguments the reserved `Event(...)` signature accepts.
 const List<String> _eventKeywords = ['userMessage', 'context'];
 
+final RegExp _sentinelTag = RegExp(
+  r'</?a2ui(?:\s[^>]*)?>',
+  caseSensitive: false,
+);
+final RegExp _literalOrComment = RegExp(
+  r'[rR]"""[\s\S]*?"""'
+  r'|[rR](?!""")"[^\r\n"]*"'
+  r'|"""(?:\\[\s\S]|[^\\])*?"""'
+  r'|(?!""")"(?:\\[\s\S]|[^\\"\r\n])*?"'
+  r'|(?:#|//|--)[^\r\n]*'
+  r'|/\*[\s\S]*?\*/',
+);
+
+String _stripSentinelTags(String text) {
+  if (!text.contains('<')) return text;
+  final out = StringBuffer();
+  var i = 0;
+  final int n = text.length;
+  while (i < n) {
+    if (_literalOrComment.matchAsPrefix(text, i) case final Match m) {
+      out.write(text.substring(i, m.end));
+      i = m.end;
+      continue;
+    }
+    if (_sentinelTag.matchAsPrefix(text, i) case final Match tag) {
+      i = tag.end;
+      continue;
+    }
+    out.write(text[i]);
+    i++;
+  }
+  return out.toString();
+}
+
 /// Compiles Express blocks into A2UI messages of the protocol version the
 /// catalogs target.
 ///
@@ -93,7 +127,9 @@ class ExpressCompiler {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('Compiling Express needs at least one catalog.');
     }
-    final List<ExpressStatement> statements = parseExpress(source);
+    final List<ExpressStatement> statements = parseExpress(
+      _stripSentinelTags(source),
+    );
     if (statements.isEmpty) {
       throw A2uiParseError(
         'The Express block has no statements.',
@@ -443,7 +479,9 @@ class _Context {
         hoisted: hoisted,
         valueBinding: valueBinding,
         allowPending: allowPending,
-        allowComponentRef: allowComponentRef,
+        allowComponentRef:
+            allowComponentRef || (slot != null && isComponentId(slot.schema)),
+        allowListComponentRefs: slot != null && isChildList(slot.schema),
         slot: slot,
       );
 }
@@ -470,6 +508,9 @@ class _SurfaceCompiler {
 
   /// Variables being substituted, to catch one that refers to itself.
   final Set<String> _resolving = {};
+
+  /// Variables referenced during a single component or data path evaluation.
+  final Set<String> _referencedVars = {};
 
   bool get _v1 => compiler._v1;
 
@@ -507,15 +548,89 @@ class _SurfaceCompiler {
       }(),
   ];
 
-  List<Map<String, Object?>> collectReadyComponents() {
+  List<Map<String, Object?>> collectReadyComponents([
+    _StreamSurfaceState? state,
+    List<(String, String)>? supersededComponents,
+  ]) {
     final components = <Map<String, Object?>>[];
     for (final MapEntry<String, ExpressNode> symbol
         in surface.symbols.entries) {
+      final String varName = symbol.key;
       final ExpressNode node = symbol.value;
       if (node is CallNode && _isComponent(node)) {
+        final _CachedComp? cached = state?.compiledCache[varName];
+        if (cached != null && identical(cached.ast, node)) {
+          var depsUnchanged = true;
+          for (final MapEntry<String, (ExpressNode?, String?)> depEntry
+              in cached.deps.entries) {
+            final ExpressNode? curAst = surface.symbols[depEntry.key];
+            final String? curId = switch (curAst) {
+              final CallNode c when _isComponent(c) => _componentId(
+                depEntry.key,
+                c,
+                atLeastV10: _v1,
+              ),
+              _ => null,
+            };
+            if (!identical(curAst, depEntry.value.$1) ||
+                curId != depEntry.value.$2) {
+              depsUnchanged = false;
+              break;
+            }
+          }
+          if (depsUnchanged &&
+              cached.newIds.every((gid) => !_usedIds.contains(gid))) {
+            _usedIds.addAll(cached.newIds);
+            if (state != null && cached.comps.isNotEmpty) {
+              final compId = cached.comps.first['id']! as String;
+              final String? prevId = state.varIds[varName];
+              if (prevId != null && prevId != compId) {
+                state.emittedComponents.remove(prevId);
+                supersededComponents?.add((surface.surfaceId, prevId));
+              }
+              state.varIds[varName] = compId;
+            }
+            components.addAll(cached.comps);
+            continue;
+          }
+        }
         final savedIds = Set<String>.from(_usedIds);
+        _referencedVars.clear();
         try {
-          components.addAll(_component(symbol.key, node));
+          final List<Map<String, Object?>> compiled = _component(varName, node);
+          if (state != null) {
+            final deps = <String, (ExpressNode?, String?)>{
+              for (final dep in _referencedVars)
+                dep: (
+                  surface.symbols[dep],
+                  switch (surface.symbols[dep]) {
+                    final CallNode c when _isComponent(c) => _componentId(
+                      dep,
+                      c,
+                      atLeastV10: _v1,
+                    ),
+                    _ => null,
+                  },
+                ),
+            };
+            final Set<String> newIds = _usedIds.difference(savedIds);
+            state.compiledCache[varName] = (
+              ast: node,
+              comps: compiled,
+              deps: deps,
+              newIds: newIds,
+            );
+            if (compiled.isNotEmpty) {
+              final compId = compiled.first['id']! as String;
+              final String? prevId = state.varIds[varName];
+              if (prevId != null && prevId != compId) {
+                state.emittedComponents.remove(prevId);
+                supersededComponents?.add((surface.surfaceId, prevId));
+              }
+              state.varIds[varName] = compId;
+            }
+          }
+          components.addAll(compiled);
         } on _PendingVariableError {
           _usedIds
             ..clear()
@@ -523,19 +638,45 @@ class _SurfaceCompiler {
         }
       } else if (node is CallNode && !_isKnownCall(node)) {
         throw _unknownCall(node);
-      } else if (symbol.key == 'root') {
+      } else if (varName == 'root') {
         throw A2uiValidationError("'root' must be assigned a component.");
       }
     }
     return components;
   }
 
-  List<(String, Object?)> collectReadyData() {
+  List<(String, Object?)> collectReadyData([_StreamSurfaceState? state]) {
     final ready = <(String, Object?)>[];
     for (final (String path, ExpressNode node) in surface.data) {
       final jsonPath = path.isEmpty
           ? '/'
           : (path.startsWith('/') ? path : '/$path');
+      final _CachedData? cached = state?.dataCache[jsonPath];
+      if (cached != null && identical(cached.ast, node)) {
+        var depsUnchanged = true;
+        for (final MapEntry<String, (ExpressNode?, String?)> depEntry
+            in cached.deps.entries) {
+          final ExpressNode? curAst = surface.symbols[depEntry.key];
+          final String? curId = switch (curAst) {
+            final CallNode c when _isComponent(c) => _componentId(
+              depEntry.key,
+              c,
+              atLeastV10: _v1,
+            ),
+            _ => null,
+          };
+          if (!identical(curAst, depEntry.value.$1) ||
+              curId != depEntry.value.$2) {
+            depsUnchanged = false;
+            break;
+          }
+        }
+        if (depsUnchanged) {
+          ready.add((jsonPath, cached.val));
+          continue;
+        }
+      }
+      _referencedVars.clear();
       try {
         final Object? value = _value(
           node,
@@ -549,6 +690,23 @@ class _SurfaceCompiler {
           throw A2uiValidationError(
             r'Only a map can be assigned to the whole data model, $/.',
           );
+        }
+        if (state != null) {
+          final deps = <String, (ExpressNode?, String?)>{
+            for (final dep in _referencedVars)
+              dep: (
+                surface.symbols[dep],
+                switch (surface.symbols[dep]) {
+                  final CallNode c when _isComponent(c) => _componentId(
+                    dep,
+                    c,
+                    atLeastV10: _v1,
+                  ),
+                  _ => null,
+                },
+              ),
+          };
+          state.dataCache[jsonPath] = (ast: node, val: value, deps: deps);
         }
         ready.add((jsonPath, value));
       } on _PendingVariableError {
@@ -1086,9 +1244,10 @@ class _SurfaceCompiler {
 
   /// A variable holding a component is its id; any other is substituted.
   Object? _variable(String name, _Context context) {
+    _referencedVars.add(name);
     final ExpressNode? node = surface.symbols[name];
     if (node == null) {
-      if (context.allowComponentRef) return name;
+      if (context.allowComponentRef && context.allowPending) return name;
       if (context.allowPending) {
         throw _PendingVariableError(name);
       }
@@ -1475,15 +1634,61 @@ void _setPath(Map<String, Object?> model, String path, Object? value) {
   }
 }
 
+typedef _CachedComp = ({
+  ExpressNode ast,
+  List<Map<String, Object?>> comps,
+  Map<String, (ExpressNode?, String?)> deps,
+  Set<String> newIds,
+});
+
+typedef _CachedData = ({
+  ExpressNode ast,
+  Object? val,
+  Map<String, (ExpressNode?, String?)> deps,
+});
+
 class _StreamSurfaceState {
   bool created = false;
   final Map<String, Map<String, Object?>> emittedComponents = {};
   final Map<String, Object?> emittedDataPaths = {};
+  final Map<String, String> varIds = {};
+  final Map<String, _CachedComp> compiledCache = {};
+  final Map<String, _CachedData> dataCache = {};
 
   _StreamSurfaceState clone() => _StreamSurfaceState()
     ..created = created
     ..emittedComponents.addAll(emittedComponents)
-    ..emittedDataPaths.addAll(emittedDataPaths);
+    ..emittedDataPaths.addAll(emittedDataPaths)
+    ..varIds.addAll(varIds)
+    ..compiledCache.addAll(compiledCache)
+    ..dataCache.addAll(dataCache);
+}
+
+const Set<String> _continuationOperators = {
+  '+',
+  '-',
+  '*',
+  '/',
+  '%',
+  '=',
+  '<',
+  '>',
+  '!',
+  '&',
+  '|',
+  '.',
+  ',',
+  ':',
+};
+
+bool _isValidPrefixBoundary(String dslText, int prefixLen) {
+  if (prefixLen <= 0 || prefixLen >= dslText.length) return true;
+  final String rest = dslText.substring(prefixLen).trimLeft();
+  if (rest.isEmpty) return true;
+  if (rest.startsWith('//') || rest.startsWith('/*') || rest.startsWith('--')) {
+    return true;
+  }
+  return !_continuationOperators.contains(rest[0]);
 }
 
 bool _sameValue(Object? a, Object? b) {
@@ -1520,6 +1725,7 @@ class ExpressScopeSession {
   final Set<String> _emittedCallIds = {};
   final Set<int> _emittedDeleteOps = {};
   final Map<String, String?> _surfaces = {};
+  final List<(String, String)> supersededComponents = [];
   String _cachedPrefix = '';
   List<ExpressStatement> _cachedStatements = const [];
 
@@ -1530,6 +1736,7 @@ class ExpressScopeSession {
   /// roll back.
   Object snapshot() => (
     hasEmitted,
+    List<(String, String)>.from(supersededComponents),
     <int, _StreamSurfaceState>{
       for (final entry in _surfaceStates.entries)
         entry.key: entry.value.clone(),
@@ -1545,6 +1752,7 @@ class ExpressScopeSession {
   void restore(Object saved) {
     final (
       bool savedHasEmitted,
+      List<(String, String)> savedSuperseded,
       Map<int, _StreamSurfaceState> savedStates,
       Set<String> savedCallIds,
       Set<int> savedDeleteOps,
@@ -1554,6 +1762,7 @@ class ExpressScopeSession {
     ) = saved
         as (
           bool,
+          List<(String, String)>,
           Map<int, _StreamSurfaceState>,
           Set<String>,
           Set<int>,
@@ -1562,6 +1771,9 @@ class ExpressScopeSession {
           List<ExpressStatement>,
         );
     hasEmitted = savedHasEmitted;
+    supersededComponents
+      ..clear()
+      ..addAll(savedSuperseded);
     _surfaceStates
       ..clear()
       ..addAll(savedStates);
@@ -1586,6 +1798,7 @@ class ExpressScopeSession {
     required Set<String> existingSurfaces,
     bool cachePrefix = true,
   }) {
+    supersededComponents.clear();
     if (compiler.catalogs.isEmpty) {
       throw A2uiCatalogError('Compiling Express needs at least one catalog.');
     }
@@ -1653,7 +1866,9 @@ class ExpressScopeSession {
     String dslText, {
     required bool cachePrefix,
   }) {
-    if (_cachedPrefix.isNotEmpty && dslText.startsWith(_cachedPrefix)) {
+    if (_cachedPrefix.isNotEmpty &&
+        dslText.startsWith(_cachedPrefix) &&
+        _isValidPrefixBoundary(dslText, _cachedPrefix.length)) {
       final String tail = dslText.substring(_cachedPrefix.length);
       final List<ExpressStatement> tailStatements = tail.trim().isNotEmpty
           ? parseExpress(tail)
@@ -1731,8 +1946,8 @@ class ExpressScopeSession {
     );
     final sc = _SurfaceCompiler(compiler, surface, allowPending: !isFinal);
     final List<Map<String, Object?>> readyComponents = sc
-        .collectReadyComponents();
-    final List<(String, Object?)> readyData = sc.collectReadyData();
+        .collectReadyComponents(state, supersededComponents);
+    final List<(String, Object?)> readyData = sc.collectReadyData(state);
 
     final bool hasRootReady = readyComponents.any((c) => c['id'] == 'root');
     final bool surfaceAlreadyExists =
@@ -1751,7 +1966,11 @@ class ExpressScopeSession {
       );
     }
 
-    if (!surfaceAlreadyExists && !surface.isUpdate) {
+    final bool needsCreate =
+        !surface.isUpdate &&
+        !state.created &&
+        (!surfaceAlreadyExists || hasRootReady);
+    if (needsCreate) {
       if (hasRootReady) {
         final List<Map<String, Object?>> envelopes = sc.buildCreateMessages(
           readyComponents,

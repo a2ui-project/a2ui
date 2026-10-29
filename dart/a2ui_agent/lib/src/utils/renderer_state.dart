@@ -185,6 +185,29 @@ class RendererState {
   SurfaceModel<ComponentApi>? getSurface(String surfaceId) =>
       _processor.model.getSurface(surfaceId);
 
+  /// Removes a provisional component from [surfaceId] when a later statement in
+  /// the same scope supersedes its wire ID.
+  void dropProvisionalComponent(String surfaceId, String componentId) {
+    final SurfaceModel<ComponentApi>? surface = _processor.model.getSurface(
+      surfaceId,
+    );
+    if (surface == null) return;
+    final ComponentModel? existing = surface.componentsModel.get(componentId);
+    if (existing == null) return;
+    final Set<String>? changedSet = _changed[surfaceId];
+    final bool wasChanged = changedSet?.contains(componentId) ?? false;
+    if (_open > 0) {
+      _log.add(() {
+        surface.componentsModel.addComponent(existing);
+        if (wasChanged) {
+          _changed[surfaceId]?.add(componentId);
+        }
+      });
+    }
+    surface.componentsModel.removeComponent(componentId);
+    changedSet?.remove(componentId);
+  }
+
   /// Checks [messages] against the state and applies them.
   ///
   /// Each message must state a `version` that the catalogs' protocol version

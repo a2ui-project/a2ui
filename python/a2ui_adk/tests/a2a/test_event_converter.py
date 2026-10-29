@@ -312,19 +312,25 @@ def test_event_converter_streams_partial_events_with_default_express_format():
 
         parts1 = convert(
             _event(partial=True),
-            'Hello <a2ui>\nsurface("s1")\nroot = Text("Hi")\n',
+            'Hello <a2ui>\nsurface("s1")\nroot = Card(hdr)\nhdr = Text("Head',
         )
         assert len(parts1) >= 2
         assert ("inv-1", "agent") in converter._streams
 
-        parts2 = convert(_event(partial=True), "</a2ui>")
-        assert parts2 == []
+        parts2 = convert(
+            _event(partial=True),
+            'er", id="custom_hdr")\n</a2ui>',
+        )
+        assert len(parts2) == 1
 
         parts_final = convert(_event(partial=False), "aggregated ignored")
         assert parts_final == []
         assert converter._streams == {}
 
-    assert state.get_surface("s1") is not None
+    surface = state.get_surface("s1")
+    assert surface is not None
+    assert surface.components_model.get("custom_hdr") is not None
+    assert surface.components_model.get("hdr") is None
 
 
 def test_event_converter_drops_the_rest_of_a_response_after_a_failed_chunk():

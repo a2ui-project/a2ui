@@ -108,6 +108,28 @@ def _property_slot(slot: _ValueSlot | None, name: str) -> _ValueSlot | None:
     return _ValueSlot(schema, slot.helper) if schema else None
 
 
+def _schema_ref_type(schema: Any) -> str | None:
+    """Returns 'ChildList', 'Child', or 'Action' if `schema` references one."""
+    if not isinstance(schema, dict):
+        return None
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        if "ChildList" in ref:
+            return "ChildList"
+        if "Child" in ref or "ComponentId" in ref:
+            return "Child"
+        if "Action" in ref:
+            return "Action"
+    for key in ("oneOf", "anyOf", "allOf"):
+        subs = schema.get(key)
+        if isinstance(subs, list):
+            for sub in subs:
+                res = _schema_ref_type(sub)
+                if res:
+                    return res
+    return None
+
+
 def _component_id(var_name: str, ast: Any, *, at_least_v10: bool = False) -> str:
     """Returns the ID of the component a variable holds.
 
@@ -577,6 +599,7 @@ class _CompileContext:
         # whose value refers back to it.
         self.resolving: set[str] = set()
         self.allow_pending: bool = allow_pending
+        self.referenced_vars: set[str] = set()
 
     def check_catalog_override(self, target: str) -> None:
         """Rejects a per-component or per-function catalogId below v1.0.
@@ -630,13 +653,99 @@ class _ScopeStreamState:
     surface_created: bool = False
     emitted_components: dict[str, dict[str, Any]] = field(default_factory=dict)
     emitted_data_paths: dict[str, Any] = field(default_factory=dict)
+    var_ids: dict[str, str] = field(default_factory=dict)
+    compiled_cache: dict[str, tuple[Any, list[dict[str, Any]], dict[str, Any], int]] = (
+        field(default_factory=dict)
+    )
+    data_cache: dict[str, tuple[Any, Any, dict[str, Any]]] = field(default_factory=dict)
 
     def clone(self) -> "_ScopeStreamState":
         return _ScopeStreamState(
             surface_created=self.surface_created,
             emitted_components=dict(self.emitted_components),
             emitted_data_paths=dict(self.emitted_data_paths),
+            var_ids=dict(self.var_ids),
+            compiled_cache=dict(self.compiled_cache),
+            data_cache=dict(self.data_cache),
         )
+
+
+_OPEN_SENTINEL_RE = re.compile(r"<a2ui(?:\s[^>]*)?>", re.IGNORECASE)
+_CLOSE_SENTINEL_RE = re.compile(r"</a2ui\s*>", re.IGNORECASE)
+_SENTINEL_TOKEN_RE = re.compile(
+    r'[rR]"""[\s\S]*?(?:"""|\Z)|[rR]"[^\r\n"]*(?:"|\Z)|"""(?:\\[\s\S]|[^\\])*?(?:"""|\Z)|"(?:\\[\s\S]|[^\\"\r\n])*(?:"|\Z)|(?:#|//|--)'
+    r"[^\r\n]*|/\*[\s\S]*?(?:\*/|\Z)"
+)
+
+
+def _strip_sentinel_tags(source: str) -> str:
+    """Strips outer <a2ui> and </a2ui> tags outside string literals and comments."""
+    segments: list[tuple[bool, str]] = []
+    pos = 0
+    for m in _SENTINEL_TOKEN_RE.finditer(source):
+        if m.start() > pos:
+            segments.append((False, source[pos : m.start()]))
+        tok = m.group(0)
+        if not tok.startswith(('"', "r", "R", "/*")):
+            close_m = _CLOSE_SENTINEL_RE.search(tok)
+            if close_m:
+                if close_m.start() > 0:
+                    segments.append((True, tok[: close_m.start()]))
+                segments.append((False, tok[close_m.start() :]))
+                pos = m.end()
+                continue
+        segments.append((True, tok))
+        pos = m.end()
+    if pos < len(source):
+        segments.append((False, source[pos:]))
+
+    has_open = any(
+        not is_tok and _OPEN_SENTINEL_RE.search(seg) is not None
+        for is_tok, seg in segments
+    )
+    out: list[str] = []
+    inside = not has_open
+    for is_tok, seg in segments:
+        if is_tok:
+            if inside:
+                out.append(seg)
+            continue
+        cursor = 0
+        while cursor < len(seg):
+            if not inside:
+                open_m = _OPEN_SENTINEL_RE.search(seg, cursor)
+                if open_m is None:
+                    break
+                inside = True
+                cursor = open_m.end()
+                continue
+            close_m = _CLOSE_SENTINEL_RE.search(seg, cursor)
+            open_m = _OPEN_SENTINEL_RE.search(seg, cursor)
+            if open_m is not None and (
+                close_m is None or open_m.start() < close_m.start()
+            ):
+                out.append(seg[cursor : open_m.start()])
+                cursor = open_m.end()
+                continue
+            if close_m is not None:
+                out.append(seg[cursor : close_m.start()])
+                inside = False
+                cursor = close_m.end()
+                if not has_open:
+                    return "".join(out)
+                continue
+            out.append(seg[cursor:])
+            break
+    return "".join(out)
+
+
+def _is_valid_prefix_boundary(dsl_text: str, prefix_len: int) -> bool:
+    """Checks that `dsl_text[:prefix_len]` does not split a token."""
+    if len(dsl_text) == prefix_len:
+        return True
+    if dsl_text[prefix_len - 1] in ("\n", ";"):
+        return True
+    return dsl_text[prefix_len] in (" ", "\t", "\r", "\n", ";")
 
 
 class ExpressScopeSession:
@@ -657,6 +766,7 @@ class ExpressScopeSession:
         self.has_emitted: bool = False
         self._cached_prefix: str = ""
         self._cached_statements: list[tuple[str | None, Any]] = []
+        self.superseded_components: list[tuple[str, str]] = []
 
     def snapshot(
         self,
@@ -666,6 +776,7 @@ class ExpressScopeSession:
         bool,
         str,
         list[tuple[str | None, Any]],
+        list[tuple[str, str]],
     ]:
         """Returns a lightweight snapshot of the session state for rollback."""
         return (
@@ -674,6 +785,7 @@ class ExpressScopeSession:
             self.has_emitted,
             self._cached_prefix,
             list(self._cached_statements),
+            list(self.superseded_components),
         )
 
     def restore(
@@ -684,6 +796,7 @@ class ExpressScopeSession:
             bool,
             str,
             list[tuple[str | None, Any]],
+            list[tuple[str, str]],
         ],
     ) -> None:
         """Restores session state from a prior `snapshot()`."""
@@ -693,20 +806,30 @@ class ExpressScopeSession:
             self.has_emitted,
             self._cached_prefix,
             self._cached_statements,
+            self.superseded_components,
         ) = snap
 
     def _parse_incremental_statements(
         self, dsl_text: str, *, is_final: bool, cache_prefix: bool
     ) -> list[tuple[str | None, Any]]:
-        if self._cached_prefix and dsl_text.startswith(self._cached_prefix):
+        del is_final
+        if (
+            self._cached_prefix
+            and dsl_text.startswith(self._cached_prefix)
+            and _is_valid_prefix_boundary(dsl_text, len(self._cached_prefix))
+        ):
             delta = dsl_text[len(self._cached_prefix) :]
             if not delta.strip():
                 statements = list(self._cached_statements)
             else:
-                delta_stmts = self.compiler._parse_statements(delta, is_final)
+                delta_stmts = self.compiler._parse_statements(
+                    delta, True, strip_sentinels=False
+                )
                 statements = [*self._cached_statements, *delta_stmts]
         else:
-            statements = self.compiler._parse_statements(dsl_text, is_final)
+            statements = self.compiler._parse_statements(
+                dsl_text, True, strip_sentinels=False
+            )
         if cache_prefix:
             self._cached_prefix = dsl_text
             self._cached_statements = list(statements)
@@ -721,6 +844,7 @@ class ExpressScopeSession:
         cache_prefix: bool = True,
     ) -> list[dict[str, Any]]:
         """Compiles any newly ready statements from `dsl_text` into delta messages."""
+        self.superseded_components = []
         ctx = _CompileContext(self.version, allow_pending=not is_final)
         if self.compiler._is_multi_catalog and not ctx.at_least_v10:
             raise A2uiCatalogError(
@@ -802,10 +926,15 @@ class ExpressScopeSession:
         surface_exists: bool,
     ) -> list[dict[str, Any]]:
         """Compiles ready components and data paths for a single scope."""
-        compiled_components, has_pending = self._collect_ready_components(scope, ctx)
-        compiled_data = self._collect_ready_data(scope, ctx)
+        compiled_components, has_pending = self._collect_ready_components(
+            scope, state, ctx
+        )
+        compiled_data = self._collect_ready_data(scope, state, ctx)
+        has_root = any(c.get("id") == "root" for c in compiled_components)
         needs_create = (
-            not scope.is_update and not state.surface_created and not surface_exists
+            not scope.is_update
+            and not state.surface_created
+            and (not surface_exists or has_root)
         )
         if needs_create:
             return self._compile_initial_create(
@@ -819,6 +948,7 @@ class ExpressScopeSession:
             ctx,
             is_final=is_final,
             has_pending=has_pending,
+            surface_exists=surface_exists,
         )
 
     def _compile_initial_create(
@@ -844,6 +974,7 @@ class ExpressScopeSession:
                     ctx,
                     is_final=True,
                     has_pending=False,
+                    surface_exists=False,
                 )
             raise ExpressUndefinedRootError("root")
         data_model: dict[str, Any] = {}
@@ -868,6 +999,7 @@ class ExpressScopeSession:
         *,
         is_final: bool,
         has_pending: bool,
+        surface_exists: bool = False,
     ) -> list[dict[str, Any]]:
         delta_components = [
             c for c in compiled_components if state.emitted_components.get(c["id"]) != c
@@ -886,7 +1018,11 @@ class ExpressScopeSession:
 
         messages: list[dict[str, Any]] = []
         if delta_components:
-            if not scope.has_surface_directive and not state.surface_created:
+            if (
+                not scope.has_surface_directive
+                and not state.surface_created
+                and not surface_exists
+            ):
                 raise ExpressUndefinedRootError("root")
             messages.append({
                 "version": ctx.version,
@@ -901,36 +1037,89 @@ class ExpressScopeSession:
         return messages
 
     def _collect_ready_components(
-        self, scope: _SurfaceScope, ctx: _CompileContext
+        self,
+        scope: _SurfaceScope,
+        state: _ScopeStreamState,
+        ctx: _CompileContext,
     ) -> tuple[list[dict[str, Any]], bool]:
         compiled: list[dict[str, Any]] = []
         has_pending = False
+        superseded: list[str] = []
         for var_name, ast in scope.raw_symbols.items():
-            try:
-                comp_dict = self.compiler._compile_ast_node(
-                    var_name, ast, scope.raw_symbols, ctx
+            cached = state.compiled_cache.get(var_name)
+            if (
+                cached is not None
+                and cached[0] is ast
+                and all(
+                    scope.raw_symbols.get(dep) is dep_ast
+                    for dep, dep_ast in cached[2].items()
                 )
-            except _PendingVariableError:
+            ):
+                var_comps = cached[1]
+                ctx.inline_counter += cached[3]
+            else:
+                prev_inline = ctx.inline_counter
+                ctx.referenced_vars.clear()
+                try:
+                    comp_dict = self.compiler._compile_ast_node(
+                        var_name, ast, scope.raw_symbols, ctx
+                    )
+                except _PendingVariableError:
+                    ctx.extra_components = []
+                    ctx.inline_counter = prev_inline
+                    has_pending = True
+                    continue
+                var_comps = [comp_dict, *ctx.extra_components] if comp_dict else []
                 ctx.extra_components = []
-                has_pending = True
-                continue
-            if comp_dict:
-                compiled.append(comp_dict)
-                compiled.extend(ctx.extra_components)
-                ctx.extra_components = []
+                deps = {dep: scope.raw_symbols.get(dep) for dep in ctx.referenced_vars}
+                state.compiled_cache[var_name] = (
+                    ast,
+                    var_comps,
+                    deps,
+                    ctx.inline_counter - prev_inline,
+                )
+            if var_comps:
+                new_id = var_comps[0]["id"]
+                old_id = state.var_ids.get(var_name)
+                state.var_ids[var_name] = new_id
+                if old_id is not None and old_id != new_id:
+                    superseded.append(old_id)
+                compiled.extend(var_comps)
+        if superseded:
+            active_ids = {c["id"] for c in compiled}
+            for old_id in superseded:
+                if old_id not in active_ids:
+                    state.emitted_components.pop(old_id, None)
+                    self.superseded_components.append((scope.surface_id, old_id))
         return compiled, has_pending
 
     def _collect_ready_data(
-        self, scope: _SurfaceScope, ctx: _CompileContext
+        self,
+        scope: _SurfaceScope,
+        state: _ScopeStreamState,
+        ctx: _CompileContext,
     ) -> dict[str, Any]:
         compiled: dict[str, Any] = {}
         for path_name, ast_val in scope.data_path_assignments.items():
-            try:
-                compiled[path_name] = self.compiler._compile_data_value(
-                    scope, ast_val, ctx
+            cached = state.data_cache.get(path_name)
+            if (
+                cached is not None
+                and cached[0] is ast_val
+                and all(
+                    scope.raw_symbols.get(dep) is dep_ast
+                    for dep, dep_ast in cached[2].items()
                 )
+            ):
+                compiled[path_name] = cached[1]
+                continue
+            ctx.referenced_vars.clear()
+            try:
+                val = self.compiler._compile_data_value(scope, ast_val, ctx)
             except _PendingVariableError:
                 continue
+            deps = {dep: scope.raw_symbols.get(dep) for dep in ctx.referenced_vars}
+            state.data_cache[path_name] = (ast_val, val, deps)
+            compiled[path_name] = val
         return compiled
 
     def _build_data_updates(
@@ -1130,27 +1319,12 @@ class ExpressCompiler:
             resolved_id if self._is_multi_catalog else None,
         )
 
-    def _parse_statements(self, dsl_text: str, is_final: bool) -> list[Any]:
+    def _parse_statements(
+        self, dsl_text: str, is_final: bool, *, strip_sentinels: bool = True
+    ) -> list[Any]:
         """Strips sentinel tags and parses the DSL body into statements."""
-        has_sentinels = "<a2ui>" in dsl_text
-        lines = []
-        inside_a2ui = not has_sentinels
-        for line in dsl_text.splitlines():
-            trimmed = line.strip()
-            if "<a2ui>" in trimmed:
-                inside_a2ui = True
-                line = line.replace("<a2ui>", "")
-                trimmed = line.strip()
-            if "</a2ui>" in trimmed:
-                inside_a2ui = False
-                line = line.split("</a2ui>")[0]
-                if line.strip():
-                    lines.append(line)
-                continue
-            if inside_a2ui:
-                lines.append(line)
-
-        dsl_body = _normalize_express_source("\n".join(lines))
+        raw_body = _strip_sentinel_tags(dsl_text) if strip_sentinels else dsl_text
+        dsl_body = _normalize_express_source(raw_body)
 
         input_stream = InputStream(dsl_body)
         lexer = ExpressLexer(input_stream)
@@ -1941,6 +2115,7 @@ class ExpressCompiler:
             return {ctx.path_key: val.path}
         if isinstance(val, VariableNode):
             ref_name = val.name
+            ctx.referenced_vars.add(ref_name)
             if ref_name not in raw_symbols:
                 if not allow_component_ref:
                     if ctx.allow_pending:
@@ -1994,17 +2169,42 @@ class ExpressCompiler:
             dict_res: dict[str, Any] = {}
             for k, v in val.items():
                 entry_slot = _property_slot(slot, k)
+                entry_ref_type = (
+                    _schema_ref_type(entry_slot.schema)
+                    if entry_slot is not None
+                    else None
+                )
+                if (
+                    entry_ref_type is None
+                    and entry_slot is not None
+                    and not entry_slot.helper.common_types_loaded
+                ):
+                    if k == "child":
+                        entry_ref_type = "Child"
+                    elif k == "children":
+                        entry_ref_type = "ChildList"
                 entry_is_action = is_action or (
                     entry_slot is not None and is_action_slot(entry_slot.schema)
                 )
                 dict_res[k] = self._compile_value(
-                    v, raw_symbols, ctx, entry_is_action, slot=entry_slot
+                    v,
+                    raw_symbols,
+                    ctx,
+                    entry_is_action,
+                    allow_component_ref=(entry_ref_type == "Child"),
+                    allow_list_component_refs=(
+                        entry_ref_type == "ChildList" and isinstance(v, list)
+                    ),
+                    slot=entry_slot,
                 )
             return dict_res
 
         if isinstance(val, list):
             # Resolved once for the list, since every item shares the schema.
             item_slot = _item_slot(slot)
+            item_ref_type = (
+                _schema_ref_type(item_slot.schema) if item_slot is not None else None
+            )
             item_is_action = is_action or (
                 item_slot is not None and is_action_slot(item_slot.schema)
             )
@@ -2017,7 +2217,9 @@ class ExpressCompiler:
                     parent_id=parent_id,
                     parent_prop=parent_prop,
                     list_index=idx,
-                    allow_component_ref=allow_list_component_refs,
+                    allow_component_ref=(
+                        allow_list_component_refs or item_ref_type == "Child"
+                    ),
                     slot=item_slot,
                 )
                 for idx, item in enumerate(val)

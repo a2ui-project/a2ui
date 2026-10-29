@@ -740,3 +740,238 @@
       expect:
         - text: "after"
       expect_in_block: false
+
+# --- 10. Regression cases for edge conditions ---
+
+- name: test_express_stream_progressive_heal_followed_by_explicit_id_override
+  description: When a progressively healed component later finishes with an explicit id="...", the provisional variable-named component is superseded and topology validation succeeds at block close.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: ["text"]
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Card(hdr)\nhdr = Text(\"Head"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Card"
+                    child: "hdr"
+                  - id: "hdr"
+                    component: "Text"
+                    text: "Head"
+    - input: "er\", id=\"custom_hdr\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "root"
+                    component: "Card"
+                    child: "custom_hdr"
+                  - id: "custom_hdr"
+                    component: "Text"
+                    text: "Header"
+
+- name: test_express_stream_syntax_error_on_completed_statement_before_close_tag
+  description: A syntax error in a statement whose brackets and newline have closed is reported on that chunk rather than deferred until </a2ui>.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"ok\")\n"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "ok"
+    - input: "broken = = Text(\"bad\")\n"
+      expect_error:
+        category: "ParseError"
+
+- name: test_express_stream_triple_quoted_string_split_after_two_quotes
+  description: A chunk boundary right after two opening quotes holds the statement until the next chunk reveals whether it is an empty string or a triple-quoted string.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"\""
+      expect: []
+    - input: "\"Line 1\nLine 2\"\"\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Line 1\nLine 2"
+  expect_matches_single_shot: true
+
+- name: test_express_stream_update_existing_default_surface_without_surface_directive
+  description: Updating an existing default_surface in a later block without a surface() directive streams updateComponents rather than raising an undefined root error.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nroot = Card(body)\nbody = Text(\"Initial\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "default_surface"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Card"
+                    child: "body"
+                  - id: "body"
+                    component: "Text"
+                    text: "Initial"
+    - input: "<a2ui>\nbody = Text(\"Updated\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              updateComponents:
+                surfaceId: "default_surface"
+                components:
+                  - id: "body"
+                    component: "Text"
+                    text: "Updated"
+
+- name: test_express_stream_recreate_existing_surface_without_update_is_rejected
+  description: A later block that defines root on an already-created surface without update=true attempts createSurface and is rejected with ValidationError.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"First\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "First"
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(\"Second\")\n</a2ui>"
+      expect_error:
+        category: "ValidationError"
+
+- name: test_express_stream_close_tag_inside_string_and_block_comment
+  description: A closing </a2ui> tag inside a string literal or block comment does not terminate the block early or strip the literal content.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\n/* comment with </a2ui> inside */\nroot = Text(\"Literal </a2ui> tag\")\n</a2ui>\nDone."
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Literal </a2ui> tag"
+        - text: "Done."
+
+- name: test_express_stream_raw_string_ending_in_backslash_before_close_tag
+  description: A raw string literal ending in a backslash does not escape its closing quote or swallow the closing </a2ui> tag.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Text(r\"C:\\path\\\")\n</a2ui>\nAfter"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "C:\\path\\"
+        - text: "After"
+
+- name: test_express_stream_inner_markdown_fences_and_inline_code_after_close_tag
+  description: Markdown code fences inside <a2ui> are stripped while inline code backticks in prose after </a2ui> are preserved when <a2ui> was not opened with inline backticks.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\n```express\nsurface(\"s1\")\nroot = Text(\"Fenced\")\n```\n</a2ui> `code` after"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Fenced"
+        - text: "`code` after"
+
+- name: test_express_stream_nested_child_slot_in_tabs_streams_top_down
+  description: A forward component reference inside a nested Child slot (such as Tabs tabItems[].child) is emitted immediately on the parent and resolved when the child arrives.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/list_item_action_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\nroot = Tabs([{title: \"Tab 1\", child: panel1}])\n"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/list_item_action"
+                components:
+                  - id: "root"
+                    component: "Tabs"
+                    tabItems:
+                      - title: "Tab 1"
+                        child: "panel1"
+    - input: "panel1 = Text(\"Content\")\n</a2ui>"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "panel1"
+                    component: "Text"
+                    text: "Content"

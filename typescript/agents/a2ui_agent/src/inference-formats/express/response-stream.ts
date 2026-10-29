@@ -40,8 +40,29 @@ import {
 } from './errors.js';
 import {CatalogSchemaHelper} from './schema-helper.js';
 
+function createFrozenSet<T>(values: Iterable<T>): ReadonlySet<T> {
+  const set = new Set<T>(values);
+  const rejectMutation = (): never => {
+    throw new TypeError('DEFAULT_EXPRESS_PROGRESSIVE_KEYS is read-only.');
+  };
+  Object.defineProperty(set, 'add', {value: rejectMutation, writable: false, configurable: false});
+  Object.defineProperty(set, 'delete', {
+    value: rejectMutation,
+    writable: false,
+    configurable: false,
+  });
+  Object.defineProperty(set, 'clear', {
+    value: rejectMutation,
+    writable: false,
+    configurable: false,
+  });
+  return Object.freeze(set);
+}
+
 /** Default property keys whose string literals stream progressively before the closing quote. */
-export const DEFAULT_EXPRESS_PROGRESSIVE_KEYS: ReadonlySet<string> = new Set<string>(['text']);
+export const DEFAULT_EXPRESS_PROGRESSIVE_KEYS: ReadonlySet<string> = createFrozenSet<string>([
+  'text',
+]);
 
 const OPEN_TAG = A2UI_INFERENCE_OPEN_TAG;
 const CLOSE_TAG = A2UI_INFERENCE_CLOSE_TAG;
@@ -53,8 +74,11 @@ const LEADING_FENCE_RE = /^\s*(?:```[a-zA-Z0-9_-]*[ \t]*\r?\n|`+\s*)/;
 const TRAILING_FENCE_RE = /(?:\r?\n?[ \t]*```[a-zA-Z0-9_-]*|`+)\s*$/;
 const OUTER_TRAILING_FENCE_RE = /(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)$/;
 const OUTER_TRAILING_FENCE_PREFIX_RE = /(?:```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)$/;
-const OUTER_LEADING_FENCE_RE = /^(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|$)|`+)/;
-const OUTER_LEADING_FENCE_PREFIX_RE = /^(?:`+|\s*`{0,2}|\s*```[a-zA-Z0-9_-]*[ \t]*\r?)$/;
+const OUTER_INLINE_OPEN_BACKTICK_RE = /(?<!`)`{1,2}$/;
+const OUTER_LEADING_FENCE_RE = /^\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|$)/;
+const OUTER_LEADING_FENCE_PREFIX_RE = /^\s*(?:`{0,2}|```[a-zA-Z0-9_-]*[ \t]*\r?)$/;
+const OUTER_LEADING_FENCE_INLINE_RE = /^(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|$)|`+)/;
+const OUTER_LEADING_FENCE_INLINE_PREFIX_RE = /^(?:`+|\s*`{0,2}|\s*```[a-zA-Z0-9_-]*[ \t]*\r?)$/;
 const TRAILING_FENCE_CLOSE_RE = /\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n?$/;
 const IDENT_RE = /[a-zA-Z_][a-zA-Z0-9_]*/y;
 const DATA_ASSIGN_RE = /^\s*\$([a-zA-Z0-9_/]*)\s*=(?!=)/;
@@ -115,44 +139,77 @@ function possibleFenceStart(text: string): number {
 
 /** Finds `</a2ui>` outside string literals, or holds a partial close-tag tail. */
 export function scanExpressBlock(content: string): [number | undefined, number] {
-  let i = 0;
+  const {closeStart, readableEnd} = scanExpressBlockFrom(content, 0);
+  return [closeStart, readableEnd];
+}
+
+function scanExpressBlockFrom(
+  content: string,
+  startPos: number,
+): {closeStart: number | undefined; readableEnd: number; resumePos: number} {
+  let i = startPos;
   const n = content.length;
   while (i < n) {
-    const nextI = skipBlockLiteralOrComment(content, i, n);
+    const [nextI, completed] = skipBlockLiteralOrComment(content, i, n);
     if (nextI > i) {
+      if (!completed) {
+        return {closeStart: undefined, readableEnd: n, resumePos: i};
+      }
       i = nextI;
       continue;
     }
     if (content[i] === '<') {
       const hit = checkCloseTagAt(content, i);
       if (hit !== undefined) {
-        return hit;
+        return {closeStart: hit[0], readableEnd: hit[1], resumePos: i};
       }
     }
     i += 1;
   }
-  return [undefined, n];
+  return {closeStart: undefined, readableEnd: n, resumePos: n};
 }
 
-function skipBlockLiteralOrComment(content: string, i: number, n: number): number {
+function skipBlockLiteralOrComment(content: string, i: number, n: number): [number, boolean] {
+  if (
+    (content[i] === 'r' || content[i] === 'R') &&
+    i + 1 < n &&
+    content[i + 1] === '"' &&
+    (i === 0 || !/[a-zA-Z0-9_]/.test(content[i - 1]))
+  ) {
+    const end = skipStringLiteral(content, i + 1, n, true);
+    if (end !== undefined) {
+      if (end === n && end - (i + 1) === 2) {
+        return [n, false];
+      }
+      return [end, true];
+    }
+    return [n, false];
+  }
   if (content[i] === '"') {
-    return skipStringLiteral(content, i, n);
+    const end = skipStringLiteral(content, i, n, false);
+    if (end !== undefined) {
+      if (end === n && end - i === 2) {
+        return [n, false];
+      }
+      return [end, true];
+    }
+    return [n, false];
   }
   if (content.startsWith('/*', i)) {
     const endComment = content.indexOf('*/', i + 2);
-    return endComment < 0 ? n : endComment + 2;
+    return endComment < 0 ? [n, false] : [endComment + 2, true];
   }
-  if (content[i] === '#' || content.startsWith('//', i) || content.startsWith('--', i)) {
+  if (content[i] === '#' || content.startsWith('//', i)) {
     let j = i + 1;
     while (j < n && content[j] !== '\n' && content[j] !== '\r') {
       if (content[j] === '<' && checkCloseTagAt(content, j) !== undefined) {
-        return j;
+        return [j, true];
       }
       j += 1;
     }
-    return j < n ? j + 1 : n;
+    return j < n ? [j + 1, true] : [n, false];
   }
-  return i;
+  return [i, true];
 }
 
 function checkCloseTagAt(content: string, i: number): [number | undefined, number] | undefined {
@@ -165,14 +222,22 @@ function checkCloseTagAt(content: string, i: number): [number | undefined, numbe
   return undefined;
 }
 
-function skipStringLiteral(content: string, start: number, n: number): number {
+function skipStringLiteral(
+  content: string,
+  start: number,
+  n: number,
+  raw: boolean,
+): number | undefined {
   const quote = content[start];
   const tripleDelim = quote.repeat(3);
   const triple = content.startsWith(tripleDelim, start);
   const delim = triple ? tripleDelim : quote;
   let i = start + delim.length;
   while (i < n) {
-    if (content[i] === '\\') {
+    if (!raw && content[i] === '\\') {
+      if (i + 1 >= n) {
+        return undefined;
+      }
       i += 2;
       continue;
     }
@@ -181,7 +246,7 @@ function skipStringLiteral(content: string, start: number, n: number): number {
     }
     i += 1;
   }
-  return n;
+  return undefined;
 }
 
 /** Strips leading/trailing markdown fences from `block.slice(0, end)`. */
@@ -242,17 +307,29 @@ export function splitCompleteStatements(source: string, isFinal = false): [strin
 function stepStringOrComment(source: string, i: number, n: number): [number, boolean] {
   if ((source[i] === 'r' || source[i] === 'R') && i + 1 < n && source[i + 1] === '"') {
     const end = scanDoubleQuoted(source, i + 1, n, true);
-    return end !== undefined ? [end, true] : [n, false];
+    if (end !== undefined) {
+      if (end === n && end - (i + 1) === 2) {
+        return [n, false];
+      }
+      return [end, true];
+    }
+    return [n, false];
   }
   if (source[i] === '"') {
     const end = scanDoubleQuoted(source, i, n, false);
-    return end !== undefined ? [end, true] : [n, false];
+    if (end !== undefined) {
+      if (end === n && end - i === 2) {
+        return [n, false];
+      }
+      return [end, true];
+    }
+    return [n, false];
   }
   if (source.startsWith('/*', i)) {
     const close = source.indexOf('*/', i + 2);
     return close >= 0 ? [close + 2, false] : [n, false];
   }
-  if (source[i] === '#' || source.startsWith('//', i) || source.startsWith('--', i)) {
+  if (source[i] === '#' || source.startsWith('//', i)) {
     const nl = source.indexOf('\n', i);
     return nl >= 0 ? [nl, false] : [n, false];
   }
@@ -455,7 +532,7 @@ function trySkipFragmentComment(fragment: string, i: number): number | undefined
     const close = fragment.indexOf('*/', i + 2);
     return close < 0 ? -1 : close + 2;
   }
-  if (fragment[i] === '#' || fragment.startsWith('//', i) || fragment.startsWith('--', i)) {
+  if (fragment[i] === '#' || fragment.startsWith('//', i)) {
     const nl = fragment.indexOf('\n', i);
     return nl < 0 ? -1 : nl + 1;
   }
@@ -652,10 +729,12 @@ export class ExpressResponseStream<
   private held = '';
   private readonly text = new TextRun();
   private afterBlock = false;
+  private wrappedInInlineBackticks = false;
   private inBlock: boolean;
   /** Whether the open block was rejected, so the rest of it is skipped. */
   private rejected = false;
   private block = '';
+  private scanPos = 0;
   private lastCompiledPrefix = '';
   private touched = new Set<string>();
   private initialSurfaces: ReadonlySet<string>;
@@ -696,6 +775,7 @@ export class ExpressResponseStream<
   /** Forgets the block that closed, whether it was read or rejected. */
   private resetBlock(): void {
     this.block = '';
+    this.scanPos = 0;
     this.rejected = false;
     this.lastCompiledPrefix = '';
     this.touched = new Set<string>();
@@ -755,7 +835,11 @@ export class ExpressResponseStream<
       let rest = this.held;
       this.held = '';
       if (this.afterBlock) {
-        rest = rest.replace(OUTER_LEADING_FENCE_RE, '');
+        const fenceRe = this.wrappedInInlineBackticks
+          ? OUTER_LEADING_FENCE_INLINE_RE
+          : OUTER_LEADING_FENCE_RE;
+        rest = rest.replace(fenceRe, '');
+        this.wrappedInInlineBackticks = false;
       }
       this.text.emit(parts, rest.replace(TRAILING_FENCE_CLOSE_RE, ''));
     }
@@ -804,12 +888,19 @@ export class ExpressResponseStream<
         continue;
       }
       if (this.afterBlock) {
-        if (OUTER_LEADING_FENCE_PREFIX_RE.test(input)) {
+        const prefixRe = this.wrappedInInlineBackticks
+          ? OUTER_LEADING_FENCE_INLINE_PREFIX_RE
+          : OUTER_LEADING_FENCE_PREFIX_RE;
+        const fenceRe = this.wrappedInInlineBackticks
+          ? OUTER_LEADING_FENCE_INLINE_RE
+          : OUTER_LEADING_FENCE_RE;
+        if (prefixRe.test(input)) {
           this.held = input;
           return;
         }
         this.afterBlock = false;
-        input = input.replace(OUTER_LEADING_FENCE_RE, '');
+        this.wrappedInInlineBackticks = false;
+        input = input.replace(fenceRe, '');
         continue;
       }
       input = this.consumeOutsideText(parts, input);
@@ -818,7 +909,8 @@ export class ExpressResponseStream<
 
   private consumeBlockText(parts: StreamPart[], input: string): string {
     this.block += input;
-    const [closeStart, readableEnd] = scanExpressBlock(this.block);
+    const {closeStart, readableEnd, resumePos} = scanExpressBlockFrom(this.block, this.scanPos);
+    this.scanPos = resumePos;
     if (closeStart === undefined) {
       if (!this.rejected) {
         this.readBlock(parts, () => this.emitReady(parts, readableEnd));
@@ -839,7 +931,9 @@ export class ExpressResponseStream<
   private consumeOutsideText(parts: StreamPart[], input: string): string {
     const open = searchOpenTag(input);
     if (open) {
-      this.text.emit(parts, input.slice(0, open.start).replace(OUTER_TRAILING_FENCE_RE, ''));
+      const beforeTag = input.slice(0, open.start);
+      this.wrappedInInlineBackticks = OUTER_INLINE_OPEN_BACKTICK_RE.test(beforeTag);
+      this.text.emit(parts, beforeTag.replace(OUTER_TRAILING_FENCE_RE, ''));
       this.text.reset();
       this.inBlock = true;
       this.resetBlock();
@@ -858,7 +952,22 @@ export class ExpressResponseStream<
     if (!payload || !payload.trim()) {
       return;
     }
-    const [completePrefix, trailingFragment] = splitCompleteStatements(payload, false);
+    let completePrefix: string;
+    let trailingFragment: string;
+    if (
+      this.lastCompiledPrefix &&
+      payload.startsWith(this.lastCompiledPrefix) &&
+      (this.lastCompiledPrefix.endsWith('\n') || this.lastCompiledPrefix.endsWith(';'))
+    ) {
+      const [tailPrefix, tailFragment] = splitCompleteStatements(
+        payload.slice(this.lastCompiledPrefix.length),
+        false,
+      );
+      completePrefix = `${this.lastCompiledPrefix}${tailPrefix}`;
+      trailingFragment = tailFragment;
+    } else {
+      [completePrefix, trailingFragment] = splitCompleteStatements(payload, false);
+    }
     const readyMessages: AgentToRendererMessage[] = [];
     if (completePrefix.trim() && completePrefix !== this.lastCompiledPrefix) {
       const prefixMsgs = this.compileStep(completePrefix, false, true);
@@ -909,7 +1018,7 @@ export class ExpressResponseStream<
     const payload = cleanExpressPayload(this.block, end) ?? '';
     let models: AgentToRendererMessage[] = [];
     this.state.transaction(() => {
-      if (!this.session.hasEmitted) {
+      if (!this.session.hasEmitted && this.initialSurfaces.size === 0) {
         try {
           models = this.parser.compile(payload, true);
         } catch (e) {
@@ -946,6 +1055,9 @@ export class ExpressResponseStream<
   }
 
   private apply(messages: readonly AgentToRendererMessage[]): void {
+    for (const [surfaceId, compId] of this.session.supersededComponents) {
+      this.state.dropProvisionalComponent(surfaceId, compId);
+    }
     const touched = this.state.apply(messages);
     for (const id of touched) {
       this.touched.add(id);

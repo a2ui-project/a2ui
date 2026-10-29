@@ -114,6 +114,8 @@ export {
 export {type ExpressParserOptions, ExpressParser} from './inference-formats/express/parser.js';
 export {
   DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
+  type ExpressStreamOptions,
+  type ExpressStreamSource,
   ExpressResponseStream,
 } from './inference-formats/express/response-stream.js';
 export {ExpressPromptGenerator} from './inference-formats/express/prompt-generator.js';

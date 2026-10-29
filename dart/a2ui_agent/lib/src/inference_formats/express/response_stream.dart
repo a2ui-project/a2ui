@@ -37,7 +37,7 @@ final RegExp _leadingFence = RegExp(
   caseSensitive: false,
 );
 final RegExp _trailingFence = RegExp(
-  r'(?:\r?\n)?[ \t]*```[ \t]*$',
+  r'(?:\r?\n)?[ \t]*```[a-zA-Z0-9_-]*\s*$',
   caseSensitive: false,
 );
 final RegExp _outerTrailingFence = RegExp(
@@ -46,10 +46,17 @@ final RegExp _outerTrailingFence = RegExp(
 final RegExp _outerTrailingFencePrefix = RegExp(
   r'(?:```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)$',
 );
+final RegExp _outerInlineOpenBacktick = RegExp(r'(?<!`)`{1,2}$');
 final RegExp _outerLeadingFence = RegExp(
-  r'^(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|$)|`+)',
+  r'^\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|$)',
 );
 final RegExp _outerLeadingFencePrefix = RegExp(
+  r'^\s*(?:`{0,2}|```[a-zA-Z0-9_-]*[ \t]*\r?)$',
+);
+final RegExp _outerLeadingFenceInline = RegExp(
+  r'^(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|$)|`+)',
+);
+final RegExp _outerLeadingFenceInlinePrefix = RegExp(
   r'^(?:`+|\s*`{0,2}|\s*```[a-zA-Z0-9_-]*[ \t]*\r?)$',
 );
 final RegExp _trailingFenceClose = RegExp(r'\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n?$');
@@ -62,10 +69,10 @@ final RegExp _dataAssign = RegExp(r'^\s*\$([a-zA-Z0-9_/]*)\s*=(?!=)');
 
 final RegExp _token = RegExp(
   r'[rR]"""[\s\S]*?"""'
-  r'|[rR]"[^\r\n"]*"'
+  r'|[rR](?!""")"[^\r\n"]*"'
   r'|"""(?:\\[\s\S]|[^\\])*?"""'
-  r'|"(?:\\[\s\S]|[^\\])*?"'
-  r'|(?:#|//|--)[^\r\n]*'
+  r'|(?!""")"(?:\\[\s\S]|[^\\"\r\n])*?"'
+  r'|(?:#|//)[^\r\n]*'
   r'|/\*[\s\S]*?\*/'
   r'|\$[a-zA-Z0-9_/]*'
   r'|\?[\p{XID_Start}_]\p{XID_Continue}*'
@@ -92,9 +99,7 @@ int _possibleFenceStart(String text) =>
     _outerTrailingFencePrefix.firstMatch(text)?.start ?? text.length;
 
 int? _commentCloseIndex(String content, int start, int end) {
-  if (!content.startsWith('#', start) &&
-      !content.startsWith('//', start) &&
-      !content.startsWith('--', start)) {
+  if (!content.startsWith('#', start) && !content.startsWith('//', start)) {
     return null;
   }
   final Match? inComment = _closeTag.firstMatch(content.substring(start, end));
@@ -113,7 +118,21 @@ bool _isPartialCloseTag(String content, int i) {
 }
 
 bool _isUnclosedDelimiter(String content, int i) =>
-    content.startsWith('"', i) || content.startsWith('/*', i);
+    content.startsWith('"', i) ||
+    content.startsWith('r"', i) ||
+    content.startsWith('R"', i) ||
+    content.startsWith('/*', i);
+
+bool _isAmbiguousEmptyQuoteAtEof(String content, int start, int end) {
+  if (end != content.length) return false;
+  final int len = end - start;
+  if (len == 2 && content.startsWith('""', start)) return true;
+  if (len == 3 &&
+      (content.startsWith('r""', start) || content.startsWith('R""', start))) {
+    return true;
+  }
+  return false;
+}
 
 /// Scans an `<a2ui>` block in [content] for its closing `</a2ui>` tag.
 ///
@@ -122,22 +141,37 @@ bool _isUnclosedDelimiter(String content, int i) =>
 /// to which the block is safe to read (excluding any trailing partial
 /// `</a2ui>` prefix outside strings and comments).
 (int?, int) scanExpressBlock(String content) {
-  var i = 0;
+  final (int? closeStart, int readableEnd, _) = _scanExpressBlockFrom(
+    content,
+    0,
+  );
+  return (closeStart, readableEnd);
+}
+
+(int?, int, int) _scanExpressBlockFrom(String content, int startPos) {
+  var i = startPos;
   final int n = content.length;
   while (i < n) {
-    if (_closeTag.matchAsPrefix(content, i) != null) return (i, i);
-    if (_isPartialCloseTag(content, i)) return (null, i);
+    if (_closeTag.matchAsPrefix(content, i) != null) return (i, i, i);
+    if (_isPartialCloseTag(content, i)) return (null, i, i);
     if (_token.matchAsPrefix(content, i) case final Match token) {
+      if (_isAmbiguousEmptyQuoteAtEof(content, i, token.end)) {
+        return (null, n, i);
+      }
       final int? inComment = _commentCloseIndex(content, i, token.end);
-      if (inComment != null) return (inComment, inComment);
+      if (inComment != null) return (inComment, inComment, i);
+      if ((content.startsWith('#', i) || content.startsWith('//', i)) &&
+          token.end == n) {
+        return (null, n, i);
+      }
       i = token.end;
     } else if (_isUnclosedDelimiter(content, i)) {
-      return (null, n);
+      return (null, n, i);
     } else {
       i++;
     }
   }
-  return (null, n);
+  return (null, n, n);
 }
 
 /// Strips leading/trailing markdown fences and edge backticks from
@@ -210,19 +244,25 @@ class _ScanCursor {
       i + 1 < n &&
       source[i + 1] == '"') {
     final int? end = _scanDoubleQuoted(source, i + 1, n, raw: true);
-    return end == null ? (n, false) : (end, true);
+    if (end != null) {
+      if (end == n && end - (i + 1) == 2) return (n, false);
+      return (end, true);
+    }
+    return (n, false);
   }
   if (source[i] == '"') {
     final int? end = _scanDoubleQuoted(source, i, n, raw: false);
-    return end == null ? (n, false) : (end, true);
+    if (end != null) {
+      if (end == n && end - i == 2) return (n, false);
+      return (end, true);
+    }
+    return (n, false);
   }
   if (source.startsWith('/*', i)) {
     final int close = source.indexOf('*/', i + 2);
     return close >= 0 ? (close + 2, false) : (n, false);
   }
-  if (source[i] == '#' ||
-      source.startsWith('//', i) ||
-      source.startsWith('--', i)) {
+  if (source[i] == '#' || source.startsWith('//', i)) {
     final int nl = source.indexOf('\n', i);
     return nl >= 0 ? (nl, false) : (n, false);
   }
@@ -419,9 +459,7 @@ int? _trySkipFragmentComment(String fragment, int i, int n) {
     final int close = fragment.indexOf('*/', i + 2);
     return close < 0 ? -1 : close + 2;
   }
-  if (fragment[i] == '#' ||
-      fragment.startsWith('//', i) ||
-      fragment.startsWith('--', i)) {
+  if (fragment[i] == '#' || fragment.startsWith('//', i)) {
     final int nl = fragment.indexOf('\n', i);
     return nl < 0 ? -1 : nl + 1;
   }
@@ -586,11 +624,13 @@ abstract class _ExpressStream<P extends StreamPart> extends ResponseReader<P> {
   String _held = '';
   final TextRun _text = TextRun();
   bool _afterBlock = false;
+  bool _wrappedInInlineBackticks = false;
 
   // The open block.
   bool _inBlock;
   bool _rejected = false;
   String _block = '';
+  int _scanPos = 0;
   String _lastCompiledPrefix = '';
   final Set<String> _touched = {};
   late Set<String> _initialSurfaces;
@@ -601,6 +641,7 @@ abstract class _ExpressStream<P extends StreamPart> extends ResponseReader<P> {
 
   void _resetBlock() {
     _block = '';
+    _scanPos = 0;
     _rejected = false;
     _lastCompiledPrefix = '';
     _touched.clear();
@@ -656,7 +697,11 @@ abstract class _ExpressStream<P extends StreamPart> extends ResponseReader<P> {
       String rest = _held;
       _held = '';
       if (_afterBlock) {
-        rest = rest.replaceFirst(_outerLeadingFence, '');
+        final RegExp fenceRe = _wrappedInInlineBackticks
+            ? _outerLeadingFenceInline
+            : _outerLeadingFence;
+        rest = rest.replaceFirst(fenceRe, '');
+        _wrappedInInlineBackticks = false;
       }
       _text.emit(parts, rest.replaceFirst(_trailingFenceClose, ''));
     }
@@ -695,12 +740,19 @@ abstract class _ExpressStream<P extends StreamPart> extends ResponseReader<P> {
         continue;
       }
       if (_afterBlock) {
-        if (_outerLeadingFencePrefix.hasMatch(input)) {
+        final RegExp prefixRe = _wrappedInInlineBackticks
+            ? _outerLeadingFenceInlinePrefix
+            : _outerLeadingFencePrefix;
+        final RegExp fenceRe = _wrappedInInlineBackticks
+            ? _outerLeadingFenceInline
+            : _outerLeadingFence;
+        if (prefixRe.hasMatch(input)) {
           _held = input;
           return;
         }
         _afterBlock = false;
-        input = input.replaceFirst(_outerLeadingFence, '');
+        _wrappedInInlineBackticks = false;
+        input = input.replaceFirst(fenceRe, '');
         continue;
       }
       input = _consumeOutsideText(parts, input);
@@ -709,7 +761,9 @@ abstract class _ExpressStream<P extends StreamPart> extends ResponseReader<P> {
 
   String _consumeBlockText(List<StreamPart> parts, String input) {
     _block += input;
-    final (int? closeStart, int readableEnd) = scanExpressBlock(_block);
+    final (int? closeStart, int readableEnd, int resumePos) =
+        _scanExpressBlockFrom(_block, _scanPos);
+    _scanPos = resumePos;
     if (closeStart == null) {
       if (!_rejected) {
         _readBlock(parts, () => _emitReady(parts, readableEnd));
@@ -730,9 +784,9 @@ abstract class _ExpressStream<P extends StreamPart> extends ResponseReader<P> {
   String _consumeOutsideText(List<StreamPart> parts, String input) {
     final Match? openMatch = _openTag.firstMatch(input);
     if (openMatch != null) {
-      final String textBefore = input
-          .substring(0, openMatch.start)
-          .replaceFirst(_outerTrailingFence, '');
+      final String beforeTag = input.substring(0, openMatch.start);
+      _wrappedInInlineBackticks = _outerInlineOpenBacktick.hasMatch(beforeTag);
+      final String textBefore = beforeTag.replaceFirst(_outerTrailingFence, '');
       _text.emit(parts, textBefore);
       _text.reset();
       _inBlock = true;
@@ -750,8 +804,20 @@ abstract class _ExpressStream<P extends StreamPart> extends ResponseReader<P> {
   void _emitReady(List<StreamPart> parts, int end) {
     final String? payload = cleanExpressPayload(_block, end);
     if (payload == null || payload.trim().isEmpty) return;
-    final (String completePrefix, String trailingFragment) =
-        splitCompleteStatements(payload);
+    final String completePrefix;
+    final String trailingFragment;
+    if (_lastCompiledPrefix.isNotEmpty &&
+        payload.startsWith(_lastCompiledPrefix) &&
+        (_lastCompiledPrefix.endsWith('\n') ||
+            _lastCompiledPrefix.endsWith(';'))) {
+      final (String tailPrefix, String tailFragment) = splitCompleteStatements(
+        payload.substring(_lastCompiledPrefix.length),
+      );
+      completePrefix = '$_lastCompiledPrefix$tailPrefix';
+      trailingFragment = tailFragment;
+    } else {
+      (completePrefix, trailingFragment) = splitCompleteStatements(payload);
+    }
     final readyMessages = <AgentToRendererMessage>[];
     if (completePrefix.trim().isNotEmpty &&
         completePrefix != _lastCompiledPrefix) {
@@ -823,7 +889,7 @@ abstract class _ExpressStream<P extends StreamPart> extends ResponseReader<P> {
     final String payload = cleanExpressPayload(_block, end) ?? '';
     final List<AgentToRendererMessage> models = state.transaction(() {
       final List<AgentToRendererMessage> emitted;
-      if (!_session.hasEmitted) {
+      if (!_session.hasEmitted && _initialSurfaces.isEmpty) {
         emitted = _parser.compile(payload);
         _apply(emitted);
       } else {
@@ -852,6 +918,10 @@ abstract class _ExpressStream<P extends StreamPart> extends ResponseReader<P> {
   );
 
   void _apply(Iterable<AgentToRendererMessage> messages) {
+    for (final (String surfaceId, String compId)
+        in _session.supersededComponents) {
+      state.dropProvisionalComponent(surfaceId, compId);
+    }
     _touched.addAll(state.apply(messages));
   }
 }
