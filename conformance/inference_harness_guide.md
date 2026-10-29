@@ -15,7 +15,7 @@ Before building the inference harness, complete the `conformance/core/` harness 
 3. Checking a turn's messages with `validatePayload` (a stateless Core SDK utility function that validates message envelopes against active schemas and catalogs without needing a running session) and applying messages to a `MessageProcessor`.
 4. Raising typed errors from the `A2uiError` hierarchy (`A2uiParseError`, `A2uiValidationError`, and `A2uiCatalogError`).
 
-Do not implement a runner for the files under `conformance/agent/legacy/` (`parser.yaml`, `streaming_parser.yaml`, and `inference_format.yaml`). Those three files test an earlier pre-blueprint interface retained only until older SDKs such as [kotlin/agent_sdk_legacy](../kotlin/agent_sdk_legacy) finish migrating. Every rule for a new SDK lives in the suites directly under `agent/`, `agent/direct_json/`, and `agent/express/`.
+Do not implement a runner for the files under `conformance/agent/legacy/` (`parser.yaml`, `streaming_parser.yaml`, and `inference_format.yaml`). Those three files test an earlier pre-blueprint interface retained only for backward compatibility. Every rule for a new SDK lives in the suites directly under `agent/`, `agent/direct_json/`, and `agent/express/`.
 
 ## Repository layout and path resolution
 
@@ -188,7 +188,7 @@ All four actions in `response_parser.yaml` run against `format.createParser()`:
 
 ## Patterns and pitfalls
 
-The Python, TypeScript, Dart, and legacy Kotlin harnesses show several reusable patterns and common cross-language pitfalls:
+The existing Python, TypeScript, and Dart harnesses show several reusable patterns and common cross-language pitfalls:
 
 1. Only implement multi-version fixture translation if your SDK explicitly supports legacy protocol versions. If you are building a new SDK targeting protocol v1.0 exclusively, you can run the standard v1.0 suites directly without legacy adapters. However, if your SDK must support older versions like v0.9, do not duplicate test suites across protocol versions. Use a lowering and lifting adapter instead of copying YAML files: the Dart harness ([dart/a2ui_agent/test/conformance/suites.dart](../dart/a2ui_agent/test/conformance/suites.dart)) translates v1.0 test vectors into v0.9 equivalents at test execution time. In its v0.9 pass, the Dart runner converts `"1.0"` to `"v0.9"`, renames `@path` and `@call` outside `ChildList` templates, and injects a default `catalogId`. It also splits inline `createSurface` `components` and `dataModel` fields into follow-up messages before lifting SDK outputs back to v1.0.
 2. Format numbers consistently in Express decompilation and prompt examples. JavaScript and TypeScript decode `1500.00` in JSON as `1500`, whereas Python, Kotlin, Swift, and Rust decode `1500.0` with a `.0` suffix. Per [agent/express/decompiler.yaml](agent/express/decompiler.yaml), Express formats numbers like ECMAScript `Number.prototype.toString`: plain decimal for `1e-6 <= |v| < 1e21` and unpadded scientific notation (`1e-7`, `1e+21`) otherwise.
