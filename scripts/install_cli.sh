@@ -99,27 +99,28 @@ fi
 echo "Verifying cryptographic SHA-256 checksum..."
 if curl -sSfL "$CHECKSUMS_URL" -o "$TMP_DIR/checksums.txt" 2>/dev/null; then
   EXPECTED_SHA="$(grep "[[:space:]]${ARCHIVE_NAME}\$" "$TMP_DIR/checksums.txt" | awk '{print $1}' || true)"
-  if [ -n "$EXPECTED_SHA" ]; then
-    if command -v sha256sum >/dev/null 2>&1; then
-      ACTUAL_SHA="$(sha256sum "$TMP_DIR/$ARCHIVE_NAME" | awk '{print $1}')"
-    elif command -v shasum >/dev/null 2>&1; then
-      ACTUAL_SHA="$(shasum -a 256 "$TMP_DIR/$ARCHIVE_NAME" | awk '{print $1}')"
-    else
-      ACTUAL_SHA=""
-      echo "Warning: Neither 'sha256sum' nor 'shasum' is installed; skipping hash verification."
-    fi
+  if [ -z "$EXPECTED_SHA" ]; then
+    echo "Error: $ARCHIVE_NAME not found in checksums.txt!" >&2
+    exit 1
+  fi
 
-    if [ -n "$ACTUAL_SHA" ]; then
-      if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
-        echo "Error: Cryptographic checksum mismatch for $ARCHIVE_NAME!" >&2
-        echo "  Expected: $EXPECTED_SHA" >&2
-        echo "  Actual:   $ACTUAL_SHA" >&2
-        exit 1
-      fi
-      echo "✓ SHA-256 checksum verified."
-    fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    ACTUAL_SHA="$(sha256sum "$TMP_DIR/$ARCHIVE_NAME" | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    ACTUAL_SHA="$(shasum -a 256 "$TMP_DIR/$ARCHIVE_NAME" | awk '{print $1}')"
   else
-    echo "Warning: $ARCHIVE_NAME not found in checksums.txt; proceeding."
+    ACTUAL_SHA=""
+    echo "Warning: Neither 'sha256sum' nor 'shasum' is installed; skipping hash verification."
+  fi
+
+  if [ -n "$ACTUAL_SHA" ]; then
+    if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+      echo "Error: Cryptographic checksum mismatch for $ARCHIVE_NAME!" >&2
+      echo "  Expected: $EXPECTED_SHA" >&2
+      echo "  Actual:   $ACTUAL_SHA" >&2
+      exit 1
+    fi
+    echo "✓ SHA-256 checksum verified."
   fi
 else
   echo "Warning: checksums.txt not available for this release; proceeding."

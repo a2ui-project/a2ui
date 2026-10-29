@@ -64,7 +64,14 @@ chmod +x "$MOCK_STAGING/a2ui"
 # Package archive
 tar -czf "$MOCK_ASSETS_DIR/$ARCHIVE_NAME" -C "$MOCK_STAGING" a2ui
 # Generate checksums.txt
-(cd "$MOCK_ASSETS_DIR" && sha256sum "$ARCHIVE_NAME" > checksums.txt)
+if command -v sha256sum >/dev/null 2>&1; then
+  (cd "$MOCK_ASSETS_DIR" && sha256sum "$ARCHIVE_NAME" > checksums.txt)
+elif command -v shasum >/dev/null 2>&1; then
+  (cd "$MOCK_ASSETS_DIR" && shasum -a 256 "$ARCHIVE_NAME" > checksums.txt)
+else
+  echo "FAIL: Neither sha256sum nor shasum is available to run tests."
+  exit 1
+fi
 
 # Run installer with mock curl function injected
 TEST_OUTPUT=$(
@@ -157,5 +164,51 @@ if [[ "$MISMATCH_OUTPUT" != *"Cryptographic checksum mismatch"* ]]; then
   exit 1
 fi
 echo "✓ Test 3 passed"
+
+# Test 4: Missing archive entry in checksums.txt halts installation
+echo "Test 4: Missing archive entry in checksums.txt halts installation"
+MOCK_INSTALL_DIR_4="$TEST_TMP/bin4"
+mkdir -p "$MOCK_INSTALL_DIR_4"
+
+# Create empty checksum file
+echo "1111111111111111111111111111111111111111111111111111111111111111  some-other-file.tar.gz" > "$MOCK_ASSETS_DIR/missing_entry_checksums.txt"
+
+MISSING_ENTRY_OUTPUT=$(
+  MOCK_ASSETS_DIR="$MOCK_ASSETS_DIR" \
+  A2UI_VERSION="$VERSION" \
+  A2UI_INSTALL_DIR="$MOCK_INSTALL_DIR_4" \
+  bash -c '
+    curl() {
+      url=""
+      out=""
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          -o) out="$2"; shift 2 ;;
+          http*) url="$1"; shift ;;
+          *) shift ;;
+        esac
+      done
+      case "$url" in
+        *checksums.txt) cp "$MOCK_ASSETS_DIR/missing_entry_checksums.txt" "$out" ;;
+        *.tar.gz)       cp "$MOCK_ASSETS_DIR/'"$ARCHIVE_NAME"'" "$out" ;;
+        *) return 1 ;;
+      esac
+    }
+    export -f curl
+    "'"$INSTALLER"'"
+  ' 2>&1 || true
+)
+
+if [ -f "$MOCK_INSTALL_DIR_4/a2ui" ]; then
+  echo "FAIL: Binary should not be installed when archive is missing from checksums.txt!"
+  exit 1
+fi
+
+if [[ "$MISSING_ENTRY_OUTPUT" != *"not found in checksums.txt"* ]]; then
+  echo "FAIL: Expected missing entry error, got:"
+  echo "$MISSING_ENTRY_OUTPUT"
+  exit 1
+fi
+echo "✓ Test 4 passed"
 
 echo "=== All A2UI CLI Installer tests passed successfully! ==="
