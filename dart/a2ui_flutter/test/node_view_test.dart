@@ -78,8 +78,8 @@ void main() {
     expect(log.builds, ['root', 't1', 't2']);
   });
 
-  testWidgets('shows a progress indicator for a pending child, then upgrades '
-      'it in place', (tester) async {
+  testWidgets('renders nothing for a pending child, then upgrades it in '
+      'place', (tester) async {
     add('root', 'Column', {
       'children': ['late'],
     });
@@ -87,13 +87,13 @@ void main() {
     final Element before = viewElement(tester, 'late');
     expect(log.nodes['late'], isNull);
     expect(find.byType(Text), findsNothing);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(tester.getSize(find.byKey(const NodeKey('late'))), Size.zero);
 
     add('late', 'Probe', {'label': 'Arrived'});
     await tester.pump();
 
     expect(find.text('Arrived'), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(viewElement(tester, 'late'), same(before));
     expect(log.probeStates, ['late']);
   });
@@ -116,7 +116,7 @@ void main() {
     expect(find.text('Two'), findsOneWidget);
   });
 
-  testWidgets('renders a diagnostic for an unknown type, reported once', (
+  testWidgets('renders nothing for an unknown type, reported once', (
     tester,
   ) async {
     add('root', 'Column', {
@@ -126,12 +126,15 @@ void main() {
 
     await pumpRoot(tester);
 
-    expect(find.text('Unknown component type "Bogus"'), findsNWidgets(2));
+    expect(find.byType(Text), findsNothing);
+    expect(tester.getSize(find.byKey(const NodeKey('weird'))), Size.zero);
+    expect(tester.getSize(find.byKey(const NodeKey('weird#2'))), Size.zero);
     expect(errors.map((e) => e.code), ['UNKNOWN_COMPONENT_TYPE']);
   });
 
-  testWidgets('renders a diagnostic for a cycle through children, reported '
-      'once', (tester) async {
+  testWidgets('renders nothing for a cycle through children, reported once', (
+    tester,
+  ) async {
     add('root', 'Column', {
       'children': ['a'],
     });
@@ -144,7 +147,7 @@ void main() {
 
     await pumpRoot(tester);
 
-    expect(find.text('Cyclic reference to "a"'), findsOneWidget);
+    expect(find.byType(Text), findsNothing);
     expect(errors.map((e) => e.code), ['CYCLIC_REFERENCE']);
 
     update('root', {

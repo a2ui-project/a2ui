@@ -14,159 +14,283 @@
 
 import A2UICore
 import A2UIJSON
-import BasicCatalog
 import Foundation
 import OrderedCollections
 import OrderedJSON
 import Testing
 
+/// Runs the shared `conformance/core/accessibility.yaml` suite.
+///
+/// Each case's components are added to a surface built with the case's catalogs, and every
+/// `accessibilityTree` expectation is compared with the `accessibilityAttributes` of the node in
+/// the surface's `rootNode` tree. An expectation is a string, a boolean, or a `{path}` (or
+/// `{"@path"}`) reference into the surface data model. The cases carry no data, so before
+/// checking a case with references the runner writes a value to each referenced path and checks,
+/// then writes different values and checks again. Paths bound to the same field get different
+/// values in each round, so a binding that does not follow the data model, or follows the wrong
+/// path, fails. Any other expectation shape, and any field the runner does not know, records an
+/// issue.
 @MainActor
 struct AccessibilityConformanceTests {
+  /// `accessibilityTree` fields that describe how a UI framework exposes a component: its role and
+  /// its toggle state. `A2UICore` has no model for them, so this runner does not check them.
+  private static let rendererOnlyFields: Set<String> = ["role", "checked"]
+
+  /// How many times a case with data model references is checked, each time with different values
+  /// at the referenced paths.
+  private static let dataModelRounds = 2
+
   @Test func accessibilityConformance() throws {
-    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/accessibility.yaml")
-    let testCases = (rawYAML as? [[String: Any]]) ?? []
+    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/accessibility.yaml")
+    let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
+
     #expect(!testCases.isEmpty, "Should find test cases in accessibility.yaml")
 
-    var checkedComponents = 0
+    var checkedFields = 0
+    var checkedReferences = 0
+
     for testCase in testCases {
-      checkedComponents += try runAccessibilityCase(testCase)
+      guard testCase.action == "accessibility_check" else {
+        Issue.record("[\(testCase.name)] Unhandled action '\(testCase.action ?? "")'")
+        continue
+      }
+      guard let surfaceDefinition = testCase.surface else {
+        Issue.record("[\(testCase.name)] The case has no surface")
+        continue
+      }
+      guard let expectedTree = testCase.assertions?["accessibilityTree"]?.objectValue else {
+        Issue.record("[\(testCase.name)] The case has no accessibilityTree assertions")
+        continue
+      }
+
+      let surface = try makeSurface(testCase: testCase, surfaceDefinition: surfaceDefinition)
+
+      let references = dataModelReferences(in: expectedTree, testCase: testCase)
+      guard !references.isEmpty else {
+        checkedFields += check(expectedTree, on: surface, testCase: testCase)
+        continue
+      }
+      let sortedReferences = references.sorted { $0.key < $1.key }
+      for round in 0..<Self.dataModelRounds {
+        for (index, (path, field)) in sortedReferences.enumerated() {
+          guard
+            let value = sampleValue(for: field, path: path, index: index, round: round)
+          else {
+            Issue.record(
+              "[\(testCase.name)] No sample value for field '\(field)' bound to '\(path)'")
+            continue
+          }
+          surface.dataModel.set(path, value: value)
+          checkedReferences += 1
+        }
+        checkedFields += check(expectedTree, on: surface, testCase: testCase)
+      }
     }
 
-    #expect(checkedComponents > 0, "no accessibilityTree assertion of the suite was checked")
+    #expect(checkedFields > 0, "no accessibilityTree assertion of the suite was checked")
+    #expect(checkedReferences > 0, "no data model reference of the suite was checked")
   }
 
-  private func runAccessibilityCase(_ testCase: [String: Any]) throws -> Int {
-    let name = testCase["name"] as? String ?? "<unnamed>"
-    let processor = MessageProcessor(
-      catalogs: BasicCatalog.allCatalogs,
-      validationConfig: .relaxed
+  /// Creates a surface with the case's catalogs and adds the case's components to it.
+  ///
+  /// The components go straight into the surface's components model rather than through an
+  /// `updateComponents` message, because the suite's surfaces are not valid v1.0 payloads: they
+  /// use `Container`, which the basic catalog has no component for, and properties such as
+  /// `Button.title` and `CheckBox.checked` that the catalog does not define, and they leave out
+  /// required ones such as `Button.child`, so `MessageProcessor` rejects them.
+  private func makeSurface(
+    testCase: ConformanceTestCase,
+    surfaceDefinition: [String: JSONValue]
+  ) throws -> SurfaceViewModel {
+    let catalogs = try ConformanceTestHelper.buildCatalogs(for: testCase)
+    let defaultCatalog = try #require(
+      catalogs.first,
+      "[\(testCase.name)] The case has no catalog"
     )
-    let steps = (testCase["steps"] as? [[String: Any]]) ?? [testCase]
-    var checked = 0
+    let surface = SurfaceViewModel(
+      surfaceID: "accessibility-surface",
+      catalogs: catalogs,
+      defaultCatalogID: defaultCatalog.id,
+      protocolVersion: testCase.protocolVersion.flatMap(A2UIProtocolVersion.init(lenientRawValue:))
+    )
 
-    for step in steps {
-      if let rawMessages = step["messages"] {
-        try processor.processMessages(ConformanceTestHelper.toJSONValue(rawMessages))
+    var definitions = [("root", surfaceDefinition)]
+    for (componentID, definition) in surfaceDefinition["components"]?.objectValue ?? [:] {
+      guard let componentDictionary = definition.dictionaryValue else {
+        Issue.record("[\(testCase.name)] Component '\(componentID)' is not an object")
+        continue
       }
-      let surface = try #require(
-        processor.surfaceGroupModel.surfacesMap["a11y_surface"]
-          ?? processor.surfaceGroupModel.surfacesMap.values.first,
-        "[\(name)] Expected surface 'a11y_surface' to exist"
-      )
-      let rootNode = try #require(
-        surface.nodeResolver.resolveTree(),
-        "[\(name)] Expected resolved root node"
-      )
-      #expect(surface.rootNode == rootNode, "[\(name)] Surface rootNode should match resolved tree")
-
-      let assertions =
-        (step["assertions"] as? [String: Any])
-        ?? (testCase["assertions"] as? [String: Any])
-        ?? [:]
-      let treeAssertions = assertions["accessibilityTree"] as? [String: Any] ?? [:]
-
-      for (targetID, rawExpected) in treeAssertions {
-        guard let expectedDict = rawExpected as? [String: Any] else { continue }
-        let targetNode = try #require(
-          findNode(id: targetID, in: rootNode),
-          "[\(name)] Expected node '\(targetID)' in resolved tree"
+      definitions.append((componentID, componentDictionary))
+    }
+    let metadataKeys: Set<String> = ["id", "component", "catalogId", "components"]
+    var components: [ComponentModel] = []
+    for (fallbackID, definition) in definitions {
+      guard let type = definition["component"]?.stringValue else {
+        Issue.record("[\(testCase.name)] Component '\(fallbackID)' has no component type")
+        continue
+      }
+      components.append(
+        ComponentModel(
+          id: definition["id"]?.stringValue ?? fallbackID,
+          type: type,
+          catalogID: definition["catalogId"]?.stringValue,
+          properties: definition.filter { !metadataKeys.contains($0.key) }
         )
-        assertNodeAccessibility(
-          node: targetNode,
-          expected: expectedDict,
-          caseName: name
+      )
+    }
+    surface.componentsModel.applyBatch(adding: components)
+    return surface
+  }
+
+  /// Compares every expectation of `expectedTree` with the resolved surface and returns how many
+  /// fields it compared.
+  private func check(
+    _ expectedTree: OrderedDictionary<String, JSONValue>,
+    on surface: SurfaceViewModel,
+    testCase: ConformanceTestCase
+  ) -> Int {
+    guard surface.rootNode != nil else {
+      Issue.record("[\(testCase.name)] The surface resolved no tree")
+      return 0
+    }
+    var checkedFields = 0
+    for (componentID, expectedNode) in expectedTree {
+      guard let expectedFields = expectedNode.objectValue else {
+        Issue.record("[\(testCase.name)] Expectation for '\(componentID)' is not an object")
+        continue
+      }
+      guard
+        let node = surface.findNode(id: componentID)
+          ?? resolveDetached(componentID: componentID, on: surface)
+      else {
+        Issue.record("[\(testCase.name)] Component '\(componentID)' could not be resolved")
+        continue
+      }
+      let attributes = node.accessibilityAttributes
+      for (field, expectedShape) in expectedFields {
+        guard !Self.rendererOnlyFields.contains(field) else { continue }
+        let actual: JSONValue?
+        switch field {
+        case "label": actual = attributes?.label.map(JSONValue.string)
+        case "description": actual = attributes?.description.map(JSONValue.string)
+        case "live": actual = attributes?.live.map(JSONValue.string)
+        case "hidden": actual = attributes?.hidden.map(JSONValue.boolean)
+        default:
+          Issue.record("[\(testCase.name)] Unhandled field '\(field)' for '\(componentID)'")
+          continue
+        }
+        guard
+          let expected = resolveExpectation(
+            expectedShape,
+            dataModel: surface.dataModel,
+            context: "[\(testCase.name)] \(componentID).\(field)"
+          )
+        else { continue }
+        #expect(
+          actual == expected,
+          """
+          [\(testCase.name)] Expected \(field) \(expected) for '\(componentID)', \
+          got \(actual.map { "\($0)" } ?? "nil")
+          """
         )
-        checked += 1
+        checkedFields += 1
       }
     }
-    return checked
+    return checkedFields
   }
 
-  private func findNode(id: String, in root: Node) -> Node? {
-    var stack: [Node] = [root]
-    while let current = stack.popLast() {
-      if current.id == id {
-        return current
-      }
-      stack.append(contentsOf: current.allChildNodes)
-    }
-    return nil
-  }
-
-  private func assertNodeAccessibility(
-    node: Node,
-    expected: [String: Any],
-    caseName: String
-  ) {
-    let attributes = node.accessibilityAttributes
-    if let expectedLabel = expected["label"] as? String {
-      let actualLabel = effectiveLabel(for: node)
-      #expect(
-        actualLabel == expectedLabel,
-        "[\(caseName)] Expected label '\(expectedLabel)' for '\(node.id)'"
-      )
-    }
-    if let expectedDescription = expected["description"] as? String {
-      #expect(
-        attributes?.description == expectedDescription,
-        "[\(caseName)] Expected description '\(expectedDescription)' for '\(node.id)'"
-      )
-    }
-    if let expectedLive = expected["live"] as? String {
-      #expect(
-        attributes?.live == expectedLive,
-        "[\(caseName)] Expected live '\(expectedLive)' for '\(node.id)'"
-      )
-    }
-    if let expectedHidden = expected["hidden"] as? Bool {
-      let actualHidden = attributes?.hidden ?? false
-      #expect(
-        actualHidden == expectedHidden,
-        "[\(caseName)] Expected hidden '\(expectedHidden)' for '\(node.id)'"
-      )
-    }
-    if let expectedRole = expected["role"] as? String {
-      let actualRole = effectiveRole(for: node)
-      #expect(
-        actualRole == expectedRole,
-        "[\(caseName)] Expected role '\(expectedRole)' for '\(node.id)', got '\(actualRole)'"
-      )
-    }
-    if let expectedChecked = expected["checked"] as? Bool {
-      let actualChecked = node.bool(for: "value") ?? false
-      #expect(
-        actualChecked == expectedChecked,
-        "[\(caseName)] Expected checked '\(expectedChecked)' for '\(node.id)'"
-      )
-    }
-  }
-
-  private func effectiveLabel(for node: Node) -> String? {
-    if let label = node.accessibilityAttributes?.label, !label.isEmpty {
-      return label
-    }
-    if let child = node.child(for: "child") {
-      if let childLabel = child.accessibilityAttributes?.label, !childLabel.isEmpty {
-        return childLabel
-      }
-      return child.string(for: "text")
-    }
-    return nil
-  }
-
-  private func effectiveRole(for node: Node) -> String {
-    switch node.type {
-    case "Button":
-      return "button"
-    case "TextField":
-      return "textbox"
-    case "CheckBox":
-      return "checkbox"
-    case "ChoicePicker":
-      let variant = node.string(for: "variant") ?? "mutuallyExclusive"
-      return variant == "mutuallyExclusive" ? "radiogroup" : "group"
+  /// Returns the value an expectation stands for: a string or a boolean as is, or the data model
+  /// value at the path of a `{path}` or `{"@path"}` reference. Records an issue and returns `nil`
+  /// for any other shape, and for a reference to a path that has no value.
+  private func resolveExpectation(
+    _ shape: JSONValue,
+    dataModel: DataModel,
+    context: String
+  ) -> JSONValue? {
+    switch shape {
+    case .string, .boolean:
+      return shape
     default:
-      return node.type.lowercased()
+      guard let path = referencedPath(in: shape) else {
+        Issue.record("\(context): unhandled expectation shape \(shape)")
+        return nil
+      }
+      guard let value = dataModel.get(path) else {
+        Issue.record("\(context): the data model has no value at '\(path)'")
+        return nil
+      }
+      return value
     }
+  }
+
+  /// The path of a `{path: "/x"}` or `{"@path": "/x"}` reference, or `nil` for any other value.
+  private func referencedPath(in value: JSONValue) -> String? {
+    guard let object = value.objectValue, object.count == 1 else { return nil }
+    return (object["path"] ?? object["@path"])?.stringValue
+  }
+
+  /// Maps each data model path that the expectations reference to the field that references it.
+  private func dataModelReferences(
+    in expectedTree: OrderedDictionary<String, JSONValue>,
+    testCase: ConformanceTestCase
+  ) -> [String: String] {
+    var references: [String: String] = [:]
+    for expectedNode in expectedTree.values {
+      for (field, expectedShape) in expectedNode.objectValue ?? [:] {
+        guard let path = referencedPath(in: expectedShape) else { continue }
+        if let other = references[path], other != field {
+          Issue.record(
+            "[\(testCase.name)] '\(path)' is referenced by both '\(other)' and '\(field)'")
+        }
+        references[path] = field
+      }
+    }
+    return references
+  }
+
+  /// A value of the field's type that differs across paths and from one round to the next.
+  ///
+  /// Two-state values alternate with the path's `index`, so two paths bound to the same field
+  /// get different values in each round and a component bound to the wrong one fails.
+  private func sampleValue(
+    for field: String,
+    path: String,
+    index: Int,
+    round: Int
+  ) -> JSONValue? {
+    let isEvenStep = (round + index).isMultiple(of: 2)
+    switch field {
+    case "label", "description": return .string("\(field) \(path) \(round)")
+    case "live": return .string(isEvenStep ? "polite" : "assertive")
+    case "hidden": return .boolean(isEvenStep)
+    default: return nil
+    }
+  }
+
+  /// Resolves a component that the surface's tree does not reach, as the root of a tree of its
+  /// own over the same catalogs and data model.
+  ///
+  /// `test_accessibility_live_region_assertive` puts its component in a `Container`, which the
+  /// basic catalog does not define, so the resolver has no schema telling it that `child` is a
+  /// component reference and never reaches the child.
+  private func resolveDetached(componentID: String, on surface: SurfaceViewModel) -> Node? {
+    guard let component = surface.componentsModel.get(componentID) else { return nil }
+    // Keep the surface's other components, so children of the detached component resolve too.
+    var components = surface.componentsModel.components
+    components["root"] = ComponentModel(
+      id: "root",
+      type: component.type,
+      catalogID: component.catalogID,
+      properties: component.properties
+    )
+    let resolver = NodeResolver(
+      surfaceID: surface.surfaceID,
+      catalogs: surface.catalogs,
+      defaultCatalogID: surface.defaultCatalogID,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: surface.dataModel,
+      protocolVersion: surface.protocolVersion
+    )
+    return resolver.resolveTree()
   }
 }

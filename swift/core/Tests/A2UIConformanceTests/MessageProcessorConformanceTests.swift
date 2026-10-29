@@ -45,8 +45,9 @@ struct MessageProcessorConformanceTests {
     )
   ]
 
-  /// Cases that pass a validation config to one call, which the Swift processor does not take
-  /// yet: https://github.com/a2ui-project/a2ui/issues/3699
+  /// Cases of the optional agent_renderer_app feature
+  /// (blueprints/features/agent_renderer_app.blueprint.md), which passes a validation config to
+  /// one call. This SDK has no agent, so it does not implement the feature.
   private static let skippedCases: Set<String> = [
     "test_v10_call_validation_config_relaxes_strict_processor",
     "test_v10_call_validation_config_tightens_permissive_processor",

@@ -97,17 +97,10 @@ SKIP_TEST_NAMES: set[str] = {
     # surface holds, which the TypeScript and Kotlin cores do not.
     "test_v08_topology_plain_string_property_not_treated_as_child_ref",
     "test_v08_topology_plain_string_property_does_not_close_cycle",
-    # Catalog.derive and the per-call validation config of
-    # ExecutionContext are not ported to Python yet:
-    # https://github.com/a2ui-project/a2ui/issues/3699
-    "test_v10_catalog_derive_keeps_named_entries",
-    "test_v10_catalog_derive_adds_and_replaces_entries",
-    "test_v10_catalog_derive_keeps_every_entry_of_an_omitted_list",
-    "test_v10_catalog_derive_drops_fields_that_describe_the_source",
-    "test_v10_catalog_derive_sets_instructions",
-    "test_v10_catalog_derive_unknown_component_error",
-    "test_v10_catalog_derive_unknown_function_error",
-    "test_v09_catalog_derive_keeps_protocol_version",
+    # Cases of the optional agent_renderer_app feature
+    # (blueprints/features/agent_renderer_app.blueprint.md), which takes the
+    # validation rules for one call. This SDK has no renderer, so it does not
+    # implement the feature.
     "test_v10_call_validation_config_relaxes_strict_processor",
     "test_v10_call_validation_config_tightens_permissive_processor",
     "test_v10_call_validation_config_leaves_out_rules_as_strict",
@@ -789,6 +782,8 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
 
     if action == "from_json":
         validate_from_json_case(case)
+    elif action == "derive":
+        validate_derive_case(case)
     elif action == "validation_schema":
         validate_validation_schema_case(case)
     elif action == "round_trip":
@@ -1453,6 +1448,93 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
             for component in expected.get("invalidComponents", []):
                 with pytest.raises(A2uiValidationError):
                     validator.validate_component(component)
+
+
+# The `expect` keys a `derive` case may use (`DeriveExpect` in
+# conformance_schema.json).
+_DERIVE_EXPECT_KEYS = frozenset({
+    "absentKeys",
+    "catalogId",
+    "components",
+    "functions",
+    "instructions",
+    "protocolVersion",
+    "theme",
+})
+
+
+def validate_derive_case(case: dict[str, Any]) -> None:
+    """Runs a `derive` case.
+
+    Loads the source catalog with `from_json`, derives a catalog from it, and
+    checks the derived catalog and its `to_json()` document.
+    """
+    document, _ = _load_case_catalog(case)
+    source = Catalog.from_json(document)
+    args = case["args"]
+
+    def entries(kind: str) -> list[Any] | None:
+        # A map with one key is a new entry, built by loading it into a
+        # catalog of the source's version.
+        listed = args.get(kind)
+        if listed is None:
+            return None
+        picked: list[Any] = []
+        for item in listed:
+            if isinstance(item, str):
+                picked.append(item)
+                continue
+            [(name, definition)] = item.items()
+            holder = Catalog.from_json({
+                "catalogId": "conformance:derive-entries",
+                "protocolVersion": document.get("protocolVersion"),
+                kind: {name: definition},
+            })
+            picked.append(getattr(holder, kind)[name])
+        return picked
+
+    def derive() -> CatalogApi:
+        return source.derive(
+            catalog_id=args["catalogId"],
+            components=entries("components"),
+            functions=entries("functions"),
+            instructions=args.get("instructions"),
+        )
+
+    if "expectError" in case:
+        with assert_raises(case["expectError"]):
+            derive()
+        return
+
+    expected = case["expect"]
+    unknown_keys = set(expected) - _DERIVE_EXPECT_KEYS
+    assert not unknown_keys, f"Unknown derive expect keys: {sorted(unknown_keys)}"
+    derived = derive()
+    out = derived.to_json()
+    if "catalogId" in expected:
+        assert derived.catalog_id == expected["catalogId"]
+    if "protocolVersion" in expected:
+        assert to_canonical_version(derived.protocol_version) == to_canonical_version(
+            expected["protocolVersion"]
+        )
+    for kind in ("components", "functions"):
+        if kind not in expected:
+            continue
+        listed = expected[kind]
+        assert sorted(getattr(derived, kind)) == sorted(listed), f"{kind} mismatch"
+        if isinstance(listed, dict):
+            for name, definition in listed.items():
+                assert normalize_set_keywords(
+                    out[kind][name]
+                ) == normalize_set_keywords(definition), f"{kind} '{name}' differs"
+    if "theme" in expected:
+        assert normalize_set_keywords(out.get("theme")) == normalize_set_keywords(
+            expected["theme"]
+        )
+    if "instructions" in expected:
+        assert out.get("instructions") == expected["instructions"]
+    for key in expected.get("absentKeys", []):
+        assert key not in out, f"Expected to_json() to carry no '{key}'"
 
 
 def normalize_set_keywords(node: Any) -> Any:
