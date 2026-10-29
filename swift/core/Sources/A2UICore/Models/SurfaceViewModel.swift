@@ -58,6 +58,31 @@ public final class SurfaceViewModel: ObservableObject {
     }
   }
 
+  /// Sends calls to functions the renderer does not implement to the agent.
+  ///
+  /// When set on a v1.0 surface, a function call in a binding, check or action whose function has
+  /// no local implementation in the catalog it resolves to (undeclared, or declared schema-only)
+  /// is sent here, through ``callAgentFunction(_:)``, instead of failing, as the v1.0 fallback
+  /// routing defines. The value is `null` until the agent answers. When unset, such a call fails
+  /// with an `EXPRESSION_ERROR`.
+  ///
+  /// ``MessageProcessor`` sets this on each v1.0 surface while it has an `outboundListener`.
+  public var agentFunctionCaller: AgentFunctionCaller? {
+    didSet {
+      if agentFunctionCaller == nil {
+        nodeResolver.agentFunctionCaller = nil
+      } else {
+        nodeResolver.agentFunctionCaller = { [weak self] call in
+          guard let self else { throw FunctionError.noListener(name: call.name) }
+          return try await self.callAgentFunction(call)
+        }
+      }
+    }
+  }
+
+  /// Agent function calls awaiting a response, keyed by call.
+  private var inFlightAgentCalls: [AgentFunctionCall: Task<JSONValue, any Error>] = [:]
+
   private var cancellables = Set<AnyCancellable>()
 
   /// The root node of the resolved component tree, published to the UI
@@ -176,6 +201,33 @@ public final class SurfaceViewModel: ObservableObject {
     nodeResolver.getCatalog(id: id)
   }
 
+  /// Sends a function call to the agent through ``agentFunctionCaller``.
+  ///
+  /// A call identical to one still awaiting its response (same catalog, function and arguments)
+  /// shares that response instead of sending another message. Once answered, the same call is
+  /// sent again.
+  ///
+  /// - Parameter call: The call to send, naming the catalog it resolved to.
+  /// - Returns: The agent's result.
+  /// - Throws: ``FunctionError/noListener(name:)`` if no ``agentFunctionCaller`` is set, or the
+  ///   error of the caller, such as an agent error or a timeout.
+  public func callAgentFunction(_ call: AgentFunctionCall) async throws -> JSONValue {
+    guard let caller = agentFunctionCaller else {
+      throw FunctionError.noListener(name: call.name)
+    }
+    if let inFlight = inFlightAgentCalls[call] {
+      return try await inFlight.value
+    }
+    let task = Task { @MainActor in try await caller(call) }
+    inFlightAgentCalls[call] = task
+    defer {
+      if inFlightAgentCalls[call] == task {
+        inFlightAgentCalls.removeValue(forKey: call)
+      }
+    }
+    return try await task.value
+  }
+
   private func setUpSubscriptions() {
     componentsModel.componentsPublisher
       .sink { [weak self] _ in
@@ -184,6 +236,12 @@ public final class SurfaceViewModel: ObservableObject {
       .store(in: &cancellables)
 
     dataModel.dataPublisher
+      .sink { [weak self] _ in
+        self?.rebuildTree()
+      }
+      .store(in: &cancellables)
+
+    nodeResolver.agentFunctionResultPublisher
       .sink { [weak self] _ in
         self?.rebuildTree()
       }
@@ -214,5 +272,13 @@ extension SurfaceViewModel: FunctionHandler {
 
   public func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {
     try nodeResolver.validateFunctionCatalog(id: catalogID, functionName: functionName)
+  }
+
+  public func agentFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
+    nodeResolver.agentFunctionCatalogID(forCallCatalogID: catalogID)
+  }
+
+  public func agentFunctionValue(for call: AgentFunctionCall) -> JSONValue? {
+    nodeResolver.agentFunctionValue(for: call)
   }
 }

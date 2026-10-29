@@ -103,7 +103,8 @@ public final class RPCHandler {
       )
     }
 
-    guard let function = catalog.functions[callName] else {
+    // A schema-only declaration has no renderer implementation, so the renderer can't run it.
+    guard let function = catalog.functions[callName], function.hasLocalImplementation else {
       let errorPayload = FunctionErrorPayload(
         code: .invalidFunctionCall,
         message: "Function not found: \(callName)"

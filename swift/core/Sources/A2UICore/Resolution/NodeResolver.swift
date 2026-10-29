@@ -58,6 +58,7 @@ public final class NodeResolver: Sendable {
     var readValues: [String: JSONValue?]
     var templateCounts: [String: Int]
     var directChildInstances: Set<String>
+    var agentCalls: Set<AgentFunctionCall>
   }
 
   /// The number of `resolveNode` invocations executed during the most recent `resolveTree()` pass.
@@ -86,6 +87,32 @@ public final class NodeResolver: Sendable {
   private var currentComponentID: String?
   private var currentPropertyPath: String?
   private var modelCancellables = Set<AnyCancellable>()
+
+  /// Sends calls to functions the renderer does not implement to the agent.
+  ///
+  /// When set on a v1.0 resolver, a call whose function has no local implementation in the
+  /// catalog it resolves to (undeclared, or declared schema-only) is sent here instead of
+  /// failing, as the v1.0 fallback routing defines. ``SurfaceViewModel`` sets it from its own
+  /// ``SurfaceViewModel/agentFunctionCaller``.
+  public var agentFunctionCaller: AgentFunctionCaller?
+
+  /// Agent function calls made while resolving a node, keyed to the nodes that made them.
+  private var nodesByAgentCall: [AgentFunctionCall: Set<String>] = [:]
+  /// The agent calls the node being resolved makes.
+  private var currentNodeAgentCalls: Set<AgentFunctionCall>?
+  /// Agent calls made while resolving nodes that are awaiting the agent's response.
+  private var pendingAgentCalls: Set<AgentFunctionCall> = []
+  /// The settled values of agent calls that resolved nodes still make (`null` after an error).
+  private var agentCallResults: [AgentFunctionCall: JSONValue] = [:]
+  /// Agent calls settled since the last pass, whose nodes must be resolved again.
+  private var dirtyAgentCalls: Set<AgentFunctionCall> = []
+  private let agentCallSettledSubject = PassthroughSubject<Void, Never>()
+
+  /// Publishes when the agent answers a call made while resolving a node, so that the tree
+  /// should be resolved again to pick up the result. ``SurfaceViewModel`` rebuilds its tree.
+  public var agentFunctionResultPublisher: AnyPublisher<Void, Never> {
+    agentCallSettledSubject.eraseToAnyPublisher()
+  }
 
   /// Whether this resolver follows v1.0 rules.
   ///
@@ -237,6 +264,7 @@ public final class NodeResolver: Sendable {
     let components = componentsModel.components
     guard components["root"] != nil else {
       resetResolutionState()
+      agentCallResults.removeAll()
       return nil
     }
 
@@ -249,6 +277,8 @@ public final class NodeResolver: Sendable {
     defer {
       resolvedInCurrentPass.removeAll()
       isResolvingTree = false
+      // Agent results are kept across the reset for the nodes resolved again; drop the rest.
+      agentCallResults = agentCallResults.filter { nodesByAgentCall[$0.key] != nil }
     }
     return resolveNode(
       definitionID: "root",
@@ -276,6 +306,8 @@ public final class NodeResolver: Sendable {
     resolvedInCurrentPass.removeAll()
     reportedExpressionErrors.removeAll()
     currentPassExpressionErrors.removeAll()
+    nodesByAgentCall.removeAll()
+    dirtyAgentCalls.removeAll()
   }
 
   private func resolveIncrementalChanges(
@@ -284,14 +316,21 @@ public final class NodeResolver: Sendable {
   ) -> Node? {
     let changedCompIDs = dirtyComponentIDs
     let changedDataPaths = dirtyDataPaths
+    let changedAgentCalls = dirtyAgentCalls
     dirtyComponentIDs.removeAll()
     dirtyDataPaths.removeAll()
+    dirtyAgentCalls.removeAll()
 
-    guard !changedCompIDs.isEmpty || !changedDataPaths.isEmpty else {
+    guard !changedCompIDs.isEmpty || !changedDataPaths.isEmpty || !changedAgentCalls.isEmpty
+    else {
       return activeNodes["root"]
     }
 
     var affectedNodeIDs: Set<String> = []
+
+    for call in changedAgentCalls {
+      affectedNodeIDs.formUnion(nodesByAgentCall[call] ?? [])
+    }
 
     for compID in changedCompIDs {
       let currentComp = components[compID]
@@ -492,6 +531,9 @@ public final class NodeResolver: Sendable {
       where !record.templateCounts.keys.contains(oldTemplatePath) {
         nodesByTemplatePath[oldTemplatePath]?.remove(nodeKey)
       }
+      for oldCall in oldRecord.agentCalls where !record.agentCalls.contains(oldCall) {
+        unregisterAgentCall(oldCall, for: nodeKey)
+      }
 
       removedChildren = oldRecord.directChildInstances.subtracting(record.directChildInstances)
       let addedChildren = record.directChildInstances.subtracting(oldRecord.directChildInstances)
@@ -517,6 +559,9 @@ public final class NodeResolver: Sendable {
     }
     for templatePath in record.templateCounts.keys {
       nodesByTemplatePath[templatePath, default: []].insert(nodeKey)
+    }
+    for call in record.agentCalls {
+      nodesByAgentCall[call, default: []].insert(nodeKey)
     }
 
     for removedChild in removedChildren {
@@ -553,6 +598,9 @@ public final class NodeResolver: Sendable {
     for templatePath in record.templateCounts.keys {
       nodesByTemplatePath[templatePath]?.remove(nodeKey)
     }
+    for call in record.agentCalls {
+      unregisterAgentCall(call, for: nodeKey)
+    }
 
     for childNodeKey in record.directChildInstances {
       parentsByChildInstanceID[childNodeKey]?.remove(nodeKey)
@@ -560,6 +608,16 @@ public final class NodeResolver: Sendable {
         parentsByChildInstanceID.removeValue(forKey: childNodeKey)
         pruneSubtree(childNodeKey, protectedNodeKeys: protectedNodeKeys)
       }
+    }
+  }
+
+  /// Removes a node from the nodes making an agent call, dropping the call's result once no
+  /// node makes it.
+  private func unregisterAgentCall(_ call: AgentFunctionCall, for nodeKey: String) {
+    nodesByAgentCall[call]?.remove(nodeKey)
+    if nodesByAgentCall[call]?.isEmpty ?? true {
+      nodesByAgentCall.removeValue(forKey: call)
+      agentCallResults.removeValue(forKey: call)
     }
   }
 
@@ -628,12 +686,14 @@ public final class NodeResolver: Sendable {
     let previousTemplateCounts = currentNodeTemplateCounts
     let previousChildIdentities = currentNodeChildIdentities
     let previousDirectChildren = currentNodeDirectChildren
+    let previousAgentCalls = currentNodeAgentCalls
     let previousPassErrors = currentPassExpressionErrors
     currentComponentID = nodeKey
     currentNodeReadValues = [:]
     currentNodeTemplateCounts = [:]
     currentNodeChildIdentities = [:]
     currentNodeDirectChildren = []
+    currentNodeAgentCalls = []
     currentPassExpressionErrors = []
     defer {
       if isResolvingTree {
@@ -647,6 +707,7 @@ public final class NodeResolver: Sendable {
       currentNodeTemplateCounts = previousTemplateCounts
       currentNodeChildIdentities = previousChildIdentities
       currentNodeDirectChildren = previousDirectChildren
+      currentNodeAgentCalls = previousAgentCalls
       currentPassExpressionErrors = previousPassErrors
     }
 
@@ -709,7 +770,8 @@ public final class NodeResolver: Sendable {
       childIdentities: currentNodeChildIdentities ?? [:],
       readValues: currentNodeReadValues ?? [:],
       templateCounts: currentNodeTemplateCounts ?? [:],
-      directChildInstances: currentNodeDirectChildren ?? []
+      directChildInstances: currentNodeDirectChildren ?? [],
+      agentCalls: currentNodeAgentCalls ?? []
     )
     registerNodeDependencies(record)
 
@@ -1071,7 +1133,8 @@ public final class NodeResolver: Sendable {
   private func evaluateDynamicValue(
     _ value: JSONValue,
     basePath: String?,
-    index: Int? = nil
+    index: Int? = nil,
+    isUserActivated: Bool = false
   ) -> JSONValue {
     let currentData = dataModel.data
     let previousReadHook = dataModel.onReadPath
@@ -1088,7 +1151,8 @@ public final class NodeResolver: Sendable {
       path: basePath ?? "",
       functionHandler: self,
       protocolVersion: effectiveProtocolVersion,
-      index: index
+      index: index,
+      isUserActivated: isUserActivated
     )
     return context.resolveDynamicValue(value)
   }
@@ -1487,7 +1551,12 @@ public final class NodeResolver: Sendable {
             return
           }
 
-          _ = self.evaluateDynamicValue(funcCallVal, basePath: basePath, index: index)
+          _ = self.evaluateDynamicValue(
+            funcCallVal,
+            basePath: basePath,
+            index: index,
+            isUserActivated: true
+          )
         }
       )
     }
@@ -1623,6 +1692,83 @@ extension NodeResolver: FunctionHandler {
     }
     guard catalogs[defaultCatalogID] != nil else {
       throw CatalogResolutionErrors.catalogNotFound(defaultCatalogID, path: path, code: code)
+    }
+  }
+
+  /// Returns the catalog a v1.0 call is sent to the agent with: the catalog it names, else the
+  /// default catalog. Returns `nil` before v1.0 or without an ``agentFunctionCaller``.
+  public func agentFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
+    guard atLeastV10, agentFunctionCaller != nil else { return nil }
+    return catalogID ?? defaultCatalogID
+  }
+
+  /// Sends a call to the agent through ``agentFunctionCaller``.
+  ///
+  /// While a node is being resolved, the call is recorded as a dependency of that node: the
+  /// agent's result is kept for as long as a resolved node makes the call, and the node is
+  /// resolved again when the result arrives (see ``agentFunctionResultPublisher``). An identical
+  /// call made again before then is not sent again. A call made outside a resolution pass, such as
+  /// an action's function call, is always sent and its result is not kept.
+  ///
+  /// An agent error or timeout is reported as an `EXPRESSION_ERROR`, and the value is `null`.
+  ///
+  /// - Returns: The agent's result if a resolved node already received it, else `nil`.
+  public func agentFunctionValue(for call: AgentFunctionCall) -> JSONValue? {
+    let tracksNode = currentNodeAgentCalls != nil
+    if tracksNode {
+      currentNodeAgentCalls?.insert(call)
+      if let result = agentCallResults[call] {
+        return result
+      }
+      guard pendingAgentCalls.insert(call).inserted else { return nil }
+    }
+    guard let caller = agentFunctionCaller else {
+      if tracksNode {
+        pendingAgentCalls.remove(call)
+      }
+      handleFunctionError(FunctionError.noListener(name: call.name), functionName: call.name)
+      return nil
+    }
+    Task { @MainActor [weak self] in
+      let result: Result<JSONValue, any Error>
+      do {
+        result = .success(try await caller(call))
+      } catch {
+        result = .failure(error)
+      }
+      self?.settleAgentCall(call, tracksNode: tracksNode, result: result)
+    }
+    return nil
+  }
+
+  /// Records the agent's answer to a call and resolves the nodes that made it again.
+  private func settleAgentCall(
+    _ call: AgentFunctionCall,
+    tracksNode: Bool,
+    result: Result<JSONValue, any Error>
+  ) {
+    if tracksNode {
+      pendingAgentCalls.remove(call)
+    }
+    let value: JSONValue
+    let isAnswered: Bool
+    switch result {
+    case .success(let resultValue):
+      value = resultValue
+      isAnswered = true
+    case .failure(let error):
+      handleFunctionError(error, functionName: call.name)
+      value = .null
+      isAnswered = false
+    }
+    // Keep the result only while a resolved node still makes the call. After a failure the value
+    // stays `null`, so the nodes are not resolved again, which would report errors of the
+    // functions that take the value as an argument.
+    guard tracksNode, nodesByAgentCall[call] != nil else { return }
+    agentCallResults[call] = value
+    if isAnswered {
+      dirtyAgentCalls.insert(call)
+      agentCallSettledSubject.send()
     }
   }
 
