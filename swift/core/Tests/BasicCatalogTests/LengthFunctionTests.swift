@@ -82,7 +82,7 @@ struct LengthFunctionTests {
 
   @Test func evaluatesToFalseWhenValueIsNotAString() throws {
     let result = try function.evaluate(
-      arguments: ["value": .number(100), "min": .number(1)], context: context)
+      arguments: ["value": .number(100), "max": .number(10)], context: context)
     #expect(result == .boolean(false))
   }
 }

@@ -48,10 +48,10 @@ public final class LengthFunction: FunctionImplementation, Sendable {
     // A missing or null value, such as a binding to a field with no data yet, has length 0.
     let count: Int
     switch arguments["value"] ?? .null {
-    case .string(let str):
-      count = str.count
-    case .array(let arr):
-      count = arr.count
+    case .string(let string):
+      count = string.count
+    case .array(let array):
+      count = array.count
     case .null:
       count = 0
     default:
