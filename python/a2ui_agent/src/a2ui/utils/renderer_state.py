@@ -496,9 +496,7 @@ class RendererState:
             if surface_id in self._assumed
             else self._processor.model.get_surface(surface_id)
         )
-        components_model = (
-            surface.components_model if surface is not None else None
-        )
+        components_model = surface.components_model if surface is not None else None
         positions: dict[str, int] = {}
         if components_model is not None:
             wanted = {cid for cid in unseen if components_model.get(cid) is not None}

@@ -1178,8 +1178,7 @@ class ExpressScopeSession:
             except _PendingVariableError:
                 continue
             deps = {
-                dep: self._dep_snapshot(scope, dep, ctx)
-                for dep in ctx.referenced_vars
+                dep: self._dep_snapshot(scope, dep, ctx) for dep in ctx.referenced_vars
             }
             state.data_cache[path_name] = (ast_val, val, deps)
             compiled[path_name] = val
@@ -1584,13 +1583,9 @@ class ExpressCompiler:
                 continue
             comp_cat_id = ast.kwargs.get("catalogId")
             if self._defines_component(ast.name, comp_cat_id):
-                comp_id = _component_id(
-                    var_name, ast, at_least_v10=ctx.at_least_v10
-                )
+                comp_id = _component_id(var_name, ast, at_least_v10=ctx.at_least_v10)
                 if comp_id in ctx.used_ids:
-                    raise ExpressValidationError(
-                        f"Duplicate component ID '{comp_id}'."
-                    )
+                    raise ExpressValidationError(f"Duplicate component ID '{comp_id}'.")
                 ctx.used_ids.add(comp_id)
 
     def _compile_components(
@@ -2357,13 +2352,9 @@ class ExpressCompiler:
                 ctx.inline_counter += 1
                 inline_id = f"_inline_{ctx.inline_counter}"
 
-            actual_id = _component_id(
-                inline_id, val, at_least_v10=ctx.at_least_v10
-            )
+            actual_id = _component_id(inline_id, val, at_least_v10=ctx.at_least_v10)
             if actual_id in ctx.used_ids:
-                raise ExpressValidationError(
-                    f"Duplicate component ID '{actual_id}'."
-                )
+                raise ExpressValidationError(f"Duplicate component ID '{actual_id}'.")
             ctx.used_ids.add(actual_id)
 
             prev_extras = ctx.extra_components

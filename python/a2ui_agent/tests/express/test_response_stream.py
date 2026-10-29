@@ -393,11 +393,13 @@ def test_express_stream_scanner_chunk_boundaries_for_raw_strings_and_comments():
         '-- sql comment with " quote\n'
         '/* block comment with </a2ui> and " quote */\n'
         'root = Text(r"raw </a2ui> text")\n'
-        '</a2ui>\nAfter'
+        "</a2ui>\nAfter"
     )
     expected = _dump(_coalesce_text(_stream_by_size(parser, response, len(response))))
     for size in (1, 2, 3, 4, 7):
-        assert _dump(_coalesce_text(_stream_by_size(parser, response, size))) == expected
+        assert (
+            _dump(_coalesce_text(_stream_by_size(parser, response, size))) == expected
+        )
 
 
 def test_express_stream_inline_counter_shift_invalidates_cached_inline_ids():
@@ -409,7 +411,7 @@ def test_express_stream_inline_counter_shift_invalidates_cached_inline_ids():
     # inside Column's list temporarily takes `_inline_1`.
     parts1 = stream.feed(
         '<a2ui>\nsurface("s1")\n'
-        'a = Card(Column([Text(msg)]))\n'
+        "a = Card(Column([Text(msg)]))\n"
         'root = Column([a, Text("Ready")])\n'
     )
     assert len(parts1) == 1
