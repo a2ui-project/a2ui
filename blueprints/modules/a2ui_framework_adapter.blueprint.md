@@ -372,13 +372,13 @@ interface A2uiFallbackError {
 
 `V` is the platform's view type. The concept names (`fallbacks`, `pending`, `error`, `builder`, and the `info` fields) are the same everywhere; only the delivery follows each framework:
 
-| Platform | API                                                                                                                                            |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Flutter  | `A2uiSurface(fallbacks: A2uiFallbacks(pending: A2uiPendingFallback(builder: (context, info) => ...), error: A2uiErrorFallback(builder: ...)))` |
-| React    | `<A2uiSurface fallbacks={{pending: {builder: info => ...}, error: {builder: info => ...}}} />`                                                 |
-| Lit      | `<a2ui-surface .fallbacks=${{pending: {builder: info => html`...`}}}>`                                                                         |
-| Angular  | `[fallbacks]="{pending: {template: pendingTpl}, error: {template: errorTpl}}"`, with `info` as the template context                            |
-| SwiftUI  | `Surface(viewModel:, catalogs:, fallbacks: A2UIFallbacks(pending: .init { info in ... }, error: .init { info in ... }))`                       |
+| Platform | API                                                                                                                                                              |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Flutter  | `A2uiSurface(surface: surface, fallbacks: A2uiFallbacks(pending: A2uiPendingFallback(builder: (context, info) => ...), error: A2uiErrorFallback(builder: ...)))` |
+| React    | `<A2uiSurface surface={surface} fallbacks={{pending: {builder: info => ...}, error: {builder: info => ...}}} />`                                                 |
+| Lit      | ``<a2ui-surface .surface=${surface} .fallbacks=${{pending: {builder: info => html`...`}}}></a2ui-surface>``                                                      |
+| Angular  | `<a2ui-v09-surface [surfaceId]="surfaceId" [fallbacks]="{pending: {template: pendingTpl}, error: {template: errorTpl}}" />`, with `info` as the template context |
+| SwiftUI  | `Surface(viewModel: viewModel, catalogs: catalogs, fallbacks: A2UIFallbacks(pending: .init { info in ... }, error: .init { info in ... }))`                      |
 
 Angular uses `template` (a `TemplateRef`) instead of `builder`, because a template is Angular's way to pass a view factory.
 
