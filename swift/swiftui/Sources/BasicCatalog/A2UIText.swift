@@ -70,26 +70,11 @@ public struct A2UIText: View {
   @ViewBuilder
   private func textForVariant(_ text: String, variant: String) -> some View {
     switch variant {
-    case "h1":
+    case "h1", "h2", "h3", "h4", "h5":
+      let level = Int(variant.dropFirst()) ?? 1
       Text(attributedMarkdown(text))
-        .font(Self.headingFont(level: 1))
-        .a2uiHeading(level: 1)
-    case "h2":
-      Text(attributedMarkdown(text))
-        .font(Self.headingFont(level: 2))
-        .a2uiHeading(level: 2)
-    case "h3":
-      Text(attributedMarkdown(text))
-        .font(Self.headingFont(level: 3))
-        .a2uiHeading(level: 3)
-    case "h4":
-      Text(attributedMarkdown(text))
-        .font(Self.headingFont(level: 4))
-        .a2uiHeading(level: 4)
-    case "h5":
-      Text(attributedMarkdown(text))
-        .font(Self.headingFont(level: 5))
-        .a2uiHeading(level: 5)
+        .font(Self.headingFont(level: level))
+        .a2uiHeading(level: level)
     case "caption":
       Text(attributedMarkdown(text))
         .font(.caption)
