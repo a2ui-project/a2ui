@@ -108,10 +108,11 @@ In your agent file (e.g., `agent.py`), import the necessary classes:
 from a2ui.adk import A2uiInstruction
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.processor import A2uiRequestProcessor
 ```
 
-Then, build an `A2uiRequestProcessor` for the catalogs your agent supports, and pass an `A2uiInstruction` as the agent's instruction. It appends the processor's prompt snippet to your own instruction, so the schema and examples are correctly formatted and up to date.
+Then, build an `A2uiRequestProcessor` for the catalogs your agent supports, and pass an `A2uiInstruction` as the agent's instruction. It appends the processor's prompt snippet to your own instruction, so the schema and examples are correctly formatted and up to date. The processor defaults to the Express inference format; this guide passes `DirectJsonFormatFactory()` so the model writes A2UI JSON messages, which the rest of the guide reads.
 
 ```python
 # Define your agent's role
@@ -131,7 +132,10 @@ UI_DESCRIPTION = """
 
 # Initialize the processor with the Basic Catalog. Pass `examples=` to add
 # few-shot example turns to the prompt.
-processor = A2uiRequestProcessor([BasicCatalog(ProtocolVersion.V0_9)])
+processor = A2uiRequestProcessor(
+    [BasicCatalog(ProtocolVersion.V0_9)],
+    format_factory=DirectJsonFormatFactory(),
+)
 
 root_agent = Agent(
     model='gemini-2.5-flash',
@@ -149,29 +153,23 @@ root_agent = Agent(
 
 ## Understanding the Output
 
-Your agent will no longer strictly output text. Instead, it will output text and a **JSON list** of A2UI messages.
+Your agent will no longer strictly output text. Instead, it will output text and, between `<a2ui-json>` tags, a **JSON list** of A2UI messages such as `createSurface`, `updateComponents`, and `updateDataModel`.
 
-The `A2UI_SCHEMA` that we imported is a standard JSON schema that defines valid operations like:
-
-- `render` (displaying a UI)
-- `update` (changing data in an existing UI)
-
-Because the output is structured JSON, you may parse and validate it before sending it to the client.
+Do not parse that JSON yourself: models put Markdown fences around it and make other small mistakes. The processor's `parse_response` method reads the response in the processor's inference format, repairs what it can, and validates every message against the catalogs, so your client never receives malformed UI instructions.
 
 ```python
-# 1. Parse the JSON
-# Warning: Parsing the output as JSON is a fragile implementation useful for documentation.
-# LLMs often put Markdown fences around JSON output, and can make other mistakes.
-# Rely on frameworks to parse the JSON for you.
-parsed_json_data = json.loads(json_string_cleaned)
+from a2ui.parser import A2uiPart
 
-# 2. Validate against A2UI_SCHEMA
-# This ensures the LLM generated valid A2UI commands
-jsonschema.validate(
-    instance=parsed_json_data, schema=self.a2ui_schema_object
-)
+# `response_text` is the text of the model's final response.
+for part in processor.parse_response(response_text):
+    if isinstance(part, A2uiPart):
+        # A list of validated A2UI messages, ready to send to the client.
+        send_to_client(part.a2ui)
+    else:
+        # Plain text between the A2UI blocks.
+        send_to_client(part.text)
 ```
 
-By validating the output against `A2UI_SCHEMA`, you ensure that your client never receives malformed UI instructions.
+`parse_response` raises `A2uiParseError` when a block cannot be read and `A2uiValidationError` when a message does not match the catalog; the `restaurant_finder` sample catches these and asks the model to try again.
 
-TODO: Continue this guide with examples of how to parse, validate, and send the output to the client renderer without the A2A extension.
+TODO: Continue this guide with examples of how to send the output to the client renderer without the A2A extension.

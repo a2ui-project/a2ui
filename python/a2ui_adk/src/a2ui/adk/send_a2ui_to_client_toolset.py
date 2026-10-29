@@ -307,7 +307,9 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             tool_instruction = self._tool_instruction()
 
             sections: list[tuple[str, str]] = []
-            snippet = processor.prompt_snippet
+            # The snippet is only worth building when there is an instruction
+            # it could be in.
+            snippet = processor.prompt_snippet if existing else ""
             if not snippet or snippet not in existing:
                 rules = generator.generate_base_rules()
                 if rules:

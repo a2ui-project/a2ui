@@ -61,15 +61,15 @@
   the agent's own instruction. ADK reads `{name}` session state templates out
   of a string instruction, and the A2UI prompt holds braces that are not state
   keys, such as the `${expression}` in the basic catalog, so a string
-  instruction failed with `KeyError: "Context variable not found:
-'expression'."` under `adk run` and `adk web`. As a provider,
-  `A2uiInstruction` is used as it is, while the agent's own instruction keeps
-  its templates. [#1388](https://github.com/a2ui-project/a2ui/issues/1388)
+  instruction failed with `KeyError: "Context variable not found: 'expression'."`
+  under `adk run` and `adk web`. As a provider, `A2uiInstruction` is used as
+  it is, while the agent's own instruction keeps its templates.
+  [#3763](https://github.com/a2ui-project/a2ui/pull/3763)
 - `SendA2uiToClientToolset` no longer adds the prompt's rules and catalog
   schemas a second time when the system instruction already holds the
   processor's whole `prompt_snippet` in the Direct JSON format, whose snippet
   lays the schemas out in one block rather than per section.
-  [#1388](https://github.com/a2ui-project/a2ui/issues/1388)
+  [#3763](https://github.com/a2ui-project/a2ui/pull/3763)
 
 ## 0.1.0 (2026-10-17)
 
