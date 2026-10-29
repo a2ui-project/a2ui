@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v1_0) `Catalog.toJson()` no longer emits `unevaluatedProperties: false` on code-defined component schemas, matching published v1.0 catalog documents so that components reloaded with `Catalog.fromJson()` accept `ComponentCommon` fields (`id`, `catalogId`, `accessibility`, and `metadata`) in `Catalog.validationSchema` and protocol JSON Schema validation, while preserving explicit open closure (`unevaluatedProperties: true` or a catchall schema) across `Catalog.toJson()` and `Catalog.validationSchema` ([#3513](https://github.com/a2ui-project/a2ui/issues/3513)).
+
 ## 0.15.0
 
 - `DataContext.resolveSignal` seeds the result of a function call that returns a `Signal` with the signal's current value before it creates the forwarding `effect`. Under a reactivity backend whose effects run on the next flush rather than on creation (the Angular adapter), an enclosing call such as `not(areComponentsValid(...))` previously read `undefined` for that argument on its first evaluation and dispatched a spurious `EXPRESSION_ERROR`.
