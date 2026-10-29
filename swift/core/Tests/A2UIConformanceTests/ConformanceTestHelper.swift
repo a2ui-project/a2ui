@@ -666,8 +666,6 @@ public enum ConformanceTestHelper {
       surface: surface
     )
   }
-    )
-  }
 
   private static func parseSteps(
     from dictionary: [String: Any],
@@ -747,7 +745,6 @@ public enum ConformanceTestHelper {
         path: path,
         code: code,
         message: detailDictionary["message"] as? String ?? ""
->>>>>>> 54cdc7a5a (feat(swift-core): add MessageErrorMapper envelope handling, JSON Pointer paths, and conformance runners)
       )
     }
   }
