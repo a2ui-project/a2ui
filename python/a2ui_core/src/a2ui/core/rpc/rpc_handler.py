@@ -47,6 +47,7 @@ OutboundListener = Callable[[dict[str, Any]], Union[None, Awaitable[None]]]
 class _PendingAgentCall:
     """Record of a pending outbound callAgentFunction request matching TS interface."""
 
+    surface_id: str
     resolve: Callable[[Any], None]
     reject: Callable[[BaseException], None]
 
@@ -138,6 +139,21 @@ class RpcHandler:
                 )
             )
         self._pending_agent_calls.clear()
+
+    def cancel_surface_calls(self, surface_id: str) -> None:
+        """Cancels all pending outbound RPC calls belonging to the given surface."""
+        for call_id, pending in list(self._pending_agent_calls.items()):
+            if pending.surface_id != surface_id:
+                continue
+            self._pending_agent_calls.pop(call_id, None)
+            pending.reject(
+                A2uiRpcError(
+                    f"Surface '{surface_id}' was deleted while call '{call_id}'"
+                    " was pending.",
+                    function_call_id=call_id,
+                    code=RpcErrorCode.CANCELLED.value,
+                )
+            )
 
     def resolve_catalog(self, catalog_id: str | None = None) -> CatalogApi | None:
         """Looks up a catalog by catalog_id, applying no default.
@@ -835,6 +851,7 @@ class RpcHandler:
     def _register_pending_call(
         self,
         call_id: str,
+        surface_id: str,
         future: asyncio.Future[Any],
         timer_handle: asyncio.TimerHandle | None,
     ) -> _PendingAgentCall:
@@ -865,7 +882,9 @@ class RpcHandler:
                 except (asyncio.InvalidStateError, Exception):
                     pass
 
-        pending = _PendingAgentCall(resolve=resolve, reject=reject)
+        pending = _PendingAgentCall(
+            surface_id=surface_id, resolve=resolve, reject=reject
+        )
         self._pending_agent_calls[call_id] = pending
         return pending
 
@@ -941,7 +960,7 @@ class RpcHandler:
         timer_handle = self._create_timeout_timer(
             call_id, call.call, effective_timeout, loop
         )
-        pending = self._register_pending_call(call_id, future, timer_handle)
+        pending = self._register_pending_call(call_id, surface_id, future, timer_handle)
         self._send_outbound_message(outbound_msg, call_id, pending, loop)
         return future
 

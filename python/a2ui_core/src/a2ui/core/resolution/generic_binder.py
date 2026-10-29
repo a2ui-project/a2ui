@@ -618,7 +618,7 @@ class GenericBinder:
                 )
                 call_name = fc.get("@call") or fc.get("call")
                 if isinstance(call_name, str):
-                    return self.context.data_context.resolve_dynamic_value(fc)
+                    return self.context.data_context.resolve_action(value)
             resolved = self.context.data_context.resolve_action(value)
             return self.context.dispatch_action(resolved, metadata=metadata)
 
