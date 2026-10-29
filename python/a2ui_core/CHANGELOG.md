@@ -15,6 +15,24 @@
   `Catalog.protocol_version` is typed as `ProtocolVersion | str`.
   [#3097](https://github.com/a2ui-project/a2ui/issues/3097),
   [#3726](https://github.com/a2ui-project/a2ui/pull/3726)
+- **BREAKING CHANGE**: `validate_composition_constraints` and
+  `SurfaceComponentsModel.validate_components_update` apply the `"Surface"`
+  `allowedParents` rule only to the surface's root component (`root_id`,
+  `"root"` by default), even when another component also references it, and
+  check every parent of a component that has several, not only the last one
+  in surface order. A non-root component that nothing references is no longer
+  checked against `"Surface"`; the topology checks report it as an orphan, or
+  allow it. This matches the specification and the TypeScript, Dart and Swift
+  SDKs, and changes which payloads are accepted.
+  ([#3354](https://github.com/a2ui-project/a2ui/issues/3354),
+  [#3360](https://github.com/a2ui-project/a2ui/pull/3360))
+- **BREAKING CHANGE**: A `MessageProcessor` without a `validation_config`, as a
+  renderer has by default, checks each `updateComponents` against the
+  `allowedParents` and `allowedChildren` rules of its catalogs, as the
+  TypeScript and Dart SDKs do. Before, it checked nothing, so a payload
+  that breaks those rules is now rejected. The check is skipped when no catalog
+  of the surface's components declares such rules.
+  [#3360](https://github.com/a2ui-project/a2ui/pull/3360)
 - A function defined without an argument schema (`FunctionApi` or
   `FunctionImplementation` without `schema`) takes any args, as one given
   `schema={}` does: `validation_schema` and `resolved_function_schema` give
@@ -35,6 +53,8 @@
   a truthy dict; `and`, `or` and `not` already did. Catalogs below v1.0, whose
   validation functions return booleans, are unchanged.
   [#3653](https://github.com/a2ui-project/a2ui/pull/3653)
+- Add `map_error_to_renderer_message`, `extract_envelope_error_context`, and `ErrorEnvelopeContext` to `a2ui.core.processing` and the `a2ui.core` public facade, along with `SurfaceGroupModel.on_error` and `MessageProcessor.process_messages_with_errors` for emitting and collecting structured wire-format renderer error messages. [#3580](https://github.com/a2ui-project/a2ui/pull/3580)
+- Add `NodeResolver`, `ComponentNode`, and `NodeState` to `a2ui.core.resolution` and the `a2ui.core` public facade for reactive surface node-graph resolution, template expansion, and placeholder/cycle tracking. [#3580](https://github.com/a2ui-project/a2ui/pull/3580)
 - **BREAKING CHANGE**: Cross-catalog `$ref` resolution across peer catalogs is
   removed. `Catalog.peer_catalogs`, `Catalog.with_peer_catalogs` and
   `link_catalogs` are gone, `inline_local_refs` no longer takes a `peers`
@@ -48,6 +68,11 @@
   it is standalone.
   [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
+- Add `Catalog.derive`, which builds a catalog with a new `catalog_id` from
+  the named `components` and `functions` of an existing one and new entries,
+  with the `instructions` it is given, and does not keep the source's `$id`,
+  title, description or instructions.
+  [#3597](https://github.com/a2ui-project/a2ui/issues/3597)
 - (v1_0) Relaxed v1.0 `CatalogDefinition` schema rules to permit non-object
   catalog `$defs` (such as primitive, enum, or union design tokens), property
   `$ref`s to `#/$defs/...`, and arbitrary vendor/metadata extension keys on
@@ -78,8 +103,8 @@
   `validate_components_update` passed has been applied, so that the next check
   can start from what that check found. `MessageProcessor` calls it.
 - `SurfaceComponentsModel.insert_component(index, component)` adds a component
-  at a position in the model's order, which checks such as `allowedParents`
-  read. `add_component` still appends.
+  at a position in the model's order, the order its components are iterated
+  in. `add_component` still appends.
 - `ComponentModel.get_child_references` and `is_v0_8_heuristic_child_prop_key`
   accept any container of known component ids, not only a set.
 - A component property declared directly as an array of component ids

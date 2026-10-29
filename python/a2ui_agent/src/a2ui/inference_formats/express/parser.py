@@ -18,7 +18,9 @@ from __future__ import annotations
 
 from collections.abc import Collection
 from collections.abc import Sequence
+from typing import Literal
 from typing import Type
+from typing import overload
 
 from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 from a2ui.core import CatalogApi
@@ -31,6 +33,8 @@ from a2ui.parser import BlockLexer
 from a2ui.parser import Parser
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
+from a2ui.parser import ResponsePart
+from a2ui.parser import StreamPart
 from a2ui.parser import TextPart
 from a2ui.utils import RendererState
 
@@ -84,18 +88,40 @@ class ExpressParser(Parser):
         """Whether this parser supports incremental streaming via `open_stream`."""
         return True
 
+    @overload
     def open_stream(
         self,
         *,
         wrapped: bool = True,
         state: RendererState | None = None,
-    ) -> ExpressResponseStream:
+        after_rejected_block: Literal["end"] = "end",
+    ) -> ExpressResponseStream[ResponsePart]:
+        ...
+
+    @overload
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end", "continue"],
+    ) -> ExpressResponseStream[StreamPart]:
+        ...
+
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end", "continue"] = "end",
+    ) -> ExpressResponseStream[StreamPart]:
         """Opens a stream that incrementally compiles Express DSL as chunks arrive."""
         return ExpressResponseStream(
             self,
             wrapped=wrapped,
             state=state,
             progressive_keys=self.progressive_keys,
+            after_rejected_block=after_rejected_block,
         )
 
     def has_format_content(self, content: str, complete: bool = False) -> bool:

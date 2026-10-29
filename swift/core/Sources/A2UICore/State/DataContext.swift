@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import Foundation
+import JSONSchema
 import OrderedCollections
 import OrderedJSON
 
@@ -146,7 +147,7 @@ public final class DataContext {
         return .null
       }
       function =
-        functionHandler?.function(named: callName, catalogID: catalogID)
+        functionHandler?.function(named: callName, catalogID: nil)
         ?? (callName == "@index" ? IndexFunction() : nil)
     }
     guard let function else {
@@ -168,9 +169,16 @@ public final class DataContext {
     }
 
     var resolvedArgs: [String: JSONValue] = [:]
+    let argPropsSchema: OrderedDictionary<String, JSONValue>? =
+      atLeastV10 ? function.api.schema.jsonValue["properties"]?.objectValue : nil
     if let argsObj = dict["args"]?.dictionaryValue {
       for (argKey, argVal) in argsObj {
-        resolvedArgs[argKey] = resolveDynamicValue(argVal)
+        let resolvedVal = resolveDynamicValue(argVal)
+        if let propSchema = argPropsSchema?[argKey] {
+          resolvedArgs[argKey] = Self.coerceValidationResults(schema: propSchema, value: resolvedVal)
+        } else {
+          resolvedArgs[argKey] = resolvedVal
+        }
       }
     }
 
@@ -180,6 +188,47 @@ public final class DataContext {
       functionHandler?.handleFunctionError(error, functionName: callName)
       return .null
     }
+  }
+
+  private static func isDynamicBooleanSchema(_ schema: JSONValue) -> Bool {
+    if let ref = schema["$ref"]?.stringValue, ref.hasSuffix("/$defs/DynamicBoolean") {
+      return true
+    }
+    if schema["type"]?.stringValue == "boolean" {
+      return true
+    }
+    for keyword in ["oneOf", "anyOf", "allOf"] {
+      if let subSchemas = schema[keyword]?.arrayValue,
+        subSchemas.contains(where: { isDynamicBooleanSchema($0) })
+      {
+        return true
+      }
+    }
+    return false
+  }
+
+  private static func coerceValidationResults(schema: JSONValue, value: JSONValue) -> JSONValue {
+    if isDynamicBooleanSchema(schema) {
+      if let members = value.objectValue, let valid = members["valid"]?.boolValue {
+        return .boolean(valid)
+      }
+      return value
+    }
+    if let itemsSchema = schema["items"], let arr = value.arrayValue {
+      return .array(arr.map { coerceValidationResults(schema: itemsSchema, value: $0) })
+    }
+    if let propsSchema = schema["properties"]?.objectValue, let obj = value.objectValue {
+      var coerced: OrderedDictionary<String, JSONValue> = [:]
+      for (k, v) in obj {
+        if let propSchema = propsSchema[k] {
+          coerced[k] = coerceValidationResults(schema: propSchema, value: v)
+        } else {
+          coerced[k] = v
+        }
+      }
+      return .object(coerced)
+    }
+    return value
   }
 
   /// Looks up the function a v1.0 call runs, reporting any failure to the function handler.

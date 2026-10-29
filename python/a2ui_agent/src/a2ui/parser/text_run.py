@@ -16,7 +16,9 @@
 
 from __future__ import annotations
 
-from .response_part import ResponsePart, TextPart
+from typing import Any
+
+from .response_part import TextPart
 
 __all__ = ["TextRun"]
 
@@ -35,7 +37,7 @@ class TextRun:
         self._started = False
         self._held_space = ""
 
-    def emit(self, parts: list[ResponsePart], text: str) -> None:
+    def emit(self, parts: list[Any], text: str) -> None:
         """Emits `text` as the next piece of the run.
 
         Nothing is emitted for a piece that is blank; its whitespace is held for

@@ -16,10 +16,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Iterable, Mapping, Set
+from collections.abc import Callable, Collection, Iterable, Mapping, Set
 import dataclasses
 import re
-from typing import Any, TYPE_CHECKING
+from typing import Any, Generic, Literal, TYPE_CHECKING, TypeVar, cast
 
 from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 from a2ui.core import A2uiError, A2uiParseError
@@ -30,8 +30,9 @@ from a2ui.parser import (
     A2uiCompilationParseError,
     A2uiCompilationValidationError,
     A2uiPart,
-    ResponsePart,
+    ErrorPart,
     ResponseStream,
+    StreamPart,
     TextRun,
 )
 from a2ui.utils import RendererState
@@ -41,6 +42,8 @@ from .errors import ExpressParseError, ExpressValidationError
 
 if TYPE_CHECKING:
     from .parser import ExpressParser
+
+PartT = TypeVar("PartT", bound=StreamPart, covariant=True)
 
 DEFAULT_EXPRESS_PROGRESSIVE_KEYS: frozenset[str] = frozenset({"text"})
 
@@ -562,7 +565,7 @@ def _try_merge_component_update(prev: dict[str, Any], msg: dict[str, Any]) -> bo
     return True
 
 
-class ExpressResponseStream(ResponseStream):
+class ExpressResponseStream(ResponseStream[PartT], Generic[PartT]):
     """Reads a streamed A2UI Express response chunk by chunk."""
 
     def __init__(
@@ -572,11 +575,13 @@ class ExpressResponseStream(ResponseStream):
         wrapped: bool = True,
         state: RendererState | None = None,
         progressive_keys: Collection[str] | None = None,
+        after_rejected_block: Literal["end", "continue"] = "end",
     ) -> None:
         self._parser = parser
         self._compiler = ExpressCompiler(parser.catalogs, version=parser.version)
         self._wrapped = wrapped
         self._state = state if state is not None else RendererState(parser.catalogs)
+        self._continues = after_rejected_block == "continue"
         self._progressive_keys = (
             frozenset(progressive_keys)
             if progressive_keys is not None
@@ -588,6 +593,7 @@ class ExpressResponseStream(ResponseStream):
         self._after_block = False
         self._wrapped_in_inline_backticks = False
         self._in_block = not wrapped
+        self._rejected = False
         self._block = ""
         self._scan_pos = 0
         self._last_compiled_prefix = ""
@@ -605,6 +611,7 @@ class ExpressResponseStream(ResponseStream):
     def _reset_block(self) -> None:
         self._block = ""
         self._scan_pos = 0
+        self._rejected = False
         self._last_compiled_prefix = ""
         self._touched = {}
         self._initial_surfaces = frozenset(self._state.surface_ids)
@@ -614,33 +621,40 @@ class ExpressResponseStream(ResponseStream):
     def state(self) -> RendererState:
         return self._state
 
-    def feed(self, chunk: str) -> list[ResponsePart]:
+    @property
+    def is_in_block(self) -> bool:
+        return not self._closed and self._in_block
+
+    def feed(self, chunk: str) -> list[PartT]:
         if self._closed:
             raise ValueError("The response stream is closed.")
-        emitted = list(self._touched)
+        parts: list[StreamPart] = []
         try:
-            with self._state.transaction():
-                return self._feed(chunk)
-        except BaseException:
-            self._fail(emitted)
+            self._feed(chunk, parts)
+        except BaseException as e:
+            self._fail(e, parts)
             raise
+        return cast("list[PartT]", parts)
 
-    def close(self) -> list[ResponsePart]:
+    def close(self) -> list[PartT]:
         if self._closed:
             return []
         self._closed = True
-        parts: list[ResponsePart] = []
+        parts: list[StreamPart] = []
         try:
             if not self._wrapped:
-                self._finish_block(parts, len(self._block))
-                return parts
+                if not self._rejected:
+                    self._read_block(
+                        parts, lambda: self._finish_block(parts, len(self._block))
+                    )
+                return cast("list[PartT]", parts)
             if self._in_block:
-                raise A2uiParseError(
-                    f"The response ended inside an {OPEN_TAG} block, before its"
-                    f" {CLOSE_TAG} tag."
-                )
-        except BaseException:
-            self._fail(self._touched)
+                if not self._rejected:
+                    self._read_block(parts, self._raise_unclosed)
+                self._state.mark_checked(self._touched)
+                return cast("list[PartT]", parts)
+        except BaseException as e:
+            self._fail(e, parts)
             raise
         if self._held:
             rest = self._held
@@ -652,19 +666,45 @@ class ExpressResponseStream(ResponseStream):
                     else _OUTER_LEADING_FENCE_RE
                 )
                 rest = leading_re.sub("", rest, count=1)
+                self._wrapped_in_inline_backticks = False
             self._text.emit(parts, _TRAILING_FENCE_CLOSE_RE.sub("", rest, count=1))
-        return parts
+        return cast("list[PartT]", parts)
 
-    def _fail(self, surface_ids: Iterable[str]) -> None:
+    @staticmethod
+    def _raise_unclosed() -> None:
+        raise A2uiParseError(
+            f"The response ended inside an {OPEN_TAG} block, before its"
+            f" {CLOSE_TAG} tag."
+        )
+
+    def _fail(self, error: BaseException, parts: list[StreamPart]) -> None:
         self._closed = True
-        self._state.mark_checked(surface_ids)
+        self._state.mark_checked(self._touched)
+        if isinstance(error, A2uiError):
+            setattr(
+                error,
+                "partial_results",
+                [p for p in parts if not isinstance(p, ErrorPart)],
+            )
 
-    def _feed(self, chunk: str) -> list[ResponsePart]:
-        parts: list[ResponsePart] = []
+    def _read_block(self, parts: list[StreamPart], step: Callable[[], None]) -> None:
+        try:
+            step()
+        except A2uiError as e:
+            if not self._continues:
+                raise
+            parts.append(ErrorPart(error=e))
+            self._state.mark_checked(self._touched)
+            self._rejected = True
+
+    def _feed(self, chunk: str, parts: list[StreamPart]) -> None:
         if not self._wrapped:
             self._block += chunk
-            self._emit_ready(parts, len(self._block))
-            return parts
+            if not self._rejected:
+                self._read_block(
+                    parts, lambda: self._emit_ready(parts, len(self._block))
+                )
+            return
 
         input_str = self._held + chunk
         self._held = ""
@@ -680,7 +720,7 @@ class ExpressResponseStream(ResponseStream):
                 )
                 if prefix_re.match(input_str):
                     self._held = input_str
-                    return parts
+                    return
                 self._after_block = False
                 leading_re = (
                     _OUTER_LEADING_FENCE_INLINE_RE
@@ -691,26 +731,27 @@ class ExpressResponseStream(ResponseStream):
                 input_str = leading_re.sub("", input_str, count=1)
                 continue
             input_str = self._consume_outside_text(parts, input_str)
-        return parts
 
-    def _consume_block_text(self, parts: list[ResponsePart], input_str: str) -> str:
+    def _consume_block_text(self, parts: list[StreamPart], input_str: str) -> str:
         self._block += input_str
         close_start, readable_end, self._scan_pos = _scan_express_block_from(
             self._block, self._scan_pos
         )
         if close_start is None:
-            self._emit_ready(parts, readable_end)
+            if not self._rejected:
+                self._read_block(parts, lambda: self._emit_ready(parts, readable_end))
             return ""
         close_match = CLOSE_TAG_RE.match(self._block, close_start)
         assert close_match is not None
         remaining = self._block[close_match.end() :]
-        self._finish_block(parts, close_start)
+        if not self._rejected:
+            self._read_block(parts, lambda: self._finish_block(parts, close_start))
         self._in_block = False
         self._after_block = True
         self._reset_block()
         return remaining
 
-    def _consume_outside_text(self, parts: list[ResponsePart], input_str: str) -> str:
+    def _consume_outside_text(self, parts: list[StreamPart], input_str: str) -> str:
         open_match = OPEN_TAG_RE.search(input_str)
         if open_match:
             before_open = input_str[: open_match.start()]
@@ -730,7 +771,7 @@ class ExpressResponseStream(ResponseStream):
         self._held = input_str[hold:]
         return ""
 
-    def _emit_ready(self, parts: list[ResponsePart], end: int) -> None:
+    def _emit_ready(self, parts: list[StreamPart], end: int) -> None:
         payload = clean_express_payload(self._block, end)
         if not payload or not payload.strip():
             return
@@ -747,12 +788,20 @@ class ExpressResponseStream(ResponseStream):
             )
         prefix_messages: list[dict[str, Any]] = []
         if complete_prefix.strip() and complete_prefix != self._last_compiled_prefix:
-            prefix_messages = self._compile_step(
-                complete_prefix, is_final=False, cache_prefix=True
-            )
-            self._last_compiled_prefix = complete_prefix
-            if prefix_messages:
-                self._apply(prefix_messages)
+            snap = self._session.snapshot()
+            saved_touched = dict(self._touched)
+            try:
+                with self._state.transaction():
+                    prefix_messages = self._compile_step(
+                        complete_prefix, is_final=False, cache_prefix=True
+                    )
+                    if prefix_messages:
+                        self._apply(prefix_messages)
+                self._last_compiled_prefix = complete_prefix
+            except BaseException:
+                self._session.restore(snap)
+                self._touched = saved_touched
+                raise
 
         healed_messages = self._try_compile_and_apply_healed(
             complete_prefix, trailing_fragment
@@ -787,7 +836,7 @@ class ExpressResponseStream(ResponseStream):
             self._touched = saved_touched
             return []
 
-    def _finish_block(self, parts: list[ResponsePart], end: int) -> None:
+    def _finish_block(self, parts: list[StreamPart], end: int) -> None:
         payload = clean_express_payload(self._block, end) or ""
         with self._state.transaction():
             if not self._session.has_emitted and not self._initial_surfaces:
