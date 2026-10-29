@@ -460,9 +460,9 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
     it('does not resolve a name inherited from Object.prototype as a variable', () => {
       const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
-      expect(createSurfaceComponents(compiler.compile('root = Text(toString)'))).toEqual([
-        {id: 'root', component: 'Text', text: 'toString'},
-      ]);
+      expect(() => compiler.compile('root = Text(toString)')).toThrow(
+        "Variable 'toString' is not assigned in surface.",
+      );
     });
 
     it('does not bind checks to a map literal shaped like a data binding', () => {

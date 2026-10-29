@@ -20,16 +20,25 @@
 
 import {InferenceFormat, InferenceFormatFactory} from '../../inference-format.js';
 import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
-import {resolveExpressVersion, toCatalogList} from './catalogs.js';
 import {Parser} from '../../parser/parser.js';
+import {resolveExpressVersion, toCatalogList} from './catalogs.js';
 import {ExpressParser} from './parser.js';
 import {ExpressPromptGenerator} from './prompt-generator.js';
+import {DEFAULT_EXPRESS_PROGRESSIVE_KEYS} from './response-stream.js';
 
 export interface ExpressFormatOptions {
   surfaceId?: string;
   version?: string;
   examples?: Record<string, AgentToRendererMessage[] | AgentToRendererMessage[][] | string>;
   allowedMessages?: readonly string[];
+  progressiveKeys?: Iterable<string>;
+}
+
+export interface ExpressFormatFactoryOptions {
+  surfaceId?: string;
+  version?: string;
+  allowedMessages?: readonly string[];
+  progressiveKeys?: Iterable<string>;
 }
 
 /**
@@ -37,7 +46,8 @@ export interface ExpressFormatOptions {
  */
 export class ExpressFormat implements InferenceFormat {
   readonly promptGenerator: ExpressPromptGenerator;
-  readonly supportsStreaming = false;
+  readonly supportsStreaming = true;
+  readonly progressiveKeys: ReadonlySet<string>;
   private readonly catalogs: CatalogApi[];
   private readonly surfaceId: string;
   private readonly version: string;
@@ -46,6 +56,10 @@ export class ExpressFormat implements InferenceFormat {
     this.catalogs = toCatalogList(catalogs);
     this.surfaceId = options.surfaceId ?? 'main';
     this.version = resolveExpressVersion(this.catalogs, options.version);
+    this.progressiveKeys =
+      options.progressiveKeys !== undefined
+        ? new Set(options.progressiveKeys)
+        : DEFAULT_EXPRESS_PROGRESSIVE_KEYS;
 
     this.promptGenerator = new ExpressPromptGenerator(
       this.catalogs,
@@ -56,7 +70,9 @@ export class ExpressFormat implements InferenceFormat {
   }
 
   createParser(): Parser {
-    return new ExpressParser(this.catalogs, this.surfaceId, this.version);
+    return new ExpressParser(this.catalogs, this.surfaceId, this.version, {
+      progressiveKeys: this.progressiveKeys,
+    });
   }
 }
 
@@ -64,13 +80,14 @@ export class ExpressFormat implements InferenceFormat {
  * Factory for creating ExpressFormat instances.
  */
 export class ExpressFormatFactory implements InferenceFormatFactory {
-  constructor(
-    private readonly options: {
-      surfaceId?: string;
-      version?: string;
-      allowedMessages?: readonly string[];
-    } = {},
-  ) {}
+  readonly progressiveKeys: ReadonlySet<string>;
+
+  constructor(private readonly options: ExpressFormatFactoryOptions = {}) {
+    this.progressiveKeys =
+      options.progressiveKeys !== undefined
+        ? new Set(options.progressiveKeys)
+        : DEFAULT_EXPRESS_PROGRESSIVE_KEYS;
+  }
 
   createFormat(
     catalogs: CatalogApi[],
@@ -79,6 +96,7 @@ export class ExpressFormatFactory implements InferenceFormatFactory {
     return new ExpressFormat(catalogs, {
       ...this.options,
       examples,
+      progressiveKeys: this.progressiveKeys,
     });
   }
 }

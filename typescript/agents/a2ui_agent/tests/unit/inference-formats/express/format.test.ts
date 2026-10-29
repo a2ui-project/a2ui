@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import {describe, it, expect} from 'vitest';
+import {describe, expect, it} from 'vitest';
+import {A2uiCatalogError} from '../../../../src/errors.js';
 import {
   buildSchemaHelpers,
   catalogsDefining,
@@ -26,12 +27,15 @@ import {
 } from '../../../../src/inference-formats/express/format.js';
 import {ExpressParser} from '../../../../src/inference-formats/express/parser.js';
 import {ExpressPromptGenerator} from '../../../../src/inference-formats/express/prompt-generator.js';
+import {
+  DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
+  ExpressResponseStream,
+} from '../../../../src/inference-formats/express/response-stream.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {
   catalogFromTestDocument,
   loadConformanceCatalog,
 } from '../../../helpers/conformance-catalogs.js';
-import {A2uiCatalogError} from '../../../../src/errors.js';
 
 const basicCatalogV10 = loadBasicCatalog('1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
@@ -94,7 +98,8 @@ describe('ExpressFormat', () => {
       surfaceId: 'custom_surface',
       version: '1.0',
     });
-    expect(format.supportsStreaming).toBe(false);
+    expect(format.supportsStreaming).toBe(true);
+    expect(format.progressiveKeys).toEqual(DEFAULT_EXPRESS_PROGRESSIVE_KEYS);
     expect(format.promptGenerator).toBeInstanceOf(ExpressPromptGenerator);
   });
 
@@ -102,19 +107,21 @@ describe('ExpressFormat', () => {
     const format = new ExpressFormat([catalog1], {
       surfaceId: 'custom_surface',
       version: '1.0',
+      progressiveKeys: ['text', 'label'],
     });
     const parser = format.createParser();
     expect(parser).toBeInstanceOf(ExpressParser);
     expect((parser as ExpressParser).surfaceId).toBe('custom_surface');
     expect((parser as ExpressParser).version).toBe('1.0');
     expect((parser as ExpressParser).catalogs[0]).toBe(catalog1);
+    expect((parser as ExpressParser).progressiveKeys).toEqual(new Set(['text', 'label']));
   });
 
-  it('createParser result has supportsStreaming false and openStream throws', () => {
+  it('createParser result has supportsStreaming true and openStream returns ExpressResponseStream', () => {
     const format = new ExpressFormat([catalog1]);
     const parser = format.createParser();
-    expect(parser.supportsStreaming).toBe(false);
-    expect(() => parser.openStream()).toThrow('Streaming is not supported by ExpressParser');
+    expect(parser.supportsStreaming).toBe(true);
+    expect(parser.openStream()).toBeInstanceOf(ExpressResponseStream);
   });
 
   describe('Version handling', () => {
@@ -138,12 +145,18 @@ describe('ExpressFormat', () => {
 
   describe('ExpressFormatFactory', () => {
     it('creates an ExpressFormat instance with factory options', () => {
-      const factory = new ExpressFormatFactory({surfaceId: 'factory_surface', version: '1.0'});
+      const factory = new ExpressFormatFactory({
+        surfaceId: 'factory_surface',
+        version: '1.0',
+        progressiveKeys: ['title'],
+      });
+      expect(factory.progressiveKeys).toEqual(new Set(['title']));
       const format = factory.createFormat([catalog1]);
       expect(format).toBeInstanceOf(ExpressFormat);
       const parser = format.createParser() as ExpressParser;
       expect(parser.surfaceId).toBe('factory_surface');
       expect(parser.version).toBe('1.0');
+      expect(parser.progressiveKeys).toEqual(new Set(['title']));
     });
 
     it('forwards allowedMessages and multi-turn examples to ExpressPromptGenerator', () => {

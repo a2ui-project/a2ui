@@ -2083,6 +2083,38 @@
   expect_error:
     category: "ValidationError"
 
+- name: test_compile_express_unassigned_variable_in_value_slot_is_validation_error
+  description: Referencing an unassigned variable in a non-child value slot (such as Text's text property) is a validation error rather than compiling the identifier name as a string literal.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Text(missing_var)
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_sentinel_tags_inside_strings_and_comments_preserved
+  description: Sentinel tags (<a2ui> and </a2ui>) inside string literals and comments are preserved rather than truncating the block when compile strips outer sentinel tags.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <a2ui>
+    /* comment mentioning </a2ui> */
+    root = Text("Literal </a2ui> and <a2ui> tags")
+    </a2ui>
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Literal </a2ui> and <a2ui> tags"
+
 - name: test_compile_express_surface_extensions_variable_reference
   description: A variable reference passed to surface(extensions=...) resolves to its map literal and populates createSurface.metadata.extensions.
   action: compile

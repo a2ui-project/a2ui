@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Add incremental streaming support for the Express inference format via
+  `ExpressResponseStream` (`ExpressFormat.supportsStreaming` and
+  `ExpressParser.supportsStreaming` now return `true`). `ExpressFormatFactory`,
+  `ExpressFormat`, and `ExpressParser` accept `progressiveKeys` (defaulting to
+  `defaultExpressProgressiveKeys = {'text'}`) to heal unclosed string literals
+  in matching component properties and data path assignments as chunks arrive,
+  while gating initial `createSurface` emission on `root = ...` for new
+  surfaces, emitting delta `updateComponents` and per-path `updateDataModel`
+  messages on subsequent chunks, and holding statements with unresolved value
+  variables until defined ([#2896](https://github.com/a2ui-project/a2ui/issues/2896)).
+  `surface(...)` also accepts `update=` and `sendDataModel=` keyword arguments
+  to update an existing surface without emitting `createSurface` or to request
+  client data model echoing on surface creation.
 - Breaking: Use `'1.0'` (without a `'v'` prefix) as the `version` field on
   v1.0 protocol messages and capabilities in `ExpressCompiler`,
   `ExpressDecompiler`, `DirectJsonParser`, `RendererState`, `resolveCatalogs`,
@@ -41,7 +54,8 @@
 - Added `Parser.openContinuingStream` and
   `A2uiRequestProcessor.openContinuingStream`, which open a
   `ContinuingResponseStream` (`ResponseReader<StreamPart>`;
-  `DirectJsonContinuingResponseStream` for direct JSON) that reads past a
+  `DirectJsonContinuingResponseStream` for direct JSON and
+  `ExpressContinuingResponseStream` for Express) that reads past a
   rejected block. It returns an `ErrorPart` in place of the block, skips the
   rest of it, and reads the text and blocks after it; the messages the block
   emitted before it was rejected stay in the state. A block still open when
