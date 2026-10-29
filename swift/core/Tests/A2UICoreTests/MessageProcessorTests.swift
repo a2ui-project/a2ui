@@ -693,7 +693,7 @@ struct MessageProcessorTests {
         """))
 
     try await Task.sleep(nanoseconds: 20_000_000)
-    #expect(capturedOutbound.count == 5)
+    #expect(capturedOutbound.count == 6)
     if case .rendererFunctionResponse(let resp6) = capturedOutbound.last {
       #expect(resp6.functionCallID == "rpc-6")
       #expect(resp6.error?.code == FunctionErrorPayload.Code.invalidFunctionCall.rawValue)
