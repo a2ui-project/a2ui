@@ -291,6 +291,13 @@ registered catalog, whatever its protocol version. Once surfaces of both
 versions send their data model, `getRendererDataModel()` needs a version,
 so a v1.0 agent reads it with `version: A2uiProtocolVersion.v1_0`.
 
+## Example
+
+[example](example) is a chat app in which a Gemini model, prompted through
+`a2ui_agent`, answers with v1.0 surfaces, and each event action and error on
+them goes back to the model. [e2e_test](e2e_test) runs it against the live
+model.
+
 ## Gallery
 
 [a2ui_explorer](a2ui_explorer) is the gallery app. It renders the v0.9 and
