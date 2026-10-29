@@ -596,10 +596,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param context Optional execution context.
    * @returns Array of `ErrorMessage` envelopes produced by failed messages.
    */
-  processMessagesWithErrors(
-    messages: unknown,
-    context?: ExecutionContext,
-  ): RendererErrorMessage[] {
+  processMessagesWithErrors(messages: unknown, context?: ExecutionContext): RendererErrorMessage[] {
     return this.withValidationConfig(context, () => {
       const items = Array.isArray(messages) ? messages : [messages];
       const errors: RendererErrorMessage[] = [];
@@ -676,10 +673,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     };
   }
 
-  private handleProcessingError(
-    err: unknown,
-    context: ErrorEnvelopeContext,
-  ): RendererErrorMessage {
+  private handleProcessingError(err: unknown, context: ErrorEnvelopeContext): RendererErrorMessage {
     const errorMsg = mapErrorToRendererMessage(err, context);
     const payload = {
       code: errorMsg.error.code,

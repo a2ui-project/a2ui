@@ -22,11 +22,7 @@ import {
   normalizeJsonPointer,
   extractEnvelopeErrorContext,
 } from './message-error-mapper.js';
-import {
-  A2uiIntegrityError,
-  A2uiRpcError,
-  A2uiValidationError,
-} from '../errors.js';
+import {A2uiIntegrityError, A2uiRpcError, A2uiValidationError} from '../errors.js';
 import {ErrorMessageSchema} from '../v1_0/schema/renderer-to-agent.js';
 
 describe('message-error-mapper', () => {
@@ -104,11 +100,7 @@ describe('message-error-mapper', () => {
     });
 
     it('defaults path to / for UNALLOWED_PARENT and UNALLOWED_CHILD', () => {
-      const parentErr = new A2uiValidationError(
-        'Unallowed parent',
-        undefined,
-        'UNALLOWED_PARENT',
-      );
+      const parentErr = new A2uiValidationError('Unallowed parent', undefined, 'UNALLOWED_PARENT');
       const mapped = mapErrorToRendererMessage(parentErr, {version: 'v1.0', surfaceId: 'surf-1'});
       assert.strictEqual(mapped.error.code, 'UNALLOWED_PARENT');
       assert.strictEqual(mapped.error.path, '/');
