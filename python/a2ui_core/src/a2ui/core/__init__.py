@@ -41,11 +41,19 @@ from a2ui.core.exceptions import (
 )
 from a2ui.core.processing import (
     CapabilitiesOptions as CapabilitiesOptions,
+    ErrorEnvelopeContext as ErrorEnvelopeContext,
     ExecutionContext as ExecutionContext,
     MessageProcessor as MessageProcessor,
     MessageProcessorOptions as MessageProcessorOptions,
+    extract_envelope_error_context as extract_envelope_error_context,
+    map_error_to_renderer_message as map_error_to_renderer_message,
 )
-from a2ui.core.resolution import DataContext as DataContext
+from a2ui.core.resolution import (
+    ComponentNode as ComponentNode,
+    DataContext as DataContext,
+    NodeResolver as NodeResolver,
+    NodeState as NodeState,
+)
 from a2ui.core.rpc import CallOptions as CallOptions, RpcHandler as RpcHandler
 from a2ui.core.schema import (
     A2uiRendererCapabilities as A2uiRendererCapabilities,
@@ -81,11 +89,15 @@ __all__ = [
     "Catalog",
     "CatalogApi",
     "ComponentModel",
+    "ComponentNode",
     "DataContext",
     "DataModel",
+    "ErrorEnvelopeContext",
     "ExecutionContext",
     "MessageProcessor",
     "MessageProcessorOptions",
+    "NodeResolver",
+    "NodeState",
     "PayloadValidator",
     "RELAXED_VALIDATION",
     "RpcErrorCode",
@@ -94,11 +106,13 @@ __all__ = [
     "SurfaceModel",
     "ValidationConfig",
     "__version__",
+    "extract_envelope_error_context",
     "get_agent_to_renderer_schema_json",
     "get_agent_to_renderer_schema_map",
     "get_common_types_schema_json",
     "get_common_types_schema_map",
     "inline_local_refs",
     "is_valid_uax31_identifier",
+    "map_error_to_renderer_message",
     "to_protocol_version",
 ]

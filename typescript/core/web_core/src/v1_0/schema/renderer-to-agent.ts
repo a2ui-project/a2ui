@@ -136,18 +136,8 @@ export const ErrorMessageSchema = z
           .catchall(z.any())
           .and(
             z.union([
-              z
-                .any()
-                .refine(
-                  value => !z.any().safeParse(value).success,
-                  'Invalid input: Should NOT be valid against schema',
-                ),
-              z
-                .any()
-                .refine(
-                  value => !z.any().safeParse(value).success,
-                  'Invalid input: Should NOT be valid against schema',
-                ),
+              z.object({'surfaceId': z.string(), 'functionCallId': z.never().optional()}),
+              z.object({'functionCallId': CallIdSchema, 'surfaceId': z.never().optional()}),
             ]),
           ),
       ])
