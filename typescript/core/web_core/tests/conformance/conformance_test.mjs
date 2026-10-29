@@ -2802,45 +2802,6 @@ function validateProcessMessagesTestCase(testCase) {
     return inputMessages;
   };
 
-  const assertExpectedProcessError = (err, expectedErr) => {
-    if (expectedErr.category) {
-      if (!matchesErrorCategory(err, expectedErr.category)) {
-        throw new Error(
-          `Expected error category '${expectedErr.category}', got '${err.constructor?.name || err.name}': ${err.message}`,
-        );
-      }
-    }
-    if (expectedErr.code) {
-      if (
-        !err.message.includes(expectedErr.code) &&
-        err.name !== expectedErr.code &&
-        err.code !== expectedErr.code
-      ) {
-        throw new Error(
-          `Expected error matching '${expectedErr.code}' but received: ${err.message}`,
-        );
-      }
-    }
-    if (expectedErr.message) {
-      const expectedMsg = expectedErr.message;
-      const normalizedActual = err.message.replaceAll('"', "'").replaceAll("','", "', '");
-      const normalizedExpected = expectedMsg.replaceAll('"', "'").replaceAll("','", "', '");
-      const matches =
-        err.message.includes(expectedMsg) ||
-        normalizedActual.includes(normalizedExpected) ||
-        (expectedMsg.includes('Unsupported protocol version') &&
-          (err.message.includes('Invalid enum value') ||
-            err.message.includes('Unsupported protocol version'))) ||
-        (expectedMsg.includes('Missing') &&
-          err.message.includes("missing a valid 'version' string")) ||
-        (expectedMsg.includes('multiple update types') &&
-          err.message.includes('multiple conflicting update actions'));
-      if (!matches) {
-        throw new Error(`Expected error message containing '${expectedMsg}', got '${err.message}'`);
-      }
-    }
-  };
-
   if (steps && Array.isArray(steps)) {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
