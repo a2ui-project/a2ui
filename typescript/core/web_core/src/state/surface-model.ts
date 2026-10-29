@@ -19,7 +19,7 @@ import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from '../cat
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {EventEmitter, EventSource} from '../common/events.js';
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
-import {A2uiExpressionError} from '../errors.js';
+import {A2uiExpressionError, A2uiRpcError, RpcErrorCode} from '../errors.js';
 import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
 
 /**
@@ -188,7 +188,22 @@ export class SurfaceModel<
   agentFunctionCaller?: AgentFunctionCaller;
 
   /** Agent function calls awaiting a response, keyed by call. */
-  private readonly inFlightAgentCalls = new Map<string, Promise<unknown>>();
+  private readonly inFlightAgentCalls = new Map<
+    string,
+    {
+      promise: Promise<unknown>;
+      signals: Set<AbortSignal>;
+      hasUnabortedCaller: boolean;
+    }
+  >();
+  private isDisposed = false;
+
+  /**
+   * Whether this surface has been disposed.
+   */
+  get disposed(): boolean {
+    return this.isDisposed;
+  }
 
   /**
    * Initializes a new `SurfaceModel` instance.
@@ -346,11 +361,18 @@ export class SurfaceModel<
    * message, so re-evaluating a binding does not repeat the request.
    *
    * @param call The call to send, naming the catalog it resolved to.
+   * @param abortSignal Optional signal cancelling this caller's interest before
+   *   the request leaves on the next microtask.
    * @returns A promise resolving to the agent's result.
    * @throws {A2uiExpressionError} Through the returned promise, if no
    *   {@link agentFunctionCaller} is set.
    */
-  callAgentFunction(call: AgentFunctionCall): Promise<unknown> {
+  callAgentFunction(call: AgentFunctionCall, abortSignal?: AbortSignal): Promise<unknown> {
+    if (this.isDisposed) {
+      return Promise.reject(
+        new A2uiRpcError(`Surface '${this.id}' has been disposed.`, RpcErrorCode.CANCELLED),
+      );
+    }
     const caller = this.agentFunctionCaller;
     if (!caller) {
       return Promise.reject(
@@ -360,19 +382,46 @@ export class SurfaceModel<
         ),
       );
     }
+    if (abortSignal?.aborted) {
+      return Promise.resolve(undefined);
+    }
     const key = agentCallKey(call);
     const inFlight = key === undefined ? undefined : this.inFlightAgentCalls.get(key);
     if (inFlight) {
-      return inFlight;
+      if (abortSignal) {
+        inFlight.signals.add(abortSignal);
+      } else {
+        inFlight.hasUnabortedCaller = true;
+      }
+      return inFlight.promise;
     }
-    const pending = Promise.resolve().then(() => caller(call));
+    const entry = {
+      promise: undefined as unknown as Promise<unknown>,
+      signals: new Set<AbortSignal>(abortSignal ? [abortSignal] : []),
+      hasUnabortedCaller: !abortSignal,
+    };
+    const release = () => {
+      if (key !== undefined && this.inFlightAgentCalls.get(key) === entry) {
+        this.inFlightAgentCalls.delete(key);
+      }
+    };
+    const pending = Promise.resolve().then(() => {
+      if (this.isDisposed || this.agentFunctionCaller !== caller) {
+        release();
+        throw new A2uiRpcError(
+          `Surface '${this.id}' was disposed before agent function '${call['@call']}' could be sent.`,
+          RpcErrorCode.CANCELLED,
+        );
+      }
+      if (!entry.hasUnabortedCaller && Array.from(entry.signals).every(s => s.aborted)) {
+        release();
+        return undefined;
+      }
+      return caller(call);
+    });
+    entry.promise = pending;
     if (key !== undefined) {
-      this.inFlightAgentCalls.set(key, pending);
-      const release = () => {
-        if (this.inFlightAgentCalls.get(key) === pending) {
-          this.inFlightAgentCalls.delete(key);
-        }
-      };
+      this.inFlightAgentCalls.set(key, entry);
       pending.then(release, release);
     }
     return pending;
@@ -462,6 +511,8 @@ export class SurfaceModel<
    * Disposes the surface, data model, components, and event emitters.
    */
   dispose(): void {
+    this.isDisposed = true;
+    this.agentFunctionCaller = undefined;
     this.inFlightAgentCalls.clear();
     this.dataModel.dispose();
     this.componentsModel.dispose();
