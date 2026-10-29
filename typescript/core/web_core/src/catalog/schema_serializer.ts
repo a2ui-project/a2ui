@@ -311,6 +311,7 @@ function serializeComponentModel(
   name: string,
   comp: ComponentApi,
   localDefs: ReadonlySet<string>,
+  isAtLeastV10: boolean,
   commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
 ): JsonObject {
   const json = zodToUnbundledJson(comp.schema, localDefs, commonTypesUri);
@@ -323,11 +324,21 @@ function serializeComponentModel(
     ? (json.required as string[]).filter(r => r !== 'component' && r !== 'id')
     : [];
   const extra = json.unevaluatedProperties ?? json.additionalProperties;
+  // From v1.0 the protocol's Component envelope combines the entry with
+  // ComponentCommon under an outer `unevaluatedProperties: false`, so closing
+  // the entry itself would reject ComponentCommon fields.
+  const closure = isAtLeastV10
+    ? extra === true || isObject(extra)
+      ? extra
+      : undefined
+    : typeof extra === 'boolean' || isObject(extra)
+      ? extra
+      : false;
   const result: JsonObject = {
     type: 'object',
     properties: {component: {const: name}, ...props},
     required: ['component', ...required],
-    unevaluatedProperties: typeof extra === 'boolean' || isObject(extra) ? extra : false,
+    ...(closure !== undefined ? {unevaluatedProperties: closure} : {}),
   };
   if (comp.allowedParents && comp.allowedParents.length > 0) {
     result.allowedParents = [...comp.allowedParents];
@@ -589,7 +600,7 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
       const definition = model.components.get(name);
       components[name] = definition
         ? deepCopyJson(definition)
-        : serializeComponentModel(name, comp, localDefs, commonTypesUri);
+        : serializeComponentModel(name, comp, localDefs, isAtLeastV10, commonTypesUri);
     }
     doc.components = components;
   }
