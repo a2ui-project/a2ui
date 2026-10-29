@@ -15,11 +15,11 @@
 - name: test_rpc_call_renderer_function_success
   description: Verifies agent-initiated callRendererFunction on a function with allowedCallers=rendererOrAgent.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-101"
         callFunction:
@@ -34,7 +34,7 @@
         requiresUserActivation: false
   expect:
     response:
-      version: "v1.0"
+      version: "1.0"
       rendererFunctionResponse:
         functionCallId: "call-101"
         value:
@@ -44,11 +44,11 @@
 - name: test_rpc_call_renderer_function_unauthorized_caller
   description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when allowedCallers is rendererOnly.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-102"
         callFunction:
@@ -61,7 +61,7 @@
         requiresUserActivation: false
   expect:
     response:
-      version: "v1.0"
+      version: "1.0"
       rendererFunctionResponse:
         functionCallId: "call-102"
         error:
@@ -71,12 +71,12 @@
 - name: test_rpc_call_renderer_function_requires_user_activation
   description: Verifies callRendererFunction execution when requiresUserActivation is true and user gesture is present.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     userActivationPresent: true
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-103"
         callFunction:
@@ -90,7 +90,7 @@
         requiresUserActivation: true
   expect:
     response:
-      version: "v1.0"
+      version: "1.0"
       rendererFunctionResponse:
         functionCallId: "call-103"
         value:
@@ -99,7 +99,7 @@
 - name: test_rpc_call_agent_function_dispatch
   description: Verifies renderer-initiated callAgentFunction message generation and response correlation via functionCallId.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     outboundCall:
@@ -111,7 +111,7 @@
         args:
           sku: "ITEM-404"
     inboundResponse:
-      version: "v1.0"
+      version: "1.0"
       agentFunctionResponse:
         functionCallId: "agent-call-55"
         value:
@@ -126,12 +126,12 @@
 - name: test_rpc_call_renderer_function_user_activation_denied
   description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when requiresUserActivation is true but user gesture context is absent.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     userActivationPresent: false
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-104"
         callFunction:
@@ -145,7 +145,7 @@
         requiresUserActivation: true
   expect:
     response:
-      version: "v1.0"
+      version: "1.0"
       rendererFunctionResponse:
         functionCallId: "call-104"
         error:
@@ -155,11 +155,11 @@
 - name: test_rpc_call_renderer_function_execution_exception
   description: Verifies callRendererFunction handles runtime function execution exceptions and returns EXECUTION_ERROR.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-105"
         callFunction:
@@ -172,7 +172,7 @@
         requiresUserActivation: false
   expect:
     response:
-      version: "v1.0"
+      version: "1.0"
       rendererFunctionResponse:
         functionCallId: "call-105"
         error:
@@ -182,11 +182,11 @@
 - name: test_rpc_call_renderer_function_agent_only_boundary
   description: Verifies agent-initiated callRendererFunction on a function with allowedCallers=agentOnly.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-106"
         callFunction:
@@ -199,7 +199,7 @@
         requiresUserActivation: false
   expect:
     response:
-      version: "v1.0"
+      version: "1.0"
       rendererFunctionResponse:
         functionCallId: "call-106"
         value: null
@@ -207,11 +207,11 @@
 - name: test_rpc_call_renderer_function_unregistered_function
   description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when calling an unregistered function.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-107"
         callFunction:
@@ -221,7 +221,7 @@
     functionMetadata: {}
   expect:
     response:
-      version: "v1.0"
+      version: "1.0"
       rendererFunctionResponse:
         functionCallId: "call-107"
         error:
@@ -231,11 +231,11 @@
 - name: test_rpc_call_renderer_function_unregistered_catalog
   description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when specifying an unregistered catalogId.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-108"
         callFunction:
@@ -247,7 +247,7 @@
         allowedCallers: "rendererOrAgent"
   expect:
     response:
-      version: "v1.0"
+      version: "1.0"
       rendererFunctionResponse:
         functionCallId: "call-108"
         error:
@@ -257,25 +257,47 @@
 - name: test_rpc_call_renderer_function_invalid_payload_missing_call_function
   description: Verifies envelope/schema validation error when callRendererFunction is missing required callFunction property.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-109"
   expect:
     error:
       message: "callFunction"
 
-- name: test_rpc_agent_function_response_inbound
-  description: Verifies inbound agentFunctionResponse message processing by MessageProcessor.
+- name: test_rpc_call_renderer_function_invalid_payload_missing_catalog_id
+  description: Verifies a callRendererFunction whose callFunction has no catalogId fails schema validation, even when a held catalog defines the function.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     message:
-      version: "v1.0"
+      version: "1.0"
+      callRendererFunction:
+        functionCallId: "call-110"
+        callFunction:
+          "@call": "playMedia"
+          args:
+            mediaId: "video-789"
+    functionMetadata:
+      playMedia:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+  expect:
+    error:
+      message: "catalogId"
+
+- name: test_rpc_agent_function_response_inbound
+  description: Verifies inbound agentFunctionResponse message processing by MessageProcessor.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "1.0"
       agentFunctionResponse:
         functionCallId: "call-201"
         value:
@@ -286,11 +308,11 @@
 - name: test_rpc_call_renderer_function_invalid_argument_schema
   description: Verifies callRendererFunction returns INVALID_FUNCTION_CALL when argument schema validation fails.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-301"
         callFunction:
@@ -309,7 +331,7 @@
           required: ["amount"]
   expect:
     response:
-      version: "v1.0"
+      version: "1.0"
       rendererFunctionResponse:
         functionCallId: "call-301"
         error:
@@ -319,13 +341,13 @@
 - name: test_rpc_call_renderer_function_protocol_version_mismatch
   description: Verifies callRendererFunction returns INVALID_FUNCTION_CALL when catalog protocol version mismatches message protocol version.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     catalogId: "legacy_cat"
     catalogVersion: "v0.9"
     message:
-      version: "v1.0"
+      version: "1.0"
       callRendererFunction:
         functionCallId: "call-302"
         callFunction:
@@ -338,7 +360,7 @@
         allowedCallers: "rendererOrAgent"
   expect:
     response:
-      version: "v1.0"
+      version: "1.0"
       rendererFunctionResponse:
         functionCallId: "call-302"
         error:
@@ -348,7 +370,7 @@
 - name: test_rpc_call_agent_function_timeout_handling
   description: Verifies callAgentFunction timeout emitting TIMEOUT error code.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     outboundCall:
@@ -365,7 +387,7 @@
 - name: test_rpc_call_agent_function_duplicate_call_id_error
   description: Verifies callAgentFunction rejecting duplicate pending functionCallId with DUPLICATE error code.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: handle_rpc
   args:
     outboundCall:

@@ -23,10 +23,9 @@
  * Ported from origin/main's Python compiler.py.
  */
 
-import {CharStream, CommonTokenStream} from 'antlr4ng';
-
 import {A2uiCatalogError} from '../../errors.js';
 import {
+  isValidUax31Identifier,
   normalizeVersionString,
   type AgentToRendererMessage,
   type CatalogApi,
@@ -53,8 +52,6 @@ import {
   ExpressUnknownPropertyError,
   ExpressValidationError,
 } from './errors.js';
-import {ExpressLexer} from './generated/ExpressLexer.js';
-import {ExpressParser} from './generated/ExpressParser.js';
 import {
   CatalogSchemaHelper,
   expectsOptionObjects,
@@ -62,12 +59,11 @@ import {
   type ReservedKeys,
 } from './schema-helper.js';
 import {
-  ExpressAstVisitor,
-  ExpressErrorListener,
-  type ExpressCallValue,
-  type ExpressCheckValue,
-  type ExpressPathValue,
-  type ExpressSkippedValue,
+  isExpressNode,
+  parseExpress,
+  setOwnEntry,
+  type ExpressCallNode,
+  type ExpressCheckNode,
   type ExpressStatement,
   type ExpressValue,
 } from './visitor.js';
@@ -84,121 +80,182 @@ const SurfaceOperation = {
   SURFACE: 'surface',
 } as const;
 
+const ARRAY_INDEX_RE = /^(?:0|[1-9][0-9]*)$/;
+const MAX_ARRAY_INDEX = 10000;
+
+function stripPathPrefix(pathStr: string): string {
+  if (pathStr.startsWith('$/')) {
+    return pathStr.slice(2);
+  }
+  if (pathStr.startsWith('$')) {
+    return pathStr.slice(1);
+  }
+  return pathStr;
+}
+
+function toJsonPointer(pathStr: string): string {
+  return '/' + stripPathPrefix(pathStr);
+}
+
+function parseArrayIndex(segment: string, pathStr: string): number {
+  if (!ARRAY_INDEX_RE.test(segment)) {
+    throw new ExpressValidationError(
+      `Cannot use non-numeric segment '${segment}' on an array in path '${pathStr}'.`,
+    );
+  }
+  const idx = parseInt(segment, 10);
+  if (idx > MAX_ARRAY_INDEX) {
+    throw new ExpressValidationError(
+      `Cannot set path '${pathStr}': array index '${segment}' exceeds maximum supported index (${MAX_ARRAY_INDEX}).`,
+    );
+  }
+  return idx;
+}
+
+function stepPathContainer(
+  current: Record<string, unknown> | unknown[],
+  segment: string,
+  nextSegment: string,
+  pathStr: string,
+): Record<string, unknown> | unknown[] {
+  const isNextIndex = ARRAY_INDEX_RE.test(nextSegment);
+  if (!Array.isArray(current)) {
+    const existing = current[segment];
+    if (existing === undefined || existing === null) {
+      const created: Record<string, unknown> | unknown[] = isNextIndex ? [] : {};
+      current[segment] = created;
+      return created;
+    }
+    if (typeof existing === 'object') {
+      return existing as Record<string, unknown> | unknown[];
+    }
+    throw new ExpressValidationError(
+      `Cannot set path '${pathStr}': segment '${segment}' is a primitive value.`,
+    );
+  }
+  const idx = parseArrayIndex(segment, pathStr);
+  while (current.length <= idx) {
+    current.push(null);
+  }
+  const existing = current[idx];
+  if (existing === undefined || existing === null) {
+    const created: Record<string, unknown> | unknown[] = isNextIndex ? [] : {};
+    current[idx] = created;
+    return created;
+  }
+  if (typeof existing === 'object') {
+    return existing as Record<string, unknown> | unknown[];
+  }
+  throw new ExpressValidationError(
+    `Cannot set path '${pathStr}': segment '${segment}' is a primitive value.`,
+  );
+}
+
+/** Keyword arguments accepted by the reserved `Event(...)` signature. */
+const EVENT_KEYWORDS: readonly string[] = ['userMessage', 'context'];
+
 /**
- * Populates a nested dictionary path from a JSON pointer-like string (compiler.py:48-73).
+ * The catalog schema declared at a value's position, with the helper that owns it.
+ */
+interface ValueSlot {
+  readonly schema: unknown;
+  readonly helper: CatalogSchemaHelper;
+}
+
+/**
+ * Descends a value slot into the items of an array.
+ *
+ * @returns The item slot, or undefined when the schema is unknown at that position.
+ */
+function itemSlot(slot: ValueSlot | undefined): ValueSlot | undefined {
+  const schema = slot?.schema ? slot.helper.resolveItemSchema(slot.schema) : undefined;
+  return schema && slot ? {schema, helper: slot.helper} : undefined;
+}
+
+/**
+ * Descends a value slot into a property of an object, whatever the property is named.
+ *
+ * @returns The property's slot, or undefined when the schema is unknown at that position.
+ */
+function propertySlot(slot: ValueSlot | undefined, name: string): ValueSlot | undefined {
+  const schema = slot?.schema ? slot.helper.resolvePropertySchema(slot.schema, name) : undefined;
+  return schema && slot ? {schema, helper: slot.helper} : undefined;
+}
+
+/**
+ * Populates a nested dictionary or list path from an Express data path.
  *
  * @param d The target dictionary to mutate.
- * @param pathStr The data path string (e.g. "$/user/name").
+ * @param pathStr The data path string (e.g. "$/user/name" or "$/items/0/state").
  * @param val The value to set at the specified path.
  */
 export function setNestedPath(d: Record<string, unknown>, pathStr: string, val: unknown): void {
-  let cleanPath = pathStr;
-  if (cleanPath.startsWith('$/')) {
-    cleanPath = cleanPath.slice(2);
-  } else if (cleanPath.startsWith('$')) {
-    cleanPath = cleanPath.slice(1);
-  }
-
+  const cleanPath = stripPathPrefix(pathStr);
   if (!cleanPath) {
+    if (!val || typeof val !== 'object' || Array.isArray(val)) {
+      throw new ExpressValidationError(
+        `Cannot set root data model '${pathStr}' to a non-map value.`,
+      );
+    }
+    for (const k of Object.keys(d)) {
+      delete d[k];
+    }
+    Object.assign(d, val as Record<string, unknown>);
     return;
   }
 
   const keys = cleanPath.split('/');
-  let current = d;
+  let current: Record<string, unknown> | unknown[] = d;
   for (let i = 0; i < keys.length - 1; i++) {
-    const key = keys[i];
-    if (
-      !(key in current) ||
-      typeof current[key] !== 'object' ||
-      current[key] === null ||
-      Array.isArray(current[key])
-    ) {
-      current[key] = {};
-    }
-    current = current[key] as Record<string, unknown>;
+    current = stepPathContainer(current, keys[i], keys[i + 1], pathStr);
   }
-  current[keys[keys.length - 1]] = val;
-}
-
-/**
- * Recursively checks if a compiled value contains a dynamic DataBinding ($path) ref (compiler.py:104-122).
- *
- * @param v The compiled value.
- * @param keys The wire keys of the protocol version the value was compiled for.
- */
-export function hasDatabinding(v: unknown, keys: ReservedKeys): boolean {
-  if (v && typeof v === 'object') {
-    if (Array.isArray(v)) {
-      return v.some(item => hasDatabinding(item, keys));
-    }
-    const obj = v as Record<string, unknown>;
-    if (keys.call in obj || 'event' in obj || 'functionCall' in obj) {
-      return false;
-    }
-    if (keys.path in obj && !('componentId' in obj)) {
-      return true;
-    }
-    return Object.values(obj).some(item => hasDatabinding(item, keys));
+  const lastKey = keys[keys.length - 1];
+  if (!Array.isArray(current)) {
+    current[lastKey] = val;
+    return;
   }
-  return false;
-}
-
-/**
- * Checks if a compiled value is a direct dynamic DataBinding ($path) ref.
- *
- * @param v The compiled value.
- * @param keys The wire keys of the protocol version the value was compiled for.
- */
-function isDirectBinding(v: unknown, keys: ReservedKeys): boolean {
-  if (!v || typeof v !== 'object' || Array.isArray(v)) {
-    return false;
+  const idx = parseArrayIndex(lastKey, pathStr);
+  while (current.length <= idx) {
+    current.push(null);
   }
-  const obj = v as Record<string, unknown>;
-  if (keys.call in obj || 'event' in obj || 'functionCall' in obj) {
-    return false;
-  }
-  return keys.path in obj && !('componentId' in obj);
+  current[idx] = val;
 }
 
 /**
  * Checks if a parsed AST value represents a validation check expression (compiler.py:154-160).
  */
 export function isCheckExpression(val: unknown): boolean {
-  if (val && typeof val === 'object') {
-    if (!Array.isArray(val) && 'check' in val) {
-      return true;
-    }
-    if (Array.isArray(val) && val.length > 0) {
-      return val.every(isCheckExpression);
-    }
+  if (isExpressNode(val, 'check')) {
+    return true;
+  }
+  if (Array.isArray(val) && val.length > 0) {
+    return val.every(isCheckExpression);
   }
   return false;
 }
 
 /**
- * Checks if an AST argument inside a `?check(...)` call is a plain map literal
- * rather than a path, call, check, variable, or skipped-argument node.
- */
-function isPlainAstMap(arg: unknown): arg is Record<string, unknown> {
-  if (!arg || typeof arg !== 'object' || Array.isArray(arg)) {
-    return false;
-  }
-  const obj = arg as Record<string, unknown>;
-  if (
-    ('path' in obj && Object.keys(obj).length === 1) ||
-    ('call' in obj && Array.isArray(obj.args)) ||
-    ('check' in obj && Array.isArray(obj.args)) ||
-    ('variable' in obj && Object.keys(obj).length === 1) ||
-    ('skipped' in obj && obj.skipped === true && Object.keys(obj).length === 1)
-  ) {
-    return false;
-  }
-  return true;
-}
-
-/**
  * Parses numeric major.minor.patch components from a version string.
  */
+/**
+ * Checks whether an AST value is a `$path`, directly or through variables.
+ *
+ * A map literal is data even when its compiled value looks like a data binding, so it is not a
+ * path.
+ */
+function resolvesToPath(node: unknown, rawSymbols: Record<string, unknown>): boolean {
+  const seen = new Set<string>();
+  let current = node;
+  while (isExpressNode(current, 'variable')) {
+    if (seen.has(current.name) || !Object.hasOwn(rawSymbols, current.name)) {
+      return false;
+    }
+    seen.add(current.name);
+    current = rawSymbols[current.name];
+  }
+  return isExpressNode(current, 'path');
+}
+
 function parseVersionNumbers(v: string): number[] {
   const norm = normalizeVersionString(v);
   if (!norm) {
@@ -247,6 +304,22 @@ function formatValue(v: unknown): string {
 }
 
 /**
+ * Names a parsed value for an error message in the terms the model wrote it in, rather than
+ * as the AST's JSON.
+ */
+function describeExpressValue(val: unknown): string {
+  if (isExpressNode(val, 'call')) return `a call to ${val.name}(...)`;
+  if (isExpressNode(val, 'check')) return `a check (?${val.name})`;
+  if (isExpressNode(val, 'variable')) return `the variable ${val.name}`;
+  if (isExpressNode(val, 'path')) return `the data binding $${val.path}`;
+  if (isExpressNode(val, 'map')) return 'a map literal';
+  if (isExpressNode(val, 'skipped')) return "'_'";
+  if (Array.isArray(val)) return 'a list';
+  if (val === null) return 'null';
+  return `the ${typeof val} ${JSON.stringify(val)}`;
+}
+
+/**
  * Casts raw compiler message envelopes to AgentToRendererMessage.
  * Python reproduces several behaviours that do not strictly match the standard TS message type
  * (such as standalone function calls emitting top-level functionCallId and callFunction).
@@ -265,6 +338,8 @@ class CompileContext {
   inlineCounter = 0;
   /** Compiled data bindings of the component being compiled, by property name. */
   activeBoundPaths: Map<string, Record<string, unknown>> = new Map();
+  /** The variables whose values are being compiled, to catch a variable whose value refers back to it. */
+  readonly resolving: Set<string> = new Set();
   readonly keys: ReservedKeys;
 
   constructor(keys: ReservedKeys) {
@@ -292,7 +367,7 @@ class SurfaceScope {
 type CompilationUnit =
   | {kind: 'scope'; scope: SurfaceScope}
   | {kind: 'delete'; surfaceId: string}
-  | {kind: 'call'; stmt: ExpressCallValue; scope: SurfaceScope | null};
+  | {kind: 'call'; stmt: ExpressCallNode; scope: SurfaceScope | null};
 
 /**
  * Compilation pipeline for A2UI Express.
@@ -390,14 +465,14 @@ export class ExpressCompiler {
   /**
    * Parses and validates a `surface(...)` statement.
    */
-  private parseSurfaceCall(callVal: ExpressCallValue): {
+  private parseSurfaceCall(callVal: ExpressCallNode): {
     surfaceId: string;
     catalogId: string;
     sendDataModel?: boolean;
     update: boolean;
   } {
-    const args = callVal.args ?? [];
-    const kwargs = callVal.kwargs ?? {};
+    const args = callVal.args;
+    const kwargs = callVal.kwargs;
 
     if (args.length === 0) {
       throw new ExpressValidationError(
@@ -527,20 +602,9 @@ export class ExpressCompiler {
     // ANTLR parsing and AST construction (compiler.py:256-291)
     let statements: ExpressStatement[] = [];
     try {
-      const inputStream = CharStream.fromString(dslBody);
-      const lexer = new ExpressLexer(inputStream);
-      const errorListener = new ExpressErrorListener();
-      lexer.removeErrorListeners();
-      lexer.addErrorListener(errorListener);
-
-      const tokenStream = new CommonTokenStream(lexer);
-      const parser = new ExpressParser(tokenStream);
-      parser.removeErrorListeners();
-      parser.addErrorListener(errorListener);
-
-      const tree = parser.program();
-      if (isFinal && errorListener.errors.length > 0) {
-        const [line, col, msg, isLexer] = errorListener.errors[0];
+      const parsed = parseExpress(dslBody);
+      if (isFinal && parsed.errors.length > 0) {
+        const [line, col, msg, isLexer] = parsed.errors[0];
         const err = new ExpressSyntaxError(
           `Syntax error at line ${line}:${col}: ${msg}`,
           line,
@@ -549,11 +613,7 @@ export class ExpressCompiler {
         );
         throw err;
       }
-
-      const firstErrorLine =
-        errorListener.errors.length > 0 ? errorListener.errors[0][0] : undefined;
-      const visitor = new ExpressAstVisitor(firstErrorLine);
-      statements = (visitor.visit(tree) as ExpressStatement[] | null) ?? [];
+      statements = parsed.statements;
     } catch (e: unknown) {
       if (!isFinal) {
         // Sanctioned swallow (compiler.py:286): when isFinal is false, syntax errors
@@ -578,24 +638,13 @@ export class ExpressCompiler {
       const [stmtType, ...stmtArgs] = stmt;
       if (stmtType === 'EXPR') {
         const parsedVal = stmtArgs[0];
-        if (
-          parsedVal &&
-          typeof parsedVal === 'object' &&
-          'call' in parsedVal &&
-          (parsedVal as ExpressCallValue).call === 'surface'
-        ) {
-          const parsed = this.parseSurfaceCall(parsedVal as ExpressCallValue);
+        if (isExpressNode(parsedVal, 'call') && parsedVal.name === 'surface') {
+          const parsed = this.parseSurfaceCall(parsedVal);
           currentScope = new SurfaceScope(parsed.surfaceId, parsed.sendDataModel, parsed.update);
           units.push({kind: 'scope', scope: currentScope});
-        } else if (
-          parsedVal &&
-          typeof parsedVal === 'object' &&
-          'call' in parsedVal &&
-          (parsedVal as ExpressCallValue).call === 'deleteSurface'
-        ) {
-          const callVal = parsedVal as ExpressCallValue;
-          const args = callVal.args ?? [];
-          const kwargs = callVal.kwargs ?? {};
+        } else if (isExpressNode(parsedVal, 'call') && parsedVal.name === 'deleteSurface') {
+          const args = parsedVal.args;
+          const kwargs = parsedVal.kwargs;
           let targetDeleteSurfaceId: string | null = null;
           if (args.length > 0 && typeof args[0] === 'string') {
             targetDeleteSurfaceId = args[0];
@@ -608,10 +657,10 @@ export class ExpressCompiler {
             );
           }
           units.push({kind: 'delete', surfaceId: targetDeleteSurfaceId});
-        } else if (parsedVal && typeof parsedVal === 'object' && 'call' in parsedVal) {
+        } else if (isExpressNode(parsedVal, 'call')) {
           units.push({
             kind: 'call',
-            stmt: parsedVal as ExpressCallValue,
+            stmt: parsedVal,
             scope: currentScope,
           });
         }
@@ -622,9 +671,10 @@ export class ExpressCompiler {
           units.push({kind: 'scope', scope: currentScope});
         }
         if (varName.startsWith('$')) {
+          delete currentScope.dataPathAssignments[varName];
           currentScope.dataPathAssignments[varName] = parsedVal;
         } else {
-          currentScope.rawSymbols[varName] = parsedVal;
+          setOwnEntry(currentScope.rawSymbols, varName, parsedVal);
         }
       }
     }
@@ -696,35 +746,25 @@ export class ExpressCompiler {
 
     const compIds = new Map<string, string>();
     for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
-      if (ast && typeof ast === 'object' && 'call' in ast) {
-        const callAst = ast as ExpressCallValue;
-        const compName = callAst.call;
-        const explicitId = callAst.kwargs?.id;
+      if (isExpressNode(ast, 'call')) {
+        const compName = ast.name;
+        const explicitId = ast.kwargs.id;
         if (explicitId !== undefined) {
           if (typeof explicitId !== 'string' || explicitId.length === 0) {
             throw new ExpressValidationError(
               `id on component '${compName}' must be a non-empty string.`,
             );
           }
+          if (targetMajorMinor[0] >= 1 && !isValidUax31Identifier(explicitId)) {
+            throw new ExpressValidationError(
+              `Component id '${explicitId}' on '${compName}' is not a valid UAX 31 identifier.`,
+            );
+          }
         }
-        if (this.definesComponent(compName, callAst.kwargs?.catalogId)) {
+        if (this.definesComponent(compName, ast.kwargs.catalogId)) {
           compIds.set(varName, (explicitId as string | undefined) ?? varName);
         }
       }
-    }
-
-    // Compile data model paths (compiler.py:401-405)
-    const dataModel: Record<string, unknown> = {};
-    for (const [pathName, astVal] of Object.entries(scope.dataPathAssignments)) {
-      const compiledVal = this._compileValue(
-        astVal,
-        scope.rawSymbols,
-        compIds,
-        ctx,
-        targetMajorMinor,
-        false,
-      );
-      setNestedPath(dataModel, pathName, compiledVal);
     }
 
     const compiledComponents: Record<string, unknown>[] = [];
@@ -749,18 +789,39 @@ export class ExpressCompiler {
     const hasRootComponent = compiledComponents.some(c => c.id === 'root');
 
     if (scope.update || !hasRootComponent) {
+      const dataUpdates: AgentToRendererMessage[] = [];
+      for (const [pathName, astVal] of Object.entries(scope.dataPathAssignments)) {
+        const pointer = toJsonPointer(pathName);
+        const compiledVal = this._compileValue(
+          astVal,
+          scope.rawSymbols,
+          compIds,
+          ctx,
+          targetMajorMinor,
+          false,
+        );
+        if (
+          pointer === '/' &&
+          (!compiledVal || typeof compiledVal !== 'object' || Array.isArray(compiledVal))
+        ) {
+          throw new ExpressValidationError(
+            "Cannot assign a non-map value to the root data path '$/'.",
+          );
+        }
+        dataUpdates.push(
+          asAgentToRendererMessage({
+            version: targetVersion,
+            [SurfaceOperation.UPDATE_DATA]: {
+              surfaceId: scopeSurfId,
+              path: pointer,
+              value: compiledVal,
+            },
+          }),
+        );
+      }
       if (compiledComponents.length === 0) {
-        if (Object.keys(scope.dataPathAssignments).length > 0) {
-          return [
-            asAgentToRendererMessage({
-              version: targetVersion,
-              [SurfaceOperation.UPDATE_DATA]: {
-                surfaceId: scopeSurfId,
-                path: '/',
-                value: dataModel,
-              },
-            }),
-          ];
+        if (dataUpdates.length > 0) {
+          return dataUpdates;
         }
         throw new ExpressUndefinedRootError('root');
       }
@@ -772,20 +833,22 @@ export class ExpressCompiler {
             components: compiledComponents,
           },
         }),
+        ...dataUpdates,
       );
-      if (Object.keys(dataModel).length > 0) {
-        resultMessages.push(
-          asAgentToRendererMessage({
-            version: targetVersion,
-            [SurfaceOperation.UPDATE_DATA]: {
-              surfaceId: scopeSurfId,
-              path: '/',
-              value: dataModel,
-            },
-          }),
-        );
-      }
       return resultMessages;
+    }
+
+    const dataModel: Record<string, unknown> = {};
+    for (const [pathName, astVal] of Object.entries(scope.dataPathAssignments)) {
+      const compiledVal = this._compileValue(
+        astVal,
+        scope.rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        false,
+      );
+      setNestedPath(dataModel, pathName, compiledVal);
     }
 
     const createPayload: Record<string, unknown> = {
@@ -858,14 +921,13 @@ export class ExpressCompiler {
     ctx: CompileContext,
     targetMajorMinor: [number, number],
   ): Record<string, unknown> | null {
-    if (!ast || typeof ast !== 'object' || !('call' in ast)) {
+    if (!isExpressNode(ast, 'call')) {
       return null;
     }
 
-    const callAst = ast as ExpressCallValue;
-    const compName = callAst.call;
-    const args = callAst.args ?? [];
-    const rawKwargs = {...(callAst.kwargs ?? {})};
+    const compName = ast.name;
+    const args = ast.args;
+    const rawKwargs = {...ast.kwargs};
 
     const explicitCatalogId = rawKwargs.catalogId;
     delete rawKwargs.catalogId;
@@ -873,8 +935,17 @@ export class ExpressCompiler {
     const explicitId = rawKwargs.id;
     delete rawKwargs.id;
 
-    if (explicitId !== undefined && (typeof explicitId !== 'string' || explicitId.length === 0)) {
-      throw new ExpressValidationError(`id on component '${compName}' must be a non-empty string.`);
+    if (explicitId !== undefined) {
+      if (typeof explicitId !== 'string' || explicitId.length === 0) {
+        throw new ExpressValidationError(
+          `id on component '${compName}' must be a non-empty string.`,
+        );
+      }
+      if (targetMajorMinor[0] >= 1 && !isValidUax31Identifier(explicitId)) {
+        throw new ExpressValidationError(
+          `Component id '${explicitId}' on '${compName}' is not a valid UAX 31 identifier.`,
+        );
+      }
     }
 
     if (
@@ -912,32 +983,88 @@ export class ExpressCompiler {
       ? properties.filter(p => p !== checkPropName)
       : properties;
 
-    const rawChecks: ExpressCheckValue[] = [];
+    const rawChecks: ExpressCheckNode[] = [];
     const propArgPairs: Array<[string, unknown]> = [];
     let propIdx = 0;
 
+    const posArgs: ExpressValue[] = [];
     for (const arg of args) {
       if (isCheckExpression(arg)) {
         if (Array.isArray(arg)) {
-          rawChecks.push(...(arg as ExpressCheckValue[]));
+          rawChecks.push(...(arg as ExpressCheckNode[]));
         } else {
-          rawChecks.push(arg as ExpressCheckValue);
+          rawChecks.push(arg as ExpressCheckNode);
         }
         continue;
       }
+      posArgs.push(arg);
+    }
 
-      if (propIdx < nonCheckProperties.length) {
-        propArgPairs.push([nonCheckProperties[propIdx], arg]);
-        propIdx += 1;
+    const requiredProps = compHelper.getComponentRequired(compName);
+    for (let argIdx = 0; argIdx < posArgs.length; argIdx++) {
+      const arg = posArgs[argIdx];
+      if (propIdx >= nonCheckProperties.length) {
+        throw new ExpressValidationError(
+          `${compName} takes at most ${nonCheckProperties.length} positional arguments (${nonCheckProperties.join(', ')}), but component '${compId}' passes ${posArgs.length}.`,
+        );
       }
+      if (
+        typeof arg === 'number' &&
+        !compHelper.acceptsNumber(
+          compHelper.getPropertySchema(compName, nonCheckProperties[propIdx]),
+        )
+      ) {
+        let moved = false;
+        if (argIdx === posArgs.length - 1) {
+          const numericLater: number[] = [];
+          for (let laterIdx = propIdx + 1; laterIdx < nonCheckProperties.length; laterIdx++) {
+            const laterProp = nonCheckProperties[laterIdx];
+            if (
+              !(laterProp in rawKwargs) &&
+              compHelper.acceptsNumber(compHelper.getPropertySchema(compName, laterProp))
+            ) {
+              numericLater.push(laterIdx);
+            }
+          }
+          if (numericLater.length === 1) {
+            const targetIdx = numericLater[0];
+            let allOptionalEnums = true;
+            for (let idx = propIdx; idx < targetIdx; idx++) {
+              const skippedProp = nonCheckProperties[idx];
+              if (
+                requiredProps.includes(skippedProp) ||
+                !compHelper.getPropertyEnum(compName, skippedProp)?.length
+              ) {
+                allOptionalEnums = false;
+                break;
+              }
+            }
+            if (allOptionalEnums) {
+              propIdx = targetIdx;
+              moved = true;
+            }
+          }
+        }
+        if (
+          !moved &&
+          !requiredProps.includes(nonCheckProperties[propIdx]) &&
+          compHelper.commonTypesLoaded
+        ) {
+          throw new ExpressValidationError(
+            `Positional argument ${argIdx + 1} for component '${compName}' is a number, which is not valid for optional property '${nonCheckProperties[propIdx]}'.`,
+          );
+        }
+      }
+      propArgPairs.push([nonCheckProperties[propIdx], arg]);
+      propIdx += 1;
     }
 
     for (const [k, v] of Object.entries(rawKwargs)) {
       if (isCheckExpression(v)) {
         if (Array.isArray(v)) {
-          rawChecks.push(...(v as ExpressCheckValue[]));
+          rawChecks.push(...(v as ExpressCheckNode[]));
         } else {
-          rawChecks.push(v as ExpressCheckValue);
+          rawChecks.push(v as ExpressCheckNode);
         }
         continue;
       }
@@ -956,12 +1083,7 @@ export class ExpressCompiler {
       }
       seenProperties.add(propName);
 
-      if (
-        arg &&
-        typeof arg === 'object' &&
-        'skipped' in arg &&
-        (arg as ExpressSkippedValue).skipped
-      ) {
+      if (isExpressNode(arg, 'skipped')) {
         compDict[propName] = null;
         continue;
       }
@@ -981,13 +1103,14 @@ export class ExpressCompiler {
           parentId: compId,
           property: propName,
         },
+        {schema: propSchema, helper: compHelper},
       );
 
       // Sanctioned departure §5.2 item 5: forbidden-binding check walking schema.
       // Gated like Python (compiler.py:547): a property whose schema admits a path
       // as a whole is not inspected further.
       if (propSchema && !compHelper.admitsPath(propSchema)) {
-        this._checkDataBindings(compName, propName, mappedVal, propSchema, compHelper);
+        this._checkDataBindings(compName, propName, arg, propSchema, compHelper, rawSymbols);
       }
 
       // Sanctioned departure §5.2 item 2: option-object coercion
@@ -1001,30 +1124,27 @@ export class ExpressCompiler {
 
       // Enum validation (compiler.py:557-565)
       const enumVals = compHelper.getPropertyEnum(compName, propName);
-      if (enumVals && typeof mappedVal === 'string') {
-        if (!enumVals.includes(mappedVal)) {
-          const pyListStr = `[${enumVals.map(e => `'${e}'`).join(', ')}]`;
-          throw new ExpressValidationError(
-            `Value '${mappedVal}' is not a valid enum choice for property '${propName}' of component '${compName}'. Allowed values are: ${pyListStr}`,
-          );
-        }
+      if (
+        enumVals &&
+        !(mappedVal && typeof mappedVal === 'object') &&
+        !enumVals.includes(mappedVal as string)
+      ) {
+        const pyListStr = `[${enumVals.map(e => `'${e}'`).join(', ')}]`;
+        throw new ExpressValidationError(
+          `Value '${mappedVal}' is not a valid enum choice for property '${propName}' of component '${compName}'. Allowed values are: ${pyListStr}`,
+        );
       }
 
       compDict[propName] = mappedVal;
 
-      // Sanctioned departure §5.2 item 3: record bound path of every property whose compiled
-      // value is an object with a path key (and not a componentId).
-      if (
-        mappedVal &&
-        typeof mappedVal === 'object' &&
-        compHelper.keys.path in mappedVal &&
-        !('componentId' in mappedVal)
-      ) {
+      // Sanctioned departure §5.2 item 3: record the bound path of every property whose value
+      // is a `$path`, directly or through variables. A map literal shaped like a data binding
+      // is data, so it binds no check.
+      if (resolvesToPath(arg, rawSymbols)) {
         boundPaths.set(propName, mappedVal as Record<string, unknown>);
       }
     }
 
-    const requiredProps = compHelper.getComponentRequired(compName);
     for (const reqProp of requiredProps) {
       if (reqProp === 'id' || reqProp === 'component') {
         continue;
@@ -1049,7 +1169,7 @@ export class ExpressCompiler {
 
       const compiledChecks: Record<string, unknown>[] = [];
       for (const rc of rawChecks) {
-        if (rc && typeof rc === 'object' && 'check' in rc) {
+        if (isExpressNode(rc, 'check')) {
           compiledChecks.push(
             this.compileCheckCall(rc, rawSymbols, compIds, ctx, targetMajorMinor, false),
           );
@@ -1076,45 +1196,35 @@ export class ExpressCompiler {
    * Compiles a `?check(...)` expression into a condition and failure message.
    */
   private compileCheckCall(
-    rc: ExpressCheckValue,
+    rc: ExpressCheckNode,
     rawSymbols: Record<string, unknown>,
     compIds: Map<string, string>,
     ctx: CompileContext,
     targetMajorMinor: [number, number],
     isAction = false,
   ): {condition: Record<string, unknown>; message: string} {
-    const checkName = rc.check;
-    const rawArgs = rc.args ?? [];
+    const checkName = rc.name;
+    const rawArgs = rc.args;
     const remainingArgs: ExpressValue[] = [];
-    let checkCatalogId: unknown = (rc as unknown as {catalogId?: unknown}).catalogId;
+    let checkCatalogId: unknown = undefined;
 
     for (const arg of rawArgs) {
-      if (isPlainAstMap(arg) && 'catalogId' in arg) {
-        const otherKeys = Object.keys(arg).filter(k => k !== 'catalogId');
+      if (isExpressNode(arg, 'map') && Object.hasOwn(arg.entries, 'catalogId')) {
+        const otherKeys = Object.keys(arg.entries).filter(k => k !== 'catalogId');
         if (otherKeys.length > 0) {
           throw new ExpressValidationError(
             `Unsupported key(s) in check options for '?${checkName}': ${otherKeys.join(', ')}. Only 'catalogId' is allowed.`,
           );
         }
-        if (checkCatalogId !== undefined && checkCatalogId !== arg.catalogId) {
+        if (checkCatalogId !== undefined && checkCatalogId !== arg.entries.catalogId) {
           throw new ExpressValidationError(
             `Check '?${checkName}' specifies conflicting catalogId values.`,
           );
         }
-        checkCatalogId = arg.catalogId;
+        checkCatalogId = arg.entries.catalogId;
         continue;
       }
       remainingArgs.push(arg);
-    }
-
-    const rcKwargs = (rc as unknown as {kwargs?: Record<string, ExpressValue>}).kwargs;
-    if (rcKwargs && 'catalogId' in rcKwargs) {
-      if (checkCatalogId !== undefined && checkCatalogId !== rcKwargs.catalogId) {
-        throw new ExpressValidationError(
-          `Check '?${checkName}' specifies conflicting catalogId values.`,
-        );
-      }
-      checkCatalogId = rcKwargs.catalogId;
     }
 
     const {helper: checkHelper} = this.resolveSymbol(
@@ -1133,17 +1243,13 @@ export class ExpressCompiler {
     // Sanctioned departure §5.2 item 3: implicit first argument injection
     if (checkProps.length > 0) {
       const first = checkProps[0];
-      const firstIsPath =
-        remainingArgs.length > 0 &&
-        remainingArgs[0] &&
-        typeof remainingArgs[0] === 'object' &&
-        'path' in remainingArgs[0];
+      const firstIsPath = remainingArgs.length > 0 && isExpressNode(remainingArgs[0], 'path');
 
       if (!firstIsPath) {
         const bound = ctx.activeBoundPaths.get(first);
         if (bound) {
           const rawPath = String(bound[ctx.keys.path] ?? '');
-          callArgs.push({path: rawPath});
+          callArgs.push({kind: 'path', path: rawPath});
           isValueInjected = true;
         }
       }
@@ -1181,15 +1287,16 @@ export class ExpressCompiler {
       }
     }
 
-    const innerKwargs: Record<string, ExpressValue> = {...(rcKwargs ?? {})};
+    const innerKwargs: Record<string, ExpressValue> = {};
     if (checkCatalogId !== undefined) {
       innerKwargs.catalogId = checkCatalogId as ExpressValue;
     }
 
-    const conditionCall: ExpressCallValue = {
-      call: checkName,
+    const conditionCall: ExpressCallNode = {
+      kind: 'call',
+      name: checkName,
       args: callArgs,
-      ...(Object.keys(innerKwargs).length > 0 ? {kwargs: innerKwargs} : {}),
+      kwargs: innerKwargs,
     };
 
     const [condition] = this.compileFunctionCall(
@@ -1209,7 +1316,7 @@ export class ExpressCompiler {
    * Compiles a function call AST node into a wire function call object.
    */
   private compileFunctionCall(
-    callVal: ExpressCallValue,
+    callVal: ExpressCallNode,
     rawSymbols: Record<string, unknown>,
     compIds: Map<string, string>,
     ctx: CompileContext,
@@ -1217,9 +1324,9 @@ export class ExpressCompiler {
     isAction = false,
     allowCallId = false,
   ): [Record<string, unknown>, string | undefined] {
-    const fnName = callVal.call;
-    const fnArgs = callVal.args ?? [];
-    const fnKwargs = {...(callVal.kwargs ?? {})};
+    const fnName = callVal.name;
+    const fnArgs = callVal.args;
+    const fnKwargs = {...callVal.kwargs};
 
     const explicitCatalogId = fnKwargs.catalogId;
     delete fnKwargs.catalogId;
@@ -1248,12 +1355,7 @@ export class ExpressCompiler {
     for (let idx = 0; idx < fnArgs.length; idx++) {
       const arg = fnArgs[idx];
       if (idx < fnProps.length) {
-        if (
-          arg &&
-          typeof arg === 'object' &&
-          'skipped' in arg &&
-          (arg as ExpressSkippedValue).skipped
-        ) {
+        if (isExpressNode(arg, 'skipped')) {
           continue;
         }
         const valItem = this._compileValue(
@@ -1277,7 +1379,7 @@ export class ExpressCompiler {
       if (k in compiledArgs) {
         throw new ExpressDuplicateParamError(fnName, k);
       }
-      if (v && typeof v === 'object' && 'skipped' in v && (v as ExpressSkippedValue).skipped) {
+      if (isExpressNode(v, 'skipped')) {
         continue;
       }
       const valItem = this._compileValue(v, rawSymbols, compIds, ctx, targetMajorMinor, isAction);
@@ -1298,6 +1400,97 @@ export class ExpressCompiler {
   }
 
   /**
+   * Compiles the reserved `Event(name, context?, userMessage=?, context=?)` signature.
+   *
+   * `userMessage` is a v1.0 Action field. It is rejected when targeting an earlier
+   * protocol version, and so is any other keyword the signature does not define,
+   * rather than being dropped from the compiled action.
+   *
+   * The event's name, message and context entries are `DynamicValue`s, not actions, so a
+   * function call among them stays a plain call whatever slot the event itself sits in.
+   */
+  private compileEventCall(
+    callVal: ExpressCallNode,
+    rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+  ): Record<string, unknown> {
+    const fnArgs = callVal.args;
+    const fnKwargs = callVal.kwargs;
+    const compile = (node: unknown): unknown =>
+      this._compileValue(node, rawSymbols, compIds, ctx, targetMajorMinor, false);
+
+    if (fnArgs.length > 2) {
+      throw new ExpressValidationError(
+        `Event accepts at most 2 positional arguments (name, context), got ${fnArgs.length}.`,
+      );
+    }
+    for (const key of Object.keys(fnKwargs)) {
+      if (!EVENT_KEYWORDS.includes(key)) {
+        throw new ExpressInvalidParamError('Event', key, [...EVENT_KEYWORDS]);
+      }
+    }
+    if (fnArgs.length === 2 && Object.hasOwn(fnKwargs, 'context')) {
+      throw new ExpressDuplicateParamError('Event', 'context');
+    }
+
+    const compiledEventName = fnArgs.length > 0 ? compile(fnArgs[0]) : '';
+    const event: Record<string, unknown> = {name: compiledEventName};
+
+    if (Object.hasOwn(fnKwargs, 'userMessage')) {
+      if (targetMajorMinor[0] < 1) {
+        throw new ExpressValidationError(
+          `Event userMessage requires protocol v1.0 or later; the target version ` +
+            `${targetMajorMinor[0]}.${targetMajorMinor[1]} has no userMessage field.`,
+        );
+      }
+      // `userMessage` is a DynamicString: a string, a data binding or a function call.
+      const userMessage = compile(fnKwargs.userMessage);
+      const isBindingOrCall =
+        userMessage !== null &&
+        typeof userMessage === 'object' &&
+        !Array.isArray(userMessage) &&
+        (Object.hasOwn(userMessage, ctx.keys.path) || Object.hasOwn(userMessage, ctx.keys.call));
+      if (typeof userMessage !== 'string' && !isBindingOrCall) {
+        throw new ExpressValidationError(
+          `Event userMessage must be a string, a $path data binding or a function call, ` +
+            `got ${describeExpressValue(fnKwargs.userMessage)}.`,
+        );
+      }
+      event.userMessage = userMessage;
+    }
+
+    const contextNode = fnArgs.length === 2 ? fnArgs[1] : fnKwargs.context;
+    if (contextNode === undefined) {
+      return {event};
+    }
+
+    const rawContext = compile(contextNode);
+    // Entries are copied as own properties, so that a key such as `__proto__`
+    // stays data rather than changing the context's prototype.
+    const compiledContext: Record<string, unknown> = {};
+    const mergeContext = (source: object): void => {
+      for (const [k, v] of Object.entries(source)) {
+        setOwnEntry(compiledContext, k, v);
+      }
+    };
+    if (rawContext && typeof rawContext === 'object') {
+      if (Array.isArray(rawContext)) {
+        for (const item of rawContext) {
+          if (item && typeof item === 'object' && !Array.isArray(item)) {
+            mergeContext(item);
+          }
+        }
+      } else {
+        mergeContext(rawContext);
+      }
+    }
+    event.context = compiledContext;
+    return {event};
+  }
+
+  /**
    * Compiles an individual AST node value into valid A2UI equivalents (compiler.py:644-838).
    *
    * @param val The parsed AST node value.
@@ -1306,6 +1499,10 @@ export class ExpressCompiler {
    * @param ctx Active compiler execution context.
    * @param targetMajorMinor Target major and minor protocol version numbers.
    * @param isAction Whether this value lies inside a component Action field.
+   * @param inlineCtx Position used to derive deterministic ids for inline components.
+   * @param slot The catalog schema declared at this position, when known. Array items
+   *   and map entries resolve their own sub-schema from it, so an `Action` slot nested
+   *   inside a list item (e.g. `items: [{label, action}]`) is compiled as an action too.
    * @returns The semantically correct A2UI JSON structure.
    */
   private _compileValue(
@@ -1316,195 +1513,193 @@ export class ExpressCompiler {
     targetMajorMinor: [number, number],
     isAction = false,
     inlineCtx?: {parentId: string; property: string; index?: number},
+    slot?: ValueSlot,
   ): unknown {
-    if (val && typeof val === 'object') {
-      if ('path' in val) {
-        return {[ctx.keys.path]: (val as ExpressPathValue).path};
-      }
+    if (Array.isArray(val)) {
+      // Resolved once for the array, since every item shares the schema.
+      const itemsSlot = itemSlot(slot);
+      const itemIsAction = isAction || isActionSlot(itemsSlot?.schema);
+      return val.map((item, index) =>
+        this._compileValue(
+          item,
+          rawSymbols,
+          compIds,
+          ctx,
+          targetMajorMinor,
+          itemIsAction,
+          inlineCtx ? {...inlineCtx, index} : undefined,
+          itemsSlot,
+        ),
+      );
+    }
 
-      if ('variable' in val) {
-        const refName = (val as {variable: string}).variable;
-        if (compIds.has(refName)) {
-          return compIds.get(refName)!;
+    if (isExpressNode(val, 'map')) {
+      // A map literal is always data, whatever its keys are.
+      const dictRes: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(val.entries)) {
+        const entrySlot = propertySlot(slot, k);
+        const entryIsAction = isAction || isActionSlot(entrySlot?.schema);
+        setOwnEntry(
+          dictRes,
+          k,
+          this._compileValue(
+            v,
+            rawSymbols,
+            compIds,
+            ctx,
+            targetMajorMinor,
+            entryIsAction,
+            undefined,
+            entrySlot,
+          ),
+        );
+      }
+      return dictRes;
+    }
+
+    if (isExpressNode(val, 'path')) {
+      return {[ctx.keys.path]: val.path};
+    }
+
+    if (isExpressNode(val, 'variable')) {
+      const refName = val.name;
+      if (compIds.has(refName)) {
+        return compIds.get(refName)!;
+      }
+      if (Object.hasOwn(rawSymbols, refName)) {
+        if (ctx.resolving.has(refName)) {
+          throw new ExpressValidationError(
+            `Variable '${refName}' refers to itself through its own value.`,
+          );
         }
-        if (refName in rawSymbols) {
-          const symbolVal = rawSymbols[refName];
+        ctx.resolving.add(refName);
+        try {
           return this._compileValue(
-            symbolVal,
+            rawSymbols[refName],
             rawSymbols,
             compIds,
             ctx,
             targetMajorMinor,
             isAction,
+            undefined,
+            slot,
+          );
+        } finally {
+          ctx.resolving.delete(refName);
+        }
+      }
+      return refName;
+    }
+
+    if (isExpressNode(val, 'skipped')) {
+      throw new ExpressValidationError("'_' can only stand in for an argument.");
+    }
+
+    if (isExpressNode(val, 'check')) {
+      const {condition} = this.compileCheckCall(
+        val,
+        rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        isAction,
+      );
+      return condition;
+    }
+
+    if (isExpressNode(val, 'call')) {
+      const callVal = val;
+      const fnName = callVal.name;
+      const fnArgs = callVal.args;
+      const fnKwargs = callVal.kwargs;
+
+      // 1. Is it a reserved _template signature?
+      if (fnName === '_template') {
+        if (fnArgs.length < 2) {
+          throw new ExpressParseError(
+            '_template helper requires exactly 2 arguments: path and templateComponent.',
           );
         }
-        return refName;
-      }
-
-      if ('check' in val) {
-        const {condition} = this.compileCheckCall(
-          val as ExpressCheckValue,
+        const pathVal = this._compileValue(
+          fnArgs[0],
           rawSymbols,
           compIds,
           ctx,
           targetMajorMinor,
           isAction,
         );
-        return condition;
-      }
-
-      if ('call' in val) {
-        const callVal = val as ExpressCallValue;
-        const fnName = callVal.call;
-        const fnArgs = callVal.args ?? [];
-        const fnKwargs = callVal.kwargs ?? {};
-
-        // 1. Is it a reserved _template signature?
-        if (fnName === '_template') {
-          if (fnArgs.length < 2) {
-            throw new ExpressParseError(
-              '_template helper requires exactly 2 arguments: path and templateComponent.',
-            );
-          }
-          const pathVal = this._compileValue(
-            fnArgs[0],
-            rawSymbols,
-            compIds,
-            ctx,
-            targetMajorMinor,
-            isAction,
+        if (!pathVal || typeof pathVal !== 'object' || !(ctx.keys.path in pathVal)) {
+          throw new ExpressParseError(
+            `The first argument to _template must be a dynamic data binding path (prefixed by $), got: ${formatValue(fnArgs[0])}`,
           );
-          if (!pathVal || typeof pathVal !== 'object' || !(ctx.keys.path in pathVal)) {
-            throw new ExpressParseError(
-              `The first argument to _template must be a dynamic data binding path (prefixed by $), got: ${formatValue(fnArgs[0])}`,
-            );
-          }
-          const compIdVal = this._compileValue(
-            fnArgs[1],
-            rawSymbols,
-            compIds,
-            ctx,
-            targetMajorMinor,
-            isAction,
-          );
-          // A template's path is a plain property of ChildList, not a data binding, so it
-          // keeps the unprefixed name in every version.
-          return {
-            path: (pathVal as Record<string, unknown>)[ctx.keys.path],
-            componentId: compIdVal,
-          };
         }
-
-        // 2. Is it a reserved Event signature?
-        if (fnName === 'Event') {
-          const compiledEventName =
-            fnArgs.length > 0
-              ? this._compileValue(fnArgs[0], rawSymbols, compIds, ctx, targetMajorMinor, isAction)
-              : '';
-
-          if (fnArgs.length <= 1) {
-            return {
-              event: {
-                name: compiledEventName,
-              },
-            };
-          }
-
-          const rawContext = this._compileValue(
-            fnArgs[1],
-            rawSymbols,
-            compIds,
-            ctx,
-            targetMajorMinor,
-            isAction,
-          );
-          const compiledContext: Record<string, unknown> = {};
-          if (rawContext && typeof rawContext === 'object') {
-            if (Array.isArray(rawContext)) {
-              for (const item of rawContext) {
-                if (item && typeof item === 'object' && !Array.isArray(item)) {
-                  Object.assign(compiledContext, item);
-                }
-              }
-            } else {
-              Object.assign(compiledContext, rawContext);
-            }
-          }
-          return {
-            event: {
-              name: compiledEventName,
-              context: compiledContext,
-            },
-          };
-        }
-
-        // 3. Is it an inline component constructor?
-        if (this.definesComponent(fnName, fnKwargs.catalogId)) {
-          ctx.inlineCounter += 1;
-          const inlineId = inlineCtx
-            ? inlineCtx.index !== undefined
-              ? `${inlineCtx.parentId}_${inlineCtx.property}_${inlineCtx.index}`
-              : `${inlineCtx.parentId}_${inlineCtx.property}`
-            : `_inline_${ctx.inlineCounter}`;
-          if (
-            inlineId in rawSymbols ||
-            Array.from(compIds.values()).includes(inlineId) ||
-            ctx.generatedIds.has(inlineId)
-          ) {
-            throw new ExpressIdCollisionError(inlineId);
-          }
-          ctx.generatedIds.add(inlineId);
-          const extraStartIndex = ctx.extraComponents.length;
-          const compiledInline = this._compileAstNode(
-            inlineId,
-            val,
-            rawSymbols,
-            compIds,
-            ctx,
-            targetMajorMinor,
-          );
-          if (compiledInline) {
-            ctx.extraComponents.splice(extraStartIndex, 0, compiledInline);
-            return compiledInline.id as string;
-          }
-          return inlineId;
-        }
-
-        // 4. Regular catalog function call
-        const [compiledFn] = this.compileFunctionCall(
-          callVal,
+        const compIdVal = this._compileValue(
+          fnArgs[1],
           rawSymbols,
           compIds,
           ctx,
           targetMajorMinor,
-          false,
-          false,
+          isAction,
         );
-        if (isAction) {
-          return {functionCall: compiledFn};
+        // A template's path is a plain property of ChildList, not a data binding, so it
+        // keeps the unprefixed name in every version.
+        return {
+          path: (pathVal as Record<string, unknown>)[ctx.keys.path],
+          componentId: compIdVal,
+        };
+      }
+
+      // 2. Is it a reserved Event signature?
+      if (fnName === 'Event') {
+        return this.compileEventCall(callVal, rawSymbols, compIds, ctx, targetMajorMinor);
+      }
+
+      // 3. Is it an inline component constructor?
+      if (this.definesComponent(fnName, fnKwargs.catalogId)) {
+        ctx.inlineCounter += 1;
+        const inlineId = inlineCtx
+          ? inlineCtx.index !== undefined
+            ? `${inlineCtx.parentId}_${inlineCtx.property}_${inlineCtx.index}`
+            : `${inlineCtx.parentId}_${inlineCtx.property}`
+          : `_inline_${ctx.inlineCounter}`;
+        if (
+          Object.hasOwn(rawSymbols, inlineId) ||
+          Array.from(compIds.values()).includes(inlineId) ||
+          ctx.generatedIds.has(inlineId)
+        ) {
+          throw new ExpressIdCollisionError(inlineId);
         }
-        return compiledFn;
-      }
-
-      if (Array.isArray(val)) {
-        return val.map((item, index) =>
-          this._compileValue(
-            item,
-            rawSymbols,
-            compIds,
-            ctx,
-            targetMajorMinor,
-            isAction,
-            inlineCtx ? {...inlineCtx, index} : undefined,
-          ),
+        ctx.generatedIds.add(inlineId);
+        const extraStartIndex = ctx.extraComponents.length;
+        const compiledInline = this._compileAstNode(
+          inlineId,
+          val,
+          rawSymbols,
+          compIds,
+          ctx,
+          targetMajorMinor,
         );
+        if (compiledInline) {
+          ctx.extraComponents.splice(extraStartIndex, 0, compiledInline);
+          return compiledInline.id as string;
+        }
+        return inlineId;
       }
 
-      const dictRes: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-        dictRes[k] = this._compileValue(v, rawSymbols, compIds, ctx, targetMajorMinor, isAction);
+      // 4. Regular catalog function call
+      const [compiledFn] = this.compileFunctionCall(
+        callVal,
+        rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        false,
+        false,
+      );
+      if (isAction) {
+        return {functionCall: compiledFn};
       }
-      return dictRes;
+      return compiledFn;
     }
 
     return val;
@@ -1513,10 +1708,14 @@ export class ExpressCompiler {
   /**
    * Validates dynamic databindings against the schema (sanctioned departure §5.2 item 5).
    *
-   * Walks the compiled value alongside the schema. At each node, if the value is a
-   * dynamic databinding, it is allowed iff `helper.admitsPath(schemaAtThisPosition)`.
-   * Descends into arrays via schema `items` and into objects via `properties[key]`.
-   * If schema cannot be determined at a position, the binding is treated as allowed.
+   * Walks the AST value alongside the schema. At each node, a `$path` is allowed iff
+   * `helper.admitsPath(schemaAtThisPosition)`. Descends into arrays via schema `items`,
+   * into map literals via `properties[key]`, and into the value of a referenced
+   * variable. Walking the AST rather than the compiled value means a map literal whose
+   * keys are named like a call, an event or a function call is still searched. Calls,
+   * checks, events and templates are not searched, since they resolve their own
+   * arguments. If schema cannot be determined at a position, the binding is treated
+   * as allowed.
    */
   private _checkDataBindings(
     compName: string,
@@ -1524,33 +1723,36 @@ export class ExpressCompiler {
     val: unknown,
     schema: unknown,
     helper: CatalogSchemaHelper,
+    rawSymbols: Record<string, unknown>,
   ): void {
-    const walk = (v: unknown, s: unknown): void => {
-      if (isDirectBinding(v, helper.keys)) {
+    const walk = (v: unknown, s: unknown, seen: ReadonlySet<string>): void => {
+      if (isExpressNode(v, 'path')) {
         if (s && !helper.admitsPath(s)) {
           throw new ExpressForbiddenDatabindingError(compName, topLevelPropName);
         }
         return;
       }
-      if (Array.isArray(v)) {
-        const itemSchema = s ? helper.resolveSubschema(s, 'items') : undefined;
-        for (const item of v) {
-          walk(item, itemSchema);
+      if (isExpressNode(v, 'variable')) {
+        if (!seen.has(v.name) && Object.hasOwn(rawSymbols, v.name)) {
+          walk(rawSymbols[v.name], s, new Set([...seen, v.name]));
         }
         return;
       }
-      if (v && typeof v === 'object') {
-        const obj = v as Record<string, unknown>;
-        if (helper.keys.call in obj || 'event' in obj || 'functionCall' in obj) {
-          return;
+      if (Array.isArray(v)) {
+        const itemSchema = s ? helper.resolveItemSchema(s) : undefined;
+        for (const item of v) {
+          walk(item, itemSchema, seen);
         }
-        for (const [k, subVal] of Object.entries(obj)) {
-          const propSchema = s ? helper.resolveSubschema(s, k) : undefined;
-          walk(subVal, propSchema);
+        return;
+      }
+      if (isExpressNode(v, 'map')) {
+        for (const [k, subVal] of Object.entries(v.entries)) {
+          const propSchema = s ? helper.resolvePropertySchema(s, k) : undefined;
+          walk(subVal, propSchema, seen);
         }
       }
     };
 
-    walk(val, schema);
+    walk(val, schema, new Set());
   }
 }

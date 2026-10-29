@@ -19,12 +19,12 @@
 - name: test_validator_1_0
   description: Tests schema validation of v1.0 message envelopes (inline components, optional catalogId, data deletion) against the basic v1.0 catalog schema.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
@@ -36,11 +36,11 @@
             dataModel:
               counter: 100
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s_nocat"
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateDataModel:
             surfaceId: "s1"
             path: "/user/token"
@@ -54,7 +54,7 @@
           - path: "messages.0.version"
             code: "missing_field"
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: 123
       expectError:
@@ -66,7 +66,7 @@
 - name: test_custom_catalog_1_0
   description: Tests component property schema validation in v1.0 against custom catalog schema.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalog:
     catalogId: "custom"
     components:
@@ -96,11 +96,11 @@
           - component
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: custom
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -116,7 +116,7 @@
                 chartType: pie
                 title: Chart 2
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -129,7 +129,7 @@
           - path: "chartType"
             code: "invalid_value"
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -141,7 +141,7 @@
           - path: "children"
             code: "missing_field"
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -187,17 +187,17 @@
 - name: test_v10_topology_circular_reference_error
   description: Tests that circular component references fail validation in v1.0 strict mode.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -212,17 +212,17 @@
 - name: test_v10_topology_dangling_child_reference_error
   description: Tests that dangling child references fail validation in v1.0 strict mode.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -234,17 +234,17 @@
 - name: test_v10_topology_self_reference_error
   description: Tests that self-referencing components fail validation in v1.0 strict mode.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -256,17 +256,17 @@
 - name: test_v10_topology_orphaned_component_error
   description: Tests that unreachable orphaned components fail validation in v1.0 strict mode.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -281,17 +281,17 @@
 - name: test_v10_topology_missing_root_component_error
   description: Tests that component updates missing root component fail validation in v1.0 strict mode.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -303,16 +303,16 @@
 - name: test_v10_unknown_component_type
   description: Tests that unknown component types fail schema validation in v1.0.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -325,16 +325,16 @@
 - name: test_v10_unknown_component_property
   description: Tests that extra unknown component properties fail schema validation in v1.0.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -348,16 +348,16 @@
 - name: test_v10_unknown_nested_function
   description: Tests that unknown nested functions fail schema validation in v1.0.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -374,10 +374,10 @@
 - name: test_v10_multiple_action_envelope_error
   description: Tests that having multiple action keys in a single message envelope fails validation in v1.0.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
           deleteSurface:
@@ -388,10 +388,10 @@
 - name: test_v10_invalid_json_pointer_path_error
   description: Tests that invalid JSON Pointer path syntax fails validation in v1.0.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateDataModel:
             surfaceId: "s1"
             path: "invalid path [0]"
@@ -402,12 +402,12 @@
 - name: test_v10_uax31_invalid_identifier_error
   description: Tests that component IDs violating UAX#31 identifier syntax fail validation in v1.0.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
@@ -430,17 +430,17 @@
 - name: test_v10_topology_template_child_reachable
   description: Tests that a component referenced only as a list template is reachable from the root in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -456,17 +456,17 @@
 - name: test_v10_topology_template_dangling_reference_error
   description: Tests that a list template naming a component that does not exist fails validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -485,17 +485,17 @@
 - name: test_v10_invalid_binding_path_error
   description: Tests that a data binding path with an invalid JSON Pointer escape ('~2') fails validation in v1.0.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -510,17 +510,17 @@
 - name: test_v10_component_nesting_depth_limit_exceeded_error
   description: Tests that a chain of nested components deeper than the global limit (50) fails validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -702,17 +702,17 @@
 - name: test_v10_component_nesting_depth_within_limit
   description: Tests that a chain of 41 nested components, within the global limit (50), passes validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -846,21 +846,21 @@
 - name: test_v10_multi_surface_independent_roots
   description: Tests that two surfaces are each validated against their own component tree in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: surface_a
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: surface_b
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: surface_a
             components:
@@ -870,7 +870,7 @@
               - id: child_a
                 component: Text
                 text: Hello A
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: surface_b
             components:
@@ -884,28 +884,28 @@
 - name: test_v10_multi_surface_missing_root_error
   description: Tests that a missing root on one of two surfaces fails validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: surface_a
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: surface_b
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: surface_a
             components:
               - id: root
                 component: Text
                 text: Hello A
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: surface_b
             components:
@@ -919,17 +919,17 @@
 - name: test_v10_incremental_update_without_root
   description: Tests that an updateComponents message that omits the root component passes once the root has been sent, in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -943,7 +943,7 @@
               - id: text
                 component: Text
                 text: Initial
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -957,17 +957,17 @@
 - name: test_v10_incremental_update_self_reference_error
   description: Tests that an incremental updateComponents message introducing a self-reference fails validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -981,7 +981,7 @@
               - id: text
                 component: Text
                 text: Initial
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -995,17 +995,17 @@
 - name: test_v10_incremental_update_circular_reference_error
   description: Tests that an incremental updateComponents message introducing a cycle fails validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1019,7 +1019,7 @@
               - id: text
                 component: Text
                 text: Initial
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1036,17 +1036,17 @@
 - name: test_v10_incremental_update_duplicate_component_id_error
   description: Tests that an incremental updateComponents message listing the same component ID twice fails validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1060,7 +1060,7 @@
               - id: text
                 component: Text
                 text: Initial
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1077,17 +1077,17 @@
 - name: test_v10_recursion_limit_function_call_depth_exceeded_error
   description: Tests that nested function calls exceeding the maximum depth (5) fail validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1118,24 +1118,24 @@
 - name: test_v10_data_model_nesting_depth_limit_exceeded_error
   description: Tests that an updateDataModel value nested deeper than the global limit (50) fails validation in v1.0.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
               - id: root
                 component: Text
                 text: Hello
-        - version: v1.0
+        - version: "1.0"
           updateDataModel:
             surfaceId: s1
             path: /
@@ -1370,17 +1370,17 @@
 - name: test_v10_topology_structured_array_item_dangling_child_error
   description: Tests that a dangling child reference inside a structured array item (Tabs.tabs[].child) fails validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1401,17 +1401,17 @@
 - name: test_v10_topology_plain_string_property_not_treated_as_child_ref
   description: Tests that a plain string property whose value happens to match another component's ID does not make that component reachable in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1428,7 +1428,7 @@
 - name: test_v10_topology_component_id_array_dangling_reference_error
   description: Tests that every item of an array property whose items are ComponentId is a child reference, whatever the property is called, so an item naming no component fails validation in v1.0 strict mode even when no other item names one.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalog:
     catalogId: custom
     components:
@@ -1447,11 +1447,11 @@
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: custom
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1465,7 +1465,7 @@
 - name: test_v10_topology_component_id_array_child_reachable
   description: Tests that a component named in an array property whose items are ComponentId is reachable from the root in v1.0 strict mode, whatever the property is called.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalog:
     catalogId: custom
     components:
@@ -1484,11 +1484,11 @@
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: custom
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1502,7 +1502,7 @@
 - name: test_v10_topology_component_id_array_partial_dangling_reference_error
   description: A property declared as an array of ComponentId directly (an array whose items are a ComponentId $ref, not a ChildList) is read as a list of child references. With one held and one missing item, the missing item is reported as a dangling reference at its index in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalog:
     catalogId: custom
     components:
@@ -1530,11 +1530,11 @@
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: custom
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1551,7 +1551,7 @@
 - name: test_v10_topology_component_id_array_circular_reference_error
   description: A property declared as an array of ComponentId directly (an array whose items are a ComponentId $ref, not a ChildList) is read as a list of child references, so a cycle through it is detected in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalog:
     catalogId: custom
     components:
@@ -1579,11 +1579,11 @@
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: custom
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1603,17 +1603,17 @@
 - name: test_v10_child_list_template_missing_path_error
   description: Tests that a ChildList template object missing its required 'path' property fails schema validation in v1.0.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1630,17 +1630,17 @@
 - name: test_v10_update_data_model_invalid_path_error
   description: Tests that an updateDataModel message with an invalid JSON Pointer escape ('~2') fails validation in v1.0.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateDataModel:
             surfaceId: s1
             path: /user/~2invalid
@@ -1652,17 +1652,17 @@
 - name: test_v10_function_argument_schema_mismatch_error
   description: Tests that a function call passing an argument of the wrong type fails schema validation in v1.0.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1678,24 +1678,24 @@
 - name: test_v10_incremental_update_same_component_id_across_messages
   description: Tests that updating the same component ID across separate updateComponents messages succeeds in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
               - id: root
                 component: Text
                 text: Initial
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:

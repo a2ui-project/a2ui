@@ -15,75 +15,52 @@
 """Module for the SendA2uiToClientToolset.
 
 This module provides the necessary components to enable an agent to send A2UI (Agent-to-User Interface)
-JSON payloads to a client. It includes the `SendA2uiToClientToolset` for managing A2UI tools, and a specific tool for the LLM
-to send JSON.
+messages to a client through a tool call. It includes the `SendA2uiToClientToolset` for managing A2UI
+tools, and a specific tool for the LLM to send A2UI.
 
-This is just one approach for capturing A2UI JSON payloads from an LLM.
+This is just one approach for capturing A2UI payloads from an LLM.
 
 Key Components:
-  * `SendA2uiToClientToolset`: The main entry point. It accepts providers for determining
-    if A2UI is enabled and for fetching the active A2UI catalogs. It manages the lifecycle of the
-    `_SendA2uiJsonToClientTool`.
-  * `_SendA2uiJsonToClientTool`: A tool exposed to the LLM. It allows the LLM to "call" a function
-    that effectively sends a JSON payload to the client. This tool validates the JSON against
-    the provided catalogs. It automatically wraps the provided schema in an array structure,
-    instructing the LLM that it can send a list of UI items.
+  * `SendA2uiToClientToolset`: The main entry point. It takes whether A2UI is enabled and the
+    `A2uiRequestProcessor` for the request, or providers that return them per context. It manages
+    the lifecycle of the `_SendA2uiJsonToClientTool`.
+  * `_SendA2uiJsonToClientTool`: A tool exposed to the LLM. The processor holds everything the tool
+    needs: the catalogs, the example turns, the inference format, and the renderer state bound to
+    it, if any. The tool adds the processor's prompt to the system instructions. The LLM writes the
+    A2UI block in the tool's argument, in the processor's format. The tool compiles the block into
+    A2UI messages, validates them against the catalogs (and the bound renderer state), and returns
+    the A2UI JSON messages for the part converter to send.
 
 Usage Examples:
 
-  1. Defining Providers:
-    You can use simple values or callables (sync or async) for enablement, catalogs, and examples.
+  1. A processor per request, which the agent's executor puts in an
+     `A2uiProcessorStore`:
 
     ```python
-    # Simple boolean and catalogs
+    processors = A2uiProcessorStore()
     toolset = SendA2uiToClientToolset(
-        a2ui_enabled=True,
-        a2ui_catalogs=[MY_CATALOG, MY_OTHER_CATALOG],
-        a2ui_examples=MY_EXAMPLES,
-    )
-
-    # Async providers
-    async def check_enabled(ctx: ReadonlyContext) -> bool:
-      return await some_condition(ctx)
-
-    async def get_catalogs(ctx: ReadonlyContext) -> Sequence[CatalogApi]:
-      return await fetch_catalogs(ctx)
-
-    async def get_examples(ctx: ReadonlyContext) -> str:
-      return await fetch_examples(ctx)
-
-    toolset = SendA2uiToClientToolset(
-        a2ui_enabled=check_enabled,
-        a2ui_catalogs=get_catalogs,
-        a2ui_examples=get_examples,
+        a2ui_enabled=processors.is_enabled,
+        a2ui_processor=processors.get,
     )
     ```
 
-  2. Integration with Agent:
-    Typically used when initializing an agent's toolset.
+  2. One processor for every request, such as for fixed catalogs. It must not
+     have a renderer state bound to it, since every conversation would share it:
 
     ```python
-    # In your agent initialization
-    LlmAgent(
-        tools=[
-            SendA2uiToClientToolset(
-                a2ui_enabled=check_enabled,
-                a2ui_catalogs=get_catalogs,
-                a2ui_examples=get_examples,
-            ),
-        ],
-    )
+    processor = A2uiRequestProcessor([MY_CATALOG], examples=MY_EXAMPLE_TURNS)
+    toolset = SendA2uiToClientToolset(a2ui_enabled=True, a2ui_processor=processor)
     ```
 """
 
-from collections.abc import Iterable, Sequence
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
 import inspect
 import logging
 from typing import (
     TYPE_CHECKING,
     Any,
-    Awaitable,
-    Callable,
     TypeAlias,
 )
 
@@ -95,11 +72,11 @@ from google.adk.tools import tool_context
 from google.adk.utils.feature_decorator import experimental
 from google.genai import types as genai_types
 
-from a2ui import constants
 from a2ui.constants import A2UI_TOOL_ERROR_KEY, A2UI_TOOL_NAME, A2UI_VALIDATED_JSON_KEY
-from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog, CatalogApi
-from a2ui.inference_formats.direct_json import schema_to_prompt
-from a2ui.parser import parse_and_fix
+from a2ui.core import A2uiParseError, A2uiValidationError
+from a2ui.inference_formats import to_message_dicts
+from a2ui.parser import A2uiPart, RawA2uiPart, RawResponsePart
+from a2ui.processor import A2uiRequestProcessor
 from a2ui.utils import validate_payload
 
 if TYPE_CHECKING:
@@ -110,12 +87,9 @@ logger = logging.getLogger(__name__)
 A2uiEnabledProvider: TypeAlias = Callable[
     [readonly_context.ReadonlyContext], bool | Awaitable[bool]
 ]
-A2uiCatalogsProvider: TypeAlias = Callable[
+A2uiProcessorProvider: TypeAlias = Callable[
     [readonly_context.ReadonlyContext],
-    Sequence[CatalogApi] | Awaitable[Sequence[CatalogApi]],
-]
-A2uiExamplesProvider: TypeAlias = Callable[
-    [readonly_context.ReadonlyContext], str | Awaitable[str]
+    A2uiRequestProcessor | None | Awaitable[A2uiRequestProcessor | None],
 ]
 
 
@@ -126,24 +100,40 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
     def __init__(
         self,
         a2ui_enabled: bool | A2uiEnabledProvider,
-        a2ui_catalogs: Sequence[CatalogApi] | A2uiCatalogsProvider,
-        a2ui_examples: str | A2uiExamplesProvider,
+        a2ui_processor: A2uiRequestProcessor | A2uiProcessorProvider,
     ):
         """Initializes the toolset.
 
         Args:
             a2ui_enabled: Whether A2UI is enabled, or a provider that decides it
               per context.
-            a2ui_catalogs: The active A2UI catalogs, or a provider that returns
-              them per context. The catalogs must share a protocol version. The
-              schema prompt describes every catalog, and a payload is validated
-              against the catalog each surface names.
-            a2ui_examples: The A2UI examples, or a provider that returns them
-              per context.
+            a2ui_processor: The request processor for the client's catalogs, or
+              a provider that returns it per context, such as
+              `A2uiProcessorStore.get`. The processor's inference format,
+              catalogs and example turns make the prompt, and the tool's
+              argument is read in its format. A canvas agent binds the
+              conversation's `RendererState` to the processor, so each payload
+              is checked against the state and, if it passes, applied to it.
+              Don't keep the processor in session state: ADK's session services
+              save state as JSON, which a processor can't be written as, and
+              copy it each time they load a session, so a bound state would not
+              keep one turn's changes for the next. A processor given for every
+              request must not have a state bound to it, since every
+              conversation would share that state.
         """
         super().__init__()
+        if (
+            isinstance(a2ui_processor, A2uiRequestProcessor)
+            and a2ui_processor.state is not None
+        ):
+            logger.warning(
+                "SendA2uiToClientToolset got one processor for every request,"
+                " with a RendererState bound to it: every conversation shares"
+                " that state. Pass a provider that returns each conversation's"
+                " processor instead."
+            )
         self._a2ui_enabled = a2ui_enabled
-        self._ui_tool = self._SendA2uiJsonToClientTool(a2ui_catalogs, a2ui_examples)
+        self._ui_tool = self._SendA2uiJsonToClientTool(a2ui_processor)
         self._ui_tools: list[base_tool.BaseTool] = [self._ui_tool]
 
     async def _resolve_a2ui_enabled(
@@ -159,10 +149,9 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
         """
         if isinstance(self._a2ui_enabled, bool):
             return self._a2ui_enabled
-        else:
-            a2ui_enabled = self._a2ui_enabled(ctx)
-            if inspect.isawaitable(a2ui_enabled):
-                a2ui_enabled = await a2ui_enabled
+        a2ui_enabled = self._a2ui_enabled(ctx)
+        if inspect.isawaitable(a2ui_enabled):
+            a2ui_enabled = await a2ui_enabled
         return a2ui_enabled
 
     async def get_tools(
@@ -189,11 +178,14 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
     async def get_part_converter(
         self, ctx: readonly_context.ReadonlyContext
-    ) -> "A2uiPartConverter":
-        """Returns a configured A2uiPartConverter for the given context.
+    ) -> A2uiPartConverter:
+        """Returns an A2uiPartConverter for the context's processor.
+
+        The converter reads text-based A2UI with the processor's inference
+        format, so text and tool calls use the same format.
 
         Args:
-            ctx: The readonly_context.ReadonlyContext to resolve the catalogs with.
+            ctx: The readonly_context.ReadonlyContext to resolve the processor with.
 
         Returns:
             A configured A2uiPartConverter.
@@ -206,36 +198,32 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
         # that names the install command.
         from a2ui.adk import A2uiPartConverter
 
-        catalogs = await self._ui_tool._resolve_a2ui_catalogs(ctx)
-        return A2uiPartConverter(catalogs)
+        return A2uiPartConverter(await self._ui_tool._resolve_processor(ctx))
 
     class _SendA2uiJsonToClientTool(base_tool.BaseTool):
         TOOL_NAME = A2UI_TOOL_NAME
         VALIDATED_A2UI_JSON_KEY = A2UI_VALIDATED_JSON_KEY
-        A2UI_JSON_ARG_NAME = "a2ui_json"
+        A2UI_PAYLOAD_ARG_NAME = "a2ui_payload"
         TOOL_ERROR_KEY = A2UI_TOOL_ERROR_KEY
 
-        def __init__(
-            self,
-            a2ui_catalogs: Sequence[CatalogApi] | A2uiCatalogsProvider,
-            a2ui_examples: str | A2uiExamplesProvider,
-        ):
-            self._a2ui_catalogs: list[CatalogApi] | A2uiCatalogsProvider = (
-                a2ui_catalogs
-                if callable(a2ui_catalogs)
-                else self._to_catalog_list(a2ui_catalogs)
-            )
-            self._a2ui_examples = a2ui_examples
+        def __init__(self, processor: A2uiRequestProcessor | A2uiProcessorProvider):
+            """Initializes the tool.
+
+            Args:
+                processor: The request processor that writes the prompt and
+                  reads the tool's argument, or a provider that returns one per
+                  context.
+            """
+            self._processor = processor
             super().__init__(
                 name=self.TOOL_NAME,
                 description=(
-                    "Sends A2UI JSON to the client to render rich UI for the user."
-                    " This tool can be called multiple times in the same call to"
-                    f" render multiple UI surfaces.Args:    {self.A2UI_JSON_ARG_NAME}:"
-                    " Valid A2UI JSON Schema to send to the client. The A2UI JSON"
-                    f" Schema definition is between {constants.A2UI_SCHEMA_BLOCK_START}"
-                    f" and {constants.A2UI_SCHEMA_BLOCK_END} in the system"
-                    " instructions."
+                    "Sends A2UI to the client to render rich UI for the user. This"
+                    " tool can be called multiple times in the same turn to render"
+                    " multiple UI surfaces. Args: "
+                    f"{self.A2UI_PAYLOAD_ARG_NAME}: The A2UI block to send, written"
+                    " in the A2UI format and with the components that the system"
+                    " instructions describe."
                 ),
             )
 
@@ -246,83 +234,51 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                 parameters=genai_types.Schema(
                     type=genai_types.Type.OBJECT,
                     properties={
-                        self.A2UI_JSON_ARG_NAME: genai_types.Schema(
+                        self.A2UI_PAYLOAD_ARG_NAME: genai_types.Schema(
                             type=genai_types.Type.STRING,
-                            description="valid A2UI JSON Schema to send to the client.",
+                            description=(
+                                "The A2UI block to send to the client, in the A2UI"
+                                " format that the system instructions describe."
+                            ),
                         ),
                     },
-                    required=[self.A2UI_JSON_ARG_NAME],
+                    required=[self.A2UI_PAYLOAD_ARG_NAME],
                 ),
             )
 
-        async def _resolve_a2ui_examples(
+        async def _resolve_processor(
             self, ctx: readonly_context.ReadonlyContext
-        ) -> str:
-            """The resolved self.a2ui_examples field to construct instruction for this agent.
-
-            Args:
-                ctx: The readonly_context.ReadonlyContext to resolve the provider with.
-
-            Returns:
-                The A2UI examples string.
-            """
-            if isinstance(self._a2ui_examples, str):
-                return self._a2ui_examples
-            else:
-                a2ui_examples = self._a2ui_examples(ctx)
-                if inspect.isawaitable(a2ui_examples):
-                    a2ui_examples = await a2ui_examples
-                return a2ui_examples
-
-        def _to_catalog_list(self, catalogs: Iterable[CatalogApi]) -> list[CatalogApi]:
-            """Checks catalogs and returns them as a list.
-
-            Args:
-                catalogs: The catalogs given to the tool or returned by its
-                  provider.
-
-            Returns:
-                The catalogs as a list, in their original order.
+        ) -> A2uiRequestProcessor:
+            """Returns the request processor, calling the provider if one was given.
 
             Raises:
-                A2uiCatalogError: If there are no catalogs.
-                TypeError: If a single catalog, a string or bytes is given in
-                  place of an iterable of catalogs.
+                TypeError: If the provider returns something else than an
+                  `A2uiRequestProcessor`, such as None when the context has no
+                  processor.
             """
-            if isinstance(catalogs, (Catalog, str, bytes)):
+            if isinstance(self._processor, A2uiRequestProcessor):
+                return self._processor
+            processor = self._processor(ctx)
+            if inspect.isawaitable(processor):
+                processor = await processor
+            if not isinstance(processor, A2uiRequestProcessor):
+                hint = (
+                    " A2UI is enabled for a context that has no processor."
+                    if processor is None
+                    else ""
+                )
                 raise TypeError(
-                    f"Tool {self.TOOL_NAME} expects a sequence of A2UI catalogs,"
-                    f" got {type(catalogs).__name__}."
+                    f"Tool {self.TOOL_NAME} expects an A2uiRequestProcessor,"
+                    f" got {type(processor).__name__}.{hint}"
                 )
-            catalogs_list = list(catalogs)
-            if not catalogs_list:
-                raise A2uiCatalogError(
-                    f"Tool {self.TOOL_NAME} requires at least one A2UI catalog."
-                )
-            return catalogs_list
+            return processor
 
-        async def _resolve_a2ui_catalogs(
-            self, ctx: readonly_context.ReadonlyContext
-        ) -> list[CatalogApi]:
-            """The resolved self.a2ui_catalogs field to construct instruction for this agent.
-
-            Args:
-                ctx: The readonly_context.ReadonlyContext to resolve the provider with.
-
-            Returns:
-                The A2UI catalogs.
-
-            Raises:
-                A2uiCatalogError: If the provider returns no catalogs.
-                TypeError: If the provider returns a single catalog, a string or
-                  bytes in place of a sequence of catalogs.
-            """
-            if not callable(self._a2ui_catalogs):
-                return self._a2ui_catalogs
-            resolved = self._a2ui_catalogs(ctx)
-            if inspect.isawaitable(resolved):
-                resolved = await resolved
-            return self._to_catalog_list(resolved)
+        def _tool_instruction(self) -> str:
+            return (
+                f"To show A2UI to the user, call the `{self.TOOL_NAME}` tool and"
+                f" pass the A2UI block in its `{self.A2UI_PAYLOAD_ARG_NAME}`"
+                " argument instead of writing the block in your reply."
+            )
 
         async def process_llm_request(
             self,
@@ -330,48 +286,154 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             tool_context: tool_context.ToolContext,
             llm_request: LlmRequest,
         ) -> None:
+            """Adds the A2UI prompt to the system instructions.
+
+            The prompt comes from the inference format's prompt generator: its
+            rules, its catalog instructions and its examples. A section that the
+            system instructions already hold, as when the agent's instruction
+            includes `processor.prompt_snippet`, is not added again.
+            """
             await super().process_llm_request(
                 tool_context=tool_context, llm_request=llm_request
             )
 
-            a2ui_catalogs = await self._resolve_a2ui_catalogs(tool_context)
+            processor = await self._resolve_processor(tool_context)
+            generator = processor.format.prompt_generator
 
-            instruction = schema_to_prompt(a2ui_catalogs)
-            examples = await self._resolve_a2ui_examples(tool_context)
+            rules = generator.generate_base_rules()
+            sections: list[tuple[str, str]] = []
+            if rules:
+                sections.append((rules, f"## Workflow Description:\n{rules}"))
+            catalog_instructions = generator.generate_catalog_instructions(
+                include_schema=True
+            )
+            if catalog_instructions:
+                sections.append((catalog_instructions, catalog_instructions))
+            examples = generator.generate_examples()
+            if examples:
+                sections.append((examples, f"### Examples:\n{examples}"))
+            tool_instruction = self._tool_instruction()
+            sections.append((tool_instruction, tool_instruction))
 
-            llm_request.append_instructions([instruction, examples])
+            existing = _instruction_text(llm_request)
+            to_append = [text for key, text in sections if key not in existing]
+            if to_append:
+                llm_request.append_instructions(to_append)
+                logger.info(
+                    "Added %d A2UI prompt sections to system instructions",
+                    len(to_append),
+                )
 
-            logger.info("Added A2UI schema and examples to system instructions")
+        def _parse_payload(
+            self, processor: A2uiRequestProcessor, payload: str
+        ) -> list[dict[str, Any]]:
+            """Compiles and validates the tool's argument into A2UI JSON messages.
+
+            The argument is one block in the processor's inference format. It
+            may still be in the format's tags, which are then removed, even if
+            the closing tag is missing: the argument is complete either way.
+
+            With a renderer state bound to the processor, the messages are
+            checked against it and applied to it, all or nothing. Without one,
+            the payload is checked on its own, as `validate_payload` does: a
+            surface that the payload only updates may have been created by an
+            earlier call.
+
+            Raises:
+                A2uiError: If the block cannot be read or the messages are
+                  invalid.
+            """
+            parser = processor.parser
+            blocks = (
+                [
+                    raw.part.a2ui_raw
+                    for raw in parser.unwrap(payload)
+                    if isinstance(raw.part, RawA2uiPart)
+                ]
+                if parser.has_format_content(payload)
+                else [payload]
+            )
+            if processor.state is not None:
+                # Rewrap the blocks with closing tags, so each one is read as
+                # complete and the surfaces they touch are checked.
+                closed = parser.wrap([
+                    RawResponsePart(part=RawA2uiPart(a2ui_raw=block), is_final=True)
+                    for block in blocks
+                ])
+                parts = processor.parse_response(closed)
+                messages = [
+                    message
+                    for part in parts
+                    if isinstance(part, A2uiPart)
+                    for message in part.a2ui
+                ]
+                if not messages:
+                    raise A2uiParseError("The payload holds no A2UI messages.")
+                return to_message_dicts(messages)
+
+            compiled: list[Any] = []
+            for block in blocks:
+                compiled.extend(parser.compile(block))
+            message_dicts = to_message_dicts(compiled)
+            if not message_dicts:
+                raise A2uiParseError("The payload holds no A2UI messages.")
+            validate_payload(processor.active_catalogs, message_dicts)
+            return message_dicts
 
         async def run_async(
             self, *, args: dict[str, Any], tool_context: tool_context.ToolContext
         ) -> Any:
             try:
-                a2ui_json = args.get(self.A2UI_JSON_ARG_NAME)
-                if not a2ui_json:
+                payload = args.get(self.A2UI_PAYLOAD_ARG_NAME)
+                if not payload or not isinstance(payload, str):
                     raise A2uiValidationError(
                         f"Failed to call tool {self.TOOL_NAME} because missing required"
-                        f" arg {self.A2UI_JSON_ARG_NAME} "
+                        f" arg {self.A2UI_PAYLOAD_ARG_NAME}"
                     )
 
-                a2ui_catalogs = await self._resolve_a2ui_catalogs(tool_context)
-                a2ui_json_payload = parse_and_fix(a2ui_json)
-                validate_payload(a2ui_catalogs, a2ui_json_payload)
+                processor = await self._resolve_processor(tool_context)
+                messages = self._parse_payload(processor, payload)
 
                 logger.info(
                     f"Validated call to tool {self.TOOL_NAME} with"
-                    f" {self.A2UI_JSON_ARG_NAME}"
+                    f" {self.A2UI_PAYLOAD_ARG_NAME}"
                 )
 
                 # Don't do a second LLM inference call for the JSON response
                 tool_context.actions.skip_summarization = True
 
-                # Return the validated JSON so the converter can use it.
-                # We return it in a dict under "result" key for consistent JSON structure.
-                return {self.VALIDATED_A2UI_JSON_KEY: a2ui_json_payload}
+                # Return the validated A2UI JSON messages so the converter can
+                # send them.
+                return {self.VALIDATED_A2UI_JSON_KEY: messages}
 
             except Exception as e:
                 err = f"Failed to call A2UI tool {self.TOOL_NAME}: {e}"
-                logger.error(err)
+                # The error may quote the payload, so its text goes back to the
+                # LLM but is only logged at debug level.
+                logger.error(
+                    "Failed to call A2UI tool %s: %s", self.TOOL_NAME, type(e).__name__
+                )
+                logger.debug(err)
 
                 return {self.TOOL_ERROR_KEY: err}
+
+
+def _instruction_text(llm_request: LlmRequest) -> str:
+    """Returns the text of the request's system instructions.
+
+    ADK keeps the instruction as a string, but `GenerateContentConfig` also
+    allows a `Content`, a part or a list of them. Only text is read; anything
+    else is skipped.
+    """
+    config = getattr(llm_request, "config", None)
+    instruction = getattr(config, "system_instruction", None)
+    if isinstance(instruction, str):
+        return instruction
+    parts = instruction if isinstance(instruction, list) else None
+    if parts is None:
+        content_parts = getattr(instruction, "parts", None)
+        parts = content_parts if isinstance(content_parts, list) else [instruction]
+    texts = [
+        part if isinstance(part, str) else getattr(part, "text", None) for part in parts
+    ]
+    return "\n\n".join(text for text in texts if isinstance(text, str) and text)

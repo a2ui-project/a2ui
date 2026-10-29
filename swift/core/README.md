@@ -24,7 +24,7 @@ The Core module defines three SPM targets in root [Package.swift](../../Package.
   evaluates bidirectional RPC calls via `RPCHandler`, and manages action dispatching.
 - **`BasicCatalog`** (`Sources/BasicCatalog/`):
   Defines the schema APIs and standard function implementations (such as `formatString` and
-  `@index`) for the canonical A2UI Basic Catalog (`v0.9`, `v0.9.1`, and `v1.0`).
+  `@index`) for the canonical A2UI Basic Catalog (`v0.9`, `v0.9.1`, and `1.0`).
 
 ---
 
@@ -33,19 +33,20 @@ The Core module defines three SPM targets in root [Package.swift](../../Package.
 ```swift
 import A2UICore
 import BasicCatalog
+import Combine
 
-// 1. Initialize MessageProcessor with supported catalogs
+// 1. Initialize MessageProcessor with supported catalogs (on the main actor)
 let processor = MessageProcessor(catalogs: BasicCatalog.allCatalogs)
 
 // 2. Observe surfaces
-let cancellable = processor.surfaceGroupModel.onSurfaceCreated { surface in
-  print("Surface created: \(surface.surfaceID)")
+let cancellable = processor.surfaceGroupModel.$surfacesMap.sink { surfaces in
+  print("Active surfaces: \(surfaces.keys.sorted())")
 }
 
-// 3. Ingest incoming JSON or message objects
+// 3. Parse and process incoming JSON messages
 let jsonMessage = """
 {
-  "version": "v1.0",
+  "version": "1.0",
   "createSurface": {
     "surfaceId": "main",
     "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -53,7 +54,7 @@ let jsonMessage = """
 }
 """
 
-let message = try MessageParser.parse(string: jsonMessage)
+let message = try MessageParser().parse(jsonString: jsonMessage)
 processor.process(message: message)
 ```
 
@@ -68,6 +69,7 @@ Define a component schema conforming to `ComponentAPI`:
 ```swift
 import A2UICore
 import JSONSchema
+import OrderedJSON
 
 public struct UserCardAPI: ComponentAPI {
   public let name = "UserCard"
@@ -121,9 +123,23 @@ public struct ToUpperFunction: FunctionImplementation {
 
 let customCatalog = Catalog(
   id: "https://example.com/catalogs/custom.json",
-  protocolVersion: "v1.0",
-  components: [UserCardAPI().eraseToAnyComponentAPI()],
+  protocolVersion: .v10,
+  components: [UserCardAPI()],
   functions: [ToUpperFunction()]
+)
+```
+
+To keep part of an existing catalog under a new ID, derive a catalog from it. A name keeps the
+source's entry of that name, and `.add` adds a new entry:
+
+```swift
+let chatCatalog = try BasicCatalog.makeCatalog(version: .v10).derive(
+  id: "https://example.com/catalogs/chat.json",
+  components: [
+    "Text", "Image", "Row", "Column", "Button",
+    .add(UserCardAPI().eraseToAnyComponentAPI()),
+  ],
+  functions: ["openUrl"]
 )
 ```
 

@@ -20,11 +20,6 @@ import Testing
 
 /// Runs the shared `conformance/core/expressions.yaml` suite.
 struct ExpressionsConformanceTests {
-  /// `validate` cases whose output depends on the host locale until #3144 is fixed.
-  private static let hostLocaleDependent: Set<String> = [
-    "test_expression_parser_nested_function_call"
-  ]
-
   private let parser = ExpressionParser()
 
   @Test func expressionsConformance() throws {
@@ -106,17 +101,7 @@ struct ExpressionsConformanceTests {
 
     for testCase in testCases where testCase.action == "validate" {
       executed += 1
-      if Self.hostLocaleDependent.contains(testCase.name) {
-        // Only a locale mismatch is known. Raw directive JSON (`{"call":…}`) in the output is a
-        // real interpolation failure and must still fail the test.
-        try withKnownIssue("#3144: formatCurrency uses the host locale", isIntermittent: true) {
-          try runValidateCase(testCase)
-        } matching: { issue in
-          !String(describing: issue).contains("{\"")
-        }
-      } else {
-        try runValidateCase(testCase)
-      }
+      try runValidateCase(testCase)
     }
 
     #expect(executed > 0, "No validate case of expressions.yaml could be executed")
@@ -126,7 +111,7 @@ struct ExpressionsConformanceTests {
   private func runValidateCase(_ testCase: ConformanceTestCase) throws {
     let processor = MessageProcessor(
       catalogs: try ConformanceTestHelper.buildCatalogs(for: testCase),
-      validationConfig: ValidationConfig(targetVersion: "v1.0")
+      validationConfig: ValidationConfig(targetVersion: "1.0")
     )
     // Expression errors raised while resolving nodes reach the surface as `EXPRESSION_ERROR`
     // rather than being thrown out of `processMessages`.

@@ -38,7 +38,9 @@ from .errors import ExpressParseError
 from .errors import ExpressValidationError
 
 
-def _compilation_error_class(error: BaseException) -> Type[A2uiCompilationError]:
+def _compilation_error_class(
+    error: BaseException,
+) -> Type[A2uiCompilationError]:
     """Picks the compilation error the compiler's failure belongs under."""
     if isinstance(error, ExpressValidationError):
         return A2uiCompilationValidationError
@@ -94,15 +96,19 @@ class ExpressParser(Parser):
         lexer = BlockLexer(
             open_tag=A2UI_INFERENCE_OPEN_TAG,
             close_tag=A2UI_INFERENCE_CLOSE_TAG,
-            string_delimiters={"'", '"'},
-            single_line_comments={"#"},
+            # Strings and comments as Express.g4 reads them: strings are
+            # double-quoted only, so an apostrophe never opens one, and a quote
+            # or close tag inside a `/* */` comment does not affect the block.
+            string_delimiters={'"'},
+            single_line_comments={"#", "//", "--"},
+            block_comments=[("/*", "*/")],
         )
         return lexer.tokenize(content)
 
     def compile(
         self, format_content: str, *, is_final: bool = True
     ) -> list[AgentToRendererMessage]:
-        """Compiles raw Express DSL to structured A2UI messages."""
+        """Compiles raw Express DSL into A2UI messages."""
         compiler = ExpressCompiler(self._catalogs, version=self.version)
         try:
             return compiler.compile(
@@ -127,12 +133,6 @@ class ExpressParser(Parser):
                 help_message=help_msg,
                 details=details,
             ) from e
-
-    def _compile_raw_part(
-        self, raw_part: RawResponsePart
-    ) -> list[AgentToRendererMessage]:
-        assert isinstance(raw_part.part, RawA2uiPart)
-        return self.compile(raw_part.part.a2ui_raw, is_final=raw_part.is_final)
 
     def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
         """Decompiles structured A2UI payload messages into this format's raw notation."""

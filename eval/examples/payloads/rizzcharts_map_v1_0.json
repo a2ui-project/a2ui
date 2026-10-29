@@ -1,0 +1,92 @@
+[
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "la_map_view",
+      "catalogId": "https://a2ui.org/samples/community/agent/adk/rizzcharts/catalog_schemas/0.9/rizzcharts_catalog_definition.json"
+    }
+  },
+  {
+    "version": "1.0",
+    "updateComponents": {
+      "surfaceId": "la_map_view",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["map_header", "location_map"]
+        },
+        {
+          "id": "map_header",
+          "component": "Text",
+          "text": "Points of Interest in Los Angeles"
+        },
+        {
+          "id": "location_map",
+          "component": "GoogleMap",
+          "center": {
+            "@path": "/mapConfig/center"
+          },
+          "zoom": {
+            "@path": "/mapConfig/zoom"
+          },
+          "pins": {
+            "@path": "/mapConfig/locations"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "1.0",
+    "updateDataModel": {
+      "surfaceId": "la_map_view",
+      "path": "/",
+      "value": {
+        "mapConfig": {
+          "center": {
+            "lat": 34.0522,
+            "lng": -118.2437
+          },
+          "zoom": 11,
+          "locations": [
+            {
+              "lat": 34.0135,
+              "lng": -118.4947,
+              "name": "Google Store Santa Monica",
+              "description": "Your local destination for Google hardware.",
+              "background": "#4285F4",
+              "borderColor": "#FFFFFF",
+              "glyphColor": "#FFFFFF"
+            },
+            {
+              "lat": 34.1341,
+              "lng": -118.3215,
+              "name": "Griffith Observatory"
+            },
+            {
+              "lat": 34.134,
+              "lng": -118.3397,
+              "name": "Hollywood Sign Viewpoint"
+            },
+            {
+              "lat": 34.0453,
+              "lng": -118.2673,
+              "name": "Crypto.com Arena"
+            },
+            {
+              "lat": 34.0639,
+              "lng": -118.3592,
+              "name": "LACMA"
+            },
+            {
+              "lat": 33.985,
+              "lng": -118.4729,
+              "name": "Venice Beach Boardwalk"
+            }
+          ]
+        }
+      }
+    }
+  }
+]

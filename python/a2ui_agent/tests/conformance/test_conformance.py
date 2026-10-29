@@ -17,6 +17,7 @@ from __future__ import annotations
 import contextlib
 import os
 import re
+from typing import Any
 
 import pytest
 
@@ -29,6 +30,7 @@ from a2ui.core import A2uiIntegrityError
 from a2ui.core import A2uiParseError
 from a2ui.core import A2uiRecursionError
 from a2ui.core import A2uiValidationError
+from a2ui.core.common import to_protocol_version
 from a2ui.inference_formats import DirectJsonFormat
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats import to_message_models
@@ -37,12 +39,13 @@ from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.express import ExpressFormat
 from a2ui.parser import A2uiCompilationError
 from a2ui.parser import A2uiPart
+from a2ui.parser import ErrorPart
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
 from a2ui.processor import CatalogConfig
 from a2ui.processor import InMemoryCatalogProvider
-from a2ui.utils import load_examples, resolve_catalogs
+from a2ui.utils import load_examples, resolve_catalogs, validate_payload
 
 from .conformance_helpers import get_conformance_path
 from .conformance_helpers import load_conformance_json as load_json_file
@@ -58,7 +61,7 @@ CATEGORY_TO_EXCEPTION = {
 }
 
 # Set of A2UI specification versions supported by this Python Agent SDK conformance harness.
-SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "v1.0"}
+SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "1.0"}
 
 # Transition skip list containing specific test case names to skip during active feature transitions.
 SKIP_TEST_NAMES: set[str] = set()
@@ -82,7 +85,7 @@ def assert_raises(expect_error):
         expected_details = None
 
     with pytest.raises(expected_class) as excinfo:
-        yield
+        yield excinfo
 
     if message:
         assert re.search(_align_error_match(message), str(excinfo.value))
@@ -120,11 +123,21 @@ def _align_error_match(expect_error: str) -> str:
     return expect_error
 
 
+def category_of(error: BaseException) -> str:
+    """The suite's category for an error, or its class name if it has none."""
+    for category, cls in CATEGORY_TO_EXCEPTION.items():
+        if isinstance(error, cls):
+            return category
+    return type(error).__name__
+
+
 def part_to_dict(part) -> dict:
     if isinstance(part, TextPart):
         return {"text": part.text}
     if isinstance(part, A2uiPart):
         return {"a2ui": to_message_dicts(part.a2ui)}
+    if isinstance(part, ErrorPart):
+        return {"error": {"category": category_of(part.error)}}
     raise TypeError(f"Unexpected part type: {type(part)}")
 
 
@@ -156,8 +169,10 @@ def get_conformance_cases(filename):
             or first_catalog.get("protocolVersion")
             or "v0.9"
         )
-        if not version.startswith("v"):
+        if version.startswith("0."):
             version = f"v{version}"
+        elif version == "v1.0":
+            version = "1.0"
 
         if version not in SUPPORTED_PROTOCOL_VERSIONS or name in SKIP_TEST_NAMES:
             continue
@@ -176,27 +191,9 @@ KNOWN_GAPS: dict[str, str] = {
         "ExpressCompiler does not reject check lists on components that do not"
         " declare checks (https://github.com/a2ui-project/a2ui/issues/3099)"
     ),
-    "test_compile_express_checks_on_uncheckable_component_is_a_validation_error": (
-        "ExpressCompiler does not reject check lists on components that do not"
-        " declare checks (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
     "test_compile_express_components_without_root_is_update_components": (
         "ExpressCompiler does not emit updateComponents for component blocks"
         " that omit root (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-    "test_compile_express_inline_array_id_collision_is_a_validation_error": (
-        "ExpressCompiler does not reject inline array child IDs that collide"
-        " with assigned variables"
-        " (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-    "test_compile_express_inline_id_collision_is_a_validation_error": (
-        "ExpressCompiler does not reject inline child IDs that collide with"
-        " assigned variables (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-    "test_decompile_express_update_data_model_map_at_path": (
-        "ExpressDecompiler does not flatten map values in updateDataModel at a"
-        " non-root path into per-leaf assignments"
-        " (https://github.com/a2ui-project/a2ui/issues/3099)"
     ),
 }
 
@@ -224,7 +221,7 @@ def catalog_config_from_document(ref) -> CatalogConfig:
     if isinstance(ref, dict):
         catalog = InMemoryCatalogProvider(
             ref,
-            protocol_version=None if "protocolVersion" in ref else "v1.0",
+            protocol_version=None if "protocolVersion" in ref else "1.0",
             catalog_id=None if "catalogId" in ref else "inline",
         ).load()
         return CatalogConfig(
@@ -237,7 +234,7 @@ def catalog_config_from_document(ref) -> CatalogConfig:
     return CatalogConfig.from_path(
         catalog_path=get_conformance_path(relative_path),
         transformers=transformers,
-        protocol_version=None if "protocolVersion" in doc else "v1.0",
+        protocol_version=None if "protocolVersion" in doc else "1.0",
         catalog_id=(
             None
             if "catalogId" in doc
@@ -258,11 +255,27 @@ def _catalogs_for(args):
 
 
 def _protocol_version(catalogs) -> str:
-    """The `vX.Y` protocol version of the first catalog, which Express targets."""
-    version = str(getattr(catalogs[0].protocol_version, "value", None) or "")
-    if not version:
-        version = str(catalogs[0].protocol_version)
-    return version if version.startswith("v") else f"v{version}"
+    """The canonical wire protocol version of the first catalog, which Express targets."""
+    return to_protocol_version(catalogs[0].protocol_version).value
+
+
+def compile_checked(parser, content):
+    """Compiles one block and checks its messages on their own.
+
+    A conformance `compile` case fixes the messages an agent sends for one
+    block, so they are checked the way `validate_payload` checks a payload: a
+    surface that the block updates without creating is assumed to exist. A
+    failure to compile that isn't an `A2uiError` is raised as
+    `A2uiCompilationError`, as `parse_response` raises it.
+    """
+    try:
+        messages = parser.compile(content)
+    except A2uiError:
+        raise
+    except Exception as e:
+        raise A2uiCompilationError(f"Failed to compile A2UI block: {e}", content) from e
+    validate_payload(parser.catalogs, messages)
+    return to_message_models(messages)
 
 
 def make_parser(args):
@@ -404,10 +417,10 @@ def test_compiler_conformance(name, test_case):
 
     if "expect_error" in test_case:
         with assert_raises(test_case["expect_error"]):
-            parser.compile(payload)
+            compile_checked(parser, payload)
         return
 
-    raw_compiled = parser.compile(payload)
+    raw_compiled = compile_checked(parser, payload)
     assert isinstance(raw_compiled, list)
     assert all(hasattr(m, "model_dump") for m in raw_compiled)
     compiled = to_message_dicts(raw_compiled)
@@ -431,6 +444,11 @@ def test_decompiler_conformance(name, test_case):
     parser = make_parser(test_case["args"])
     messages = test_case["messages"]
 
+    if "expect_error" in test_case:
+        with assert_raises(test_case["expect_error"]):
+            parser.decompile(to_message_models(messages))
+        return
+
     notation = parser.decompile(to_message_models(messages))
 
     for fragment in test_case.get("expect_contains", []):
@@ -439,13 +457,14 @@ def test_decompiler_conformance(name, test_case):
     for fragment in test_case.get("expect_absent", []):
         assert fragment not in notation, f"{fragment!r} unexpectedly in {notation!r}"
 
+    def recompile():
+        return to_message_dicts(compile_checked(parser, notation))
+
     if test_case.get("expect_round_trip"):
-        assert to_message_dicts(parser.compile(notation)) == messages
+        assert recompile() == messages
 
     if "expect_recompiled" in test_case:
-        assert (
-            to_message_dicts(parser.compile(notation)) == test_case["expect_recompiled"]
-        )
+        assert recompile() == test_case["expect_recompiled"]
 
 
 # --- Response Parser Conformance ---
@@ -518,7 +537,23 @@ def test_response_parser_conformance(name, test_case):
     action = test_case["action"]
 
     if action == "unwrap":
-        assert_raw_parts_match(parser.unwrap(test_case["input"]), test_case["expect"])
+        expected = test_case["expect"]
+        assert_raw_parts_match(parser.unwrap(test_case["input"]), expected)
+        has_any = any("a2ui_raw" in p for p in expected)
+        has_complete = any(
+            "a2ui_raw" in p and p.get("is_final", True) for p in expected
+        )
+        assert parser.has_format_content(test_case["input"]) is has_any
+        assert (
+            parser.has_format_content(test_case["input"], complete=True) is has_complete
+        )
+
+    elif action == "has_format_content":
+        complete = args.get("complete", False)
+        assert (
+            parser.has_format_content(test_case["input"], complete=complete)
+            is test_case["expect"]
+        )
 
     elif action == "wrap":
         parts = test_case["parts"]
@@ -532,7 +567,9 @@ def test_response_parser_conformance(name, test_case):
             assert_raw_parts_match(parser.unwrap(output), parts)
 
     elif action == "parse_response":
-        kwargs = {} if args.get("wrapped", True) else {"wrapped": False}
+        kwargs: dict[str, Any] = {}
+        if not args.get("wrapped", True):
+            kwargs["wrapped"] = False
 
         if "expect_error" in test_case:
             with assert_raises(test_case["expect_error"]):
@@ -553,11 +590,24 @@ cases_response_streaming = get_marked_conformance_cases(
 )
 
 
+def _merge_text_parts(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    for p in parts:
+        if merged and "text" in merged[-1] and "text" in p:
+            merged[-1] = {"text": merged[-1]["text"] + p["text"]}
+        else:
+            merged.append(p)
+    return merged
+
+
 @pytest.mark.parametrize("name, test_case", cases_response_streaming)
 def test_response_streaming_conformance(name, test_case):
     args = test_case["args"]
     wrapped = args.get("wrapped", True)
-    parser = make_parser(args)
+    stream = make_parser(args).open_stream(
+        wrapped=wrapped,
+        after_rejected_block=args.get("after_rejected_block", "end"),
+    )
     chunks: list[str] = []
     yielded: list[dict] = []
 
@@ -565,19 +615,41 @@ def test_response_streaming_conformance(name, test_case):
         chunk = step["input"]
         chunks.append(chunk)
         if "expect_error" in step:
-            with assert_raises(step["expect_error"]):
-                parser.parse_chunk(chunk, wrapped=wrapped)
+            with assert_raises(step["expect_error"]) as excinfo:
+                stream.feed(chunk)
+            if "expect_partial_results" in step:
+                partial = getattr(excinfo.value, "partial_results", [])
+                assert_parts_match(partial, step["expect_partial_results"])
+            if "expect_in_block" in step:
+                assert stream.is_in_block == step["expect_in_block"]
             return
-        parts = parser.parse_chunk(chunk, wrapped=wrapped)
+        parts = stream.feed(chunk)
         assert_parts_match(parts, step["expect"])
+        if "expect_in_block" in step:
+            assert stream.is_in_block == step["expect_in_block"]
         yielded.extend(part_to_dict(p) for p in parts)
+
+    closed = stream.close()
+    if "expect_close" in test_case:
+        assert_parts_match(closed, test_case["expect_close"])
+    yielded.extend(part_to_dict(p) for p in closed)
 
     if test_case.get("expect_matches_single_shot"):
         fresh_parser = make_parser(args)
         single_shot_parts = fresh_parser.parse_response(
             "".join(chunks), wrapped=wrapped
         )
-        assert [part_to_dict(p) for p in single_shot_parts] == yielded
+        assert _merge_text_parts(yielded) == _merge_text_parts(
+            [part_to_dict(p) for p in single_shot_parts]
+        )
+
+
+# --- Streamed Answer Conformance ---
+
+# agent/streamed_answer.yaml covers the optional agent_renderer_app feature
+# (blueprints/features/agent_renderer_app.blueprint.md), for an app that is
+# both the agent and the renderer. This SDK has no renderer, so it does not
+# implement the feature and has no runner for the suite.
 
 
 # --- Multi-Catalog Formats Conformance (Express, Elemental, Atom, Direct JSON) ---
@@ -625,9 +697,9 @@ def run_format_case(test_case, tmp_path):
         parser = make_parser(args)
         if "expect_error" in test_case:
             with assert_raises(test_case["expect_error"]):
-                parser.compile(test_case["input"])
+                compile_checked(parser, test_case["input"])
             return
-        raw_compiled = parser.compile(test_case["input"])
+        raw_compiled = compile_checked(parser, test_case["input"])
         assert isinstance(raw_compiled, list)
         assert all(hasattr(m, "model_dump") for m in raw_compiled)
         compiled = to_message_dicts(raw_compiled)
@@ -638,6 +710,10 @@ def run_format_case(test_case, tmp_path):
     elif action == "decompile":
         parser = make_parser(args)
         messages = test_case["messages"]
+        if "expect_error" in test_case:
+            with assert_raises(test_case["expect_error"]):
+                parser.decompile(to_message_models(messages))
+            return
         notation = parser.decompile(to_message_models(messages))
         _expect_snippet(
             notation,
@@ -645,8 +721,13 @@ def run_format_case(test_case, tmp_path):
             test_case.get("expect_absent", []),
         )
         if test_case.get("expect_round_trip"):
-            recompiled = to_message_dicts(parser.compile(notation))
+            recompiled = to_message_dicts(compile_checked(parser, notation))
             assert sort_components_by_id(recompiled) == sort_components_by_id(messages)
+        if "expect_recompiled" in test_case:
+            recompiled = to_message_dicts(parser.compile(notation))
+            assert sort_components_by_id(recompiled) == sort_components_by_id(
+                test_case["expect_recompiled"]
+            )
 
     elif action == "parse_response":
         parser = make_parser(args)
@@ -695,9 +776,9 @@ def run_format_case(test_case, tmp_path):
             chunks = args["probe_chunks"]
 
             def read(parser):
+                stream = parser.open_stream()
                 return [
-                    [part_to_dict(p) for p in parser.parse_chunk(chunk)]
-                    for chunk in chunks
+                    [part_to_dict(p) for p in stream.feed(chunk)] for chunk in chunks
                 ]
 
             first_parts = read(fmt.create_parser())
@@ -742,9 +823,11 @@ def _describe_configs(configs):
     described = []
     for config in configs:
         catalog = config.transformed_catalog
-        described.append(
-            (catalog.catalog_id, sorted(catalog.components), sorted(catalog.functions))
-        )
+        described.append((
+            catalog.catalog_id,
+            sorted(catalog.components),
+            sorted(catalog.functions),
+        ))
     return described
 
 

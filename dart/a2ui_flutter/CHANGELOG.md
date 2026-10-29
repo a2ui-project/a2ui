@@ -14,12 +14,46 @@
  limitations under the License.
 -->
 
-# a2ui_flutter Changelog
+# [a2ui_flutter](https://pub.dev/packages/a2ui_flutter) Changelog
 
 ## Unreleased
 
-- Ignore `deprecated_member_use` warnings on `package:flutter/material.dart` imports on Flutter beta (#3235).
+- **Breaking:** a component that has not arrived, has an unknown type, or
+  repeats one of its ancestors now renders nothing, as does the surface until
+  its root arrives. Previously these showed a progress indicator or a red
+  diagnostic. "Nothing" takes no layout space: Row, Column and List skip such
+  children, so they get no gap and no flex share. Unknown types and cycles are
+  still reported to the surface's error listeners. Apps that showed users the
+  old indicator should render their own loading state until the fallback API
+  from [#2013](https://github.com/a2ui-project/a2ui/issues/2013) lands
+  ([#3714](https://github.com/a2ui-project/a2ui/pull/3714)).
 - `Slider` is named by its `label` and reads the value it shows, instead of a
   percentage. The value bubble is gone, since Flutter reads its text as the
   slider's name; the value stays on screen above the track.
+
+## 0.0.1-wip003
+
+- An `accessibility.live` of `polite` or `assertive` makes a component a live
+  region, and an `accessibility.hidden` that is true excludes it and its
+  subtree from semantics.
+- `ComponentProps.asBoolean` reads a validation result as its validity.
+- `ComponentProps.validationResults` holds the failing checks, and the basic
+  inputs other than Button show one of `warning` or `info` severity as a
+  hint.
+- A Text that no `A2uiMarkdown` renders shows its text without common
+  Markdown markers, and a body Text that is one Markdown heading line takes
+  the style of its level.
+- The v1.0 Video shows its `posterUrl` until playback starts.
+- The v1.0 Slider moves in its `steps`.
+- The v1.0 TextField shows its `placeholder`.
+- The v1.0 TextField does not check `validationRegexp`, which v1.0 removed.
+- **Breaking:** `package:a2ui_flutter/basic_catalog.dart` now implements the
+  v1.0 basic catalog under the same names. v0.9 code that still imports it
+  compiles, but registers the v1.0 catalog, which its v0.9 surfaces do not
+  name.
+- **Breaking:** The v0.9 basic catalog moved to
+  `package:a2ui_flutter/v0_9/basic_catalog.dart`, under the same names.
+- Error and warning listeners no longer run while an `A2uiSurface` builds, so
+  they may call `setState` directly instead of deferring it to the next frame.
+- Ignore `deprecated_member_use` warnings on `package:flutter/material.dart` imports on Flutter beta (#3235).
 - Initial version.

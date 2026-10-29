@@ -39,8 +39,25 @@ final RegExp _openTagStart = RegExp(
 
 final RegExp _closeTagStart = RegExp(r'^</a2ui-json\s*$');
 
-final RegExp _leadingFence = RegExp(r'^```[a-zA-Z-]*\s*');
-final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
+final RegExp _leadingFence = RegExp(
+  r'^```[a-zA-Z0-9_-]*\s*',
+  caseSensitive: false,
+);
+final RegExp _trailingFence = RegExp(
+  r'\s*```[a-zA-Z0-9_-]*$',
+  caseSensitive: false,
+);
+final RegExp _openFence = RegExp(
+  r'^[ \t]*```[a-zA-Z0-9_-]*[ \t]*\r?\n?',
+  multiLine: true,
+);
+final RegExp _closingFenceEnd = RegExp(r'\r?\n?[ \t]*```[ \t]*\r?\n?$');
+final RegExp _jsonStart = RegExp(
+  r'^[ \t]*(?:\[\s*(?:\{|\]|$)|\{\s*(?:"|\}|$))',
+  multiLine: true,
+);
+final RegExp onlyBackticks = RegExp(r'^`*$');
+final RegExp _edgeBackticks = RegExp(r'^`+|`+$');
 
 /// The index in [text] from which the rest could still become an open tag,
 /// or the length of [text].
@@ -61,24 +78,93 @@ void addText(List<RawResponsePart> parts, String text) {
   if (cleaned.isNotEmpty) parts.add(TextPart(cleaned));
 }
 
+/// Attempts to recover at most one block closed by `</a2ui-json>` in
+/// `content.substring(start, searchEnd)` when the open tag was omitted.
+int? tryRecoverUnmatchedClose(
+  List<RawResponsePart> parts,
+  String content,
+  int start,
+  int searchEnd,
+) {
+  final String segment = content.substring(start, searchEnd);
+  if (!closeTag.hasMatch(segment)) return null;
+
+  final List<Match> fences = _openFence.allMatches(segment).toList();
+  for (var idx = 0; idx < fences.length; idx += 2) {
+    final Match fence = fences[idx];
+    final int? closeStart = scanBlock(segment, fence.end).closeStart;
+    if (closeStart == null) continue;
+    final String body = segment.substring(fence.end, closeStart);
+    final String bodyStripped = body.replaceFirst(_closingFenceEnd, '');
+    if (_openFence.hasMatch(bodyStripped)) continue;
+    final String rawContent = cleanRaw(bodyStripped);
+    if (rawContent.isEmpty) continue;
+    addText(parts, segment.substring(0, fence.start));
+    parts.add(RawA2uiPart(rawContent));
+    return start + closeTag.matchAsPrefix(segment, closeStart)!.end;
+  }
+
+  var searchFrom = 0;
+  var pairIdx = 0;
+  while (pairIdx + 1 < fences.length) {
+    final int closeFenceEnd = fences[pairIdx + 1].end;
+    if (scanBlock(segment, closeFenceEnd).closeStart == null) break;
+    searchFrom = closeFenceEnd;
+    pairIdx += 2;
+  }
+
+  final Match? jsonMatch = _jsonStart
+      .allMatches(segment, searchFrom)
+      .firstOrNull;
+  if (jsonMatch == null) return null;
+  final int? closeStart = scanBlock(segment, jsonMatch.start).closeStart;
+  if (closeStart == null) return null;
+  final String rawContent = cleanRaw(
+    segment.substring(jsonMatch.start, closeStart),
+  );
+  if (rawContent.isEmpty) return null;
+  addText(parts, segment.substring(0, jsonMatch.start));
+  parts.add(RawA2uiPart(rawContent));
+  return start + closeTag.matchAsPrefix(segment, closeStart)!.end;
+}
+
 /// [text] without surrounding whitespace and one markdown fence around it.
-String clean(String text) => text
-    .trim()
-    .replaceFirst(_leadingFence, '')
-    .replaceFirst(_trailingFence, '')
-    .trim();
+String clean(String text) {
+  final String cleaned = text
+      .trim()
+      .replaceFirst(_leadingFence, '')
+      .replaceFirst(_trailingFence, '')
+      .trim();
+  return onlyBackticks.hasMatch(cleaned) ? '' : cleaned;
+}
+
+/// [text] without surrounding whitespace, fences, or inline-code edge
+/// backticks.
+String cleanRaw(String text) =>
+    clean(text).replaceAll(_edgeBackticks, '').trim();
 
 bool _isSpace(String text, int i) => text[i].trim().isEmpty;
 
 /// Where the payload of the start of a block that ends at [end] in [text]
-/// starts: after leading whitespace, and after the line of a leading
-/// markdown fence, or null while that line is not complete.
+/// starts: after leading whitespace, after inline-code backticks, and after
+/// the line of a leading markdown fence, or null while that line is not
+/// complete.
 int? payloadStart(String text, int end) {
   var start = 0;
   while (start < end && _isSpace(text, start)) {
     start++;
   }
   if (start == end || text[start] != '`') return start;
+  var ticks = start;
+  while (ticks < end && text[ticks] == '`') {
+    ticks++;
+  }
+  if (ticks - start < 3) {
+    while (ticks < end && _isSpace(text, ticks)) {
+      ticks++;
+    }
+    return ticks;
+  }
   final int newline = text.indexOf('\n', start);
   return newline < 0 || newline >= end ? null : newline + 1;
 }
@@ -87,13 +173,17 @@ int? payloadStart(String text, int end) {
 /// [end], or the start of one, begins, with the whitespace before it, or
 /// [end] if none ends it.
 ///
-/// Finds what `\s*`{1,3}[a-zA-Z-]*\s*$` matches by reading back from the
+/// Finds what `\s*`{1,3}[a-zA-Z0-9_-]*\s*$` matches by reading back from the
 /// end, since a regular expression would try every offset of a block that
 /// is read again on every chunk.
 int trailingFenceStart(String text, int start, int end) {
   bool isLanguage(int i) {
     final int c = text.codeUnitAt(i);
-    return c == 0x2d || (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a);
+    return c == 0x2d ||
+        c == 0x5f ||
+        (c >= 0x30 && c <= 0x39) ||
+        (c >= 0x41 && c <= 0x5a) ||
+        (c >= 0x61 && c <= 0x7a);
   }
 
   var fence = end;

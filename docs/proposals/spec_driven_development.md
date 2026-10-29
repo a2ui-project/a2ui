@@ -178,12 +178,14 @@ Every codebase must contain a `codebase.blueprint.md` file in its root directory
 
 Below is an example codebase blueprint for a React renderer codebase (`a2ui_react`):
 
-```
+```yaml
 ---
-associated_module: a2ui_react
-implemented_features: <!-- List of fully implemented features in the actual code -->
-  - dynamic_theming
-  - call_function_rpc
+codebase_path: typescript/renderers/react
+associated_module: a2ui_framework_adapter
+module_blueprint_commit: b1dd650750c6072b4a42f95b03420273d099965e
+implemented_features: # Map of implemented features to their pinned 40-char git commit hashes
+  node_resolution: b161f9bdc9395732b305b0adddfd182a36382f09
+  universal_custom_elements: b1dd650750c6072b4a42f95b03420273d099965e
 ---
 # **React Renderer Codebase Blueprint**
 ## **Architecture & Styling**

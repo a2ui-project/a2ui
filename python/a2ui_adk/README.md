@@ -22,21 +22,22 @@ The `a2a` extra installs [`a2ui-a2a`](../a2ui_a2a/README.md) and
 Available with the base install:
 
 - `SendA2uiToClientToolset` is an ADK toolset that lets an agent send A2UI
-  to the client through a tool call. It takes the list of active catalogs,
-  describes all of them to the model, and validates each payload against
-  them before it is sent. `A2uiEnabledProvider`,
-  `A2uiCatalogsProvider` and `A2uiExamplesProvider` are the callback types it
-  accepts.
-- `GenAIFileResolver` is a
-  [`FileResolver`](../a2ui_agent/src/a2ui/extensions/file_resolve) that
-  returns `google.genai.types.Part` objects. Its `as_tool_decorator` injects
-  the parts into a tool's `genai_parts` argument by default.
+  to the client through a tool call. It takes whether A2UI is enabled and the
+  request's `A2uiRequestProcessor`, or callbacks (`A2uiEnabledProvider`,
+  `A2uiProcessorProvider`) that return them per context. The processor holds
+  everything else: the catalogs, the example turns, the inference format, and
+  the `RendererState` bound to it for Canvas UIs. The toolset adds the
+  processor's prompt to the model's instructions, compiles each tool call with
+  the processor's parser, and validates the resulting A2UI JSON messages
+  before they are sent.
 
 Available with the `a2a` extra:
 
 - `A2uiPartConverter` and `A2uiEventConverter` (also in `a2ui.adk.a2a`)
-  convert ADK events and GenAI parts into A2A parts with A2UI data. Pass them
-  to ADK's `A2aAgentExecutor`.
+  convert ADK events and GenAI parts into A2A parts with A2UI data, using the
+  request's `A2uiRequestProcessor`. `A2uiEventConverter` gets the processor
+  from its `a2ui_processor` argument, such as `A2uiProcessorStore.get`. Pass
+  it to ADK's `A2aAgentExecutor`.
 - `A2uiSubagentMap` and `SurfaceIdAlreadyExistsError` (also in
   `a2ui.adk.orchestration`) track which subagent owns each surface in an
   orchestrator that talks to its subagents over A2A.

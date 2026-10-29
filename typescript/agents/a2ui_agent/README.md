@@ -69,7 +69,40 @@ for await (const chunk of modelStream) {
 for (const part of stream.close()) send(part);
 ```
 
-`close` emits text that was held back because it could have started a tag, throws a `ParseError` if a block is still open, and checks the tree of a response read with `wrapped: false`. A stream that throws has ended. Express responses are read whole.
+`close` emits text that was held back because it could have started a tag, throws a `ParseError` if a block is still open, and checks the tree of a response read with `wrapped: false`. A stream that throws has ended. The error's `partialResults` holds the parts the chunk made ready before the failure, which have been applied to the state, so send them too. Express responses are read whole.
+
+By default the first rejected block ends the stream. To show the rest of the response, open the stream with `afterRejectedBlock: 'continue'`. `feed` and `close` then return an `ErrorPart` in place of a rejected block and go on with the text and blocks after it. The messages the block emitted before it was rejected stay in the state.
+
+```ts
+const stream = processor.openStream({afterRejectedBlock: 'continue'});
+for (const part of stream.feed(chunk)) {
+  if (part.type === 'error') showError(part.error);
+  else send(part);
+}
+```
+
+`stream.isInBlock` tells whether the response read so far ends inside a block. A client that joins the chunks of a paused and resumed response reads it before adding a space between them, since a space inside a block could break it.
+
+### An app that is both agent and renderer
+
+An app that calls the model and renders its answer itself, such as a chat in the browser, checks and renders each message once by giving the stream a state on the processor it renders from:
+
+```ts
+import {MessageProcessor} from '@a2ui/web_core';
+
+const renderer = new MessageProcessor([catalog], onAction);
+const stream = processor.openStream({state: RendererState.of(renderer)});
+stream.feed(chunk); // the surfaces show up in renderer.model
+```
+
+`StreamedAnswer` does this for one answer and keeps its parts in the order the model wrote them: its text, a part for each surface it creates, and an `ErrorPart` where it rejected a block, followed by the text and surfaces after it.
+
+```ts
+const answer = new StreamedAnswer(processor, {renderer: new MessageProcessor([catalog], onAction)});
+answer.feed(chunk);
+answer.close();
+answer.parts; // text, surfaces and errors, in order
+```
 
 ## Loading catalogs
 

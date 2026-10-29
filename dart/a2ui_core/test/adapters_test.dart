@@ -97,7 +97,7 @@ void main() {
     test('rejects a v1.0 envelope', () {
       expect(
         () => adapter.toOperations({
-          'version': 'v1.0',
+          'version': '1.0',
           'deleteSurface': {'surfaceId': 's1'},
         }),
         _validationError('Invalid v0.9 message'),
@@ -177,7 +177,7 @@ void main() {
 
     test('maps an inline createSurface', () {
       final op = adapter.toOperations({
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's1',
           'sendDataModel': true,
@@ -206,7 +206,7 @@ void main() {
     test('maps updateComponents, updateDataModel and deleteSurface', () {
       expect(
         adapter.toOperations({
-          'version': 'v1.0',
+          'version': '1.0',
           'updateComponents': {
             'surfaceId': 's1',
             'components': [
@@ -217,14 +217,14 @@ void main() {
         isA<UpdateComponentsOp>().having((o) => o.surfaceId, 'surfaceId', 's1'),
       );
       final deletion = adapter.toOperations({
-        'version': 'v1.0',
+        'version': '1.0',
         'updateDataModel': {'surfaceId': 's1', 'path': '/a', 'value': null},
       }).single as UpdateDataModelOp;
       expect(deletion.path, '/a');
       expect(deletion.value, isNull);
       expect(
         adapter.toOperations({
-          'version': 'v1.0',
+          'version': '1.0',
           'deleteSurface': {'surfaceId': 's1'},
         }).single,
         isA<DeleteSurfaceOp>(),
@@ -233,7 +233,7 @@ void main() {
 
     test('maps the function-call messages', () {
       final call = adapter.toOperations({
-        'version': 'v1.0',
+        'version': '1.0',
         'callRendererFunction': {
           'functionCallId': 'f1',
           'callFunction': {'@call': 'now', 'catalogId': 'cat'},
@@ -243,7 +243,7 @@ void main() {
       expect(call.callFunction, {'@call': 'now', 'catalogId': 'cat'});
 
       final response = adapter.toOperations({
-        'version': 'v1.0',
+        'version': '1.0',
         'agentFunctionResponse': {'functionCallId': 'f1', 'value': 42},
       }).single as AgentFunctionResponseOp;
       expect(response.response.functionCallId, 'f1');
@@ -256,11 +256,11 @@ void main() {
           'version': 'v0.9',
           'deleteSurface': {'surfaceId': 's1'},
         }),
-        _validationError('Invalid v1.0 message'),
+        _validationError('Invalid 1.0 message'),
       );
       expect(
         () => adapter.toOperations({
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {
             'surfaceId': 's1',
             'theme': {'primaryColor': '#FF0000'},
@@ -273,7 +273,7 @@ void main() {
     test('rejects the v0.8 beginRendering action', () {
       expect(
         () => adapter.toOperations({
-          'version': 'v1.0',
+          'version': '1.0',
           'beginRendering': {'surfaceId': 's1', 'root': 'root'},
         }),
         throwsA(isA<A2uiValidationError>()),
@@ -282,7 +282,7 @@ void main() {
 
     test('serializes outbound v1.0 messages', () {
       final call = CallAgentFunctionMessage(
-        version: 'v1.0',
+        version: '1.0',
         surfaceId: 's1',
         functionCallId: 'f1',
         callFunction: {
@@ -305,7 +305,7 @@ void main() {
         registry.resolve({'version': 'v0.9.1'}),
         isA<V0_9Adapter>(),
       );
-      expect(registry.resolve({'version': 'v1.0'}), isA<V1_0Adapter>());
+      expect(registry.resolve({'version': '1.0'}), isA<V1_0Adapter>());
       expect(
         registry.supportedVersions,
         unorderedEquals(A2uiProtocolVersion.values),

@@ -18,7 +18,7 @@ import '../../utils/catalogs.dart';
 import 'compiler.dart';
 import 'schema_helper.dart';
 
-final RegExp _identifier = RegExp(r'^[a-zA-Z_][a-zA-Z0-9_]*$');
+final RegExp _xidContinueChar = RegExp(r'^\p{XID_Continue}$', unicode: true);
 final RegExp _pathText = RegExp(r'^[a-zA-Z0-9_/]*$');
 final RegExp _pathSegment = RegExp(r'^[a-zA-Z0-9_]+$');
 
@@ -57,13 +57,8 @@ typedef _SurfaceCatalog = ({bool known, String? catalogId});
 class ExpressDecompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ///
-  /// [catalogs] are linked with one another, as by [linkCatalogs], so a
-  /// cross-catalog `$ref` resolves; the catalogs passed in are not changed.
-  ExpressDecompiler(List<CatalogApi> catalogs)
-    : catalogs = linkCatalogs(catalogs);
+  ExpressDecompiler(this.catalogs);
 
-  /// The catalogs this decompiler knows, linked with one another.
   final List<CatalogApi> catalogs;
 
   late final Map<String, CatalogSchemaHelper> _helpers = {
@@ -96,9 +91,9 @@ class ExpressDecompiler {
   /// - an `updateComponents` without a `createSurface` that assigns `root`,
   ///   which would create the surface when compiled;
   /// - an `updateDataModel` below the root of the data model, or removing it;
-  /// - a component whose id is not an Express identifier, such as
-  ///   `main-column`, or which sets a property its catalog does not declare
-  ///   for it, such as `metadata`;
+  /// - from v1.0, a component whose id is not a UAX 31 identifier, such as
+  ///   `main-column`, or a component that sets a property its catalog does not
+  ///   declare for it, such as `metadata`;
   /// - a check that is not a call to a catalog function, or has no message;
   /// - a `callRendererFunction` naming a surface, or a function call that
   ///   cannot be written as a call;
@@ -250,14 +245,12 @@ class ExpressDecompiler {
         'with anything but a map.',
       );
     }
-    // Below the root the value is assigned at its path, which compiles to an
-    // update of the root holding it.
     return [
       _surfaceLine(
         message.surfaceId,
         created[message.surfaceId] ?? catalogs.first.id,
       ),
-      ..._dataLines(value, at: atRoot ? '' : path),
+      '\$${atRoot ? '/' : path} = ${_literal(value)}',
     ].join('\n');
   }
 
@@ -378,14 +371,17 @@ class ExpressDecompiler {
       : 'surface(${_string(surfaceId)}, ${_string(catalogId!)})';
 
   /// One assignment per leaf of [model], since the compiler builds nested
-  /// maps back up from the paths.
-  List<String> _dataLines(Object? model, {String at = ''}) {
-    if (at.isEmpty && model is Map && model.isEmpty) return [r'$/ = {}'];
+  /// maps back up from the paths on surface creation.
+  List<String> _dataLines(Map<Object?, Object?> model) {
     final lines = <String>[];
     void visit(String path, Object? value) {
       if (value is Map && value.isNotEmpty) {
-        for (final MapEntry<Object?, Object?> entry in value.entries) {
-          final key = '${entry.key}';
+        final List<MapEntry<String, Object?>> entries = [
+          for (final MapEntry<Object?, Object?> entry in value.entries)
+            MapEntry('${entry.key}', entry.value),
+        ]..sort((a, b) => a.key.compareTo(b.key));
+        for (final entry in entries) {
+          final String key = entry.key;
           if (!_pathSegment.hasMatch(key)) {
             throw A2uiValidationError(
               "The data model key '$key' at '${path.isEmpty ? '/' : path}' has "
@@ -400,39 +396,59 @@ class ExpressDecompiler {
       }
     }
 
-    visit(at, model);
+    visit('', model);
     return lines;
   }
 
   /// Whether [path] is a data path Express can assign at, such as
-  /// `/user/name`: one naming map keys, since the assignment compiles to an
-  /// update of the root that holds a map along the path, and so not one
-  /// naming an item of a list.
+  /// `/user/name` or `/items/0`.
   bool _isDataPath(String path) =>
       path.startsWith('/') &&
-      path
-          .substring(1)
-          .split('/')
-          .every((s) => _pathSegment.hasMatch(s) && int.tryParse(s) == null);
+      path.substring(1).split('/').every(_pathSegment.hasMatch);
 
   List<String> _componentLines(
     List<Map<String, Object?>> components,
     _SurfaceCatalog surface,
   ) {
-    final Set<String> defined = {
-      for (final Map<String, Object?> component in components)
-        if (component['id'] case final String id) id,
-    };
+    final ids = <String>[];
+    for (final component in components) {
+      final Object? id = component['id'];
+      if (id is! String || id.isEmpty) {
+        throw A2uiValidationError(
+          "Component id '$id' has no Express notation.",
+        );
+      }
+      ids.add(id);
+    }
+    if (_v1) {
+      final List<A2uiErrorDetail> details = [
+        for (final String id in ids)
+          if (!isValidUax31Identifier(id))
+            A2uiErrorDetail(
+              path: 'components.$id.id',
+              code: 'invalid_identifier',
+              message: "Component id '$id' must be a valid UAX #31 identifier",
+            ),
+      ];
+      if (details.isNotEmpty) {
+        throw A2uiValidationError(
+          details.first.message,
+          path: details.first.path,
+          errors: details,
+        );
+      }
+    }
+    final Map<String, String> variables = _assignVariableNames(ids);
     return [
       for (final Map<String, Object?> component in components)
-        _Component(this, surface, defined, component).write(),
+        _Component(this, surface, variables, component).write(),
     ];
   }
 }
 
-/// Writes one component as `id = Type(arguments)`, and the values in it.
+/// Writes one component as `varName = Type(arguments)`, and the values in it.
 class _Component {
-  _Component(this.decompiler, this.surface, this.defined, this.json);
+  _Component(this.decompiler, this.surface, this.variables, this.json);
 
   final ExpressDecompiler decompiler;
 
@@ -440,9 +456,9 @@ class _Component {
   /// belong to.
   final _SurfaceCatalog surface;
 
-  /// The ids of the components the block defines, which a reference names
-  /// as a variable. Any other id is written as a string.
-  final Set<String> defined;
+  /// The variable name each component of the block is written under, keyed by
+  /// its component id.
+  final Map<String, String> variables;
 
   final Map<String, Object?> json;
 
@@ -456,15 +472,13 @@ class _Component {
 
   String get _id => '${json['id']}';
 
+  /// The helper of the component's catalog, set once [write] resolves it,
+  /// through which nested schemas are reached.
+  CatalogSchemaHelper? _helper;
+
   String write() {
-    final Object? id = json['id'];
-    if (id is! String || !_isIdentifier(id)) {
-      throw A2uiValidationError(
-        "Component id '$id' has no Express notation. In Express the id is the "
-        'name of the variable holding the component, so it has to be made of '
-        'letters, digits and underscores, and not start with a digit.',
-      );
-    }
+    final id = json['id']! as String;
+    final String varName = variables[id]!;
     final Object? type = json['component'];
     if (type is! String) {
       throw A2uiValidationError("Component '$id' names no component type.");
@@ -476,6 +490,7 @@ class _Component {
       component: true,
       subject: "Component '$id'",
     );
+    _helper = helper;
     final List<String> properties = helper.properties(type);
     for (final String key in json.keys) {
       if (key == 'id' || key == 'component' || key == 'checks') continue;
@@ -505,20 +520,17 @@ class _Component {
       }
       arguments
         ..addAll(List.filled(skipped, '_'))
-        ..add(_property(value, helper.propertySchema(type, property)));
+        ..add(_value(value, helper.propertySchema(type, property)));
       skipped = 0;
     }
     if (json['checks'] case final Object checks) arguments.add(_checks(checks));
     if (catalogId != null) arguments.add('catalogId=${_string(catalogId)}');
-    return '$id = $type(${arguments.join(', ')})';
-  }
-
-  String _property(Object value, Map<String, Object?>? schema) {
-    if (isAction(schema)) return _action(value);
-    return _value(value, schema);
+    if (varName != id) arguments.add('id=${_string(id)}');
+    return '$varName = $type(${arguments.join(', ')})';
   }
 
   String _value(Object? value, Map<String, Object?>? schema) {
+    if (isAction(schema) && value != null) return _action(value);
     if (isComponentId(schema) && value is String) return _reference(value);
     if (isChildList(schema)) {
       if (value is List && value.every((Object? v) => v is String)) {
@@ -528,9 +540,9 @@ class _Component {
       if (value case {
         'componentId': final String componentId,
         'path': final String path,
-      } when value.length == 2 && _refersToVariable(componentId)) {
+      } when value.length == 2 && variables.containsKey(componentId)) {
         if (_path(path) case final String written) {
-          return '_template($written, $componentId)';
+          return '_template($written, ${variables[componentId]!})';
         }
       }
     }
@@ -538,35 +550,47 @@ class _Component {
       Map() =>
         _binding(value) ??
             _call(value) ??
-            _mapLiteral(value, (key) => _propertySchema(schema, key)),
-      List() => _list(value, _itemSchema(schema)),
+            _mapLiteral(
+              value,
+              (key) => _helper?.resolvePropertySchema(schema, key),
+            ),
+      List() => _list(value, _helper?.resolveItemSchema(schema)),
       _ => _literal(value),
     };
   }
 
-  /// A reference to another component: a variable for one this block
+  /// A reference to another component: its variable name for one this block
   /// defines, and a string for one it does not, which the compiler passes on
   /// as written.
-  String _reference(String id) => _refersToVariable(id) ? id : _string(id);
+  String _reference(String id) => variables[id] ?? _string(id);
 
-  bool _refersToVariable(String id) =>
-      defined.contains(id) && _isIdentifier(id);
-
-  /// `Event(name, context)` for an event, the call itself for a local
-  /// function, and the map literal otherwise.
+  /// `Event(name, context?, userMessage=?)` for an event, the call itself
+  /// for a local function, and the map literal otherwise.
   String _action(Object value) {
     switch (value) {
       case {'event': final Map<Object?, Object?> event} when value.length == 1:
         final Object? name = event['name'];
         final Object? context = event['context'];
+        final Object? userMessage = event['userMessage'];
+        const keys = {'name', 'context', 'userMessage'};
         final bool isEvent =
             name is String &&
-            event.keys.every((k) => k == 'name' || k == 'context') &&
-            (context == null || (context is Map && context.isNotEmpty));
+            event.keys.every(keys.contains) &&
+            (context == null || (context is Map && context.isNotEmpty)) &&
+            // Before v1.0 an event has no userMessage, and the compiler
+            // rejects `userMessage=`, so the object stays a map literal.
+            (userMessage == null ||
+                (_v1 &&
+                    (userMessage is String ||
+                        _binding(_asMap(userMessage)) != null ||
+                        _call(_asMap(userMessage)) != null)));
         if (isEvent) {
-          return context == null
-              ? 'Event(${_string(name)})'
-              : 'Event(${_string(name)}, ${_value(context, null)})';
+          final arguments = <String>[
+            _string(name),
+            if (context != null) _value(context, null),
+            if (userMessage != null) 'userMessage=${_value(userMessage, null)}',
+          ];
+          return 'Event(${arguments.join(', ')})';
         }
       case {'functionCall': final Map<Object?, Object?> call}
           when value.length == 1:
@@ -763,15 +787,14 @@ String _mapOfLiterals(Map<Object?, Object?> value) {
   return '{${entries.join(', ')}}';
 }
 
+/// [value] as Express writes doubles: the form of ECMAScript
+/// `Number.prototype.toString`, which Dart's `toString` already produces
+/// (`0.000015`, `1e-7`, `1e+21`), with a `.0` suffix on integral doubles.
 String _double(double value) {
-  final text = '$value';
-  if (!RegExp(r'^-?[0-9]+\.[0-9]+$').hasMatch(text)) {
-    throw A2uiValidationError(
-      'The number $value has no Express notation, which writes numbers as '
-      'plain decimals.',
-    );
+  if (!value.isFinite) {
+    throw A2uiValidationError('The number $value has no Express notation.');
   }
-  return text;
+  return '$value';
 }
 
 /// A string literal: raw when that keeps backslashes single, and escaped
@@ -803,7 +826,39 @@ String _entry(String key, String value) => '${_key(key)}: $value';
 String _key(String key) => _isIdentifier(key) ? key : _string(key);
 
 bool _isIdentifier(String name) =>
-    _identifier.hasMatch(name) && !_keywords.contains(name);
+    isValidUax31Identifier(name) && !_keywords.contains(name);
+
+String _deriveVariableName(String id) {
+  String base = id.runes
+      .map(String.fromCharCode)
+      .map((String ch) => _xidContinueChar.hasMatch(ch) ? ch : '_')
+      .join();
+  while (!_isIdentifier(base)) {
+    base = '_$base';
+  }
+  return base;
+}
+
+Map<String, String> _assignVariableNames(Iterable<String> componentIds) {
+  final names = <String, String>{
+    for (final String id in componentIds)
+      if (_isIdentifier(id)) id: id,
+  };
+  final Set<String> taken = names.values.toSet();
+  for (final id in componentIds) {
+    if (names.containsKey(id)) continue;
+    final String base = _deriveVariableName(id);
+    var name = base;
+    var suffix = 2;
+    while (taken.contains(name)) {
+      name = '${base}_$suffix';
+      suffix++;
+    }
+    names[id] = name;
+    taken.add(name);
+  }
+  return names;
+}
 
 Map<Object?, Object?> _asMap(Object? value) => value is Map ? value : const {};
 
@@ -816,25 +871,6 @@ bool _equal(Object? a, Object? b) => switch ((a, b)) {
         [for (var i = 0; i < x.length; i++) i].every((i) => _equal(x[i], y[i])),
   _ => a == b,
 };
-
-Map<String, Object?>? _propertySchema(
-  Map<String, Object?>? schema,
-  String key,
-) {
-  if (schema == null) return null;
-  if (schema['properties'] case final Map<Object?, Object?> properties) {
-    if (properties[key] case final Map<Object?, Object?> property) {
-      return property.cast<String, Object?>();
-    }
-  }
-  return null;
-}
-
-Map<String, Object?>? _itemSchema(Map<String, Object?>? schema) =>
-    switch (schema?['items']) {
-      final Map<Object?, Object?> items => items.cast<String, Object?>(),
-      _ => null,
-    };
 
 A2uiValidationError _noNotation(String what) =>
     A2uiValidationError('$what has no Express notation.');

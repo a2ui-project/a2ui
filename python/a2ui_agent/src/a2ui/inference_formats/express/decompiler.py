@@ -18,18 +18,25 @@ Writes A2UI messages (v0.9, v0.9.1 or v1.0) back into A2UI Express DSL code,
 tailored for prompt tokens compression.
 """
 
+import math
 from collections.abc import Sequence
-import re
 from typing import Any, Literal
 
 from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
-from a2ui.core import CatalogApi
-from a2ui.core.schema import AgentToRendererMessage
+from a2ui.core import (
+    A2uiErrorDetail,
+    A2uiValidationError,
+    CatalogApi,
+    is_valid_uax31_identifier,
+)
+from a2ui.core.common import is_at_least_version
+from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
     CoalescedMessage,
     build_catalog_helpers,
     catalogs_defining,
+    catalogs_protocol_version,
     check_mixed_catalogs,
     coalesce_surface_messages,
     surface_catalog_id,
@@ -38,33 +45,126 @@ from .constants import SurfaceOperation
 from .errors import ExpressValidationError
 
 _DEFAULT_SURFACE_ID = "default_surface"
-_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
-_NON_IDENTIFIER_CHARS_RE = re.compile(r"[^a-zA-Z0-9_]")
 # Words that lex as something other than a variable name.
 _RESERVED_WORDS = frozenset({"_", "true", "false", "null"})
 
 
 def _is_variable_name(name: str) -> bool:
-    """Checks whether a component ID can be written as an Express variable."""
-    return bool(_IDENTIFIER_RE.match(name)) and name not in _RESERVED_WORDS
+    """Checks whether a component ID can be written as a bare Express variable."""
+    return is_valid_uax31_identifier(name) and name not in _RESERVED_WORDS
+
+
+def _shortest_digits(val: float) -> tuple[str, int]:
+    """Splits a finite, non-negative float into its shortest digits and exponent.
+
+    Uses `repr`, which already produces the shortest digit string that reads
+    back as the same double, and normalizes it into the `(digits, n)` pair the
+    ECMAScript `Number::toString` algorithm works from: `digits` has no leading
+    or trailing zeros and `val == 0.<digits> * 10**n`.
+
+    Args:
+        val: A finite float with `val >= 0`.
+
+    Returns:
+        The significant digits and the decimal exponent `n`. Zero is returned
+        as `("0", 1)`.
+    """
+    mantissa, _, exp_text = repr(val).partition("e")
+    int_part, _, frac_part = mantissa.partition(".")
+    raw_digits = int_part + frac_part
+    digits = raw_digits.lstrip("0")
+    if not digits:
+        return "0", 1
+    exponent = int(exp_text or "0") + len(int_part) - (len(raw_digits) - len(digits))
+    return digits.rstrip("0"), exponent
+
+
+def _ecmascript_notation(negative: bool, digits: str, exponent: int) -> str:
+    """Spells a decimal the way ECMAScript `Number.prototype.toString` does.
+
+    Follows the `Number::toString` steps for `k` significant digits and
+    decimal exponent `n`: plain decimal when `-6 <= n - 1 < 21`, otherwise
+    `d.ddde+x` / `d.ddde-x` with no zero padding in the exponent. Unlike
+    ECMAScript, an integral value written in plain decimal keeps a `.0`
+    suffix, so it reads back as a float (as Dart's `toString` writes it).
+
+    Args:
+        negative: Whether to prefix the result with `-`.
+        digits: The significant digits, as produced by `_shortest_digits`.
+        exponent: The decimal exponent `n`, as produced by `_shortest_digits`.
+
+    Returns:
+        The Express text of the number.
+    """
+    k = len(digits)
+    n = exponent
+    if k <= n <= 21:
+        text = f"{digits}{'0' * (n - k)}.0"
+    elif 0 < n <= 21:
+        text = f"{digits[:n]}.{digits[n:]}"
+    elif -6 < n <= 0:
+        text = f"0.{'0' * -n}{digits}"
+    else:
+        fraction = f".{digits[1:]}" if k > 1 else ""
+        text = f"{digits[0]}{fraction}e{n - 1:+d}"
+    return f"-{text}" if negative else text
+
+
+def _decompile_number(val: int | float) -> str:
+    """Writes a number the way every A2UI Express decompiler spells it.
+
+    An `int` is written as its digits. A finite float is written as ECMAScript
+    `Number::toString` would write it (plain decimal for `1e-6 <= |v| < 1e21`,
+    otherwise `d.ddde-7` / `d.ddde+21`), with `.0` kept on integral doubles
+    and `-0.0` written as `-0.0`.
+
+    Args:
+        val: The number to write. `bool` is not handled here; callers write
+            booleans before reaching this helper.
+
+    Returns:
+        The Express text of the number.
+
+    Raises:
+        ExpressValidationError: If `val` is infinite or NaN, which Express has
+            no notation for.
+    """
+    if isinstance(val, int):
+        return str(val)
+    if not math.isfinite(val):
+        raise ExpressValidationError(f"The number {val} has no Express notation.")
+    negative = math.copysign(1.0, val) < 0
+    digits, exponent = _shortest_digits(abs(val))
+    return _ecmascript_notation(negative, digits, exponent)
+
+
+def _derive_variable_name(component_id: str) -> str:
+    """Derives a valid Express variable name from an arbitrary component ID.
+
+    Replaces every character outside `XID_Continue` with `_`, then prefixes `_`
+    until the result is a valid non-reserved Express variable name.
+    """
+    base = "".join(ch if f"_{ch}".isidentifier() else "_" for ch in component_id)
+    while not _is_variable_name(base):
+        base = f"_{base}"
+    return base
 
 
 def _assign_variable_names(component_ids: Sequence[str]) -> dict[str, str]:
     """Maps each component ID to the variable name it is written under.
 
-    An ID that is a valid variable name is its own variable name. Any other
-    ID, such as `content-grid`, gets a derived name (`content_grid`) that no
-    other ID or variable of the block uses, and the component is written with
-    an `id="content-grid"` argument so that it compiles back to its ID.
+    An ID that is a valid UAX 31 variable name is its own variable name. Any
+    other ID, such as a pre-v1.0 `content-grid` or a reserved word like `true`,
+    gets a derived name (`content_grid`, `_true`) that no other ID or variable
+    of the block uses, and the component is written with an `id="..."` argument
+    so that it compiles back to its ID.
     """
     names = {cid: cid for cid in component_ids if _is_variable_name(cid)}
     taken = set(names.values())
     for cid in component_ids:
         if cid in names:
             continue
-        base = _NON_IDENTIFIER_CHARS_RE.sub("_", cid)
-        if not base or not _is_variable_name(base):
-            base = f"_{base}"
+        base = _derive_variable_name(cid)
         name, suffix = base, 2
         while name in taken:
             name, suffix = f"{base}_{suffix}", suffix + 1
@@ -78,9 +178,9 @@ def _decompile_reference(component_id: Any, var_names: dict[str, str]) -> str:
 
     A component defined in the same block is referenced by its variable name.
     A component defined elsewhere, such as in an earlier turn, is referenced
-    by a bare name when its ID is a valid variable name that the block does
-    not define, which the compiler reads back as that ID, and by a quoted ID
-    otherwise.
+    by a bare name when its ID is a valid UAX 31 variable name that the block
+    does not define, which the compiler reads back as that ID, and by a quoted
+    ID otherwise.
     """
     if not isinstance(component_id, str):
         return _decompile_string(str(component_id))
@@ -161,8 +261,8 @@ def _decompile_string(val: str) -> str:
 
 
 def _decompile_key(key: str) -> str:
-    """Writes a map key bare when it is an identifier, and quoted otherwise."""
-    return key if _IDENTIFIER_RE.match(key) else _decompile_string(key)
+    """Writes a map key bare when it is a valid identifier, and quoted otherwise."""
+    return key if _is_variable_name(key) else _decompile_string(key)
 
 
 def _decompile_path(path_str: str) -> str:
@@ -234,6 +334,41 @@ class ExpressDecompiler:
         self.helpers = build_catalog_helpers(self._catalogs)
         # The single catalog's ID, or None when several catalogs are active.
         self._sole_catalog_id = surface_catalog_id(self._catalogs)
+        self._v1 = is_at_least_version(
+            catalogs_protocol_version(self._catalogs), ProtocolVersion.V1_0
+        )
+        # The binding and function call keys of the catalogs' version.
+        self._path_key = "@path" if self._v1 else "path"
+        self._call_key = "@call" if self._v1 else "call"
+
+    def _is_function_call(self, val: dict[str, Any]) -> bool:
+        """Checks whether a value in a component property is a function call.
+
+        In v1.0 and later, only `@call` names a function call, so an object
+        with a plain `call` key is data. Before v1.0, `call` names one when the
+        object has `args` or `catalogId` beside it; otherwise it is data.
+        """
+        if self._v1:
+            return isinstance(val.get(self._call_key), str)
+        return isinstance(val.get("call"), str) and (
+            "args" in val or "catalogId" in val
+        )
+
+    def _check_component_ids(self, component_ids: Sequence[str]) -> None:
+        """From v1.0, rejects component IDs that are not UAX 31 identifiers."""
+        if not self._v1:
+            return
+        details = [
+            A2uiErrorDetail(
+                path=f"components.{cid}.id",
+                code="invalid_identifier",
+                message=f"Component id '{cid}' must be a valid UAX #31 identifier",
+            )
+            for cid in component_ids
+            if not is_valid_uax31_identifier(cid)
+        ]
+        if details:
+            raise A2uiValidationError(details[0].message, details=details)
 
     @property
     def catalogs(self) -> list[CatalogApi]:
@@ -456,14 +591,8 @@ class ExpressDecompiler:
             )
         else:
             raw_path = body.get("path") or "/"
-            value = body.get("value")
-            if raw_path == "/" and isinstance(value, dict) and value:
-                for rel_path, val in sorted(_flatten_data_model(value)):
-                    val_str = self._decompile_value(val, {}, False, catalog_id)
-                    dsl_lines.append(f"${rel_path} = {val_str}")
-            else:
-                val_str = self._decompile_value(value, {}, False, catalog_id)
-                dsl_lines.append(f"{_decompile_path(raw_path)} = {val_str}")
+            val_str = self._decompile_value(body.get("value"), {}, False, catalog_id)
+            dsl_lines.append(f"{_decompile_path(raw_path)} = {val_str}")
         return "\n".join(dsl_lines)
 
     def _decompile_renderer_call(
@@ -504,7 +633,9 @@ class ExpressDecompiler:
         surface_cat_id: str | None,
         use_keyword_args: bool,
     ) -> list[str]:
-        var_names = _assign_variable_names([c["id"] for c in components])
+        component_ids = [c["id"] for c in components]
+        self._check_component_ids(component_ids)
+        var_names = _assign_variable_names(component_ids)
         dsl_lines = []
         for c in components:
             comp_id = c["id"]
@@ -691,33 +822,46 @@ class ExpressDecompiler:
             A plain-text representation of the value.
         """
         if isinstance(val, dict):
-            if _has_reserved_key(val, "path"):
-                path_str = _reserved_value(val, "path")
-                if "componentId" in val:
-                    comp_id_repr = _decompile_reference(val["componentId"], var_names)
-                    return f"_template({_decompile_path(path_str)}, {comp_id_repr})"
-                return _decompile_path(path_str)
+            # A child list template keeps the plain `path` key in every
+            # version. A data binding is an object whose only key is the
+            # binding key of the version, so a plain `path` key in v1.0, or a
+            # binding key beside other keys, is data.
+            if "componentId" in val and "path" in val:
+                comp_id_repr = _decompile_reference(val["componentId"], var_names)
+                return f"_template({_decompile_path(val['path'])}, {comp_id_repr})"
+            bound_path = val.get(self._path_key)
+            if isinstance(bound_path, str) and len(val) == 1:
+                return _decompile_path(bound_path)
 
-            if "event" in val:
+            # Before v1.0 an event has no userMessage, and the compiler rejects
+            # `userMessage=`, so such an object is written as a map literal that
+            # compiles back as written.
+            if isinstance(val.get("event"), dict) and (
+                self._v1 or val["event"].get("userMessage") is None
+            ):
                 evt = val["event"]
-                name = _decompile_string(evt.get("name", ""))
-                ctx = evt.get("context", {})
-                ctx_reprs = [
-                    f"{_decompile_key(k)}:"
-                    f" {self._decompile_value(v, var_names, False, surface_cat_id)}"
-                    for k, v in ctx.items()
-                ]
+                event_args = [_decompile_string(evt.get("name", ""))]
                 # An empty context is written out so that it compiles back.
                 if "context" in evt:
-                    return f"Event({name}, {{{', '.join(ctx_reprs)}}})"
-                return f"Event({name})"
+                    ctx_reprs = [
+                        f"{_decompile_key(k)}:"
+                        f" {self._decompile_value(v, var_names, False, surface_cat_id)}"
+                        for k, v in evt.get("context", {}).items()
+                    ]
+                    event_args.append(f"{{{', '.join(ctx_reprs)}}}")
+                if evt.get("userMessage") is not None:
+                    user_message = self._decompile_value(
+                        evt["userMessage"], var_names, False, surface_cat_id
+                    )
+                    event_args.append(f"userMessage={user_message}")
+                return f"Event({', '.join(event_args)})"
 
-            if "functionCall" in val:
+            if isinstance(val.get("functionCall"), dict):
                 return self._decompile_call(
                     val["functionCall"], var_names, surface_cat_id
                 )
 
-            if _has_reserved_key(val, "call"):
+            if self._is_function_call(val):
                 return self._decompile_call(val, var_names, surface_cat_id)
 
             items_reprs = []
@@ -743,6 +887,10 @@ class ExpressDecompiler:
 
         if isinstance(val, bool):
             return "true" if val else "false"
+
+        # bool is a subclass of int, so this must come after the bool check.
+        if isinstance(val, (int, float)):
+            return _decompile_number(val)
 
         if val is None:
             return "null"

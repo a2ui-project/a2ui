@@ -20,7 +20,13 @@
  * Reconstructs standard A2UI envelopes back into A2UI Express DSL code.
  */
 
-import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
+import {
+  A2uiValidationError,
+  AgentToRendererMessage,
+  CatalogApi,
+  compareSemVer,
+  isValidUax31Identifier,
+} from '../../internal/web-core.js';
 import {A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG} from '../../parser/constants.js';
 import {RawResponsePart} from '../../parser/response-part.js';
 import {
@@ -31,8 +37,8 @@ import {
   unknownCatalogError,
   unknownSymbolError,
 } from './catalogs.js';
-import {ExpressInvalidIdentifierError, ExpressValidationError} from './errors.js';
-import {isExpressIdentifier} from './identifier.js';
+import {ExpressValidationError} from './errors.js';
+import {assignVariableNames, isExpressIdentifier} from './identifier.js';
 import {CatalogSchemaHelper, commonDefName} from './schema-helper.js';
 
 /**
@@ -166,6 +172,27 @@ export function isComponentReferenceProperty(propSchema: unknown): boolean {
 }
 
 /**
+ * Writes a number the way ECMAScript `Number.prototype.toString` does, which is
+ * the spelling the Express grammar and every SDK's decompiler agree on: plain
+ * decimal for 1e-6 ≤ |v| < 1e21, otherwise exponent form such as `1e-7` or
+ * `1.5e+21`. Negative zero is written `-0.0`, since `String(-0)` is `"0"`.
+ *
+ * @param val The number to decompile.
+ * @returns The Express number literal.
+ * @throws {A2uiValidationError} When `val` is `NaN` or infinite, which Express
+ *   has no notation for.
+ */
+export function decompileNumber(val: number): string {
+  if (!Number.isFinite(val)) {
+    throw new A2uiValidationError(`The number ${val} has no Express notation.`);
+  }
+  if (Object.is(val, -0)) {
+    return '-0.0';
+  }
+  return String(val);
+}
+
+/**
  * Formats a string literal using the cleanest/most readable representation.
  *
  * @param val The string value to decompile.
@@ -203,6 +230,35 @@ export function decompileString(val: string): string {
 }
 
 /**
+ * Writes a reference to a component by ID.
+ *
+ * A component defined in the same block is referenced by its variable name.
+ * A component defined elsewhere, such as in an earlier turn, is referenced
+ * by a bare name when its ID is a valid UAX 31 variable name that the block
+ * does not define, which the compiler reads back as that ID, and by a quoted
+ * ID otherwise.
+ */
+function decompileReference(componentId: string, varNames: ReadonlyMap<string, string>): string {
+  const assigned = varNames.get(componentId);
+  if (assigned !== undefined) {
+    return assigned;
+  }
+  if (isExpressIdentifier(componentId)) {
+    let isTaken = false;
+    for (const value of varNames.values()) {
+      if (value === componentId) {
+        isTaken = true;
+        break;
+      }
+    }
+    if (!isTaken) {
+      return componentId;
+    }
+  }
+  return decompileString(componentId);
+}
+
+/**
  * Converts standard A2UI wire JSON trees back into A2UI Express syntax.
  */
 export class ExpressDecompiler {
@@ -210,6 +266,7 @@ export class ExpressDecompiler {
   readonly catalogs: CatalogApi[];
   readonly protocolVersion: string;
   private readonly soleCatalogId: string | undefined;
+  private readonly isV1: boolean;
 
   /**
    * @param catalogs The catalog, or several.
@@ -221,6 +278,7 @@ export class ExpressDecompiler {
     this.protocolVersion = protocolVersion;
     this.helpers = buildSchemaHelpers(this.catalogs, protocolVersion);
     this.soleCatalogId = this.catalogs.length === 1 ? this.catalogs[0].id : undefined;
+    this.isV1 = compareSemVer(this.protocolVersion, '1.0.0') >= 0;
   }
 
   /**
@@ -464,20 +522,37 @@ export class ExpressDecompiler {
     return {surfaceCatalogId, helper};
   }
 
-  private collectComponentIds(components: Array<Record<string, unknown>>): Set<string> {
-    const compIds = new Set<string>();
+  private checkComponentIds(componentIds: readonly string[]): void {
+    if (!this.isV1) {
+      return;
+    }
+    const details = componentIds
+      .filter(cid => !isValidUax31Identifier(cid))
+      .map(cid => ({
+        path: `components.${cid}.id`,
+        code: 'invalid_identifier',
+        message: `Component id '${cid}' must be a valid UAX #31 identifier`,
+      }));
+    if (details.length > 0) {
+      throw new A2uiValidationError(details[0].message, details);
+    }
+  }
+
+  private collectVariableNames(components: Array<Record<string, unknown>>): Map<string, string> {
+    const compIds: string[] = [];
     for (const c of components) {
       if (typeof c.id === 'string') {
-        compIds.add(c.id);
+        compIds.push(c.id);
       }
     }
-    return compIds;
+    this.checkComponentIds(compIds);
+    return assignVariableNames(compIds);
   }
 
   private formatDataModelLines(
     dataVal: unknown,
     basePath: string,
-    compIds: Set<string>,
+    varNames: ReadonlyMap<string, string>,
     helper: CatalogSchemaHelper,
     surfaceCatalogId: string | undefined,
   ): string[] {
@@ -488,7 +563,7 @@ export class ExpressDecompiler {
     flattened.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
     return flattened.map(([leafPath, val]) => {
       const combinedPath = basePath ? `${basePath}${leafPath}` : leafPath;
-      const valStr = this.decompileValue(val, compIds, false, helper, surfaceCatalogId);
+      const valStr = this.decompileValue(val, varNames, false, helper, surfaceCatalogId);
       return `$${combinedPath} = ${valStr}`;
     });
   }
@@ -511,7 +586,7 @@ export class ExpressDecompiler {
       functionCallId && functionCallId !== `call_${callIndex}`
         ? [`functionCallId=${decompileString(functionCallId)}`]
         : undefined;
-    return this.formatFunctionCall(funcOp, new Set(), this.soleCatalogId, extraKwargs);
+    return this.formatFunctionCall(funcOp, new Map(), this.soleCatalogId, extraKwargs);
   }
 
   private decompileUpdateDataModel(
@@ -525,22 +600,14 @@ export class ExpressDecompiler {
     const rawPath = typeof valOp.path === 'string' && valOp.path ? valOp.path : '/';
     const basePath = rawPath.replace(/\/+$/, '');
     const dataVal = basePath ? (valOp.value ?? null) : (valOp.value ?? {});
-    const dataLines = this.formatDataModelLines(
-      dataVal,
-      basePath,
-      new Set(),
-      helper,
-      surfaceCatalogId,
-    );
-    if (dataLines.length === 0) {
-      return undefined;
-    }
+    const valStr = this.decompileValue(dataVal, new Map(), false, helper, surfaceCatalogId);
+    const pathStr = basePath ? `$${basePath}` : '$/';
 
     const dslLines: string[] = [];
     if (!(isFirst && surfaceId === 'default_surface')) {
       dslLines.push(this.formatSurfaceHeader(surfaceId));
     }
-    dslLines.push(...dataLines);
+    dslLines.push(`${pathStr} = ${valStr}`);
     return dslLines.join('\n');
   }
 
@@ -571,16 +638,16 @@ export class ExpressDecompiler {
     const components = Array.isArray(cs.components)
       ? (cs.components as Array<Record<string, unknown>>)
       : [];
-    const compIds = this.collectComponentIds(components);
+    const varNames = this.collectVariableNames(components);
 
     if (asRecord(cs.dataModel)) {
       dslLines.push(
-        ...this.formatDataModelLines(cs.dataModel, '', compIds, helper, surfaceCatalogId),
+        ...this.formatDataModelLines(cs.dataModel, '', varNames, helper, surfaceCatalogId),
       );
     }
 
     for (const c of components) {
-      dslLines.push(this.formatComponent(c, compIds, surfaceCatalogId, useKeywordArgs));
+      dslLines.push(this.formatComponent(c, varNames, surfaceCatalogId, useKeywordArgs));
     }
 
     return dslLines.length > 0 ? dslLines.join('\n') : undefined;
@@ -609,9 +676,9 @@ export class ExpressDecompiler {
       );
     }
 
-    const compIds = this.collectComponentIds(components);
+    const varNames = this.collectVariableNames(components);
     for (const c of components) {
-      dslLines.push(this.formatComponent(c, compIds, surfaceCatalogId, useKeywordArgs));
+      dslLines.push(this.formatComponent(c, varNames, surfaceCatalogId, useKeywordArgs));
     }
 
     return dslLines.length > 0 ? dslLines.join('\n') : undefined;
@@ -627,7 +694,7 @@ export class ExpressDecompiler {
     propName: string,
     checksVal: unknown,
     comp: Record<string, unknown>,
-    compIds: Set<string>,
+    varNames: ReadonlyMap<string, string>,
     surfaceCatalogId: string | undefined,
     useKeywordArgs: boolean,
   ): string | undefined {
@@ -639,7 +706,7 @@ export class ExpressDecompiler {
     for (const rc of checksVal) {
       const ruleRecord = asRecord(rc);
       if (ruleRecord) {
-        compiledChecksList.push(this.formatCheckRule(ruleRecord, comp, compIds, surfaceCatalogId));
+        compiledChecksList.push(this.formatCheckRule(ruleRecord, comp, varNames, surfaceCatalogId));
       }
     }
 
@@ -656,7 +723,7 @@ export class ExpressDecompiler {
     propName: string,
     properties: string[],
     checkProp: string | undefined,
-    compIds: Set<string>,
+    varNames: ReadonlyMap<string, string>,
     helper: CatalogSchemaHelper,
     surfaceCatalogId: string | undefined,
     useKeywordArgs: boolean,
@@ -666,7 +733,7 @@ export class ExpressDecompiler {
       const isPropRef = isComponentReferenceProperty(pSchema);
       const valStr = this.decompileValue(
         comp[propName],
-        compIds,
+        varNames,
         isPropRef,
         helper,
         surfaceCatalogId,
@@ -688,15 +755,13 @@ export class ExpressDecompiler {
    */
   private formatComponent(
     comp: Record<string, unknown>,
-    compIds: Set<string>,
+    varNames: ReadonlyMap<string, string>,
     surfaceCatalogId: string | undefined,
     useKeywordArgs: boolean,
   ): string {
     const compId = typeof comp.id === 'string' ? comp.id : '';
+    const varName = varNames.get(compId) ?? compId;
     const compName = typeof comp.component === 'string' ? comp.component : '';
-    if (compId && !isExpressIdentifier(compId)) {
-      throw new ExpressInvalidIdentifierError(compId);
-    }
 
     const {helper, catalogId: emitCatalogId} = this.resolveSymbol(
       'component',
@@ -716,7 +781,7 @@ export class ExpressDecompiler {
               propName,
               comp[checkProp],
               comp,
-              compIds,
+              varNames,
               surfaceCatalogId,
               useKeywordArgs,
             )
@@ -726,7 +791,7 @@ export class ExpressDecompiler {
               propName,
               properties,
               checkProp,
-              compIds,
+              varNames,
               helper,
               surfaceCatalogId,
               useKeywordArgs,
@@ -741,8 +806,11 @@ export class ExpressDecompiler {
     if (emitCatalogId !== undefined) {
       argsReprs.push(`catalogId=${decompileString(emitCatalogId)}`);
     }
+    if (varName !== compId) {
+      argsReprs.push(`id=${decompileString(compId)}`);
+    }
 
-    return `${compId} = ${compName}(${argsReprs.join(', ')})`;
+    return `${varName} = ${compName}(${argsReprs.join(', ')})`;
   }
 
   /**
@@ -751,7 +819,7 @@ export class ExpressDecompiler {
   private formatCheckRule(
     rule: Record<string, unknown>,
     component: Record<string, unknown>,
-    compIds: Set<string>,
+    varNames: ReadonlyMap<string, string>,
     surfaceCatalogId: string | undefined,
   ): string {
     const hasCondition = 'condition' in rule && asRecord(rule.condition) !== undefined;
@@ -798,7 +866,7 @@ export class ExpressDecompiler {
       const p = checkProps[idx];
       if (p in checkArgs) {
         explicitArgsReprs.push(
-          this.decompileValue(checkArgs[p], compIds, false, helper, surfaceCatalogId),
+          this.decompileValue(checkArgs[p], varNames, false, helper, surfaceCatalogId),
         );
       } else {
         explicitArgsReprs.push('_');
@@ -828,7 +896,7 @@ export class ExpressDecompiler {
    */
   private formatFunctionCall(
     funcCall: Record<string, unknown>,
-    compIds: Set<string>,
+    varNames: ReadonlyMap<string, string>,
     surfaceCatalogId: string | undefined,
     extraKwargs?: string[],
   ): string {
@@ -854,7 +922,7 @@ export class ExpressDecompiler {
       const present = isListArgs ? idx < rawArgs.length : p in dictArgs;
       if (present) {
         const argVal = isListArgs ? rawArgs[idx] : dictArgs[p];
-        argsReprs.push(this.decompileValue(argVal, compIds, false, helper, surfaceCatalogId));
+        argsReprs.push(this.decompileValue(argVal, varNames, false, helper, surfaceCatalogId));
       } else {
         argsReprs.push('_');
       }
@@ -875,7 +943,7 @@ export class ExpressDecompiler {
    * Decompiles a single value node back to A2UI Express notation.
    *
    * @param val The JSON-serialized property value structure.
-   * @param compIds A set of all component IDs registered in the surface context.
+   * @param varNames Maps the ID of each component defined in the same block to its variable name.
    * @param isRef Whether this value is a component reference.
    * @param helper The schema helper of the value's catalog. Defaults to the first catalog.
    * @param surfaceCatalogId The catalog of the enclosing surface, if any.
@@ -883,7 +951,7 @@ export class ExpressDecompiler {
    */
   decompileValue(
     val: unknown,
-    compIds: Set<string>,
+    varNames: ReadonlyMap<string, string>,
     isRef = false,
     helper: CatalogSchemaHelper = this.helpers.get(this.catalogs[0].id)!,
     surfaceCatalogId: string | undefined = this.soleCatalogId,
@@ -901,20 +969,19 @@ export class ExpressDecompiler {
     }
 
     if (typeof val === 'number') {
-      return String(val);
+      return decompileNumber(val);
     }
 
     if (typeof val === 'string') {
-      // If it matches a component ID reference, keep it as a variable identifier
-      if (isRef && compIds.has(val)) {
-        return val;
+      if (isRef) {
+        return decompileReference(val, varNames);
       }
       return decompileString(val);
     }
 
     if (Array.isArray(val)) {
       const listReprs = val.map(item =>
-        this.decompileValue(item, compIds, isRef, helper, surfaceCatalogId),
+        this.decompileValue(item, varNames, isRef, helper, surfaceCatalogId),
       );
       return `[${listReprs.join(', ')}]`;
     }
@@ -931,17 +998,19 @@ export class ExpressDecompiler {
       ) {
         const pathRepr = this.decompileValue(
           {[helper.keys.path]: obj.path},
-          compIds,
+          varNames,
           false,
           helper,
           surfaceCatalogId,
         );
-        const compIdRepr = obj.componentId;
+        const compIdRepr = decompileReference(obj.componentId, varNames);
         return `_template(${pathRepr}, ${compIdRepr})`;
       }
 
+      // A data binding is an object whose only key is the version's binding key, so a plain
+      // `path` key in v1.0, or a binding key beside other keys, is data.
       const boundPath = obj[helper.keys.path];
-      if (typeof boundPath === 'string') {
+      if (typeof boundPath === 'string' && Object.keys(obj).length === 1) {
         const pathStr = boundPath;
         if (pathStr.startsWith('/')) {
           return `$/${pathStr.slice(1)}`;
@@ -949,7 +1018,14 @@ export class ExpressDecompiler {
         return `$${pathStr}`;
       }
 
-      if ('event' in obj && obj.event && typeof obj.event === 'object') {
+      // Before v1.0 an event has no userMessage, and the compiler rejects `userMessage=`,
+      // so such an object is written as a map literal that compiles back as written.
+      if (
+        'event' in obj &&
+        obj.event &&
+        typeof obj.event === 'object' &&
+        (this.isV1 || (obj.event as Record<string, unknown>).userMessage === undefined)
+      ) {
         const evt = obj.event as Record<string, unknown>;
         const name = typeof evt.name === 'string' ? evt.name : '';
         const ctx = optionalObjectField(evt.context, `Event '${name}'`, 'context');
@@ -957,28 +1033,38 @@ export class ExpressDecompiler {
         for (const [k, v] of Object.entries(ctx)) {
           const kRepr = isExpressIdentifier(k) ? k : decompileString(k);
           ctxReprs.push(
-            `${kRepr}: ${this.decompileValue(v, compIds, false, helper, surfaceCatalogId)}`,
+            `${kRepr}: ${this.decompileValue(v, varNames, false, helper, surfaceCatalogId)}`,
           );
         }
+        const eventArgs = [decompileString(name)];
         if (ctxReprs.length > 0) {
-          return `Event(${decompileString(name)}, {${ctxReprs.join(', ')}})`;
+          eventArgs.push(`{${ctxReprs.join(', ')}}`);
         }
-        return `Event(${decompileString(name)})`;
+        if (evt.userMessage !== undefined && evt.userMessage !== null) {
+          const userMessage = this.decompileValue(
+            evt.userMessage,
+            varNames,
+            false,
+            helper,
+            surfaceCatalogId,
+          );
+          eventArgs.push(`userMessage=${userMessage}`);
+        }
+        return `Event(${eventArgs.join(', ')})`;
       }
 
       if ('functionCall' in obj && obj.functionCall && typeof obj.functionCall === 'object') {
         return this.formatFunctionCall(
           obj.functionCall as Record<string, unknown>,
-          compIds,
+          varNames,
           surfaceCatalogId,
         );
       }
 
-      const callName =
-        obj[helper.keys.call] ??
-        ('call' in obj && ('args' in obj || 'catalogId' in obj) ? obj.call : undefined);
+      // Only the version's function call key names a call, so a plain `call` key in v1.0 is data.
+      const callName = obj[helper.keys.call];
       if (typeof callName === 'string') {
-        return this.formatFunctionCall(obj, compIds, surfaceCatalogId);
+        return this.formatFunctionCall(obj, varNames, surfaceCatalogId);
       }
 
       // General dict
@@ -987,7 +1073,7 @@ export class ExpressDecompiler {
         const itemIsRef = isRef || k === 'child' || k === 'componentId';
         const kRepr = isExpressIdentifier(k) ? k : decompileString(k);
         itemsReprs.push(
-          `${kRepr}: ${this.decompileValue(v, compIds, itemIsRef, helper, surfaceCatalogId)}`,
+          `${kRepr}: ${this.decompileValue(v, varNames, itemIsRef, helper, surfaceCatalogId)}`,
         );
       }
       return `{${itemsReprs.join(', ')}}`;
