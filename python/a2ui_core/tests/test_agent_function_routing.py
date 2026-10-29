@@ -486,3 +486,50 @@ async def test_applies_json_schema_defaults_of_schema_only_function() -> None:
         "symbol": "GOOG",
         "currency": "USD",
     }
+
+
+def test_synchronous_nested_argument_failure_stops_enclosing_calls() -> None:
+    h = _Harness()
+    res = h.ctx.resolve_dynamic_value({
+        "@call": "formatPrice",
+        "args": {
+            "amount": {"@call": "quote", "args": {"symbol": 123}},
+        },
+    })
+    assert res is None
+    assert h.outbound == []
+    assert len(h.errors) == 1
+    assert h.errors[0]["expression"] == "quote"
+
+    h.errors.clear()
+    res_agent = h.ctx.resolve_dynamic_value({
+        "@call": "outerAgent",
+        "args": {
+            "nested": {"@call": "quote", "args": {"symbol": 123}},
+        },
+    })
+    assert res_agent is None
+    assert h.outbound == []
+    assert len(h.errors) == 1
+    assert h.errors[0]["expression"] == "quote"
+
+
+@pytest.mark.asyncio
+async def test_delete_surface_cancels_pending_agent_calls_without_surface_errors() -> (
+    None
+):
+    h = _Harness()
+    changes: list[Any] = []
+    sub = h.ctx.subscribe_dynamic_value(
+        {"@call": "fetchFxRate", "args": {"base": "EUR"}},
+        changes.append,
+    )
+    assert len(h.outbound) == 1
+    assert len(h.proc.rpc._pending_agent_calls) == 1
+
+    h.proc.process_messages([{"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}])
+    await _flush()
+
+    assert len(h.proc.rpc._pending_agent_calls) == 0
+    assert h.errors == []
+    sub.unsubscribe()

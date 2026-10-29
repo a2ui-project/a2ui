@@ -834,6 +834,7 @@ public final class MessageProcessor: ObservableObject {
       return
     }
     surfaceGroupModel.removeSurface(id: op.surfaceID)
+    rpcHandler.cancelPendingCalls(forSurfaceID: op.surfaceID)
   }
 
   private func validateComponentsBatch(
@@ -1186,10 +1187,10 @@ public final class MessageProcessor: ObservableObject {
       task.cancel()
     }
     activeRPCTasks.removeAll()
-    rpcHandler.disposeAllPendingCalls()
     for surfaceID in Array(surfaceGroupModel.surfacesMap.keys) {
       surfaceGroupModel.removeSurface(id: surfaceID)
     }
+    rpcHandler.disposeAllPendingCalls()
   }
 
   private func resolveRPCDataContext(surfaceID: String?) -> (DataContext?, String?) {

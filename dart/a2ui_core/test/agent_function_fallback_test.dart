@@ -252,6 +252,57 @@ void main() {
       expect(clientErrors, hasLength(1));
     });
 
+    test(
+        'synchronous failure of a nested argument stops the enclosing call '
+        'from running or calling the agent', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final errors = <A2uiExpressionError>[];
+      final DataContext context = ComponentContext(
+        surface,
+        ComponentModel('root', 'Text', {}),
+        onError: errors.add,
+      ).dataContext;
+      expect(
+        context.resolveDynamicValue({
+          '@call': 'outer',
+          'args': {
+            'x': {
+              '@call': 'upper',
+              'args': {'value': 1},
+            },
+          },
+        }),
+        isNull,
+      );
+      final ReadonlySignal<Object?> sig = context.resolveSignal({
+        '@call': 'upper',
+        'args': {
+          'value': {'@call': 'gated', 'args': <String, Object?>{}},
+        },
+      });
+      expect(sig.value, isNull);
+      expect(
+        await context.evaluateFunctionCall({
+          '@call': 'outer',
+          'args': {
+            'x': {
+              '@call': 'upper',
+              'args': {'value': 1},
+            },
+          },
+        }),
+        isNull,
+      );
+      expect(agentCalls, isEmpty);
+      await _flush();
+      expect(errors, hasLength(3));
+      expect(errors.map((e) => e.expression).toList(), [
+        'upper',
+        'gated',
+        'upper',
+      ]);
+    });
+
     test('a local function waits for a pending agent argument', () async {
       final SurfaceModel<ComponentApi> surface = makeSurface();
       final DataContext context =

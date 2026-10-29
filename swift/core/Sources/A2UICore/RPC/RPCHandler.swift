@@ -24,6 +24,7 @@ import OrderedJSON
 public final class RPCHandler {
 
   private struct PendingCall {
+    let surfaceID: String
     let continuation: CheckedContinuation<JSONValue, any Error>
     let timeoutTask: Task<Void, Never>?
   }
@@ -275,6 +276,7 @@ public final class RPCHandler {
         }
 
         self.pendingCalls[callID] = PendingCall(
+          surfaceID: surfaceID,
           continuation: continuation,
           timeoutTask: timeoutTask
         )
@@ -310,6 +312,15 @@ public final class RPCHandler {
       pending.continuation.resume(returning: value)
     } else {
       pending.continuation.resume(returning: .null)
+    }
+  }
+
+  /// Cancels all active pending calls for a specific surface, throwing `FunctionError.cancelled`.
+  public func cancelPendingCalls(forSurfaceID surfaceID: String) {
+    for (callID, pending) in pendingCalls where pending.surfaceID == surfaceID {
+      pendingCalls.removeValue(forKey: callID)
+      pending.timeoutTask?.cancel()
+      pending.continuation.resume(throwing: FunctionError.cancelled(callID: callID))
     }
   }
 

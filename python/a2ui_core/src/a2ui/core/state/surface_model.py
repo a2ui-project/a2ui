@@ -126,6 +126,12 @@ class SurfaceModel:
         self.agent_function_caller: AgentFunctionCaller | None = None
         # Agent function calls awaiting a response, keyed by call.
         self._in_flight_agent_calls: dict[str, asyncio.Future[Any]] = {}
+        self._disposed = False
+
+    @property
+    def disposed(self) -> bool:
+        """Whether this surface has been disposed."""
+        return self._disposed
 
     @property
     def catalog(self) -> CatalogApi | None:
@@ -275,6 +281,8 @@ class SurfaceModel:
 
     def dispose(self) -> None:
         """Disposes of the surface and its resources."""
+        self._disposed = True
+        self.agent_function_caller = None
         self._in_flight_agent_calls.clear()
         if hasattr(self.data_model, "dispose") and callable(self.data_model.dispose):
             try:
