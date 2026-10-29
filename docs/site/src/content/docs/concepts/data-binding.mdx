@@ -25,6 +25,7 @@ When the client receives an `updateDataModel` message, it applies **upsert seman
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
+
 ```json
 [
   {
@@ -32,7 +33,7 @@ When the client receives an `updateDataModel` message, it applies **upsert seman
     "updateDataModel": {
       "surfaceId": "checkout",
       "path": "/invoice/total",
-      "value": 310.00
+      "value": 310.0
     }
   },
   {
@@ -45,8 +46,10 @@ When the client receives an `updateDataModel` message, it applies **upsert seman
   }
 ]
 ```
+
   </TabItem>
   <TabItem label="v0.9.1 (Current)">
+
 ```json
 [
   {
@@ -54,7 +57,7 @@ When the client receives an `updateDataModel` message, it applies **upsert seman
     "updateDataModel": {
       "surfaceId": "checkout",
       "path": "/invoice/total",
-      "value": 310.00
+      "value": 310.0
     }
   },
   {
@@ -66,6 +69,7 @@ When the client receives an `updateDataModel` message, it applies **upsert seman
   }
 ]
 ```
+
   </TabItem>
 </Tabs>
 
@@ -83,19 +87,25 @@ When the user clicks a submit `Button`, the button's `action.event.context` reso
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
+
 ```json
 [
   {
     "id": "emailInput",
     "component": "TextField",
     "label": "Guest Email",
-    "value": { "@path": "/reservation/guestEmail" }
+    "value": {"@path": "/reservation/email"}
   },
   {
     "id": "optInCheck",
     "component": "CheckBox",
     "label": "Send SMS flight alerts",
-    "value": { "@path": "/reservation/smsAlerts" }
+    "value": {"@path": "/reservation/smsAlerts"}
+  },
+  {
+    "id": "confirmLabel",
+    "component": "Text",
+    "text": "Confirm Reservation"
   },
   {
     "id": "confirmBtn",
@@ -105,29 +115,36 @@ When the user clicks a submit `Button`, the button's `action.event.context` reso
       "event": {
         "name": "confirm_reservation",
         "context": {
-          "email": { "@path": "/reservation/guestEmail" },
-          "smsAlerts": { "@path": "/reservation/smsAlerts" }
+          "email": {"@path": "/reservation/email"},
+          "smsAlerts": {"@path": "/reservation/smsAlerts"}
         }
       }
     }
   }
 ]
 ```
+
   </TabItem>
   <TabItem label="v0.9.1 (Current)">
+
 ```json
 [
   {
     "id": "emailInput",
     "component": "TextField",
     "label": "Guest Email",
-    "value": { "path": "/reservation/guestEmail" }
+    "value": {"path": "/reservation/email"}
   },
   {
     "id": "optInCheck",
     "component": "CheckBox",
     "label": "Send SMS flight alerts",
-    "value": { "path": "/reservation/smsAlerts" }
+    "value": {"path": "/reservation/smsAlerts"}
+  },
+  {
+    "id": "confirmLabel",
+    "component": "Text",
+    "text": "Confirm Reservation"
   },
   {
     "id": "confirmBtn",
@@ -137,14 +154,15 @@ When the user clicks a submit `Button`, the button's `action.event.context` reso
       "event": {
         "name": "confirm_reservation",
         "context": {
-          "email": { "path": "/reservation/guestEmail" },
-          "smsAlerts": { "path": "/reservation/smsAlerts" }
+          "email": {"path": "/reservation/email"},
+          "smsAlerts": {"path": "/reservation/smsAlerts"}
         }
       }
     }
   }
 ]
 ```
+
   </TabItem>
 </Tabs>
 
@@ -158,6 +176,7 @@ For combining text with dynamic paths or nested function calls, use the Basic Ca
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
+
 ```json
 [
   {
@@ -166,8 +185,8 @@ For combining text with dynamic paths or nested function calls, use the Basic Ca
     "text": {
       "@call": "formatCurrency",
       "args": {
-        "value": { "@path": "/invoice/total" },
-        "currency": { "@path": "/invoice/currency" }
+        "value": {"@path": "/invoice/total"},
+        "currency": {"@path": "/invoice/currency"}
       }
     }
   },
@@ -177,14 +196,16 @@ For combining text with dynamic paths or nested function calls, use the Basic Ca
     "text": {
       "@call": "formatString",
       "args": {
-        "value": "Booking for ${/reservation/guestEmail} — Total: ${formatCurrency(value: ${/invoice/total}, currency: 'USD')}"
+        "value": "Booking for ${/reservation/email} — Total: ${formatCurrency(value: ${/invoice/total}, currency: 'USD')}"
       }
     }
   }
 ]
 ```
+
   </TabItem>
   <TabItem label="v0.9.1 (Current)">
+
 ```json
 [
   {
@@ -193,8 +214,8 @@ For combining text with dynamic paths or nested function calls, use the Basic Ca
     "text": {
       "call": "formatCurrency",
       "args": {
-        "value": { "path": "/invoice/total" },
-        "currency": { "path": "/invoice/currency" }
+        "value": {"path": "/invoice/total"},
+        "currency": {"path": "/invoice/currency"}
       }
     }
   },
@@ -204,12 +225,13 @@ For combining text with dynamic paths or nested function calls, use the Basic Ca
     "text": {
       "call": "formatString",
       "args": {
-        "value": "Booking for ${/reservation/guestEmail} — Total: ${formatCurrency(value: ${/invoice/total}, currency: 'USD')}"
+        "value": "Booking for ${/reservation/email} — Total: ${formatCurrency(value: ${/invoice/total}, currency: 'USD')}"
       }
     }
   }
 ]
 ```
+
   </TabItem>
 </Tabs>
 
@@ -217,12 +239,13 @@ For combining text with dynamic paths or nested function calls, use the Basic Ca
 
 ### Pattern 3: Local Control-to-Control Synchronization
 
-Because the `DataModel` is backed by reactive signals on the client, two or more components bound to the same JSON Pointer stay synchronized automatically at 60fps with zero network traffic.
+Because the `DataModel` is backed by reactive signals on the client, two or more components bound to the same JSON Pointer stay synchronized locally without network round-trips.
 
 For example, binding both a `Slider` and a `Text` display to `/reservation/guests` updates the label on every drag frame:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
+
 ```json
 [
   {
@@ -231,7 +254,7 @@ For example, binding both a `Slider` and a `Text` display to `/reservation/guest
     "label": "Number of Guests",
     "min": 1,
     "max": 8,
-    "value": { "@path": "/reservation/guests" }
+    "value": {"@path": "/reservation/guests"}
   },
   {
     "id": "guestBadge",
@@ -239,25 +262,33 @@ For example, binding both a `Slider` and a `Text` display to `/reservation/guest
     "text": {
       "@call": "pluralize",
       "args": {
-        "value": { "@path": "/reservation/guests" },
+        "value": {"@path": "/reservation/guests"},
         "one": "1 guest selected",
-        "other": "${/reservation/guests} guests selected"
+        "other": {
+          "@call": "formatString",
+          "args": {
+            "template": "{} guests selected",
+            "values": [{"@path": "/reservation/guests"}]
+          }
+        }
       }
     }
   }
 ]
 ```
+
   </TabItem>
   <TabItem label="v0.9.1 (Current)">
+
 ```json
 [
   {
     "id": "guestSlider",
     "component": "Slider",
     "label": "Number of Guests",
-    "minValue": 1,
-    "maxValue": 8,
-    "value": { "path": "/reservation/guests" }
+    "min": 1,
+    "max": 8,
+    "value": {"path": "/reservation/guests"}
   },
   {
     "id": "guestBadge",
@@ -265,14 +296,21 @@ For example, binding both a `Slider` and a `Text` display to `/reservation/guest
     "text": {
       "call": "pluralize",
       "args": {
-        "value": { "path": "/reservation/guests" },
+        "value": {"path": "/reservation/guests"},
         "one": "1 guest selected",
-        "other": "${/reservation/guests} guests selected"
+        "other": {
+          "call": "formatString",
+          "args": {
+            "template": "{} guests selected",
+            "values": [{"path": "/reservation/guests"}]
+          }
+        }
       }
     }
   }
 ]
 ```
+
   </TabItem>
 </Tabs>
 
@@ -293,7 +331,7 @@ When a container uses a template object, the Core SDK creates a **scoped `DataCo
 
 - **Relative JSON Pointers** (paths **without** a leading `/`, such as `{"@path": "title"}` or `{"@path": "price"}`) resolve relative to the current array item (`/addons/0/title`, `/addons/1/title`, etc.).
 - **Absolute JSON Pointers** (paths **with** a leading `/`, such as `{"@path": "/invoice/currency"}`) continue to resolve from the root of the surface `DataModel`.
-- **Current Element Index (`@index`)**: In v1.0, calling the built-in system function `{"@call": "@index"}` returns the 0-based integer index of the current template instance. For nested list templates, `@index` accepts an optional `depth` parameter (`{"@call": "@index", "args": {"depth": 1}}`) to read enclosing loop indices.
+- **Current Element Index (`@index`)**: In v1.0, calling the built-in system function `{"@call": "@index"}` returns the 0-based integer index of the current template instance. It resolves to the innermost enclosing template scope, and accepts an optional `offset` parameter (`{"@call": "@index", "args": {"offset": 1}}`) for 1-based numbering.
 
 <CollectionScopeDiagram />
 
@@ -322,38 +360,55 @@ Whether you are pre-populating state on the agent or inspecting reactive binding
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
+
 ```typescript
-import { MessageProcessor } from '@a2ui/web_core';
-import { travelCatalog } from './catalog.js';
+import {MessageProcessor} from '@a2ui/web_core';
+import {travelCatalog} from './catalog.js';
 
 const processor = new MessageProcessor([travelCatalog]);
 
-// Process an incoming updateDataModel message
+// 1. Process createSurface and updateDataModel messages
 processor.processMessages([
-{
-version: '1.0',
-updateDataModel: {
-surfaceId: 'checkout',
-path: '/invoice/total',
-value: 285.0,
-},
-},
+  {
+    version: '1.0',
+    createSurface: {
+      surfaceId: 'checkout',
+      catalogId: 'https://example.com/catalogs/travel/v1/catalog.json',
+    },
+  },
+  {
+    version: '1.0',
+    updateDataModel: {
+      surfaceId: 'checkout',
+      path: '/invoice/total',
+      value: 285.0,
+    },
+  },
 ]);
 
-// Read or mutate the surface's reactive DataModel directly on the client
+// 2. Read or mutate the surface's reactive DataModel directly on the client
 const surface = processor.model.getSurface('checkout');
-const totalSignal = surface?.dataModel.get('/invoice/total');
+const currentTotal = surface?.dataModel.get('/invoice/total');
+const totalSignal = surface?.dataModel.getSignal('/invoice/total');
+```
 
-````
   </TabItem>
   <TabItem label="Python">
+
 ```python
 from a2ui.core import Catalog, MessageProcessor
 
 processor = MessageProcessor(catalogs=[travel_catalog])
 
-# Apply an updateDataModel message on the server or in a state validator
+# Apply createSurface and updateDataModel messages
 processor.process_messages([
+    {
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "checkout",
+            "catalogId": "https://example.com/catalogs/travel/v1/catalog.json",
+        },
+    },
     {
         "version": "1.0",
         "updateDataModel": {
@@ -361,38 +416,47 @@ processor.process_messages([
             "path": "/invoice/total",
             "value": 285.0,
         },
-    }
+    },
 ])
 
-surface = processor.get_surface("checkout")
+surface = processor.model.get_surface("checkout")
 current_total = surface.data_model.get("/invoice/total")
-````
+```
 
   </TabItem>
   <TabItem label="Dart">
+
 ```dart
 import 'package:a2ui_core/a2ui_core.dart';
 
 final processor = MessageProcessor(catalogs: [travelCatalog]);
 
-// Process an incoming updateDataModel payload
+// Process createSurface and updateDataModel payloads
 processor.processMessages([
-{
-'version': '1.0',
-'updateDataModel': {
-'surfaceId': 'checkout',
-'path': '/invoice/total',
-'value': 285.0,
-},
-},
+  {
+    'version': '1.0',
+    'createSurface': {
+      'surfaceId': 'checkout',
+      'catalogId': 'https://example.com/catalogs/travel/v1/catalog.json',
+    },
+  },
+  {
+    'version': '1.0',
+    'updateDataModel': {
+      'surfaceId': 'checkout',
+      'path': '/invoice/total',
+      'value': 285.0,
+    },
+  },
 ]);
 
-final surface = processor.getSurface('checkout');
+final surface = processor.model.getSurface('checkout');
 final currentTotal = surface?.dataModel.get('/invoice/total');
+```
 
-````
   </TabItem>
   <TabItem label="Swift">
+
 ```swift
 import A2UICore
 
@@ -401,17 +465,24 @@ let processor = MessageProcessor(catalogs: [travelCatalog])
 try processor.processMessages([
   [
     "version": "1.0",
+    "createSurface": [
+      "surfaceId": "checkout",
+      "catalogId": "https://example.com/catalogs/travel/v1/catalog.json",
+    ],
+  ],
+  [
+    "version": "1.0",
     "updateDataModel": [
       "surfaceId": "checkout",
       "path": "/invoice/total",
       "value": 285.0,
     ],
-  ]
+  ],
 ])
 
-let surface = processor.surface(forId: "checkout")
-let currentTotal = surface?.dataModel.get(path: "/invoice/total")
-````
+let surface = processor.surfaceGroupModel["checkout"]
+let currentTotal = surface?.dataModel.get("/invoice/total")
+```
 
   </TabItem>
 </Tabs>

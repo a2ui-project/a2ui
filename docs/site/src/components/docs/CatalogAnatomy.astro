@@ -118,9 +118,6 @@
             <span class="ca-rule-tag">
               <strong>allowedParents:</strong> <code>["Column", "List"]</code>
             </span>
-            <span class="ca-rule-tag">
-              <strong>checks:</strong> <code>Checkable</code>
-            </span>
           </div>
         </div>
 
@@ -176,19 +173,19 @@
             </div>
           </div>
 
-          <!-- Function 2: Remote Agent Function -->
+          <!-- Function 2: Agent-Callable Renderer Function -->
           <div class="ca-fn">
             <div class="ca-fn__top">
               <code class="ca-fn__sig">holdSeatInventory(flight, seat)</code>
               <span class="ca-chip ca-chip--blue">returnType: "boolean"</span>
             </div>
-            <p class="ca-fn__desc">Invoked by the renderer via <code>callAgentFunction</code> to lock inventory on the server.</p>
+            <p class="ca-fn__desc">Registered on the client and invoked by the agent via <code>callRendererFunction</code> to lock local state.</p>
             <div class="ca-fn__badges">
               <span class="ca-caller ca-caller--blue">
                 <span class="ca-dot ca-dot--blue"></span>
                 allowedCallers: "agentOnly"
               </span>
-              <span class="ca-latency">Server RPC</span>
+              <span class="ca-latency">Client execution (agent RPC)</span>
             </div>
           </div>
         </div>
@@ -205,7 +202,7 @@
             <code class="ca-panel__key">"instructions"</code>
           </div>
           <p class="ca-instructions__sub">
-            Markdown layout rules and domain examples embedded in the catalog. Injected into the LLM system prompt by <code>A2uiRequestProcessor</code>.
+            Markdown layout rules and domain examples embedded in the catalog. Injected into the LLM system prompt by <code>A2uiGenerator</code>.
           </p>
         </div>
       </div>
@@ -495,7 +492,7 @@
   /* Two-Column Grid */
   .ca-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
     gap: 1.1rem;
     padding: 1.15rem 1.25rem;
   }
@@ -508,6 +505,7 @@
     border-radius: 10px;
     background: rgba(15, 23, 42, 0.55);
     border: 1px solid #1e293b;
+    min-width: 0;
   }
 
   :root[data-theme='light'] .ca-panel {
@@ -925,30 +923,6 @@
     border-color: #99f6e4;
   }
 
-  .ca-chip--purple {
-    background: rgba(168, 85, 247, 0.14);
-    color: #c084fc;
-    border: 1px solid rgba(168, 85, 247, 0.3);
-  }
-
-  :root[data-theme='light'] .ca-chip--purple {
-    background: #f3e8ff;
-    color: #6b21a8;
-    border-color: #d8b4fe;
-  }
-
-  .ca-chip--slate {
-    background: rgba(148, 163, 184, 0.14);
-    color: #cbd5e1;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-  }
-
-  :root[data-theme='light'] .ca-chip--slate {
-    background: #f1f5f9;
-    color: #334155;
-    border-color: #cbd5e1;
-  }
-
   .ca-chip--blue {
     background: rgba(56, 189, 248, 0.14);
     color: #38bdf8;
@@ -983,18 +957,6 @@
     border-color: #99f6e4;
   }
 
-  .ca-caller--amber {
-    background: rgba(245, 158, 11, 0.1);
-    color: #fbbf24;
-    border: 1px solid rgba(245, 158, 11, 0.28);
-  }
-
-  :root[data-theme='light'] .ca-caller--amber {
-    background: #fef3c7;
-    color: #92400e;
-    border-color: #fcd34d;
-  }
-
   .ca-caller--blue {
     background: rgba(56, 189, 248, 0.1);
     color: #7dd3fc;
@@ -1017,18 +979,18 @@
     background: #14b8a6;
   }
 
-  .ca-dot--amber {
-    background: #f59e0b;
-  }
-
   .ca-dot--blue {
     background: #38bdf8;
   }
 
   .ca-latency {
     font-size: 0.68rem;
-    color: #64748b;
+    color: #94a3b8;
     font-weight: 600;
+  }
+
+  :root[data-theme='light'] .ca-latency {
+    color: #475569;
   }
 
   /* Bottom Instructions Strip */
@@ -1123,6 +1085,13 @@
     .ca-instructions__code {
       max-width: 100%;
       width: 100%;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .ca-prop {
+      grid-template-columns: 1fr;
+      gap: 0.25rem;
     }
   }
 </style>

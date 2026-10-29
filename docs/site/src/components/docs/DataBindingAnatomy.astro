@@ -25,16 +25,12 @@
     </div>
     <div class="db-banner__pills">
       <span class="db-pill db-pill--amber">
-        <span class="db-dot db-dot--amber"></span>
-        2-Way Mutation (60fps Local)
+        <span class="db-dot db-dot--amber" aria-hidden="true"></span>
+        2-Way Input (<code>@path</code>)
       </span>
       <span class="db-pill db-pill--teal">
-        <span class="db-dot db-dot--teal"></span>
+        <span class="db-dot db-dot--teal" aria-hidden="true"></span>
         1-Way Computed (<code>@call</code>)
-      </span>
-      <span class="db-pill db-pill--purple">
-        <span class="db-dot db-dot--purple"></span>
-        Collection Scope (<code>@index</code>)
       </span>
     </div>
   </div>
@@ -84,18 +80,6 @@
           <div class="db-json__row">
             <code class="db-pointer">/invoice/currency</code>
             <span class="db-val db-val--str">"USD"</span>
-          </div>
-        </div>
-
-        <!-- Group 3: Addons Collection -->
-        <div class="db-json__group db-json__group--purple">
-          <div class="db-json__group-head">
-            <span class="db-json__key">"/addons/*"</span>
-            <span class="db-tag db-tag--purple">Array</span>
-          </div>
-          <div class="db-json__row">
-            <code class="db-pointer">/addons/0</code>
-            <span class="db-val db-val--obj">&#123; title: "Late Checkout", price: 45 &#125;</span>
           </div>
         </div>
       </div>
@@ -347,7 +331,7 @@
   /* 2-Column Stage: 38% Left (State), 62% Right (UI) */
   .db-stage {
     display: grid;
-    grid-template-columns: 0.72fr 1.28fr;
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
     gap: 0.95rem;
     padding: 0.95rem 1.15rem;
     align-items: stretch;
@@ -361,6 +345,7 @@
     border-radius: 9px;
     background: rgba(15, 23, 42, 0.55);
     border: 1px solid #1e293b;
+    min-width: 0;
   }
 
   :root[data-theme='light'] .db-col {
@@ -778,7 +763,7 @@
   }
 
   .db-slider-mock__fill {
-    width: 60%;
+    width: 29%;
     height: 100%;
     border-radius: 999px;
     background: #f59e0b;
@@ -787,7 +772,7 @@
   .db-slider-mock__thumb {
     position: absolute;
     top: -3px;
-    left: calc(60% - 6px);
+    left: calc(29% - 6px);
     width: 12px;
     height: 12px;
     border-radius: 50%;
@@ -931,6 +916,20 @@
 
     .db-sync-strip__cards {
       grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .db-json__row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.15rem;
+    }
+
+    .db-widget__meta {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.25rem;
     }
   }
 </style>
