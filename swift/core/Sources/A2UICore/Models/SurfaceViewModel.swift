@@ -72,7 +72,7 @@ public final class SurfaceViewModel: ObservableObject {
   /// ``MessageProcessor`` sets this on each v1.0 surface while it has an `outboundListener`.
   public var agentFunctionCaller: AgentFunctionCaller? {
     didSet {
-      guard (oldValue == nil) != (agentFunctionCaller == nil) else { return }
+      guard !isDisposed, (oldValue == nil) != (agentFunctionCaller == nil) else { return }
       nodeResolver.setNeedsFullResolve()
       if componentsModel.components["root"] != nil {
         rebuildTree()
@@ -92,6 +92,9 @@ public final class SurfaceViewModel: ObservableObject {
 
   /// The calls routed to the agent from bindings, checks and actions, and their results.
   let agentCallCache = AgentCallCache()
+
+  /// Whether ``dispose()`` was called.
+  private var isDisposed = false
 
   private var cancellables = Set<AnyCancellable>()
 
@@ -271,6 +274,7 @@ public final class SurfaceViewModel: ObservableObject {
     for call: AgentFunctionCall,
     isRequestedByNode: Bool
   ) -> JSONValue? {
+    guard !isDisposed else { return nil }
     switch agentCallCache[call] {
     case .answered(let value):
       return value
@@ -327,6 +331,7 @@ public final class SurfaceViewModel: ObservableObject {
   /// An error is reported as an `EXPRESSION_ERROR`, unless only nodes asked for the call and none
   /// of them makes it anymore, such as after the component was removed.
   private func settleAgentCall(_ call: AgentFunctionCall, result: Result<JSONValue, any Error>) {
+    guard !isDisposed else { return }
     switch result {
     case .success(let value):
       agentCallCache.answer(call, with: value)
@@ -370,6 +375,18 @@ public final class SurfaceViewModel: ObservableObject {
     if self.rootNode?.box !== newRoot?.box {
       self.rootNode = newRoot
     }
+  }
+
+  /// Disposes the surface, cancelling subscriptions and clearing in-flight agent calls.
+  ///
+  /// Agent calls that settle afterwards are ignored, and their errors are not reported.
+  public func dispose() {
+    isDisposed = true
+    cancellables.removeAll()
+    nodeResolver.dispose()
+    agentFunctionCaller = nil
+    inFlightAgentCalls.removeAll()
+    agentCallCache.removeAll()
   }
 }
 

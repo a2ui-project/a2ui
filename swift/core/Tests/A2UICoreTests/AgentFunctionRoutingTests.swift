@@ -581,6 +581,29 @@ struct AgentFunctionRoutingTests {
     #expect(outbound.agentCalls[1].callFunction.call == "mintToken")
   }
 
+  @Test func stopsActionFunctionCallWhenNestedArgumentFailsSynchronously() async throws {
+    let (processor, surface) = try makeProcessor()
+    try process(processor, Self.setSymbol("42"))
+    try render(
+      processor,
+      """
+      {"id": "root", "component": "Text",
+       "onClick": {"functionCall": {"@call": "submitOrder",
+                                    "args": {"price": {"@call": "quote",
+                                                       "args": {"symbol": {"@path": "/symbol"}}},
+                                             "token": {"@call": "mintToken"}}}}}
+      """
+    )
+    let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
+    action()
+    await waitUntil { outbound.agentCalls.count == 1 }
+    try respond(processor, 0, #""value": "t-1""#)
+    await settle()
+    #expect(outbound.agentCalls.map(\.callFunction.call) == ["mintToken"])
+    #expect(errors.count == 1)
+    #expect(errors.first?.expression == "quote")
+  }
+
   @Test func sendsCheckRuleFunctionCall() async throws {
     let (processor, surface) = try makeProcessor()
     try render(
@@ -754,5 +777,90 @@ struct AgentFunctionRoutingTests {
     #expect(outbound.agentCalls.isEmpty)
     #expect(errors.count == 1)
     #expect(errors.first?.message.contains("Function not found") == true)
+  }
+
+  @Test func synchronousNestedArgumentFailureStopsEnclosingCalls() async throws {
+    let (_, surface) = try makeProcessor()
+    let dataContext = context(surface)
+
+    let localValue = dataContext.resolveDynamicValue([
+      "@call": "upper",
+      "args": [
+        "value": ["@call": "quote", "args": ["symbol": 123]]
+      ],
+    ])
+    #expect(localValue == .null)
+    await settle()
+    #expect(outbound.agentCalls.isEmpty)
+    #expect(errors.count == 1)
+    #expect(errors.first?.expression == "quote")
+
+    handler.capturedErrors.removeAll()
+    let agentValue = dataContext.resolveDynamicValue([
+      "@call": "outerAgent",
+      "args": [
+        "nested": ["@call": "quote", "args": ["symbol": 123]]
+      ],
+    ])
+    #expect(agentValue == .null)
+    await settle()
+    #expect(outbound.agentCalls.isEmpty)
+    #expect(errors.count == 1)
+    #expect(errors.first?.expression == "quote")
+  }
+
+  @Test func failedNestedAgentCallStaysFailedAfterSiblingDataUpdate() async throws {
+    let (processor, surface) = try makeProcessor()
+    try process(
+      processor,
+      """
+      {"version": "1.0",
+       "updateDataModel": {"surfaceId": "s1", "path": "/prefix", "value": "A"}}
+      """
+    )
+    try render(
+      processor,
+      """
+      {"id": "root", "component": "Text",
+       "text": {"@call": "upper",
+                "args": {"value": {"@call": "fetchGreeting"},
+                         "extra": {"@path": "/prefix"}}}}
+      """
+    )
+    await waitUntil { outbound.agentCalls.count == 1 }
+    try respond(
+      processor,
+      0,
+      #""error": {"code": "EXECUTION_ERROR", "message": "Fetch failed"}"#
+    )
+    await waitUntil { !errors.isEmpty }
+    #expect(errors.count == 1)
+    #expect(errors.first?.expression == "fetchGreeting")
+    #expect(text(surface) == nil)
+
+    try process(
+      processor,
+      """
+      {"version": "1.0",
+       "updateDataModel": {"surfaceId": "s1", "path": "/prefix", "value": "B"}}
+      """
+    )
+    await settle()
+    #expect(outbound.agentCalls.count == 1)
+    #expect(errors.count == 1)
+    #expect(text(surface) == nil)
+  }
+
+  @Test func deleteSurfaceCancelsPendingAgentCallsWithoutSurfaceErrors() async throws {
+    let (processor, _) = try makeProcessor()
+    try render(processor, Self.fetchFxRateText)
+    await waitUntil { outbound.agentCalls.count == 1 }
+
+    try process(
+      processor,
+      #"{"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}"#
+    )
+    await settle()
+    #expect(errors.isEmpty)
   }
 }

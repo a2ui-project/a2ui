@@ -88,6 +88,17 @@ final class AgentCallCache {
     states[call] = .failed
   }
 
+  /// Forgets that `call` failed, so that it is sent again the next time it is made.
+  func forgetFailure(_ call: AgentFunctionCall) {
+    guard case .failed = states[call] else { return }
+    states.removeValue(forKey: call)
+  }
+
+  /// Forgets every call. Calls still pending settle into nothing.
+  func removeAll() {
+    states.removeAll()
+  }
+
   /// Drops the oldest settled call when the cache is full.
   private func evictIfFull() {
     guard states.count >= Self.maximumEntryCount else { return }

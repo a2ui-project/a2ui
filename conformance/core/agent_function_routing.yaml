@@ -561,3 +561,100 @@
         - "@call": "confirmOrder"
           catalogId: "conformance/routing"
           args: {}
+
+- name: test_agent_routing_failed_agent_argument_stops_enclosing_function
+  description: >-
+    Verifies when an agent call nested in the arguments of a local function or an outer agent function fails, only the inner error is reported, the enclosing function does not run or send an outbound call, and its value stays null.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "formatString"
+        args:
+          value:
+            "@call": "fetchGreeting"
+            args: {}
+      expectOutbound:
+        - "@call": "fetchGreeting"
+          catalogId: "conformance/routing"
+          args: {}
+      expectValues: [null]
+    - respond:
+        call: 0
+        error:
+          code: "EXECUTION_ERROR"
+          message: "Greeting service unavailable"
+      expectValues: [null]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "Greeting service unavailable"
+    - evaluate:
+        "@call": "outerAgent"
+        args:
+          nested:
+            "@call": "fetchFxRate"
+            args:
+              base: "EUR"
+      expectOutbound:
+        - "@call": "fetchFxRate"
+          catalogId: "conformance/routing"
+          args:
+            base: "EUR"
+      expectValues: [null, null]
+    - respond:
+        call: 1
+        error:
+          code: "EXECUTION_ERROR"
+          message: "Rate feed offline"
+      expectValues: [null, null]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "Rate feed offline"
+
+- name: test_agent_routing_failed_schema_only_argument_stops_enclosing_function
+  description: >-
+    Verifies when a schema-only function nested in the arguments of a local function or an outer agent function fails argument validation synchronously, only the inner error is reported, the enclosing function does not run or send an outbound call, and its value stays null.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+      agentFunctions:
+        quote:
+          args:
+            type: object
+            properties:
+              symbol:
+                type: string
+            required: [symbol]
+            additionalProperties: false
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "formatString"
+        args:
+          value:
+            "@call": "quote"
+            args:
+              symbol: 42
+      expectValues: [null]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "Validation failed for function 'quote'"
+    - evaluate:
+        "@call": "outerAgent"
+        args:
+          nested:
+            "@call": "quote"
+            args:
+              symbol: 42
+      expectValues: [null, null]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "Validation failed for function 'quote'"

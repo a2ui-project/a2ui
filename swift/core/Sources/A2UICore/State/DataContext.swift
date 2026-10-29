@@ -34,19 +34,24 @@ public final class DataContext {
   /// A reference to the function handler to evaluate dynamic function calls.
   public weak var functionHandler: FunctionHandler?
 
-  /// The number of calls routed to the agent that have no result: they are still awaiting the
-  /// agent's response, or failed.
+  /// The number of function calls evaluated that have no value: calls routed to the agent that
+  /// are still awaiting its response or failed, and calls that failed with a reported error.
   ///
   /// A function call whose arguments include such a call is not evaluated or sent: its value is
   /// pending too, like the value of the nested call. A failed nested call has been reported
   /// already, so the enclosing call reports nothing.
-  private var unsettledAgentCallCount = 0
+  private var unsettledCallCount = 0
 
   /// Whether a function call was not evaluated or sent because one of its arguments includes a
-  /// call routed to the agent that has no result yet (see `unsettledAgentCallCount`).
+  /// call that has no value (see `unsettledCallCount`).
   ///
   /// ``NodeResolver`` runs an action's function call again once those calls have settled.
   private(set) var hasDeferredFunctionCall = false
+
+  /// Whether a function call failed with an error that was reported.
+  ///
+  /// ``NodeResolver`` doesn't run an action's function call again after such a failure.
+  private(set) var hasFailedFunctionCall = false
 
   /// The outcome of looking up the function that a v1.0 call runs.
   private enum V10FunctionTarget {
@@ -165,6 +170,7 @@ public final class DataContext {
     if atLeastV10 {
       switch resolveV10Function(name: callName, dict: dict) {
       case nil:
+        recordFailedCall()
         return .null
       case .local(let resolved):
         function = resolved
@@ -183,6 +189,7 @@ public final class DataContext {
           Self.systemFunctionNamesCatalogError(callName, catalogID: catalogID),
           functionName: callName
         )
+        recordFailedCall()
         return .null
       }
       function =
@@ -194,6 +201,7 @@ public final class DataContext {
         FunctionError.functionNotFound(callName),
         functionName: callName
       )
+      recordFailedCall()
       return .null
     }
     // Bindings, checks and actions are renderer callers. In v1.0 an agentOnly function runs
@@ -204,6 +212,7 @@ public final class DataContext {
         FunctionError.callerDisallowed(name: callName, caller: "renderer"),
         functionName: callName
       )
+      recordFailedCall()
       return .null
     }
 
@@ -215,22 +224,31 @@ public final class DataContext {
       return try function.evaluate(arguments: resolvedArguments, context: self)
     } catch {
       functionHandler?.handleFunctionError(error, functionName: callName)
+      recordFailedCall()
       return .null
     }
   }
 
+  /// Records a function call that failed with a reported error: it has no value, so a call that
+  /// takes it as an argument doesn't run.
+  private func recordFailedCall() {
+    unsettledCallCount += 1
+    hasFailedFunctionCall = true
+  }
+
   /// Resolves the arguments of a function call.
   ///
-  /// - Returns: The resolved arguments, or `nil` if an argument includes a call routed to the
-  ///   agent that has no result: it is still awaiting the agent's response, or it failed. The
-  ///   calling function's value is then pending too.
+  /// - Returns: The resolved arguments, or `nil` if an argument includes a call that has no
+  ///   value: a call routed to the agent that is still awaiting the agent's response or failed,
+  ///   or a call that failed with a reported error. The calling function's value is then pending
+  ///   too, and it reports nothing.
   private func resolveArguments(
     of callDictionary: OrderedDictionary<String, JSONValue>
   ) -> [String: JSONValue]? {
-    let unsettledBefore = unsettledAgentCallCount
+    let unsettledBefore = unsettledCallCount
     let resolvedArguments =
       callDictionary["args"]?.dictionaryValue?.mapValues { resolveDynamicValue($0) } ?? [:]
-    guard unsettledAgentCallCount == unsettledBefore else {
+    guard unsettledCallCount == unsettledBefore else {
       hasDeferredFunctionCall = true
       return nil
     }
@@ -257,6 +275,7 @@ public final class DataContext {
           FunctionError.callerDisallowed(name: callName, caller: "renderer"),
           functionName: callName
         )
+        recordFailedCall()
         return .null
       }
       guard !declaration.api.requiresUserActivation || isUserActivated else {
@@ -267,6 +286,7 @@ public final class DataContext {
           ),
           functionName: callName
         )
+        recordFailedCall()
         return .null
       }
     }
@@ -284,12 +304,13 @@ public final class DataContext {
           ),
           functionName: callName
         )
+        recordFailedCall()
         return .null
       }
     }
     let call = AgentFunctionCall(name: callName, catalogID: catalogID, args: arguments)
     guard let value = functionHandler?.agentFunctionValue(for: call) else {
-      unsettledAgentCallCount += 1
+      unsettledCallCount += 1
       return .null
     }
     return value

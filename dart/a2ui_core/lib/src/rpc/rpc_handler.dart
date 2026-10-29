@@ -169,7 +169,7 @@ class RpcHandler {
       );
     }
 
-    final pending = _PendingCall(functionCallId);
+    final pending = _PendingCall(functionCallId, surfaceId);
     _pending[functionCallId] = pending;
 
     final Duration timeout = resolved.timeout ?? defaultTimeout;
@@ -493,6 +493,24 @@ class RpcHandler {
     }
   }
 
+  /// Cancels every pending outbound call for [surfaceId] with
+  /// [RpcErrorCode.cancelled].
+  void cancelSurfaceCalls(String surfaceId) {
+    for (final functionCallId in List<String>.of(_pending.keys)) {
+      if (_pending[functionCallId]?.surfaceId == surfaceId) {
+        _settle(
+          functionCallId,
+          error: A2uiRpcError(
+            "Call '$functionCallId' was cancelled because surface "
+            "'$surfaceId' was deleted.",
+            RpcErrorCode.cancelled,
+            functionCallId: functionCallId,
+          ),
+        );
+      }
+    }
+  }
+
   /// Fails every pending call with [RpcErrorCode.cancelled], drops the
   /// listener, and makes later calls fail with [RpcErrorCode.disposed].
   /// Idempotent.
@@ -542,9 +560,10 @@ class RpcHandler {
 
 /// An outbound call awaiting its response.
 class _PendingCall {
-  _PendingCall(this.functionCallId);
+  _PendingCall(this.functionCallId, this.surfaceId);
 
   final String functionCallId;
+  final String surfaceId;
   final Completer<Object?> completer = Completer<Object?>();
   Timer? timer;
   void Function()? removeCancelListener;
