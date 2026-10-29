@@ -31,7 +31,7 @@ const OPEN = '<a2ui-json>';
 const CLOSE = '</a2ui-json>';
 const CUSTOM_ID = 'https://a2ui.org/catalogs/custom';
 const basicV09 = loadBasicCatalog('v0.9');
-const basicV10 = loadBasicCatalog('v1.0');
+const basicV10 = loadBasicCatalog('1.0');
 
 const customV10 = new InMemoryCatalogProvider(
   {
@@ -57,7 +57,7 @@ const customV10 = new InMemoryCatalogProvider(
       },
     },
   },
-  'v1.0',
+  '1.0',
 ).load();
 
 function messagesOf(parts: ResponsePart[]): Message[] {
@@ -149,19 +149,19 @@ describe('DirectJsonResponseStream', () => {
 
   it('returns the messages a failing chunk emitted from the block it fails in', () => {
     const opened = new DirectJsonParser([basicV10]).openStream();
-    const create = `{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "${basicV10.id}"}}`;
+    const create = `{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "${basicV10.id}"}}`;
 
     let error: unknown;
     try {
       opened.feed(
-        `${OPEN}[${create}, {"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Bogus"}]}}`,
+        `${OPEN}[${create}, {"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Bogus"}]}}`,
       );
     } catch (e) {
       error = e;
     }
 
     const partial = (error as {partialResults: ResponsePart[]}).partialResults;
-    expect(messagesOf(partial)).toEqual([JSON.parse(create)]);
+    expect(messagesOf(partial)).toEqual([{...JSON.parse(create), version: '1.0'}]);
     expect(opened.state.surfaceIds).toEqual(['main']);
   });
 
@@ -184,10 +184,10 @@ describe('DirectJsonResponseStream', () => {
 
     const messages = stream(parser, [
       OPEN + '[',
-      `{"version": "v1.0", "createSurface": {"surfaceId": "surface-1", "catalogId": "${basicV10.id}"}}, `,
-      `{"version": "v1.0", "createSurface": {"surfaceId": "surface-2", "catalogId": "${CUSTOM_ID}"}}, `,
-      '{"version": "v1.0", "updateComponents": {"surfaceId": "surface-1", "components": [{"id": "root", "component": "Text", "text": "Surface 1"}]}}, ',
-      '{"version": "v1.0", "updateComponents": {"surfaceId": "surface-2", "components": [{"id": "root", "component": "CustomCard", "child": "m1"}, ',
+      `{"version": "1.0", "createSurface": {"surfaceId": "surface-1", "catalogId": "${basicV10.id}"}}, `,
+      `{"version": "1.0", "createSurface": {"surfaceId": "surface-2", "catalogId": "${CUSTOM_ID}"}}, `,
+      '{"version": "1.0", "updateComponents": {"surfaceId": "surface-1", "components": [{"id": "root", "component": "Text", "text": "Surface 1"}]}}, ',
+      '{"version": "1.0", "updateComponents": {"surfaceId": "surface-2", "components": [{"id": "root", "component": "CustomCard", "child": "m1"}, ',
       '{"id": "m1", "component": "CustomMetric", "value": 99}]}}]' + CLOSE,
     ]);
 
@@ -207,10 +207,10 @@ describe('DirectJsonResponseStream', () => {
 
     opened.feed(
       OPEN +
-        `[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "${basicV10.id}"}}, `,
+        `[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "${basicV10.id}"}}, `,
     );
     const parts = opened.feed(
-      '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["a", "b"]}, ',
+      '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["a", "b"]}, ',
     );
     expect(componentsFor(messagesOf(parts), 'main')).toEqual([
       {id: 'root', component: 'Column', children: ['a', 'b']},
@@ -224,11 +224,11 @@ describe('DirectJsonResponseStream', () => {
 
     opened.feed(
       OPEN +
-        `[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "${basicV10.id}"}}, `,
+        `[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "${basicV10.id}"}}, `,
     );
     expect(
       opened.feed(
-        '{"version": "v1.0", "updateComponents": {"components": [{"id": "root", "component": "Text", "text": "hi"}], ',
+        '{"version": "1.0", "updateComponents": {"components": [{"id": "root", "component": "Text", "text": "hi"}], ',
       ),
     ).toEqual([]);
 
@@ -244,24 +244,24 @@ describe('DirectJsonResponseStream', () => {
 
     const messages = stream(parser, [
       OPEN +
-        `[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "${id}"}}, ` +
-        `{"version": "v1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "openUrl", "catalogId": "${id}", "args": {"url": "https://a2ui.org"}}}}, ` +
-        `{"version": "v1.0", "agentFunctionResponse": {"functionCallId": "c2", "value": {"success": true}}}, ` +
-        '{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]' +
+        `[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "${id}"}}, ` +
+        `{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "openUrl", "catalogId": "${id}", "args": {"url": "https://a2ui.org"}}}}, ` +
+        `{"version": "1.0", "agentFunctionResponse": {"functionCallId": "c2", "value": {"success": true}}}, ` +
+        '{"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}]' +
         CLOSE,
     ]);
 
     expect(messages).toEqual([
-      {version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: id}},
+      {version: '1.0', createSurface: {surfaceId: 's1', catalogId: id}},
       {
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'c1',
           callFunction: {'@call': 'openUrl', catalogId: id, args: {url: 'https://a2ui.org'}},
         },
       },
-      {version: 'v1.0', agentFunctionResponse: {functionCallId: 'c2', value: {success: true}}},
-      {version: 'v1.0', deleteSurface: {surfaceId: 's1'}},
+      {version: '1.0', agentFunctionResponse: {functionCallId: 'c2', value: {success: true}}},
+      {version: '1.0', deleteSurface: {surfaceId: 's1'}},
     ]);
   });
 
@@ -282,19 +282,19 @@ describe('DirectJsonResponseStream', () => {
   ])('heals the cut value %s under a progressive key unless it is a URL', (value, healed) => {
     const parser = new DirectJsonParser([basicV10], {progressiveKeys: ['greeting']});
     const state = new RendererState([basicV10]);
-    state.apply({version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: basicV10.id}});
+    state.apply({version: '1.0', createSurface: {surfaceId: 's1', catalogId: basicV10.id}});
 
     const messages = stream(
       parser,
       [
         OPEN +
-          `[{"version": "v1.0", "updateDataModel": {"surfaceId": "s1", "value": {"greeting": "${value}`,
+          `[{"version": "1.0", "updateDataModel": {"surfaceId": "s1", "value": {"greeting": "${value}`,
       ],
       state,
     );
 
     const expected = {
-      version: 'v1.0',
+      version: '1.0',
       updateDataModel: {surfaceId: 's1', value: {greeting: value}},
     };
     expect(messages).toEqual(healed ? [expected] : []);
@@ -303,8 +303,8 @@ describe('DirectJsonResponseStream', () => {
   it('reads JSON a model commonly gets slightly wrong', () => {
     const parser = new DirectJsonParser([basicV10]);
     const body =
-      `[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "${basicV10.id}",},},` +
-      '{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "line\nbreak"}]}},]';
+      `[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "${basicV10.id}",},},` +
+      '{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "line\nbreak"}]}},]';
 
     const streamed = stream(parser, [OPEN + body + CLOSE]);
     const whole = messagesOf(parser.parseResponse(OPEN + body + CLOSE));
@@ -318,11 +318,11 @@ describe('DirectJsonResponseStream', () => {
   it('holds a callRendererFunction until its object closes, and the messages after it', () => {
     const parser = new DirectJsonParser([basicV10]);
     const id = basicV10.id;
-    const call = `{"version": "v1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "openUrl", "catalogId": "${id}", "args": {"url": "https://a2ui.org"}}}}`;
+    const call = `{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "openUrl", "catalogId": "${id}", "args": {"url": "https://a2ui.org"}}}}`;
     const update =
-      '{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}';
+      '{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}';
     const state = new RendererState([basicV10]);
-    state.apply({version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: id}});
+    state.apply({version: '1.0', createSurface: {surfaceId: 's1', catalogId: id}});
     const opened = parser.openStream({state});
     const cut = call.length - 2;
 
@@ -346,9 +346,9 @@ describe('DirectJsonResponseStream', () => {
     const response =
       OPEN +
       JSON.stringify([
-        {version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: id}},
+        {version: '1.0', createSurface: {surfaceId: 's1', catalogId: id}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's1',
             components: [
@@ -379,11 +379,11 @@ describe('DirectJsonResponseStream', () => {
     const parser = new DirectJsonParser([basicV10]);
     const id = basicV10.id;
     const state = new RendererState([basicV10]);
-    state.apply({version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: id}});
+    state.apply({version: '1.0', createSurface: {surfaceId: 's1', catalogId: id}});
     const opened = parser.openStream({state});
 
     opened.feed(
-      `${OPEN}[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "a"}, `,
+      `${OPEN}[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "a"}, `,
     );
 
     expect(() => opened.feed('{"id": "root", "component": "Text", "text": "b"}, ')).toThrow(
@@ -395,18 +395,18 @@ describe('DirectJsonResponseStream', () => {
     const parser = new DirectJsonParser([basicV10], {progressiveKeys: ['name']});
     const id = basicV10.id;
     const state = new RendererState([basicV10]);
-    state.apply({version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: id}});
+    state.apply({version: '1.0', createSurface: {surfaceId: 's1', catalogId: id}});
     const value = {items: Array.from({length: 5}, (_, i) => ({name: `Item ${i}`}))};
     const response =
       OPEN +
-      JSON.stringify([{version: 'v1.0', updateDataModel: {surfaceId: 's1', path: '/', value}}]) +
+      JSON.stringify([{version: '1.0', updateDataModel: {surfaceId: 's1', path: '/', value}}]) +
       CLOSE;
 
     const messages = stream(parser, chunked(response, 11), state);
 
     expect(messages.length).toBeGreaterThan(2);
     expect(messages[messages.length - 1]).toEqual({
-      version: 'v1.0',
+      version: '1.0',
       updateDataModel: {surfaceId: 's1', path: '/', value},
     });
     expect(state.getSurface('s1')!.dataModel.get('/')).toEqual(value);
@@ -417,8 +417,8 @@ describe('DirectJsonResponseStream', () => {
     const id = basicV10.id;
     const opened = parser.openStream();
     const missing =
-      '{"version": "v1.0", "updateComponents": {"surfaceId": "missing", "components": []}}';
-    const create = `{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "${id}"}}`;
+      '{"version": "1.0", "updateComponents": {"surfaceId": "missing", "components": []}}';
+    const create = `{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "${id}"}}`;
 
     expect(messagesOf(opened.feed(`${OPEN}[${missing}, `))).toEqual([]);
     expect(messagesOf(opened.feed(`${create}, `))).toEqual([]);
@@ -486,17 +486,19 @@ describe('DirectJsonResponseStream', () => {
 
     it('keeps what a rejected block emitted and skips the rest of it', () => {
       const opened = new DirectJsonParser([basicV10]).openStream(options);
-      const create = `{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "${basicV10.id}"}}`;
+      const create = `{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "${basicV10.id}"}}`;
       const bogus =
-        '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Bogus"}]}}';
+        '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Bogus"}]}}';
 
       const first = opened.feed(`${OPEN}[${create}, ${bogus}, `);
       const second = opened.feed(
-        `{"version": "v1.0", "createSurface": {"surfaceId": "skipped", "catalogId": "${basicV10.id}"}}]${CLOSE} Done.`,
+        `{"version": "1.0", "createSurface": {"surfaceId": "skipped", "catalogId": "${basicV10.id}"}}]${CLOSE} Done.`,
       );
 
       expect(first.map(part => part.type)).toEqual(['a2ui', 'error']);
-      expect(messagesOf(first.filter(part => part.type !== 'error'))).toEqual([JSON.parse(create)]);
+      expect(messagesOf(first.filter(part => part.type !== 'error'))).toEqual([
+        {...JSON.parse(create), version: '1.0'},
+      ]);
       expect(second).toEqual([{type: 'text', text: 'Done.'}]);
       expect(opened.state.surfaceIds).toEqual(['main']);
     });

@@ -174,6 +174,29 @@
           "type": "boolean",
           "description": "Whether strict validation mode is enabled."
         },
+        "validationConfig": {
+          "type": "object",
+          "description": "In a process_messages case, the checks the processor makes, so they don't depend on the harness. Each flag allows what a check would otherwise reject; a flag the case leaves out is false, as in every SDK's ValidationConfig, so {} turns every check on. It takes precedence over `strictMode`. Without it, each harness uses its own default.",
+          "properties": {
+            "allowOrphanComponents": {
+              "type": "boolean",
+              "description": "Allow components that are not reachable from the root."
+            },
+            "allowDanglingReferences": {
+              "type": "boolean",
+              "description": "Allow references to components that have not arrived."
+            },
+            "allowMissingRoot": {
+              "type": "boolean",
+              "description": "Allow a surface without a root component."
+            },
+            "allowUnknownElements": {
+              "type": "boolean",
+              "description": "Allow component types that the catalog does not declare."
+            }
+          },
+          "additionalProperties": false
+        },
         "disableValidation": {
           "type": "boolean",
           "description": "Whether validation is explicitly disabled for the test."
@@ -478,7 +501,7 @@
     },
     "ProtocolVersion": {
       "type": "string",
-      "enum": ["v0.8", "v0.9", "v0.9.1", "v1.0"],
+      "enum": ["v0.8", "v0.9", "v0.9.1", "1.0"],
       "description": "Supported A2UI protocol versions."
     },
     "Catalog": {
@@ -504,12 +527,16 @@
           "type": "string",
           "description": "Markdown design guidelines for the catalog."
         },
+        "metadata": {
+          "type": "object",
+          "description": "Catalog metadata object."
+        },
         "catalogId": {
           "type": "string",
           "description": "Identifier of the catalog."
         },
         "protocolVersion": {
-          "description": "Protocol version supported by this catalog, written either as the conformance enum spells it (for example `v1.0`) or as the catalog definition schema requires (for example `1.0`).",
+          "description": "Protocol version supported by this catalog, written either as the conformance enum spells it (for example `1.0` or `v0.9`) or as a semver string.",
           "anyOf": [
             {"$ref": "#/$defs/ProtocolVersion"},
             {
@@ -1137,7 +1164,7 @@
         "catalog_id": {"type": "string"},
         "protocol_version": {
           "type": "string",
-          "description": "The protocol version the catalog reports, written as the enum spells it, such as `v1.0`."
+          "description": "The protocol version the catalog reports, written as the enum spells it, such as `1.0`."
         },
         "components": {"type": "array", "items": {"type": "string"}},
         "functions": {"type": "array", "items": {"type": "string"}}

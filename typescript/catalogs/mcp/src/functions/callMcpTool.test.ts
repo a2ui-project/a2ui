@@ -1016,18 +1016,18 @@ describe('message decoding', () => {
   });
 
   describe('ensureMessageVersion', () => {
-    it('sets version to v1.0 when version property is missing', () => {
+    it('sets version to 1.0 when version property is missing', () => {
       const msg = {createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
       assert.deepStrictEqual(ensureMessageVersion(msg), {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's', catalogId: 'c'},
       });
     });
 
-    it('sets version to v1.0 when version is null or undefined', () => {
+    it('sets version to 1.0 when version is null or undefined', () => {
       const msgNull = {version: null, createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
       assert.deepStrictEqual(ensureMessageVersion(msgNull), {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's', catalogId: 'c'},
       });
 
@@ -1036,13 +1036,13 @@ describe('message decoding', () => {
         createSurface: {surfaceId: 's', catalogId: 'c'},
       } as any;
       assert.deepStrictEqual(ensureMessageVersion(msgUndefined), {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's', catalogId: 'c'},
       });
     });
 
     it('preserves existing explicit version', () => {
-      const msg1 = {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      const msg1 = {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
       assert.deepStrictEqual(ensureMessageVersion(msg1), msg1);
 
       const msg09 = {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
@@ -1062,7 +1062,7 @@ describe('message decoding', () => {
         createSurface: {surfaceId: 's', catalogId: 'c'},
       });
 
-      const msg1 = {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      const msg1 = {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
       assert.deepStrictEqual(ensureMessageVersion(msg1, 'v0.9'), msg1);
     });
   });
@@ -1115,8 +1115,8 @@ describe('createCallMcpToolImplementation defaultVersion option', () => {
     return versions;
   };
 
-  it('stamps v1.0 on messages without a version by default', async () => {
-    assert.deepStrictEqual(await invokeWith(), ['v1.0', 'v0.9']);
+  it('stamps 1.0 on messages without a version by default', async () => {
+    assert.deepStrictEqual(await invokeWith(), ['1.0', 'v0.9']);
   });
 
   it('stamps the given version on messages without one and keeps explicit versions', async () => {

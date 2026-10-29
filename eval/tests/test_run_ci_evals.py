@@ -189,12 +189,17 @@ def test_print_results_summary_shows_run_labels(
     assert "Run: version=1.0, strategy=direct" in capsys.readouterr().out
 
 
-def test_print_results_summary_valid(capsys: pytest.CaptureFixture[str]) -> None:
+def test_print_results_summary_valid(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     log_data: dict[str, Any] = {
         "samples": [
             {
                 "id": 1,
-                "metadata": {"name": "test_task", "evaluation_duration_seconds": 5.0},
+                "metadata": {
+                    "name": "test_task",
+                    "evaluation_duration_seconds": 5.0,
+                },
                 "scores": {
                     "a2ui_scorer": {"value": 1.0, "explanation": "Perfect"},
                     "measured_model_graded_qa": {
@@ -224,13 +229,13 @@ def test_print_results_summary_valid(capsys: pytest.CaptureFixture[str]) -> None
     print_results_summary(log_data)
     captured = capsys.readouterr()
     assert (
-        "test_task                 | Algorithmic: PASS | Judging: C  | Inference Time:"
-        " 5.00s"
+        "test_task                 | Algorithmic: PASS | Judging: C  | Inference"
+        " Time: 5.00s"
         in captured.out
     )
     assert (
-        "test_task_2               | Algorithmic: PASS | Judging: C  | Inference Time:"
-        " 10.00s"
+        "test_task_2               | Algorithmic: PASS | Judging: C  | Inference"
+        " Time: 10.00s"
         in captured.out
     )
     assert "Inference Time - Average: 7.50s | Median: 7.50s" in captured.out
@@ -243,7 +248,10 @@ def test_print_results_summary_fail(capsys: pytest.CaptureFixture[str]) -> None:
             "metadata": {"name": "fail_task"},
             "scores": {
                 "a2ui_scorer": {"value": 0.0, "explanation": "Missing component"},
-                "measured_model_graded_qa": {"value": "I", "explanation": "Incorrect"},
+                "measured_model_graded_qa": {
+                    "value": "I",
+                    "explanation": "Incorrect",
+                },
             },
             "events": [],
         }]
@@ -269,7 +277,10 @@ def test_generate_markdown_summary_valid() -> None:
             "metadata": {"name": "sample_1", "evaluation_duration_seconds": 5.0},
             "scores": {
                 "a2ui_scorer": {"value": 1.0, "explanation": "Perfect"},
-                "measured_model_graded_qa": {"value": "C", "explanation": "Correct"},
+                "measured_model_graded_qa": {
+                    "value": "C",
+                    "explanation": "Correct",
+                },
             },
         }],
     }
@@ -293,7 +304,10 @@ def test_generate_markdown_summary_fail() -> None:
                     "value": 0.0,
                     "explanation": "Missing components\nSecond line error",
                 },
-                "measured_model_graded_qa": {"value": "I", "explanation": "Incomplete"},
+                "measured_model_graded_qa": {
+                    "value": "I",
+                    "explanation": "Incomplete",
+                },
             },
         }],
     }
