@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import OrderedDict
 from collections.abc import AsyncIterable, Mapping, Sequence
 import json
 import logging
@@ -38,16 +37,17 @@ from google.genai import types
 import jsonschema
 
 from a2ui.a2a import (
+    create_a2ui_part,
     get_a2ui_agent_extension,
-    parse_response_to_parts,
     stream_response_to_parts,
+    to_a2a_parts,
 )
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core import CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
-from a2ui.parser import A2uiPart, Parser
+from a2ui.parser import A2uiPart
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import to_version_number
 from a2ui_examples import load_floor_plan_example
@@ -103,6 +103,16 @@ def _is_version_key(key: Any) -> bool:
     )
 
 
+def _action_parts(
+    text: str, messages: Sequence[dict[str, Any]], version: str | None
+) -> list[Part]:
+    """Returns the parts of a canned action response: text, then the messages."""
+    return [
+        Part(root=TextPart(text=text)),
+        *(create_a2ui_part(message, version=version) for message in messages),
+    ]
+
+
 class ContactAgent:
     """An agent that finds contact info for colleagues."""
 
@@ -118,8 +128,6 @@ class ContactAgent:
         self._generators: dict[str, A2uiGenerator] = {}
         self._processors: dict[str, A2uiRequestProcessor] = {}
         self._ui_runners: dict[str, Runner] = {}
-        self._parsers: OrderedDict[str, Parser] = OrderedDict()
-        self._max_parsers = 1000  # Max active sessions to keep in memory
 
         for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]:
             generator = self._build_generator(version)
@@ -287,16 +295,12 @@ class ContactAgent:
                     contact_name = query.split("(contact:")[1].split(")")[0].strip()
                 except Exception:
                     pass
-            json_content = load_send_message_example(contact_name, ui_version)
-            final_response_content = (
-                f"Message sent to {contact_name}\n"
-                f"{A2UI_OPEN_TAG}\n{json_content}\n{A2UI_CLOSE_TAG}"
-            )
+            messages = json.loads(load_send_message_example(contact_name, ui_version))
 
             return {
                 "is_task_complete": True,
-                "parts": parse_response_to_parts(
-                    final_response_content, version=ui_version
+                "parts": _action_parts(
+                    f"Message sent to {contact_name}", messages, ui_version
                 ),
             }
 
@@ -331,40 +335,31 @@ class ContactAgent:
                 logger.error(f"Failed to fetch floor plan: {e}")
                 return {
                     "is_task_complete": True,
-                    "parts": parse_response_to_parts(
-                        f"Failed to load floor plan data: {str(e)}", version=ui_version
-                    ),
+                    "parts": [
+                        Part(
+                            root=TextPart(
+                                text=f"Failed to load floor plan data: {str(e)}"
+                            )
+                        )
+                    ],
                 }
 
-            json_content = json.dumps(load_floor_plan_example(ui_version, html_content))
+            messages = load_floor_plan_example(ui_version, html_content)
             logger.info(f"--- ContactAgent.stream: Sending Floor Plan ---")
-
-            final_response_content = (
-                "Here is the floor"
-                f" plan.\n{A2UI_OPEN_TAG}\n{json_content}\n{A2UI_CLOSE_TAG}"
-            )
 
             return {
                 "is_task_complete": True,
-                "parts": parse_response_to_parts(
-                    final_response_content, version=ui_version
-                ),
+                "parts": _action_parts("Here is the floor plan.", messages, ui_version),
             }
 
         elif "close_modal" in query:
             logger.info("--- ContactAgent.stream: Handling close_modal ACTION ---")
             # Action maps to closing the FloorPlan overlay
-            json_content = json.dumps(load_close_modal_example(ui_version))
-
-            final_response_content = (
-                f"Modal closed.\n{A2UI_OPEN_TAG}\n{json_content}\n{A2UI_CLOSE_TAG}"
-            )
+            messages = load_close_modal_example(ui_version)
 
             return {
                 "is_task_complete": True,
-                "parts": parse_response_to_parts(
-                    final_response_content, version=ui_version
-                ),
+                "parts": _action_parts("Modal closed.", messages, ui_version),
             }
 
         return None
@@ -500,6 +495,10 @@ class ContactAgent:
             )
 
             full_content_list = []
+            response_parts = None
+            is_valid = False
+            error_message = ""
+            stream_failed = False
 
             async def token_stream():
                 async for event in runner.run_async(
@@ -520,22 +519,26 @@ class ContactAgent:
             # surfaces may name any of them, so the response is buffered and
             # the complete payload is validated against all of them below.
             if default_processor and selected_catalog and len(validation_catalogs) == 1:
-                if session_id in self._parsers:
-                    self._parsers.move_to_end(session_id)
-                else:
-                    self._parsers[session_id] = default_processor.create_parser()
-                    if len(self._parsers) > self._max_parsers:
-                        self._parsers.popitem(last=False)
-
-                async for part in stream_response_to_parts(
-                    self._parsers[session_id],
-                    token_stream(),
-                    version=ui_version,
-                ):
-                    yield {
-                        "is_task_complete": False,
-                        "parts": [part],
-                    }
+                try:
+                    async for part in stream_response_to_parts(
+                        default_processor.open_stream(),
+                        token_stream(),
+                        version=ui_version,
+                    ):
+                        yield {
+                            "is_task_complete": False,
+                            "parts": [part],
+                        }
+                except ValueError as e:
+                    # The stream ends at the first block it rejects, so the
+                    # rest of the response is not read, and the request is
+                    # retried below.
+                    logger.warning(
+                        f"--- ContactAgent.stream: A2UI stream failed: {e}"
+                        f" (Attempt {attempt}) ---"
+                    )
+                    error_message = f"Validation failed: {e}."
+                    stream_failed = True
             elif request_processor:
                 async for _ in token_stream():
                     pass
@@ -567,10 +570,9 @@ class ContactAgent:
                         " request."
                     )
 
-            is_valid = False
-            error_message = ""
-
-            if ui_version and request_processor:
+            if stream_failed:
+                pass  # Logged above; the request is retried below.
+            elif ui_version and request_processor:
                 logger.info(
                     "--- ContactAgent.stream: Validating UI response (Attempt"
                     f" {attempt})... ---"
@@ -625,9 +627,12 @@ class ContactAgent:
                     f" (Attempt {attempt}). ---"
                 )
 
-                final_parts = parse_response_to_parts(
-                    final_response_content, fallback_text="OK.", version=ui_version
-                )
+                if response_parts is not None:
+                    final_parts = to_a2a_parts(response_parts, ui_version)
+                elif final_response_content:
+                    final_parts = [Part(root=TextPart(text=final_response_content))]
+                else:
+                    final_parts = [Part(root=TextPart(text="OK."))]
 
                 yield {
                     "is_task_complete": True,
