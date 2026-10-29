@@ -138,14 +138,6 @@ public final class DataContext {
       }
       function = resolved
     } else {
-      let catalogID = dict["catalogId"]?.stringValue
-      if callName == "@index", let catalogID {
-        functionHandler?.handleFunctionError(
-          Self.systemFunctionNamesCatalogError(callName, catalogID: catalogID),
-          functionName: callName
-        )
-        return .null
-      }
       // Before v1.0 a call can't select a catalog: it always runs in the surface catalog.
       function =
         functionHandler?.function(named: callName, catalogID: nil)

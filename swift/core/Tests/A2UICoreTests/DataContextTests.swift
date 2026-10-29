@@ -196,6 +196,23 @@ struct DataContextTests {
     #expect(mockHandler.lastRequestedName == "concat")
     #expect(mockHandler.lastRequestedCatalogID == nil)
   }
+
+  @Test(arguments: [A2UIProtocolVersion.v09, .v091])
+  func preV10IndexCallIgnoresCatalogID(version: A2UIProtocolVersion) {
+    let mockHandler = MockFunctionHandler()
+    let context = DataContext(
+      dataModel: DataModel(),
+      path: "/items/2",
+      functionHandler: mockHandler,
+      protocolVersion: version,
+      index: 2
+    )
+
+    let call: JSONValue = ["call": "@index", "catalogId": "missing-catalog"]
+
+    #expect(context.resolveDynamicValue(call) == .integer(2))
+    #expect(mockHandler.lastRequestedCatalogID == nil)
+  }
 }
 
 @MainActor
