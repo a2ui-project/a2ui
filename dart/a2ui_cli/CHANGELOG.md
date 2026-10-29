@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add standalone curl and PowerShell installer scripts (`scripts/install_cli.sh`, `scripts/install_cli.ps1`) for pre-built CLI binary releases.
 - Bump `a2ui_core` dependency to `^0.4.0`.
 - Initial release of the A2UI CLI developer tool and typesafe component generator.
 - Support `codegen` command for generating Python client component builders from catalog schemas across protocol versions 0.9, 0.9.1, and 1.0.
