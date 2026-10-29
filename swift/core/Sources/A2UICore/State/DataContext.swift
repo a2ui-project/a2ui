@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import Foundation
+import JSONSchema
 import OrderedCollections
 import OrderedJSON
 
@@ -183,6 +184,7 @@ public final class DataContext {
         )
       }
     } else {
+      // Before v1.0 a call can't select a catalog: it always runs in the surface catalog.
       let catalogID = dict["catalogId"]?.stringValue
       if callName == "@index", let catalogID {
         functionHandler?.handleFunctionError(
@@ -193,7 +195,7 @@ public final class DataContext {
         return .null
       }
       function =
-        functionHandler?.function(named: callName, catalogID: catalogID)
+        functionHandler?.function(named: callName, catalogID: nil)
         ?? (callName == "@index" ? IndexFunction() : nil)
     }
     guard let function else {
@@ -216,8 +218,20 @@ public final class DataContext {
       return .null
     }
 
-    guard let resolvedArguments = resolveArguments(of: dict) else {
+    guard var resolvedArguments = resolveArguments(of: dict) else {
       return .null
+    }
+    if atLeastV10,
+      let argPropsSchema = function.api.schema.jsonValue["properties"]?.objectValue
+    {
+      for (argKey, resolvedVal) in resolvedArguments {
+        if let propSchema = argPropsSchema[argKey] {
+          resolvedArguments[argKey] = Self.coerceValidationResults(
+            schema: propSchema,
+            value: resolvedVal
+          )
+        }
+      }
     }
 
     do {
@@ -295,6 +309,16 @@ public final class DataContext {
     }
     if let declaration {
       let schema = declaration.api.schema
+      if let argPropsSchema = schema.jsonValue["properties"]?.objectValue {
+        for (argKey, resolvedVal) in arguments {
+          if let propSchema = argPropsSchema[argKey] {
+            arguments[argKey] = Self.coerceValidationResults(
+              schema: propSchema,
+              value: resolvedVal
+            )
+          }
+        }
+      }
       arguments = Self.applyingArgumentDefaults(of: schema.jsonValue, to: arguments)
       let result = schema.validate(.object(OrderedDictionary(uniqueKeysWithValues: arguments)))
       guard result.isValid else {
@@ -316,6 +340,47 @@ public final class DataContext {
     return value
   }
 
+  private static func isDynamicBooleanSchema(_ schema: JSONValue) -> Bool {
+    if let ref = schema["$ref"]?.stringValue, ref.hasSuffix("/$defs/DynamicBoolean") {
+      return true
+    }
+    if schema["type"]?.stringValue == "boolean" {
+      return true
+    }
+    for keyword in ["oneOf", "anyOf", "allOf"] {
+      if let subSchemas = schema[keyword]?.arrayValue,
+        subSchemas.contains(where: { isDynamicBooleanSchema($0) })
+      {
+        return true
+      }
+    }
+    return false
+  }
+
+  private static func coerceValidationResults(schema: JSONValue, value: JSONValue) -> JSONValue {
+    if isDynamicBooleanSchema(schema) {
+      if let members = value.objectValue, let valid = members["valid"]?.boolValue {
+        return .boolean(valid)
+      }
+      return value
+    }
+    if let itemsSchema = schema["items"], let arr = value.arrayValue {
+      return .array(arr.map { coerceValidationResults(schema: itemsSchema, value: $0) })
+    }
+    if let propsSchema = schema["properties"]?.objectValue, let obj = value.objectValue {
+      var coerced: OrderedDictionary<String, JSONValue> = [:]
+      for (k, v) in obj {
+        if let propSchema = propsSchema[k] {
+          coerced[k] = coerceValidationResults(schema: propSchema, value: v)
+        } else {
+          coerced[k] = v
+        }
+      }
+      return .object(coerced)
+    }
+    return value
+  }
+
   /// Adds the `default` of each top-level property in an argument schema that `arguments` lacks.
   private static func applyingArgumentDefaults(
     of schemaJSON: JSONValue,
@@ -330,7 +395,6 @@ public final class DataContext {
     }
     return result
   }
-
   /// Looks up the function a v1.0 call runs, reporting any failure to the function handler.
   ///
   /// A reserved `@` system function belongs to no catalog: a call to one that carries a

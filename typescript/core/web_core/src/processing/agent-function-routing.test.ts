@@ -339,34 +339,146 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     assert.match(errors[0].message, /timed out/);
   });
 
-  it('sends one request for identical calls awaiting a response', async () => {
-    const call = {'@call': 'fetchFxRate', 'args': {'base': 'EUR'}};
-    const first = ctx.resolveDynamicValue<Promise<number>>(call);
-    const second = ctx.resolveDynamicValue<Promise<number>>(call);
+  it('shares in-flight and settled answers for reactive bindings with canonical argument keys, and evicts on failure', async () => {
+    const first = ctx.resolveDynamicValue<Promise<number>>({
+      '@call': 'fetchFxRate',
+      'args': {'base': 'EUR', 'target': 'USD'},
+    });
+    const second = ctx.resolveDynamicValue<Promise<number>>({
+      '@call': 'fetchFxRate',
+      'args': {'target': 'USD', 'base': 'EUR'},
+    });
     await flush();
     assert.strictEqual(outbound.length, 1);
 
     respond(0, {value: 1.08});
     assert.deepStrictEqual(await Promise.all([first, second]), [1.08, 1.08]);
 
-    // Once answered, the same call is sent again.
-    ctx.resolveDynamicValue(call);
-    await flush();
-    assert.strictEqual(outbound.length, 2);
-  });
-
-  it('sends a separate request when the arguments differ', async () => {
-    ctx.resolveDynamicValue({'@call': 'fetchFxRate', 'args': {'base': 'EUR'}});
-    ctx.resolveDynamicValue({'@call': 'fetchFxRate', 'args': {'base': 'USD'}});
-    await flush();
-    assert.strictEqual(outbound.length, 2);
-  });
-
-  it('sends an action function call to the agent', async () => {
-    ctx.resolveAction({functionCall: {'@call': 'submitOrder', 'args': {'id': 'o-1'}}});
+    // Once answered, a binding with the same canonical arguments reads the cached answer without sending again.
+    const cached = ctx.resolveDynamicValue<Promise<number>>({
+      '@call': 'fetchFxRate',
+      'args': {'target': 'USD', 'base': 'EUR'},
+    });
     await flush();
     assert.strictEqual(outbound.length, 1);
-    assert.strictEqual(outbound[0].callAgentFunction.callFunction['@call'], 'submitOrder');
+    assert.strictEqual(await cached, 1.08);
+
+    // Array element order is preserved (not sorted).
+    ctx.resolveDynamicValue({'@call': 'sumList', 'args': {'values': [1, 2]}});
+    ctx.resolveDynamicValue({'@call': 'sumList', 'args': {'values': [2, 1]}});
+    await flush();
+    assert.strictEqual(outbound.length, 3);
+
+    // A failed call is evicted so a later retry sends a fresh request.
+    const failedTry = ctx.resolveDynamicValue<Promise<number>>({
+      '@call': 'flakyRate',
+      'args': {'base': 'GBP'},
+    });
+    await flush();
+    assert.strictEqual(outbound.length, 4);
+    respond(3, {error: {code: 'EXECUTION_ERROR', message: 'temporary failure'}});
+    assert.strictEqual(await failedTry, undefined);
+    assert.strictEqual(errors.length, 1);
+
+    const retry = ctx.resolveDynamicValue<Promise<number>>({
+      '@call': 'flakyRate',
+      'args': {'base': 'GBP'},
+    });
+    await flush();
+    assert.strictEqual(outbound.length, 5);
+    respond(4, {value: 1.27});
+    assert.strictEqual(await retry, 1.27);
+  });
+
+  it('sends a separate request when the arguments differ, and reuses settled answers on A->B->A flip-back', async () => {
+    const surface = proc.model.getSurface('s1')!;
+    surface.dataModel.set('/base', 'EUR');
+    const sub = ctx.subscribeDynamicValue<number>(
+      {'@call': 'fetchFxRate', 'args': {'base': {'@path': '/base'}}},
+      () => {},
+    );
+    await flush();
+    assert.strictEqual(outbound.length, 1);
+    respond(0, {value: 1.08});
+    await flush();
+    assert.strictEqual(sub.value, 1.08);
+
+    surface.dataModel.set('/base', 'GBP');
+    await flush();
+    assert.strictEqual(outbound.length, 2);
+    respond(1, {value: 1.27});
+    await flush();
+    assert.strictEqual(sub.value, 1.27);
+
+    // Flipping back to EUR reuses the settled answer without a third request.
+    surface.dataModel.set('/base', 'EUR');
+    await flush();
+    assert.strictEqual(outbound.length, 2);
+    assert.strictEqual(sub.value, 1.08);
+    sub.unsubscribe();
+  });
+
+  it('never shares or caches imperative action function calls or event action context calls', async () => {
+    const action = {functionCall: {'@call': 'submitOrder', 'args': {'id': 'o-1'}}};
+    const p1 = ctx.resolveAction(action) as Promise<unknown>;
+    const p2 = ctx.resolveAction(action) as Promise<unknown>;
+    await flush();
+    assert.strictEqual(
+      outbound.length,
+      2,
+      'concurrent action clicks do not share an in-flight call',
+    );
+    respond(0, {value: 'ok-1'});
+    respond(1, {value: 'ok-2'});
+    assert.deepStrictEqual(await Promise.all([p1, p2]), ['ok-1', 'ok-2']);
+
+    const p3 = ctx.resolveAction(action) as Promise<unknown>;
+    await flush();
+    assert.strictEqual(outbound.length, 3, 'subsequent action click does not read a cached answer');
+    respond(2, {value: 'ok-3'});
+    assert.strictEqual(await p3, 'ok-3');
+
+    // Event action context awaits nested agent calls before dispatching onAction,
+    // and suppresses dispatch if a context agent call fails.
+    const surface = proc.model.getSurface('s1')!;
+    const dispatchedActions: any[] = [];
+    surface.onAction.subscribe(a => {
+      dispatchedActions.push(a);
+    });
+    const evAction = {
+      event: {
+        name: 'checkout',
+        context: {'quote': {'@call': 'quote', 'args': {'symbol': 'GOOG'}}},
+      },
+    };
+    const resolvedEv = ctx.resolveAction(evAction);
+    const dispatchPromise = surface.dispatchAction(resolvedEv, 'btn-1');
+    await flush();
+    assert.strictEqual(outbound.length, 4);
+    assert.strictEqual(
+      dispatchedActions.length,
+      0,
+      'waits for agent call in context before emitting',
+    );
+    respond(3, {value: 185});
+    await dispatchPromise;
+    assert.strictEqual(dispatchedActions.length, 1);
+    assert.deepStrictEqual(dispatchedActions[0].context, {'quote': 185});
+
+    // Failed agent call in event context suppresses action dispatch and emits EXPRESSION_ERROR.
+    const resolvedEvFail = ctx.resolveAction(evAction);
+    const dispatchFailPromise = surface.dispatchAction(resolvedEvFail, 'btn-1');
+    await flush();
+    assert.strictEqual(outbound.length, 5);
+    respond(4, {error: {code: 'EXECUTION_ERROR', message: 'quote failed'}});
+    await dispatchFailPromise;
+    assert.strictEqual(
+      dispatchedActions.length,
+      1,
+      'failed context call suppresses action dispatch',
+    );
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
   });
 
   it('reports a call naming an unavailable catalog as a CATALOG_ERROR', async () => {

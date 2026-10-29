@@ -33,16 +33,17 @@ The Core module defines three SPM targets in root [Package.swift](../../Package.
 ```swift
 import A2UICore
 import BasicCatalog
+import Combine
 
-// 1. Initialize MessageProcessor with supported catalogs
+// 1. Initialize MessageProcessor with supported catalogs (on the main actor)
 let processor = MessageProcessor(catalogs: BasicCatalog.allCatalogs)
 
 // 2. Observe surfaces
-let cancellable = processor.surfaceGroupModel.onSurfaceCreated { surface in
-  print("Surface created: \(surface.surfaceID)")
+let cancellable = processor.surfaceGroupModel.$surfacesMap.sink { surfaces in
+  print("Active surfaces: \(surfaces.keys.sorted())")
 }
 
-// 3. Ingest incoming JSON or message objects
+// 3. Parse and process incoming JSON messages
 let jsonMessage = """
 {
   "version": "1.0",
@@ -53,7 +54,7 @@ let jsonMessage = """
 }
 """
 
-let message = try MessageParser.parse(string: jsonMessage)
+let message = try MessageParser().parse(jsonString: jsonMessage)
 processor.process(message: message)
 ```
 
@@ -68,6 +69,7 @@ Define a component schema conforming to `ComponentAPI`:
 ```swift
 import A2UICore
 import JSONSchema
+import OrderedJSON
 
 public struct UserCardAPI: ComponentAPI {
   public let name = "UserCard"
@@ -122,8 +124,22 @@ public struct ToUpperFunction: FunctionImplementation {
 let customCatalog = Catalog(
   id: "https://example.com/catalogs/custom.json",
   protocolVersion: .v10,
-  components: [UserCardAPI().eraseToAnyComponentAPI()],
+  components: [UserCardAPI()],
   functions: [ToUpperFunction()]
+)
+```
+
+To keep part of an existing catalog under a new ID, derive a catalog from it. A name keeps the
+source's entry of that name, and `.add` adds a new entry:
+
+```swift
+let chatCatalog = try BasicCatalog.makeCatalog(version: .v10).derive(
+  id: "https://example.com/catalogs/chat.json",
+  components: [
+    "Text", "Image", "Row", "Column", "Button",
+    .add(UserCardAPI().eraseToAnyComponentAPI()),
+  ],
+  functions: ["openUrl"]
 )
 ```
 
@@ -155,11 +171,12 @@ let lookupPrice = SchemaOnlyFunction(
 `callAgentFunction` message naming the catalog the call resolved to, and the bound value is `null`
 until the agent answers. A declared function's arguments are validated before the call is sent,
 and an agent error or timeout (`agentFunctionTimeoutSeconds`) is reported as an
-`EXPRESSION_ERROR`. The surface keeps each answer, so bindings that make the same call (same
-catalog, function and arguments) send it once and all read the answer, and a function call that
-takes an agent result as an argument runs once that result arrives, including in an action.
-Payload validation with `ValidationConfig.strict` rejects undeclared functions,
-so declare the agent-side functions you expect, or allow unknown elements.
+`EXPRESSION_ERROR`. The surface keeps each answer for bindings and checks, so bindings that make
+the same call (same catalog, function and arguments) send it once and all read the answer, while
+actions always send a fresh call. A function call that takes an agent result as an argument runs
+once that result arrives, including in an action. Payload validation with `ValidationConfig.strict`
+rejects undeclared functions, so declare the agent-side functions you expect, or allow unknown
+elements.
 
 ---
 

@@ -14,7 +14,7 @@ Test suites are organized by functional domain:
 - `core/accessibility.yaml`: Contains test cases for accessibility attributes and checks.
 - `core/validator_v0_8.yaml`, `core/validator_v0_9.yaml`, `core/validator_v1_0.yaml`: Contain test cases for schema and structural validation, one suite per protocol version. They cover envelope and component schema checks, duplicate IDs, missing roots, dangling references, cycles, reachability (including list templates and custom v0.8 roots), nesting depth limits, invalid paths, multiple surfaces, and incremental updates. Every case uses `action: validate` in strict mode. The messages in a step are processed in order, so a later message is checked against the components that earlier messages in the same step created. These three suites replace the former `core/validator.yaml`.
 - `core/data_model.yaml`: Contains test cases for the reactive data model, verifying JSON Pointer reads and writes, container creation, deletion, and observer notification.
-- `core/message_processor_v0_8.yaml`, `core/message_processor_v0_9.yaml`, `core/message_processor_v1_0.yaml`: Contain test cases for the message processor's state machine, one suite per protocol version. A step of a `process_messages` case may set `validationConfig`, the validation rules for that call only (`ExecutionContext.validationConfig`), in place of the rules the processor was created with. A rule the step leaves out is strict.
+- `core/message_processor_v0_8.yaml`, `core/message_processor_v0_9.yaml`, `core/message_processor_v1_0.yaml`: Contain test cases for the message processor's state machine, one suite per protocol version. A step of a `process_messages` case may set `validationConfig`, the validation rules for that call only (`ExecutionContext.validationConfig`), in place of the rules the processor was created with. A rule the step leaves out is strict. These steps belong to the optional `agent_renderer_app` feature (`blueprints/features/agent_renderer_app.blueprint.md`), and an SDK that does not implement it skips their cases.
 - `core/node_resolution.yaml`: Contains node-tree, scoped-binding, notification, identity, action, and destruction scenarios. See [the case format](core/node_resolution.md).
 - `core/expressions.yaml`: Contains test cases for the client-side expression parser behind `formatString`, covering literals, data bindings, function calls, nested interpolation, escaped markers and parse errors.
 - `core/functions.yaml`: Contains test cases for the basic catalog functions, and for the catalog a function call runs in on a surface. See [Writing cases for `evaluate_function`](#writing-cases-for-evaluate_function).
@@ -22,7 +22,7 @@ Test suites are organized by functional domain:
 
 ### Agent (`agent/`)
 
-These suites describe the agent SDK interface specified in [`blueprints/modules/a2ui_agent.blueprint.md`](../blueprints/modules/a2ui_agent.blueprint.md). No SDK implements that interface yet, so they state what an implementation has to do rather than what one already does.
+These suites describe the agent SDK interface specified in [`blueprints/modules/a2ui_agent.blueprint.md`](../blueprints/modules/a2ui_agent.blueprint.md). See [Implementing conformance harnesses](conformance_harness_implementation_guide.md) for instructions on building a test harness for these suites on a new platform.
 
 The suites that do not depend on an inference format sit directly under `agent/`:
 
@@ -32,7 +32,7 @@ The suites that do not depend on an inference format sit directly under `agent/`
 - `agent/request_processor.yaml`: Building an inference format from its factory, and taking registered catalogs and renderer capabilities through to a request processor.
 - `agent/skill.yaml`: Generating skill documents and skill sets from a format and a catalog.
 - `agent/multi_catalog_formats.yaml`: Resolving components and function calls across active catalogs (omitting `createSurface.catalogId` when multiple catalogs are active, resolving un-annotated components and function calls by name when unique across active catalogs, and requiring an explicit `catalogId` override when ambiguous), across `direct_json` (and later `express`): compiling, decompiling (including omitting `catalogId` when name lookup is unambiguous), parsing a response, rendering a prompt snippet, and building a format. Component order inside a message carries no meaning, so a harness may compare the `components` of a compiled message by `id`.
-- `agent/streamed_answer.yaml`: Reading a streamed answer into a renderer's message processor, for an app that is both the agent and the renderer, and keeping the answer's text, surfaces and rejected blocks in the order the model wrote them. It runs on `direct_json`, the format that streams.
+- `agent/streamed_answer.yaml`: Reading a streamed answer into a renderer's message processor, for an app that is both the agent and the renderer, and keeping the answer's text, surfaces and rejected blocks in the order the model wrote them. It runs on `direct_json`, the format that streams. The suite belongs to the optional `agent_renderer_app` feature, and only an SDK that implements it runs the suite.
 
 A case names its format with `args.format`, an `InferenceFormatName`: `direct_json` (or `express`).
 
@@ -88,7 +88,7 @@ Refer to the test harnesses across SDKs for worked examples of running conforman
 - Dart: `dart/a2ui_core/test/conformance/expressions_conformance_test.dart`
 - TypeScript: `typescript/core/web_core/src/expressions/expression_parser.conformance.test.ts`
 
-Both Dart and TypeScript locate the suite by walking up from the test file, so they need no configured path.
+Both Dart and TypeScript locate the suite by walking up from the test file, so they need no configured path. When implementing conformance harnesses for a new language or platform, across the Core SDK, Inference SDK, and framework adapter tiers, see [Implementing conformance harnesses](conformance_harness_implementation_guide.md).
 
 ## Harness Configuration & Transition Skip Lists
 

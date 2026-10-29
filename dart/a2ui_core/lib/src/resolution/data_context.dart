@@ -655,10 +655,15 @@ class DataContext {
         final String? catalogId = _routableCatalogId(error, name);
         if (catalogId == null) rethrow;
         final _AgentCall? existing = _agentCalls.lookup(call, catalogId, args);
-        if (existing != null) return existing.value.value;
+        if (existing != null) {
+          return existing.failed && keepFailed
+              ? _failedArg
+              : existing.value.value;
+        }
         final AgentFunctionCaller? caller = _agentCallerOrNull;
         if (caller == null) rethrow;
-        return _agentCall(call, catalogId, args, caller).value.value;
+        final _AgentCall entry = _agentCall(call, catalogId, args, caller);
+        return entry.failed && keepFailed ? _failedArg : entry.value.value;
       }
     } catch (error) {
       if (_onError == null) rethrow;
@@ -866,10 +871,11 @@ class DataContext {
       onError: (Object error) {
         batch(() {
           entry.pending = false;
-          _agentCalls.entries.remove(key);
+          entry.failed = true;
           _agentCalls.markFailed(key);
           _agentCalls.version.value++;
         });
+        _agentCalls.entries.remove(key);
         _report(error, call.call);
       },
     );
@@ -999,31 +1005,58 @@ class DataContext {
   /// action does: locally when a catalog implements it, otherwise through the
   /// agent on a v1.0 context, completing with the result.
   ///
-  /// Arguments are resolved with [resolveDynamicValue]. A function that throws
-  /// follows the reporter policy of [resolveDynamicValue] and completes with
-  /// null. A function that returns a failing `Future`, and an agent call that
-  /// fails (an `A2uiRpcError`), fail the returned future instead. An agent
-  /// call is always sent, never shared with a dynamic value's pending call.
+  /// Arguments are resolved independently (never reading or populating the
+  /// reactive value cache), awaiting any nested agent or async function calls
+  /// before invoking the outer function. A function that throws follows the
+  /// reporter policy of [resolveDynamicValue] and completes with null. A
+  /// function that returns a failing `Future`, and an outer agent call that
+  /// fails (an `A2uiRpcError`), fail the returned future instead. If a nested
+  /// argument fails, its error is reported once through the reporter and the
+  /// outer call completes with null without running.
   Future<Object?> evaluateFunctionCall(
     Map<String, Object?> functionCall,
-  ) async {
+  ) =>
+      _evaluateActionCall(functionCall, 0, reportTopLevelAgentError: false);
+
+  Future<Object?> _evaluateActionCall(
+    Map<String, Object?> functionCall,
+    int depth, {
+    required bool reportTopLevelAgentError,
+  }) async {
+    if (depth > maxDynamicValueDepth) {
+      _reportDepthExceeded();
+      return reportTopLevelAgentError ? _failedArg : null;
+    }
+    if (_systemCallNamingCatalog(functionCall)
+        case final A2uiExpressionError error) {
+      _reportSync(error);
+      return reportTopLevelAgentError ? _failedArg : null;
+    }
     final call = FunctionCall.fromJson(_asStringKeyedMap(functionCall));
-    final args = <String, dynamic>{
-      for (final MapEntry<String, dynamic> entry in call.args.entries)
-        entry.key: _resolveDynamicValue(
-          entry.value,
-          1,
-          keepFailed: atLeastV10,
-        ),
-    };
-    if (atLeastV10 &&
-        (_containsFailedArg(args) || _awaitsAgentArgument(call))) {
-      return null;
+    final args = <String, dynamic>{};
+    for (final MapEntry<String, dynamic> entry in call.args.entries) {
+      final Object? val = _resolveActionValue(
+        entry.value,
+        depth + 1,
+        keepFailed: atLeastV10,
+      );
+      args[entry.key] = val is Future ? await val : val;
+    }
+    if (atLeastV10 && _containsFailedArg(args)) {
+      return reportTopLevelAgentError ? _failedArg : null;
     }
     Object? result;
     AgentFunctionCaller? agentCaller;
     String? agentCatalogId;
     try {
+      if (atLeastV10 &&
+          call.call.startsWith('@') &&
+          call.call != _indexFunctionName) {
+        throw A2uiExpressionError(
+          "System function '${call.call}' is not supported by this renderer.",
+          expression: call.call,
+        );
+      }
       try {
         result = _invokeLocally(call, args);
       } on A2uiCatalogResolutionError catch (error) {
@@ -1034,22 +1067,127 @@ class DataContext {
     } catch (error) {
       if (_onError == null) rethrow;
       _report(error, call.call);
-      return null;
+      return reportTopLevelAgentError ? _failedArg : null;
     }
     if (agentCaller != null) {
-      result = await agentCaller(
-        FunctionCall(
-          call: call.call,
-          args: args,
-          returnType: call.returnType,
-          catalogId: agentCatalogId,
-          reservedKeys: true,
-        ),
-      );
+      try {
+        result = await agentCaller(
+          FunctionCall(
+            call: call.call,
+            args: args,
+            returnType: call.returnType,
+            catalogId: agentCatalogId,
+            reservedKeys: true,
+          ),
+        );
+      } catch (error) {
+        if (!reportTopLevelAgentError) rethrow;
+        if (_onError == null) rethrow;
+        _report(error, call.call);
+        return _failedArg;
+      }
     }
-    if (result is Future) result = await result;
+    if (result is Future) {
+      try {
+        result = await result;
+      } catch (error) {
+        if (!reportTopLevelAgentError) rethrow;
+        if (_onError == null) rethrow;
+        _report(error, call.call);
+        return _failedArg;
+      }
+    }
     if (result is ReadonlySignal) result = result.value;
     return result;
+  }
+
+  Object? _resolveActionValue(
+    Object? value,
+    int depth, {
+    required bool keepFailed,
+  }) {
+    if (depth > maxDynamicValueDepth) {
+      _reportDepthExceeded();
+      return keepFailed ? _failedArg : null;
+    }
+    if (atLeastV10) {
+      if (value is Map && value.containsKey('@path')) {
+        final binding = DataBinding.fromJson(_asStringKeyedMap(value));
+        return _readBinding(resolvePath(binding.path));
+      }
+      if (value is Map && value.containsKey('@call')) {
+        return _evaluateActionCall(
+          _asStringKeyedMap(value),
+          depth,
+          reportTopLevelAgentError: true,
+        );
+      }
+      if (value is Map) {
+        final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
+        _validateReservedDirectives(stringMap.keys);
+        if (!_containsDynamicValue(value, depth)) return value;
+        return () async {
+          final result = <String, dynamic>{};
+          for (final MapEntry<String, dynamic> entry in stringMap.entries) {
+            final String keyStr = entry.key;
+            final String unescapedKey =
+                keyStr.startsWith('@@') ? keyStr.substring(1) : keyStr;
+            final Object? val = _resolveActionValue(
+              entry.value,
+              depth + 1,
+              keepFailed: keepFailed,
+            );
+            result[unescapedKey] = val is Future ? await val : val;
+          }
+          return result;
+        }();
+      }
+    } else {
+      if (isDataBinding(value)) {
+        final pathVal = (value as Map)['path'] as String;
+        return _readBinding(resolvePath(pathVal));
+      }
+      if (isFunctionCall(value)) {
+        return _evaluateActionCall(
+          _asStringKeyedMap(value as Map),
+          depth,
+          reportTopLevelAgentError: true,
+        );
+      }
+      if (value is Map) {
+        final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
+        if (!_containsDynamicValue(value, depth)) return value;
+        return () async {
+          final result = <String, dynamic>{};
+          for (final MapEntry<String, dynamic> entry in stringMap.entries) {
+            final Object? val = _resolveActionValue(
+              entry.value,
+              depth + 1,
+              keepFailed: false,
+            );
+            result[entry.key] = val is Future ? await val : val;
+          }
+          return result;
+        }();
+      }
+    }
+    if (value is List) {
+      if (!_containsDynamicValue(value, depth)) return value;
+      return () async {
+        return <Object?>[
+          for (final Object? item in value)
+            switch (_resolveActionValue(
+              item,
+              depth + 1,
+              keepFailed: keepFailed,
+            )) {
+              final Future<Object?> f => await f,
+              final Object? v => v,
+            },
+        ];
+      }();
+    }
+    return value;
   }
 
   /// This context with [isUserActivated] set, for evaluation triggered by
@@ -1098,7 +1236,103 @@ class DataContext {
   }
 
   /// Resolves an action payload by evaluating dynamic values in its context and
-  /// userMessage.
+  /// userMessage, awaiting any nested agent function calls. Returns
+  /// synchronously when no nested Future is produced.
+  FutureOr<Map<String, dynamic>?> resolveActionAsync(Object? action) {
+    if (action == null) return null;
+    if (action is String) {
+      if (action.isEmpty) return null;
+      return {
+        'event': {'name': action, 'context': <String, Object?>{}}
+      };
+    }
+    if (action is! Map) return null;
+    final map = Map<String, dynamic>.from(action);
+    final Object? eventObj = map['event'];
+    if (eventObj is Map) {
+      final Object? name = eventObj['name'];
+      if (name is! String || name.isEmpty) return null;
+      final FutureOr<Map<String, dynamic>?> ev = _resolveActionFieldsAsync(
+        Map<String, dynamic>.from(eventObj),
+      );
+      if (ev is Future<Map<String, dynamic>?>) {
+        return ev.then((resolvedEv) {
+          if (resolvedEv == null) return null;
+          return {...map, 'event': resolvedEv};
+        });
+      }
+      if (ev == null) return null;
+      return {...map, 'event': ev};
+    }
+    if (map.containsKey('name')) {
+      final Object? name = map['name'];
+      if (name is! String || name.isEmpty) return null;
+      return _resolveActionFieldsAsync(map);
+    }
+    return null;
+  }
+
+  FutureOr<Map<String, dynamic>?> _resolveActionFieldsAsync(
+    Map<String, dynamic> map,
+  ) {
+    final result = Map<String, dynamic>.from(map);
+    final Object? ctx = result['context'];
+    final rawContext = <String, Object?>{};
+    var hasFuture = false;
+    if (ctx is Map) {
+      for (final MapEntry<Object?, Object?> e in ctx.entries) {
+        final Object? rawVal = _resolveActionValue(
+          e.value,
+          0,
+          keepFailed: atLeastV10,
+        );
+        if (rawVal is Future) {
+          hasFuture = true;
+        } else if (atLeastV10 && _containsFailedArg(rawVal)) {
+          return null;
+        }
+        rawContext[e.key.toString()] = rawVal;
+      }
+    }
+    final bool hasUserMessage = result.containsKey('userMessage');
+    Object? rawMsg;
+    if (hasUserMessage) {
+      rawMsg = _resolveActionValue(
+        result['userMessage'],
+        0,
+        keepFailed: atLeastV10,
+      );
+      if (rawMsg is Future) {
+        hasFuture = true;
+      } else {
+        if (atLeastV10 && _containsFailedArg(rawMsg)) return null;
+        if (rawMsg != null && rawMsg is! String) return null;
+      }
+    }
+    if (!hasFuture) {
+      result['context'] = rawContext;
+      if (hasUserMessage) result['userMessage'] = rawMsg;
+      return result;
+    }
+    return () async {
+      final resolvedContext = <String, Object?>{};
+      for (final MapEntry<String, Object?> e in rawContext.entries) {
+        final Object? rawVal = e.value;
+        final Object? val = rawVal is Future ? await rawVal : rawVal;
+        if (atLeastV10 && _containsFailedArg(val)) return null;
+        resolvedContext[e.key] = val;
+      }
+      result['context'] = resolvedContext;
+      if (hasUserMessage) {
+        final Object? msg = rawMsg is Future ? await rawMsg : rawMsg;
+        if (atLeastV10 && _containsFailedArg(msg)) return null;
+        if (msg != null && msg is! String) return null;
+        result['userMessage'] = msg;
+      }
+      return result;
+    }();
+  }
+
   Map<String, dynamic>? resolveAction(Object? action) {
     if (action == null) return null;
     if (action is String) {
@@ -1113,9 +1347,10 @@ class DataContext {
     if (eventObj is Map) {
       final Object? name = eventObj['name'];
       if (name is! String || name.isEmpty) return null;
-      final Map<String, dynamic> ev = _resolveActionFields(
+      final Map<String, dynamic>? ev = _resolveActionFields(
         Map<String, dynamic>.from(eventObj),
       );
+      if (ev == null) return null;
       return {...map, 'event': ev};
     }
     if (map.containsKey('name')) {
@@ -1126,7 +1361,7 @@ class DataContext {
     return null;
   }
 
-  Map<String, dynamic> _resolveActionFields(Map<String, dynamic> map) {
+  Map<String, dynamic>? _resolveActionFields(Map<String, dynamic> map) {
     final result = Map<String, dynamic>.from(map);
     final Object? ctx = result['context'];
     if (ctx is Map) {
@@ -1138,7 +1373,9 @@ class DataContext {
       result['context'] = <String, Object?>{};
     }
     if (result.containsKey('userMessage')) {
-      result['userMessage'] = resolveDynamicValue(result['userMessage']);
+      final Object? msg = resolveDynamicValue(result['userMessage']);
+      if (msg != null && msg is! String) return null;
+      result['userMessage'] = msg;
     }
     return result;
   }
@@ -1167,6 +1404,9 @@ class _AgentCall {
 
   /// Whether the call is still awaiting its response.
   bool pending = true;
+
+  /// Whether the call settled with an error.
+  bool failed = false;
 }
 
 /// The agent calls a context and the contexts derived from it have sent,
