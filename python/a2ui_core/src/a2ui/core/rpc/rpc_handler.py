@@ -355,7 +355,7 @@ class RpcHandler:
                 if (
                     expression_error is None
                     and isinstance(err, dict)
-                    and err.get("code") == "EXPRESSION_ERROR"
+                    and err.get("code") in ("EXPRESSION_ERROR", "EXECUTION_ERROR")
                 ):
                     expression_error = str(
                         err.get("message")
