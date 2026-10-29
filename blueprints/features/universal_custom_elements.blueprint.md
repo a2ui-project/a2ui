@@ -39,7 +39,7 @@ This is a web-specific feature; non-web adapters (such as Flutter and SwiftUI) d
 ### **4. Rendering a node as an element**
 
 - A function, `renderA2uiNode(node)`, renders a resolved node as its implementation's custom element: it registers the element if needed, creates one element per child position, assigns `node`, and returns the element to the host framework.
-- A placeholder node (`isPlaceholder`), a disposed node, or a node whose implementation is not universal renders nothing from this path. The adapter's own dispatcher handles those cases as the module blueprint describes.
+- A placeholder node (`isPlaceholder`) renders the surface's fallback for its state, looked up from the per-surface fallback registry (module blueprint §4.4), or nothing when there is none or it returns nothing. A disposed node, or a node whose implementation is not universal, renders nothing from this path; the adapter's own dispatcher handles those cases as the module blueprint describes.
 - A parent re-render reuses the element at each child position. The element is replaced only when the tag name at that position changes.
 
 ### **5. Hosting framework-native implementations**
@@ -180,7 +180,7 @@ These cases run in each web adapter that implements the feature. They are framew
   - Rendering two nodes of one type defines the element once.
   - Registering a different class under a taken tag name throws.
 - **Rendering**
-  - A placeholder node renders no element; when the component arrives, the element appears at the same position.
+  - A placeholder node renders its fallback, or no element when there is none; when the component arrives, the element appears at the same position.
   - A parent re-render keeps the same element object at each child position.
 - **Hosting**
   - A universal container whose child is a native implementation renders the child inside the container's element.
