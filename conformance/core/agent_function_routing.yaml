@@ -1,0 +1,855 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Fallback routing of function calls to the agent with `callAgentFunction`
+# ("Function Location Resolution & Fallback Routing" in
+# specification/v1_0/docs/a2ui_protocol.md). Every case builds its catalogs,
+# creates surface `main` through a message processor, evaluates function calls
+# on it, and answers the `callAgentFunction` messages the processor sends. See
+# "Writing cases for `route_agent_function`" in conformance/README.md.
+
+- name: test_agent_routing_undeclared_function_names_resolved_catalog
+  description: >-
+    Verifies a call to a function the surface default catalog does not declare is sent to the agent with its bound arguments resolved, naming the default catalog even though the call names no catalogId, and that its value is null until the agent answers.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  dataModel:
+    base: "EUR"
+  steps:
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base:
+            "@path": "/base"
+      expectOutbound:
+        - "@call": "fetchFxRate"
+          catalogId: "conformance/routing"
+          args:
+            base: "EUR"
+      expectValues: [null]
+    - respond:
+        call: 0
+        value: 1.08
+      expectValues: [1.08]
+
+- name: test_agent_routing_explicit_catalog_id_is_carried
+  description: >-
+    Verifies a call that names an available catalog other than the surface default, which does not declare the function, is sent to the agent naming that catalog.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+    - catalogId: "conformance/routing_extra"
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "lookupSku"
+        catalogId: "conformance/routing_extra"
+        args:
+          sku: "A-1"
+      expectOutbound:
+        - "@call": "lookupSku"
+          catalogId: "conformance/routing_extra"
+          args:
+            sku: "A-1"
+      expectValues: [null]
+    - respond:
+        call: 0
+        value:
+          inStock: 3
+      expectValues:
+        - inStock: 3
+
+- name: test_agent_routing_implemented_function_runs_locally
+  description: >-
+    Verifies a call to a function the resolved catalog implements runs on the renderer and nothing is sent to the agent.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "formatString"
+        args:
+          value: "Hello"
+      expectValues: ["Hello"]
+
+- name: test_agent_routing_agent_result_feeds_local_function
+  description: >-
+    Verifies an agent call nested in the arguments of a local function is sent first, and the local function runs with the agent's answer once it arrives.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "formatString"
+        args:
+          value:
+            "@call": "fetchGreeting"
+            args: {}
+      expectOutbound:
+        - "@call": "fetchGreeting"
+          catalogId: "conformance/routing"
+          args: {}
+      expectValues: [null]
+    - respond:
+        call: 0
+        value: "Hello"
+      expectValues: ["Hello"]
+
+- name: test_agent_routing_agent_error_is_expression_error
+  description: >-
+    Verifies an agent error response is reported as an EXPRESSION_ERROR carrying the agent's message, and the value stays null.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base: "EUR"
+      expectOutbound:
+        - "@call": "fetchFxRate"
+          catalogId: "conformance/routing"
+          args:
+            base: "EUR"
+      expectValues: [null]
+    - respond:
+        call: 0
+        error:
+          code: "UNKNOWN_FUNCTION"
+          message: "No such function: fetchFxRate"
+      expectValues: [null]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "No such function: fetchFxRate"
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base: "EUR"
+      expectOutbound:
+        - "@call": "fetchFxRate"
+          catalogId: "conformance/routing"
+          args:
+            base: "EUR"
+      expectValues: [null, null]
+
+- name: test_agent_routing_unknown_catalog_is_catalog_error
+  description: >-
+    Verifies a call naming a catalog the surface does not have is reported as a CATALOG_ERROR and is not sent to the agent.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "fetchFxRate"
+        catalogId: "conformance/missing"
+        args:
+          base: "EUR"
+      expectValues: [null]
+      expectErrors:
+        - code: "CATALOG_ERROR"
+
+- name: test_agent_routing_no_default_catalog_is_catalog_error
+  description: >-
+    Verifies a call that names no catalogId on a surface without a default catalog is reported as a CATALOG_ERROR and is not sent to the agent.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface: {}
+  steps:
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base: "EUR"
+      expectValues: [null]
+      expectErrors:
+        - code: "CATALOG_ERROR"
+
+- name: test_agent_routing_without_outbound_listener_fails_locally
+  description: >-
+    Verifies a processor without a way to send outbound messages does not route the call, which fails locally with an EXPRESSION_ERROR naming the function.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+    outboundListener: false
+  steps:
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base: "EUR"
+      expectValues: [null]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "fetchFxRate"
+
+- name: test_agent_routing_pre_v1_surface_is_not_routed
+  description: >-
+    Verifies a call on a v0.9 surface is never sent to the agent, even when the processor has an outbound listener, and fails locally with an EXPRESSION_ERROR naming the function.
+  action: route_agent_function
+  protocolVersion: "v0.9"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        call: "fetchFxRate"
+        args:
+          base: "EUR"
+      expectValues: [null]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "fetchFxRate"
+
+- name: test_agent_routing_system_function_is_not_routed
+  description: >-
+    Verifies a call to an unknown reserved `@` system function is never sent to the agent and fails locally with an EXPRESSION_ERROR.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "@unknownSystemFunction"
+        args: {}
+      expectValues: [null]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+
+- name: test_agent_routing_identical_calls_share_one_request
+  description: >-
+    Verifies a second identical call made while the first awaits its response sends no request of its own, and both receive the agent's answer.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base: "EUR"
+      expectOutbound:
+        - "@call": "fetchFxRate"
+          catalogId: "conformance/routing"
+          args:
+            base: "EUR"
+      expectValues: [null]
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base: "EUR"
+      expectValues: [null, null]
+    - respond:
+        call: 0
+        value: 1.08
+      expectValues: [1.08, 1.08]
+
+- name: test_agent_routing_call_naming_default_catalog_shares_request
+  description: >-
+    Verifies a call that names the surface default catalog and an identical call that relies on it are the same call, so they share one request.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base: "EUR"
+      expectOutbound:
+        - "@call": "fetchFxRate"
+          catalogId: "conformance/routing"
+          args:
+            base: "EUR"
+      expectValues: [null]
+    - evaluate:
+        "@call": "fetchFxRate"
+        catalogId: "conformance/routing"
+        args:
+          base: "EUR"
+      expectValues: [null, null]
+    - respond:
+        call: 0
+        value: 1.08
+      expectValues: [1.08, 1.08]
+
+- name: test_agent_routing_different_arguments_send_separate_requests
+  description: >-
+    Verifies calls to the same function with different arguments are separate requests, each answered on its own.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base: "EUR"
+      expectOutbound:
+        - "@call": "fetchFxRate"
+          catalogId: "conformance/routing"
+          args:
+            base: "EUR"
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base: "USD"
+      expectOutbound:
+        - "@call": "fetchFxRate"
+          catalogId: "conformance/routing"
+          args:
+            base: "USD"
+      expectValues: [null, null]
+    - respond:
+        call: 1
+        value: 1.0
+      expectValues: [null, 1.0]
+    - respond:
+        call: 0
+        value: 1.08
+      expectValues: [1.08, 1.0]
+
+- name: test_agent_routing_check_rule_passes
+  description: >-
+    Verifies the condition of a check rule is sent to the agent, and the rule passes once the agent answers true.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "isAvailable"
+        args:
+          sku: "A-1"
+      as: check
+      expectOutbound:
+        - "@call": "isAvailable"
+          catalogId: "conformance/routing"
+          args:
+            sku: "A-1"
+    - respond:
+        call: 0
+        value: true
+      expectValues: [true]
+
+- name: test_agent_routing_check_rule_fails
+  description: >-
+    Verifies the condition of a check rule is sent to the agent, and the rule fails once the agent answers false.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "isAvailable"
+        args:
+          sku: "B-2"
+      as: check
+      expectOutbound:
+        - "@call": "isAvailable"
+          catalogId: "conformance/routing"
+          args:
+            sku: "B-2"
+    - respond:
+        call: 0
+        value: false
+      expectValues: [false]
+
+- name: test_agent_routing_action_function_call
+  description: >-
+    Verifies the functionCall of an action is sent to the agent when the action runs, and a value response completes it without errors.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "submitOrder"
+        args:
+          id: "o-1"
+      as: action
+      expectOutbound:
+        - "@call": "submitOrder"
+          catalogId: "conformance/routing"
+          args:
+            id: "o-1"
+    - respond:
+        call: 0
+        value: true
+
+- name: test_agent_routing_action_agent_error_is_expression_error
+  description: >-
+    Verifies an agent error response to the functionCall of an action is reported as an EXPRESSION_ERROR carrying the agent's message.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "submitOrder"
+        args:
+          id: "o-1"
+      as: action
+      expectOutbound:
+        - "@call": "submitOrder"
+          catalogId: "conformance/routing"
+          args:
+            id: "o-1"
+    - respond:
+        call: 0
+        error:
+          code: "EXECUTION_ERROR"
+          message: "Order o-1 was rejected"
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "Order o-1 was rejected"
+
+- name: test_agent_routing_schema_only_function_sends_parsed_arguments
+  description: >-
+    Verifies a function the resolved catalog declares without an implementation is sent to the agent with its arguments parsed against its schema, so schema defaults are applied.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+      agentFunctions:
+        quote:
+          args:
+            type: object
+            properties:
+              symbol:
+                type: string
+              currency:
+                type: string
+                default: "USD"
+            required: [symbol]
+            additionalProperties: false
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "quote"
+        args:
+          symbol: "GOOG"
+      expectOutbound:
+        - "@call": "quote"
+          catalogId: "conformance/routing"
+          args:
+            symbol: "GOOG"
+            currency: "USD"
+      expectValues: [null]
+    - respond:
+        call: 0
+        value: 180
+      expectValues: [180]
+
+- name: test_agent_routing_schema_only_function_with_invalid_arguments_is_not_sent
+  description: >-
+    Verifies a call to a schema-only function whose arguments do not match its schema is reported as an EXPRESSION_ERROR and is not sent to the agent.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+      agentFunctions:
+        quote:
+          args:
+            type: object
+            properties:
+              symbol:
+                type: string
+              currency:
+                type: string
+                default: "USD"
+            required: [symbol]
+            additionalProperties: false
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "quote"
+        args:
+          symbol: 42
+      expectValues: [null]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "Validation failed for function 'quote'"
+
+- name: test_agent_routing_schema_only_function_requires_user_activation
+  description: >-
+    Verifies a schema-only function that requires user activation is not sent from a binding, which reports an EXPRESSION_ERROR, but is sent when an action runs it.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+      agentFunctions:
+        confirmOrder:
+          args:
+            type: object
+          requiresUserActivation: true
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "confirmOrder"
+        args: {}
+      expectValues: [null]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "requires user activation"
+    - evaluate:
+        "@call": "confirmOrder"
+        args: {}
+      as: action
+      expectOutbound:
+        - "@call": "confirmOrder"
+          catalogId: "conformance/routing"
+          args: {}
+
+- name: test_agent_routing_failed_agent_argument_stops_enclosing_function
+  description: >-
+    Verifies when an agent call nested in the arguments of a local function or an outer agent function fails, only the inner error is reported, the enclosing function does not run or send an outbound call, and its value stays null.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "formatString"
+        args:
+          value:
+            "@call": "fetchGreeting"
+            args: {}
+      expectOutbound:
+        - "@call": "fetchGreeting"
+          catalogId: "conformance/routing"
+          args: {}
+      expectValues: [null]
+    - respond:
+        call: 0
+        error:
+          code: "EXECUTION_ERROR"
+          message: "Greeting service unavailable"
+      expectValues: [null]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "Greeting service unavailable"
+    - evaluate:
+        "@call": "outerAgent"
+        args:
+          nested:
+            "@call": "fetchFxRate"
+            args:
+              base: "EUR"
+      expectOutbound:
+        - "@call": "fetchFxRate"
+          catalogId: "conformance/routing"
+          args:
+            base: "EUR"
+      expectValues: [null, null]
+    - respond:
+        call: 1
+        error:
+          code: "EXECUTION_ERROR"
+          message: "Rate feed offline"
+      expectValues: [null, null]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "Rate feed offline"
+
+- name: test_agent_routing_failed_schema_only_argument_stops_enclosing_function
+  description: >-
+    Verifies when a schema-only function nested in the arguments of a local function or an outer agent function fails argument validation synchronously, only the inner error is reported, the enclosing function does not run or send an outbound call, and its value stays null.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+      agentFunctions:
+        quote:
+          args:
+            type: object
+            properties:
+              symbol:
+                type: string
+            required: [symbol]
+            additionalProperties: false
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "formatString"
+        args:
+          value:
+            "@call": "quote"
+            args:
+              symbol: 42
+      expectValues: [null]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "Validation failed for function 'quote'"
+    - evaluate:
+        "@call": "outerAgent"
+        args:
+          nested:
+            "@call": "quote"
+            args:
+              symbol: 42
+      expectValues: [null, null]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "Validation failed for function 'quote'"
+
+- name: test_agent_routing_settled_binding_answer_is_cached_on_surface
+  description: >-
+    Verifies a settled agent function answer in a reactive binding is cached on the surface, so a later binding with the same call and arguments resolves immediately without sending a second request.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base: "EUR"
+      expectOutbound:
+        - "@call": "fetchFxRate"
+          catalogId: "conformance/routing"
+          args:
+            base: "EUR"
+      expectValues: [null]
+    - respond:
+        call: 0
+        value: 1.08
+      expectValues: [1.08]
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base: "EUR"
+      expectValues: [1.08, 1.08]
+
+- name: test_agent_routing_argument_key_order_is_canonical
+  description: >-
+    Verifies reactive bindings whose resolved argument objects have the same keys in different orders share one in-flight request and reuse the settled surface cache entry.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "fetchCrossRate"
+        args:
+          base: "EUR"
+          quote: "USD"
+      expectOutbound:
+        - "@call": "fetchCrossRate"
+          catalogId: "conformance/routing"
+          args:
+            base: "EUR"
+            quote: "USD"
+      expectValues: [null]
+    - evaluate:
+        "@call": "fetchCrossRate"
+        args:
+          quote: "USD"
+          base: "EUR"
+      expectValues: [null, null]
+    - respond:
+        call: 0
+        value: 1.08
+      expectValues: [1.08, 1.08]
+    - evaluate:
+        "@call": "fetchCrossRate"
+        args:
+          quote: "USD"
+          base: "EUR"
+      expectValues: [1.08, 1.08, 1.08]
+
+- name: test_agent_routing_action_calls_never_share_or_cache
+  description: >-
+    Verifies imperative action function calls never share an in-flight request and never read from or populate the surface value cache, executing fresh on every action.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "submitOrder"
+        args:
+          id: "o-1"
+      as: action
+      expectOutbound:
+        - "@call": "submitOrder"
+          catalogId: "conformance/routing"
+          args:
+            id: "o-1"
+    - evaluate:
+        "@call": "submitOrder"
+        args:
+          id: "o-1"
+      as: action
+      expectOutbound:
+        - "@call": "submitOrder"
+          catalogId: "conformance/routing"
+          args:
+            id: "o-1"
+    - respond:
+        call: 0
+        value: true
+    - respond:
+        call: 1
+        value: true
+    - evaluate:
+        "@call": "submitOrder"
+        args:
+          id: "o-1"
+      as: action
+      expectOutbound:
+        - "@call": "submitOrder"
+          catalogId: "conformance/routing"
+          args:
+            id: "o-1"
+    - respond:
+        call: 2
+        value: true
+
+- name: test_agent_routing_check_rule_validation_result_and_error
+  description: >-
+    Verifies a check rule condition routed to the agent handles ValidationResult object responses (valid true/false) and fails closed while reporting EXPRESSION_ERROR when the agent responds with an error.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "checkCoupon"
+        args:
+          code: "EXPIRED"
+      as: check
+      expectOutbound:
+        - "@call": "checkCoupon"
+          catalogId: "conformance/routing"
+          args:
+            code: "EXPIRED"
+    - respond:
+        call: 0
+        value:
+          valid: false
+          message: "Coupon expired"
+      expectValues: [false]
+    - evaluate:
+        "@call": "checkCoupon"
+        args:
+          code: "SAVE10"
+      as: check
+      expectOutbound:
+        - "@call": "checkCoupon"
+          catalogId: "conformance/routing"
+          args:
+            code: "SAVE10"
+    - respond:
+        call: 1
+        value:
+          valid: true
+          message: "10% off"
+      expectValues: [false, true]
+    - evaluate:
+        "@call": "checkCoupon"
+        args:
+          code: "ERR"
+      as: check
+      expectOutbound:
+        - "@call": "checkCoupon"
+          catalogId: "conformance/routing"
+          args:
+            code: "ERR"
+    - respond:
+        call: 2
+        error:
+          code: "EXECUTION_ERROR"
+          message: "Coupon service unavailable"
+      expectValues: [false, true, false]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "Coupon service unavailable"

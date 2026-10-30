@@ -24,6 +24,9 @@
     and action calls), so an outer call runs only once its agent arguments
     have settled. If an argument's agent call fails, the enclosing call does
     not run, and the failure is reported once.
+  - Reactive bindings cache settled agent function answers per surface (bounded
+    to 256 entries, evicted on failure or surface disposal), while imperative
+    action calls always execute fresh without sharing or caching.
   - **Breaking:** An agent error or timeout (`A2uiRpcError`) in a dynamic
     value, a `checks` rule or a `functionCall` action is reported on
     `SurfaceModel.onError` as `EXPRESSION_ERROR` instead of

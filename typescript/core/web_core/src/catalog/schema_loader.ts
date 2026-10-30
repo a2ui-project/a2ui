@@ -918,6 +918,14 @@ function convertFunctionArgsJsonSchemaToZod(
       Object.assign(shape, propShape);
     }
   }
+  // An optional argument with a `default` takes the default when it is
+  // missing. Zod's `optional` would return `undefined` before the default
+  // applies, and a `default` already accepts a missing value.
+  for (const [name, field] of Object.entries(shape)) {
+    if (field instanceof z.ZodOptional && field.unwrap() instanceof z.ZodDefault) {
+      shape[name] = field.unwrap();
+    }
+  }
 
   const obj = z.object(shape);
   const allowExtra =
