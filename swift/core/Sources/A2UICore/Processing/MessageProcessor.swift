@@ -279,9 +279,9 @@ public final class MessageProcessor: ObservableObject {
 
     if !catalog.functions.isEmpty {
       if version.isAtLeastV10 {
-        let functionsDict = generateV10InlineFunctions(catalog)
-        if !functionsDict.isEmpty {
-          catalogDictionary["functions"] = .object(functionsDict)
+        let functionsDictionary = generateV10InlineFunctions(catalog)
+        if !functionsDictionary.isEmpty {
+          catalogDictionary["functions"] = .object(functionsDictionary)
         }
       } else {
         catalogDictionary["functions"] = .array(generateV09InlineFunctions(catalog))
@@ -342,12 +342,30 @@ public final class MessageProcessor: ObservableObject {
 
     // v1.0 composes ComponentCommon in the message envelope (`agent_to_renderer.json`), so
     // its catalog components are plain schemas. Before v1.0, each component carries it.
-    guard !version.isAtLeastV10 else {
-      return .object([
-        "type": .string("object"),
-        "properties": .object(properties),
-        "required": .array(required),
-      ])
+    if version.isAtLeastV10 {
+      var componentSchema: OrderedDictionary<String, JSONValue> = [
+        "type": .string("object")
+      ]
+      if let description = processedSchema["description"]?.stringValue {
+        componentSchema["description"] = .string(description)
+      }
+      componentSchema["properties"] = .object(properties)
+      componentSchema["required"] = .array(required)
+      // `JSONSchema.Schema` drops these A2UI keywords, so they come from the component API.
+      if let allowedParents = componentAPI.allowedParents {
+        componentSchema["allowedParents"] = .array(allowedParents.map { .string($0) })
+      }
+      if let allowedChildren = componentAPI.allowedChildren {
+        componentSchema["allowedChildren"] = .array(allowedChildren.map { .string($0) })
+      }
+      if let metadata = componentAPI.metadata {
+        var orderedMetadata: OrderedDictionary<String, JSONValue> = [:]
+        for key in metadata.keys.sorted() {
+          orderedMetadata[key] = metadata[key]
+        }
+        componentSchema["metadata"] = .object(orderedMetadata)
+      }
+      return .object(componentSchema)
     }
     return .object([
       "allOf": .array([
