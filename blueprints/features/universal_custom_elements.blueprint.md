@@ -137,7 +137,7 @@ function isWebComponentImplementation(entry: unknown): entry is WebComponentImpl
 /** Defines the element in `customElements` once; throws if `tagName` is taken by another class. */
 function registerUniversalElement(impl: WebComponentImplementation): void;
 
-/** Renders a resolved node as its custom element, or nothing for a placeholder or non-universal node. */
+/** Renders a resolved node as its custom element. A placeholder renders the surface's fallback for its state (Requirement 4), or nothing; a non-universal node renders nothing. */
 function renderA2uiNode(node: ComponentNode): unknown;
 
 /** The property every universal custom element accepts from the renderer that creates it. */
