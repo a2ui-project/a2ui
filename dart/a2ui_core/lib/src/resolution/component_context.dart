@@ -85,8 +85,15 @@ class ComponentContext {
   }
 
   /// Dispatches an action from the component.
-  Future<void> dispatchAction(Map<String, dynamic> action) {
-    return surface.dispatchAction(action, componentModel.id);
+  Future<void> dispatchAction(
+    Map<String, dynamic> action, {
+    Map<String, Object?>? metadata,
+  }) {
+    return surface.dispatchAction(
+      action,
+      componentModel.id,
+      metadata: metadata,
+    );
   }
 
   /// Returns a context for rendering a child component.

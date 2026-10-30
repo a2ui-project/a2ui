@@ -75,6 +75,16 @@ def _confirm() -> FunctionApi:
     )
 
 
+def _agent_only() -> FunctionApi:
+    """A schema-only function restricted to agent-initiated calls."""
+    return FunctionApi(
+        name="lookupAccount",
+        return_type="string",
+        schema=_UpperArgs,
+        allowed_callers="agentOnly",
+    )
+
+
 async def _flush() -> None:
     """Lets the event loop run the callbacks of settled futures."""
     for _ in range(3):
@@ -93,7 +103,9 @@ class _Harness:
     ) -> None:
         self.outbound: list[dict[str, Any]] = []
         self.errors: list[dict[str, Any]] = []
-        catalog = Catalog(FIN_CATALOG_ID, version, [], [_upper(), _quote(), _confirm()])
+        catalog = Catalog(
+            FIN_CATALOG_ID, version, [], [_upper(), _quote(), _confirm(), _agent_only()]
+        )
         self.proc = MessageProcessor(
             [catalog],
             options=MessageProcessorOptions(
@@ -272,6 +284,23 @@ async def test_schema_only_function_requiring_user_activation() -> None:
     )
     assert len(h.outbound) == 1
     assert h.ctx.is_user_activated is False
+
+
+def test_agent_only_function_is_not_routed() -> None:
+    h = _Harness()
+    assert (
+        h.ctx.resolve_dynamic_value({"@call": "lookupAccount", "args": {"value": "a"}})
+        is None
+    )
+    h.ctx.resolve_action(
+        {"functionCall": {"@call": "lookupAccount", "args": {"value": "a"}}}
+    )
+    assert h.outbound == [], "an agentOnly function is never sent to the agent"
+    assert [e["code"] for e in h.errors] == ["EXPRESSION_ERROR", "EXPRESSION_ERROR"]
+    assert all(
+        "cannot be called by renderer (allowedCallers is agentOnly)" in e["message"]
+        for e in h.errors
+    )
 
 
 def test_runs_implemented_function_locally() -> None:

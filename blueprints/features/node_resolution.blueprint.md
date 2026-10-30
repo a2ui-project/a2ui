@@ -64,8 +64,16 @@ The layers have separate responsibilities:
 
 - A node's `props` emits when its own resolved properties change, and only then. A child's change emits on the child; replacing a child emits on the parent.
 - An update that changes several properties MUST emit once, with the complete new state.
+- A node's `metadata` emits when the component definition's envelope `metadata` changes, and only then. A metadata-only update MUST NOT emit `props`, and a properties-only update MUST NOT emit `metadata`. Both signals derive from the component model, so a single `updateComponents` entry that changes both coalesces into one reactive batch.
 
-### **8. Placeholders**
+### **8. Metadata**
+
+- A resolved or `unknown-type` node exposes the component definition's `ComponentCommon.metadata` envelope as a read-only reactive `metadata` value; `pending` and `cyclic` placeholders expose no metadata.
+- `metadata` is never merged into `props`: a schema property named `metadata` stays in `props`, and the envelope stays in `metadata`.
+- Every node that references the same component id (including template instances) reads the same metadata source, so an update reaches all of them without rebuilding any subtree.
+- Static catalog definition metadata is read from `impl.metadata`, not from the node.
+
+### **9. Placeholders**
 
 - A partly streamed surface still resolves to a tree: a reference to a component the surface does not currently hold resolves to a placeholder node with state `pending`. When the component arrives, a resolved node replaces the placeholder at the same position.
 - A component whose type has no catalog entry resolves to a placeholder node with state `unknown-type`, and a reference that repeats an ancestor's component id at the same data scope resolves to one with state `cyclic`. The resolver dispatches `UNKNOWN_COMPONENT_TYPE` and `CYCLIC_REFERENCE` to the surface.
@@ -116,8 +124,14 @@ type NodeState = 'resolved' | 'pending' | 'unknown-type' | 'cyclic';
 /** Resolved node properties, keyed by the component's schema property names. */
 type NodeProps = Record<string, unknown>;
 
+/** Per-invocation options for a resolved action. */
+interface ActionDispatchOptions {
+  /** 'action.metadata' envelope to attach to the dispatched action. */
+  readonly metadata?: A2uiMetadata;
+}
+
 /** A resolved action property. Invoking it dispatches the action in the node's data scope. It may return a future that completes when the dispatch does. */
-type NodeAction = () => void | Promise<void>;
+type NodeAction = (options?: ActionDispatchOptions) => void | Promise<void>;
 
 interface ComponentNode<C extends ComponentApi> {
   /** Names the component at this node's data scope; distinct among siblings. Use it to key sibling views across updates and reorders. */
@@ -139,6 +153,8 @@ interface ComponentNode<C extends ComponentApi> {
   readonly impl?: C;
   /** Resolved, reactive properties. */
   readonly props: Signal<NodeProps>;
+  /** The component definition's envelope metadata, read-only and reactive; undefined for pending and cyclic placeholders. */
+  readonly metadata: ReadonlySignal<A2uiMetadata | undefined>;
   /** Fires once, when this node is disposed. */
   readonly onDestroyed: EventSource<void>;
   /** Registers work to run when this node is disposed. */
@@ -171,7 +187,7 @@ class NodeResolver<C extends ComponentApi> {
 ### **Changes to existing core contracts**
 
 1. **Dynamic properties become bindings.** Node props hold a `ResolvedBinding` per dynamic property in place of a value plus a setter.
-2. **Action dispatch.** `SurfaceModel.dispatchAction` emits `event` payloads only. A node's `NodeAction` executes a `functionCall` payload itself, in its data scope, and emits no action event.
+2. **Action dispatch.** `SurfaceModel.dispatchAction` emits `event` payloads only. A node's `NodeAction` executes a `functionCall` payload itself, in its data scope, and emits no action event. A `NodeAction` accepts optional `ActionDispatchOptions`; its `metadata` is forwarded to `SurfaceModel.dispatchAction`, which validates the extension keys and attaches the envelope to the emitted action.
 
 ### **Changes to the framework adapter contract**
 

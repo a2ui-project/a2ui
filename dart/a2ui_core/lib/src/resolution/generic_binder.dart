@@ -22,6 +22,7 @@ import '../core/catalog.dart';
 import '../core/common.dart';
 import '../core/component_model.dart';
 import '../core/messages.dart';
+import '../core/metadata.dart';
 import '../core/validation_result.dart';
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
@@ -94,8 +95,7 @@ class GenericBinder {
   // Actions resolve to closures, which cannot be compared by value; reusing
   // the closure while the raw payload is unchanged keeps unchanged action
   // props identical across rebuilds.
-  final Map<String, ({Object? raw, Future<void> Function() closure})>
-      _actionClosures = {};
+  final Map<String, ({Object? raw, NodeAction closure})> _actionClosures = {};
   static const DeepCollectionEquality _deepEquals = DeepCollectionEquality();
 
   /// The live properties for the component. Dynamic properties resolve to
@@ -231,12 +231,12 @@ class GenericBinder {
 
       case Behavior.action:
         final String cacheKey = path.join('/');
-        final ({Object? raw, Future<void> Function() closure})? cached =
+        final ({Object? raw, NodeAction closure})? cached =
             _actionClosures[cacheKey];
         if (cached != null && _deepEquals.equals(cached.raw, value)) {
           return cached.closure;
         }
-        Future<void> closure() async {
+        Future<void> closure([ActionDispatchOptions? options]) async {
           // The v0.9.1 and v1.0 `Action` schemas define only the
           // `{functionCall: {call, args}}` and `{event: {name, ...}}` forms.
           // The unwrapped `{call, args}` and `{name, ...}` forms are also
@@ -259,7 +259,10 @@ class GenericBinder {
               ? await resolvedOrFuture
               : resolvedOrFuture;
           if (resolved is Map) {
-            await context.dispatchAction(Map<String, dynamic>.from(resolved));
+            await context.dispatchAction(
+              Map<String, dynamic>.from(resolved),
+              metadata: options?.metadata,
+            );
           } else if (!expressionFailed) {
             await context.surface.dispatchError(
               A2uiRendererError(
@@ -375,11 +378,18 @@ class GenericBinder {
           }
           final Object? condition =
               rawRule.containsKey('condition') ? rawRule['condition'] : rawRule;
+          final bool isPathBound = condition is Map &&
+              ((condition.containsKey('@path') &&
+                      !condition.containsKey('@call')) ||
+                  (condition.containsKey('path') &&
+                      !condition.containsKey('call')));
           final Object? rawMessage = rawRule['message'];
-          final fallbackMessage =
+          final String? ruleMessage =
               (rawMessage != null && rawMessage.toString().isNotEmpty)
                   ? rawMessage.toString()
-                  : 'Validation failed';
+                  : null;
+          final String fallbackMessage = ruleMessage ?? 'Validation failed';
+          final String? explicitMessage = isPathBound ? null : ruleMessage;
 
           final int slot = ruleResults.length;
           ruleResults.add(const ValidationResult(valid: true));
@@ -388,6 +398,7 @@ class GenericBinder {
               ? null
               : ValidationResult.fromEvaluation(
                   state.value,
+                  explicitMessage: explicitMessage,
                   fallbackMessage: fallbackMessage,
                 );
 
