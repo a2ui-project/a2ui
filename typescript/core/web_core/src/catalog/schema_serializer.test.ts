@@ -437,7 +437,7 @@ describe('Catalog.toJson', () => {
     assert.strictEqual(Object.hasOwn(text, 'unevaluatedProperties'), false);
   });
 
-  it('omits unevaluatedProperties: false on v1.0 code-defined components while keeping v0.9 closed and passthrough open', () => {
+  it('omits unevaluatedProperties: false and catchall subschemas on v1.0 code-defined components while keeping v0.9 closed and passthrough open', () => {
     const DefaultComp: ComponentApi = {
       name: 'DefaultComp',
       schema: z.object({label: z.string(), weight: z.number().optional()}),
@@ -465,7 +465,7 @@ describe('Catalog.toJson', () => {
     assert.strictEqual(Object.hasOwn(v10Comps.DefaultComp, 'unevaluatedProperties'), false);
     assert.strictEqual(Object.hasOwn(v10Comps.StrictComp, 'unevaluatedProperties'), false);
     assert.strictEqual(v10Comps.OpenComp.unevaluatedProperties, true);
-    assert.deepStrictEqual(v10Comps.CatchallComp.unevaluatedProperties, {type: 'number'});
+    assert.strictEqual(Object.hasOwn(v10Comps.CatchallComp, 'unevaluatedProperties'), false);
 
     const v09Doc = new Catalog('https://example.com/v09-closure', '0.9', [
       DefaultComp,
@@ -1006,11 +1006,21 @@ describe('Catalog.fromJson', () => {
       name: 'OpenBanner',
       schema: z.object({text: z.string()}).passthrough(),
     };
+    const CatchallBanner: ComponentApi = {
+      name: 'CatchallBanner',
+      schema: z
+        .object({
+          text: z.string().describe('REF:common_types.json#/$defs/DynamicString'),
+          weight: z.number().optional(),
+        })
+        .catchall(z.number()),
+    };
 
     const originalCatalog = new Catalog('https://example.com/v10-roundtrip.json', '1.0', [
       Banner,
       StrictBanner,
       OpenBanner,
+      CatchallBanner,
     ]);
     const serializedDoc = originalCatalog.toJson();
     const roundTripped = Catalog.fromJson(serializedDoc);
@@ -1042,42 +1052,26 @@ describe('Catalog.fromJson', () => {
         'catalog.json': catalogDoc,
       };
       const componentWireSchema = agentToRenderer.$defs.Component;
-      assert.strictEqual(
-        evaluateJsonSchema(
-          {...basePayload, component: 'Banner'},
-          componentWireSchema,
-          'agent_to_renderer.json',
-          protocolDocs,
-        ).valid,
-        true,
-      );
-      assert.strictEqual(
-        evaluateJsonSchema(
-          {...basePayload, component: 'StrictBanner'},
-          componentWireSchema,
-          'agent_to_renderer.json',
-          protocolDocs,
-        ).valid,
-        true,
-      );
-      assert.strictEqual(
-        evaluateJsonSchema(
-          {...basePayload, component: 'Banner', undeclared: 'nope'},
-          componentWireSchema,
-          'agent_to_renderer.json',
-          protocolDocs,
-        ).valid,
-        false,
-      );
-      assert.strictEqual(
-        evaluateJsonSchema(
-          {...basePayload, component: 'StrictBanner', undeclared: 'nope'},
-          componentWireSchema,
-          'agent_to_renderer.json',
-          protocolDocs,
-        ).valid,
-        false,
-      );
+      for (const closedType of ['Banner', 'StrictBanner', 'CatchallBanner'] as const) {
+        assert.strictEqual(
+          evaluateJsonSchema(
+            {...basePayload, component: closedType},
+            componentWireSchema,
+            'agent_to_renderer.json',
+            protocolDocs,
+          ).valid,
+          true,
+        );
+        assert.strictEqual(
+          evaluateJsonSchema(
+            {...basePayload, component: closedType, undeclared: 'nope'},
+            componentWireSchema,
+            'agent_to_renderer.json',
+            protocolDocs,
+          ).valid,
+          false,
+        );
+      }
       assert.strictEqual(
         evaluateJsonSchema(
           {
@@ -1097,44 +1091,51 @@ describe('Catalog.fromJson', () => {
       );
     }
 
-    // 2. Validate against roundTripped.validationSchema and generateValidationSchema().
-    const validationSchema = roundTripped.validationSchema;
-    const validationDocs = {
-      'validation.json': validationSchema,
-      'common_types.json': commonTypes,
-    };
-    assert.strictEqual(
-      evaluateJsonSchema(
-        {...basePayload, component: 'Banner'},
-        {$ref: '#/$defs/anyComponent'},
-        'validation.json',
-        validationDocs,
-      ).valid,
-      true,
-    );
+    // 2. Validate against originalCatalog.validationSchema, roundTripped.validationSchema,
+    //    and generateValidationSchema().
     const bundledEnvelopeSchema = {
       type: 'object',
       allOf: [{$ref: 'common_types.json#/$defs/ComponentCommon'}, {$ref: '#/$defs/anyComponent'}],
       unevaluatedProperties: false,
     };
-    assert.strictEqual(
-      evaluateJsonSchema(
-        {...basePayload, component: 'Banner'},
-        bundledEnvelopeSchema,
-        'validation.json',
-        validationDocs,
-      ).valid,
-      true,
-    );
-    assert.strictEqual(
-      evaluateJsonSchema(
-        {...basePayload, component: 'Banner', undeclared: 'nope'},
-        bundledEnvelopeSchema,
-        'validation.json',
-        validationDocs,
-      ).valid,
-      false,
-    );
+    for (const validationSchema of [
+      originalCatalog.validationSchema,
+      roundTripped.validationSchema,
+    ]) {
+      const validationDocs = {
+        'validation.json': validationSchema,
+        'common_types.json': commonTypes,
+      };
+      assert.strictEqual(
+        evaluateJsonSchema(
+          {...basePayload, component: 'Banner'},
+          {$ref: '#/$defs/anyComponent'},
+          'validation.json',
+          validationDocs,
+        ).valid,
+        true,
+      );
+      for (const closedType of ['Banner', 'StrictBanner', 'CatchallBanner'] as const) {
+        assert.strictEqual(
+          evaluateJsonSchema(
+            {...basePayload, component: closedType},
+            bundledEnvelopeSchema,
+            'validation.json',
+            validationDocs,
+          ).valid,
+          true,
+        );
+        assert.strictEqual(
+          evaluateJsonSchema(
+            {...basePayload, component: closedType, undeclared: 'nope'},
+            bundledEnvelopeSchema,
+            'validation.json',
+            validationDocs,
+          ).valid,
+          false,
+        );
+      }
+    }
     const envelopeWrapped = generateValidationSchema(roundTripped, {
       componentEnvelopeRef: 'common_types.json#/$defs/ComponentCommon',
     });
@@ -1157,31 +1158,19 @@ describe('Catalog.fromJson', () => {
       version: '1.0',
       createSurface: {surfaceId: 's1', catalogId: roundTripped.id},
     });
-    processor.processMessages({
-      version: '1.0',
-      updateComponents: {
-        surfaceId: 's1',
-        components: [{...basePayload, component: 'Banner'}],
-      },
-    });
-    assert.strictEqual(
-      processor.model.getSurface('s1')?.componentsModel.get('root')?.type,
-      'Banner',
-    );
+    for (const closedType of ['Banner', 'StrictBanner', 'CatchallBanner'] as const) {
+      processor.processMessages({
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 's1',
+          components: [{...basePayload, component: closedType}],
+        },
+      });
+      assert.strictEqual(
+        processor.model.getSurface('s1')?.componentsModel.get('root')?.type,
+        closedType,
+      );
 
-    processor.processMessages({
-      version: '1.0',
-      updateComponents: {
-        surfaceId: 's1',
-        components: [{...basePayload, component: 'StrictBanner'}],
-      },
-    });
-    assert.strictEqual(
-      processor.model.getSurface('s1')?.componentsModel.get('root')?.type,
-      'StrictBanner',
-    );
-
-    for (const closedType of ['Banner', 'StrictBanner'] as const) {
       assert.throws(
         () =>
           processor.processMessages({

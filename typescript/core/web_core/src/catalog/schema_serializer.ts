@@ -325,11 +325,13 @@ function serializeComponentModel(
     : [];
   const extra = json.unevaluatedProperties ?? json.additionalProperties;
   // From v1.0 the protocol's Component envelope combines the entry with
-  // ComponentCommon under an outer `unevaluatedProperties: false`, so closing
-  // the entry itself would reject ComponentCommon fields.
+  // ComponentCommon in a sibling `allOf` branch under an outer
+  // `unevaluatedProperties: false` (and forbids wrapping ComponentCommon
+  // inside individual component entries), so emitting `false` or a catchall
+  // subschema on the entry itself would apply to ComponentCommon fields.
   const closure = isAtLeastV10
-    ? extra === true || isObject(extra)
-      ? extra
+    ? extra === true
+      ? true
       : undefined
     : typeof extra === 'boolean' || isObject(extra)
       ? extra

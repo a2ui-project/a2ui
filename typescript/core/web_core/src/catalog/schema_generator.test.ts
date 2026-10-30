@@ -407,10 +407,15 @@ describe('Catalog.validationSchema & schema_generator', () => {
       name: 'OpenWidget',
       schema: z.object({title: z.string()}).passthrough(),
     };
+    const CatchallWidget: ComponentApi = {
+      name: 'CatchallWidget',
+      schema: z.object({title: z.string()}).catchall(z.number()),
+    };
     const coded = new Catalog('https://example.com/v10.json', '1.0', [
       SimpleWidget,
       StrictWidget,
       OpenWidget,
+      CatchallWidget,
     ]);
     const codedComponents = coded.validationSchema['components'] as Record<
       string,
@@ -425,6 +430,10 @@ describe('Catalog.validationSchema & schema_generator', () => {
       false,
     );
     assert.strictEqual(codedComponents['OpenWidget'].unevaluatedProperties, true);
+    assert.strictEqual(
+      Object.hasOwn(codedComponents['CatchallWidget'], 'unevaluatedProperties'),
+      false,
+    );
 
     const loaded = Catalog.fromJson({
       catalogId: 'https://example.com/v10-loaded.json',
