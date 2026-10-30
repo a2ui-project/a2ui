@@ -1081,6 +1081,8 @@ def _assert_expected_surface_state(
             assert surface is not None
             if "theme" in s_exp:
                 assert surface.theme == s_exp["theme"]
+            if "metadata" in s_exp:
+                assert surface.metadata == s_exp["metadata"]
             if "sendDataModel" in s_exp:
                 assert surface.send_data_model == s_exp["sendDataModel"]
             if "dataModel" in s_exp:
@@ -1110,10 +1112,13 @@ def _assert_expected_surface_state(
                         )
                         if "component" in c_exp:
                             assert c_type == c_exp["component"]
+                        if "metadata" in c_exp:
+                            assert comp is not None
+                            assert comp.metadata == c_exp["metadata"]
                         if node_info:
                             node_props = node_info["props"]
                             for p_key, p_val in c_exp.items():
-                                if p_key in ("id", "component"):
+                                if p_key in ("id", "component", "metadata"):
                                     continue
                                 norm_val = _normalize_prop_value(node_props.get(p_key))
                                 assert norm_val == p_val or (
@@ -1334,6 +1339,7 @@ def _assert_self_contained(schema: dict[str, Any]) -> None:
 # than being silently ignored.
 _FROM_JSON_EXPECT_KEYS = frozenset({
     "catalogId",
+    "componentMetadata",
     "components",
     "functions",
     "invalidComponents",
@@ -1478,6 +1484,13 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
             if isinstance(expected["functions"], list):
                 for fn_name in expected["functions"]:
                     assert cat.get_function(fn_name) is not None
+        if "componentMetadata" in expected and isinstance(
+            expected["componentMetadata"], dict
+        ):
+            for comp_name, exp_meta in expected["componentMetadata"].items():
+                comp_api = cat.get_component(comp_name)
+                assert comp_api is not None
+                assert comp_api.metadata == exp_meta
         if expected.get("selfContained"):
             _assert_self_contained(cat.validation_schema)
         if expected.get("matchesBuiltinCatalog"):
@@ -2413,7 +2426,14 @@ def _assert_dispatched_action_event(
         return
     assert len(dispatched) >= 1, "Expected action to be dispatched, but none was"
     actual = dispatched[0]
-    for key in ("name", "context", "userMessage", "surfaceId", "sourceComponentId"):
+    for key in (
+        "name",
+        "context",
+        "userMessage",
+        "surfaceId",
+        "sourceComponentId",
+        "metadata",
+    ):
         if key in expect_dispatched:
             assert actual.get(key) == expect_dispatched[key]
     if expect_dispatched.get("hasTimestamp") or expect_dispatched.get(
@@ -2496,7 +2516,11 @@ def validate_dispatch_action_case(case: dict[str, Any]) -> None:
                 action_payload, is_user_activated=user_activation
             )
             if isinstance(resolved, dict):
-                surface.dispatch_action(resolved, source_component_id=source_comp_id)
+                surface.dispatch_action(
+                    resolved,
+                    source_component_id=source_comp_id,
+                    metadata=case.get("metadata"),
+                )
             if surface_errors:
                 err = surface_errors[-1]
                 raise A2uiValidationError(
@@ -2509,7 +2533,11 @@ def validate_dispatch_action_case(case: dict[str, Any]) -> None:
             action_payload, is_user_activated=user_activation
         )
         if isinstance(resolved, dict):
-            surface.dispatch_action(resolved, source_component_id=source_comp_id)
+            surface.dispatch_action(
+                resolved,
+                source_component_id=source_comp_id,
+                metadata=case.get("metadata"),
+            )
         _assert_dispatched_action_event(case, expect_dispatched, dispatched)
         if expect_data_model is not None:
             assert data_model.get("/") == expect_data_model
