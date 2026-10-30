@@ -95,18 +95,15 @@ struct BasicCatalogConformanceTests {
       case "validate":
         executed += 1
         try runValidateCase(testCase, name: name)
-        continue
       case "evaluate_function":
         executed += 1
+        if let surfaceDict = testCase["surface"] as? [String: Any] {
+          try runSurfaceEvaluateFunctionCase(testCase, surfaceDict: surfaceDict)
+        } else {
+          try runDirectEvaluateFunctionCase(testCase)
+        }
       default:
         Issue.record("\(name): unsupported action \(action)")
-        continue
-      }
-
-      if let surfaceDict = testCase["surface"] as? [String: Any] {
-        try runSurfaceEvaluateFunctionCase(testCase, surfaceDict: surfaceDict)
-      } else {
-        try runDirectEvaluateFunctionCase(testCase)
       }
     }
 
@@ -365,10 +362,11 @@ struct BasicCatalogConformanceTests {
         validationConfig: ValidationConfig(targetVersion: "1.0")
       )
 
-      for step in testCase.steps {
+      for (stepIndex, step) in testCase.steps.enumerated() {
         guard let payload = step.payload else { continue }
         try executeIndexStep(
           step: step,
+          isFinalStep: stepIndex == testCase.steps.count - 1,
           payload: payload,
           testCase: testCase,
           processor: processor,
@@ -380,12 +378,14 @@ struct BasicCatalogConformanceTests {
 
   private func executeIndexStep(
     step: ConformanceStep,
+    isFinalStep: Bool,
     payload: JSONValue,
     testCase: ConformanceTestCase,
     processor: MessageProcessor,
     errorHandler: IndexConformanceErrorHandler
   ) throws {
-    if let expectedError = step.expectError {
+    // The case's expectError applies to the last step only.
+    if let expectedError = step.expectError ?? (isFinalStep ? testCase.expectError : nil) {
       errorHandler.capturedErrors.removeAll()
       var caughtErrorMessage: String?
       do {
