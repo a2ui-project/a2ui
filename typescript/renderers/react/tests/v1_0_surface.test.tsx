@@ -509,6 +509,32 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     });
   });
 
+  it('renders a React implementation built from a basic catalog Web Component', async () => {
+    const ReactText = createComponentImplementation(
+      basicCatalog.components.get('Text')!,
+      ({props}) => <span data-testid="react-text">{props.text}</span>,
+    );
+    const catalogId = 'https://example.com/react_text_v1_0.json';
+    const processor = new MessageProcessor([
+      new Catalog<ReactCatalogComponent>(catalogId, '1.0', [ReactText], []),
+    ]);
+    processor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId,
+          components: [{id: 'root', component: 'Text', text: 'From React'}],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('s1')!;
+    const {container, getByTestId} = render(<A2uiSurface surface={surface} />);
+    await waitFor(() => expect(getByTestId('react-text').textContent).toBe('From React'));
+    expect(container.querySelector('a2ui-basic-text')).toBeNull();
+  });
+
   it('renders a v1.0 surface with no default catalog whose root names its catalog', async () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
