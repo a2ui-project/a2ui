@@ -42,11 +42,18 @@ from a2ui.builder.v0_9.catalogs.basic import (
     Text,
 )
 from a2ui.catalog_transformers import ComponentPruningTransformer
-from a2ui.core import A2uiCatalogError, Catalog, CatalogApi, MessageProcessor
+from a2ui.core import (
+    A2uiCatalogError,
+    A2uiValidationError,
+    Catalog,
+    CatalogApi,
+    MessageProcessor,
+)
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.core.schema.v0_9 import UpdateComponents, UpdateComponentsMessage
 from a2ui.core.schema.v1_0 import (
+    CatalogDefinition as CatalogDefinitionV10,
     CreateSurface as CreateSurfaceV10,
     CreateSurfaceMessage as CreateSurfaceMessageV10,
     DeleteSurface as DeleteSurfaceV10,
@@ -54,6 +61,7 @@ from a2ui.core.schema.v1_0 import (
     UpdateComponents as UpdateComponentsV10,
     UpdateComponentsMessage as UpdateComponentsMessageV10,
 )
+from a2ui.inference_formats.express import ExpressFormat
 from a2ui.transformers.macros import (
     MacroExpander,
     macro,
@@ -1021,3 +1029,339 @@ def test_macro_nested_deferred_component_expansion():
     comps = lowered[0].update_components.components
     assert [c["component"] for c in comps] == ["Text", "Text", "Column", "Card"]
     assert any(c.get("text") == "Badge: Prod" for c in comps)
+
+
+def test_v1_0_canonical_protocol_types_schema():
+    # Also verify that a local alias named 'name' does not collide with @macro's own locals
+    name = builder_v1_0.DynamicString
+
+    @macro
+    def ComplexCardV10(
+        title: str,
+        dynamic_title: name,
+        optional_title: builder_v1_0.DynamicString | None,
+        metric: builder_v1_0.DynamicNumber,
+        is_active: builder_v1_0.DynamicBoolean,
+        tags: builder_v1_0.DynamicStringList,
+        anything: builder_v1_0.DynamicValue,
+        on_click: builder_v1_0.Action | None,
+        checks: Sequence[builder_v1_0.CheckRule],
+        accessibility: builder_v1_0.AccessibilityAttributes,
+        footer: builder_v1_0.Child,
+        items: builder_v1_0.ChildList,
+        fn_call: builder_v1_0.FunctionCall,
+        binding: builder_v1_0.DataBinding,
+    ) -> builder_v1_0.Card:
+        """v1.0 card testing all protocol common types and PEP 604 unions."""
+        return builder_v1_0.Card(child=builder_v1_0.Text(text=title))
+
+    meta = ComplexCardV10.__a2ui_macro__
+    assert meta is not None
+    assert meta.is_v1_0 is True
+    schema = meta.to_json_schema()
+    props = schema["properties"]
+
+    assert props["title"]["type"] == "string"
+    assert props["dynamic_title"]["$ref"] == "common_types.json#/$defs/DynamicString"
+    assert props["optional_title"]["$ref"] == "common_types.json#/$defs/DynamicString"
+    assert props["metric"]["$ref"] == "common_types.json#/$defs/DynamicNumber"
+    assert props["is_active"]["$ref"] == "common_types.json#/$defs/DynamicBoolean"
+    assert props["tags"]["$ref"] == "common_types.json#/$defs/DynamicStringList"
+    assert props["anything"]["$ref"] == "common_types.json#/$defs/DynamicValue"
+    assert props["on_click"]["$ref"] == "common_types.json#/$defs/Action"
+    assert props["checks"] == {
+        "type": "array",
+        "items": {"$ref": "common_types.json#/$defs/CheckRule"},
+        "description": "Checks",
+    }
+    assert (
+        props["accessibility"]["$ref"]
+        == "common_types.json#/$defs/AccessibilityAttributes"
+    )
+    assert props["footer"]["$ref"] == "common_types.json#/$defs/ComponentId"
+    assert props["items"]["$ref"] == "common_types.json#/$defs/ChildList"
+    assert props["fn_call"]["$ref"] == "common_types.json#/$defs/FunctionCall"
+    assert props["binding"]["$ref"] == "common_types.json#/$defs/DataBinding"
+
+
+def test_v1_0_processor_argument_coercion():
+    @macro
+    def FormPanelV10(
+        status: builder_v1_0.DynamicString,
+        formatted: builder_v1_0.DynamicString,
+        on_submit: builder_v1_0.Action,
+        on_open: builder_v1_0.Action,
+        checks: Sequence[builder_v1_0.CheckRule],
+        items: builder_v1_0.ChildList,
+        seq_children: Sequence[builder_v1_0.Child],
+        meta_obj: builder_v1_0.DynamicValue,
+    ) -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            child=builder_v1_0.Column(
+                children=[
+                    builder_v1_0.Text(text=status),
+                    builder_v1_0.Text(text=formatted),
+                    builder_v1_0.TextField(
+                        label="Email",
+                        value=status,
+                        checks=list(checks),
+                    ),
+                    builder_v1_0.Button(
+                        child=builder_v1_0.Text(text="Submit"),
+                        action=on_submit,
+                    ),
+                    builder_v1_0.Button(
+                        child=builder_v1_0.Text(text="Open"),
+                        action=on_open,
+                    ),
+                    builder_v1_0.List(children=items),
+                    builder_v1_0.Row(children=seq_children),
+                ]
+            ),
+            extensions={"literalMeta": meta_obj}
+            if isinstance(meta_obj, dict)
+            else None,
+        )
+
+    expander = MacroExpander([FormPanelV10])
+    expanded = expander.processor.expand(
+        "FormPanelV10",
+        {
+            "status": {"@path": "/user/email"},
+            "formatted": {
+                "@call": "formatString",
+                "args": {"value": "User: ${/user/email}"},
+            },
+            "on_submit": {
+                "name": "submit_form",
+                "userMessage": "Submitting email",
+                "context": {"email": {"@path": "/user/email"}},
+            },
+            "on_open": {
+                "@call": "openUrl",
+                "args": {"url": "https://a2ui.org"},
+            },
+            "checks": [{
+                "condition": {
+                    "@call": "required",
+                    "args": {"value": {"@path": "/user/email"}},
+                },
+                "message": "Email is required",
+            }],
+            "items": {
+                "path": "/user/items",
+                "componentId": "item_tmpl_1",
+            },
+            "seq_children": {
+                "@path": "/user/rows",
+                "componentId": "row_tmpl_1",
+            },
+            # In v1.0, {"path": "/usr/bin"} (without '@') on DynamicValue is a LiteralObject, not DataBinding
+            "meta_obj": {"path": "/usr/bin"},
+        },
+        instance_id="form_1",
+    )
+
+    by_id = {c["id"]: c for c in expanded}
+    assert by_id["form_1"]["component"] == "Card"
+    assert by_id["form_1"]["metadata"] == {
+        "extensions": {"literalMeta": {"path": "/usr/bin"}}
+    }
+
+    texts = [c for c in expanded if c["component"] == "Text"]
+    assert any(t.get("text") == {"@path": "/user/email"} for t in texts)
+    assert any(
+        t.get("text")
+        == {
+            "@call": "formatString",
+            "args": {"value": "User: ${/user/email}"},
+        }
+        for t in texts
+    )
+
+    tf = [c for c in expanded if c["component"] == "TextField"][0]
+    assert tf["checks"] == [{
+        "condition": {
+            "@call": "required",
+            "args": {"value": {"@path": "/user/email"}},
+        },
+        "message": "Email is required",
+    }]
+
+    buttons = [c for c in expanded if c["component"] == "Button"]
+    assert any(
+        b["action"]
+        == {
+            "event": {
+                "name": "submit_form",
+                "userMessage": "Submitting email",
+                "context": {"email": {"@path": "/user/email"}},
+            }
+        }
+        for b in buttons
+    )
+    assert any(
+        b["action"]
+        == {
+            "functionCall": {
+                "@call": "openUrl",
+                "args": {"url": "https://a2ui.org"},
+            }
+        }
+        for b in buttons
+    )
+
+    lst = [c for c in expanded if c["component"] == "List"][0]
+    assert lst["children"] == {
+        "path": "/user/items",
+        "componentId": "item_tmpl_1",
+    }
+    row = [c for c in expanded if c["component"] == "Row"][0]
+    assert row["children"] == {
+        "path": "/user/rows",
+        "componentId": "row_tmpl_1",
+    }
+
+    # Also verify an unannotated v1.0 macro coerces @path and @call properly
+    @macro
+    def UnannotatedV10Text(content):
+        return builder_v1_0.Text(text=content)
+
+    unann_exp = MacroExpander([UnannotatedV10Text])
+    unann_out = unann_exp.processor.expand(
+        "UnannotatedV10Text",
+        {"content": {"@path": "/headline"}},
+        instance_id="u1",
+    )
+    assert unann_out[0]["text"] == {"@path": "/headline"}
+
+
+def test_v1_0_to_catalog_inference_and_explicit_version():
+    @macro
+    def V10Badge(label: builder_v1_0.DynamicString) -> builder_v1_0.Card:
+        return builder_v1_0.Card(child=builder_v1_0.Text(text=label))
+
+    exp_v10 = MacroExpander([V10Badge])
+    cat_inferred = exp_v10.to_catalog()
+    assert cat_inferred.protocol_version == "1.0"
+    assert cat_inferred.validation_schema["protocolVersion"] == "1.0"
+    # Validate against v1.0 CatalogDefinition schema (requires anyComponent and anyFunction in $defs)
+    CatalogDefinitionV10.model_validate(cat_inferred.to_json())
+
+    # Empty macro expander also produces a valid v1.0 CatalogDefinition
+    CatalogDefinitionV10.model_validate(
+        MacroExpander().to_catalog(protocol_version="1.0").to_json()
+    )
+
+    @macro
+    def V09Badge(label: str) -> Card:
+        return Card(child=Text(text=label))
+
+    exp_v09 = MacroExpander([V09Badge])
+    assert exp_v09.to_catalog().protocol_version == "0.9.1"
+    assert exp_v09.to_catalog(protocol_version="1.0").protocol_version == "1.0"
+
+
+def test_v1_0_reserved_surface_name_and_invalid_identifier_rejected():
+    with pytest.raises(A2uiValidationError, match="reserved"):
+
+        @macro
+        def Surface(title: str) -> builder_v1_0.Card:
+            return builder_v1_0.Card(child=builder_v1_0.Text(text=title))
+
+    with pytest.raises(A2uiValidationError, match="reserved"):
+
+        @macro(name="Ｓurface")
+        def FullwidthSurface(title: str) -> builder_v1_0.Card:
+            return builder_v1_0.Card(child=builder_v1_0.Text(text=title))
+
+    with pytest.raises(A2uiValidationError, match="valid Unicode identifier"):
+
+        @macro(name="123-invalid!")
+        def InvalidMacro(title: str) -> builder_v1_0.Card:
+            return builder_v1_0.Card(child=builder_v1_0.Text(text=title))
+
+    class FakeSurfaceNode(builder_v1_0.ComponentBuilderNode):
+        component: Literal["Surface"] = "Surface"
+
+    @macro
+    def EmitsSurface() -> builder_v1_0.ComponentBuilderNode:
+        return FakeSurfaceNode()
+
+    expander = MacroExpander([EmitsSurface])
+    msg = UpdateComponentsMessageV10(
+        version="1.0",
+        updateComponents=UpdateComponentsV10(
+            surfaceId="main",
+            components=[{"id": "root", "component": "EmitsSurface"}],
+        ),
+    )
+    with pytest.raises(A2uiValidationError, match="reserved component name 'Surface'"):
+        expander.transform_to_transport([msg])
+
+
+def test_v1_0_express_format_end_to_end_with_macros():
+    @macro
+    def HeroBanner(
+        headline: builder_v1_0.DynamicString,
+        cta_label: str,
+        on_cta: builder_v1_0.Action,
+    ) -> builder_v1_0.Card:
+        """Hero banner with dynamic headline and CTA button."""
+        return builder_v1_0.Card(
+            child=builder_v1_0.Column(
+                children=[
+                    builder_v1_0.Text(text=headline, variant="body"),
+                    builder_v1_0.Button(
+                        child=builder_v1_0.Text(text=cta_label),
+                        action=on_cta,
+                        variant="primary",
+                    ),
+                ]
+            )
+        )
+
+    base_cat = Catalog.from_json(
+        catalog_schema=BasicCatalog("1.0").validation_schema,
+        protocol_version="1.0",
+        catalog_id=BasicCatalog("1.0").catalog_id,
+    )
+    expander = MacroExpander([HeroBanner])
+    inf_cat = expander.transform_to_inference_catalog(base_cat)
+    assert inf_cat.protocol_version == "1.0"
+
+    fmt = ExpressFormat(
+        catalogs=[inf_cat],
+        surface_id="main",
+        version="1.0",
+    )
+    llm_output = (
+        "<a2ui>\n"
+        "root = HeroBanner(\n"
+        "  headline=$/hero/headline,\n"
+        '  cta_label="Launch",\n'
+        '  on_cta={event: {name: "launch_clicked", userMessage: "Launch now"}}\n'
+        ")\n"
+        "</a2ui>"
+    )
+    parts = fmt.create_parser().parse_response(llm_output)
+    raw_msgs = parts[0].a2ui
+    assert raw_msgs is not None
+
+    lowered = expander.transform_to_transport(raw_msgs)
+    create_msgs = [m for m in lowered if isinstance(m, CreateSurfaceMessageV10)]
+    assert len(create_msgs) == 1
+    comps = create_msgs[0].create_surface.components
+    assert comps is not None
+    comp_types = [c["component"] for c in comps]
+    assert "HeroBanner" not in comp_types
+    assert comp_types == ["Text", "Text", "Button", "Column", "Card"]
+    assert comps[-1]["id"] == "root"
+
+    btn = [c for c in comps if c["component"] == "Button"][0]
+    assert btn["action"] == {
+        "event": {
+            "name": "launch_clicked",
+            "userMessage": "Launch now",
+        }
+    }

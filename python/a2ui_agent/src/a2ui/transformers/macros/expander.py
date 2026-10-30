@@ -25,7 +25,13 @@ from typing import Any
 from a2ui.builder import v1_0 as builder_v1_0
 from a2ui.builder.core import ComponentBuilderNode as CoreComponentBuilderNode
 from a2ui.constants import CATALOG_COMPONENTS_KEY
-from a2ui.core import A2uiCatalogError, A2uiRecursionError, Catalog, CatalogApi
+from a2ui.core import (
+    A2uiCatalogError,
+    A2uiRecursionError,
+    A2uiValidationError,
+    Catalog,
+    CatalogApi,
+)
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
 from a2ui.transformers.macros.macro import _MacroMetadata
 from a2ui.transformers.macros.processor import _MacroProcessor
@@ -265,20 +271,52 @@ class MacroExpander:
             catalog_id=base_catalog.catalog_id,
         )
 
-    def to_catalog(self) -> CatalogApi:
+    def to_catalog(
+        self,
+        protocol_version: str | ProtocolVersion | None = None,
+    ) -> CatalogApi:
         """Exports a standalone Catalog containing exclusively the macro component schemas.
+
+        Args:
+            protocol_version: Optional protocol version for the exported catalog.
+                If omitted, infers ``"1.0"`` when any registered macro targets
+                ``a2ui.builder.v1_0``, defaulting to ``"0.9.1"`` otherwise.
 
         Returns:
             A Catalog instance ready to be used by inference formats and prompt generators.
         """
         # catalog_definition.json writes the version without the leading "v".
-        version = to_version_number(ProtocolVersion.V0_9_1)
+        if protocol_version is not None:
+            version = to_version_number(protocol_version)
+        elif any(m.is_v1_0 for m in self.macros):
+            version = to_version_number(ProtocolVersion.V1_0)
+        else:
+            version = to_version_number(ProtocolVersion.V0_9_1)
         catalog_id = self.catalog_id or "https://a2ui.org/catalogs/macros"
 
         components = {m.name: m.to_json_schema() for m in self.macros}
         any_comp_refs = [
             {"$ref": f"#/{CATALOG_COMPONENTS_KEY}/{m.name}"} for m in self.macros
         ]
+        if version == to_version_number(ProtocolVersion.V1_0):
+            any_comp_def: dict[str, Any] = (
+                {
+                    "oneOf": any_comp_refs,
+                    "discriminator": {"propertyName": "component"},
+                }
+                if any_comp_refs
+                else {"not": {}}
+            )
+            defs: dict[str, Any] = {
+                "anyComponent": any_comp_def,
+                "anyFunction": {"not": {}},
+            }
+        else:
+            defs = {
+                "anyComponent": (
+                    {"oneOf": any_comp_refs} if any_comp_refs else {"not": {}}
+                )
+            }
 
         schema: dict[str, Any] = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -287,11 +325,7 @@ class MacroExpander:
             "title": "A2UI Macros Catalog",
             "description": "Standalone catalog of high-level A2UI macro components.",
             CATALOG_COMPONENTS_KEY: components,
-            "$defs": {
-                "anyComponent": {
-                    "oneOf": any_comp_refs,
-                }
-            },
+            "$defs": defs,
         }
 
         return Catalog.from_json(
@@ -450,7 +484,10 @@ class MacroExpander:
                     }
                 try:
                     expanded_macro = self.processor.expand(
-                        c_name, params, instance_id=c_id
+                        c_name,
+                        params,
+                        instance_id=c_id,
+                        protocol_version=protocol_version,
                     )
                     _apply_envelope_fields(
                         comp,
@@ -477,6 +514,8 @@ class MacroExpander:
                         "Macro expansion exceeded maximum recursion depth of"
                         f" {max_depth}."
                     )
+                except A2uiValidationError:
+                    raise
                 except Exception as e:
                     logger.error(
                         "Failed to expand macro %r: %s", c_name, e, exc_info=True

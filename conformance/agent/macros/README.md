@@ -38,3 +38,7 @@ Each case is checked twice:
 8. **`08_surface_lifecycle_envelopes`**: Full surface lifecycle message packaging `createSurface` and `updateComponents`.
 9. **`19_envelope_attributes_preservation`**: Macro invocation with component envelope attributes (`catalogId`, `accessibility`, `metadata`) expands cleanly and preserves envelope fields.
 10. **`20_mixable_catalogs_resolution`**: Mixable catalogs resolve macros by effective `catalogId` without colliding with identically named primitives from other catalogs.
+11. **`21_v1_0_data_binding_and_function_call_coercion`**: v1.0 macro coerces `@path` data bindings and `@call` function calls into `DynamicString` slots.
+12. **`22_v1_0_action_user_message_coercion`**: v1.0 `Action` parameter coerces a bare event body with `userMessage` and `context`.
+13. **`23_v1_0_synthetic_catalog_generation`**: Deriving a v1.0 inference catalog from `a2ui.builder.v1_0` macro annotations synthesizes valid schemas and preserves protocol version `1.0`.
+14. **`24_error_reserved_surface_macro_name`**: Declaring a macro named `Surface` raises `ValidationError` because `Surface` is reserved in v1.0.
