@@ -100,6 +100,8 @@ export function createComponentImplementation<Api extends ComponentApi>(
   return {
     name: api.name,
     schema: api.schema,
+    allowedParents: api.allowedParents,
+    allowedChildren: api.allowedChildren,
     render: ReactWrapper,
     view: NodeView,
   };
@@ -124,6 +126,8 @@ export function createBinderlessComponentImplementation(
   return {
     name: api.name,
     schema: api.schema,
+    allowedParents: api.allowedParents,
+    allowedChildren: api.allowedChildren,
     render: RenderComponent,
     view: NodeView,
   };

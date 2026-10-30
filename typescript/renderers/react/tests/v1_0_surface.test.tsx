@@ -441,6 +441,74 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     });
   });
 
+  describe('enforces composition constraints declared on custom React components', () => {
+    const CATALOG_ID = 'https://example.com/composition_v1_0.json';
+
+    const Box = createBinderlessComponentImplementation(
+      {
+        name: 'Box',
+        schema: z.object({children: CommonSchemas.ChildList}),
+        allowedChildren: ['Rune'],
+      },
+      () => null,
+    );
+    const Card = createComponentImplementation(
+      {name: 'Card', schema: z.object({child: CommonSchemas.ComponentId})},
+      () => null,
+    );
+    const Rune = createComponentImplementation(
+      {name: 'Rune', schema: z.object({}), allowedParents: ['Box']},
+      () => null,
+    );
+
+    function createSurface(components: Array<Record<string, unknown>>) {
+      const processor = new MessageProcessor([
+        new Catalog<ReactCatalogComponent>(CATALOG_ID, '1.0', [Box, Card, Rune], []),
+      ]);
+      processor.processMessages([
+        {version: '1.0', createSurface: {surfaceId: 's1', catalogId: CATALOG_ID, components}},
+      ]);
+    }
+
+    it('keeps allowedParents and allowedChildren on the implementations', () => {
+      expect(Rune.allowedParents).toEqual(['Box']);
+      expect(Box.allowedChildren).toEqual(['Rune']);
+    });
+
+    it('accepts a tree that satisfies the constraints', () => {
+      expect(() =>
+        createSurface([
+          {id: 'root', component: 'Box', children: ['r']},
+          {id: 'r', component: 'Rune'},
+        ]),
+      ).not.toThrow();
+    });
+
+    it('rejects a child whose parent is not in its allowedParents', () => {
+      expect(() =>
+        createSurface([
+          {id: 'root', component: 'Card', child: 'r'},
+          {id: 'r', component: 'Rune'},
+        ]),
+      ).toThrow(expect.objectContaining({code: 'UNALLOWED_PARENT'}));
+    });
+
+    it('rejects a root whose allowedParents omits Surface', () => {
+      expect(() => createSurface([{id: 'root', component: 'Rune'}])).toThrow(
+        expect.objectContaining({code: 'UNALLOWED_PARENT'}),
+      );
+    });
+
+    it('rejects a child that is not in its parent allowedChildren', () => {
+      expect(() =>
+        createSurface([
+          {id: 'root', component: 'Box', children: ['b']},
+          {id: 'b', component: 'Box', children: []},
+        ]),
+      ).toThrow(expect.objectContaining({code: 'UNALLOWED_CHILD'}));
+    });
+  });
+
   it('renders a v1.0 surface with no default catalog whose root names its catalog', async () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
