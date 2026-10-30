@@ -266,7 +266,75 @@
         functionCallId: "call-109"
   expect:
     error:
+      code: "INVALID_FUNCTION_CALL"
+      functionCallId: "call-109"
       message: "callFunction"
+  expectError:
+    category: "ValidationError"
+    functionCallId: "call-109"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "INVALID_FUNCTION_CALL"
+        functionCallId: "call-109"
+        message: "callFunction"
+
+- name: test_rpc_call_renderer_function_invalid_payload_non_object_args
+  description: Verifies envelope/schema validation error when callRendererFunction has non-object args.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "1.0"
+      callRendererFunction:
+        functionCallId: "call-110"
+        callFunction:
+          "@call": "playMedia"
+          catalogId: "media_catalog"
+          args: "not-an-object"
+  expect:
+    error:
+      code: "INVALID_FUNCTION_CALL"
+      functionCallId: "call-110"
+      message: "args"
+  expectError:
+    category: "ValidationError"
+    functionCallId: "call-110"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "INVALID_FUNCTION_CALL"
+        functionCallId: "call-110"
+        message: "args"
+
+- name: test_rpc_call_renderer_function_unknown_surface_id
+  description: Verifies callRendererFunction targeting an unknown surfaceId returns rendererFunctionResponse with INVALID_FUNCTION_CALL.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "1.0"
+      callRendererFunction:
+        functionCallId: "call-111"
+        surfaceId: "unknown_surface"
+        callFunction:
+          "@call": "playMedia"
+          catalogId: "media_catalog"
+          args:
+            mediaId: "video-789"
+    functionMetadata:
+      playMedia:
+        allowedCallers: "rendererOrAgent"
+  expect:
+    response:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-111"
+        error:
+          code: "INVALID_FUNCTION_CALL"
+          message: "unknown_surface"
 
 - name: test_rpc_call_renderer_function_invalid_payload_missing_catalog_id
   description: Verifies a callRendererFunction whose callFunction has no catalogId fails schema validation, even when a held catalog defines the function.
@@ -406,3 +474,169 @@
         args: {}
   expectError:
     code: "DUPLICATE"
+
+- name: test_rpc_call_renderer_function_with_surface_id_and_dynamic_args
+  description: Verifies callRendererFunction with surfaceId resolves @path and @call in callFunction.args against the target surface's root DataContext (/).
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    surfaceId: "media_surface"
+    dataModel:
+      media:
+        id: "video-456"
+      prefix: "now-"
+    message:
+      version: "1.0"
+      callRendererFunction:
+        functionCallId: "call-401"
+        surfaceId: "media_surface"
+        callFunction:
+          "@call": "echoArgs"
+          catalogId: "media_catalog"
+          args:
+            mediaId:
+              "@path": "/media/id"
+            formatted:
+              "@call": "formatString"
+              catalogId: "basic"
+              args:
+                value: "${/prefix}${/media/id}"
+    functionMetadata:
+      echoArgs:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-401"
+        value:
+          mediaId: "video-456"
+          formatted: "now-video-456"
+
+- name: test_rpc_call_renderer_function_without_surface_id_isolated_data_model
+  description: Verifies that when surfaceId is omitted on callRendererFunction, @path in callFunction.args resolves against an isolated empty {} data model even when a surface with data exists.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    surfaceId: "existing_surface"
+    dataModel:
+      secret: "should-not-leak"
+    message:
+      version: "1.0"
+      callRendererFunction:
+        functionCallId: "call-402"
+        callFunction:
+          "@call": "echoArgs"
+          catalogId: "media_catalog"
+          args:
+            leaked:
+              "@path": "/secret"
+            constant: "safe"
+    functionMetadata:
+      echoArgs:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-402"
+        value:
+          leaked: null
+          constant: "safe"
+
+- name: test_rpc_call_renderer_function_index_at_root_execution_error
+  description: Verifies that evaluating @index at the root DataContext in callRendererFunction fails with EXECUTION_ERROR.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    surfaceId: "main_surface"
+    dataModel: {}
+    message:
+      version: "1.0"
+      callRendererFunction:
+        functionCallId: "call-403"
+        surfaceId: "main_surface"
+        callFunction:
+          "@call": "echoArgs"
+          catalogId: "basic"
+          args:
+            idx:
+              "@call": "@index"
+    functionMetadata:
+      echoArgs:
+        allowedCallers: "rendererOrAgent"
+        requiresUserActivation: false
+  expect:
+    response:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: "call-403"
+        error:
+          code: "EXECUTION_ERROR"
+          message: "index"
+
+- name: test_rpc_ui_binding_triggers_call_agent_function_async_resolution
+  description: Verifies a component property bound to an agent function initially resolves to null/undefined while emitting outbound callAgentFunction, and updates reactively when agentFunctionResponse arrives.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    uiBindingScenario:
+      surfaceId: "main_surface"
+      catalogId: "store_catalog"
+      component:
+        id: "root"
+        component: "Text"
+        text:
+          "@call": "fetchRemoteGreeting"
+          catalogId: "store_catalog"
+          args:
+            user: "Ada"
+      inboundResponseValue: "Hello from agent, Ada!"
+  expect:
+    initialValue: null
+    outboundCall:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: "main_surface"
+        callFunction:
+          "@call": "fetchRemoteGreeting"
+          catalogId: "store_catalog"
+          args:
+            user: "Ada"
+    resolvedValue: "Hello from agent, Ada!"
+
+- name: test_rpc_ui_action_missing_local_function_fallback_to_agent
+  description: Verifies an undeclared function invoked from a UI action in relaxed mode falls back to dispatching callAgentFunction to the agent.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    uiActionFallbackScenario:
+      surfaceId: "main_surface"
+      catalogId: "store_catalog"
+      actionPayload:
+        functionCall:
+          "@call": "undeclaredAgentAction"
+          catalogId: "store_catalog"
+          args:
+            orderId: "ord-99"
+      inboundResponseValue:
+        accepted: true
+  expect:
+    outboundCall:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: "main_surface"
+        callFunction:
+          "@call": "undeclaredAgentAction"
+          catalogId: "store_catalog"
+          args:
+            orderId: "ord-99"
+    result:
+      accepted: true

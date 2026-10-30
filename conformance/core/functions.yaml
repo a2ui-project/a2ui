@@ -983,3 +983,26 @@
           value:
             "@path": "/phone"
   expect: false
+
+# ==============================================================================
+# allowedCallers (evaluate_function with a surface)
+# ==============================================================================
+# A call on a surface is a renderer call, the same as a binding, a check or a
+# functionCall action. A function whose allowedCallers is agentOnly runs only
+# for an agent-initiated callRendererFunction (see rpc_functions.yaml), so the
+# renderer refuses it before running it.
+
+- name: test_evaluate_function_v10_agent_only_function_errors
+  description: >-
+    Verifies a v1.0 call on a surface to a function whose allowedCallers is agentOnly fails with an ExpressionError and does not run.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "conformance/test_data/catalogs/allowed_callers_catalog_v1_0.json"
+  surface:
+    catalogId: "https://a2ui.org/catalogs/v10/allowed_callers"
+  function: readSessionToken
+  args: {}
+  expectError:
+    category: ExpressionError
+    message: "cannot be called by renderer"
