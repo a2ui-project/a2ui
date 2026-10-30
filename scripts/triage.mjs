@@ -18,7 +18,7 @@
 // waiting-for-author-response' labels across all open issues and PRs.
 //
 // For detailed rules and documentation on how the triage automation works, see:
-// https://github.com/a2ui-project/a2ui/blob/main/blueprints/devtools/triage_flagging.blueprint.md
+// https://github.com/a2ui-project/a2ui/blob/main/docs/contributing/triage/flagging_automation.md
 //
 // Implementation notes:
 // - Items are selected by query, but the query alone is not trusted: GitHub's
@@ -31,7 +31,7 @@
 export const WAITING_LABEL = 'status: waiting-for-author-response';
 export const FLAG_LABEL = 'status: needs-triage';
 export const ASSIGNED_FOR_TRIAGE_LABEL = 'status: assigned-for-triage';
-export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3', 'P4'];
+export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3'];
 
 // Days an item may carry ASSIGNED_FOR_TRIAGE_LABEL before it is flagged
 // (step 2).

@@ -134,7 +134,7 @@ def main():
         sys.exit(1)
 
     issues = json.loads(issues_json)
-    priority_labels = {"P0", "P1", "P2", "P3", "P4"}
+    priority_labels = {"P0", "P1", "P2", "P3"}
     untriaged_issues = []
 
     for issue in issues:
