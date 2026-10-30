@@ -747,6 +747,8 @@ class DataContext:
         whatever its value. From v1.0 a reserved ``@`` system function belongs
         to no catalog, so a call to one that names a catalog is a malformed
         expression: it is reported as an ``EXPRESSION_ERROR`` and not run.
+        A function whose ``allowedCallers`` is ``agentOnly`` is reported the
+        same way and not run, nor routed to the agent.
 
         From v1.0, when the surface has an ``agent_function_caller``, a call
         to a function that the resolved catalog does not implement
@@ -793,6 +795,15 @@ class DataContext:
                     if hasattr(target_catalog, "get_function")
                     else None
                 )
+                # Bindings, checks and actions are renderer calls. An agentOnly
+                # function runs only for an agent's callRendererFunction, which
+                # RpcHandler executes without going through this method, so it
+                # is neither run locally nor routed back to the agent.
+                if getattr(fn, "allowed_callers", None) == "agentOnly":
+                    raise A2uiExpressionError(
+                        f"Function '{name}' cannot be called by renderer"
+                        " (allowedCallers is agentOnly)."
+                    )
                 if self._routes_to_agent(fn):
                     return self._call_agent_function(
                         name,

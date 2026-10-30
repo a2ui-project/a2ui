@@ -1600,18 +1600,35 @@ def generate_renderer_to_agent(
     ]
     r2a_names: list[str] = []
     msg_union_members: list[str] = []
+    emitted_inline: set[str] = set()
+
+    def _flush_inline_objects() -> None:
+        while len(emitted_inline) < len(codegen.inline_objects):
+            pending = [
+                (iname, ispec)
+                for iname, ispec in list(codegen.inline_objects.items())
+                if iname not in emitted_inline
+            ]
+            for iname, ispec in pending:
+                emitted_inline.add(iname)
+                codegen.name_context = iname
+                r2a_blocks.append(codegen.compile_object_def(iname, ispec))
+                r2a_names.append(iname)
 
     # Process all event properties dynamically from the schema
     for prop_name, prop_spec in props.items():
         if prop_name == "version":
             continue
+        codegen.name_context = prop_name
 
         # 1. Action payloads
         if "action" in prop_name.lower():
             if is_modern:
-                r2a_blocks.append(
-                    codegen.compile_object_def("A2uiRendererAction", prop_spec)
+                action_block = codegen.compile_object_def(
+                    "A2uiRendererAction", prop_spec
                 )
+                _flush_inline_objects()
+                r2a_blocks.append(action_block)
                 r2a_blocks.append("ActionPayload = A2uiRendererAction")
                 r2a_names.extend(["A2uiRendererAction", "ActionPayload"])
                 msg_cls = "A2uiRendererActionMessage"
@@ -2058,6 +2075,20 @@ def generate_catalog_definition(
     blocks = [import_header]
 
     # 1. Compile all $defs dynamically in topological order
+    emitted_inline: set[str] = set()
+
+    def _flush_inline_objects() -> None:
+        while len(emitted_inline) < len(codegen.inline_objects):
+            pending = [
+                (iname, ispec)
+                for iname, ispec in list(codegen.inline_objects.items())
+                if iname not in emitted_inline
+            ]
+            for iname, ispec in pending:
+                emitted_inline.add(iname)
+                codegen.name_context = iname
+                blocks.append(codegen.compile_object_def(iname, ispec))
+
     sorted_def_names = topological_sort_defs(defs)
     for def_name in sorted_def_names:
         def_spec = dict(defs[def_name])
@@ -2089,9 +2120,11 @@ def generate_catalog_definition(
                 "additionalProperties": is_extensible,
             }
             base_class = "BaseModel" if is_extensible else "StrictBaseModel"
+            codegen.name_context = def_name
             comp_block = codegen.compile_object_def(
                 def_name, model_spec, base_class=base_class
             )
+            _flush_inline_objects()
             if def_name == "FunctionDefinition":
                 validator_code = (
                     '    @model_validator(mode="after")\n    def'

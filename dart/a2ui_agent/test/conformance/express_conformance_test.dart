@@ -110,6 +110,10 @@ const Map<String, String> _v1OnlyCases = {
   'test_compile_express_map_with_call_like_keys_still_rejects_bindings':
       'Lowered to v0.9, this SDK does not reject a binding nested in a '
       'free-form object property.',
+  'test_compile_express_surface_extensions_variable_reference':
+      'Surface extensions are only supported in A2UI v1.0 or later.',
+  'test_compile_express_empty_extensions_preserved':
+      'Surface and component extensions require A2UI v1.0 or later.',
 };
 
 /// Why this SDK cannot run [testCase] in [version], or null if it can.

@@ -16,12 +16,15 @@ import 'dart:async';
 
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
+import '../primitives/reactivity.dart';
 import '../primitives/semver.dart';
+import '../primitives/uax31.dart';
 import 'catalog.dart';
 import 'common.dart';
 import 'component_model.dart';
 import 'data_model.dart';
 import 'messages.dart';
+import 'metadata.dart';
 
 /// A non-fatal condition on a surface, emitted on [SurfaceModel.onWarning].
 class A2uiWarning {
@@ -73,7 +76,39 @@ class SurfaceModel<T extends ComponentApi> {
 
   /// Surface-level metadata from `createSurface`, holding at most an
   /// `extensions` object.
-  final Map<String, dynamic>? metadata;
+  Map<String, Object?>? get metadata => _metadata.peek();
+
+  /// Replaces the surface's metadata envelope.
+  ///
+  /// Validates UAX #31 extension keys, stores a deep unmodifiable copy, and
+  /// notifies [metadataSignal] and [onMetadataChanged] only when the value
+  /// changes by deep structural equality.
+  set metadata(Map<String, Object?>? next) {
+    validateMetadata(next);
+    final Map<String, Object?>? cloned = cloneMetadata(next);
+    if (sameMetadata(_metadata.peek(), cloned)) return;
+    _metadata.value = cloned;
+    _onMetadataChanged.emit(cloned);
+  }
+
+  /// Read-only reactive signal tracking the surface's metadata envelope.
+  late final ReadonlySignal<Map<String, Object?>?> metadataSignal = computed(
+    () => _metadata.value,
+  );
+
+  /// Read-only view of the `extensions` dictionary inside [metadata], if any.
+  Map<String, Object?>? get extensions =>
+      switch (_metadata.peek()?['extensions']) {
+        final Map<String, Object?> ext => ext,
+        _ => null,
+      };
+
+  /// Fires whenever the surface's metadata changes.
+  EventSource<Map<String, Object?>?> get onMetadataChanged =>
+      _onMetadataChanged;
+
+  late final Signal<Map<String, Object?>?> _metadata;
+  final _onMetadataChanged = EventNotifier<Map<String, Object?>?>();
 
   final Map<String, dynamic> theme;
   final bool sendDataModel;
@@ -136,7 +171,7 @@ class SurfaceModel<T extends ComponentApi> {
     this.sendDataModel = false,
     this.protocolVersion,
     this.rootId = 'root',
-    this.metadata,
+    Map<String, Object?>? metadata,
     this.callAgentFunction,
   })  : availableCatalogs = Map.unmodifiable(
           _indexCatalogs(
@@ -149,7 +184,60 @@ class SurfaceModel<T extends ComponentApi> {
           ),
         ),
         dataModel = DataModel(),
-        componentsModel = SurfaceComponentsModel(catalog: defaultCatalog);
+        componentsModel = SurfaceComponentsModel(catalog: defaultCatalog) {
+    validateMetadata(metadata);
+    _metadata = signal(cloneMetadata(metadata));
+  }
+
+  /// Sets a single extension entry at `metadata['extensions'][key]`.
+  ///
+  /// Passing `null` for [value] stores a JSON `null` under [key]. Use
+  /// [removeExtension] to delete an extension key.
+  void setExtension(String key, Object? value) {
+    if (!isValidUax31Identifier(key)) {
+      throw A2uiValidationError(
+        "Invalid metadata extension key '$key': must be a valid "
+        'UAX #31 identifier.',
+      );
+    }
+    final Map<String, Object?> current = _metadata.peek() ?? const {};
+    final Map<String, Object?> currentExt = switch (current['extensions']) {
+      final Map<String, Object?> ext => ext,
+      _ => const {},
+    };
+    if (currentExt.containsKey(key) && sameJsonValue(currentExt[key], value)) {
+      return;
+    }
+    final nextExt = <String, Object?>{...currentExt, key: value};
+    final nextMeta = <String, Object?>{...current, 'extensions': nextExt};
+    final Map<String, Object?>? cloned = cloneMetadata(nextMeta);
+    _metadata.value = cloned;
+    _onMetadataChanged.emit(cloned);
+  }
+
+  /// Removes an extension entry at `metadata['extensions'][key]`.
+  ///
+  /// When the last extension key is removed and no other keys exist on
+  /// [metadata], resets [metadata] to `null`.
+  void removeExtension(String key) {
+    final Map<String, Object?>? current = _metadata.peek();
+    if (current == null) return;
+    final Object? rawExt = current['extensions'];
+    if (rawExt is! Map<String, Object?> || !rawExt.containsKey(key)) {
+      return;
+    }
+    final nextExt = Map<String, Object?>.of(rawExt)..remove(key);
+    final otherKeys = Map<String, Object?>.of(current)..remove('extensions');
+    final Map<String, Object?>? nextMeta;
+    if (nextExt.isEmpty) {
+      nextMeta = otherKeys.isEmpty ? null : otherKeys;
+    } else {
+      nextMeta = <String, Object?>{...otherKeys, 'extensions': nextExt};
+    }
+    final Map<String, Object?>? cloned = cloneMetadata(nextMeta);
+    _metadata.value = cloned;
+    _onMetadataChanged.emit(cloned);
+  }
 
   static Map<String, Catalog<T, FunctionImplementation>>
       _indexCatalogs<T extends ComponentApi>(
@@ -228,8 +316,10 @@ class SurfaceModel<T extends ComponentApi> {
   /// only for actions that go to the agent.
   Future<void> dispatchAction(
     Map<String, dynamic> payload,
-    String sourceComponentId,
-  ) async {
+    String sourceComponentId, {
+    Map<String, Object?>? metadata,
+  }) async {
+    validateMetadata(metadata);
     final Map<String, dynamic> event;
     if (payload.containsKey('event') && payload['event'] is Map) {
       event = Map<String, dynamic>.from(payload['event'] as Map);
@@ -247,6 +337,12 @@ class SurfaceModel<T extends ComponentApi> {
       );
       return;
     }
+    final Object? payloadMetadata =
+        event.containsKey('metadata') ? event['metadata'] : payload['metadata'];
+    final A2uiMetadata? clonedMetadata = mergeActionMetadata(
+      payloadMetadata,
+      metadata,
+    );
 
     final Object? name = event['name'];
     if (name is! String || name.isEmpty) {
@@ -287,6 +383,7 @@ class SurfaceModel<T extends ComponentApi> {
           ? event['userMessage'] as String
           : null,
       catalogId: catalogId is String && catalogId.isNotEmpty ? catalogId : null,
+      metadata: clonedMetadata,
     );
     _onAction.emit(action);
     // Only event payloads are emitted; functionCall payloads are not
@@ -319,6 +416,7 @@ class SurfaceModel<T extends ComponentApi> {
     _disposed = true;
     dataModel.dispose();
     componentsModel.dispose();
+    _onMetadataChanged.dispose();
     _onAction.dispose();
     // Reports dispatched before this still reach their listeners.
     scheduleMicrotask(() {

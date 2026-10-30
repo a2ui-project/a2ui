@@ -150,6 +150,7 @@ const KNOWN_DIVERGENCES = new Map();
  */
 const FROM_JSON_EXPECT_KEYS = new Set([
   'catalogId',
+  'componentMetadata',
   'components',
   'functions',
   'invalidComponents',
@@ -199,9 +200,17 @@ const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
  * 'accessibility.yaml' tests ARIA and DOM accessibility tree rendering, which is handled
  * by UI framework renderers (Lit, React, Angular, Flutter, SwiftUI) rather than headless web_core.
  *
+ * 'adapter_conformance.yaml' tests UI framework renderers (Lit, React, Angular, Flutter, SwiftUI)
+ * rather than headless web_core.
+ *
  * 'builder.yaml' covers the agent-side typesafe builder API, which web_core does not implement.
  */
-const SKIP_TEST_SUITES = new Set(['accessibility.yaml', 'builder.yaml', 'macros.yaml']);
+const SKIP_TEST_SUITES = new Set([
+  'accessibility.yaml',
+  'adapter_conformance.yaml',
+  'builder.yaml',
+  'macros.yaml',
+]);
 
 /**
  * Action types the web_core runner deliberately does not implement, and why.
@@ -442,7 +451,7 @@ async function runConformanceHarness() {
             validateEvaluateFunctionTestCase(testCase);
             break;
           case 'dispatch_action':
-            validateDispatchActionTestCase(testCase);
+            await validateDispatchActionTestCase(testCase);
             break;
           case 'route_agent_function':
             await validateRouteAgentFunctionTestCase(testCase);
@@ -638,21 +647,21 @@ async function validateRpcTestCase(testCase) {
     );
     const storeCat = new Catalog(
       scenario.catalogId,
-      'v1.0',
+      '1.0',
       v1_0Components,
       [agentBindingFn],
       undefined,
       undefined,
     );
     procRef.current = new MessageProcessor([storeCat, v1_0BasicCatalog], undefined, {
-      version: 'v1.0',
+      version: '1.0',
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
     });
     procRef.current.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: scenario.surfaceId,
           catalogId: scenario.catalogId,
@@ -673,7 +682,7 @@ async function validateRpcTestCase(testCase) {
         expect.outboundCall.callAgentFunction.surfaceId,
       );
       procRef.current.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         agentFunctionResponse: {
           functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
           value: scenario.inboundResponseValue,
@@ -708,21 +717,21 @@ async function validateRpcTestCase(testCase) {
     );
     const storeCat = new Catalog(
       scenario.catalogId,
-      'v1.0',
+      '1.0',
       v1_0Components,
       [agentActionFn],
       undefined,
       undefined,
     );
     procRef.current = new MessageProcessor([storeCat], undefined, {
-      version: 'v1.0',
+      version: '1.0',
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
     });
     procRef.current.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: scenario.surfaceId,
           catalogId: scenario.catalogId,
@@ -739,7 +748,7 @@ async function validateRpcTestCase(testCase) {
       expect.outboundCall.callAgentFunction.surfaceId,
     );
     procRef.current.processMessages({
-      version: 'v1.0',
+      version: '1.0',
       agentFunctionResponse: {
         functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
         value: scenario.inboundResponseValue,
@@ -1617,6 +1626,17 @@ function validateFromJsonTestCase(testCase) {
     }
     if (expected.matchesBuiltinCatalog) {
       assertMatchesBuiltinCatalog(catalog);
+    }
+    if (expected.componentMetadata) {
+      for (const [compName, expectedMeta] of Object.entries(expected.componentMetadata)) {
+        const compApi = catalog.components.get(compName);
+        assert.ok(compApi, `Expected component '${compName}' to exist in catalog`);
+        assert.deepStrictEqual(
+          compApi.metadata ?? null,
+          expectedMeta,
+          `Component '${compName}' metadata mismatch`,
+        );
+      }
     }
     if (expected.validComponents || expected.invalidComponents) {
       const validator = new PayloadValidator(catalog, STRICT_VALIDATION);
@@ -2585,6 +2605,13 @@ function assertSurfacesMatch(processor, expect) {
           expectedSurface.dataModel,
         );
       }
+      if (surface && 'metadata' in expectedSurface) {
+        assert.deepStrictEqual(
+          surface.metadata ?? null,
+          expectedSurface.metadata,
+          `Surface '${surfaceId}' metadata mismatch`,
+        );
+      }
       if (surface && expectedSurface.components) {
         // A suite may list components either as an array of objects carrying
         // their own `id`, or as a mapping of id to expectation. Both forms are
@@ -2618,6 +2645,15 @@ function assertSurfacesMatch(processor, expect) {
             const actualProps = node ? (peekValue(node.props) ?? {}) : (comp.properties ?? {});
             for (const [propKey, expectedVal] of Object.entries(expectedComp)) {
               if (propKey === 'id' || propKey === 'component') continue;
+              if (propKey === 'metadata') {
+                const actualMeta = (node ? peekValue(node.metadata) : comp.metadata) ?? null;
+                assert.deepStrictEqual(
+                  actualMeta,
+                  expectedVal,
+                  `Metadata mismatch on component '${expectedComp.id}'`,
+                );
+                continue;
+              }
               const actualVal = normalizeComponentRefs(actualProps[propKey]);
               if (!propertyValuesMatch(actualVal, expectedVal)) {
                 throw new Error(
@@ -2923,9 +2959,10 @@ function getBasicCatalog(version) {
   return v0_9BasicCatalog;
 }
 
-function validateDispatchActionTestCase(testCase) {
+async function validateDispatchActionTestCase(testCase) {
   const {
     actionPayload,
+    metadata,
     dataModel = {},
     surfaceId = 'main',
     sourceComponentId = 'root',
@@ -3001,7 +3038,7 @@ function validateDispatchActionTestCase(testCase) {
           typeof resolved === 'object' &&
           ('event' in resolved || 'name' in resolved)
         ) {
-          surface.dispatchAction(resolved, sourceComponentId);
+          await surface.dispatchAction(resolved, sourceComponentId, metadata);
         }
       } catch (err) {
         thrown = err;
@@ -3030,7 +3067,7 @@ function validateDispatchActionTestCase(testCase) {
 
     const resolved = ctx.resolveAction(actionPayload, {userActivation});
     if (resolved && typeof resolved === 'object' && ('event' in resolved || 'name' in resolved)) {
-      surface.dispatchAction(resolved, sourceComponentId);
+      await surface.dispatchAction(resolved, sourceComponentId, metadata);
     }
 
     if (expectDispatched === null) {
@@ -3046,6 +3083,9 @@ function validateDispatchActionTestCase(testCase) {
       }
       if ('userMessage' in expectDispatched) {
         assert.strictEqual(actual.userMessage, expectDispatched.userMessage);
+      }
+      if ('metadata' in expectDispatched) {
+        assert.deepStrictEqual(actual.metadata ?? null, expectDispatched.metadata);
       }
       if ('surfaceId' in expectDispatched) {
         assert.strictEqual(actual.surfaceId, expectDispatched.surfaceId);

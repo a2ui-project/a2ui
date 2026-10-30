@@ -589,6 +589,29 @@ struct AgentFunctionRoutingTests {
     }
   }
 
+  @Test func eventActionAwaitingAgentFunctionKeepsMetadata() async throws {
+    let (processor, surface) = try makeProcessor()
+    try render(
+      processor,
+      """
+      {"id": "root", "component": "Text",
+       "onClick": {"event": {"name": "checkout",
+                             "context": {"token": {"@call": "mintToken"}}}}}
+      """
+    )
+    let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
+    try action(metadata: ["extensions": .object(["origin": .string("tap")])])
+    await waitUntil { outbound.agentCalls.count == 1 }
+    #expect(handler.capturedActions.isEmpty)
+
+    try respond(processor, 0, #""value": "t-99""#)
+    await waitUntil { handler.capturedActions.count == 1 }
+    #expect(
+      handler.capturedActions.first?.metadata
+        == ["extensions": .object(["origin": .string("tap")])]
+    )
+  }
+
   @Test func sendsActionFunctionCallOnceNestedAgentArgumentSettles() async throws {
     let (processor, surface) = try makeProcessor()
     try render(
@@ -710,7 +733,7 @@ struct AgentFunctionRoutingTests {
     #expect(outbound.agentCalls.isEmpty)
     #expect(errors.count == 1)
     #expect(errors.first?.code == "EXPRESSION_ERROR")
-    #expect(errors.first?.message.contains("Caller 'renderer' is not allowed") == true)
+    #expect(errors.first?.message.contains("cannot be called by renderer") == true)
   }
 
   @Test func reportsUnavailableCatalogAsCatalogError() async throws {
