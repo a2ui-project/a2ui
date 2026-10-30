@@ -78,7 +78,7 @@ public enum FunctionError: Error, Sendable, Equatable, CustomStringConvertible, 
     case .noListener(let name):
       return "No outbound listener registered to invoke function '\(name)'"
     case .callerDisallowed(let name, let caller):
-      return "Caller '\(caller)' is not allowed to invoke function '\(name)'"
+      return "Function '\(name)' cannot be called by \(caller)"
     case .remoteError(let code, let message):
       return "Remote function error (\(code)): \(message)"
     }

@@ -837,6 +837,14 @@ export class DataContext {
           });
 
           if (isSignal(res)) {
+            // Seed the result synchronously before wiring the forwarding
+            // effect. Some reactivity backends (e.g. Angular) defer effects
+            // until the next flush, so without this an enclosing function
+            // call would observe `undefined` for this argument and could fail
+            // argument validation (e.g. `not(areComponentsValid(...))`).
+            // `peekValue` is untracked so the outer effect does not subscribe
+            // to `res`; the forwarding effect owns that subscription.
+            setValue(resultSig, peekValue(res));
             innerUnsubscribe = effect(() => {
               setValue(resultSig, getValue(res));
             });
