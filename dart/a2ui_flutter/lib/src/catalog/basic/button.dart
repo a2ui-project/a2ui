@@ -34,11 +34,15 @@ Widget buildButton(
       ? const SizedBox.shrink()
       : buildChild(child);
   final VoidCallback? onPressed = props.isValid ? props.action('action') : null;
-  final Widget button = switch (props.string('variant')) {
-    'primary' => FilledButton(onPressed: onPressed, child: label),
-    'borderless' => TextButton(onPressed: onPressed, child: label),
-    _ => OutlinedButton(onPressed: onPressed, child: label),
-  };
+  // Merged, so the button takes its name from a child that is a semantics
+  // container of its own, such as a heading Text.
+  final Widget button = MergeSemantics(
+    child: switch (props.string('variant')) {
+      'primary' => FilledButton(onPressed: onPressed, child: label),
+      'borderless' => TextButton(onPressed: onPressed, child: label),
+      _ => OutlinedButton(onPressed: onPressed, child: label),
+    },
+  );
   final String? reason = props.isValid
       ? null
       : props.validationErrors.firstOrNull;

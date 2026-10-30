@@ -16,6 +16,7 @@ import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/basic_test_catalog.dart';
@@ -81,6 +82,115 @@ void main() {
         expect(style.color, isNull, reason: variant);
       }
       expect(styleOf('body'), isNull);
+    });
+
+    testWidgets('marks heading variants and markdown heading lines as '
+        'headings of their level', (tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      final texts = <String, Map<String, Object?>>{
+        'h1': {'text': 'One', 'variant': 'h1'},
+        'h2': {'text': 'Two', 'variant': 'h2'},
+        'h3': {'text': 'Three', 'variant': 'h3'},
+        'h4': {'text': 'Four', 'variant': 'h4'},
+        'h5': {'text': 'Five', 'variant': 'h5'},
+        'md1': {'text': '# Hash one'},
+        'md3': {'text': '  ### Hash three\n', 'variant': 'body'},
+        'md6': {'text': '###### Hash six'},
+        'caption': {'text': 'Caption', 'variant': 'caption'},
+        'body': {'text': 'Body', 'variant': 'body'},
+        'plain': {'text': 'Plain'},
+        'seven': {'text': '####### Seven'},
+        'lines': {'text': '# Title\nbody'},
+        'quote': {'text': '> Quote'},
+      };
+      await pumpComponents(tester, [
+        {'id': 'root', 'component': 'Column', 'children': texts.keys.toList()},
+        for (final MapEntry(:key, :value) in texts.entries)
+          {'id': key, 'component': 'Text', ...value},
+      ], catalog: _catalog);
+
+      (bool, int) headingOf(String text) {
+        final SemanticsData data = tester
+            .getSemantics(find.text(text))
+            .getSemanticsData();
+        expect(data.label, text);
+        return (data.flagsCollection.isHeader, data.headingLevel);
+      }
+
+      for (final (text, level) in [
+        ('One', 1),
+        ('Two', 2),
+        ('Three', 3),
+        ('Four', 4),
+        ('Five', 5),
+        ('Hash one', 1),
+        ('Hash three', 3),
+        ('Hash six', 6),
+      ]) {
+        expect(headingOf(text), (true, level), reason: text);
+      }
+      for (final text in [
+        'Caption',
+        'Body',
+        'Plain',
+        '####### Seven',
+        'Title\nbody',
+        'Quote',
+      ]) {
+        expect(headingOf(text), (false, 0), reason: text);
+      }
+      handle.dispose();
+    });
+
+    testWidgets('keeps the heading flag off the texts beside a heading in a '
+        'card or a labelled component', (tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await pumpComponents(tester, [
+        {
+          'id': 'root',
+          'component': 'Column',
+          'children': ['card', 'labelled'],
+        },
+        {'id': 'card', 'component': 'Card', 'child': 'cardColumn'},
+        {
+          'id': 'cardColumn',
+          'component': 'Column',
+          'children': ['cardTitle', 'cardBody'],
+        },
+        {
+          'id': 'cardTitle',
+          'component': 'Text',
+          'text': 'Card title',
+          'variant': 'h2',
+        },
+        {'id': 'cardBody', 'component': 'Text', 'text': 'Card body'},
+        {
+          'id': 'labelled',
+          'component': 'Column',
+          'children': ['labelledTitle', 'labelledBody'],
+          'accessibility': {'label': 'Greeting'},
+        },
+        {'id': 'labelledTitle', 'component': 'Text', 'text': '### Hello'},
+        {'id': 'labelledBody', 'component': 'Text', 'text': 'Labelled body'},
+      ], catalog: _catalog);
+
+      SemanticsData dataOf(String text) =>
+          tester.getSemantics(find.text(text)).getSemanticsData();
+      for (final (text, level) in [('Card title', 2), ('Hello', 3)]) {
+        final SemanticsData heading = dataOf(text);
+        expect(heading.label, text);
+        expect(heading.flagsCollection.isHeader, isTrue, reason: text);
+        expect(heading.headingLevel, level, reason: text);
+      }
+      for (final text in ['Card body', 'Labelled body']) {
+        final SemanticsData body = dataOf(text);
+        expect(body.label, contains(text));
+        expect(body.label, isNot(contains('Card title')), reason: text);
+        expect(body.label, isNot(contains('Hello')), reason: text);
+        expect(body.flagsCollection.isHeader, isFalse, reason: text);
+        expect(body.headingLevel, 0, reason: text);
+      }
+      handle.dispose();
     });
   });
 

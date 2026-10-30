@@ -32,6 +32,11 @@ import 'markdown.dart';
 /// emphasis, strikethrough and code delimiters, and backslash escapes. A
 /// `body` Text that is one Markdown heading line takes the style of the
 /// variant of that level, `h5` for level 6.
+///
+/// The `h1`–`h5` variants and a Markdown heading line are marked as headings
+/// of their level in the semantics tree, so screen readers announce them as
+/// headings and can navigate by them, like the `<h1>`–`<h5>` elements of the
+/// web renderer.
 Widget buildText(
   BuildContext context,
   ComponentNode<ComponentImplementation> node,
@@ -49,7 +54,16 @@ Widget buildText(
     'caption' => theme.bodySmall,
     _ => null,
   };
-  TextStyle? style = styleOf(props.string('variant'));
+  final String? variant = props.string('variant');
+  TextStyle? style = styleOf(variant);
+  int? level = switch (variant) {
+    'h1' => 1,
+    'h2' => 2,
+    'h3' => 3,
+    'h4' => 4,
+    'h5' => 5,
+    _ => null,
+  };
   if (style == null) {
     if (A2uiMarkdown.maybeOf(context) case final A2uiMarkdownBuilder markdown) {
       return markdown(context, text, DefaultTextStyle.of(context).style);
@@ -60,14 +74,25 @@ Widget buildText(
       ? _heading.firstMatch(line)
       : null;
   if (heading != null) {
-    style = styleOf('h${math.min(heading[1]!.length, 5)}');
+    level = heading[1]!.length;
+    style = styleOf('h${math.min(level, 5)}');
   }
-  return Text(
+  final Widget widget = Text(
     _withoutMarkers(heading == null ? text : line),
     style: style == null
         ? null
         : TextStyle(fontSize: style.fontSize, fontWeight: style.fontWeight),
   );
+  // A container, so the heading flag stays on this text and does not spread
+  // to the texts beside it in a Card or a labelled component.
+  return level == null
+      ? widget
+      : Semantics(
+          container: true,
+          header: true,
+          headingLevel: level,
+          child: widget,
+        );
 }
 
 /// The start of a line that is a Markdown heading, with its `#` markers in

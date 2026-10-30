@@ -27,6 +27,11 @@
   old indicator should render their own loading state until the fallback API
   from [#2013](https://github.com/a2ui-project/a2ui/issues/2013) lands
   ([#3714](https://github.com/a2ui-project/a2ui/pull/3714)).
+- The basic `Text` component marks the `h1`–`h5` variants, and a Text that
+  is one Markdown heading line, as headings of their level in the semantics
+  tree, so screen readers announce them as headings and can navigate by them.
+  A `Button` merges the semantics of its child, so a heading or a labelled
+  component as its child still gives the button its name.
 
 ## 0.0.1-wip003
 
