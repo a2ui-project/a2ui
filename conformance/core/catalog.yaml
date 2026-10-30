@@ -589,6 +589,14 @@
   expect:
     selfContained: true
 
+- name: test_v10_published_iframe_catalog_is_self_contained
+  description: Tests that the published v1.0 iframe catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/iframe/catalog.json"
+  expect:
+    selfContained: true
+
 - name: test_v09_published_vegachart_catalog_is_self_contained
   description: Tests that the published v0.9 VegaChart catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
