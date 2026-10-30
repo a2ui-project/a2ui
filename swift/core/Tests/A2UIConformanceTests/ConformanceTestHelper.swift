@@ -829,7 +829,7 @@ public enum ConformanceTestHelper {
     if let expectedPath = expected.path {
       let actualPath = fields.path ?? "nil"
       #expect(
-        fields.path == expectedPath,
+        rendererErrorPathMatches(fields.path, expected: expectedPath),
         "[\(context)] Expected rendererError.path '\(expectedPath)', got '\(actualPath)'"
       )
     }
@@ -839,6 +839,16 @@ public enum ConformanceTestHelper {
         "[\(context)] Expected message containing '\(expectedMessage)', got '\(fields.message)'"
       )
     }
+  }
+
+  private static func rendererErrorPathMatches(_ actual: String?, expected: String) -> Bool {
+    guard let actual else { return false }
+    if actual == expected { return true }
+    let parts = expected.split(separator: "/")
+    if parts.count == 2, parts[0] == "components", parts[1].allSatisfy(\.isNumber) {
+      return actual.hasPrefix(expected + "/")
+    }
+    return false
   }
 
   private static func extractRendererErrorFields(

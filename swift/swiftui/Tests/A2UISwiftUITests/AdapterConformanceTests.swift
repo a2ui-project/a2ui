@@ -547,7 +547,7 @@ struct AdapterConformanceTests {
     )
     #expect(rendered != nil, "Expected Surface.render builder for '\(node.type)'")
     let children = resolveChildViewNodes(in: surface, node: node)
-    let baseID = String(node.id.split(separator: ":").first ?? Substring(node.id))
+    let baseID = baseComponentID(for: node, in: surface)
     return ViewNode(
       id: baseID,
       instanceID: node.id,
@@ -556,6 +556,27 @@ struct AdapterConformanceTests {
       node: node,
       children: children
     )
+  }
+
+  private func baseComponentID(for node: Node, in surface: Surface) -> String {
+    if surface.viewModel.componentsModel.get(node.id) != nil {
+      return node.id
+    }
+    if let colonPrefix = node.id.split(separator: ":").first.map(String.init),
+      surface.viewModel.componentsModel.get(colonPrefix) != nil
+    {
+      return colonPrefix
+    }
+    var candidate = node.id
+    while let underscoreIdx = candidate.lastIndex(of: "_") {
+      let suffix = candidate[candidate.index(after: underscoreIdx)...]
+      guard !suffix.isEmpty, suffix.allSatisfy(\.isNumber) else { break }
+      candidate = String(candidate[..<underscoreIdx])
+      if surface.viewModel.componentsModel.get(candidate) != nil {
+        return candidate
+      }
+    }
+    return String(node.id.split(separator: ":").first ?? Substring(node.id))
   }
 
   private func resolveChildViewNodes(in surface: Surface, node: Node) -> [ViewNode] {
