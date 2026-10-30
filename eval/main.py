@@ -326,10 +326,24 @@ def main() -> None:
         action="append",
         help=(
             "Evaluation strategies to run (choices: direct, subagent_tool,"
-            " express, skill_mode, elemental, atom). Can be comma-separated or"
-            " specified multiple times. Defaults to the production strategies"
-            " direct, subagent_tool and express."
+            " express, skill_mode, elemental, atom, decision). Can be"
+            " comma-separated or specified multiple times. Defaults to the"
+            " production strategies direct, subagent_tool and express."
         ),
+    )
+    parser.add_argument(
+        "--decision-backend",
+        choices=["mock", "jev", "step0"],
+        default=None,
+        help=(
+            "Decision backend to use for the decision strategy ('mock',"
+            " 'jev', 'step0')."
+        ),
+    )
+    parser.add_argument(
+        "--cache-generations",
+        action="store_true",
+        help="Cache LLM generations using Inspect's GenerateConfigArgs.cache.",
     )
     parser.add_argument(
         "--profile",
@@ -475,6 +489,10 @@ def main() -> None:
             task_kwargs["max_validation_retries"] = args.max_validation_retries
         if args.subagent_format != "direct_json":
             task_kwargs["subagent_format"] = args.subagent_format
+        if args.decision_backend:
+            task_kwargs["decision_backend"] = args.decision_backend
+        if args.cache_generations:
+            task_kwargs["cache_generations"] = True
 
         task_obj = task_func(**task_kwargs)
         if args.prompt and getattr(task_obj, "dataset", None) is not None:

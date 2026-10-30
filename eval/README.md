@@ -81,12 +81,17 @@ uv run main.py --dataset multi_turn_conversation_dataset
 uv run main.py --datasets core_v0_9_1,multi_turn_conversation_dataset
 ```
 
-By default `main.py` runs the production strategies: `direct`, `subagent_tool` and `express`. The experimental formats `elemental` and `atom`, and the `skill_mode` strategy, run only when you name them:
+By default `main.py` runs the production strategies: `direct`, `subagent_tool` and `express`. The experimental formats `elemental` and `atom`, the `skill_mode` strategy, and the `decision` strategy run only when you name them:
 
 ```bash
 uv run main.py --dataset multi_turn_conversation_dataset --strategies direct,express,elemental
 uv run main.py --strategies skill_mode
+uv run main.py --strategies decision --decision-backend mock
 ```
+
+The `decision` strategy evaluates the two-stage decision-model synthesis route. In Stage 1, the model emits intent and payload in a `<a2ui>` block. In Stage 2, the decision synthesizer plans and expands the surface without an additional UI generation model call.
+
+- `--decision-backend`: `mock` (default when `$A2UI_DECISION_BACKEND` is unset), `jev`, or `step0`.
 
 The `subagent_tool` strategy gives the outer model one tool, `a2ui_specialist`, and a second model call writes the payload. `--subagent-format {direct_json,express}` picks the format the specialist writes in (default `direct_json`).
 
@@ -313,6 +318,42 @@ To print a console summary or markdown table from an eval log file:
 ```bash
 uv run python bin/report_evals.py logs/<log_filename>.eval
 ```
+
+## Strategy Comparison
+
+`bin/compare_strategies.py` performs a pairwise comparison of two or more evaluated strategies from a shared evaluation log directory:
+
+```bash
+uv run ./bin/compare_strategies.py logs/decision_vs_express --json logs/decision_vs_express/summary.json
+```
+
+It reports:
+
+- Pass@1 accuracy and Pass@K validation rates.
+- Token usage: prompt and output tokens per turn, and token reduction percentage.
+- Latency: median and 95th percentile wall-clock response time, plus decision-stage latency and call counts.
+
+## Decision Model Benchmarking
+
+`bin/decision_bench.py` benchmarks decision backend models directly against the encrypted golden plan dataset (`datasets/decision_plans/v1.yaml`):
+
+```bash
+# Run against the step-0 backend
+uv run ./bin/decision_bench.py --backend step0 --repeat 3 --markdown
+
+# Fit optimal temperature on the calibration set
+uv run ./bin/decision_bench.py --backend step0 --fit-temperature
+
+# Run against remote Jev
+uv run ./bin/decision_bench.py --backend jev --repeat 3 --markdown
+```
+
+The benchmark reports:
+
+- Job family and layout archetype classification accuracy.
+- Block recall: whether all required semantic blocks were planned.
+- Calibration: Brier score and Expected Calibration Error (ECE) across probability buckets.
+- Latency: mean, median, P95, and P99 latency in milliseconds.
 
 ## Running Unit Tests & Schema Validation
 
