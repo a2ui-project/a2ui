@@ -35,13 +35,24 @@ import {
   type SurfaceModel,
 } from '@a2ui/web_core/v1_0';
 import {a2uiDataPart, type AgentClient, type AgentReply} from './a2a.js';
-import {attachBoardSummary, BOARD_PATH, KANBAN_SURFACE_ID} from './summary.js';
+
+/** Surface id the agent creates for the board. */
+export const KANBAN_SURFACE_ID = 'kanban';
+
+/** Data model path of the board (bound to the app's `board` key). */
+export const BOARD_PATH = '/kanban/board';
+
+/** Data model path of the selected card (written from the app's model context). */
+export const SELECTION_PATH = '/kanban/selection';
+
+/** Data model path of the quick-add task fields (`title` and `assignee`). */
+export const QUICK_ADD_PATH = '/kanban/quickAdd';
 
 /** Action name the `McpApp` host dispatches for an app's `ui/message` request. */
 export const MCP_APP_MESSAGE_ACTION = 'a2ui.mcpAppMessage';
 
 /** Data model keys that are too big or too raw to send with every turn. */
-const OMITTED_DATA_MODEL_KEYS: ReadonlySet<string> = new Set(['board', 'toolResult']);
+const OMITTED_DATA_MODEL_KEYS: ReadonlySet<string> = new Set(['board', 'toolResult', 'quickAdd']);
 
 /** Maximum length for inline HTML bundle fields when formatted in the debug pane. */
 const MAX_INLINE_HTML_PREVIEW = 120;
@@ -133,8 +144,15 @@ export function dataModelKeysWritten(
     if (isRecord(update) && typeof update['path'] === 'string') {
       const [, root, key] = update['path'].split('/');
       if (root === 'kanban') {
-        return key ? [key] : ['board', 'modelContext', 'selection'];
+        return key ? [key] : ['board', 'modelContext', 'selection', 'quickAdd'];
       }
+    }
+    return [];
+  }
+  if (direction === 'host-to-server') {
+    const params = payload['params'];
+    if (isRecord(params) && params['name'] === 'create_task') {
+      return ['board'];
     }
     return [];
   }
@@ -329,10 +347,18 @@ export class KanbanHost {
     });
     this.processor.model.onSurfaceCreated.subscribe(surface => {
       this.detachSummary.get(surface.id)?.();
-      const detachSummary = attachBoardSummary(surface);
+      const boardSubscription = surface.dataModel.subscribe(BOARD_PATH, board => {
+        if (
+          board !== undefined &&
+          surface.dataModel.get('/kanban/toolResult') !== undefined &&
+          surface.dataModel.get('/kanban/toolResult') !== board
+        ) {
+          surface.dataModel.set('/kanban/toolResult', board);
+        }
+      });
       const kanbanSubscription = surface.dataModel.subscribe('/kanban', () => this.notify());
       this.detachSummary.set(surface.id, () => {
-        detachSummary();
+        boardSubscription.unsubscribe();
         kanbanSubscription.unsubscribe();
       });
       surface.onError.subscribe(error => {

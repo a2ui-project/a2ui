@@ -196,8 +196,21 @@ async def test_show_board_sends_the_surface(
     assert board["data"]["paths"]["modelContext"] == "/kanban/modelContext"
     assert "move_task" in board["allowedTools"]
     assert board["htmlContent"].startswith("url_encoded:")
-    assert components["wip_badge"]["text"] == {"@path": "/kanban/summary/wipText"}
+    for badge in ("wip_badge", "todo_count", "done_count", "selection_text"):
+        assert components[badge]["text"]["@call"] == "transformData"
+    assert components["quick_add_title"]["component"] == "TextField"
+    assert components["quick_add_assignee"]["component"] == "TextField"
+    quick_add = components["quick_add_button"]["action"]["functionCall"]
+    assert quick_add["@call"] == "updateDataModel"
+    transform = quick_add["args"]["updates"]
+    assert transform["@call"] == "transformData"
+    assert transform["args"]["jmespath"] == (
+        '{"/kanban/board": structuredContent, "/kanban/toolResult": toolResult}'
+    )
+    assert transform["args"]["data"]["@call"] == "callMcpTool"
+    assert transform["args"]["data"]["args"]["name"] == "create_task"
     assert output.a2ui_messages[1]["updateDataModel"]["value"]["board"] == seed_board()
+    assert "summary" not in output.a2ui_messages[1]["updateDataModel"]["value"]
     assert output.texts and "sprint board" in output.texts[0]
 
 

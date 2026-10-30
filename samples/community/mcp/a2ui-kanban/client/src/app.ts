@@ -101,7 +101,7 @@ const DEBUG_PANELS: ReadonlyArray<{
   {
     id: 'mcp-server',
     title: 'MCP · Host → Server',
-    emptyText: 'No tool calls proxied for the app yet.',
+    emptyText: 'No tool calls executed yet (via A2UI callMcpTool or McpApp tools/call).',
     openByDefault: true,
   },
   {
@@ -846,11 +846,55 @@ export class KanbanChat extends LitElement {
             Clear
           </button>
         </div>
-        ${this.renderDataModelPanel()}
+        ${this.renderArchitectureGuide()} ${this.renderDataModelPanel()}
         ${DEBUG_PANELS.map(panel =>
           this.renderDebugSection(panel.id, panel.title, panel.emptyText, panel.openByDefault),
         )}
       </aside>
+    `;
+  }
+
+  /** Explains which `@a2ui/catalog-mcp` components and functions power each region of the surface. */
+  private renderArchitectureGuide() {
+    return html`
+      <details class="debug-section" data-debug-section="architecture" open>
+        <summary>
+          <span>How this surface works (@a2ui/catalog-mcp)</span>
+          <span class="debug-count">3 functions + McpApp</span>
+        </summary>
+        <div class="debug-list">
+          <div class="debug-item">
+            <div class="debug-item-label">1. Reactive sibling Text (transformData)</div>
+            <div class="debug-empty">
+              <code>todo_count</code>, <code>wip_badge</code>, and <code>done_count</code> evaluate
+              <code>@call: transformData</code> directly over <code>/kanban/board</code>;
+              <code>selection_text</code> evaluates <code>transformData</code> over
+              <code>/kanban/selection</code>. No host TypeScript subscription is needed.
+            </div>
+          </div>
+          <div class="debug-item">
+            <div class="debug-item-label">
+              2. Direct A2UI → MCP pipeline (callMcpTool + transformData + updateDataModel)
+            </div>
+            <div class="debug-empty">
+              Clicking the button runs <code>callMcpTool("create_task")</code> with the title and
+              assignee fields; <code>transformData</code> picks <code>structuredContent</code> and
+              <code>toolResult</code> from the payload, and <code>updateDataModel</code> writes them
+              to <code>/kanban/board</code> and <code>/kanban/toolResult</code> in the browser with
+              no agent turn.
+            </div>
+          </div>
+          <div class="debug-item">
+            <div class="debug-item-label">3. Embedded McpApp (ui://kanban/board)</div>
+            <div class="debug-empty">
+              Two-way <code>data.paths</code> binding syncs <code>/kanban/board</code> with
+              <code>ui/notifications/data-model-update</code> and <code>data-model-change</code>;
+              <code>ui/update-model-context</code> writes <code>/kanban/selection</code>; card drops
+              call <code>tools/call</code> and <code>ui/message</code>.
+            </div>
+          </div>
+        </div>
+      </details>
     `;
   }
 
@@ -859,7 +903,6 @@ export class KanbanChat extends LitElement {
     const kanban = this.host.kanbanDataModel();
     const keys = kanban ? Object.keys(kanban).filter(key => key !== 'toolResult') : [];
     const board = kanban?.['board'];
-    const summary = kanban?.['summary'];
     const columns =
       board && typeof board === 'object' && Array.isArray((board as {columns?: unknown}).columns)
         ? ((board as {columns: Array<Record<string, unknown>>}).columns ?? [])
@@ -883,14 +926,8 @@ export class KanbanChat extends LitElement {
                   </div>
                 </div>`
               : nothing}
-            ${summary !== undefined
-              ? html`<div class="debug-item">
-                  <div class="debug-item-label">summary ${this.renderWriterBadge('summary')}</div>
-                  <pre class="debug-json">${formatDebugPayload(summary)}</pre>
-                </div>`
-              : nothing}
             ${keys
-              .filter(key => key !== 'board' && key !== 'summary')
+              .filter(key => key !== 'board')
               .map(
                 key =>
                   html`<div class="debug-item">
@@ -909,7 +946,7 @@ export class KanbanChat extends LitElement {
   }
 
   private renderWriterBadge(key: string) {
-    const writer = key === 'summary' ? 'host' : this.host.lastWriter[key];
+    const writer = this.host.lastWriter[key];
     return writer
       ? html`<span class="debug-badge debug-badge-${writer}">last written by ${writer}</span>`
       : nothing;
