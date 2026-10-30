@@ -17,6 +17,7 @@
 import {html, nothing, css} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import {styleMap} from 'lit/directives/style-map.js';
+import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ListSupportedApis} from './supported_apis.js';
 import type {ResolvedChildList} from '../../index.js';
@@ -72,8 +73,8 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
     const alignItems = props.align ? (ALIGN_MAP[props.align] ?? 'stretch') : undefined;
     const listInlineStyle = alignItems ? styleMap({alignItems}) : nothing;
 
-    const a11yLabel = this.getAccessibilityLabel(props.accessibility);
-    const a11yDescription = this.getAccessibilityDescription(props.accessibility);
+    const a11yLabel = getAccessibilityLabel(props.accessibility);
+    const a11yDescription = getAccessibilityDescription(props.accessibility);
 
     if (listStyle === 'ordered') {
       return html`

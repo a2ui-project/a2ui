@@ -17,6 +17,13 @@
 import {html, nothing, css} from 'lit';
 import {state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
+import {
+  getAccessibilityDescription,
+  getAccessibilityLabel,
+  getValidationErrorId,
+  hasAttributeValue,
+  renderValidationErrors,
+} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ChoicePickerSupportedApis} from './supported_apis.js';
 
@@ -177,11 +184,11 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
       ? `a2ui-choice-${surfaceId}-${componentId}-${sanitizedPath}`
       : `${this.domId}-choices`;
     const labelId = `${this.domId}-label`;
-    const hasVisibleLabel = this.hasAttributeValue(props.label);
-    const a11yLabel = this.getAccessibilityLabel(props.accessibility);
-    const a11yDescription = this.getAccessibilityDescription(props.accessibility);
+    const hasVisibleLabel = hasAttributeValue(props.label);
+    const a11yLabel = getAccessibilityLabel(props.accessibility);
+    const a11yDescription = getAccessibilityDescription(props.accessibility);
     const isInvalid = props.isValid === false;
-    const errorId = this.getValidationErrorId(props);
+    const errorId = getValidationErrorId(this.domId, props);
 
     return html`
       ${hasVisibleLabel ? html`<label id=${labelId}>${props.label}</label>` : nothing}
@@ -240,7 +247,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
               `,
         )}
       </div>
-      ${this.renderValidationErrors(props)}
+      ${renderValidationErrors(this.domId, props)}
     `;
   }
 }

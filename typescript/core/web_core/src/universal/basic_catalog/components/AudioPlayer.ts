@@ -16,6 +16,11 @@
 
 import {html, nothing, css} from 'lit';
 import {sanitizeMediaUrl} from '../../../common/sanitize_media_url.js';
+import {
+  getAccessibilityDescription,
+  getAccessibilityLabel,
+  hasAttributeValue,
+} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {AudioPlayerSupportedApis} from './supported_apis.js';
 
@@ -51,9 +56,9 @@ export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<AudioPlay
 
     const safeUrl = sanitizeMediaUrl(props.url);
     const descId = `${this.domId}-desc`;
-    const hasVisibleDescription = this.hasAttributeValue(props.description);
-    const a11yLabel = this.getAccessibilityLabel(props.accessibility);
-    const a11yDescription = this.getAccessibilityDescription(props.accessibility);
+    const hasVisibleDescription = hasAttributeValue(props.description);
+    const a11yLabel = getAccessibilityLabel(props.accessibility);
+    const a11yDescription = getAccessibilityDescription(props.accessibility);
 
     return html`
       <div class="a2ui-audio-player">

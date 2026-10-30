@@ -15,6 +15,13 @@
  */
 
 import {html, nothing, css} from 'lit';
+import {
+  getAccessibilityDescription,
+  getAccessibilityLabel,
+  getValidationErrorId,
+  hasAttributeValue,
+  renderValidationErrors,
+} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {SliderSupportedApis} from './supported_apis.js';
 
@@ -79,7 +86,7 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupporte
     return html`
       <div class="a2ui-slider-container">
         <div class="a2ui-slider-header">
-          ${this.hasAttributeValue(props.label)
+          ${hasAttributeValue(props.label)
             ? html`<label class="a2ui-slider-label" for=${inputId}>${props.label}</label>`
             : html`<span class="a2ui-slider-label"></span>`}
           <span class="a2ui-slider-value">${props.value}</span>
@@ -90,15 +97,15 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupporte
           min=${min}
           max=${max}
           step=${stepVal}
-          aria-label=${this.getAccessibilityLabel(props.accessibility)}
-          aria-description=${this.getAccessibilityDescription(props.accessibility)}
+          aria-label=${getAccessibilityLabel(props.accessibility)}
+          aria-description=${getAccessibilityDescription(props.accessibility)}
           aria-invalid=${isInvalid ? 'true' : nothing}
-          aria-describedby=${this.getValidationErrorId(props)}
+          aria-describedby=${getValidationErrorId(this.domId, props)}
           .value=${props.value?.toString() || '0'}
           @input=${(e: Event) => props.setValue?.(Number((e.target as HTMLInputElement).value))}
           class="a2ui-slider"
         />
-        ${this.renderValidationErrors(props)}
+        ${renderValidationErrors(this.domId, props)}
       </div>
     `;
   }

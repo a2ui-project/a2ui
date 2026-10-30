@@ -136,8 +136,39 @@ function findComponentElement(
   return undefined;
 }
 
+function isNestedComponentElement(host: HTMLElement, candidate: Element): boolean {
+  let current: Element | null = candidate;
+  while (current && current !== host) {
+    const a2uiEl = current as unknown as {context?: unknown; node?: unknown};
+    if (a2uiEl.context || a2uiEl.node) {
+      return true;
+    }
+    current = current.parentElement;
+  }
+  return false;
+}
+
+function resolveOwnAttribute(el: HTMLElement, attr: string): string | undefined {
+  const hostValue = el.getAttribute(attr);
+  if (hostValue) {
+    return hostValue;
+  }
+  for (const descendant of Array.from(el.querySelectorAll(`[${attr}]`))) {
+    if (
+      !isNestedComponentElement(el, descendant) &&
+      !descendant.matches('.a2ui-filter-input, .a2ui-modal-close')
+    ) {
+      const value = descendant.getAttribute(attr);
+      if (value) {
+        return value;
+      }
+    }
+  }
+  return undefined;
+}
+
 function resolveAccessibleLabel(el: HTMLElement): string | undefined {
-  const explicit = el.getAttribute('aria-label');
+  const explicit = resolveOwnAttribute(el, 'aria-label');
   if (explicit) {
     return explicit;
   }
@@ -206,7 +237,7 @@ function assertNodeAccessibility(
   }
   if (expected.description !== undefined) {
     assert.equal(
-      el.getAttribute('aria-description'),
+      resolveOwnAttribute(el, 'aria-description'),
       expected.description,
       `aria-description mismatch on "${componentId}"`,
     );

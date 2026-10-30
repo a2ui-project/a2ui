@@ -16,6 +16,7 @@
 
 import {html, nothing, css, PropertyValues} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
+import {setContainerAccessibilityAttributes} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ColumnSupportedApis} from './supported_apis.js';
 import type {ResolvedChildList} from '../../index.js';
@@ -82,7 +83,7 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<ColumnSup
         this.style.removeProperty('align-items');
       }
     }
-    this.applyContainerAccessibilityAttributes(props?.accessibility);
+    setContainerAccessibilityAttributes(this, props?.accessibility);
   }
 
   override render() {

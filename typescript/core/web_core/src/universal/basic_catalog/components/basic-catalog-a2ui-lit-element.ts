@@ -14,51 +14,16 @@
  * limitations under the License.
  */
 
-import {html, nothing} from 'lit';
-import type {z} from 'zod';
 import {ComponentApi, type InferredComponentApiSchemaType} from '../../../catalog/types.js';
-import type {ResolveA2uiProp, ResolveA2uiProps} from '../../../resolution/generic-binder.js';
+import type {ResolveA2uiProps} from '../../../resolution/generic-binder.js';
 import {nextNodeId} from '../../../resolution/node-id.js';
 import {A2uiLitElement} from '../../index.js';
 import {injectBasicCatalogStyles, computeColorVariant} from '../styles/default.js';
 import {isValidCssColor} from '../theme.js';
-import type {AccessibilityAttributesSupportedSchemas} from './supported_apis.js';
-
-type ResolvedUnionMember<T> = T extends unknown ? Partial<ResolveA2uiProp<T>> : never;
-type UnionKeys<T> = T extends unknown ? keyof T : never;
-
-type SupportedAccessibilityAttributes = z.infer<AccessibilityAttributesSupportedSchemas>;
-type AccessibilityAttributeKey = UnionKeys<SupportedAccessibilityAttributes>;
-
-/** Resolved accessibility attributes inferred across supported protocol versions. */
-export type ResolvedAccessibilityAttributes = ResolvedUnionMember<SupportedAccessibilityAttributes>;
-
-// Quoted keys survive minification and enforce completeness across AccessibilityAttributeKey.
-const HOST_ACCESSIBILITY_HANDLERS: Record<
-  AccessibilityAttributeKey,
-  (host: HTMLElement, a11y: ResolvedAccessibilityAttributes | undefined) => void
-> = {
-  // Forwarded to inner semantic controls or container groups by subclasses.
-  'label': () => {},
-  'description': () => {},
-  'live': (host, a11y) => {
-    const live = a11y && 'live' in a11y ? a11y.live : undefined;
-    if (live != null) {
-      host.setAttribute('aria-live', String(live));
-    } else {
-      host.removeAttribute('aria-live');
-    }
-  },
-  'hidden': (host, a11y) => {
-    if (a11y && 'hidden' in a11y && typeof a11y.hidden === 'boolean') {
-      host.setAttribute('aria-hidden', String(a11y.hidden));
-    } else {
-      host.removeAttribute('aria-hidden');
-    }
-  },
-};
-
-const HOST_ACCESSIBILITY_HANDLER_LIST = Object.values(HOST_ACCESSIBILITY_HANDLERS);
+import {
+  setHostAccessibilityAttributes,
+  type ResolvedAccessibilityAttributes,
+} from './accessibility.js';
 
 /**
  * The resolved props this base class reads. Not every protocol version
@@ -67,12 +32,6 @@ const HOST_ACCESSIBILITY_HANDLER_LIST = Object.values(HOST_ACCESSIBILITY_HANDLER
 interface CommonResolvedProps {
   weight?: number;
   accessibility?: ResolvedAccessibilityAttributes;
-}
-
-/** Props that the binder adds to components with validation checks. */
-export interface CheckableResolvedProps {
-  isValid?: boolean;
-  validationErrors?: string[];
 }
 
 /**
@@ -157,66 +116,6 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
       this.style.removeProperty('--a2ui-color-primary-dark');
       this.style.removeProperty('--a2ui-color-primary-hover');
     }
-    this.applyAccessibilityAttributes(props?.accessibility);
-  }
-
-  protected getAccessibilityLabel(a11y?: ResolvedAccessibilityAttributes): string | typeof nothing {
-    return this.hasAttributeValue(a11y?.label) ? String(a11y?.label) : nothing;
-  }
-
-  protected getAccessibilityDescription(
-    a11y?: ResolvedAccessibilityAttributes,
-  ): string | typeof nothing {
-    return this.hasAttributeValue(a11y?.description) ? String(a11y?.description) : nothing;
-  }
-
-  protected hasValidationErrors(props?: CheckableResolvedProps): boolean {
-    return props?.isValid === false && Boolean(props.validationErrors?.length);
-  }
-
-  protected getValidationErrorId(props?: CheckableResolvedProps): string | typeof nothing {
-    return this.hasValidationErrors(props) ? `${this.domId}-error` : nothing;
-  }
-
-  protected renderValidationErrors(props?: CheckableResolvedProps) {
-    if (this.hasValidationErrors(props)) {
-      return html`
-        <div id="${this.domId}-error" class="a2ui-validation-errors" role="alert">
-          ${props!.validationErrors!.map(
-            (msg: string) => html`<div class="a2ui-error-message">${msg}</div>`,
-          )}
-        </div>
-      `;
-    }
-    return nothing;
-  }
-
-  /**
-   * Applies group-level `role`, `aria-label`, and `aria-description` directly onto
-   * wrapperless layout host elements (`Column` and `Row`) only when explicitly set.
-   */
-  protected applyContainerAccessibilityAttributes(a11y?: ResolvedAccessibilityAttributes): void {
-    if (this.hasAttributeValue(a11y?.label)) {
-      this.setAttribute('role', 'group');
-      this.setAttribute('aria-label', String(a11y?.label));
-    } else {
-      this.removeAttribute('role');
-      this.removeAttribute('aria-label');
-    }
-    if (this.hasAttributeValue(a11y?.description)) {
-      this.setAttribute('aria-description', String(a11y?.description));
-    } else {
-      this.removeAttribute('aria-description');
-    }
-  }
-
-  private applyAccessibilityAttributes(a11y?: ResolvedAccessibilityAttributes): void {
-    for (const apply of HOST_ACCESSIBILITY_HANDLER_LIST) {
-      apply(this, a11y);
-    }
-  }
-
-  protected hasAttributeValue(value: unknown): boolean {
-    return value !== undefined && value !== null && value !== '';
+    setHostAccessibilityAttributes(this, props?.accessibility);
   }
 }

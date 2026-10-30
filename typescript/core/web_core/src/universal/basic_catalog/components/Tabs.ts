@@ -17,6 +17,7 @@
 import {html, nothing, css} from 'lit';
 import {state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
+import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {TabsSupportedApis} from './supported_apis.js';
 
@@ -89,8 +90,8 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<TabsSupportedApis> {
         <div
           class="a2ui-tab-bar"
           role="tablist"
-          aria-label=${this.getAccessibilityLabel(props.accessibility)}
-          aria-description=${this.getAccessibilityDescription(props.accessibility)}
+          aria-label=${getAccessibilityLabel(props.accessibility)}
+          aria-description=${getAccessibilityDescription(props.accessibility)}
         >
           ${props.tabs?.map(
             (tab, i) => html`

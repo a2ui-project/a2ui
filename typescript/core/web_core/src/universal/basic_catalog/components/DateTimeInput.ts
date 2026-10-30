@@ -15,6 +15,13 @@
  */
 
 import {html, nothing, css} from 'lit';
+import {
+  getAccessibilityDescription,
+  getAccessibilityLabel,
+  getValidationErrorId,
+  hasAttributeValue,
+  renderValidationErrors,
+} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {DateTimeInputSupportedApis} from './supported_apis.js';
 
@@ -176,10 +183,10 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
     const dateInputId = `${this.domId}-date`;
     const timeInputId = `${this.domId}-time`;
     const primaryInputId = enableDate ? dateInputId : timeInputId;
-    const hasVisibleLabel = this.hasAttributeValue(props.label);
-    const a11yLabel = this.getAccessibilityLabel(props.accessibility);
-    const a11yDescription = this.getAccessibilityDescription(props.accessibility);
-    const errorId = this.getValidationErrorId(props);
+    const hasVisibleLabel = hasAttributeValue(props.label);
+    const a11yLabel = getAccessibilityLabel(props.accessibility);
+    const a11yDescription = getAccessibilityDescription(props.accessibility);
+    const errorId = getValidationErrorId(this.domId, props);
 
     return html`
       <div class="a2ui-date-time-container">
@@ -235,7 +242,7 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
               `
             : nothing}
         </div>
-        ${this.renderValidationErrors(props)}
+        ${renderValidationErrors(this.domId, props)}
       </div>
     `;
   }

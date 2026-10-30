@@ -16,6 +16,7 @@
 
 import {html, nothing, css} from 'lit';
 import {consume} from '@lit/context';
+import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {TextSupportedApis} from './supported_apis.js';
 import {Context} from '../context/context.js';
@@ -107,8 +108,8 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<TextSupport
 
     const flexStyle = typeof props.weight === 'number' ? `flex: ${props.weight};` : nothing;
 
-    const a11yLabel = this.getAccessibilityLabel(props.accessibility);
-    const a11yDescription = this.getAccessibilityDescription(props.accessibility);
+    const a11yLabel = getAccessibilityLabel(props.accessibility);
+    const a11yDescription = getAccessibilityDescription(props.accessibility);
 
     if (NON_MARKDOWN_VARIANTS.has(variant)) {
       let content = html`${text}`;
