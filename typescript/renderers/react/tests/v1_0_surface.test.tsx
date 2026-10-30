@@ -185,7 +185,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
 
       const errorEl = container.querySelector('a2ui-slider .a2ui-error-message');
       expect(errorEl).not.toBeNull();
-      expect(errorEl?.textContent).toContain('Minimum value is 50.');
+      expect(errorEl?.textContent).toContain('Volume must be at least 50');
     });
 
     await act(async () => {

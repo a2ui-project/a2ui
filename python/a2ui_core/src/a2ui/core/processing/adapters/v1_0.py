@@ -98,6 +98,7 @@ class V1Point0Adapter(BaseVersionAdapter):
                     surface_id=self._get_surface_id(cs),
                     catalog_id=cs.get("catalogId"),
                     send_data_model=bool(cs.get("sendDataModel", False)),
+                    metadata=cs.get("metadata"),
                     version=message.get("version")
                     or (
                         self.version.value
