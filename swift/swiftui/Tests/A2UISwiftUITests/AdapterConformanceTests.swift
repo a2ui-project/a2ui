@@ -132,8 +132,8 @@ struct AdapterConformanceTests {
       "A2UICore.NodeResolver skips unresolved child IDs instead of materializing pending "
       + "placeholder nodes.",
     "fallback_states_unknown_type_and_cyclic_diagnostics":
-      "A2UICore.NodeResolver does not expose unknown-type or cyclic placeholder nodes or emit "
-      + "UNKNOWN_COMPONENT_TYPE / CYCLIC_REFERENCE diagnostics on SurfaceViewModel.",
+      "A2UICore.NodeResolver reports UNKNOWN_COMPONENT_TYPE / CYCLIC_REFERENCE but does not "
+      + "expose unknown-type or cyclic placeholder nodes on SurfaceViewModel.",
     "user_activation_gated_function_gesture_vs_programmatic":
       "A2UICore.DataContext does not gate local functionCall action evaluation on "
       + "FunctionAPI.requiresUserActivation.",
