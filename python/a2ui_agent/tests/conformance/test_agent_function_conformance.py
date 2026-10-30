@@ -209,8 +209,9 @@ class _FakeClockLoop(asyncio.SelectorEventLoop):
     """An event loop whose clock moves only when `advance` moves it."""
 
     def __init__(self) -> None:
-        super().__init__(selectors.DefaultSelector())
+        # Set before the base constructor, which may already read the clock.
         self._now_ms = 0
+        super().__init__(selectors.DefaultSelector())
 
     def time(self) -> float:
         return self._now_ms / 1000
@@ -319,17 +320,22 @@ async def _run_calls_on_loop(case: Mapping[str, Any], loop: _FakeClockLoop) -> N
 
     calls.dispose()
     await _let_pending_work_run()
+    # Reads each failure, so asyncio doesn't log "exception was never
+    # retrieved". `dispose` settles every pending call, but a future that is
+    # somehow still pending is skipped rather than raising InvalidStateError.
     for future in futures.values():
-        if not future.cancelled():
+        if future.done() and not future.cancelled():
             future.exception()
 
 
 def _run_calls(case: Mapping[str, Any]) -> None:
     loop = _FakeClockLoop()
+    asyncio.set_event_loop(loop)
     try:
         loop.run_until_complete(_run_calls_on_loop(case, loop))
     finally:
         loop.close()
+        asyncio.set_event_loop(None)
 
 
 RUNNERS: dict[str, Callable[[Mapping[str, Any]], None]] = {
