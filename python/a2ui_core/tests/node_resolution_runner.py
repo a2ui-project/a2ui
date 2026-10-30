@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 import inspect
 import json
@@ -39,8 +40,10 @@ from a2ui.core.state import ComponentModel, SurfaceModel
 class _Watch:
     path: str
     emissions: int = 0
+    metadata_emissions: int = 0
     destroyed: int = 0
     last_props: Any = None
+    last_metadata: Any = None
     stop: Callable[[], None] = lambda: None
 
 
@@ -113,6 +116,7 @@ def _check_nodes(
             "type": node.type,
             "state": node.state,
             "data_path": node.data_path,
+            "metadata": node.metadata,
             "isValid": node.is_valid,
             "validationErrors": node.validation_errors,
             "validationResults": node.validation_results,
@@ -122,6 +126,7 @@ def _check_nodes(
             "type",
             "state",
             "data_path",
+            "metadata",
             "isValid",
             "validationErrors",
             "validationResults",
@@ -147,16 +152,21 @@ def _update_components(
     for comp in components:
         comp_id = comp["id"]
         comp_type = comp["component"]
-        properties = {k: v for k, v in comp.items() if k not in ("id", "component")}
+        metadata = copy.deepcopy(comp["metadata"]) if "metadata" in comp else None
+        properties = {
+            k: v for k, v in comp.items() if k not in ("id", "component", "metadata")
+        }
         existing = surface.components_model.get(comp_id)
         if existing is not None:
             assert (
                 existing.type == comp_type
             ), f"update_components cannot change {comp_id}'s type"
-            existing.properties = properties
+            existing.apply_update(properties, metadata)
         else:
             surface.components_model.add_component(
-                ComponentModel(comp_id, comp_type, catalog, properties)
+                ComponentModel(
+                    comp_id, comp_type, catalog, properties, metadata=metadata
+                )
             )
 
 
@@ -220,13 +230,19 @@ def _watch_nodes(
             watch.emissions += 1
             watch.last_props = _normalize(props, watch.path)
 
+        def on_meta(meta: dict[str, Any] | None, watch: _Watch = w) -> None:
+            watch.metadata_emissions += 1
+            watch.last_metadata = copy.deepcopy(meta)
+
         def on_destroy(_: Any, watch: _Watch = w) -> None:
             watch.destroyed += 1
 
         sub_props = node.on_updated.subscribe(on_props)
+        sub_meta = node.on_metadata_changed.subscribe(on_meta)
         sub_destroy = node.on_destroyed.subscribe(on_destroy)
-        w.stop = lambda sp=sub_props, sd=sub_destroy: (
+        w.stop = lambda sp=sub_props, sm=sub_meta, sd=sub_destroy: (
             sp.unsubscribe(),
+            sm.unsubscribe(),
             sd.unsubscribe(),
         )
         watches[node] = w
@@ -236,8 +252,9 @@ def _collect_watch_counts(
     watches: dict[ComponentNode, _Watch],
     surviving: set[ComponentNode],
     reason: str,
-) -> tuple[dict[str, int], dict[str, int]]:
+) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
     emissions: dict[str, int] = {}
+    metadata_emissions: dict[str, int] = {}
     destroyed: dict[str, int] = {}
     for node, w in watches.items():
         if w.emissions and node in surviving:
@@ -245,10 +262,17 @@ def _collect_watch_counts(
             assert w.last_props == _normalize(
                 node.props, w.path
             ), f"{reason}: {w.path} last emission"
+        if w.metadata_emissions and node in surviving:
+            metadata_emissions[w.path] = (
+                metadata_emissions.get(w.path, 0) + w.metadata_emissions
+            )
+            assert (
+                w.last_metadata == node.metadata
+            ), f"{reason}: {w.path} last metadata emission"
         if w.destroyed:
             destroyed[w.path] = destroyed.get(w.path, 0) + w.destroyed
             assert node.disposed, f"{reason}: {w.path} destruction without disposal"
-    return emissions, destroyed
+    return emissions, metadata_emissions, destroyed
 
 
 def _check_errors(
@@ -280,11 +304,18 @@ def _check_step_state(
 ) -> None:
     after = _mounted_nodes(resolver)
     _check_nodes(after, expected, reason)
-    emissions, destroyed = _collect_watch_counts(watches, set(after.values()), reason)
+    emissions, metadata_emissions, destroyed = _collect_watch_counts(
+        watches, set(after.values()), reason
+    )
     assert emissions == (expected.get("emissions") or {}), (
         f"{reason}: emissions expected {expected.get('emissions') or {}}, got"
         f" {emissions}"
     )
+    if "metadata_emissions" in expected:
+        assert metadata_emissions == (expected.get("metadata_emissions") or {}), (
+            f"{reason}: metadata_emissions expected"
+            f" {expected.get('metadata_emissions') or {}}, got {metadata_emissions}"
+        )
     assert destroyed == (expected.get("destroyed") or {}), (
         f"{reason}: destroyed expected {expected.get('destroyed') or {}}, got"
         f" {destroyed}"
@@ -338,7 +369,8 @@ def _execute_step_op(
     elif op == "invoke":
         action = _required_node(before, step["node"]).props.get(step["property"])
         assert callable(action), f"{reason}: not an action"
-        res = action()
+        raw_meta = copy.deepcopy(step["metadata"]) if "metadata" in step else None
+        res = action(metadata=raw_meta) if raw_meta is not None else action()
         if inspect.isawaitable(res):
             import asyncio
 
@@ -379,6 +411,11 @@ def run_node_resolution_case(test_case: dict[str, Any], conformance_root: Path) 
             "name": action.get("name"),
             "source_component_id": action.get("sourceComponentId"),
             "context": _normalize(action.get("context") or {}, ""),
+            **(
+                {"metadata": copy.deepcopy(action["metadata"])}
+                if action.get("metadata") is not None
+                else {}
+            ),
         })
     )
     stop_errors = surface.on_error.subscribe(lambda err: errors.append(dict(err)))
@@ -402,8 +439,10 @@ def run_node_resolution_case(test_case: dict[str, Any], conformance_root: Path) 
             _watch_nodes(before, watches)
             for w in watches.values():
                 w.emissions = 0
+                w.metadata_emissions = 0
                 w.destroyed = 0
                 w.last_props = None
+                w.last_metadata = None
             events.clear()
             functions.clear()
             errors.clear()

@@ -69,6 +69,10 @@ export interface ValidationResult {
   valid: boolean;
   /** Explanatory message when validation failed. */
   message?: string;
+  /** Optional machine-readable validation code. */
+  code?: string;
+  /** Optional severity level. */
+  severity?: 'error' | 'warning' | 'info';
 }
 
 /**
@@ -181,7 +185,13 @@ export function validateEmail(val: unknown): ValidationResult {
   const isValid = typeof val === 'string' && EMAIL_REGEX.test(val);
   return {
     valid: isValid,
-    ...(isValid ? {} : {message: 'Must be a valid email address.'}),
+    ...(isValid
+      ? {}
+      : {
+          code: 'INVALID_EMAIL',
+          severity: 'error',
+          message: 'Please enter a valid email address (e.g. user@example.com).',
+        }),
   };
 }
 
