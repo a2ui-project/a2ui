@@ -19,14 +19,14 @@ function results or side effects; no URL is opened.
 
 A case asserts the initial state, then applies these operations in order:
 
-| `op`                | Inputs                      | Meaning                                                                                                         |
-| ------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `set_data`          | `path`, `value`             | Write to the surface data model.                                                                                |
-| `update_components` | `components`                | Add definitions or replace existing definitions' properties, in order. Existing component types stay unchanged. |
-| `remove_component`  | `component_id`              | Remove a definition.                                                                                            |
-| `write`             | `node`, `property`, `value` | Write through a writable binding.                                                                               |
-| `invoke`            | `node`, `property`          | Invoke an action and await completion.                                                                          |
-| `dispose`           |                             | Dispose the resolver.                                                                                           |
+| `op`                | Inputs                         | Meaning                                                                                                         |
+| ------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `set_data`          | `path`, `value`                | Write to the surface data model.                                                                                |
+| `update_components` | `components`                   | Add definitions or replace existing definitions' properties, in order. Existing component types stay unchanged. |
+| `remove_component`  | `component_id`                 | Remove a definition.                                                                                            |
+| `write`             | `node`, `property`, `value`    | Write through a writable binding.                                                                               |
+| `invoke`            | `node`, `property`, `metadata` | Invoke an action and await completion. Optional `metadata` is passed as `ActionDispatchOptions` to the action.  |
+| `dispose`           |                                | Dispose the resolver.                                                                                           |
 
 An operation finishes after its reactive work has settled. Subscription-time
 callbacks are setup, not updates.
@@ -39,9 +39,11 @@ data-item keys.
 
 Every `expect` contains `nodes`, listing **all** mounted positions. Each node
 assertion checks only the named fields: `component_id`, `type`, `state`,
-`data_path`, and `props`. An empty object checks presence alone. Inside `props`,
-only named properties are checked, but each property's value is compared in
-full, using these representations:
+`data_path`, `props`, and `metadata`. An empty object checks presence alone.
+`metadata` is compared in full against the node's envelope metadata
+(`{extensions: {...}}`); `metadata: null` asserts that the node carries none.
+Inside `props`, only named properties are checked, but each property's value is
+compared in full, using these representations:
 
 - Binding: `{value: Ada, writable: true}`. Literal bindings have `writable: false`.
 - Child reference: `{node: root/children/0}`.
@@ -50,15 +52,16 @@ full, using these representations:
 
 The other expectations describe observable behavior:
 
-| Field            | Assertion                                                                                                                                              |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `emissions`      | Exact props-callback counts for nodes retained by reference across the operation. Required on every step; `{}` means all retained nodes stayed silent. |
-| `same_nodes`     | Positions whose actual node objects are unchanged from before the step.                                                                                |
-| `replaced_nodes` | Positions present before and after the step whose actual node objects differ.                                                                          |
-| `destroyed`      | Exact destruction-callback counts, addressed by each instance's last observed position. Destroyed instances must be disposed.                          |
-| `data`           | Data-model paths and their exact values.                                                                                                               |
-| `events`         | Exact action events, retaining `name`, `source_component_id`, and `context`.                                                                           |
-| `functions`      | Exact recorded function calls, retaining `name` and `args`.                                                                                            |
+| Field                | Assertion                                                                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `emissions`          | Exact props-callback counts for nodes retained by reference across the operation. Required on every step; `{}` means all retained nodes stayed silent. |
+| `metadata_emissions` | Exact metadata-callback counts for retained nodes. Absent or `{}` means no retained node's metadata emitted.                                           |
+| `same_nodes`         | Positions whose actual node objects are unchanged from before the step.                                                                                |
+| `replaced_nodes`     | Positions present before and after the step whose actual node objects differ.                                                                          |
+| `destroyed`          | Exact destruction-callback counts, addressed by each instance's last observed position. Destroyed instances must be disposed.                          |
+| `data`               | Data-model paths and their exact values.                                                                                                               |
+| `events`             | Exact action events, retaining `name`, `source_component_id`, `context`, and, when named, `metadata`.                                                  |
+| `functions`          | Exact recorded function calls, retaining `name` and `args`.                                                                                            |
 
 Absent `destroyed`, `events`, and `functions` mean none occurred. Counts reset
 per step; notification delivery order is not asserted. The initial expectation

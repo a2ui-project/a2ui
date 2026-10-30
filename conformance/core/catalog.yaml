@@ -1225,3 +1225,35 @@
         type: object
         properties:
           url: {type: string}
+
+# ------------------------------------------------------------------------------
+# 1e. Component definition metadata (v1.0 ComponentDefinition.metadata)
+# ------------------------------------------------------------------------------
+
+- name: test_v10_catalog_from_json_component_metadata
+  description: Tests that a v1.0 catalog whose component definitions carry metadata.extensions exposes each component's envelope on the loaded ComponentApi, and reports none for components that define no metadata.
+  action: from_json
+  protocolVersion: "1.0"
+  catalogPath: "conformance/test_data/catalogs/component_metadata_catalog_v1_0.json"
+  expect:
+    catalogId: "conformance/component-metadata"
+    components: [Text, Button, Card, Column]
+    componentMetadata:
+      Text: {extensions: {com_example_telemetry: {track: true}, a2ui_experimental: preview}}
+      Button: {extensions: {com_example_policy: interactive}}
+      Card: null
+      Column: null
+
+- name: test_v10_catalog_from_json_component_metadata_invalid_uax31_key_error
+  description: Tests that a v1.0 catalog whose component metadata.extensions has a key that is not a UAX 31 identifier is rejected at load.
+  action: from_json
+  protocolVersion: "1.0"
+  catalogPath: "conformance/test_data/catalogs/component_metadata_invalid_key_catalog_v1_0.json"
+  expectError:
+    category: "ValidationError"
+
+- name: test_v10_component_metadata_catalog_round_trip
+  description: Tests that ComponentDefinition.metadata envelopes survive fromJson followed by toJson unchanged.
+  action: round_trip
+  protocolVersion: "1.0"
+  catalogPath: "conformance/test_data/catalogs/component_metadata_catalog_v1_0.json"

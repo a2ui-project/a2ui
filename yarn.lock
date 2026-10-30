@@ -149,6 +149,7 @@ __metadata:
     typescript: "npm:5.9.3"
     vitest: "npm:^4.1.8"
     wireit: "npm:^0.15.0-pre.2"
+    yaml: "npm:^2.8.1"
     zod: "npm:^3.25.76"
   peerDependencies:
     "@a2ui/markdown-it": "workspace:*"

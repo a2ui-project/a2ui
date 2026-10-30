@@ -251,16 +251,12 @@ export class Skill {
     const yamlStr = lines.join('\n').trim();
     return `---\n${yamlStr}\n---\n\n${this.content.trim()}\n`;
   }
-
-  toString(): string {
-    return this.toMarkdown();
-  }
 }
 
 /**
  * Collection of Skill objects representing a modular or multi-skill package.
  */
-export class SkillSet implements Iterable<string> {
+export class SkillSet implements Iterable<[string, Skill]> {
   private readonly skills = new Map<string, Skill>();
 
   constructor(skills?: Record<string, Skill> | Iterable<[string, Skill]>) {
@@ -392,7 +388,7 @@ export class SkillSet implements Iterable<string> {
     return this.skills.entries();
   }
 
-  [Symbol.iterator](): IterableIterator<string> {
-    return this.skills.keys();
+  [Symbol.iterator](): IterableIterator<[string, Skill]> {
+    return this.entries();
   }
 }

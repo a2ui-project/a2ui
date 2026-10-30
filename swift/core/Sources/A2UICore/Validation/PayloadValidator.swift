@@ -251,6 +251,9 @@ public final class PayloadValidator: Sendable {
     }
 
     if enforceIdentifiers {
+      if let rawMeta = component["metadata"] {
+        _ = try MetadataValidator.validate(rawMeta, pathPrefix: "metadata")
+      }
       let declaredKeys =
         declaredEnvelopeKeys[type] ?? Self.envelopeKeysDeclared(in: componentAPI.schema.jsonValue)
       for key in Self.envelopeKeys where !declaredKeys.contains(key) {
@@ -794,14 +797,14 @@ public final class PayloadValidator: Sendable {
     callDict: OrderedDictionary<String, JSONValue>,
     componentNamesCatalog: Bool
   ) -> Bool {
-    if enforceIdentifiers {
-      if let rawCallCatalogID = callDict["catalogId"] {
-        return rawCallCatalogID.stringValue == catalog.id
-      }
-      return !componentNamesCatalog
+    // Before v1.0 a call can't select a catalog: it always runs in the surface catalog.
+    guard enforceIdentifiers else {
+      return true
     }
-    let callCatalogID = callDict["catalogId"]?.stringValue
-    return callCatalogID == nil || callCatalogID?.isEmpty == true || callCatalogID == catalog.id
+    if let rawCallCatalogID = callDict["catalogId"] {
+      return rawCallCatalogID.stringValue == catalog.id
+    }
+    return !componentNamesCatalog
   }
 
   /// Returns the component envelope keys that a component schema declares.

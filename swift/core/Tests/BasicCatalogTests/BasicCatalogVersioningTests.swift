@@ -14,6 +14,7 @@
 
 import A2UICore
 import BasicCatalog
+import OrderedJSON
 import Testing
 
 @MainActor
@@ -40,5 +41,33 @@ struct BasicCatalogVersioningTests {
     #expect(V10BasicFunctions.allFunctions.count == 15)
     #expect(BasicFunctions.v09Functions.count == 14)
     #expect(BasicFunctions.v10Functions.count == 15)
+  }
+
+  @Test func v10ComponentSchemasValidateWeightProperty() throws {
+    let validTextWithIntegerWeight = try JSONValue.parse(
+      """
+      {"id": "t1", "component": "Text", "text": "Hello", "weight": 1}
+      """
+    )
+    let validButtonWithDecimalWeight = try JSONValue.parse(
+      """
+      {
+        "id": "b1",
+        "component": "Button",
+        "child": "t1",
+        "action": {"event": {"name": "tap"}},
+        "weight": 1.5
+      }
+      """
+    )
+    let invalidTextWithStringWeight = try JSONValue.parse(
+      """
+      {"id": "t2", "component": "Text", "text": "Hello", "weight": "heavy"}
+      """
+    )
+
+    #expect(V10BasicCatalogComponents.text.schema.validate(validTextWithIntegerWeight).isValid)
+    #expect(V10BasicCatalogComponents.button.schema.validate(validButtonWithDecimalWeight).isValid)
+    #expect(!V10BasicCatalogComponents.text.schema.validate(invalidTextWithStringWeight).isValid)
   }
 }

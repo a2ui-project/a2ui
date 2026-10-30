@@ -16,7 +16,16 @@ import copy
 from collections.abc import Container
 from typing import Any, Final, Iterator
 from ..common.events import EventSource
+from ..common.metadata import (
+    A2uiMetadata,
+    clone_metadata,
+    json_equals,
+    metadata_equals,
+    normalize_metadata,
+    validate_metadata,
+)
 from ..common.semver import is_at_least_version
+from ..common.uax31 import is_valid_uax31_identifier
 from ..catalog import CatalogApi
 from ..catalog.reference_map import (
     ComponentRefSpec,
@@ -134,6 +143,7 @@ class ComponentModel:
         component_type: str,
         catalog: CatalogApi,
         properties: dict[str, Any] | None = None,
+        metadata: A2uiMetadata | None = None,
     ):
         """Initializes the component.
 
@@ -143,12 +153,16 @@ class ComponentModel:
             catalog: The catalog the component resolved to: the catalog it
                 names, or else the surface default catalog.
             properties: The component's properties.
+            metadata: Optional component envelope metadata.
         """
         self.id = component_id
         self.type = component_type
         self.catalog: CatalogApi = catalog
         self._properties = copy.deepcopy(properties or {})
+        validate_metadata(metadata, context=f"component '{component_id}' metadata")
+        self._metadata: A2uiMetadata | None = normalize_metadata(metadata)
         self.on_updated = EventSource()
+        self.on_metadata_changed = EventSource()
 
     @property
     def properties(self) -> dict[str, Any]:
@@ -159,10 +173,91 @@ class ComponentModel:
         self._properties = copy.deepcopy(new_props)
         self.on_updated.emit(self)
 
+    def apply_update(
+        self,
+        new_properties: dict[str, Any],
+        new_metadata: A2uiMetadata | None,
+    ) -> None:
+        """Atomically updates both properties and metadata before emitting events."""
+        validate_metadata(new_metadata, context=f"component '{self.id}' metadata")
+        next_meta = normalize_metadata(new_metadata)
+        props_changed = not json_equals(self._properties, new_properties)
+        meta_changed = not metadata_equals(self._metadata, next_meta)
+        if props_changed:
+            self._properties = copy.deepcopy(new_properties)
+        if meta_changed:
+            self._metadata = next_meta
+        if props_changed:
+            self.on_updated.emit(self)
+        if meta_changed:
+            self.on_metadata_changed.emit(clone_metadata(self._metadata))
+
+    @property
+    def metadata(self) -> A2uiMetadata | None:
+        """Returns a defensive copy of the component's metadata envelope, or None."""
+        return clone_metadata(self._metadata)
+
+    @metadata.setter
+    def metadata(self, metadata: A2uiMetadata | None) -> None:
+        """Replaces the component's metadata envelope after validating UAX #31 keys."""
+        validate_metadata(metadata, context=f"component '{self.id}' metadata")
+        next_meta = normalize_metadata(metadata)
+        if metadata_equals(self._metadata, next_meta):
+            return
+        self._metadata = next_meta
+        self.on_metadata_changed.emit(clone_metadata(self._metadata))
+
+    @property
+    def extensions(self) -> dict[str, Any] | None:
+        """Returns a defensive copy of `metadata['extensions']`, or None."""
+        if self._metadata is None or not isinstance(
+            self._metadata.get("extensions"), dict
+        ):
+            return None
+        return dict(copy.deepcopy(self._metadata["extensions"]))
+
+    def set_extension(self, key: str, value: Any) -> None:
+        """Sets a single extension key on the component metadata envelope.
+
+        Passing ``None`` stores a JSON ``null`` value under ``key``; use
+        :meth:`remove_extension` to delete an extension key.
+        """
+        if not isinstance(key, str) or not is_valid_uax31_identifier(key):
+            raise A2uiValidationError(
+                f"Invalid UAX #31 extension identifier '{key}' in component"
+                f" '{self.id}' metadata.extensions."
+            )
+        current_ext = (
+            dict(self._metadata.get("extensions") or {})
+            if self._metadata is not None
+            else {}
+        )
+        current_ext[key] = copy.deepcopy(value)
+        self.metadata = {"extensions": current_ext}
+
+    def remove_extension(self, key: str) -> None:
+        """Removes a single extension key, collapsing empty metadata to None."""
+        if (
+            self._metadata is None
+            or not isinstance(self._metadata.get("extensions"), dict)
+            or key not in self._metadata["extensions"]
+        ):
+            return
+        current_ext = dict(self._metadata["extensions"])
+        del current_ext[key]
+        self.metadata = {"extensions": current_ext} if current_ext else None
+
     @property
     def component_tree(self) -> dict[str, Any]:
         """Returns a dictionary representation of the component tree."""
-        return {**self._properties, "id": self.id, "component": self.type}
+        tree: dict[str, Any] = {
+            **self._properties,
+            "id": self.id,
+            "component": self.type,
+        }
+        if self._metadata is not None:
+            tree["metadata"] = clone_metadata(self._metadata)
+        return tree
 
     def validate(self, config: Any | None = None) -> None:
         """Validates this component instance against its bound catalog using PayloadValidator.
@@ -242,3 +337,5 @@ class ComponentModel:
         """Disposes of the component and its resources."""
         if hasattr(self.on_updated, "dispose"):
             self.on_updated.dispose()
+        if hasattr(self.on_metadata_changed, "dispose"):
+            self.on_metadata_changed.dispose()

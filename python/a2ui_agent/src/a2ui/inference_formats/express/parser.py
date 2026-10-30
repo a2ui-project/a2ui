@@ -16,8 +16,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from collections.abc import Sequence
+from typing import Literal
 from typing import Type
+from typing import overload
 
 from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 from a2ui.core import CatalogApi
@@ -30,12 +33,17 @@ from a2ui.parser import BlockLexer
 from a2ui.parser import Parser
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
+from a2ui.parser import ResponsePart
+from a2ui.parser import StreamPart
 from a2ui.parser import TextPart
+from a2ui.utils import RendererState
 
 from .compiler import ExpressCompiler
 from .decompiler import ExpressDecompiler
 from .errors import ExpressParseError
 from .errors import ExpressValidationError
+from .response_stream import DEFAULT_EXPRESS_PROGRESSIVE_KEYS
+from .response_stream import ExpressResponseStream
 
 
 def _compilation_error_class(
@@ -59,15 +67,62 @@ class ExpressParser(Parser):
         catalogs: Sequence[CatalogApi],
         surface_id: str = "main",
         version: str | None = None,
+        progressive_keys: Collection[str] | None = DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
     ):
         self._catalogs = check_mixed_catalogs(catalogs)
         self.surface_id = surface_id
         self.version = version
+        self.progressive_keys: frozenset[str] = (
+            frozenset(progressive_keys)
+            if progressive_keys is not None
+            else DEFAULT_EXPRESS_PROGRESSIVE_KEYS
+        )
 
     @property
     def catalogs(self) -> list[CatalogApi]:
         """A copy of the catalogs the parser holds, in the order it received them."""
         return list(self._catalogs)
+
+    @property
+    def supports_streaming(self) -> bool:
+        """Whether this parser supports incremental streaming via `open_stream`."""
+        return True
+
+    @overload
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end"] = "end",
+    ) -> ExpressResponseStream[ResponsePart]:
+        ...
+
+    @overload
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end", "continue"],
+    ) -> ExpressResponseStream[StreamPart]:
+        ...
+
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end", "continue"] = "end",
+    ) -> ExpressResponseStream[StreamPart]:
+        """Opens a stream that incrementally compiles Express DSL as chunks arrive."""
+        return ExpressResponseStream(
+            self,
+            wrapped=wrapped,
+            state=state,
+            progressive_keys=self.progressive_keys,
+            after_rejected_block=after_rejected_block,
+        )
 
     def has_format_content(self, content: str, complete: bool = False) -> bool:
         """Checks whether the given content string contains A2UI Express sentinel tags."""
