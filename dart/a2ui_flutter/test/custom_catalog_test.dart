@@ -256,4 +256,80 @@ void main() {
     expect(tester.widget<Text>(find.byKey(const Key('qty'))).data, '3');
     expect(tester.widget<Text>(find.byKey(const Key('Stepper'))).data, '+');
   });
+
+  test('enforces the allowedParents and allowedChildren of its components', () {
+    Widget empty(context, node, props, buildChild) => const SizedBox();
+    const catalogId = 'https://example.com/composition/catalog.json';
+    final processor = MessageProcessor<ComponentImplementation>(
+      catalogs: [
+        CatalogImplementation(
+          id: catalogId,
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          components: [
+            ComponentImplementation(
+              name: 'Box',
+              schema: Schema.object(
+                properties: {
+                  'children': Schema.fromMap({
+                    r'$ref': r'common_types.json#/$defs/ChildList',
+                  }),
+                },
+              ),
+              allowedChildren: ['Rune'],
+              builder: empty,
+            ),
+            ComponentImplementation(
+              name: 'Rune',
+              schema: Schema.object(),
+              allowedParents: ['Box'],
+              builder: empty,
+            ),
+          ],
+        ),
+      ],
+      defaultVersion: A2uiProtocolVersion.v1_0,
+    );
+    var surfaces = 0;
+    void createSurface(List<Map<String, Object?>> components) =>
+        processor.processMessages(
+          AgentToRendererMessage.parseAll([
+            {
+              'version': '1.0',
+              'createSurface': {
+                'surfaceId': 's${surfaces++}',
+                'catalogId': catalogId,
+                'components': components,
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v1_0),
+        );
+    Matcher violation(String code) =>
+        throwsA(isA<A2uiValidationError>().having((e) => e.code, 'code', code));
+
+    createSurface([
+      {
+        'id': 'root',
+        'component': 'Box',
+        'children': ['r'],
+      },
+      {'id': 'r', 'component': 'Rune'},
+    ]);
+    expect(
+      () => createSurface([
+        {'id': 'root', 'component': 'Rune'},
+      ]),
+      violation('UNALLOWED_PARENT'),
+    );
+    expect(
+      () => createSurface([
+        {
+          'id': 'root',
+          'component': 'Box',
+          'children': ['b'],
+        },
+        {'id': 'b', 'component': 'Box', 'children': <String>[]},
+      ]),
+      violation('UNALLOWED_CHILD'),
+    );
+  });
 }
