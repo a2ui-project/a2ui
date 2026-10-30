@@ -455,6 +455,33 @@ async def test_event_action_context_waits_for_agent_function_and_bypasses_cache(
 
 
 @pytest.mark.asyncio
+async def test_event_action_waiting_for_agent_function_keeps_metadata() -> None:
+    h = _Harness()
+    dispatched: list[dict[str, Any]] = []
+    h.surface.on_action.subscribe(dispatched.append)
+
+    resolved = h.ctx.resolve_action({
+        "event": {
+            "name": "checkout",
+            "context": {"rate": {"@call": "fetchFxRate", "args": {}}},
+            "metadata": {"extensions": {"trace": "t-1"}},
+        }
+    })
+    h.surface.dispatch_action(
+        resolved, "btn1", metadata={"extensions": {"origin": "tap"}}
+    )
+    assert dispatched == []
+
+    h.respond(0, value=1.08)
+    await _flush()
+    assert len(dispatched) == 1
+    assert dispatched[0]["context"] == {"rate": 1.08}
+    assert dispatched[0]["metadata"] == {
+        "extensions": {"trace": "t-1", "origin": "tap"}
+    }
+
+
+@pytest.mark.asyncio
 async def test_different_arguments_send_separate_requests() -> None:
     h = _Harness()
     h.ctx.resolve_dynamic_value({"@call": "fetchFxRate", "args": {"base": "EUR"}})
