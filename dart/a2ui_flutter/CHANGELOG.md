@@ -18,6 +18,12 @@
 
 ## Unreleased
 
+- `ComponentImplementation` takes `allowedParents` and `allowedChildren`, so a
+  custom Flutter component can declare where it may appear. The message
+  processor rejects a payload that breaks them with `UNALLOWED_PARENT` or
+  `UNALLOWED_CHILD`. The basic catalog components keep the constraints of
+  their catalog definition
+  ([#3533](https://github.com/a2ui-project/a2ui/issues/3533)).
 - **Breaking:** a component that has not arrived, has an unknown type, or
   repeats one of its ancestors now renders nothing, as does the surface until
   its root arrives. Previously these showed a progress indicator or a red
