@@ -6,7 +6,9 @@
   created before the call keep the catalogs they were created with. A catalog
   whose ID the processor already holds is rejected with `A2uiCatalogError`.
   `MessageProcessor.catalogs` is the processor's own list, which `add_catalog`
-  appends to; the sequence passed to the constructor is not changed.
+  appends to; the sequence passed to the constructor is not changed
+  ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
+  [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
 - From v0.9, a component its catalog declares with no `ComponentId` or
   `ChildList` property has no child references. Previously any of its string
   properties that named a component on the surface, such as an `Icon` named

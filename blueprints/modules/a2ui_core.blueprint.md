@@ -498,8 +498,9 @@ class MessageProcessor<T extends ComponentApi> {
 
   /**
    * Adds a catalog after construction. Surfaces created afterwards can use
-   * it, and getRendererCapabilities lists it. Throws A2uiCatalogError for an
-   * id the processor already holds.
+   * it, callRendererFunction resolves it, and getRendererCapabilities lists
+   * it. Surfaces created before the call keep the catalogs they were created
+   * with. Throws A2uiCatalogError for an id the processor already holds.
    */
   addCatalog(catalog: Catalog<T>): void;
 

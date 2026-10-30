@@ -8,7 +8,8 @@
   before the call keep the catalogs they were created with. A catalog whose id
   the processor already holds is rejected with `A2uiCatalogError`.
   `MessageProcessor.catalogs` lists the added catalog too, and still cannot
-  be modified.
+  be modified ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
+  [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
 - **Breaking:** Unify the v1.0 protocol version wire value on `'1.0'` (without
   a `'v'` prefix) across message envelopes, `MessageProcessor.getRendererCapabilities`,
   `RpcHandler`, and catalog documents (`A2uiProtocolVersion.v1_0.jsonValue` is
