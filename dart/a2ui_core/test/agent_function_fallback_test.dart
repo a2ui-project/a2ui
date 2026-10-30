@@ -188,7 +188,7 @@ void main() {
       await _flush();
       expect(value.value, isNull);
       expect(clientErrors, hasLength(1));
-      expect(clientErrors.single.code, 'EXECUTION_ERROR');
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
       expect(clientErrors.single.surfaceId, isNull);
       expect(clientErrors.single.functionCallId, 'fc-9');
       expect(clientErrors.single.message, contains('agent said no'));
@@ -229,7 +229,11 @@ void main() {
         },
       });
       expect(state.value.pending, isTrue);
-      expect(agentCalls.map((c) => c.call.call).toList(), ['inner', 'outer']);
+      expect(
+        agentCalls.map((c) => c.call.call).toList(),
+        ['inner'],
+        reason: 'the outer call waits for its pending argument',
+      );
       agentCalls.first.completer.completeError(
         A2uiRpcError(
           'inner failed',
@@ -238,16 +242,122 @@ void main() {
         ),
       );
       await _flush();
-      expect(state.value.pending, isTrue);
+      expect(state.value.pending, isFalse);
+      expect(state.value.value, isNull);
       expect(
         agentCalls.map((c) => c.call.call).toList(),
-        ['inner', 'outer'],
-        reason: 'isPendingAgentCall must not re-dispatch failed inner call',
+        ['inner'],
+        reason: 'neither the failed inner call nor the outer call is sent',
       );
       expect(clientErrors, hasLength(1));
     });
 
-    test('NodeResolver reports agent RPC failure with EXECUTION_ERROR and id',
+    test(
+        'synchronous failure of a nested argument stops the enclosing call '
+        'from running or calling the agent', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final errors = <A2uiExpressionError>[];
+      final DataContext context = ComponentContext(
+        surface,
+        ComponentModel('root', 'Text', {}),
+        onError: errors.add,
+      ).dataContext;
+      expect(
+        context.resolveDynamicValue({
+          '@call': 'outer',
+          'args': {
+            'x': {
+              '@call': 'upper',
+              'args': {'value': 1},
+            },
+          },
+        }),
+        isNull,
+      );
+      final ReadonlySignal<Object?> sig = context.resolveSignal({
+        '@call': 'upper',
+        'args': {
+          'value': {'@call': 'gated', 'args': <String, Object?>{}},
+        },
+      });
+      expect(sig.value, isNull);
+      expect(
+        await context.evaluateFunctionCall({
+          '@call': 'outer',
+          'args': {
+            'x': {
+              '@call': 'upper',
+              'args': {'value': 1},
+            },
+          },
+        }),
+        isNull,
+      );
+      expect(agentCalls, isEmpty);
+      await _flush();
+      expect(errors, hasLength(3));
+      expect(errors.map((e) => e.expression).toList(), [
+        'upper',
+        'gated',
+        'upper',
+      ]);
+    });
+
+    test('a local function waits for a pending agent argument', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final ReadonlySignal<Object?> value = context.resolveSignal({
+        '@call': 'upper',
+        'args': {
+          'value': {'@call': 'fetchGreeting', 'args': <String, Object?>{}},
+        },
+      });
+      expect(value.value, isNull);
+      expect(agentCalls.single.call.call, 'fetchGreeting');
+      await _flush();
+      expect(clientErrors, isEmpty,
+          reason: 'upper does not run with a null argument');
+
+      agentCalls.single.completer.complete('hello');
+      await _flush();
+      expect(value.value, 'HELLO');
+      expect(clientErrors, isEmpty);
+    });
+
+    test('an outer agent call is sent once its agent argument settles',
+        () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final ReadonlySignal<Object?> value = context.resolveSignal({
+        '@call': 'convert',
+        'args': {
+          'rate': {
+            '@call': 'fetchFxRate',
+            'args': {'base': 'EUR'},
+          },
+        },
+      });
+      expect(value.value, isNull);
+      expect(agentCalls.map((c) => c.call.call).toList(), ['fetchFxRate']);
+
+      agentCalls.first.completer.complete(1.08);
+      await _flush();
+      expect(value.value, isNull);
+      expect(agentCalls.map((c) => c.call.call).toList(),
+          ['fetchFxRate', 'convert']);
+      expect(agentCalls.last.call.args, {'rate': 1.08});
+
+      agentCalls.last.completer.complete('converted');
+      await _flush();
+      expect(value.value, 'converted');
+      expect(clientErrors, isEmpty);
+    });
+
+    test('NodeResolver reports agent RPC failure with EXPRESSION_ERROR and id',
         () async {
       final SurfaceModel<ComponentApi> surface = makeSurface();
       final resolver = NodeResolver<ComponentApi>(surface);
@@ -268,10 +378,96 @@ void main() {
       );
       await _flush();
       expect(clientErrors, hasLength(1));
-      expect(clientErrors.single.code, 'EXECUTION_ERROR');
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
       expect(clientErrors.single.surfaceId, isNull);
       expect(clientErrors.single.functionCallId, 'fc-node');
       expect(clientErrors.single.message, contains('node rpc fail'));
+    });
+
+    test(
+        'a failing agent call does not re-send itself when another agent call '
+        'exists on the surface', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final ReadonlySignal<Object?> other = context.resolveSignal({
+        '@call': 'otherRemote',
+        'args': <String, Object?>{},
+      });
+      final void Function() unsubOther = other.subscribe((_) {});
+      addTearDown(unsubOther);
+
+      final ReadonlySignal<Object?> sig = context.resolveSignal({
+        '@call': 'flaky',
+        'args': <String, Object?>{},
+      });
+      final void Function() unsub = sig.subscribe((_) {});
+      addTearDown(unsub);
+
+      final _AgentCall firstFlaky =
+          agentCalls.lastWhere((c) => c.call.call == 'flaky');
+      firstFlaky.completer.completeError(
+        A2uiRpcError('boom', RpcErrorCode.executionError,
+            functionCallId: 'fc1'),
+      );
+      await _flush();
+      expect(
+        agentCalls.where((c) => c.call.call == 'flaky'),
+        hasLength(1),
+        reason: 'a failure must not trigger an automatic resend loop',
+      );
+      expect(clientErrors, hasLength(1));
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
+
+      // Completing the other pending call on the surface must not cause the
+      // still-mounted failed signal to re-send flaky().
+      final _AgentCall firstOther =
+          agentCalls.lastWhere((c) => c.call.call == 'otherRemote');
+      firstOther.completer.complete('ok');
+      await _flush();
+      expect(
+        agentCalls.where((c) => c.call.call == 'flaky'),
+        hasLength(1),
+        reason: 'settling another call on the surface must not re-send flaky',
+      );
+    });
+
+    test('an action whose argument is an agent call awaits it and runs',
+        () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final Future<Object?> result = context.evaluateFunctionCall({
+        '@call': 'upper',
+        'args': {
+          'value': {'@call': 'fetchGreeting', 'args': <String, Object?>{}},
+        },
+      });
+      expect(agentCalls.map((c) => c.call.call).toList(), ['fetchGreeting']);
+      agentCalls.single.completer.complete('hello');
+      expect(await result, 'HELLO');
+      expect(clientErrors, isEmpty);
+
+      // If a nested agent argument fails, the outer action call does not run
+      // and reports the inner failure once.
+      final Future<Object?> failedResult = context.evaluateFunctionCall({
+        '@call': 'upper',
+        'args': {
+          'value': {'@call': 'fetchGreeting', 'args': <String, Object?>{}},
+        },
+      });
+      expect(agentCalls, hasLength(2));
+      agentCalls.last.completer.completeError(
+        A2uiRpcError('inner boom', RpcErrorCode.executionError,
+            functionCallId: 'fc-act'),
+      );
+      expect(await failedResult, isNull);
+      await _flush();
+      expect(clientErrors, hasLength(1));
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
+      expect(clientErrors.single.functionCallId, 'fc-act');
     });
 
     test('a custom reporter receives the rpc error as cause', () async {
@@ -346,17 +542,164 @@ void main() {
       expect(clientErrors.single.code, 'EXPRESSION_ERROR');
     });
 
-    test('an unknown catalogId falls back to the agent', () {
+    test('an unknown catalogId is a CATALOG_ERROR and is not sent', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      expect(
+        context.resolveDynamicValue({
+          '@call': 'remote',
+          'catalogId': 'elsewhere',
+          'args': <String, Object?>{},
+        }),
+        isNull,
+      );
+      expect(agentCalls, isEmpty);
+      await _flush();
+      expect(clientErrors.single.code, 'CATALOG_ERROR');
+    });
+
+    test('a surface without a default catalog does not send the call',
+        () async {
+      final surface = SurfaceModel<ComponentApi>(
+        'no-default',
+        protocolVersion: '1.0',
+        availableCatalogs: [_catalog()],
+        callAgentFunction: callAgent,
+      );
+      surface.onError.subscribe(clientErrors.add);
+      addTearDown(surface.dispose);
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      expect(
+        context.resolveDynamicValue(
+          {'@call': 'remote', 'args': <String, Object?>{}},
+        ),
+        isNull,
+      );
+      expect(agentCalls, isEmpty);
+      await _flush();
+      expect(clientErrors.single.code, 'CATALOG_ERROR');
+
+      await expectLater(
+        context.evaluateFunctionCall(
+          {'@call': 'remote', 'args': <String, Object?>{}},
+        ),
+        completion(isNull),
+      );
+      expect(agentCalls, isEmpty);
+    });
+
+    test('a call missing from a named catalog is sent naming it', () {
       final SurfaceModel<ComponentApi> surface = makeSurface();
       final DataContext context =
           ComponentContext(surface, ComponentModel('root', 'Text', {}))
               .dataContext;
       context.resolveDynamicValue({
         '@call': 'remote',
-        'catalogId': 'elsewhere',
+        'catalogId': 'cat',
         'args': <String, Object?>{},
       });
-      expect(agentCalls.single.call.catalogId, 'elsewhere');
+      expect(agentCalls.single.call.catalogId, 'cat');
+    });
+
+    test('a call relying on the default catalog is sent naming it', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      context.resolveDynamicValue(
+        {'@call': 'remote', 'args': <String, Object?>{}},
+      );
+      expect(agentCalls.single.call.catalogId, 'cat');
+      expect(agentCalls.single.call.toJson(), {
+        '@call': 'remote',
+        'catalogId': 'cat',
+        'args': <String, Object?>{},
+      });
+
+      final Future<Object?> action = context.evaluateFunctionCall(
+        {'@call': 'remoteAction', 'args': <String, Object?>{}},
+      );
+      expect(agentCalls.last.call.catalogId, 'cat');
+      agentCalls.last.completer.complete('done');
+      expect(await action, 'done');
+    });
+
+    test('calls with and without the default catalogId share one request',
+        () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final Map<String, Object?> implicit = {
+        '@call': 'lookup',
+        'args': {'id': 1},
+      };
+      final Map<String, Object?> explicit = {
+        '@call': 'lookup',
+        'catalogId': 'cat',
+        'args': {'id': 1},
+      };
+      expect(context.resolveDynamicValue(implicit), isNull);
+      expect(context.resolveDynamicValue(explicit), isNull);
+      expect(agentCalls, hasLength(1));
+      expect(context.isPendingAgentCall(implicit), isTrue);
+      expect(context.isPendingAgentCall(explicit), isTrue);
+
+      agentCalls.single.completer.complete('hit');
+      await _flush();
+      expect(context.resolveDynamicValue(implicit), 'hit');
+      expect(context.resolveDynamicValue(explicit), 'hit');
+      expect(context.isPendingAgentCall(implicit), isFalse);
+      expect(agentCalls, hasLength(1));
+    });
+
+    test('a pending call keeps its alias when the alias table is full',
+        () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final Map<String, Object?> pending = {
+        '@call': 'lookup',
+        'args': {'id': 'pending'},
+      };
+      expect(context.resolveDynamicValue(pending), isNull);
+
+      // Fill the alias table past its limit with calls that are answered.
+      for (var i = 0; i < 300; i++) {
+        context.resolveDynamicValue({
+          '@call': 'lookup',
+          'args': {'id': i},
+        });
+        agentCalls.last.completer.complete(i);
+        await _flush();
+      }
+
+      expect(context.isPendingAgentCall(pending), isTrue);
+      agentCalls.first.completer.complete('done');
+      await _flush();
+      expect(context.isPendingAgentCall(pending), isFalse);
+      expect(context.resolveDynamicValue(pending), 'done');
+    });
+
+    test('a reserved system function is never sent', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      expect(
+        context.resolveDynamicValue(
+          {'@call': '@unknownSystem', 'args': <String, Object?>{}},
+        ),
+        isNull,
+      );
+      expect(agentCalls, isEmpty);
+      await _flush();
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
     });
 
     test('user activation gates a local function', () async {
@@ -526,7 +869,7 @@ void main() {
       expect(binder.resolvedProps.value['validationPending'], isFalse);
       expect(binder.resolvedProps.value['isValid'], isFalse);
       expect(binder.resolvedProps.value['validationErrors'], ['Remote rule']);
-      expect(clientErrors.single.code, 'EXECUTION_ERROR');
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
       expect(clientErrors.single.functionCallId, 'fc-2');
     });
 
@@ -577,7 +920,7 @@ void main() {
       expect(clientErrors, isEmpty);
     });
 
-    test('an agent failure dispatches EXECUTION_ERROR with the call id',
+    test('an agent failure dispatches EXPRESSION_ERROR with the call id',
         () async {
       final Future<void> done = invokeAction({
         'functionCall': {'@call': 'remoteAction', 'args': <String, Object?>{}},
@@ -589,7 +932,7 @@ void main() {
       );
       await done;
       expect(clientErrors, hasLength(1));
-      expect(clientErrors.single.code, 'EXECUTION_ERROR');
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
       expect(clientErrors.single.functionCallId, 'fc-7');
       expect(clientErrors.single.surfaceId, isNull);
       expect(clientErrors.single.message, contains('refused'));
@@ -604,6 +947,29 @@ void main() {
       });
       expect(clientErrors, isEmpty);
       expect(agentCalls, isEmpty);
+    });
+
+    test(
+        'an event action whose context expression fails reports '
+        'EXPRESSION_ERROR without a second INVALID_ACTION error', () async {
+      final Future<void> done = invokeAction({
+        'event': {
+          'name': 'submit',
+          'context': {
+            'token': {'@call': 'mintToken', 'args': <String, Object?>{}},
+          },
+        },
+      });
+      await _flush();
+      agentCalls.single.completer.completeError(
+        A2uiRpcError('mint failed', RpcErrorCode.executionError,
+            functionCallId: 'fc-mint'),
+      );
+      await done;
+      await _flush();
+      expect(clientErrors, hasLength(1));
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
+      expect(clientErrors.single.functionCallId, 'fc-mint');
     });
   });
 }

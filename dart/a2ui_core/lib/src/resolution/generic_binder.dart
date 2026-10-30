@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
+
 import 'package:collection/collection.dart';
 import 'package:json_schema_builder/json_schema_builder.dart'
     hide ValidationResult;
@@ -247,16 +249,21 @@ class GenericBinder {
               return;
             }
           }
-          final Object? resolved = _resolveEventAction(
-            context.dataContext,
+          var expressionFailed = false;
+          final FutureOr<Object?> resolvedOrFuture = _resolveEventAction(
+            context.dataContext.withUserActivation(),
             value,
+            onExpressionFailed: () => expressionFailed = true,
           );
+          final Object? resolved = resolvedOrFuture is Future
+              ? await resolvedOrFuture
+              : resolvedOrFuture;
           if (resolved is Map) {
             await context.dispatchAction(
               Map<String, dynamic>.from(resolved),
               metadata: options?.metadata,
             );
-          } else {
+          } else if (!expressionFailed) {
             await context.surface.dispatchError(
               A2uiRendererError(
                 code: 'INVALID_ACTION',
@@ -644,11 +651,11 @@ class GenericBinder {
   ///
   /// On a v1.0 surface a function no catalog implements is sent to the agent
   /// and awaited. Synchronous lookup, argument, and execution errors are
-  /// reported through the context's error reporter; a function that returns a
-  /// failing `Future` or an agent call that fails is reported through
-  /// `SurfaceModel.dispatchError` as `EXECUTION_ERROR`, naming the
-  /// `functionCallId` when there is one, so the error does not escape a
-  /// renderer callback that doesn't await the action.
+  /// reported through the context's error reporter. A function that returns
+  /// a failing `Future` is reported through `SurfaceModel.dispatchError` as
+  /// `EXECUTION_ERROR`, and an agent call that fails or times out as
+  /// `EXPRESSION_ERROR` naming its `functionCallId`, so the error does not
+  /// escape a renderer callback that doesn't await the action.
   Future<void> _runLocalFunction(Map<String, dynamic> functionCall) async {
     try {
       await context.dataContext
@@ -660,7 +667,7 @@ class GenericBinder {
           e is A2uiRpcError ? e.functionCallId : null;
       await context.surface.dispatchError(
         A2uiRendererError(
-          code: 'EXECUTION_ERROR',
+          code: e is A2uiRpcError ? 'EXPRESSION_ERROR' : 'EXECUTION_ERROR',
           surfaceId: functionCallId == null ? context.surface.id : null,
           functionCallId: functionCallId,
           message: "Function '$fnName' failed in component "
@@ -670,11 +677,31 @@ class GenericBinder {
     }
   }
 
-  Object? _resolveEventAction(DataContext dataContext, Object? value) {
-    final Map<String, dynamic>? direct = dataContext.resolveAction(value);
+  FutureOr<Object?> _resolveEventAction(
+    DataContext dataContext,
+    Object? value, {
+    void Function()? onExpressionFailed,
+  }) {
+    final FutureOr<Map<String, dynamic>?> direct = dataContext
+        .resolveActionAsync(value, onExpressionFailed: onExpressionFailed);
+    if (direct is Future<Map<String, dynamic>?>) {
+      return direct.then((resolved) {
+        if (resolved != null) return resolved;
+        if (dataContext.isDataBinding(value)) {
+          return dataContext.resolveActionAsync(
+            dataContext.resolveDynamicValue(value),
+            onExpressionFailed: onExpressionFailed,
+          );
+        }
+        return null;
+      });
+    }
     if (direct != null) return direct;
     if (dataContext.isDataBinding(value)) {
-      return dataContext.resolveAction(dataContext.resolveDynamicValue(value));
+      return dataContext.resolveActionAsync(
+        dataContext.resolveDynamicValue(value),
+        onExpressionFailed: onExpressionFailed,
+      );
     }
     return null;
   }

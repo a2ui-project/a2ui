@@ -125,11 +125,13 @@ class DataContext {
   /// [A2uiCatalogError]. Before v1.0 a call carries no `catalogId`, so every
   /// call runs through [invoke].
   ///
-  /// On a v1.0 context with [callAgentFunction], a call that neither resolves
-  /// (an [A2uiCatalogResolutionError]: no such catalog, no default catalog,
-  /// or no such function) is sent to the agent instead; see
-  /// [evaluateFunctionCall] and [isPendingAgentCall] for how its result
-  /// arrives.
+  /// On a v1.0 context with [callAgentFunction], a call whose catalog
+  /// resolves but has no function of that name is sent to the agent instead,
+  /// naming the catalog it resolved to; see [evaluateFunctionCall] and
+  /// [isPendingAgentCall] for how its result arrives. A call whose catalog
+  /// cannot be resolved (no such catalog, or no default catalog) is never
+  /// sent: it fails with an [A2uiCatalogResolutionError] as without a
+  /// caller.
   ///
   /// [index] is the collection iteration index when this context scopes a
   /// template child. [onMissingData] is called once per absolute path, per
@@ -334,10 +336,14 @@ class DataContext {
   /// bindings or calls is returned as-is rather than copied.
   Object? resolveDynamicValue(Object? value) => _resolveDynamicValue(value, 0);
 
-  Object? _resolveDynamicValue(Object? value, int depth) {
+  Object? _resolveDynamicValue(
+    Object? value,
+    int depth, {
+    bool keepFailed = false,
+  }) {
     if (depth > maxDynamicValueDepth) {
       _reportDepthExceeded();
-      return null;
+      return keepFailed ? _failedArg : null;
     }
     if (atLeastV10) {
       if (value is Map && value.containsKey('@path')) {
@@ -347,14 +353,26 @@ class DataContext {
       if (value is Map && value.containsKey('@call')) {
         if (_systemCallNamingCatalog(value)
             case final A2uiExpressionError error) {
-          return _reportSync(error);
+          _reportSync(error);
+          return keepFailed ? _failedArg : null;
         }
         final call = FunctionCall.fromJson(_asStringKeyedMap(value));
         final args = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
-          args[entry.key] = _resolveDynamicValue(entry.value, depth + 1);
+          args[entry.key] = _resolveDynamicValue(
+            entry.value,
+            depth + 1,
+            keepFailed: true,
+          );
         }
-        final Object? result = _evaluateFunction(call, args);
+        if (_containsFailedArg(args) || _awaitsAgentArgument(call)) {
+          return keepFailed ? _failedArg : null;
+        }
+        final Object? result = _evaluateFunction(
+          call,
+          args,
+          keepFailed: keepFailed,
+        );
         if (result is ReadonlySignal) {
           return result.value;
         }
@@ -369,7 +387,11 @@ class DataContext {
           final String keyStr = entry.key;
           final String unescapedKey =
               keyStr.startsWith('@@') ? keyStr.substring(1) : keyStr;
-          result[unescapedKey] = _resolveDynamicValue(entry.value, depth + 1);
+          result[unescapedKey] = _resolveDynamicValue(
+            entry.value,
+            depth + 1,
+            keepFailed: keepFailed,
+          );
         }
         return result;
       }
@@ -404,7 +426,10 @@ class DataContext {
       if (!_containsDynamicValue(value, depth)) {
         return value;
       }
-      return [for (final item in value) _resolveDynamicValue(item, depth + 1)];
+      return [
+        for (final item in value)
+          _resolveDynamicValue(item, depth + 1, keepFailed: keepFailed),
+      ];
     }
     return value;
   }
@@ -439,10 +464,14 @@ class DataContext {
   ReadonlySignal<Object?> resolveSignal(Object? value) =>
       _resolveSignal(value, 0);
 
-  ReadonlySignal<Object?> _resolveSignal(Object? value, int depth) {
+  ReadonlySignal<Object?> _resolveSignal(
+    Object? value,
+    int depth, {
+    bool keepFailed = false,
+  }) {
     if (depth > maxDynamicValueDepth) {
       _reportDepthExceeded();
-      return signal(null);
+      return signal(keepFailed ? _failedArg : null);
     }
     if (atLeastV10) {
       if (value is Map && value.containsKey('@path')) {
@@ -452,20 +481,43 @@ class DataContext {
       if (value is Map && value.containsKey('@call')) {
         if (_systemCallNamingCatalog(value)
             case final A2uiExpressionError error) {
-          return computed(() => _reportSync(error));
+          return computed(() {
+            _reportSync(error);
+            return keepFailed ? _failedArg : null;
+          });
         }
         final call = FunctionCall.fromJson(_asStringKeyedMap(value));
         final Map<String, ReadonlySignal<Object?>> argSignals = {
           for (final MapEntry<String, dynamic> entry in call.args.entries)
-            entry.key: _resolveSignal(entry.value, depth + 1),
+            entry.key: _resolveSignal(
+              entry.value,
+              depth + 1,
+              keepFailed: true,
+            ),
         };
+        String? lastAgentKey;
+        _AgentCall? lastAgentCall;
         return computed(() {
           final args = <String, dynamic>{
             for (final MapEntry<String, ReadonlySignal<Object?>> entry
                 in argSignals.entries)
               entry.key: entry.value.value,
           };
-          final Object? result = _evaluateFunction(call, args);
+          if (_containsFailedArg(args) ||
+              _awaitsAgentArgument(call, track: true)) {
+            return keepFailed ? _failedArg : null;
+          }
+          final Object? result = _evaluateFunction(
+            call,
+            args,
+            keepFailed: keepFailed,
+            lastAgentKey: lastAgentKey,
+            lastAgentCall: lastAgentCall,
+            onAgentCall: (key, entry) {
+              lastAgentKey = key;
+              lastAgentCall = entry;
+            },
+          );
           if (result is ReadonlySignal) {
             return result.value;
           }
@@ -481,7 +533,7 @@ class DataContext {
         final entries = <String, ReadonlySignal<Object?>>{
           for (final MapEntry<String, dynamic> e in stringMap.entries)
             (e.key.startsWith('@@') ? e.key.substring(1) : e.key):
-                _resolveSignal(e.value, depth + 1),
+                _resolveSignal(e.value, depth + 1, keepFailed: keepFailed),
         };
         return computed(() => {
               for (final e in entries.entries) e.key: e.value.value,
@@ -534,7 +586,8 @@ class DataContext {
         return signal(value);
       }
       final List<ReadonlySignal<Object?>> items = [
-        for (final item in value) _resolveSignal(item, depth + 1),
+        for (final item in value)
+          _resolveSignal(item, depth + 1, keepFailed: keepFailed),
       ];
       return computed(() => [for (final item in items) item.value]);
     }
@@ -581,16 +634,24 @@ class DataContext {
   /// call is honored only from v1.0; before it, every call runs in the
   /// default catalog.
   ///
-  /// A call that cannot be resolved locally on a v1.0 context with an agent
-  /// caller is sent to the agent; its value is null until the response
-  /// arrives, and the signal [resolveSignal] builds updates then.
+  /// A call to a function its resolved catalog does not have, on a v1.0
+  /// context with an agent caller, is sent to the agent; its value is null
+  /// until the response arrives, and the signal [resolveSignal] builds
+  /// updates then. A call whose catalog cannot be resolved is not sent.
   ///
   /// The reported error carries code `CATALOG_ERROR` when the call's catalog
   /// can't be resolved (the invoker threw [A2uiCatalogError]): the expression
   /// may be fine, and the function may exist in a catalog the surface does
   /// not have. Every other failure, including a function missing from the
   /// catalog the call resolved to, carries `EXPRESSION_ERROR`.
-  Object? _evaluateFunction(FunctionCall call, Map<String, dynamic> args) {
+  Object? _evaluateFunction(
+    FunctionCall call,
+    Map<String, dynamic> args, {
+    bool keepFailed = false,
+    String? lastAgentKey,
+    _AgentCall? lastAgentCall,
+    void Function(String key, _AgentCall entry)? onAgentCall,
+  }) {
     final String name = call.call;
     try {
       if (atLeastV10 && name.startsWith('@') && name != _indexFunctionName) {
@@ -601,20 +662,35 @@ class DataContext {
       }
       try {
         return _invokeLocally(call, args);
-      } on A2uiCatalogResolutionError {
-        if (atLeastV10) {
-          final _AgentCall? existing =
-              _agentCalls.entries[_agentCallKey(call, args)];
-          if (existing != null) return existing.value.value;
+      } on A2uiCatalogResolutionError catch (error) {
+        final String? catalogId = _routableCatalogId(error, name);
+        if (catalogId == null) rethrow;
+        final String key = _agentCallKey(call.call, catalogId, args);
+        final _AgentCall? existing = _agentCalls.lookup(call, catalogId, args);
+        if (existing != null) {
+          onAgentCall?.call(key, existing);
+          existing.version.value;
+          return existing.failed && keepFailed
+              ? _failedArg
+              : existing.value.value;
+        }
+        if (lastAgentKey == key &&
+            lastAgentCall != null &&
+            lastAgentCall.failed) {
+          lastAgentCall.version.value;
+          return keepFailed ? _failedArg : null;
         }
         final AgentFunctionCaller? caller = _agentCallerOrNull;
         if (caller == null) rethrow;
-        return _agentCall(call, args, caller).value.value;
+        final _AgentCall entry = _agentCall(call, catalogId, args, caller);
+        onAgentCall?.call(key, entry);
+        entry.version.value;
+        return entry.failed && keepFailed ? _failedArg : entry.value.value;
       }
     } catch (error) {
       if (_onError == null) rethrow;
       _report(error, call.call);
-      return null;
+      return keepFailed ? _failedArg : null;
     }
   }
 
@@ -714,7 +790,6 @@ class DataContext {
         "Function '$name' names catalog '$catalogId', but this context "
         'has no catalogs to resolve it against.',
         catalogId: catalogId,
-        functionName: name,
       );
     }
     return invokerForCatalog(catalogId)(name, args, this);
@@ -724,6 +799,19 @@ class DataContext {
   /// v1.0, where `callAgentFunction` exists.
   AgentFunctionCaller? get _agentCallerOrNull =>
       atLeastV10 ? _callAgentFunction : null;
+
+  /// The id of the catalog a call to [name] resolved to when [error] reports
+  /// that the catalog has no such function, or null when the call may not go
+  /// to the agent: before v1.0, for a reserved `@` system function, and when
+  /// the catalog itself could not be resolved.
+  ///
+  /// The returned id is the one the outbound `callAgentFunction` names, even
+  /// when the call itself relied on the surface's default catalog.
+  String? _routableCatalogId(A2uiCatalogResolutionError error, String name) {
+    if (!atLeastV10 || name.startsWith('@')) return null;
+    if (error.functionName != name) return null;
+    return error.catalogId;
+  }
 
   /// Reports [error], raised evaluating the function [name], through the
   /// reporter. Callers without a reporter rethrow instead.
@@ -764,22 +852,28 @@ class DataContext {
   /// entry (so a later retry or argument change can re-send it), leaves the
   /// value null, and is reported once through the reporter with the
   /// `A2uiRpcError` as its cause.
+  ///
+  /// [catalogId] is the catalog the call resolved to: the outbound call names
+  /// it, and calls that resolve to the same catalog share one entry whether
+  /// or not they named it.
   _AgentCall _agentCall(
     FunctionCall call,
+    String catalogId,
     Map<String, dynamic> args,
     AgentFunctionCaller caller,
   ) {
-    final String key = _agentCallKey(call, args);
-    final _AgentCall? existing = _agentCalls.entries[key];
+    final _AgentCall? existing = _agentCalls.lookup(call, catalogId, args);
     if (existing != null) return existing;
     _agentCalls.evictIfFull();
-    final entry = _AgentCall(call.call, call.catalogId);
+    final String key = _agentCallKey(call.call, catalogId, args);
+    _agentCalls.failed.remove(key);
+    final entry = _AgentCall(call.call, catalogId);
     _agentCalls.entries[key] = entry;
     final outbound = FunctionCall(
       call: call.call,
       args: args,
       returnType: call.returnType,
-      catalogId: call.catalogId,
+      catalogId: catalogId,
       reservedKeys: true,
     );
     Future<Object?> future;
@@ -793,15 +887,19 @@ class DataContext {
         batch(() {
           entry.pending = false;
           entry.value.value = value;
+          entry.version.value++;
           _agentCalls.version.value++;
         });
       },
       onError: (Object error) {
         batch(() {
           entry.pending = false;
-          _agentCalls.entries.remove(key);
+          entry.failed = true;
+          entry.version.value++;
+          _agentCalls.markFailed(key);
           _agentCalls.version.value++;
         });
+        _agentCalls.entries.remove(key);
         _report(error, call.call);
       },
     );
@@ -822,11 +920,15 @@ class DataContext {
     return value;
   }
 
-  static String _agentCallKey(FunctionCall call, Map<String, dynamic> args) =>
+  static String _agentCallKey(
+    String name,
+    String? catalogId,
+    Map<String, dynamic> args,
+  ) =>
       jsonEncode(
         <String, Object?>{
-          'name': call.call,
-          'catalogId': call.catalogId,
+          'name': name,
+          'catalogId': catalogId,
           'args': _canonicalize(args),
         },
         toEncodable: (Object? value) => value.toString(),
@@ -847,32 +949,66 @@ class DataContext {
     if (isFunctionCall(value)) {
       final call = FunctionCall.fromJson(_asStringKeyedMap(value));
       if (call.args.values.any(isPendingAgentCall)) return true;
-      if (!_agentCalls.hasPendingFor(call.call, call.catalogId)) {
-        return false;
-      }
-      final peek = DataContext._derived(
-        dataModel,
-        _invoke,
-        path,
-        onError: (_) {},
-        protocolVersion: protocolVersion,
-        invokerForCatalog: _invokerForCatalog,
-        isUserActivated: isUserActivated,
-        callAgentFunction: null,
-        agentCalls: _agentCalls,
-        parent: parent,
-        index: _explicitIndex,
-        onMissingData: _onMissingData,
-        warnedPaths: _warnedPaths,
-      );
-      final args = <String, dynamic>{
-        for (final MapEntry<String, dynamic> entry in call.args.entries)
-          entry.key: peek.resolveDynamicValue(entry.value),
-      };
-      final _AgentCall? entry = _agentCalls.entries[_agentCallKey(call, args)];
+      if (!_agentCalls.hasPendingFor(call.call)) return false;
+      final _AgentCall? entry =
+          _agentCalls.lookup(call, null, _peekArguments(call));
       return entry != null && entry.pending;
     }
     return value.values.any(isPendingAgentCall);
+  }
+
+  /// Whether [value] reads an agent call whose last attempt failed.
+  bool _isFailedAgentCall(Object? value) {
+    if (_agentCalls.failed.isEmpty) return false;
+    if (value is List) return value.any(_isFailedAgentCall);
+    if (value is! Map) return false;
+    if (isFunctionCall(value)) {
+      final call = FunctionCall.fromJson(_asStringKeyedMap(value));
+      if (call.args.values.any(_isFailedAgentCall)) return true;
+      return _agentCalls.hasFailed(call, _peekArguments(call));
+    }
+    return value.values.any(_isFailedAgentCall);
+  }
+
+  /// Whether [call] must wait instead of running: one of its arguments reads
+  /// an agent call that is still awaiting its response, or whose last attempt
+  /// failed (that failure has been reported already).
+  ///
+  /// A pending argument reads as null, which a function cannot tell from a
+  /// null value, so the call waits for it to settle, as the fallback routing
+  /// requires. With [track], the caller re-evaluates when an agent call
+  /// settles, even if the argument's value stays null.
+  bool _awaitsAgentArgument(FunctionCall call, {bool track = false}) {
+    if (!atLeastV10) return false;
+    if (_agentCalls.entries.isEmpty && _agentCalls.failed.isEmpty) {
+      return false;
+    }
+    if (track) _agentCalls.version.value;
+    return call.args.values
+        .any((arg) => isPendingAgentCall(arg) || _isFailedAgentCall(arg));
+  }
+
+  /// The arguments of [call] resolved without sending any agent call.
+  Map<String, dynamic> _peekArguments(FunctionCall call) {
+    final peek = DataContext._derived(
+      dataModel,
+      _invoke,
+      path,
+      onError: (_) {},
+      protocolVersion: protocolVersion,
+      invokerForCatalog: _invokerForCatalog,
+      isUserActivated: isUserActivated,
+      callAgentFunction: null,
+      agentCalls: _agentCalls,
+      parent: parent,
+      index: _explicitIndex,
+      onMissingData: _onMissingData,
+      warnedPaths: _warnedPaths,
+    );
+    return <String, dynamic>{
+      for (final MapEntry<String, dynamic> entry in call.args.entries)
+        entry.key: peek.resolveDynamicValue(entry.value),
+    };
   }
 
   /// [resolveSignal], paired with whether the value is a placeholder for
@@ -893,47 +1029,189 @@ class DataContext {
   /// action does: locally when a catalog implements it, otherwise through the
   /// agent on a v1.0 context, completing with the result.
   ///
-  /// Arguments are resolved with [resolveDynamicValue]. A function that throws
-  /// follows the reporter policy of [resolveDynamicValue] and completes with
-  /// null. A function that returns a failing `Future`, and an agent call that
-  /// fails (an `A2uiRpcError`), fail the returned future instead. An agent
-  /// call is always sent, never shared with a dynamic value's pending call.
+  /// Arguments are resolved independently (never reading or populating the
+  /// reactive value cache), awaiting any nested agent or async function calls
+  /// before invoking the outer function. A function that throws follows the
+  /// reporter policy of [resolveDynamicValue] and completes with null. A
+  /// function that returns a failing `Future`, and an outer agent call that
+  /// fails (an `A2uiRpcError`), fail the returned future instead. If a nested
+  /// argument fails, its error is reported once through the reporter and the
+  /// outer call completes with null without running.
   Future<Object?> evaluateFunctionCall(
     Map<String, Object?> functionCall,
-  ) async {
+  ) =>
+      _evaluateActionCall(functionCall, 0, reportTopLevelAgentError: false);
+
+  Future<Object?> _evaluateActionCall(
+    Map<String, Object?> functionCall,
+    int depth, {
+    required bool reportTopLevelAgentError,
+  }) async {
+    if (depth > maxDynamicValueDepth) {
+      _reportDepthExceeded();
+      return reportTopLevelAgentError ? _failedArg : null;
+    }
+    if (_systemCallNamingCatalog(functionCall)
+        case final A2uiExpressionError error) {
+      _reportSync(error);
+      return reportTopLevelAgentError ? _failedArg : null;
+    }
     final call = FunctionCall.fromJson(_asStringKeyedMap(functionCall));
-    final args = <String, dynamic>{
-      for (final MapEntry<String, dynamic> entry in call.args.entries)
-        entry.key: resolveDynamicValue(entry.value),
-    };
+    final args = <String, dynamic>{};
+    for (final MapEntry<String, dynamic> entry in call.args.entries) {
+      final Object? val = _resolveActionValue(
+        entry.value,
+        depth + 1,
+        keepFailed: atLeastV10,
+      );
+      args[entry.key] = val is Future ? await val : val;
+    }
+    if (atLeastV10 && _containsFailedArg(args)) {
+      return reportTopLevelAgentError ? _failedArg : null;
+    }
     Object? result;
     AgentFunctionCaller? agentCaller;
+    String? agentCatalogId;
     try {
+      if (atLeastV10 &&
+          call.call.startsWith('@') &&
+          call.call != _indexFunctionName) {
+        throw A2uiExpressionError(
+          "System function '${call.call}' is not supported by this renderer.",
+          expression: call.call,
+        );
+      }
       try {
         result = _invokeLocally(call, args);
-      } on A2uiCatalogResolutionError {
-        agentCaller = _agentCallerOrNull;
+      } on A2uiCatalogResolutionError catch (error) {
+        agentCatalogId = _routableCatalogId(error, call.call);
+        agentCaller = agentCatalogId == null ? null : _agentCallerOrNull;
         if (agentCaller == null) rethrow;
       }
     } catch (error) {
       if (_onError == null) rethrow;
       _report(error, call.call);
-      return null;
+      return reportTopLevelAgentError ? _failedArg : null;
     }
     if (agentCaller != null) {
-      result = await agentCaller(
-        FunctionCall(
-          call: call.call,
-          args: args,
-          returnType: call.returnType,
-          catalogId: call.catalogId,
-          reservedKeys: true,
-        ),
-      );
+      try {
+        result = await agentCaller(
+          FunctionCall(
+            call: call.call,
+            args: args,
+            returnType: call.returnType,
+            catalogId: agentCatalogId,
+            reservedKeys: true,
+          ),
+        );
+      } catch (error) {
+        if (!reportTopLevelAgentError) rethrow;
+        if (_onError == null) rethrow;
+        _report(error, call.call);
+        return _failedArg;
+      }
     }
-    if (result is Future) result = await result;
+    if (result is Future) {
+      try {
+        result = await result;
+      } catch (error) {
+        if (!reportTopLevelAgentError) rethrow;
+        if (_onError == null) rethrow;
+        _report(error, call.call);
+        return _failedArg;
+      }
+    }
     if (result is ReadonlySignal) result = result.value;
     return result;
+  }
+
+  Object? _resolveActionValue(
+    Object? value,
+    int depth, {
+    required bool keepFailed,
+  }) {
+    if (depth > maxDynamicValueDepth) {
+      _reportDepthExceeded();
+      return keepFailed ? _failedArg : null;
+    }
+    if (atLeastV10) {
+      if (value is Map && value.containsKey('@path')) {
+        final binding = DataBinding.fromJson(_asStringKeyedMap(value));
+        return _readBinding(resolvePath(binding.path));
+      }
+      if (value is Map && value.containsKey('@call')) {
+        return _evaluateActionCall(
+          _asStringKeyedMap(value),
+          depth,
+          reportTopLevelAgentError: true,
+        );
+      }
+      if (value is Map) {
+        final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
+        _validateReservedDirectives(stringMap.keys);
+        if (!_containsDynamicValue(value, depth)) return value;
+        return () async {
+          final result = <String, dynamic>{};
+          for (final MapEntry<String, dynamic> entry in stringMap.entries) {
+            final String keyStr = entry.key;
+            final String unescapedKey =
+                keyStr.startsWith('@@') ? keyStr.substring(1) : keyStr;
+            final Object? val = _resolveActionValue(
+              entry.value,
+              depth + 1,
+              keepFailed: keepFailed,
+            );
+            result[unescapedKey] = val is Future ? await val : val;
+          }
+          return result;
+        }();
+      }
+    } else {
+      if (isDataBinding(value)) {
+        final pathVal = (value as Map)['path'] as String;
+        return _readBinding(resolvePath(pathVal));
+      }
+      if (isFunctionCall(value)) {
+        return _evaluateActionCall(
+          _asStringKeyedMap(value as Map),
+          depth,
+          reportTopLevelAgentError: true,
+        );
+      }
+      if (value is Map) {
+        final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
+        if (!_containsDynamicValue(value, depth)) return value;
+        return () async {
+          final result = <String, dynamic>{};
+          for (final MapEntry<String, dynamic> entry in stringMap.entries) {
+            final Object? val = _resolveActionValue(
+              entry.value,
+              depth + 1,
+              keepFailed: false,
+            );
+            result[entry.key] = val is Future ? await val : val;
+          }
+          return result;
+        }();
+      }
+    }
+    if (value is List) {
+      if (!_containsDynamicValue(value, depth)) return value;
+      return () async {
+        return <Object?>[
+          for (final Object? item in value)
+            switch (_resolveActionValue(
+              item,
+              depth + 1,
+              keepFailed: keepFailed,
+            )) {
+              final Future<Object?> f => await f,
+              final Object? v => v,
+            },
+        ];
+      }();
+    }
+    return value;
   }
 
   /// This context with [isUserActivated] set, for evaluation triggered by
@@ -982,7 +1260,121 @@ class DataContext {
   }
 
   /// Resolves an action payload by evaluating dynamic values in its context and
-  /// userMessage.
+  /// userMessage, awaiting any nested agent function calls. Returns
+  /// synchronously when no nested Future is produced.
+  FutureOr<Map<String, dynamic>?> resolveActionAsync(
+    Object? action, {
+    void Function()? onExpressionFailed,
+  }) {
+    if (action == null) return null;
+    if (action is String) {
+      if (action.isEmpty) return null;
+      return {
+        'event': {'name': action, 'context': <String, Object?>{}}
+      };
+    }
+    if (action is! Map) return null;
+    final map = Map<String, dynamic>.from(action);
+    final Object? eventObj = map['event'];
+    if (eventObj is Map) {
+      final Object? name = eventObj['name'];
+      if (name is! String || name.isEmpty) return null;
+      final FutureOr<Map<String, dynamic>?> ev = _resolveActionFieldsAsync(
+        Map<String, dynamic>.from(eventObj),
+        onExpressionFailed: onExpressionFailed,
+      );
+      if (ev is Future<Map<String, dynamic>?>) {
+        return ev.then((resolvedEv) {
+          if (resolvedEv == null) return null;
+          return {...map, 'event': resolvedEv};
+        });
+      }
+      if (ev == null) return null;
+      return {...map, 'event': ev};
+    }
+    if (map.containsKey('name')) {
+      final Object? name = map['name'];
+      if (name is! String || name.isEmpty) return null;
+      return _resolveActionFieldsAsync(
+        map,
+        onExpressionFailed: onExpressionFailed,
+      );
+    }
+    return null;
+  }
+
+  FutureOr<Map<String, dynamic>?> _resolveActionFieldsAsync(
+    Map<String, dynamic> map, {
+    void Function()? onExpressionFailed,
+  }) {
+    final result = Map<String, dynamic>.from(map);
+    final Object? ctx = result['context'];
+    final rawContext = <String, Object?>{};
+    var hasFuture = false;
+    if (ctx is Map) {
+      for (final MapEntry<Object?, Object?> e in ctx.entries) {
+        final Object? rawVal = _resolveActionValue(
+          e.value,
+          0,
+          keepFailed: atLeastV10,
+        );
+        if (rawVal is Future) {
+          hasFuture = true;
+        } else if (atLeastV10 && _containsFailedArg(rawVal)) {
+          onExpressionFailed?.call();
+          return null;
+        }
+        rawContext[e.key.toString()] = rawVal;
+      }
+    }
+    final bool hasUserMessage = result.containsKey('userMessage');
+    Object? rawMsg;
+    if (hasUserMessage) {
+      rawMsg = _resolveActionValue(
+        result['userMessage'],
+        0,
+        keepFailed: atLeastV10,
+      );
+      if (rawMsg is Future) {
+        hasFuture = true;
+      } else {
+        if (atLeastV10 && _containsFailedArg(rawMsg)) {
+          onExpressionFailed?.call();
+          return null;
+        }
+        if (rawMsg != null && rawMsg is! String) return null;
+      }
+    }
+    if (!hasFuture) {
+      result['context'] = rawContext;
+      if (hasUserMessage) result['userMessage'] = rawMsg;
+      return result;
+    }
+    return () async {
+      final resolvedContext = <String, Object?>{};
+      for (final MapEntry<String, Object?> e in rawContext.entries) {
+        final Object? rawVal = e.value;
+        final Object? val = rawVal is Future ? await rawVal : rawVal;
+        if (atLeastV10 && _containsFailedArg(val)) {
+          onExpressionFailed?.call();
+          return null;
+        }
+        resolvedContext[e.key] = val;
+      }
+      result['context'] = resolvedContext;
+      if (hasUserMessage) {
+        final Object? msg = rawMsg is Future ? await rawMsg : rawMsg;
+        if (atLeastV10 && _containsFailedArg(msg)) {
+          onExpressionFailed?.call();
+          return null;
+        }
+        if (msg != null && msg is! String) return null;
+        result['userMessage'] = msg;
+      }
+      return result;
+    }();
+  }
+
   Map<String, dynamic>? resolveAction(Object? action) {
     if (action == null) return null;
     if (action is String) {
@@ -1031,6 +1423,17 @@ class DataContext {
   }
 }
 
+/// Sentinel marking a function argument whose synchronous evaluation failed and
+/// was already reported on the surface.
+const Object _failedArg = Object();
+
+bool _containsFailedArg(Object? value) {
+  if (identical(value, _failedArg)) return true;
+  if (value is List) return value.any(_containsFailedArg);
+  if (value is Map) return value.values.any(_containsFailedArg);
+  return false;
+}
+
 /// One function call sent to the agent on a context's behalf.
 class _AgentCall {
   _AgentCall(this.functionName, this.catalogId);
@@ -1041,14 +1444,24 @@ class _AgentCall {
   /// The call's resolved value, null while pending or after a failure.
   final Signal<Object?> value = signal<Object?>(null);
 
+  /// Bumped when this call settles (with a value, including null, or an error).
+  final Signal<int> version = signal<int>(0);
+
   /// Whether the call is still awaiting its response.
   bool pending = true;
+
+  /// Whether the call settled with an error.
+  bool failed = false;
 }
 
 /// The agent calls a context and the contexts derived from it have sent,
 /// keyed by name, catalog and resolved arguments.
 class _AgentCallCache {
+  _AgentCallCache({this.defaultCatalogId});
+
   static const int _maxEntries = 256;
+
+  String? defaultCatalogId;
 
   final Map<String, _AgentCall> entries = {};
 
@@ -1056,15 +1469,84 @@ class _AgentCallCache {
   /// about a call completing with null can depend on it.
   final Signal<int> version = signal<int>(0);
 
-  bool hasPendingFor(String functionName, String? catalogId) {
+  /// The key of the entry a call is shared under, by the key of the call as
+  /// written: a call that names no catalog is sent naming the catalog it
+  /// resolved to, and so is filed under that catalog's key.
+  final Map<String, String> _aliases = {};
+
+  /// Keys of agent calls whose last attempt failed, oldest first. A call that
+  /// reads one as an argument waits rather than running with a null value.
+  final Set<String> failed = <String>{};
+
+  void markFailed(String key) {
+    if (failed.length >= _maxEntries) failed.remove(failed.first);
+    failed.add(key);
+  }
+
+  /// Whether the last attempt of [call] with [args] failed.
+  bool hasFailed(FunctionCall call, Map<String, dynamic> args) {
+    final String writtenKey = DataContext._agentCallKey(
+      call.call,
+      call.catalogId ?? defaultCatalogId,
+      args,
+    );
+    return failed.contains(_aliases[writtenKey] ?? writtenKey);
+  }
+
+  bool hasPendingFor(String functionName) {
     for (final _AgentCall call in entries.values) {
-      if (call.pending &&
-          call.functionName == functionName &&
-          call.catalogId == catalogId) {
-        return true;
-      }
+      if (call.pending && call.functionName == functionName) return true;
     }
     return false;
+  }
+
+  /// The entry for [call] with [args], filed under [resolvedCatalogId].
+  ///
+  /// With a [resolvedCatalogId], records that [call] as written resolves to
+  /// it, so a later lookup without one, such as from
+  /// [DataContext.isPendingAgentCall], finds the same entry.
+  _AgentCall? lookup(
+    FunctionCall call,
+    String? resolvedCatalogId,
+    Map<String, dynamic> args,
+  ) {
+    if (call.catalogId == null && resolvedCatalogId != null) {
+      defaultCatalogId ??= resolvedCatalogId;
+    }
+    final String writtenKey = DataContext._agentCallKey(
+      call.call,
+      call.catalogId ?? defaultCatalogId,
+      args,
+    );
+    if (resolvedCatalogId == null) {
+      return entries[_aliases[writtenKey] ?? writtenKey];
+    }
+    final String key =
+        DataContext._agentCallKey(call.call, resolvedCatalogId, args);
+    if (writtenKey != key) {
+      if (!_aliases.containsKey(writtenKey) && _aliases.length >= _maxEntries) {
+        _evictAlias();
+      }
+      _aliases[writtenKey] = key;
+    }
+    return entries[key];
+  }
+
+  /// Removes one alias to make room for another.
+  ///
+  /// Prefers the oldest alias whose call is no longer pending, so that
+  /// [DataContext.isPendingAgentCall] keeps finding calls still in flight.
+  /// Only when every alias points at a pending call is the oldest one
+  /// removed.
+  void _evictAlias() {
+    for (final MapEntry<String, String> alias in _aliases.entries) {
+      if (entries[alias.value]?.pending != true) {
+        _aliases.remove(alias.key);
+        return;
+      }
+    }
+    final String? oldest = _aliases.keys.firstOrNull;
+    if (oldest != null) _aliases.remove(oldest);
   }
 
   void evictIfFull() {
@@ -1106,7 +1588,8 @@ DataContext createSurfaceDataContext(
           surface.resolveCatalog(catalogId).invoke,
       isUserActivated: false,
       callAgentFunction: surface.callAgentFunction,
-      agentCalls: _surfaceAgentCalls[surface] ??= _AgentCallCache(),
+      agentCalls: _surfaceAgentCalls[surface] ??=
+          _AgentCallCache(defaultCatalogId: surface.defaultCatalog?.id),
       parent: parentDataContext,
       index: index,
       onMissingData: onMissingData ??

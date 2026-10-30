@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- (v1_0) Agent function fallback routing follows the v1.0 specification
+  ([#3415](https://github.com/a2ui-project/a2ui/issues/3415),
+  [#3536](https://github.com/a2ui-project/a2ui/issues/3536)):
+  - A function call whose catalog cannot be resolved (an unknown
+    `catalogId`, or no default catalog on the surface) is reported as a
+    `CATALOG_ERROR` and is no longer sent to the agent. Only a call to a
+    function that its resolved catalog does not have is sent as
+    `callAgentFunction`.
+  - The outbound `callFunction` always names the `catalogId` of the catalog
+    the call resolved to, also when the call relied on the surface's default
+    catalog. Pending calls that differ only in whether they name the default
+    catalog share one request.
+  - `MessageProcessor` gives a surface a `SurfaceModel.callAgentFunction`
+    only when the surface is v1.0 and the processor has an
+    `outboundListener`. Without one, a call to a missing function stays a
+    local `EXPRESSION_ERROR` instead of failing with `NO_LISTENER`.
+  - A function call whose argument reads an agent call that is still pending
+    waits for it to settle instead of running with a null argument. This
+    applies to local functions and to agent calls (in bindings, check rules,
+    and action calls), so an outer call runs only once its agent arguments
+    have settled. If an argument's agent call fails, the enclosing call does
+    not run, and the failure is reported once.
+  - **Breaking:** An agent error or timeout (`A2uiRpcError`) in a dynamic
+    value, a `checks` rule or a `functionCall` action is reported on
+    `SurfaceModel.onError` as `EXPRESSION_ERROR` instead of
+    `EXECUTION_ERROR`, as the other SDKs report it. The error still names the
+    `functionCallId`, and carries the agent's message.
+- A function call naming a `catalogId` on a `DataContext` created without
+  `invokerForCatalog` is now reported as a `CATALOG_ERROR` rather than an
+  `EXPRESSION_ERROR`.
+
 - **Breaking:** Unify the v1.0 protocol version wire value on `'1.0'` (without
   a `'v'` prefix) across message envelopes, `MessageProcessor.getRendererCapabilities`,
   `RpcHandler`, and catalog documents (`A2uiProtocolVersion.v1_0.jsonValue` is
