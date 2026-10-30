@@ -123,7 +123,8 @@ class RendererFunctionCalls:
 
         Send the message to the renderer, then await the future for the
         function's value. Cancelling the future forgets the call. Serialize
-        the message with `model_dump(by_alias=True, exclude_none=True)`.
+        the message with `model_dump(by_alias=True, exclude_unset=True)`, as
+        every A2UI RPC message.
 
         Args:
             catalog_id: The catalog that defines the function, which
@@ -176,10 +177,14 @@ class RendererFunctionCalls:
                 function_call_id=call_id,
             )
         try:
+            # Left unset, not None, without a surface, so that
+            # `model_dump(exclude_unset=True)` omits it: the schema types
+            # `surfaceId` as a string and rejects null.
+            surface = {} if surface_id is None else {"surfaceId": surface_id}
             message = CallRendererFunctionMessage(
                 version="1.0",
                 callRendererFunction=CallRendererFunction(
-                    surfaceId=surface_id,
+                    **surface,
                     functionCallId=call_id,
                     callFunction=FunctionCall.model_validate({
                         "@call": name,

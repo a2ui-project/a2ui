@@ -873,7 +873,7 @@ router = RendererMessageRouter(agent_functions=registry, renderer_calls=calls)
 message, result = calls.call(
     catalog_id=CATALOG_ID, name="getLocation", args={}, surface_id="s1"
 )
-await send_to_renderer(message.model_dump(by_alias=True, exclude_none=True))
+await send_to_renderer(message.model_dump(by_alias=True, exclude_unset=True))
 location = await result  # settled when the router gets the response
 ```
 

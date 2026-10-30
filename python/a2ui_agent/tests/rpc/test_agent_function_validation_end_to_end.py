@@ -140,7 +140,7 @@ def _agent_messages(fmt: str) -> list[dict[str, Any]]:
             f"<a2ui-json>{json.dumps(_direct_json_messages(catalog.catalog_id))}</a2ui-json>"
         )
     messages = [
-        message.model_dump(by_alias=True, exclude_none=True)
+        message.model_dump(by_alias=True, exclude_unset=True)
         for part in parts
         if isinstance(part, A2uiPart)
         for message in part.a2ui
