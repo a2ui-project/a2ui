@@ -53,6 +53,10 @@
   get one processor for every request with a `RendererState` bound to it,
   since every conversation would share that state.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- `A2uiEventConverter` now streams responses in the default `ExpressFormat`
+  incrementally as statements and progressive strings arrive, rather than waiting
+  for the closing `</a2ui>` tag.
+  [#3712](https://github.com/a2ui-project/a2ui/pull/3712)
 - Tool and parse errors, which may quote the A2UI payload, are logged by type
   at warning level and in full only at debug level.
   [#3299](https://github.com/a2ui-project/a2ui/pull/3299)

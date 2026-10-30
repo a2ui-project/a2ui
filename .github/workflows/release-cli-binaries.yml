@@ -1,0 +1,386 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Release CLI Binaries
+
+on:
+  push:
+    tags:
+      - "cli-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 0.1.0). If empty, inferred from dart/a2ui_cli/pubspec.yaml"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run (build, test, verify checksums without creating a GitHub release)"
+        type: boolean
+        default: false
+      draft:
+        description: "Publish release as draft"
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-cli-binaries
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Preflight & Validation
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version_info.outputs.version }}
+      tag: ${{ steps.version_info.outputs.tag }}
+      is_dry_run: ${{ steps.version_info.outputs.is_dry_run }}
+      is_draft: ${{ steps.version_info.outputs.is_draft }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve and Validate Version
+        id: version_info
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          IS_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+          IS_DRAFT: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || false }}
+          DISPATCH_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+
+          # Enforce that non-dry-run releases originate from main
+          if [[ "$IS_DRY_RUN" != "true" ]]; then
+            if [[ "$EVENT_NAME" == "workflow_dispatch" && "$DISPATCH_REF" != "refs/heads/main" ]]; then
+              echo "Error: Non-dry-run releases must be dispatched from main (got $DISPATCH_REF)."
+              exit 1
+            fi
+            git fetch origin +refs/heads/main:refs/remotes/origin/main --deepen=2147483647
+            if ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+              echo "Error: Tagged commit $GITHUB_SHA is not an ancestor of origin/main."
+              exit 1
+            fi
+          fi
+
+          PUBSPEC_VERSION=$(grep "^version:" dart/a2ui_cli/pubspec.yaml | awk '{print $2}' | tr -d '\r')
+
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            VERSION="${REF_NAME#cli-v}"
+            TAG="$REF_NAME"
+          else
+            CLEAN_INPUT="${INPUT_VERSION#cli-v}"
+            CLEAN_INPUT="${CLEAN_INPUT#v}"
+            if [[ -n "$CLEAN_INPUT" ]]; then
+              VERSION="$CLEAN_INPUT"
+            else
+              VERSION="$PUBSPEC_VERSION"
+            fi
+            TAG="cli-v$VERSION"
+          fi
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Error: Invalid semantic version '$VERSION'."
+            exit 1
+          fi
+
+          echo "Target Release Version: $VERSION"
+          echo "Target Release Tag:     $TAG"
+          echo "Pubspec Version:        $PUBSPEC_VERSION"
+          echo "Dry Run:                $IS_DRY_RUN"
+          echo "Draft:                  $IS_DRAFT"
+
+          # Verify pubspec version matches unless running a dry run override
+          if [[ "$VERSION" != "$PUBSPEC_VERSION" && "$IS_DRY_RUN" != "true" ]]; then
+            echo "Error: Target version '$VERSION' does not match pubspec.yaml version '$PUBSPEC_VERSION'."
+            exit 1
+          fi
+
+          # Verify CHANGELOG.md contains release notes
+          ESCAPED_VERSION="${VERSION//./\.}"
+          if grep -E "^##[[:space:]]+\[?${ESCAPED_VERSION}(\]|([[:space:]]|$))" dart/a2ui_cli/CHANGELOG.md > /dev/null; then
+            echo "Found release notes for version $VERSION in CHANGELOG.md."
+          elif [[ "$IS_DRY_RUN" == "true" ]]; then
+            echo "Warning: Version $VERSION not found in CHANGELOG.md, but continuing because dry_run=true."
+          else
+            echo "Error: Release notes for version $VERSION not found in dart/a2ui_cli/CHANGELOG.md."
+            echo "Please move notes from ## Unreleased to ## $VERSION before releasing."
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "is_dry_run=$IS_DRY_RUN" >> $GITHUB_OUTPUT
+          echo "is_draft=$IS_DRAFT" >> $GITHUB_OUTPUT
+
+      - uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
+        with:
+          sdk: stable
+
+      - name: Configure pure-Dart workspace
+        shell: bash
+        run: |
+          cat > pubspec.yaml << 'EOF'
+          name: a2ui_monorepo
+          publish_to: none
+          environment:
+            sdk: ">=3.10.0 <4.0.0"
+          workspace:
+            - dart/a2ui_core
+            - dart/a2ui_cli
+          dev_dependencies:
+            lints: ^6.1.0
+          EOF
+
+      - name: Install dependencies
+        working-directory: dart/a2ui_cli
+        run: dart pub get
+
+      - name: Run unit tests
+        working-directory: dart/a2ui_cli
+        run: dart test
+
+  build:
+    needs: preflight
+    name: Build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+            ext: ""
+            binary_name: a2ui
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+            ext: ""
+            binary_name: a2ui
+          - os: macos-15-intel
+            target: darwin-x64
+            ext: ""
+            binary_name: a2ui
+          - os: macos-latest
+            target: darwin-arm64
+            ext: ""
+            binary_name: a2ui
+          - os: windows-latest
+            target: windows-x64
+            ext: ".exe"
+            binary_name: a2ui.exe
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
+        with:
+          sdk: stable
+
+      - name: Configure pure-Dart workspace for CLI build
+        shell: bash
+        run: |
+          cat > pubspec.yaml << 'EOF'
+          name: a2ui_monorepo
+          publish_to: none
+          environment:
+            sdk: ">=3.10.0 <4.0.0"
+          workspace:
+            - dart/a2ui_core
+            - dart/a2ui_cli
+          dev_dependencies:
+            lints: ^6.1.0
+          EOF
+
+      - name: Install dependencies
+        working-directory: dart/a2ui_cli
+        run: dart pub get
+
+      - name: Compile CLI binary
+        working-directory: dart/a2ui_cli
+        shell: bash
+        env:
+          CLI_VERSION: ${{ needs.preflight.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          dart tool/compile.dart --target "$TARGET" --version "$CLI_VERSION"
+
+      - name: Smoke test compiled binary
+        working-directory: dart/a2ui_cli
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ needs.preflight.outputs.version }}
+          BIN_PATH: dist/a2ui-${{ matrix.target }}${{ matrix.ext }}
+        run: |
+          chmod +x "$BIN_PATH"
+          echo "Testing $BIN_PATH --version"
+          REPORTED_VERSION=$("$BIN_PATH" --version | tr -d '\r' | xargs)
+          echo "Reported version: $REPORTED_VERSION"
+          if [[ "$REPORTED_VERSION" != "$EXPECTED_VERSION" ]]; then
+            echo "Error: Binary reported '$REPORTED_VERSION', expected '$EXPECTED_VERSION'"
+            exit 1
+          fi
+
+          echo "Testing $BIN_PATH --help"
+          "$BIN_PATH" --help
+
+          echo "Testing $BIN_PATH codegen --help"
+          "$BIN_PATH" codegen --help
+
+          echo "Testing $BIN_PATH codegen execution"
+          SMOKE_OUT="${RUNNER_TEMP:-/tmp}/a2ui-smoke-out"
+          rm -rf "$SMOKE_OUT"
+          "$BIN_PATH" codegen --catalog ../../catalogs/basic/v1/catalog.json --out "$SMOKE_OUT"
+          test -s "$SMOKE_OUT/basic_catalog.py"
+          echo "Smoke test codegen passed successfully."
+
+      - name: Package release artifacts
+        working-directory: dart/a2ui_cli
+        shell: bash
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          TARGET: ${{ matrix.target }}
+          BINARY_NAME: ${{ matrix.binary_name }}
+          EXT: ${{ matrix.ext }}
+        run: |
+          mkdir -p staging artifacts
+
+          # Copy binary and metadata to staging
+          cp "dist/a2ui-${TARGET}${EXT}" "staging/${BINARY_NAME}"
+          cp LICENSE staging/LICENSE
+          cp README.md staging/README.md
+
+          # Package compressed archive
+          if [[ "${TARGET}" == windows-* ]]; then
+            powershell -Command "Compress-Archive -Path staging/* -DestinationPath artifacts/a2ui-v${VERSION}-${TARGET}.zip -Force"
+          else
+            tar -czvf "artifacts/a2ui-v${VERSION}-${TARGET}.tar.gz" -C staging "${BINARY_NAME}" LICENSE README.md
+          fi
+
+          # Also copy raw standalone binary for direct curl / updater download
+          cp "dist/a2ui-${TARGET}${EXT}" "artifacts/a2ui-${TARGET}${EXT}"
+
+          echo "Artifacts generated in dart/a2ui_cli/artifacts:"
+          ls -la artifacts/
+
+      - name: Upload platform artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: a2ui-${{ matrix.target }}
+          path: dart/a2ui_cli/artifacts/*
+          retention-days: 1
+
+  publish:
+    needs: [preflight, build]
+    name: Publish Release & Attestations
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: a2ui-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate SHA-256 Checksums
+        working-directory: release-assets
+        run: |
+          sha256sum * > checksums.txt
+          echo "SHA-256 Checksums:"
+          cat checksums.txt
+
+      - name: Attest Build Provenance
+        if: needs.preflight.outputs.is_dry_run != 'true'
+        uses: actions/attest-build-provenance@c074443f1aee8d4aeeae555aebba3282517141b2 # v2.2.3
+        with:
+          subject-path: "release-assets/*"
+
+      - name: Extract Release Notes from CHANGELOG
+        id: release_notes
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          python3 -c "
+          import re, sys
+          with open('dart/a2ui_cli/CHANGELOG.md') as f:
+              content = f.read()
+          pattern = r'^##[ \t]+\[?' + re.escape(sys.argv[1]) + r'(?:\]|[ \t]|$)[^\n]*\n(.*?)(?=^##[ \t]+|\Z)'
+          match = re.search(pattern, content, re.DOTALL | re.MULTILINE)
+          if match and match.group(1).strip():
+              print(match.group(1).strip())
+          else:
+              print(f'Release of A2UI CLI v{sys.argv[1]}')
+          " "$VERSION" > release_notes.md
+          echo "Extracted release notes:"
+          cat release_notes.md
+
+      - name: Publish GitHub Release
+        if: needs.preflight.outputs.is_dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.preflight.outputs.tag }}
+          VERSION: ${{ needs.preflight.outputs.version }}
+          TITLE: "A2UI CLI v${{ needs.preflight.outputs.version }}"
+          DRAFT_FLAG: ${{ needs.preflight.outputs.is_draft == 'true' && '--draft' || '' }}
+          TARGET_COMMIT: ${{ github.sha }}
+        run: |
+          PRERELEASE_FLAG=""
+          if [[ "$VERSION" == *"-"* ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          echo "Creating GitHub Release $TAG (draft: $DRAFT_FLAG, prerelease: $PRERELEASE_FLAG)..."
+          gh release create "$TAG" release-assets/* \
+            --title "$TITLE" \
+            --notes-file release_notes.md \
+            --target "$TARGET_COMMIT" \
+            $DRAFT_FLAG \
+            $PRERELEASE_FLAG
+
+      - name: Dry Run Summary
+        if: needs.preflight.outputs.is_dry_run == 'true'
+        env:
+          TAG: ${{ needs.preflight.outputs.tag }}
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          echo "=========================================="
+          echo "   A2UI CLI RELEASE DRY RUN SUCCESSFUL    "
+          echo "=========================================="
+          echo "Tag:     $TAG"
+          echo "Version: $VERSION"
+          echo ""
+          echo "Artifacts prepared:"
+          ls -la release-assets/
+          echo ""
+          echo "Checksums:"
+          cat release-assets/checksums.txt
+          echo ""
+          echo "Release notes:"
+          cat release_notes.md
+          echo ""
+          echo "GitHub Release creation skipped (dry_run: true)."
