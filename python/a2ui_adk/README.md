@@ -30,6 +30,20 @@ Available with the base install:
   processor's prompt to the model's instructions, compiles each tool call with
   the processor's parser, and validates the resulting A2UI JSON messages
   before they are sent.
+- `A2uiInstruction` is an ADK instruction provider for an agent that writes
+  A2UI in its text response. Pass it as `LlmAgent.instruction` with the
+  agent's own instruction and the same processor or callbacks as the toolset.
+  It appends the processor's prompt to the agent's instruction. ADK reads
+  `{name}` session state templates out of a string instruction, and the A2UI
+  prompt holds braces that are not state keys (`${expression}` in the basic
+  catalog, data bindings in the examples), so a string instruction fails with
+  `KeyError: "Context variable not found: 'expression'."`. As a provider,
+  `A2uiInstruction` is used as it is, while the agent's own instruction keeps
+  its `{name}` templates.
+- `A2uiProcessorStore` keeps each session's `A2uiRequestProcessor` in memory,
+  since ADK's session services save state as JSON and can't hold one. Its
+  `is_enabled` and `get` methods are the callbacks for the toolset,
+  `A2uiInstruction` and `A2uiEventConverter`.
 
 Available with the `a2a` extra:
 
@@ -46,7 +60,7 @@ Without the extra, `import a2ui.adk` still works. Reading one of these names
 raises an `ImportError` that explains how to install the extra.
 
 ```python
-from a2ui.adk import A2uiEventConverter, SendA2uiToClientToolset
+from a2ui.adk import A2uiEventConverter, A2uiInstruction, SendA2uiToClientToolset
 ```
 
 ## Running tests

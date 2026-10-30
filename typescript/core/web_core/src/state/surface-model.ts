@@ -509,17 +509,23 @@ export class SurfaceModel<
     let resolvedUserMessage = eventPayload.userMessage;
     if (resolvedUserMessage !== undefined) {
       const settledMsg = settleDeep(resolvedUserMessage);
-      resolvedUserMessage = isThenable(settledMsg) ? await settledMsg : settledMsg;
-      if (findFailedArgument(resolvedUserMessage)) {
+      if (isThenable(settledMsg)) {
+        resolvedUserMessage = await settledMsg;
+        if (findFailedArgument(resolvedUserMessage)) {
+          return;
+        }
+        if (typeof resolvedUserMessage !== 'string') {
+          await this.dispatchError({
+            code: 'INVALID_ACTION',
+            surfaceId: this.id,
+            message: "Action event 'userMessage' must resolve to a string.",
+          });
+          return;
+        }
+      } else if (findFailedArgument(settledMsg)) {
         return;
-      }
-      if (typeof resolvedUserMessage !== 'string') {
-        await this.dispatchError({
-          code: 'INVALID_ACTION',
-          surfaceId: this.id,
-          message: "Action event 'userMessage' must resolve to a string.",
-        });
-        return;
+      } else {
+        resolvedUserMessage = settledMsg;
       }
     }
 

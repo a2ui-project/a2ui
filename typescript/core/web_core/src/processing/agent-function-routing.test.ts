@@ -49,6 +49,14 @@ const quote: FunctionApi = {
   schema: z.object({'symbol': z.string(), 'currency': z.string().default('USD')}).strict(),
 };
 
+/** Schema-only function restricted to agent callers. */
+const agentOnlySchemaFn: FunctionApi = {
+  name: 'agentOnlySchemaFn',
+  returnType: 'string',
+  schema: z.object({}),
+  allowedCallers: 'agentOnly',
+};
+
 describe('Fallback routing of unimplemented functions to the agent (v1.0)', () => {
   let outbound: any[];
   let errors: Array<{code: string; message: string; expression?: string}>;
@@ -69,7 +77,12 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
   const setUp = (options: {outboundListener?: boolean; defaultTimeoutMs?: number} = {}) => {
     outbound = [];
     errors = [];
-    const catalog = new Catalog<any, any>(FIN_CATALOG_ID, '1.0', [], [upper, concat, quote]);
+    const catalog = new Catalog<any, any>(
+      FIN_CATALOG_ID,
+      '1.0',
+      [],
+      [upper, concat, quote, agentOnlySchemaFn],
+    );
     proc = new MessageProcessor([catalog], undefined, {
       outboundListener:
         options.outboundListener === false
@@ -503,6 +516,18 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     assert.strictEqual(errors.length, 1);
     assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
     assert.match(errors[0].message, /Function not found/);
+  });
+
+  it('refuses a schema-only function with allowedCallers agentOnly without sending it to the agent', async () => {
+    assert.strictEqual(
+      ctx.resolveDynamicValue({'@call': 'agentOnlySchemaFn', 'args': {}}),
+      undefined,
+    );
+    await flush();
+    assert.strictEqual(outbound.length, 0);
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.match(errors[0].message, /allowedCallers is agentOnly/);
   });
 
   it('does not route calls on a pre-1.0 surface', async () => {
