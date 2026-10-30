@@ -308,6 +308,9 @@ public final class NodeResolver: Sendable {
     resolvedInCurrentPass.removeAll()
     reportedExpressionErrors.removeAll()
     currentPassExpressionErrors.removeAll()
+    for call in nodesByAgentCall.keys {
+      agentCallHost?.agentCallCache.forgetFailure(call)
+    }
     nodesByAgentCall.removeAll()
     dirtyAgentCalls.removeAll()
   }

@@ -631,3 +631,30 @@ async def test_delete_surface_cancels_pending_agent_calls_without_surface_errors
     assert len(h.proc.rpc._pending_agent_calls) == 0
     assert h.errors == []
     sub.unsubscribe()
+
+
+@pytest.mark.asyncio
+async def test_subscribe_dynamic_value_unwraps_and_updates_nested_agent_signals() -> (
+    None
+):
+    h = _Harness()
+    changes: list[Any] = []
+    sub = h.ctx.subscribe_dynamic_value(
+        {
+            "rate": {"@call": "fetchFxRate", "args": {"base": "EUR"}},
+            "items": [{"@call": "quote", "args": {"symbol": "GOOG"}}],
+        },
+        changes.append,
+    )
+    assert sub.value == {"rate": None, "items": [None]}
+    assert changes == []
+    assert len(h.outbound) == 2
+
+    h.respond(0, value=1.08)
+    await _flush()
+    assert changes == [{"rate": 1.08, "items": [None]}]
+
+    h.respond(1, value=180.5)
+    await _flush()
+    assert changes[-1] == {"rate": 1.08, "items": [180.5]}
+    sub.unsubscribe()

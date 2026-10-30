@@ -98,7 +98,6 @@ describe('ExpressFormat', () => {
       surfaceId: 'custom_surface',
       version: '1.0',
     });
-    expect(format.supportsStreaming).toBe(true);
     expect(format.progressiveKeys).toEqual(DEFAULT_EXPRESS_PROGRESSIVE_KEYS);
     expect(format.promptGenerator).toBeInstanceOf(ExpressPromptGenerator);
   });

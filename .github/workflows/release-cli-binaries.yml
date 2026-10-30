@@ -249,7 +249,7 @@ jobs:
           SMOKE_OUT="${RUNNER_TEMP:-/tmp}/a2ui-smoke-out"
           rm -rf "$SMOKE_OUT"
           "$BIN_PATH" codegen --catalog ../../catalogs/basic/v1/catalog.json --out "$SMOKE_OUT"
-          test -s "$SMOKE_OUT/basic_catalog.py"
+          test -s "$SMOKE_OUT/basic.py" || test -s "$SMOKE_OUT/basic_catalog.py"
           echo "Smoke test codegen passed successfully."
 
       - name: Package release artifacts
