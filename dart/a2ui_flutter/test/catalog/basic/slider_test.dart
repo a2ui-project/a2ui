@@ -16,6 +16,7 @@ import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/basic_test_catalog.dart';
@@ -249,5 +250,52 @@ void main() {
 
     await harness.send([updateDataModel(true, path: '/ok')]);
     expect(find.text('Pick a higher value'), findsNothing);
+  });
+
+  group('semantics', () {
+    late SemanticsHandle semantics;
+    setUp(() => semantics = SemanticsBinding.instance.ensureSemantics());
+    tearDown(() => semantics.dispose());
+
+    SemanticsData sliderNode(WidgetTester tester) =>
+        tester.getSemantics(find.byType(Slider)).getSemanticsData();
+
+    testWidgets('is named by its label and reads the value it shows', (
+      tester,
+    ) async {
+      await _pumpSlider(
+        tester,
+        {
+          'label': 'Volume',
+          'max': 10,
+          'value': {'path': '/volume'},
+        },
+        data: {'volume': 4},
+      );
+
+      final SemanticsData data = sliderNode(tester);
+      expect(data.label, 'Volume');
+      expect(data.value, '4');
+      expect(data.increasedValue, '5');
+      expect(data.flagsCollection.isSlider, isTrue);
+      expect(data.hasAction(SemanticsAction.increase), isTrue);
+    });
+
+    testWidgets('says its label and value once', (tester) async {
+      await _pumpSlider(
+        tester,
+        {
+          'label': 'Volume',
+          'max': 10,
+          'value': {'path': '/volume'},
+        },
+        data: {'volume': 4},
+      );
+
+      expect(find.bySemanticsLabel('Volume'), findsOneWidget);
+      expect(find.bySemanticsLabel('4'), findsNothing);
+      expect(find.text('Volume'), findsOneWidget);
+      expect(find.text('4'), findsOneWidget);
+    });
   });
 }

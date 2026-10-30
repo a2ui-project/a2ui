@@ -27,6 +27,9 @@
   old indicator should render their own loading state until the fallback API
   from [#2013](https://github.com/a2ui-project/a2ui/issues/2013) lands
   ([#3714](https://github.com/a2ui-project/a2ui/pull/3714)).
+- `Slider` is named by its `label` and reads the value it shows, instead of a
+  percentage. The value bubble is gone, since Flutter reads its text as the
+  slider's name; the value stays on screen above the track.
 
 ## 0.0.1-wip003
 
