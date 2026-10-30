@@ -19,7 +19,14 @@ import 'package:args/command_runner.dart';
 
 import 'commands/codegen_command.dart';
 
-const String packageVersion = '0.0.1-wip001';
+const String _defaultPackageVersion = '0.0.1-wip001';
+
+/// The current version of the A2UI CLI package. Can be overridden at
+/// compile-time via `-DCLI_VERSION=<version>` during binary builds.
+const String packageVersion = String.fromEnvironment(
+  'CLI_VERSION',
+  defaultValue: _defaultPackageVersion,
+);
 
 class A2uiCommandRunner extends CommandRunner<int> {
   final StringSink outSink;

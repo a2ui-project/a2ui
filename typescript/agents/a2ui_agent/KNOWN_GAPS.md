@@ -8,9 +8,9 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Partial protocol version support and unimplemented formats
 
-- **What it is:** The package supports `v1.0`, `v0.9` and `v0.9.1`, a patch release that shares the v0.9 schemas. `v0.8` and the Elemental and Atom inference formats remain unimplemented. Direct JSON and Express are implemented; Express does not stream.
+- **What it is:** The package supports `v1.0`, `v0.9` and `v0.9.1`, a patch release that shares the v0.9 schemas. `v0.8` and the Elemental and Atom inference formats remain unimplemented. Direct JSON and Express are implemented, including incremental streaming.
 - **Why it exists:** An explicit scope decision to add protocol support incrementally, starting with `v1.0`. `v0.8` is out of scope for this SDK.
-- **What it blocks:** Elemental and Atom use cases, and streaming Express output.
+- **What it blocks:** Elemental and Atom use cases.
 - **Done looks like:** The `InferenceFormat` seam is populated with implementations for Elemental and Atom.
 
 ### Express compilation errors have one parent class
@@ -26,6 +26,13 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** Python's decompiler prints floats with `repr`, and a JavaScript number does not record how it was written.
 - **What it risks:** Small textual differences in prompts on old Node versions. The repository uses Node 22.
 - **Done looks like:** Nothing, unless the package has to support Node 20, in which case example numbers need a custom JSON reader.
+
+### An Express stream does not recover a block without its open tag
+
+- **What it is:** `ExpressParser.parseResponse` recovers a block that was written with `</a2ui>` and no `<a2ui>`. `ExpressParser.openStream` in `wrapped: true` mode does not: by the time `</a2ui>` arrives, the lines before it have already been emitted as text.
+- **Why it exists:** Holding every paragraph until `</a2ui>` is ruled out would hold the whole response.
+- **What it risks:** A response whose `<a2ui>` tag the model dropped is parsed as UI by `parseResponse` and emitted as text by `openStream`.
+- **Done looks like:** Nothing; the two modes cannot agree here without giving up streaming of text.
 
 ### Express decompiler skips components its catalog doesn't declare
 
