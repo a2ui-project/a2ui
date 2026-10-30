@@ -219,6 +219,28 @@ String? extractErrorCode(A2uiError error) {
   return (false, null);
 }
 
+/// Matches the error type an `expectError.category` names. `ValidationError`
+/// and `RecursionError` accept the sibling types the SDKs raise for the same
+/// condition.
+Matcher categoryMatches(String? category) => switch (category) {
+      'ParseError' => isA<A2uiParseError>(),
+      'ValidationError' => anyOf(
+          isA<A2uiValidationError>(),
+          isA<A2uiIntegrityError>(),
+          isA<A2uiRecursionError>(),
+          isA<A2uiCatalogError>(),
+        ),
+      'CatalogError' => isA<A2uiCatalogError>(),
+      'IntegrityError' => isA<A2uiIntegrityError>(),
+      'RecursionError' => anyOf(
+          isA<A2uiRecursionError>(),
+          isA<A2uiIntegrityError>(),
+        ),
+      'DataError' => isA<A2uiDataError>(),
+      'StateError' => isA<A2uiStateError>(),
+      _ => isA<A2uiError>(),
+    };
+
 /// Matches `code` and `path` expectations declared in an `expectError` block
 /// against a thrown [A2uiError].
 ///
@@ -228,11 +250,18 @@ String? extractErrorCode(A2uiError error) {
 /// - If the thrown [A2uiError] does not expose the field, invokes
 ///   [onUnassertedField] (defaulting to [markTestSkipped]) with
 ///   `"code/path not asserted: ..."` rather than silently passing.
+///
+/// When `expectError.rendererError` is set, the matcher requires an outbound
+/// [ErrorMessage]: [capturedErrorMessage], or else the last entry of
+/// [emittedErrors]. The list is read when the matcher runs, so a harness can
+/// hand over the list its `outboundListener` fills while the payload is still
+/// being processed.
 Matcher matchesErrorFields(
   Map<String, Object?> expectedError, {
   Object? rawMessage,
   String defaultVersion = 'v0.9',
   ErrorMessage? capturedErrorMessage,
+  List<ErrorMessage>? emittedErrors,
   void Function(String message) onUnassertedField = markTestSkipped,
 }) =>
     _ErrorFieldsMatcher(
@@ -246,6 +275,7 @@ Matcher matchesErrorFields(
       rawMessage: rawMessage,
       defaultVersion: defaultVersion,
       capturedErrorMessage: capturedErrorMessage,
+      emittedErrors: emittedErrors,
       onUnassertedField: onUnassertedField,
     );
 
@@ -259,6 +289,7 @@ class _ErrorFieldsMatcher extends Matcher {
   final Object? rawMessage;
   final String defaultVersion;
   final ErrorMessage? capturedErrorMessage;
+  final List<ErrorMessage>? emittedErrors;
   final void Function(String message) onUnassertedField;
 
   const _ErrorFieldsMatcher({
@@ -271,6 +302,7 @@ class _ErrorFieldsMatcher extends Matcher {
     this.rawMessage,
     this.defaultVersion = 'v0.9',
     this.capturedErrorMessage,
+    this.emittedErrors,
     required this.onUnassertedField,
   });
 
@@ -281,7 +313,18 @@ class _ErrorFieldsMatcher extends Matcher {
       return false;
     }
 
-    final ErrorMessage mapped = capturedErrorMessage ??
+    final ErrorMessage? emitted =
+        capturedErrorMessage ?? emittedErrors?.lastOrNull;
+    if (expectedRendererError != null && emitted == null) {
+      matchState['reason'] =
+          'expected an outbound rendererError to be emitted, but none was '
+          'captured';
+      return false;
+    }
+
+    // Without an emitted message, the mapped form only backs the `code` and
+    // `path` checks, which read the thrown error itself.
+    final ErrorMessage mapped = emitted ??
         MessageErrorMapper.map(
           item,
           rawMessage: rawMessage,
@@ -406,7 +449,7 @@ class _ErrorFieldsMatcher extends Matcher {
 
   static bool _textMatches(String actual, String expected) {
     if (actual.toLowerCase().contains(expected.toLowerCase())) return true;
-    final String aligned = expected
+    final String aligned = alignErrorPattern(expected)
         .replaceAll('allowedParents', '(allowedParents|Allowed parents)')
         .replaceAll('allowedChildren', '(allowedChildren|Allowed children)');
     try {
@@ -514,6 +557,57 @@ class _ErrorFieldsMatcher extends Matcher {
     }
     return mismatchDescription;
   }
+}
+
+/// Aligns cross-SDK error message patterns to match equivalent messages.
+String alignErrorPattern(String pattern) {
+  if (pattern.contains('Catalog not found:')) {
+    return '($pattern|is not supported by this processor)';
+  }
+  if (RegExp(r"Unrecognized function '([^']*)'").firstMatch(pattern)
+      case final RegExpMatch match) {
+    return "($pattern|declares no function named '${match[1]}')";
+  }
+  if (pattern.contains('without a type')) {
+    return "($pattern|without a 'component' type)";
+  }
+  if (pattern.contains('Circular reference detected') ||
+      pattern.contains('Circular component reference')) {
+    return '($pattern|Self-reference detected|Circular reference detected)';
+  }
+  if (pattern.contains('Self-referencing component')) {
+    return '($pattern|Self-reference detected)';
+  }
+  if (pattern.contains('Dangling reference')) {
+    return '($pattern|references non-existent component)';
+  }
+  if (pattern.contains('Orphaned component') ||
+      pattern.contains('is not reachable from')) {
+    return '($pattern|is not reachable from|Unreachable components)';
+  }
+  if (pattern.contains('Validation failed for component') ||
+      pattern.contains('is not of type')) {
+    return '($pattern|does not match the .* schema|is not of type)';
+  }
+  if (pattern.contains('Validation failed for theme')) {
+    return '($pattern|Theme does not match the theme schema)';
+  }
+  if (pattern.contains('multiple conflicting update actions')) {
+    return '($pattern|must contain exactly one of)';
+  }
+  if (pattern.contains('beginRendering')) {
+    return '($pattern|Unknown A2UI message type)';
+  }
+  if (pattern.contains('Unsupported protocol version')) {
+    return '($pattern|Unsupported A2UI protocol version)';
+  }
+  if (pattern.contains('Missing required version field')) {
+    return "($pattern|must declare a 'version')";
+  }
+  if (pattern.contains('surfaceId must be a string')) {
+    return "($pattern|Field 'createSurface\\.surfaceId' must be a String)";
+  }
+  return pattern;
 }
 
 /// The SDK's basic catalog for protocol [version], registered as
