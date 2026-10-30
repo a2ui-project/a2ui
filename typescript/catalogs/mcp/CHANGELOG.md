@@ -1,5 +1,6 @@
 ## Unreleased
 
+- The shared sandbox proxy now keeps only the `allow-scripts`, `allow-forms` and `allow-modals` flags from a host-provided `sandbox` value, so `allow-top-navigation*` and `allow-popups*` can no longer reach the inner iframe. [#3432](https://github.com/a2ui-project/a2ui/issues/3432)
 - Emit `'1.0'` as `version` on synthesized `createSurface` and `updateComponents` messages in `callMcpTool` when creating a standalone MCP App surface, matching the unified v1.0 protocol version wire format. [#3097](https://github.com/a2ui-project/a2ui/issues/3097)
 - The published package contains only the runtime build output; test files and TypeScript build info are no longer included. [#3348](https://github.com/a2ui-project/a2ui/pull/3348)
 - **BREAKING CHANGE**: Hosts set up the catalog once with `configureMcpCatalog`; `createCallMcpToolImplementation`, `CallMcpToolApi` and `A2UI_MIME_TYPE` are removed and `MCP_CATALOG_ID` now identifies the v1.0 catalog (`catalogs/mcp/v1/catalog.json`, bundled as `@a2ui/catalog-mcp/catalog.json`). `callMcpTool` now hands `ui://` MCP App resources to the host. [#3186](https://github.com/a2ui-project/a2ui/pull/3186)

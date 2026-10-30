@@ -560,6 +560,41 @@ describe('startSandboxProxy', () => {
       expect(inner.getAttribute('sandbox')).toBe('allow-scripts allow-forms');
     });
 
+    for (const flag of [
+      'allow-top-navigation',
+      'allow-top-navigation-by-user-activation',
+      'allow-popups',
+      'allow-popups-to-escape-sandbox',
+      'allow-pointer-lock',
+    ]) {
+      it(`strips ${flag} from custom sandbox flags in resource-ready messages`, () => {
+        dispatch({
+          data: {
+            type: A2uiSandboxMessageType.SandboxResourceReady,
+            html: '<p>hello</p>',
+            sandbox: `allow-scripts ${flag} ${flag.toUpperCase()} allow-forms`,
+          },
+          origin: HOST_ORIGIN,
+          source: parentWindow,
+        });
+        const inner = innerFrame();
+        expect(inner.getAttribute('sandbox')).toBe('allow-scripts allow-forms');
+      });
+    }
+
+    it('keeps every default sandbox flag from custom sandbox flags in resource-ready messages', () => {
+      dispatch({
+        data: {
+          type: A2uiSandboxMessageType.SandboxResourceReady,
+          html: '<p>hello</p>',
+          sandbox: `${DEFAULT_INNER_SANDBOX} allow-popups`,
+        },
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      expect(innerFrame().getAttribute('sandbox')).toBe(DEFAULT_INNER_SANDBOX);
+    });
+
     it('loads inline HTML from an MCP Apps resource-ready notification with default CSP', () => {
       dispatch({
         data: {
