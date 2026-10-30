@@ -115,44 +115,27 @@ public final class SurfaceViewModel: ObservableObject {
     protocolVersion: A2UIProtocolVersion? = nil
   ) {
     self.surfaceID = surfaceID
-    self.catalogs = catalogs
-    let allCatalogsAtLeastV10 =
-      !catalogs.isEmpty && catalogs.values.allSatisfy(\.isAtLeastV10)
-    let isAtLeastV10 = protocolVersion?.isAtLeastV10 ?? allCatalogsAtLeastV10
-    let resolvedDefaultCatalogID: String?
-    if let defaultCatalogID {
-      resolvedDefaultCatalogID = defaultCatalogID
-    } else if !isAtLeastV10, catalogs.count == 1 {
-      resolvedDefaultCatalogID = catalogs.keys.first
-    } else {
-      resolvedDefaultCatalogID = nil
-    }
+    let compatibleCatalogs = catalogs.filterCompatible(with: protocolVersion)
+    self.catalogs = compatibleCatalogs
+    let resolvedDefaultCatalogID = compatibleCatalogs.resolveDefaultCatalogID(
+      explicitDefaultID: defaultCatalogID,
+      protocolVersion: protocolVersion
+    )
     self.defaultCatalogID = resolvedDefaultCatalogID
     self.theme = theme
     self.metadata = metadata
     self.sendDataModel = sendDataModel
     self.actionHandler = actionHandler
-    let explicitVersion: A2UIProtocolVersion?
-    if let protocolVersion {
-      explicitVersion = protocolVersion
-    } else if let resolvedDefaultCatalogID,
-      let defaultCat = catalogs[resolvedDefaultCatalogID],
-      let catVer = defaultCat.a2uiProtocolVersion
-    {
-      explicitVersion = catVer
-    } else if allCatalogsAtLeastV10 {
-      explicitVersion = .v10
-    } else if catalogs.count == 1, let onlyCatVer = catalogs.values.first?.a2uiProtocolVersion {
-      explicitVersion = onlyCatVer
-    } else {
-      explicitVersion = nil
-    }
+    let explicitVersion = compatibleCatalogs.resolveExplicitProtocolVersion(
+      requestedVersion: protocolVersion,
+      defaultCatalogID: resolvedDefaultCatalogID
+    )
     self.protocolVersion = explicitVersion ?? .v091
     self.dataModel = DataModel()
     self.componentsModel = SurfaceComponentsModel()
     self.nodeResolver = NodeResolver(
       surfaceID: surfaceID,
-      catalogs: catalogs,
+      catalogs: compatibleCatalogs,
       defaultCatalogID: resolvedDefaultCatalogID,
       componentsModel: self.componentsModel,
       dataModel: self.dataModel,
@@ -256,7 +239,7 @@ public final class SurfaceViewModel: ObservableObject {
     return task
   }
 
-  /// Returns the agent's result for a call routed from a binding, check or action, sending the
+  /// Returns the agent's result for a call routed from a binding or check, sending the
   /// call if the surface has no result for it yet.
   ///
   /// The agent's value is kept in ``agentCallCache``, so every later evaluation of the same call
@@ -311,25 +294,65 @@ public final class SurfaceViewModel: ObservableObject {
     return nil
   }
 
-  /// Waits until `call`, routed to the agent from a binding, check or action, has settled.
+  /// Returns the agent's result for a call made while running an action, sending a fresh call
+  /// unless `actionCache` already holds its result for this action invocation.
+  ///
+  /// Actions represent imperative commands with side effects, so they never read from or write
+  /// to the surface's reactive ``agentCallCache`` or share ``inFlightAgentCalls`` across action
+  /// invocations. Within a single action invocation, `actionCache` holds settled inner argument
+  /// calls across multi-pass evaluation.
+  func actionAgentFunctionValue(
+    for call: AgentFunctionCall,
+    in actionCache: AgentCallCache
+  ) -> JSONValue? {
+    guard !isDisposed else { return nil }
+    switch actionCache[call] {
+    case .answered(let value):
+      return value
+    case .pending, .failed:
+      return nil
+    case nil:
+      break
+    }
+    guard let caller = agentFunctionCaller else {
+      handleFunctionError(FunctionError.noListener(name: call.name), functionName: call.name)
+      return nil
+    }
+    let settlement = Task { @MainActor [weak self] () -> Bool in
+      guard let self, !self.isDisposed else { return false }
+      do {
+        let value = try await caller(call)
+        guard !self.isDisposed else { return false }
+        actionCache.answer(call, with: value)
+        return true
+      } catch {
+        guard !self.isDisposed else { return false }
+        actionCache.fail(call)
+        self.handleFunctionError(error, functionName: call.name)
+        return false
+      }
+    }
+    actionCache.markPending(
+      call,
+      settlement: settlement,
+      isRequestedDirectly: true
+    )
+    return nil
+  }
+
+  /// Waits until `call`, routed to the agent from a binding or check, has settled.
   ///
   /// - Returns: Whether the agent answered the call with a value; `false` after a failure, which
   ///   has been reported, or if the call was never sent.
   func awaitAgentCallSettlement(_ call: AgentFunctionCall) async -> Bool {
-    switch agentCallCache[call] {
-    case .pending(let settlement, _):
-      return await settlement.value
-    case .answered:
-      return true
-    case .failed, nil:
-      return false
-    }
+    await agentCallCache.awaitSettlement(of: call)
   }
 
-  /// Records the agent's answer to a call routed from a binding, check or action.
+  /// Records the agent's answer to a call routed from a binding or check.
   ///
   /// An error is reported as an `EXPRESSION_ERROR`, unless only nodes asked for the call and none
-  /// of them makes it anymore, such as after the component was removed.
+  /// of them makes it anymore, such as after the component was removed. When no node makes the
+  /// call anymore, the failure is evicted so a future mount retries the call.
   private func settleAgentCall(_ call: AgentFunctionCall, result: Result<JSONValue, any Error>) {
     guard !isDisposed else { return }
     switch result {
@@ -340,8 +363,13 @@ public final class SurfaceViewModel: ObservableObject {
       if case .pending(_, let requestedDirectly) = agentCallCache[call] {
         isRequestedDirectly = requestedDirectly
       }
-      agentCallCache.fail(call)
-      guard isRequestedDirectly || nodeResolver.hasNodes(makingAgentCall: call) else { return }
+      let hasNodes = nodeResolver.hasNodes(makingAgentCall: call)
+      if hasNodes {
+        agentCallCache.fail(call)
+      } else {
+        agentCallCache.forget(call)
+      }
+      guard isRequestedDirectly || hasNodes else { return }
       handleFunctionError(error, functionName: call.name)
     }
   }

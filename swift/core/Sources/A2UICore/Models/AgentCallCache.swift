@@ -94,6 +94,26 @@ final class AgentCallCache {
     states.removeValue(forKey: call)
   }
 
+  /// Removes `call` from the cache so that the next evaluation sends it again.
+  func forget(_ call: AgentFunctionCall) {
+    states.removeValue(forKey: call)
+  }
+
+  /// Waits until `call` has settled in this cache.
+  ///
+  /// - Returns: Whether the agent answered the call with a value; `false` after a failure or if
+  ///   the call was never sent.
+  func awaitSettlement(of call: AgentFunctionCall) async -> Bool {
+    switch states[call] {
+    case .pending(let settlement, _):
+      return await settlement.value
+    case .answered:
+      return true
+    case .failed, nil:
+      return false
+    }
+  }
+
   /// Forgets every call. Calls still pending settle into nothing.
   func removeAll() {
     states.removeAll()

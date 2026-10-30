@@ -175,6 +175,29 @@
           "type": "boolean",
           "description": "Whether strict validation mode is enabled."
         },
+        "validationConfig": {
+          "type": "object",
+          "description": "In a process_messages case, the checks the processor makes, so they don't depend on the harness. Each flag allows what a check would otherwise reject; a flag the case leaves out is false, as in every SDK's ValidationConfig, so {} turns every check on. It takes precedence over `strictMode`. Without it, each harness uses its own default.",
+          "properties": {
+            "allowOrphanComponents": {
+              "type": "boolean",
+              "description": "Allow components that are not reachable from the root."
+            },
+            "allowDanglingReferences": {
+              "type": "boolean",
+              "description": "Allow references to components that have not arrived."
+            },
+            "allowMissingRoot": {
+              "type": "boolean",
+              "description": "Allow a surface without a root component."
+            },
+            "allowUnknownElements": {
+              "type": "boolean",
+              "description": "Allow component types that the catalog does not declare."
+            }
+          },
+          "additionalProperties": false
+        },
         "disableValidation": {
           "type": "boolean",
           "description": "Whether validation is explicitly disabled for the test."

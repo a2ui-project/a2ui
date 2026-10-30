@@ -658,3 +658,188 @@
       expectErrors:
         - code: "EXPRESSION_ERROR"
           message: "Validation failed for function 'quote'"
+
+- name: test_agent_routing_settled_binding_answer_is_cached_on_surface
+  description: >-
+    Verifies a settled agent function answer in a reactive binding is cached on the surface, so a later binding with the same call and arguments resolves immediately without sending a second request.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base: "EUR"
+      expectOutbound:
+        - "@call": "fetchFxRate"
+          catalogId: "conformance/routing"
+          args:
+            base: "EUR"
+      expectValues: [null]
+    - respond:
+        call: 0
+        value: 1.08
+      expectValues: [1.08]
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base: "EUR"
+      expectValues: [1.08, 1.08]
+
+- name: test_agent_routing_argument_key_order_is_canonical
+  description: >-
+    Verifies reactive bindings whose resolved argument objects have the same keys in different orders share one in-flight request and reuse the settled surface cache entry.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "fetchCrossRate"
+        args:
+          base: "EUR"
+          quote: "USD"
+      expectOutbound:
+        - "@call": "fetchCrossRate"
+          catalogId: "conformance/routing"
+          args:
+            base: "EUR"
+            quote: "USD"
+      expectValues: [null]
+    - evaluate:
+        "@call": "fetchCrossRate"
+        args:
+          quote: "USD"
+          base: "EUR"
+      expectValues: [null, null]
+    - respond:
+        call: 0
+        value: 1.08
+      expectValues: [1.08, 1.08]
+    - evaluate:
+        "@call": "fetchCrossRate"
+        args:
+          quote: "USD"
+          base: "EUR"
+      expectValues: [1.08, 1.08, 1.08]
+
+- name: test_agent_routing_action_calls_never_share_or_cache
+  description: >-
+    Verifies imperative action function calls never share an in-flight request and never read from or populate the surface value cache, executing fresh on every action.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "submitOrder"
+        args:
+          id: "o-1"
+      as: action
+      expectOutbound:
+        - "@call": "submitOrder"
+          catalogId: "conformance/routing"
+          args:
+            id: "o-1"
+    - evaluate:
+        "@call": "submitOrder"
+        args:
+          id: "o-1"
+      as: action
+      expectOutbound:
+        - "@call": "submitOrder"
+          catalogId: "conformance/routing"
+          args:
+            id: "o-1"
+    - respond:
+        call: 0
+        value: true
+    - respond:
+        call: 1
+        value: true
+    - evaluate:
+        "@call": "submitOrder"
+        args:
+          id: "o-1"
+      as: action
+      expectOutbound:
+        - "@call": "submitOrder"
+          catalogId: "conformance/routing"
+          args:
+            id: "o-1"
+    - respond:
+        call: 2
+        value: true
+
+- name: test_agent_routing_check_rule_validation_result_and_error
+  description: >-
+    Verifies a check rule condition routed to the agent handles ValidationResult object responses (valid true/false) and fails closed while reporting EXPRESSION_ERROR when the agent responds with an error.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/routing"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/routing"
+  steps:
+    - evaluate:
+        "@call": "checkCoupon"
+        args:
+          code: "EXPIRED"
+      as: check
+      expectOutbound:
+        - "@call": "checkCoupon"
+          catalogId: "conformance/routing"
+          args:
+            code: "EXPIRED"
+    - respond:
+        call: 0
+        value:
+          valid: false
+          message: "Coupon expired"
+      expectValues: [false]
+    - evaluate:
+        "@call": "checkCoupon"
+        args:
+          code: "SAVE10"
+      as: check
+      expectOutbound:
+        - "@call": "checkCoupon"
+          catalogId: "conformance/routing"
+          args:
+            code: "SAVE10"
+    - respond:
+        call: 1
+        value:
+          valid: true
+          message: "10% off"
+      expectValues: [false, true]
+    - evaluate:
+        "@call": "checkCoupon"
+        args:
+          code: "ERR"
+      as: check
+      expectOutbound:
+        - "@call": "checkCoupon"
+          catalogId: "conformance/routing"
+          args:
+            code: "ERR"
+    - respond:
+        call: 2
+        error:
+          code: "EXECUTION_ERROR"
+          message: "Coupon service unavailable"
+      expectValues: [false, true, false]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "Coupon service unavailable"

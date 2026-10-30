@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
+
 import 'package:collection/collection.dart';
 import 'package:json_schema_builder/json_schema_builder.dart'
     hide ValidationResult;
@@ -247,10 +249,13 @@ class GenericBinder {
               return;
             }
           }
-          final Object? resolved = _resolveEventAction(
+          final FutureOr<Object?> resolvedOrFuture = _resolveEventAction(
             context.dataContext,
             value,
           );
+          final Object? resolved = resolvedOrFuture is Future
+              ? await resolvedOrFuture
+              : resolvedOrFuture;
           if (resolved is Map) {
             await context.dispatchAction(Map<String, dynamic>.from(resolved));
           } else {
@@ -659,11 +664,26 @@ class GenericBinder {
     }
   }
 
-  Object? _resolveEventAction(DataContext dataContext, Object? value) {
-    final Map<String, dynamic>? direct = dataContext.resolveAction(value);
+  FutureOr<Object?> _resolveEventAction(
+    DataContext dataContext,
+    Object? value,
+  ) {
+    final FutureOr<Map<String, dynamic>?> direct =
+        dataContext.resolveActionAsync(value);
+    if (direct is Future<Map<String, dynamic>?>) {
+      return direct.then((resolved) {
+        if (resolved != null) return resolved;
+        if (dataContext.isDataBinding(value)) {
+          return dataContext
+              .resolveActionAsync(dataContext.resolveDynamicValue(value));
+        }
+        return null;
+      });
+    }
     if (direct != null) return direct;
     if (dataContext.isDataBinding(value)) {
-      return dataContext.resolveAction(dataContext.resolveDynamicValue(value));
+      return dataContext
+          .resolveActionAsync(dataContext.resolveDynamicValue(value));
     }
     return null;
   }

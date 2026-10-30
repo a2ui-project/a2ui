@@ -384,6 +384,80 @@ void main() {
       expect(clientErrors.single.message, contains('node rpc fail'));
     });
 
+    test(
+        'a failing agent call does not re-send itself when another agent call '
+        'exists on the surface', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final ReadonlySignal<Object?> other = context.resolveSignal({
+        '@call': 'otherRemote',
+        'args': <String, Object?>{},
+      });
+      final void Function() unsubOther = other.subscribe((_) {});
+      addTearDown(unsubOther);
+
+      final ReadonlySignal<Object?> sig = context.resolveSignal({
+        '@call': 'flaky',
+        'args': <String, Object?>{},
+      });
+      final void Function() unsub = sig.subscribe((_) {});
+      addTearDown(unsub);
+
+      final _AgentCall firstFlaky =
+          agentCalls.lastWhere((c) => c.call.call == 'flaky');
+      firstFlaky.completer.completeError(
+        A2uiRpcError('boom', RpcErrorCode.executionError,
+            functionCallId: 'fc1'),
+      );
+      await _flush();
+      expect(
+        agentCalls.where((c) => c.call.call == 'flaky'),
+        hasLength(1),
+        reason: 'a failure must not trigger an automatic resend loop',
+      );
+      expect(clientErrors, hasLength(1));
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
+    });
+
+    test('an action whose argument is an agent call awaits it and runs',
+        () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final Future<Object?> result = context.evaluateFunctionCall({
+        '@call': 'upper',
+        'args': {
+          'value': {'@call': 'fetchGreeting', 'args': <String, Object?>{}},
+        },
+      });
+      expect(agentCalls.map((c) => c.call.call).toList(), ['fetchGreeting']);
+      agentCalls.single.completer.complete('hello');
+      expect(await result, 'HELLO');
+      expect(clientErrors, isEmpty);
+
+      // If a nested agent argument fails, the outer action call does not run
+      // and reports the inner failure once.
+      final Future<Object?> failedResult = context.evaluateFunctionCall({
+        '@call': 'upper',
+        'args': {
+          'value': {'@call': 'fetchGreeting', 'args': <String, Object?>{}},
+        },
+      });
+      expect(agentCalls, hasLength(2));
+      agentCalls.last.completer.completeError(
+        A2uiRpcError('inner boom', RpcErrorCode.executionError,
+            functionCallId: 'fc-act'),
+      );
+      expect(await failedResult, isNull);
+      await _flush();
+      expect(clientErrors, hasLength(1));
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
+      expect(clientErrors.single.functionCallId, 'fc-act');
+    });
+
     test('a custom reporter receives the rpc error as cause', () async {
       final SurfaceModel<ComponentApi> surface = makeSurface();
       final errors = <A2uiExpressionError>[];

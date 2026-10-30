@@ -374,6 +374,13 @@ struct AgentFunctionRoutingTests {
     try respond(processor, 0, #""error": {"code": "FAIL", "message": "boom"}"#)
     await settle()
     #expect(handler.capturedErrors.isEmpty, "no node makes the call anymore")
+
+    // Remounting the call after an unmounted failure sends a fresh request.
+    try render(processor, Self.fetchFxRateText)
+    await waitUntil { outbound.agentCalls.count == 2 }
+    try respond(processor, 1, #""value": 1.09"#)
+    await waitUntil { text(surface) == "1.09" }
+    #expect(text(surface) == "1.09")
   }
 
   @Test func validatesAndParsesSchemaOnlyFunctionArguments() async throws {
@@ -529,6 +536,57 @@ struct AgentFunctionRoutingTests {
     let call = try #require(outbound.agentCalls.first)
     #expect(call.callFunction.call == "submitOrder")
     #expect(call.callFunction.args == ["id": "o-1"])
+
+    try respond(processor, 0, #""value": "ok-1""#)
+    await settle()
+
+    // Triggering the action again sends a fresh call instead of reading the surface cache.
+    action()
+    await waitUntil { outbound.agentCalls.count == 2 }
+    #expect(outbound.agentCalls[1].callFunction.call == "submitOrder")
+    #expect(outbound.agentCalls[1].callFunction.args == ["id": "o-1"])
+  }
+
+  @Test func concurrentActionInvocationsNeverShareInFlightCall() async throws {
+    let (processor, surface) = try makeProcessor()
+    try render(
+      processor,
+      """
+      {"id": "root", "component": "Text",
+       "onClick": {"functionCall": {"@call": "submitOrder", "args": {"id": "o-1"}}}}
+      """
+    )
+    let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
+
+    action()
+    action()
+    await waitUntil { outbound.agentCalls.count == 2 }
+    #expect(outbound.agentCalls.count == 2)
+  }
+
+  @Test func eventActionAwaitsAgentFunctionInContext() async throws {
+    let (processor, surface) = try makeProcessor()
+    try render(
+      processor,
+      """
+      {"id": "root", "component": "Text",
+       "onClick": {"event": {"name": "checkout",
+                             "context": {"token": {"@call": "mintToken"}}}}}
+      """
+    )
+    let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
+    action()
+    await waitUntil { outbound.agentCalls.count == 1 }
+    #expect(handler.capturedActions.isEmpty)
+
+    try respond(processor, 0, #""value": "t-99""#)
+    await waitUntil { handler.capturedActions.count == 1 }
+    if case .event(let name, let ctx, _) = handler.capturedActions.first?.identity {
+      #expect(name == "checkout")
+      #expect(ctx?["token"] == .string("t-99"))
+    } else {
+      Issue.record("Expected checkout event action")
+    }
   }
 
   @Test func sendsActionFunctionCallOnceNestedAgentArgumentSettles() async throws {

@@ -950,7 +950,9 @@ function createCatalogInvoker<F extends FunctionApi>(
             // arguments, with the schema's defaults applied.
             args = parsed.data as Record<string, unknown>;
           }
-          return surface.callAgentFunction({'@call': name, catalogId, args}, abortSignal);
+          return surface.callAgentFunction({'@call': name, catalogId, args}, abortSignal, {
+            bypassCache: Boolean(ctx?.isActionExecution),
+          });
         };
         const settledArgs = settleDeep(rawArgs);
         if (!isThenable(settledArgs)) {

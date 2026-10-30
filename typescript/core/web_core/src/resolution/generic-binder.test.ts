@@ -998,7 +998,6 @@ describe('GenericBinder Checkable Trait', () => {
               '@call': 'dynamic_validator',
               args: {mode: {'@path': '/mode'}},
             },
-            message: 'Default rule failure message',
           },
         ],
       },
@@ -1018,19 +1017,69 @@ describe('GenericBinder Checkable Trait', () => {
     surface.dataModel.set('/mode', 'boolean_error');
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.strictEqual(binder.snapshot.isValid, false);
-    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Default rule failure message']);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
 
     // Subsequent evaluation returning { valid: false } without message -> should reset to default message
     surface.dataModel.set('/mode', 'object_without_msg');
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.strictEqual(binder.snapshot.isValid, false);
-    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Default rule failure message']);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
 
     // Subsequent evaluation returning true -> valid
     surface.dataModel.set('/mode', 'valid');
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.strictEqual(binder.snapshot.isValid, true);
     assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+  });
+
+  it('should give explicit CheckRule.message precedence over function message', async () => {
+    const mockCatalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    (surface.defaultCatalog as any).functions = new Map([
+      [
+        'dynamic_validator',
+        {
+          execute: () => ({valid: false, message: 'Custom dynamic error'}),
+          schema: z.object({}).passthrough(),
+        },
+      ],
+    ]);
+    (surface.defaultCatalog as any).invoker = (name: string, args: any) => {
+      const fn = (surface.defaultCatalog as any).functions.get(name);
+      return fn.execute(args);
+    };
+
+    const schema = z.object({
+      field: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+
+    const compModel = new ComponentModel(
+      'c_override',
+      'Input',
+      {
+        field: 'val',
+        checks: [
+          {
+            condition: {
+              '@call': 'dynamic_validator',
+            },
+            message: 'Explicit rule message overrides function message',
+          },
+        ],
+      },
+      mockCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c_override');
+    const binder = new GenericBinder<any>(context, schema);
+    binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, [
+      'Explicit rule message overrides function message',
+    ]);
   });
 
   it('should not treat primitive fields or unannotated condition arrays as CHECKABLE', () => {
