@@ -34,7 +34,8 @@
   is one Markdown heading line, as headings of their level in the semantics
   tree, so screen readers announce them as headings and can navigate by them.
   A `Button` merges the semantics of its child, so a heading or a labelled
-  component as its child still gives the button its name.
+  component as its child still gives the button its name
+  ([#3788](https://github.com/a2ui-project/a2ui/pull/3788)).
 
 ## 0.0.1-wip003
 
