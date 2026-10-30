@@ -572,52 +572,6 @@ export class GenericBinder<T> {
     return res;
   }
 
-  private resolveActionContext(context: unknown): Record<string, unknown> | undefined {
-    if (typeof context !== 'object' || context === null || Array.isArray(context)) {
-      return undefined;
-    }
-    const res: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(context)) {
-      res[k] = this.resolveDeepSync(v, 1);
-    }
-    return res;
-  }
-
-  /**
-   * Resolves a server-bound `event` action payload at invocation time, preserving
-   * the `event` wrapper while evaluating nested `context` and `userMessage` fields.
-   */
-  private resolveEventAction(val: unknown): Action | Record<string, unknown> {
-    if (typeof val !== 'object' || val === null) {
-      return val as Record<string, unknown>;
-    }
-    const obj = val as Record<string, unknown>;
-    if ('event' in obj && typeof obj.event === 'object' && obj.event !== null) {
-      const ev = obj.event as Record<string, unknown>;
-      const resolvedEvent: Record<string, unknown> = {
-        ...ev,
-        context: ev.context ? this.resolveActionContext(ev.context) : undefined,
-      };
-      // `userMessage` is a DynamicString; the agent expects it already
-      // resolved to a plain string.
-      if (ev['userMessage'] !== undefined) {
-        resolvedEvent['userMessage'] = this.resolveDeepSync(ev['userMessage'], 1);
-      }
-      return {...obj, event: resolvedEvent};
-    }
-    if ('name' in obj) {
-      const resolved: Record<string, unknown> = {
-        ...obj,
-        context: obj.context ? this.resolveActionContext(obj.context) : undefined,
-      };
-      if (obj['userMessage'] !== undefined) {
-        resolved['userMessage'] = this.resolveDeepSync(obj['userMessage'], 1);
-      }
-      return resolved;
-    }
-    return this.resolveDeepSync(val, 0) as Action | Record<string, unknown>;
-  }
-
   private bindAction(value: unknown, path: string[]): () => Promise<void> {
     const cacheKey = path.join('/');
     const cached = this.actionClosures.get(cacheKey);
@@ -625,18 +579,28 @@ export class GenericBinder<T> {
       return cached.closure;
     }
     const closure = async () => {
-      if (value && typeof value === 'object') {
-        const valObj = value as Record<string, unknown>;
-        const isWrapped = Boolean(valObj.functionCall && typeof valObj.functionCall === 'object');
-        const fc = isWrapped ? (valObj.functionCall as Record<string, unknown>) : valObj;
-        const callName = ((fc as any)['@call'] ?? (fc as any).call) as string | undefined;
-        if (typeof callName === 'string') {
-          const callObj = isWrapped && !('@call' in fc) ? {'@call': callName, ...fc} : fc;
-          await this.context.dataContext.resolveDynamicValue(callObj, 0, true);
-          return;
-        }
+      if (!value || typeof value !== 'object') {
+        return;
       }
-      return this.context.dispatchAction(this.resolveEventAction(value));
+      const valObj = value as Record<string, unknown>;
+      const isFunctionCall =
+        Boolean(valObj.functionCall && typeof valObj.functionCall === 'object') ||
+        'call' in valObj ||
+        '@call' in valObj;
+      if (isFunctionCall) {
+        await this.context.dataContext.resolveAction(value as Action | Record<string, unknown>, {
+          userActivation: true,
+        });
+        return;
+      }
+      const resolved = this.context.dataContext.resolveAction(
+        value as Action | Record<string, unknown>,
+        {userActivation: true},
+      );
+      if (resolved === undefined) {
+        return;
+      }
+      await this.context.dispatchAction(resolved as Action);
     };
     this.actionClosures.set(cacheKey, {raw: value, closure});
     return closure;
@@ -696,7 +660,8 @@ export class GenericBinder<T> {
 
   private extractValidationResult(
     val: unknown,
-    fallbackMessage: string,
+    explicitRuleMessage?: string,
+    fallbackMessage = 'Validation failed',
   ): {valid: boolean; message: string; code?: string; severity: 'error' | 'warning' | 'info'} {
     if (typeof val === 'object' && val !== null && 'valid' in val) {
       const rec = val as {valid: unknown; message?: unknown; code?: unknown; severity?: unknown};
@@ -704,19 +669,22 @@ export class GenericBinder<T> {
       const severity =
         rec.severity === 'warning' || rec.severity === 'info' ? rec.severity : 'error';
       const code = typeof rec.code === 'string' ? rec.code : undefined;
+      const message =
+        explicitRuleMessage !== undefined
+          ? explicitRuleMessage
+          : customMessage !== undefined && customMessage !== null
+            ? String(customMessage)
+            : fallbackMessage;
       return {
         valid: Boolean(rec.valid),
-        message:
-          customMessage !== undefined && customMessage !== null
-            ? String(customMessage)
-            : fallbackMessage,
+        message,
         ...(code !== undefined ? {code} : {}),
         severity,
       };
     }
     return {
       valid: Boolean(val),
-      message: fallbackMessage,
+      message: explicitRuleMessage ?? fallbackMessage,
       severity: 'error',
     };
   }
@@ -753,11 +721,17 @@ export class GenericBinder<T> {
       const ruleObj =
         typeof rule === 'object' && rule !== null ? (rule as Record<string, unknown>) : undefined;
       const condition = ruleObj && ruleObj.condition !== undefined ? ruleObj.condition : rule;
-      const message = typeof ruleObj?.message === 'string' ? ruleObj.message : 'Validation failed';
-      ruleResults[index].message = message;
+      const ruleMessage = typeof ruleObj?.message === 'string' ? ruleObj.message : undefined;
+      // An explicit rule message overrides the message a condition function
+      // returns. A path-bound check reads a result the agent or application
+      // wrote, whose message carries the finding, so there the rule message
+      // is only the fallback.
+      const explicitMessage = this.isPathBoundCondition(condition) ? undefined : ruleMessage;
+      const fallbackMessage = ruleMessage ?? 'Validation failed';
+      ruleResults[index].message = fallbackMessage;
 
       const bound = this.context.dataContext.subscribeDynamicValue(condition, newVal => {
-        ruleResults[index] = this.extractValidationResult(newVal, message);
+        ruleResults[index] = this.extractValidationResult(newVal, explicitMessage, fallbackMessage);
         updateValidationState();
       });
 
@@ -767,13 +741,26 @@ export class GenericBinder<T> {
         bound.unsubscribe();
       }
 
-      ruleResults[index] = this.extractValidationResult(bound.value, message);
+      ruleResults[index] = this.extractValidationResult(
+        bound.value,
+        explicitMessage,
+        fallbackMessage,
+      );
     });
 
     // Set initial state
     applyValidationState();
 
     return value;
+  }
+
+  /** Whether a check condition is a data binding rather than a function call. */
+  private isPathBoundCondition(condition: unknown): boolean {
+    if (typeof condition !== 'object' || condition === null) return false;
+    const rec = condition as Record<string, unknown>;
+    return this.context.dataContext.atLeastV10
+      ? typeof rec['@path'] === 'string' && !('@call' in rec)
+      : typeof rec['path'] === 'string' && !('call' in rec);
   }
 
   private bindObject(

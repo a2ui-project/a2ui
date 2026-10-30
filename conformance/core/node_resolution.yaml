@@ -300,3 +300,357 @@
         emissions: {}
         same_nodes: [root, root/child]
         functions: [{name: openUrl, args: {url: "https://example.test"}}]
+
+- name: unknown_component_type_placeholder
+  description: >-
+    Given a child referencing an unregistered component type, the child resolves
+    to an unknown-type placeholder node and emits UNKNOWN_COMPONENT_TYPE once on the surface.
+  action: resolve_nodes
+  fixture: test_data/node/empty.yaml
+  expect: {nodes: {}}
+  steps:
+    - op: update_components
+      components:
+        - {id: root, component: Card, child: unknownChild}
+        - {id: unknownChild, component: CustomUnknownWidget, label: Hi}
+      expect:
+        nodes:
+          root:
+            component_id: root
+            type: Card
+            state: resolved
+            props:
+              child: {node: root/child}
+          root/child:
+            component_id: unknownChild
+            type: CustomUnknownWidget
+            state: unknown-type
+        emissions: {}
+        errors:
+          - code: UNKNOWN_COMPONENT_TYPE
+            surfaceId: s
+
+- name: cyclic_component_reference_same_scope
+  description: >-
+    Given a cycle at the same dataPath, the repeated component resolves to a
+    cyclic placeholder node and emits CYCLIC_REFERENCE on the surface.
+  action: resolve_nodes
+  fixture: test_data/node/empty.yaml
+  expect: {nodes: {}}
+  steps:
+    - op: update_components
+      components:
+        - {id: root, component: Card, child: childCard}
+        - {id: childCard, component: Card, child: root}
+      expect:
+        nodes:
+          root:
+            component_id: root
+            type: Card
+            state: resolved
+            props:
+              child: {node: root/child}
+          root/child:
+            component_id: childCard
+            type: Card
+            state: resolved
+            props:
+              child: {node: root/child/child}
+          root/child/child:
+            component_id: root
+            type: Card
+            state: cyclic
+            data_path: /
+        emissions: {}
+        errors:
+          - code: CYCLIC_REFERENCE
+            surfaceId: s
+
+- name: explicit_child_list_reorder_preserves_identity
+  description: >-
+    Given an explicit child list [a, b], when reordered to [b, a],
+    the parent node identity is preserved and children resolve in the new order.
+  action: resolve_nodes
+  fixture: test_data/node/empty.yaml
+  expect: {nodes: {}}
+  steps:
+    - op: update_components
+      components:
+        - {id: root, component: Column, children: [a, b]}
+        - {id: a, component: Text, text: Alpha}
+        - {id: b, component: Text, text: Beta}
+      expect:
+        nodes:
+          root:
+            component_id: root
+            type: Column
+            state: resolved
+            props:
+              children: [{node: root/children/0}, {node: root/children/1}]
+          root/children/0:
+            component_id: a
+            type: Text
+            state: resolved
+            props:
+              text: {value: Alpha, writable: false}
+          root/children/1:
+            component_id: b
+            type: Text
+            state: resolved
+            props:
+              text: {value: Beta, writable: false}
+        emissions: {}
+    - op: update_components
+      components:
+        - {id: root, component: Column, children: [b, a]}
+      expect:
+        nodes:
+          root:
+            props:
+              children: [{node: root/children/0}, {node: root/children/1}]
+          root/children/0:
+            component_id: b
+            props:
+              text: {value: Beta, writable: false}
+          root/children/1:
+            component_id: a
+            props:
+              text: {value: Alpha, writable: false}
+        emissions: {root: 1}
+        same_nodes: [root]
+
+- name: component_type_change_replaces_node
+  description: >-
+    Given a resolved child node, when its component definition changes type from
+    Text to Button via message processing, the old node is destroyed and replaced.
+  action: resolve_nodes
+  fixture: test_data/node/empty.yaml
+  expect: {nodes: {}}
+  steps:
+    - op: update_components
+      components:
+        - {id: root, component: Card, child: item}
+        - {id: item, component: Text, text: Hello}
+        - {id: btnLabel, component: Text, text: Click}
+      expect:
+        nodes:
+          root:
+            component_id: root
+            type: Card
+            state: resolved
+            props:
+              child: {node: root/child}
+          root/child:
+            component_id: item
+            type: Text
+            state: resolved
+            props:
+              text: {value: Hello, writable: false}
+        emissions: {}
+    - op: process_messages
+      messages:
+        - version: "v0.9"
+          updateComponents:
+            surfaceId: "s"
+            components:
+              - id: item
+                component: Button
+                child: btnLabel
+                action:
+                  event:
+                    name: clicked
+      expect:
+        nodes:
+          root:
+            props:
+              child: {node: root/child}
+          root/child:
+            component_id: item
+            type: Button
+            state: resolved
+            props:
+              child: {node: root/child/child}
+              action: {action: true}
+          root/child/child:
+            component_id: btnLabel
+            type: Text
+            state: resolved
+            props:
+              text: {value: Click, writable: false}
+        emissions: {root: 1}
+        same_nodes: [root]
+        replaced_nodes: [root/child]
+        destroyed: {root/child: 1}
+
+- name: nested_array_child_references_tabs
+  description: >-
+    Given a Tabs component with structured tab items containing child references,
+    each tab child reference resolves to a mounted ComponentNode.
+  action: resolve_nodes
+  fixture: test_data/node/empty.yaml
+  expect: {nodes: {}}
+  steps:
+    - op: update_components
+      components:
+        - id: root
+          component: Tabs
+          tabs:
+            - {title: "Tab 1", child: pane1}
+            - {title: "Tab 2", child: pane2}
+        - {id: pane1, component: Text, text: "First Pane"}
+        - {id: pane2, component: Text, text: "Second Pane"}
+      expect:
+        nodes:
+          root:
+            component_id: root
+            type: Tabs
+            state: resolved
+            props:
+              tabs:
+                - title: {value: "Tab 1", writable: false}
+                  child: {node: root/tabs/0/child}
+                - title: {value: "Tab 2", writable: false}
+                  child: {node: root/tabs/1/child}
+          root/tabs/0/child:
+            component_id: pane1
+            type: Text
+            state: resolved
+            props:
+              text: {value: "First Pane", writable: false}
+          root/tabs/1/child:
+            component_id: pane2
+            type: Text
+            state: resolved
+            props:
+              text: {value: "Second Pane", writable: false}
+        emissions: {}
+
+- name: reactive_check_props_on_node
+  description: >-
+    Given a CheckBox with a validation check bound to its value path,
+    isValid, validationErrors, and validationResults update reactively on write.
+  action: resolve_nodes
+  fixture: test_data/node/empty.yaml
+  expect: {nodes: {}}
+  steps:
+    - op: set_data
+      path: /accepted
+      value: false
+      expect:
+        nodes: {}
+        emissions: {}
+    - op: update_components
+      components:
+        - id: root
+          component: CheckBox
+          label: "Accept terms"
+          value: {path: /accepted}
+          checks:
+            - condition: {path: /accepted}
+              message: "You must accept terms"
+      expect:
+        nodes:
+          root:
+            component_id: root
+            type: CheckBox
+            state: resolved
+            isValid: false
+            validationErrors: ["You must accept terms"]
+            validationResults:
+              - valid: false
+                message: "You must accept terms"
+                severity: "error"
+            props:
+              label: {value: "Accept terms", writable: false}
+              value: {value: false, writable: true}
+        emissions: {}
+    - op: write
+      node: root
+      property: value
+      value: true
+      expect:
+        nodes:
+          root:
+            isValid: true
+            validationErrors: []
+            validationResults: []
+            props:
+              value: {value: true, writable: true}
+        data: {/accepted: true}
+        emissions: {root: 1}
+        same_nodes: [root]
+
+- name: out_of_order_streaming_before_root
+  description: >-
+    Given child definitions and data streamed before the root component,
+    no nodes mount until root arrives, at which point the full tree resolves.
+  action: resolve_nodes
+  fixture: test_data/node/empty.yaml
+  expect: {nodes: {}}
+  steps:
+    - op: set_data
+      path: /greeting
+      value: "Streamed Hello"
+      expect:
+        nodes: {}
+        emissions: {}
+    - op: update_components
+      components:
+        - {id: leaf, component: Text, text: {path: /greeting}}
+        - {id: wrapper, component: Card, child: leaf}
+      expect:
+        nodes: {}
+        emissions: {}
+    - op: update_components
+      components:
+        - {id: root, component: Column, children: [wrapper]}
+      expect:
+        nodes:
+          root:
+            component_id: root
+            type: Column
+            state: resolved
+            props:
+              children: [{node: root/children/0}]
+          root/children/0:
+            component_id: wrapper
+            type: Card
+            state: resolved
+            props:
+              child: {node: root/children/0/child}
+          root/children/0/child:
+            component_id: leaf
+            type: Text
+            state: resolved
+            props:
+              text: {value: "Streamed Hello", writable: true}
+        emissions: {}
+
+- name: delete_surface_disposes_tree
+  description: >-
+    Given a mounted component tree, when deleteSurface is processed,
+    all mounted nodes are destroyed once and the tree becomes empty.
+  action: resolve_nodes
+  fixture: test_data/node/shared_child.yaml
+  expect:
+    nodes:
+      root: {}
+      root/children/0: {}
+      root/children/0/child: {}
+      root/children/1: {}
+      root/children/1/child: {}
+  steps:
+    - op: process_messages
+      messages:
+        - version: "v0.9"
+          deleteSurface:
+            surfaceId: "s"
+      expect:
+        nodes: {}
+        emissions: {}
+        destroyed:
+          root: 1
+          root/children/0: 1
+          root/children/0/child: 1
+          root/children/1: 1
+          root/children/1/child: 1

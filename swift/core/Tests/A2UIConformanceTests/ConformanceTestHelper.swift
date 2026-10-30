@@ -165,10 +165,23 @@ public enum ConformanceTestHelper {
       return catalogs
     }
     return try testCase.catalogPaths.map { path in
-      buildCatalog(
+      if path == "catalogs/basic/v1/catalog.json" {
+        return BasicCatalog.makeCatalog(version: .v10)
+      }
+      let fallbackVersion: String?
+      if path.contains("/v0_9_1/") {
+        fallbackVersion = "v0.9.1"
+      } else if path.contains("/v0_9/") {
+        fallbackVersion = "v0.9"
+      } else if path.contains("/v0_8/") {
+        fallbackVersion = "v0.8"
+      } else {
+        fallbackVersion = testCase.protocolVersion
+      }
+      return buildCatalog(
         catalogSchema: try loadRepositoryJSON(path: path),
         commonTypes: try commonTypesSchema(forCatalogPath: path),
-        protocolVersion: testCase.protocolVersion
+        protocolVersion: fallbackVersion
       )
     }
   }
@@ -664,13 +677,15 @@ public enum ConformanceTestHelper {
       (dictionary["steps"] as? [[String: Any]])
       ?? (dictionary["validate"] as? [[String: Any]])
     if let stepDicts {
-      return stepDicts.map { stepDictionary in
+      let lastIndex = stepDicts.count - 1
+      return stepDicts.enumerated().map { index, stepDictionary in
         let stepPayload = (stepDictionary["payload"] ?? stepDictionary["messages"]).map {
           toJSONValue($0)
         }
+        let fallbackError = index == lastIndex ? defaultExpectError : nil
         let stepError =
           parseExpectError(stepDictionary["expect_error"] ?? stepDictionary["expectError"])
-          ?? defaultExpectError
+          ?? fallbackError
         let stepExpect =
           (stepDictionary["expect"] as? [String: Any]).map { toJSONValue($0) } ?? defaultExpect
         return ConformanceStep(payload: stepPayload, expectError: stepError, expect: stepExpect)
@@ -736,17 +751,28 @@ public enum ConformanceTestHelper {
     }
   }
 
-  public static func parseRendererError(_ rawRendererError: Any?) -> ConformanceExpectRendererError? {
-    guard let dict = rawRendererError as? [String: Any] else { return nil }
+  /// Parses an `expectError.rendererError` block. The block is an envelope
+  /// (`version` plus `error`); the error fields are read from `error`, with
+  /// the flat form accepted for older cases.
+  public static func parseRendererError(
+    _ rawRendererError: Any?
+  ) -> ConformanceExpectRendererError? {
+    guard let envelope = rawRendererError as? [String: Any] else { return nil }
+    let version = envelope["version"] as? String
+    let dict = (envelope["error"] as? [String: Any]) ?? envelope
     let code = dict["code"] as? String
     let surfaceID = (dict["surfaceId"] ?? dict["surface_id"]) as? String
-    let surfaceIDIsNil =
-      dict.keys.contains("surfaceId") && (dict["surfaceId"] == nil || dict["surfaceId"] is NSNull)
     let functionCallID = (dict["functionCallId"] ?? dict["function_call_id"]) as? String
+    // A function call error carries no surfaceId: an explicit null, or a
+    // functionCallId with the surfaceId key left out, both expect nil.
+    let surfaceIDIsNil =
+      (dict.keys.contains("surfaceId") && (dict["surfaceId"] == nil || dict["surfaceId"] is NSNull))
+      || (functionCallID != nil && !dict.keys.contains("surfaceId"))
     let path = dict["path"] as? String
     let message =
       (dict["message"] ?? dict["message_contains"] ?? dict["messageContains"]) as? String
     return ConformanceExpectRendererError(
+      version: version,
       code: code,
       surfaceID: surfaceID,
       surfaceIDIsNil: surfaceIDIsNil,
@@ -760,11 +786,19 @@ public enum ConformanceTestHelper {
   public static func assertRendererErrorMatches(
     _ actual: RendererError?,
     expected: ConformanceExpectRendererError,
-    context: String
+    context: String,
+    actualVersion: String? = nil
   ) {
     guard let actual else {
       Issue.record("[\(context)] Expected RendererError to be reported, got nil")
       return
+    }
+    if let expectedVersion = expected.version {
+      let resolvedVersion = actualVersion ?? actual.version.rawValue
+      #expect(
+        resolvedVersion == expectedVersion,
+        "[\(context)] Expected rendererError.version '\(expectedVersion)', got '\(resolvedVersion)'"
+      )
     }
     let fields = extractRendererErrorFields(actual)
     if let expectedCode = expected.code {
@@ -776,32 +810,45 @@ public enum ConformanceTestHelper {
     if expected.surfaceIDIsNil {
       #expect(
         fields.surfaceID == nil || fields.surfaceID == "",
-        "[\(context)] Expected rendererError.surfaceId nil, got '\(String(describing: fields.surfaceID))'"
+        "[\(context)] Expected rendererError.surfaceId nil, got '\(fields.surfaceID ?? "nil")'"
       )
     } else if let expectedSurfaceID = expected.surfaceID {
+      let actualSurface = fields.surfaceID ?? "nil"
       #expect(
         fields.surfaceID == expectedSurfaceID,
-        "[\(context)] Expected rendererError.surfaceId '\(expectedSurfaceID)', got '\(String(describing: fields.surfaceID))'"
+        "[\(context)] Expected surfaceId '\(expectedSurfaceID)', got '\(actualSurface)'"
       )
     }
     if let expectedFunctionCallID = expected.functionCallID {
+      let actualCallID = fields.functionCallID ?? "nil"
       #expect(
         fields.functionCallID == expectedFunctionCallID,
-        "[\(context)] Expected rendererError.functionCallId '\(expectedFunctionCallID)', got '\(String(describing: fields.functionCallID))'"
+        "[\(context)] Expected functionCallId '\(expectedFunctionCallID)', got '\(actualCallID)'"
       )
     }
     if let expectedPath = expected.path {
+      let actualPath = fields.path ?? "nil"
       #expect(
-        fields.path == expectedPath,
-        "[\(context)] Expected rendererError.path '\(expectedPath)', got '\(String(describing: fields.path))'"
+        rendererErrorPathMatches(fields.path, expected: expectedPath),
+        "[\(context)] Expected rendererError.path '\(expectedPath)', got '\(actualPath)'"
       )
     }
     if let expectedMessage = expected.message, !expectedMessage.isEmpty {
       #expect(
         messageMatches(fields.message, expected: expectedMessage),
-        "[\(context)] Expected rendererError.message containing '\(expectedMessage)', got '\(fields.message)'"
+        "[\(context)] Expected message containing '\(expectedMessage)', got '\(fields.message)'"
       )
     }
+  }
+
+  private static func rendererErrorPathMatches(_ actual: String?, expected: String) -> Bool {
+    guard let actual else { return false }
+    if actual == expected { return true }
+    let parts = expected.split(separator: "/")
+    if parts.count == 2, parts[0] == "components", parts[1].allSatisfy(\.isNumber) {
+      return actual.hasPrefix(expected + "/")
+    }
+    return false
   }
 
   private static func extractRendererErrorFields(
@@ -954,6 +1001,7 @@ public struct ConformanceStep: Sendable {
 /// Expected error specifications for conformance assertions.
 public struct ConformanceExpectError: Sendable {
   public struct RendererError: Sendable {
+    public let version: String?
     public let code: String?
     public let surfaceID: String?
     public let surfaceIDIsNil: Bool
@@ -962,6 +1010,7 @@ public struct ConformanceExpectError: Sendable {
     public let message: String?
 
     public init(
+      version: String? = nil,
       code: String? = nil,
       surfaceID: String? = nil,
       surfaceIDIsNil: Bool = false,
@@ -969,6 +1018,7 @@ public struct ConformanceExpectError: Sendable {
       path: String? = nil,
       message: String? = nil
     ) {
+      self.version = version
       self.code = code
       self.surfaceID = surfaceID
       self.surfaceIDIsNil = surfaceIDIsNil

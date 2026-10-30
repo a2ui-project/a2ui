@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Add incremental streaming support for the Express inference format via `ExpressResponseStream` (`ExpressFormat.supports_streaming` and `ExpressParser.supports_streaming` now return `True`). `ExpressFormatFactory`, `ExpressFormat`, and `ExpressParser` accept `progressive_keys` (defaulting to `DEFAULT_EXPRESS_PROGRESSIVE_KEYS = frozenset({"text"})`) to heal unclosed string literals in matching component properties and data path assignments as chunks arrive, while gating initial `createSurface` emission on `root = ...` for new surfaces, emitting delta `updateComponents` and per-path `updateDataModel` messages on subsequent chunks, and holding statements with unresolved value variables until defined ([#2896](https://github.com/a2ui-project/a2ui/issues/2896)).
 - **BREAKING CHANGE**: Use `'1.0'` (without a `'v'` prefix) as the `version`
   field on v1.0 protocol messages and capabilities in inference format
   compilers, parsers, decompilers, builders (`a2ui.builder.v1_0`),
@@ -239,6 +240,17 @@
   that declare none, and a function call given to a property with a static
   type. Elemental output whose top-level element has no `id="root"` is
   rejected, as its prompt requires.
+- The Express response parser treats only `"` as a string delimiter, as
+  Express does, so an apostrophe in a comment (`/* Chef's pick */`) no longer
+  swallows the closing `</a2ui>` tag
+  ([#3479](https://github.com/a2ui-project/a2ui/issues/3479)).
+  [#3670](https://github.com/a2ui-project/a2ui/pull/3670)
+- The Express response parser skips `/* */` block comments when it looks for
+  the closing `</a2ui>` tag, as Express does, so a `"` or a `</a2ui>` inside
+  one no longer swallows or ends the block early. `BlockLexer` takes an
+  optional `block_comments` argument for this
+  ([#3479](https://github.com/a2ui-project/a2ui/issues/3479)).
+  [#3709](https://github.com/a2ui-project/a2ui/pull/3709)
 
 ## 0.9.0 (2026-10-17)
 

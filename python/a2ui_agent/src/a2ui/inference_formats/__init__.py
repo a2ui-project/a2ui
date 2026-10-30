@@ -35,6 +35,7 @@ from .express import ExpressFormat
 from .express import ExpressFormatFactory
 from .express import ExpressParser
 from .express import ExpressPromptGenerator
+from .express import ExpressResponseStream
 
 __all__ = [
     "AtomFormat",
@@ -54,6 +55,7 @@ __all__ = [
     "ExpressFormatFactory",
     "ExpressParser",
     "ExpressPromptGenerator",
+    "ExpressResponseStream",
     "direct_json",
     "express",
     "to_message_dicts",
