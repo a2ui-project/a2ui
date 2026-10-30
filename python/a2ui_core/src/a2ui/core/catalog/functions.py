@@ -297,7 +297,15 @@ class AgentFunction(FunctionApi):
 
         Returns:
             The agent function, with `api`'s name, schema and metadata.
+
+        Raises:
+            TypeError: If `api` is already an `AgentFunction`.
         """
+        if isinstance(api, AgentFunction):
+            raise TypeError(
+                f"'{api.name}' is already an agent function; build from the"
+                " catalog entry it declares instead."
+            )
         agent_function = cls(
             api.name,
             handler=handler,

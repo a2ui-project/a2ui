@@ -106,6 +106,10 @@ class TestAgentFunction:
         assert fn.is_definition == declaration.is_definition
         assert fn.from_document == declaration.from_document
 
+    def test_from_api_rejects_an_agent_function(self):
+        with pytest.raises(TypeError, match="already an agent function"):
+            AgentFunction.from_api(_fetch_fx_rate(), _handler)
+
 
 class TestCatalogAgentFunctions:
 

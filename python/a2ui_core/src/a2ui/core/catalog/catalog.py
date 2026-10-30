@@ -1348,7 +1348,7 @@ class Catalog(Generic[TComponent, TFunction]):
             ):
                 raise _agent_function_name_taken(catalog_id, fn.name)
             self.functions[fn.name] = fn
-        if not validate_identifiers and any(
+        if not is_at_least_version(protocol_version, ProtocolVersion.V1_0) and any(
             isinstance(fn, AgentFunction) for fn in self.functions.values()
         ):
             raise A2uiCatalogError(
@@ -1436,7 +1436,11 @@ class Catalog(Generic[TComponent, TFunction]):
             new_functions = _with_agent_functions(
                 self.catalog_id,
                 [
-                    ((fn.declaration or fn) if isinstance(fn, AgentFunction) else fn)
+                    (
+                        cast(FunctionApi, fn.declaration)
+                        if isinstance(fn, AgentFunction)
+                        else fn
+                    )
                     for fn in new_functions
                     if not isinstance(fn, AgentFunction) or fn.declaration is not None
                 ],
