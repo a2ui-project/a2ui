@@ -259,13 +259,19 @@ class ExpressCompiler {
               'A2UI v1.0 or later.',
             );
           }
+          final bool isUpdate = _boolArgument(call, -1, 'update') ?? false;
+          if (isUpdate && rawExtensions != null) {
+            throw A2uiValidationError(
+              'surface() with update=true does not accept extensions.',
+            );
+          }
           current = _Surface(
             _stringArgument(call, 0, 'surfaceId') ?? defaultSurfaceId,
             _surfaceHelper(_stringArgument(call, 1, 'catalogId')),
             rawExtensions: rawExtensions,
             hasSurfaceDirective: true,
             sendDataModel: _boolArgument(call, -1, 'sendDataModel'),
-            isUpdate: _boolArgument(call, -1, 'update') ?? false,
+            isUpdate: isUpdate,
           );
           operations.add(current);
         case ExpressionStatement(
@@ -2205,13 +2211,18 @@ class ExpressScopeSession {
     final bool needsCreate =
         !surface.isUpdate &&
         !state.created &&
-        (!surfaceAlreadyExists || hasRootReady);
+        (!surfaceAlreadyExists ||
+            hasRootReady ||
+            surface.rawExtensions != null);
     if (needsCreate) {
       if (hasRootReady) {
-        final List<Map<String, Object?>> envelopes = sc.buildCreateMessages(
-          readyComponents,
-          readyData,
-        );
+        final List<Map<String, Object?>> envelopes;
+        try {
+          envelopes = sc.buildCreateMessages(readyComponents, readyData);
+        } on _PendingVariableError {
+          if (!isFinal) return const [];
+          rethrow;
+        }
         state.created = true;
         activeSurfaces.add(surfaceId);
         for (final comp in readyComponents) {
@@ -2223,6 +2234,12 @@ class ExpressScopeSession {
         return envelopes;
       }
       if (!isFinal) return const [];
+      if (surface.rawExtensions != null) {
+        throw A2uiValidationError(
+          'surface() extensions require a surface-creating scope with a root '
+          'component.',
+        );
+      }
     }
 
     if (surfaceAlreadyExists) {

@@ -1368,6 +1368,68 @@ void main() {
         ),
       );
     });
+
+    test('waits for a forward-referenced surface(extensions=...) variable and '
+        'rejects extensions on non-creating scopes when streaming', () {
+      final parser = ExpressParser([basic]);
+      final ResponseStream stream = parser.openStream();
+      expect(
+        stream.feed(
+          '<a2ui>\nsurface("s1", extensions=ext)\nroot = Text("Hello")\n',
+        ),
+        isEmpty,
+      );
+      final List<ResponsePart> parts = stream.feed(
+        'ext = {surfaceTheme: "dark"}\n</a2ui>',
+      );
+      expect(parts, hasLength(1));
+      final create =
+          (parts.single as A2uiPart).a2ui.single as CreateSurfaceMessage;
+      expect(create.metadata, {
+        'extensions': {'surfaceTheme': 'dark'},
+      });
+      expect(stream.close(), isEmpty);
+
+      final state = RendererState([basic]);
+      final ResponseStream seed = parser.openStream(state: state);
+      seed.feed('<a2ui>\nsurface("s1")\nroot = Text("Initial")\n</a2ui>');
+      expect(seed.close(), isEmpty);
+
+      final ResponseStream updateWithoutRoot = parser.openStream(state: state);
+      expect(
+        updateWithoutRoot.feed(
+          '<a2ui>\nsurface("s1", extensions={surfaceTheme: "dark"})\n'
+          'c1 = Text("Updated")\n',
+        ),
+        isEmpty,
+      );
+      expect(
+        () => updateWithoutRoot.feed('</a2ui>'),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('surface-creating scope'),
+          ),
+        ),
+      );
+
+      final ResponseStream explicitUpdate = parser.openStream(state: state);
+      expect(
+        () => explicitUpdate.feed(
+          '<a2ui>\n'
+          'surface("s1", update=true, extensions={surfaceTheme: "dark"})\n'
+          'c1 = Text("Updated")\n</a2ui>',
+        ),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('surface() with update=true does not accept extensions'),
+          ),
+        ),
+      );
+    });
   });
 
   group('A2uiRequestProcessor', () {

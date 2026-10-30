@@ -903,7 +903,10 @@ export class ExpressScopeSession {
     );
     const compiledData = this.collectReadyData(scope, state, compIds, ctx, targetMajorMinor);
     const hasRoot = compiledComponents.some(c => c.id === 'root');
-    const needsCreate = !scope.update && !state.surfaceCreated && (!surfaceExists || hasRoot);
+    const needsCreate =
+      !scope.update &&
+      !state.surfaceCreated &&
+      (!surfaceExists || hasRoot || scope.rawExtensions !== undefined);
     if (needsCreate) {
       return this.compileInitialCreate(
         scope,

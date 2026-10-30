@@ -974,7 +974,7 @@ class ExpressScopeSession:
         needs_create = (
             not scope.is_update
             and not state.surface_created
-            and (not surface_exists or has_root)
+            and (not surface_exists or has_root or scope.extensions is not None)
         )
         if needs_create:
             return self._compile_initial_create(
@@ -1005,6 +1005,11 @@ class ExpressScopeSession:
         if not has_root:
             if not is_final:
                 return []
+            if scope.extensions is not None:
+                raise ExpressValidationError(
+                    "surface() extensions require a surface-creating scope with a"
+                    " root component."
+                )
             if compiled_data and not compiled_components:
                 return self._compile_incremental_updates(
                     scope,
@@ -1020,14 +1025,21 @@ class ExpressScopeSession:
         data_model: dict[str, Any] = {}
         for path_name, val in compiled_data.items():
             _set_nested_path(data_model, path_name, val)
+        try:
+            messages = self.compiler._build_create_messages(
+                scope, compiled_components, data_model, ctx
+            )
+        except _PendingVariableError:
+            if not is_final:
+                return []
+            raise
+        for path_name, val in compiled_data.items():
             state.emitted_data_paths[path_name] = val
         for comp in compiled_components:
             state.emitted_components[comp["id"]] = comp
         state.surface_created = True
         self.has_emitted = True
-        return self.compiler._build_create_messages(
-            scope, compiled_components, data_model, ctx
-        )
+        return messages
 
     def _compile_incremental_updates(
         self,
