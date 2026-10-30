@@ -48,6 +48,8 @@ import {
 } from './callMcpTool.js';
 import mcpCatalogJson from '../catalog.json' with {type: 'json'};
 import {TransformDataImplementation} from './transform_data.js';
+import {RegexCaptureImplementation} from './regex_capture.js';
+import {SplitImplementation} from './split.js';
 import {UpdateDataModelImplementation} from './update_data_model.js';
 
 const SURFACE_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
@@ -57,7 +59,13 @@ const mcpCatalog = new Catalog<any>(
   MCP_CATALOG_ID,
   '1.0',
   [],
-  [CallMcpToolImplementation, TransformDataImplementation, UpdateDataModelImplementation],
+  [
+    CallMcpToolImplementation,
+    TransformDataImplementation,
+    UpdateDataModelImplementation,
+    SplitImplementation,
+    RegexCaptureImplementation,
+  ],
 );
 
 /** A function that returns `{path: data}`, the shape a tool argument named `path` needs. */
