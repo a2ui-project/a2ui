@@ -34,6 +34,12 @@
   `generate_base_rules()` with `schema_to_prompt()` (such as
   `SendA2uiToClientToolset` users) should use `DEFAULT_WORKFLOW_RULES` instead.
   [#3559](https://github.com/a2ui-project/a2ui/pull/3559)
+- `MacroExpander` now accepts an optional `catalog_id` to scope macro expansion
+  on mixed-catalog surfaces, and `MacroExpander.transform_to_transport`
+  preserves component envelope fields (`accessibility`, `catalogId`, `metadata`,
+  `weight`) on expanded components instead of passing them as unexpected macro
+  arguments ([#3626](https://github.com/a2ui-project/a2ui/issues/3626),
+  [#3777](https://github.com/a2ui-project/a2ui/pull/3777)).
 - `open_stream` takes `after_rejected_block="continue"` to read past a
   rejected block. The stream then returns an `ErrorPart` in its place, skips
   the rest of the block, and reads the text and blocks after it; the messages
