@@ -53,4 +53,6 @@
 - Error and warning listeners no longer run while an `A2uiSurface` builds, so
   they may call `setState` directly instead of deferring it to the next frame.
 - Ignore `deprecated_member_use` warnings on `package:flutter/material.dart` imports on Flutter beta (#3235).
+- `Image` keeps its `description` when it does not load: the broken-image icon
+  is labelled with it, as an `alt` text is on the web.
 - Initial version.
