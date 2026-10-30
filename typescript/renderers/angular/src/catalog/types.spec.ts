@@ -15,8 +15,9 @@
  */
 
 import {Component} from '@angular/core';
-import {ComponentApi} from '@a2ui/web_core/v0_9';
+import {ComponentApi, MessageProcessor} from '@a2ui/web_core/v0_9';
 import {A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
+import {CommonSchemas} from '@a2ui/web_core/v1_0';
 import {isWebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 import {AngularCatalog, createComponentImplementation} from './types';
 import {UniversalOnlyComponent} from './universal_only.component';
@@ -66,6 +67,45 @@ describe('createComponentImplementation', () => {
     expect(impl.tagName).toBe('a2ui-ng-wrappedcomp');
     expect(typeof impl.element).toBe('function');
     expect(customElements.get(impl.tagName)).toBeUndefined();
+  });
+
+  it('keeps allowedParents and allowedChildren, so the message processor enforces them', () => {
+    const box = createComponentImplementation(
+      {
+        name: 'Box',
+        schema: z.object({children: CommonSchemas.ChildList}),
+        allowedChildren: ['Rune'],
+      },
+      TestComponent,
+    );
+    const rune = createComponentImplementation(
+      {name: 'Rune', schema: z.object({}), allowedParents: ['Box']},
+      WrappedComponent,
+    );
+    expect(box.allowedChildren).toEqual(['Rune']);
+    expect(rune.allowedParents).toEqual(['Box']);
+
+    const catalogId = 'https://example.com/composition.json';
+    const createSurface = (components: Array<Record<string, unknown>>) =>
+      new MessageProcessor([new AngularCatalog(catalogId, '1.0', [box, rune])]).processMessages([
+        {version: '1.0', createSurface: {surfaceId: 's1', catalogId, components}},
+      ]);
+
+    expect(() =>
+      createSurface([
+        {id: 'root', component: 'Box', children: ['r']},
+        {id: 'r', component: 'Rune'},
+      ]),
+    ).not.toThrow();
+    expect(() => createSurface([{id: 'root', component: 'Rune'}])).toThrowMatching(
+      (e: {code?: string}) => e.code === 'UNALLOWED_PARENT',
+    );
+    expect(() =>
+      createSurface([
+        {id: 'root', component: 'Box', children: ['b']},
+        {id: 'b', component: 'Box', children: []},
+      ]),
+    ).toThrowMatching((e: {code?: string}) => e.code === 'UNALLOWED_CHILD');
   });
 
   it('reuses the element of a WebComponentImplementation instead of wrapping the Angular component', () => {

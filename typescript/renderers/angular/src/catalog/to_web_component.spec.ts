@@ -143,6 +143,26 @@ describe('toWebComponent', () => {
     expect(typeof impl.element).toBe('function');
   });
 
+  it('keeps allowedParents and allowedChildren', () => {
+    @Component({
+      selector: 'test-constrained-wc',
+      template: '',
+      standalone: true,
+    })
+    class TestConstrainedComponent extends CatalogComponent<ComponentApi> {}
+
+    const impl = toWebComponent({
+      name: 'ConstrainedTest',
+      schema: z.object({}),
+      allowedParents: ['Card'],
+      allowedChildren: ['Text'],
+      component: TestConstrainedComponent,
+    });
+
+    expect(impl.allowedParents).toEqual(['Card']);
+    expect(impl.allowedChildren).toEqual(['Text']);
+  });
+
   it('does not define the custom element until registerUniversalElement is called', () => {
     @Component({
       selector: 'test-lazy-define-wc',
