@@ -70,17 +70,23 @@ describe('createComponentImplementation', () => {
   });
 
   it('keeps allowedParents and allowedChildren, so the message processor enforces them', () => {
+    // Own component classes: `toWebComponent` caches its element per class.
+    @Component({selector: 'box-comp', template: '', standalone: true})
+    class BoxComponent extends CatalogComponent<ComponentApi> {}
+    @Component({selector: 'rune-comp', template: '', standalone: true})
+    class RuneComponent extends CatalogComponent<ComponentApi> {}
+
     const box = createComponentImplementation(
       {
         name: 'Box',
         schema: z.object({children: CommonSchemas.ChildList}),
         allowedChildren: ['Rune'],
       },
-      TestComponent,
+      BoxComponent,
     );
     const rune = createComponentImplementation(
       {name: 'Rune', schema: z.object({}), allowedParents: ['Box']},
-      WrappedComponent,
+      RuneComponent,
     );
     expect(box.allowedChildren).toEqual(['Rune']);
     expect(rune.allowedParents).toEqual(['Box']);
