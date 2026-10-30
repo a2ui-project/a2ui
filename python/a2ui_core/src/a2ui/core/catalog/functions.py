@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Awaitable
+from dataclasses import dataclass
 import inspect
 from typing import (
     Any,
@@ -180,6 +182,135 @@ def create_function_implementation(
         is_definition=getattr(api, "is_definition", None),
         from_document=getattr(api, "from_document", False),
     )
+
+
+@dataclass(frozen=True)
+class AgentFunctionContext:
+    """Where an agent function call came from.
+
+    Attributes:
+        catalog_id: The catalog the renderer resolved the call to.
+        surface_id: The surface the call was made on.
+        function_call_id: The ID that the response must copy.
+    """
+
+    catalog_id: str
+    surface_id: str
+    function_call_id: str
+
+
+AgentFunctionHandler = Callable[
+    [dict[str, Any], AgentFunctionContext], Any | Awaitable[Any]
+]
+"""Runs an agent function call.
+
+Receives the call's arguments, validated against the function's schema with
+its defaults applied, and the context of the call. Returns the value to send
+back, directly or as an awaitable.
+"""
+
+
+class AgentFunction(FunctionApi):
+    """A catalog function that runs on the agent.
+
+    A renderer has no implementation for it, so from v1.0 it sends calls to
+    the agent with `callAgentFunction`, and the agent runs `handler`. Add
+    agent functions to the agent's copy of a catalog with
+    `Catalog(agent_functions=...)` or `Catalog.copy_with(agent_functions=...)`,
+    so that validation and prompts treat them like any other function of the
+    catalog. The catalog document lists them like functions without an
+    implementation, and never includes the handler.
+
+    An agent function has no `execute` method, so a renderer core that is
+    handed a catalog containing one treats it as declared but not
+    implemented.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        *,
+        handler: AgentFunctionHandler,
+        return_type: FunctionReturnType | None = "any",
+        schema: Any = None,
+        allowed_callers: AllowedCallers | None = "rendererOnly",
+        requires_user_activation: bool | None = False,
+        description: str | None = None,
+        is_definition: bool | None = None,
+        from_document: bool = False,
+    ):
+        """Initializes the agent function.
+
+        Args:
+            name: The function's name, which calls use as `@call`.
+            handler: Runs a call on the agent.
+            return_type: The type of the function's result.
+            schema: The schema of the function's `args`, as `FunctionApi`
+                takes it.
+            allowed_callers: Who may call the function. The default,
+                `rendererOnly`, lets renderers call it; `agentOnly` would
+                make renderers refuse to call it at all.
+            requires_user_activation: Whether a call needs a user gesture.
+            description: What the function does, published in the catalog
+                schema and the prompt.
+            is_definition: Whether `schema` is the function's whole catalog
+                document entry, as `FunctionApi` takes it.
+            from_document: Whether `schema` was loaded from a catalog
+                document, as `FunctionApi` takes it.
+
+        Raises:
+            TypeError: If `handler` is not callable.
+        """
+        if not callable(handler):
+            raise TypeError(f"Agent function '{name}' needs a callable handler.")
+        super().__init__(
+            name=name,
+            return_type=return_type,
+            schema=schema,
+            allowed_callers=allowed_callers,
+            requires_user_activation=requires_user_activation,
+            description=description,
+            is_definition=is_definition,
+            from_document=from_document,
+        )
+        self.handler = handler
+        self._declaration: FunctionApi | None = None
+
+    @property
+    def declaration(self) -> FunctionApi | None:
+        """The catalog entry this function was built from with `from_api`, if any."""
+        return self._declaration
+
+    @classmethod
+    def from_api(
+        cls, api: FunctionApi, handler: AgentFunctionHandler
+    ) -> "AgentFunction":
+        """Builds an agent function from a function a catalog already declares.
+
+        Use it when the catalog document declares the function, so that its
+        definition stays as written: a catalog takes the result in place of
+        `api` instead of rejecting it as a second function of that name.
+
+        Args:
+            api: The catalog's entry for the function.
+            handler: Runs a call on the agent.
+
+        Returns:
+            The agent function, with `api`'s name, schema and metadata.
+        """
+        agent_function = cls(
+            api.name,
+            handler=handler,
+            return_type=api.return_type,
+            schema=api.schema,
+            allowed_callers=api.allowed_callers,
+            requires_user_activation=api.requires_user_activation,
+            description=api.description,
+            is_definition=api.is_definition,
+            from_document=api.from_document,
+        )
+        agent_function._declaration = api
+        return agent_function
 
 
 """
