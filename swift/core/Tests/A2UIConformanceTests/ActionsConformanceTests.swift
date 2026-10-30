@@ -113,11 +113,11 @@ struct ActionsConformanceTests {
       let name = testCase["name"] as? String ?? "<unnamed>"
       let action = testCase["action"] as? String ?? "dispatch_action"
       guard action == "dispatch_action" else { continue }
-      runDispatchActionCase(testCase, name: name)
+      try runDispatchActionCase(testCase, name: name)
     }
   }
 
-  private func runDispatchActionCase(_ testCase: [String: Any], name: String) {
+  private func runDispatchActionCase(_ testCase: [String: Any], name: String) throws {
     let versionStr = testCase["protocolVersion"] as? String ?? "v0.9"
     let protocolVersion = A2UIProtocolVersion(lenientRawValue: versionStr) ?? .v09
     let surfaceID = testCase["surfaceId"] as? String ?? "default"
@@ -148,6 +148,28 @@ struct ActionsConformanceTests {
       (testCase["actionPayload"] ?? testCase["action_data"]).map {
         ConformanceTestHelper.toJSONValue($0)
       } ?? .null
+    let callMetadataJSON = testCase["metadata"].map { ConformanceTestHelper.toJSONValue($0) }
+    let payloadMetaJSON =
+      rawAction.objectValue?["event"]?.objectValue?["metadata"]
+      ?? rawAction.objectValue?["metadata"]
+    let baseMeta = payloadMetaJSON?.objectValue.map {
+      Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })
+    }
+    let overrideMeta = callMetadataJSON?.objectValue.map {
+      Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })
+    }
+    if let expectErrorDict = testCase["expectError"] as? [String: Any],
+      expectErrorDict["category"] as? String == "ValidationError"
+    {
+      #expect(throws: A2UIValidationError.self, "\(name): expected metadata validation error") {
+        _ = try MetadataValidator.mergeActionMetadata(base: baseMeta, override: overrideMeta)
+      }
+      return
+    }
+    let mergedMeta = try MetadataValidator.mergeActionMetadata(
+      base: baseMeta,
+      override: overrideMeta
+    )
 
     let dispatched = executeActionPayload(
       rawAction,
@@ -155,10 +177,11 @@ struct ActionsConformanceTests {
       handler: handler,
       surfaceID: surfaceID,
       sourceComponentID: sourceComponentID,
+      metadata: mergedMeta,
       protocolVersion: protocolVersion
     )
 
-    verifyActionOutcome(
+    try verifyActionOutcome(
       testCase: testCase,
       dispatched: dispatched,
       model: model,
@@ -178,6 +201,7 @@ struct ActionsConformanceTests {
     handler: ConformanceActionFunctionHandler,
     surfaceID: String,
     sourceComponentID: String,
+    metadata: [String: JSONValue]?,
     protocolVersion: A2UIProtocolVersion
   ) -> RendererAction? {
     guard case .object(let dict) = rawAction else { return nil }
@@ -203,6 +227,7 @@ struct ActionsConformanceTests {
       handler: handler,
       surfaceID: surfaceID,
       sourceComponentID: sourceComponentID,
+      metadata: metadata,
       protocolVersion: protocolVersion
     )
   }
@@ -213,6 +238,7 @@ struct ActionsConformanceTests {
     handler: ConformanceActionFunctionHandler,
     surfaceID: String,
     sourceComponentID: String,
+    metadata: [String: JSONValue]?,
     protocolVersion: A2UIProtocolVersion
   ) -> RendererAction? {
     guard let eventName = eventDict["name"]?.stringValue, !eventName.isEmpty else {
@@ -263,6 +289,7 @@ struct ActionsConformanceTests {
       timestamp: ISO8601DateFormatter().string(from: Date()),
       context: resolvedContext,
       userMessage: resolvedUserMessage,
+      metadata: metadata,
       version: protocolVersion
     )
   }
@@ -273,7 +300,7 @@ struct ActionsConformanceTests {
     model: DataModel,
     capturedErrors: [RendererError],
     name: String
-  ) {
+  ) throws {
     if let expectDataModel = testCase["expectDataModel"] {
       #expect(
         model.data == ConformanceTestHelper.toJSONValue(expectDataModel),
@@ -297,7 +324,7 @@ struct ActionsConformanceTests {
     else {
       return
     }
-    assertDispatchedActionMatches(dispatched: dispatched, expected: expDict, name: name)
+    try assertDispatchedActionMatches(dispatched: dispatched, expected: expDict, name: name)
   }
 
   private func assertActionErrorMatches(
@@ -323,7 +350,7 @@ struct ActionsConformanceTests {
     dispatched: RendererAction?,
     expected expDict: OrderedDictionary<String, JSONValue>,
     name: String
-  ) {
+  ) throws {
     guard let dispatched else {
       Issue.record("\(name): expected dispatched action but got nil")
       return
@@ -352,6 +379,20 @@ struct ActionsConformanceTests {
     }
     if let expMsg = expDict["userMessage"]?.stringValue {
       #expect(dispatched.userMessage == expMsg, "\(name): userMessage mismatch")
+    }
+    if let expMeta = expDict["metadata"] {
+      if expMeta == .null {
+        #expect(dispatched.metadata == nil, "\(name): action metadata should be nil")
+      } else {
+        let expectedMetaDict = try MetadataValidator.validate(
+          expMeta,
+          pathPrefix: "action.metadata"
+        )
+        #expect(
+          MetadataValidator.areEqual(dispatched.metadata, expectedMetaDict),
+          "\(name): action metadata mismatch"
+        )
+      }
     }
   }
 }

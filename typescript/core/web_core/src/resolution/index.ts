@@ -31,6 +31,8 @@ export {
   isComponentNode,
   /** Resolved component instance in the rendered node tree. */
   type ComponentNode,
+  /** Bound action closure produced by the node resolver and binder. */
+  type NodeAction,
   /** Resolved component node properties, keyed by property name. */
   type NodeProps,
   /** Resolution state of a component node in the rendered tree. */
