@@ -32,6 +32,10 @@
       {"$ref": "#/$defs/DispatchActionTest"},
       {"$ref": "#/$defs/RouteAgentFunctionTest"},
       {"$ref": "#/$defs/DeriveTest"},
+      {"$ref": "#/$defs/DeclareAgentFunctionsTest"},
+      {"$ref": "#/$defs/HandleAgentFunctionTest"},
+      {"$ref": "#/$defs/ValidatePayloadTest"},
+      {"$ref": "#/$defs/CallRendererFunctionTest"},
       {"$ref": "#/$defs/RenderSurfaceTest"}
     ]
   },
@@ -2172,6 +2176,341 @@
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["action", "args"]
+    },
+    "AgentFunctionBehavior": {
+      "description": "What an agent function does when it runs, in place of a handler, so every SDK runs the same function. Exactly one key.",
+      "type": "object",
+      "properties": {
+        "returns": {
+          "description": "Returns this value, which may be null."
+        },
+        "returns_args": {
+          "const": true,
+          "description": "Returns the arguments it received, after validation and with the schema's defaults applied."
+        },
+        "returns_context": {
+          "const": true,
+          "description": "Returns the context of the call: {catalogId, surfaceId, functionCallId}."
+        },
+        "raises": {
+          "type": "object",
+          "description": "Fails with `message`. With `code`, it fails the way the SDK lets a handler choose the RPC error code of the response; without one, it fails with an ordinary error.",
+          "properties": {
+            "code": {"type": "string"},
+            "message": {"type": "string"}
+          },
+          "required": ["message"],
+          "additionalProperties": false
+        }
+      },
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false
+    },
+    "AgentFunctionDeclaration": {
+      "type": "object",
+      "description": "An agent function: a catalog function that runs on the agent.",
+      "properties": {
+        "description": {"type": "string"},
+        "returnType": {"type": "string"},
+        "allowedCallers": {
+          "enum": ["rendererOnly", "agentOnly", "rendererOrAgent"],
+          "default": "rendererOnly"
+        },
+        "args": {
+          "type": "object",
+          "description": "JSON Schema of the function's args."
+        },
+        "behavior": {"$ref": "#/$defs/AgentFunctionBehavior"}
+      },
+      "required": ["args", "behavior"],
+      "additionalProperties": false
+    },
+    "AgentFunctionCatalog": {
+      "type": "object",
+      "description": "A catalog document and the agent functions the agent declares on its copy of it.",
+      "properties": {
+        "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
+        "agent_functions": {
+          "type": "object",
+          "description": "The agent functions, by name.",
+          "additionalProperties": {"$ref": "#/$defs/AgentFunctionDeclaration"}
+        }
+      },
+      "required": ["catalog"],
+      "additionalProperties": false
+    },
+    "DeclareAgentFunctionsTest": {
+      "type": "object",
+      "description": "Declaring agent functions on a catalog, and what the catalog then lists.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "declare_agent_functions"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "catalog": {"$ref": "#/$defs/AgentFunctionCatalog"}
+          },
+          "required": ["catalog"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": "object",
+          "description": "Exhaustive name lists, compared without regard to order.",
+          "properties": {
+            "functions": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "The catalog's functions, agent functions included."
+            },
+            "agent_functions": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "The catalog's agent functions."
+            },
+            "document_functions": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "The functions the catalog's document lists, which is what a renderer would load."
+            }
+          },
+          "required": ["functions", "agent_functions", "document_functions"],
+          "additionalProperties": false
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["name", "action", "args"],
+      "oneOf": [{"required": ["expect"]}, {"required": ["expect_error"]}],
+      "additionalProperties": false
+    },
+    "HandleAgentFunctionTest": {
+      "type": "object",
+      "description": "Answering one callAgentFunction message with the agent functions of `catalogs`.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "handle_agent_function"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/AgentFunctionCatalog"},
+              "minItems": 1
+            },
+            "message": {
+              "type": "object",
+              "description": "The callAgentFunction message, as received. It may be malformed."
+            }
+          },
+          "required": ["catalogs", "message"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": "object",
+          "description": "The agentFunctionResponse body of the response. `error.message` is a substring of the message sent.",
+          "properties": {
+            "functionCallId": {"type": "string"},
+            "value": {},
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {"type": "string"},
+                "message": {"type": "string"}
+              },
+              "required": ["code"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["functionCallId"],
+          "oneOf": [{"required": ["value"]}, {"required": ["error"]}],
+          "additionalProperties": false
+        },
+        "expect_error": {
+          "$ref": "#/$defs/ExpectError",
+          "description": "Handling the message fails instead of answering it."
+        }
+      },
+      "required": ["name", "action", "args"],
+      "oneOf": [{"required": ["expect"]}, {"required": ["expect_error"]}],
+      "additionalProperties": false
+    },
+    "ValidatePayloadTest": {
+      "type": "object",
+      "description": "Validating model output against catalogs that declare agent functions, as the agent does before sending it.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "validate_payload"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/AgentFunctionCatalog"},
+              "minItems": 1
+            },
+            "messages": {
+              "type": "array",
+              "items": {"type": "object"},
+              "description": "The A2UI messages to validate."
+            }
+          },
+          "required": ["catalogs", "messages"],
+          "additionalProperties": false
+        },
+        "expect_valid": {"const": true},
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["name", "action", "args"],
+      "oneOf": [{"required": ["expect_valid"]}, {"required": ["expect_error"]}],
+      "additionalProperties": false
+    },
+    "CallRendererFunctionTest": {
+      "type": "object",
+      "description": "Calling renderer functions from the agent with callRendererFunction, and settling the calls with the renderer's responses, on a fake clock that only `advance_ms` steps move.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "call_renderer_function"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "default_timeout_ms": {
+              "type": ["integer", "null"],
+              "exclusiveMinimum": 0,
+              "description": "How long a call waits for its response unless it sets its own timeout. Without it, the SDK's default, 30000. Null waits without a limit."
+            },
+            "max_pending": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The most calls that may wait for a response at once."
+            }
+          },
+          "additionalProperties": false
+        },
+        "steps": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/RendererCallStep"},
+          "minItems": 1
+        }
+      },
+      "required": ["name", "action", "steps"],
+      "additionalProperties": false
+    },
+    "RendererCallState": {
+      "description": "The state of a call: still pending, settled with a value, or failed with an RPC error code. `error.message` is a substring of the failure's message.",
+      "oneOf": [
+        {"const": "pending"},
+        {
+          "type": "object",
+          "properties": {"value": {}},
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {"type": "string"},
+                "message": {"type": "string"}
+              },
+              "required": ["code"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "RendererCallStep": {
+      "type": "object",
+      "description": "One step of a call_renderer_function case: exactly one of `call`, `respond`, `advance_ms` or `dispose`, then its expectations, checked once pending asynchronous work has run.",
+      "properties": {
+        "call": {
+          "type": "object",
+          "description": "Makes a call. `label` names it for later steps.",
+          "properties": {
+            "label": {"type": "string"},
+            "catalogId": {"type": "string"},
+            "name": {"type": "string"},
+            "args": {"type": "object"},
+            "surfaceId": {"type": "string"},
+            "timeout_ms": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "description": "How long this call waits for its response, in place of the default."
+            }
+          },
+          "required": ["label", "catalogId", "name"],
+          "additionalProperties": false
+        },
+        "respond": {
+          "type": "object",
+          "description": "Hands the calls a rendererFunctionResponse, for the call `call` labels or for a literal `functionCallId`.",
+          "properties": {
+            "call": {"type": "string"},
+            "functionCallId": {"type": "string"},
+            "value": {},
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {"type": "string"},
+                "message": {"type": "string"}
+              },
+              "required": ["code", "message"],
+              "additionalProperties": false
+            }
+          },
+          "allOf": [
+            {"oneOf": [{"required": ["call"]}, {"required": ["functionCallId"]}]},
+            {"oneOf": [{"required": ["value"]}, {"required": ["error"]}]}
+          ],
+          "additionalProperties": false
+        },
+        "advance_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Moves the fake clock forward."
+        },
+        "dispose": {
+          "type": "object",
+          "description": "Disposes the calls, with an optional reason.",
+          "properties": {
+            "reason": {"type": "string"}
+          },
+          "additionalProperties": false
+        },
+        "expect_message": {
+          "type": "object",
+          "description": "On a `call` step, the callRendererFunction message, less its functionCallId."
+        },
+        "expect_error": {
+          "$ref": "#/$defs/ExpectError",
+          "description": "On a `call` step, the call is refused with this RPC error code instead of being made."
+        },
+        "expect_calls": {
+          "type": "object",
+          "description": "The state of the calls it names, by label.",
+          "additionalProperties": {"$ref": "#/$defs/RendererCallState"}
+        },
+        "expect_pending_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many calls are waiting for a response."
+        }
+      },
+      "oneOf": [
+        {"required": ["call"]},
+        {"required": ["respond"]},
+        {"required": ["advance_ms"]},
+        {"required": ["dispose"]}
+      ],
+      "additionalProperties": false
     },
     "ExpectError": {
       "description": "Expected error specification (error message string, regex, or structured error object).",
