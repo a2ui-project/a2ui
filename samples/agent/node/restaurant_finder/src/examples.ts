@@ -47,7 +47,7 @@ export function toResponseText(
     return `<a2ui-json>\n${JSON.stringify(messages, null, 2)}\n</a2ui-json>`;
   }
   const decompiler = new ExpressDecompiler(catalog, profile.version);
-  return decompiler.wrapDecompiledBlocks([decompiler.decompile(messages)]);
+  return decompiler.wrap([{type: 'a2ui', a2uiRaw: decompiler.decompile(messages), isFinal: true}]);
 }
 
 /**

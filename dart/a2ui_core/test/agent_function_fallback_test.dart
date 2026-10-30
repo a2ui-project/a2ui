@@ -419,6 +419,18 @@ void main() {
       );
       expect(clientErrors, hasLength(1));
       expect(clientErrors.single.code, 'EXPRESSION_ERROR');
+
+      // Completing the other pending call on the surface must not cause the
+      // still-mounted failed signal to re-send flaky().
+      final _AgentCall firstOther =
+          agentCalls.lastWhere((c) => c.call.call == 'otherRemote');
+      firstOther.completer.complete('ok');
+      await _flush();
+      expect(
+        agentCalls.where((c) => c.call.call == 'flaky'),
+        hasLength(1),
+        reason: 'settling another call on the surface must not re-send flaky',
+      );
     });
 
     test('an action whose argument is an agent call awaits it and runs',
@@ -935,6 +947,28 @@ void main() {
       });
       expect(clientErrors, isEmpty);
       expect(agentCalls, isEmpty);
+    });
+
+    test(
+        'an event action whose context expression fails reports EXPRESSION_ERROR '
+        'without a second INVALID_ACTION error', () async {
+      final Future<void> done = invokeAction({
+        'event': {
+          'name': 'submit',
+          'context': {
+            'token': {'@call': 'mintToken', 'args': <String, Object?>{}},
+          },
+        },
+      });
+      await _flush();
+      agentCalls.single.completer.completeError(
+        A2uiRpcError('mint failed', RpcErrorCode.executionError,
+            functionCallId: 'fc-mint'),
+      );
+      await done;
+      expect(clientErrors, hasLength(1));
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
+      expect(clientErrors.single.functionCallId, 'fc-mint');
     });
   });
 }

@@ -96,7 +96,7 @@ void main() {
         final ({int exitCode, String stdout, String stderr}) result =
             await _captureCli([flag]);
         expect(result.exitCode, equals(0));
-        expect(result.stdout.trim(), equals('0.0.1-wip001'));
+        expect(result.stdout.trim(), equals('0.1.0'));
       }
     });
 
