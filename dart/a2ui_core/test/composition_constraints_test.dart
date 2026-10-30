@@ -167,7 +167,7 @@ void main() {
         throwsA(
           _violation(
             'UNALLOWED_PARENT',
-            path: '/components/0/children/0',
+            path: '/components/1',
             message: "Component 'invalid_header' (ColumnHeader) cannot be "
                 "placed under parent 'root' (Row). Allowed parents: "
                 "['Column'].",
@@ -542,7 +542,7 @@ void main() {
           ]);
           expect(
             p.expectSame([component('x', 'Header')]),
-            _violation('UNALLOWED_PARENT', path: null),
+            _violation('UNALLOWED_PARENT', path: '/components/0'),
           );
         });
 

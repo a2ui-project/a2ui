@@ -15,6 +15,7 @@
 import A2UICore
 import BasicCatalog
 import Foundation
+import OrderedCollections
 import OrderedJSON
 import Testing
 
@@ -85,89 +86,246 @@ struct BasicCatalogConformanceTests {
       guard let action = testCase["action"] as? String, action == "evaluate_function" else {
         continue
       }
-
-      // A case with a `surface` block evaluates the function as a call on a surface, so it
-      // checks catalog resolution. This harness invokes implementations directly and cannot
-      // describe it.
-      if testCase["surface"] != nil {
-        continue
-      }
-
-      // Validators return booleans in v0.9 and ValidationResult objects in v1.0, so
-      // each case runs against the functions of the protocol version it is pinned to.
-      // Unpinned cases run against v0.9.
-      guard let name = testCase["name"] as? String,
-        let funcName = testCase["function"] as? String
-      else {
-        continue
-      }
-
-      let catalogVersion = (testCase["catalog"] as? [String: Any])?["protocolVersion"] as? String
-      let rawVersion = (testCase["protocolVersion"] as? String) ?? catalogVersion ?? "v0.9"
-      guard let protocolVersion = A2UIProtocolVersion(lenientRawValue: rawVersion) else {
-        Issue.record("\(name): unsupported protocol version \(rawVersion)")
-        continue
-      }
-      let functionsMap = BasicCatalog.makeCatalog(version: protocolVersion).functions
-
-      guard let fn = functionsMap[funcName] else {
-        Issue.record("\(name): function '\(funcName)' not found for \(protocolVersion.rawValue)")
-        continue
-      }
-
-      let dataModelDict: JSONValue =
-        (testCase["dataModel"] ?? testCase["data_model"]).map {
-          ConformanceTestHelper.toJSONValue($0)
-        } ?? .object([:])
-      let model = DataModel(initial: dataModelDict)
-      // Functions that evaluate through the context (such as formatString) resolve
-      // against the same catalog version as the function under test.
-      let versionedHandler = try #require(versionedFunctionHandlers[protocolVersion])
-      let context = DataContext(
-        dataModel: model,
-        path: "/",
-        functionHandler: versionedHandler,
-        protocolVersion: protocolVersion
-      )
-
-      let rawArgs = (testCase["args"] as? [String: Any]) ?? [:]
-      var swiftArgs: [String: JSONValue] = [:]
-      for (k, v) in rawArgs {
-        swiftArgs[k] = ConformanceTestHelper.toJSONValue(v)
-      }
-
-      if let expectError = (testCase["expectError"] ?? testCase["expect_error"]) as? [String: Any] {
-        do {
-          _ = try fn.evaluate(arguments: swiftArgs, context: context)
-          Issue.record("\(name): expected error but succeeded")
-        } catch is FunctionError {
-          if let expectedCategory = expectError["category"] as? String {
-            #expect(
-              expectedCategory == "ExpressionError" || expectedCategory == "ValidationError",
-              "\(name): unexpected expectedCategory \(expectedCategory)"
-            )
-          }
-        } catch {
-          Issue.record("\(name): threw unexpected non-function error: \(error)")
-        }
+      if let surfaceDict = testCase["surface"] as? [String: Any] {
+        try runSurfaceEvaluateFunctionCase(testCase, surfaceDict: surfaceDict)
       } else {
-        do {
-          let actual = try fn.evaluate(arguments: swiftArgs, context: context)
-          if let expectedRaw = testCase["expect"] {
-            let expected = ConformanceTestHelper.toJSONValue(expectedRaw)
-            #expect(actual == expected, "\(name): got \(actual), expected \(expected)")
-          }
-        } catch {
-          Issue.record("\(name): threw unexpected error \(error)")
-        }
+        try runDirectEvaluateFunctionCase(testCase)
       }
     }
+  }
+
+  private func runDirectEvaluateFunctionCase(_ testCase: [String: Any]) throws {
+    guard let name = testCase["name"] as? String,
+      let funcName = testCase["function"] as? String
+    else {
+      return
+    }
+
+    let protocolVersion = try resolveCaseProtocolVersion(testCase, name: name)
+    let functionsMap = BasicCatalog.makeCatalog(version: protocolVersion).functions
+    guard let fn = functionsMap[funcName] else {
+      Issue.record("\(name): function '\(funcName)' not found for \(protocolVersion.rawValue)")
+      return
+    }
+
+    let context = try buildDirectDataContext(for: testCase, protocolVersion: protocolVersion)
+    let swiftArgs = buildFunctionArgs(from: testCase)
+
+    if let expectError = (testCase["expectError"] ?? testCase["expect_error"]) as? [String: Any] {
+      assertDirectFunctionError(
+        fn: fn,
+        args: swiftArgs,
+        context: context,
+        expectError: expectError,
+        name: name
+      )
+    } else {
+      assertDirectFunctionSuccess(
+        fn: fn,
+        args: swiftArgs,
+        context: context,
+        testCase: testCase,
+        name: name
+      )
+    }
+  }
+
+  private func resolveCaseProtocolVersion(
+    _ testCase: [String: Any],
+    name: String
+  ) throws -> A2UIProtocolVersion {
+    let catalogVersion = (testCase["catalog"] as? [String: Any])?["protocolVersion"] as? String
+    let rawVersion = (testCase["protocolVersion"] as? String) ?? catalogVersion ?? "v0.9"
+    return try #require(
+      A2UIProtocolVersion(lenientRawValue: rawVersion),
+      "\(name): unsupported protocol version \(rawVersion)"
+    )
+  }
+
+  private func buildDirectDataContext(
+    for testCase: [String: Any],
+    protocolVersion: A2UIProtocolVersion
+  ) throws -> DataContext {
+    let dataModelDict: JSONValue =
+      (testCase["dataModel"] ?? testCase["data_model"]).map {
+        ConformanceTestHelper.toJSONValue($0)
+      } ?? .object([:])
+    let model = DataModel(initial: dataModelDict)
+    let versionedHandler = try #require(versionedFunctionHandlers[protocolVersion])
+    return DataContext(
+      dataModel: model,
+      path: "/",
+      functionHandler: versionedHandler,
+      protocolVersion: protocolVersion
+    )
+  }
+
+  private func buildFunctionArgs(from testCase: [String: Any]) -> [String: JSONValue] {
+    let rawArgs = (testCase["args"] as? [String: Any]) ?? [:]
+    var swiftArgs: [String: JSONValue] = [:]
+    for (key, value) in rawArgs {
+      swiftArgs[key] = ConformanceTestHelper.toJSONValue(value)
+    }
+    return swiftArgs
+  }
+
+  private func assertDirectFunctionError(
+    fn: any FunctionImplementation,
+    args: [String: JSONValue],
+    context: DataContext,
+    expectError: [String: Any],
+    name: String
+  ) {
+    do {
+      _ = try fn.evaluate(arguments: args, context: context)
+      Issue.record("\(name): expected error but succeeded")
+    } catch is FunctionError {
+      if let expectedCategory = expectError["category"] as? String {
+        #expect(
+          expectedCategory == "ExpressionError" || expectedCategory == "ValidationError",
+          "\(name): unexpected expectedCategory \(expectedCategory)"
+        )
+      }
+    } catch {
+      Issue.record("\(name): threw unexpected non-function error: \(error)")
+    }
+  }
+
+  private func assertDirectFunctionSuccess(
+    fn: any FunctionImplementation,
+    args: [String: JSONValue],
+    context: DataContext,
+    testCase: [String: Any],
+    name: String
+  ) {
+    do {
+      let actual = try fn.evaluate(arguments: args, context: context)
+      if let expectedRaw = testCase["expect"] {
+        let expected = ConformanceTestHelper.toJSONValue(expectedRaw)
+        #expect(actual == expected, "\(name): got \(actual), expected \(expected)")
+      }
+    } catch {
+      Issue.record("\(name): threw unexpected error \(error)")
+    }
+  }
+
+  private func runSurfaceEvaluateFunctionCase(
+    _ testCase: [String: Any],
+    surfaceDict: [String: Any]
+  ) throws {
+    guard let name = testCase["name"] as? String,
+      let funcName = testCase["function"] as? String
+    else {
+      return
+    }
+    let protocolVersion = try resolveCaseProtocolVersion(testCase, name: name)
+    let catalogs = try loadSurfaceFunctionCatalogs(from: testCase, defaultVersion: protocolVersion)
+    let errorHandler = IndexConformanceErrorHandler()
+    let surface = SurfaceViewModel(
+      surfaceID: (surfaceDict["surfaceId"] as? String) ?? "s",
+      catalogs: catalogs,
+      defaultCatalogID: surfaceDict["catalogId"] as? String,
+      actionHandler: errorHandler,
+      protocolVersion: protocolVersion
+    )
+    let context = DataContext(
+      dataModel: surface.dataModel,
+      path: "/",
+      functionHandler: surface,
+      protocolVersion: protocolVersion
+    )
+    let callExpr = buildCallExpression(
+      funcName: funcName,
+      testCase: testCase,
+      protocolVersion: protocolVersion
+    )
+    let actual = context.resolveDynamicValue(callExpr)
+
+    if let expectError = (testCase["expectError"] ?? testCase["expect_error"]) as? [String: Any] {
+      assertSurfaceFunctionError(
+        capturedErrors: errorHandler.capturedErrors,
+        expectError: expectError,
+        name: name
+      )
+    } else {
+      #expect(
+        errorHandler.capturedErrors.isEmpty,
+        "\(name): unexpected surface errors \(errorHandler.capturedErrors)"
+      )
+      if let expectedRaw = testCase["expect"] {
+        let expected = ConformanceTestHelper.toJSONValue(expectedRaw)
+        #expect(actual == expected, "\(name): got \(actual), expected \(expected)")
+      }
+    }
+  }
+
+  private func loadSurfaceFunctionCatalogs(
+    from testCase: [String: Any],
+    defaultVersion: A2UIProtocolVersion
+  ) throws -> [AnyCatalog] {
+    let paths = (testCase["catalogPaths"] as? [String]) ?? []
+    return try paths.map { path in
+      let catalogSchema = try ConformanceTestHelper.loadRepositoryJSON(path: path)
+      let catalogID = catalogSchema["catalogId"]?.stringValue ?? path
+      if path.contains("basic") {
+        let ver: A2UIProtocolVersion =
+          path.contains("v0_9_1") ? .v091 : (path.contains("v0_9") ? .v09 : .v10)
+        let basic = BasicCatalog.makeCatalog(version: ver)
+        return Catalog(
+          id: catalogID,
+          protocolVersion: ver.rawValue,
+          components: Array(basic.components.values),
+          functions: Array(basic.functions.values)
+        ).eraseToAnyCatalog()
+      }
+      return ConformanceTestHelper.buildCatalog(
+        catalogSchema: catalogSchema,
+        protocolVersion: defaultVersion.rawValue
+      )
+    }
+  }
+
+  private func buildCallExpression(
+    funcName: String,
+    testCase: [String: Any],
+    protocolVersion: A2UIProtocolVersion
+  ) -> JSONValue {
+    let callKey = protocolVersion.isAtLeastV10 ? "@call" : "call"
+    var callDict: OrderedDictionary<String, JSONValue> = [
+      callKey: .string(funcName)
+    ]
+    if let catalogID = testCase["catalogId"] as? String {
+      callDict["catalogId"] = .string(catalogID)
+    }
+    if let rawArgs = testCase["args"] {
+      callDict["args"] = ConformanceTestHelper.toJSONValue(rawArgs)
+    }
+    return .object(callDict)
+  }
+
+  private func assertSurfaceFunctionError(
+    capturedErrors: [RendererError],
+    expectError: [String: Any],
+    name: String
+  ) {
+    #expect(!capturedErrors.isEmpty, "\(name): expected surface function evaluation error")
+    guard let expectedMessage = expectError["message"] as? String, !expectedMessage.isEmpty else {
+      return
+    }
+    let matches = capturedErrors.contains { err in
+      let msg: String
+      switch err {
+      case .validationFailed(let v): msg = v.message
+      case .generic(let g): msg = g.message
+      }
+      return ConformanceTestHelper.messageMatches(msg, expected: expectedMessage)
+    }
+    #expect(matches, "\(name): expected error containing '\(expectedMessage)', got \(capturedErrors)")
   }
 
   @Test func indexFunctionConformance() throws {
     let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/index_function.yaml")
     let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
-
     #expect(!testCases.isEmpty, "Should load test cases from index_function.yaml")
 
     for testCase in testCases {
@@ -180,59 +338,96 @@ struct BasicCatalogConformanceTests {
 
       for step in testCase.steps {
         guard let payload = step.payload else { continue }
+        try executeIndexStep(
+          step: step,
+          payload: payload,
+          testCase: testCase,
+          processor: processor,
+          errorHandler: errorHandler
+        )
+      }
+    }
+  }
 
-        if let expectedError = step.expectError {
-          errorHandler.capturedErrors.removeAll()
-          var caughtErrorMessage: String?
-          do {
-            let messages = try ConformanceTestHelper.parsePayload(payload)
-            processor.process(messages: messages)
-          } catch {
-            caughtErrorMessage = error.localizedDescription
-          }
+  private func executeIndexStep(
+    step: ConformanceStep,
+    payload: JSONValue,
+    testCase: ConformanceTestCase,
+    processor: MessageProcessor,
+    errorHandler: IndexConformanceErrorHandler
+  ) throws {
+    if let expectedError = step.expectError {
+      errorHandler.capturedErrors.removeAll()
+      var caughtErrorMessage: String?
+      do {
+        let messages = try ConformanceTestHelper.parsePayload(payload)
+        processor.process(messages: messages)
+      } catch {
+        caughtErrorMessage = error.localizedDescription
+      }
+      assertIndexStepError(
+        capturedErrors: errorHandler.capturedErrors,
+        caughtErrorMessage: caughtErrorMessage,
+        expectedError: expectedError,
+        testName: testCase.name
+      )
+      return
+    }
 
-          let errorMessages =
-            errorHandler.capturedErrors.map { err -> String in
-              switch err {
-              case .validationFailed(let v): return v.message
-              case .generic(let g): return g.message
-              }
-            } + (caughtErrorMessage.map { [$0] } ?? [])
+    let messages = try ConformanceTestHelper.parsePayload(payload)
+    processor.process(messages: messages)
+    guard let expectSurfaces = testCase.expect?["surfaces"]?.objectValue else { return }
+    assertIndexSurfaces(
+      OrderedDictionary(uniqueKeysWithValues: expectSurfaces.map { ($0.key, $0.value) }),
+      processor: processor,
+      testName: testCase.name
+    )
+  }
 
+  private func assertIndexStepError(
+    capturedErrors: [RendererError],
+    caughtErrorMessage: String?,
+    expectedError: ConformanceExpectError,
+    testName: String
+  ) {
+    let errorMessages =
+      capturedErrors.map { err -> String in
+        switch err {
+        case .validationFailed(let v): return v.message
+        case .generic(let g): return g.message
+        }
+      } + (caughtErrorMessage.map { [$0] } ?? [])
+
+    #expect(
+      !errorMessages.isEmpty,
+      "Expected error for \(testName), but processing succeeded without error"
+    )
+    if let expectedMessage = expectedError.message {
+      #expect(
+        errorMessages.contains(where: { $0.contains(expectedMessage) }),
+        "Expected error containing '\(expectedMessage)' in \(testName), got \(errorMessages)"
+      )
+    }
+  }
+
+  private func assertIndexSurfaces(
+    _ expectSurfaces: OrderedDictionary<String, JSONValue>,
+    processor: MessageProcessor,
+    testName: String
+  ) {
+    for (surfaceID, expectedSurface) in expectSurfaces {
+      guard let surface = processor.surfaceGroupModel[surfaceID] else {
+        Issue.record("Expected surface '\(surfaceID)' to exist")
+        continue
+      }
+      guard let expectedComponents = expectedSurface["components"]?.objectValue else { continue }
+      for (compID, compExpected) in expectedComponents {
+        let node = surface.findNode(id: compID)
+        if let expectedText = compExpected["text"]?.stringValue {
           #expect(
-            !errorMessages.isEmpty,
-            "Expected error for \(testCase.name), but processing succeeded without error"
+            node?.string(for: "text") == expectedText,
+            "[\(testName)] Expected node \(compID).text == '\(expectedText)'"
           )
-          if let expectedMessage = expectedError.message {
-            #expect(
-              errorMessages.contains(where: { $0.contains(expectedMessage) }),
-              "Expected error containing '\(expectedMessage)' in \(testCase.name), got \(errorMessages)"
-            )
-          }
-        } else {
-          let messages = try ConformanceTestHelper.parsePayload(payload)
-          processor.process(messages: messages)
-
-          if let expectSurfaces = testCase.expect?["surfaces"]?.objectValue {
-            for (surfaceID, expectedSurface) in expectSurfaces {
-              guard let surface = processor.surfaceGroupModel[surfaceID] else {
-                Issue.record("Expected surface '\(surfaceID)' to exist")
-                continue
-              }
-
-              if let expectedComponents = expectedSurface["components"]?.objectValue {
-                for (compID, compExpected) in expectedComponents {
-                  let node = surface.findNode(id: compID)
-                  if let expectedText = compExpected["text"]?.stringValue {
-                    #expect(
-                      node?.string(for: "text") == expectedText,
-                      "[\(testCase.name)] Expected node \(compID).text == '\(expectedText)', got '\(node?.string(for: "text") ?? "nil")'"
-                    )
-                  }
-                }
-              }
-            }
-          }
         }
       }
     }
@@ -241,7 +436,6 @@ struct BasicCatalogConformanceTests {
   @Test func validationResultConformance() throws {
     let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/validation_result.yaml")
     let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
-
     #expect(!testCases.isEmpty, "Should load test cases from validation_result.yaml")
 
     for testCase in testCases {
@@ -254,34 +448,143 @@ struct BasicCatalogConformanceTests {
         guard let payload = step.payload else { continue }
         let messages = try ConformanceTestHelper.parsePayload(payload)
         processor.process(messages: messages)
-      }
-
-      if let expectSurfaces = testCase.expect?["surfaces"]?.objectValue {
-        for (surfaceID, expectedSurface) in expectSurfaces {
-          guard let surface = processor.surfaceGroupModel[surfaceID] else {
-            Issue.record("Expected surface '\(surfaceID)' to exist")
-            continue
-          }
-
-          if let expectedVR = expectedSurface["validationResult"]?.objectValue {
-            for (nodeID, expectedCheck) in expectedVR {
-              let node = surface.findNode(id: nodeID)
-              let expectedValid = expectedCheck["valid"]?.boolValue ?? true
-              #expect(
-                node?.isValid == expectedValid,
-                "[\(testCase.name)] Expected node \(nodeID).isValid == \(expectedValid)"
-              )
-
-              if let expectedMsg = expectedCheck["message"]?.stringValue {
-                #expect(
-                  node?.validationErrors.contains(expectedMsg) == true,
-                  "[\(testCase.name)] Expected validation errors to contain '\(expectedMsg)'"
-                )
-              }
-            }
-          }
+        if let stepExpectSurfaces = step.expect?["surfaces"]?.objectValue {
+          assertValidationResultSurfaces(
+            OrderedDictionary(uniqueKeysWithValues: stepExpectSurfaces.map { ($0.key, $0.value) }),
+            processor: processor,
+            testName: testCase.name
+          )
         }
       }
+
+      if let caseExpectSurfaces = testCase.expect?["surfaces"]?.objectValue {
+        assertValidationResultSurfaces(
+          OrderedDictionary(uniqueKeysWithValues: caseExpectSurfaces.map { ($0.key, $0.value) }),
+          processor: processor,
+          testName: testCase.name
+        )
+      }
+    }
+  }
+
+  private func assertValidationResultSurfaces(
+    _ expectSurfaces: OrderedDictionary<String, JSONValue>,
+    processor: MessageProcessor,
+    testName: String
+  ) {
+    for (surfaceID, expectedSurface) in expectSurfaces {
+      guard let surface = processor.surfaceGroupModel[surfaceID] else {
+        Issue.record("[\(testName)] Expected surface '\(surfaceID)' to exist")
+        continue
+      }
+      assertSurfaceIsValid(expectedSurface, on: surface, testName: testName)
+      assertSurfaceValidationErrors(expectedSurface, on: surface, testName: testName)
+      assertSurfaceValidationResults(expectedSurface, on: surface, testName: testName)
+      assertSurfaceSingleValidationResult(expectedSurface, on: surface, testName: testName)
+    }
+  }
+
+  private func assertSurfaceIsValid(
+    _ expectedSurface: JSONValue,
+    on surface: SurfaceViewModel,
+    testName: String
+  ) {
+    guard let expectedIsValid = expectedSurface["isValid"]?.objectValue else { return }
+    for (nodeID, expectedVal) in expectedIsValid {
+      guard let expectedBool = expectedVal.boolValue else { continue }
+      let node = surface.findNode(id: nodeID)
+      #expect(
+        node?.isValid == expectedBool,
+        "[\(testName)] Expected node \(nodeID).isValid == \(expectedBool), got \(String(describing: node?.isValid))"
+      )
+    }
+  }
+
+  private func assertSurfaceValidationErrors(
+    _ expectedSurface: JSONValue,
+    on surface: SurfaceViewModel,
+    testName: String
+  ) {
+    guard let expectedErrorsMap = expectedSurface["validationErrors"]?.objectValue else { return }
+    for (nodeID, expectedListVal) in expectedErrorsMap {
+      guard let expectedArray = expectedListVal.arrayValue else { continue }
+      let expectedStrings = expectedArray.compactMap(\.stringValue)
+      let node = surface.findNode(id: nodeID)
+      #expect(
+        node?.validationErrors == expectedStrings,
+        "[\(testName)] Expected node \(nodeID).validationErrors == \(expectedStrings), got \(String(describing: node?.validationErrors))"
+      )
+    }
+  }
+
+  private func assertSurfaceValidationResults(
+    _ expectedSurface: JSONValue,
+    on surface: SurfaceViewModel,
+    testName: String
+  ) {
+    guard let expectedResultsMap = expectedSurface["validationResults"]?.objectValue else { return }
+    for (nodeID, expectedListVal) in expectedResultsMap {
+      guard let expectedArray = expectedListVal.arrayValue else { continue }
+      let actualResults = surface.findNode(id: nodeID)?.validationResults ?? []
+      #expect(
+        actualResults.count == expectedArray.count,
+        "[\(testName)] Expected \(expectedArray.count) validationResults on \(nodeID), got \(actualResults.count)"
+      )
+      for (actualRes, expectedObjVal) in zip(actualResults, expectedArray) {
+        assertSingleValidationResultMatches(
+          actual: actualRes,
+          expected: expectedObjVal,
+          nodeID: nodeID,
+          testName: testName
+        )
+      }
+    }
+  }
+
+  private func assertSurfaceSingleValidationResult(
+    _ expectedSurface: JSONValue,
+    on surface: SurfaceViewModel,
+    testName: String
+  ) {
+    guard let expectedVR = expectedSurface["validationResult"]?.objectValue else { return }
+    for (nodeID, expectedCheck) in expectedVR {
+      let node = surface.findNode(id: nodeID)
+      let expectedValid = expectedCheck["valid"]?.boolValue ?? true
+      #expect(
+        node?.isValid == expectedValid,
+        "[\(testName)] Expected node \(nodeID).isValid == \(expectedValid)"
+      )
+      if let firstRes = node?.validationResults.first {
+        assertSingleValidationResultMatches(
+          actual: firstRes,
+          expected: expectedCheck,
+          nodeID: nodeID,
+          testName: testName
+        )
+      }
+    }
+  }
+
+  private func assertSingleValidationResultMatches(
+    actual: ValidationResult,
+    expected: JSONValue,
+    nodeID: String,
+    testName: String
+  ) {
+    if let expValid = expected["valid"]?.boolValue {
+      #expect(actual.valid == expValid, "[\(testName)] \(nodeID) valid mismatch")
+    }
+    if let expCode = expected["code"]?.stringValue {
+      #expect(actual.code == expCode, "[\(testName)] \(nodeID) code mismatch")
+    }
+    if let expMsg = expected["message"]?.stringValue {
+      #expect(actual.message == expMsg, "[\(testName)] \(nodeID) message mismatch")
+    }
+    if let expSeverity = expected["severity"]?.stringValue {
+      #expect(
+        actual.severity?.rawValue == expSeverity,
+        "[\(testName)] \(nodeID) severity mismatch: expected \(expSeverity), got \(String(describing: actual.severity?.rawValue))"
+      )
     }
   }
 }
