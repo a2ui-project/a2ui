@@ -444,9 +444,7 @@ export class ExpressDecompiler {
    * @returns The decompiled A2UI Express DSL string.
    */
   decompile(messages: AgentToRendererMessage[], useKeywordArgs = false): string {
-    const coalesced = this.coalesceSurfaceMessages(
-      messages as unknown as Array<Record<string, unknown>>,
-    );
+    const coalesced = this.coalesceSurfaceMessages(messages);
     const surfaceCatalogs = new Map<string, string>();
     const blocks: string[] = [];
     let callIndex = 0;

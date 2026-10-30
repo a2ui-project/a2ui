@@ -203,8 +203,7 @@ function withDefaultCatalog(
     if (!rawMsg || typeof rawMsg !== 'object') {
       return rawMsg;
     }
-    const msg = rawMsg as unknown as Record<string, unknown>;
-    const copy: Record<string, unknown> = {...msg};
+    const copy: Record<string, unknown> = {...rawMsg};
 
     if (copy.createSurface && typeof copy.createSurface === 'object') {
       const cs = copy.createSurface as Record<string, unknown>;
