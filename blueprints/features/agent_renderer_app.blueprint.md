@@ -19,7 +19,7 @@ The feature is optional. An SDK implements it only if it has both an agent and a
 
 ### **1. The processor's catalogs and a validation config for one call (core)**
 
-- `MessageProcessor.catalogs` holds the catalogs the processor was created with, in priority order. Changing what it returns does not change the processor.
+- `MessageProcessor.catalogs` holds the processor's catalogs in priority order: the ones it was created with, then the ones `addCatalog` added. Changing what it returns does not change the processor.
 - `ExecutionContext`, the options of one `processMessages` or `processMessagesAsync` call, takes a `validationConfig`. It replaces the processor's own config for that call. The rules it leaves out default to the strict ones, as for `MessageProcessorOptions.validationConfig`.
 - The processor's own config is in effect again for the next call that passes none.
 
@@ -45,7 +45,7 @@ The feature is optional. An SDK implements it only if it has both an agent and a
 
 ```typescript
 class MessageProcessor<T extends ComponentApi> {
-  /** The catalogs the processor was created with, in priority order. */
+  /** The catalogs the processor holds, in priority order. */
   readonly catalogs: Catalog<T>[];
 }
 

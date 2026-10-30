@@ -37,8 +37,8 @@ public final class MessageProcessor: ObservableObject {
   }
 
   let rpcHandler: RPCHandler
-  private let registeredCatalogs: [AnyCatalog]
-  private let catalogs: [String: AnyCatalog]
+  private var registeredCatalogs: [AnyCatalog]
+  private var catalogs: [String: AnyCatalog]
   private weak var actionHandler: (any ActionHandling)?
   private let actionForwarder = ProcessorActionForwarder()
   private let errorMapper = MessageErrorMapper()
@@ -92,6 +92,23 @@ public final class MessageProcessor: ObservableObject {
     validationConfig: ValidationConfig = .relaxed
   ) {
     self.init(catalogs: [catalog], actionHandler: actionHandler, validationConfig: validationConfig)
+  }
+
+  /// Adds a catalog to the ones this processor holds.
+  ///
+  /// `createSurface` messages, renderer function calls and `getRendererCapabilities(options:)`
+  /// see the catalog from this call on. Surfaces created before the call keep the catalogs they
+  /// were created with.
+  ///
+  /// - Parameter catalog: The catalog to add.
+  /// - Throws: `A2UICatalogError` if the processor already holds a catalog with the same ID.
+  public func addCatalog(_ catalog: any CatalogProtocol) throws {
+    let anyCatalog = catalog.eraseToAnyCatalog()
+    guard catalogs[anyCatalog.id] == nil else {
+      throw A2UICatalogError("Catalog already registered: \(anyCatalog.id)")
+    }
+    registeredCatalogs.append(anyCatalog)
+    catalogs[anyCatalog.id] = anyCatalog
   }
 
   /// Returns the aggregated data model for active surfaces with `sendDataModel` enabled.

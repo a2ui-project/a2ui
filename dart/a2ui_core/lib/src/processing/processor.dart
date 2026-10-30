@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:json_schema_builder/json_schema_builder.dart';
 
@@ -97,9 +98,15 @@ typedef _CheckedBatch = ({
 class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> model;
 
-  /// The catalogs the processor was created with, in priority order. The
-  /// list cannot be modified.
-  final List<Catalog<T, FunctionImplementation>> catalogs;
+  /// The catalogs the processor holds, in priority order: the ones it was
+  /// created with, then the ones [addCatalog] added. The list cannot be
+  /// modified; add a catalog with [addCatalog].
+  late final List<Catalog<T, FunctionImplementation>> catalogs =
+      UnmodifiableListView(_catalogs);
+
+  /// The processor's own copy of the list passed to the constructor, which
+  /// [addCatalog] adds to.
+  final List<Catalog<T, FunctionImplementation>> _catalogs;
 
   /// The protocol version this processor targets by default, or null for
   /// none.
@@ -184,7 +191,7 @@ class MessageProcessor<T extends ComponentApi> {
     OutboundMessageListener? outboundListener,
     Duration defaultTimeout = const Duration(seconds: 30),
     this.reportErrorsOnly = false,
-  })  : catalogs = List.unmodifiable(catalogs),
+  })  : _catalogs = List.of(catalogs),
         adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
         model = SurfaceGroupModel<T>(),
         _outboundListener = outboundListener,
@@ -250,6 +257,25 @@ class MessageProcessor<T extends ComponentApi> {
   /// Whether this processor checks the function calls it receives rather
   /// than running them, as one from [MessageProcessor.forAgent] does.
   bool _checksOnly = false;
+
+  /// Adds [catalog] to the ones this processor holds.
+  ///
+  /// `createSurface` messages, renderer function calls and
+  /// [getRendererCapabilities] see the catalog from this call on. Surfaces
+  /// created before the call keep the catalogs they were created with.
+  ///
+  /// Throws [A2uiCatalogError] when this processor already holds a catalog
+  /// with the same id.
+  void addCatalog(Catalog<T, FunctionImplementation> catalog) {
+    if (catalogs.any((held) => held.id == catalog.id)) {
+      throw A2uiCatalogError(
+        "Catalog '${catalog.id}' is already registered.",
+        catalogId: catalog.id,
+      );
+    }
+    // The RPC handler holds a view of this same list, so it sees the catalog.
+    _catalogs.add(catalog);
+  }
 
   /// The validator for [catalog].
   ///

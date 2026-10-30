@@ -2132,10 +2132,31 @@ function resolveProtocolVersion(testCase) {
   return 'v0.9';
 }
 
+/**
+ * Loads the catalogs a `process_messages` step adds with `addCatalog`.
+ *
+ * @param {object} testCase Conformance test case the step belongs to.
+ * @param {object} step Step listing `addCatalogPaths`.
+ * @returns {Catalog[]} The catalogs, loaded with `fromJson`.
+ */
+function loadStepCatalogs(testCase, step) {
+  const rawVersion = resolveProtocolVersion(testCase);
+  const version = toCanonicalVersion(rawVersion) || rawVersion;
+  return (step.addCatalogPaths ?? []).map(p => {
+    const json = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../../../', p), 'utf8'));
+    return Catalog.fromJson({protocolVersion: version, ...json});
+  });
+}
+
 function getCatalogsForTestCase(testCase) {
   const rawVersion = resolveProtocolVersion(testCase);
   const version = toCanonicalVersion(rawVersion) || rawVersion;
   const catalogsMap = new Map();
+  // A catalog a step adds is missing until that step runs, so nothing stands
+  // in for it.
+  const stepCatalogIds = new Set(
+    (testCase.steps ?? []).flatMap(step => loadStepCatalogs(testCase, step).map(c => c.id)),
+  );
   if (version === '1.0') {
     catalogsMap.set('basic', v1_0BasicCatalog);
     catalogsMap.set('v1.0:basic', v1_0Catalog);
@@ -2175,7 +2196,7 @@ function getCatalogsForTestCase(testCase) {
   const expectsError = Boolean(declaredError) && !isCatalogErrorCase;
 
   const addCatalogId = (id, ver) => {
-    if (!id || catalogsMap.has(id)) return;
+    if (!id || catalogsMap.has(id) || stepCatalogIds.has(id)) return;
     const declared = specifiedCatalogs[0];
     if (declared && expectsError) {
       // The processor resolves a catalog by its own id, not by this map's key,
@@ -2804,13 +2825,21 @@ function validateProcessMessagesTestCase(testCase) {
 
       // A step's validationConfig applies to that call only.
       const context = step.validationConfig ? {validationConfig: step.validationConfig} : undefined;
+      const stepCatalogs = loadStepCatalogs(testCase, step);
+      const runStep = () => {
+        for (const catalog of stepCatalogs) {
+          processor.addCatalog(catalog);
+        }
+        processor.processMessages(stepMsgs, context);
+      };
+
       const stepExpectError =
         step.expectError || (i === steps.length - 1 ? expectError : undefined);
       if (stepExpectError) {
         lastErrorMsg = undefined;
         let thrown;
         try {
-          processor.processMessages(stepMsgs, context);
+          runStep();
         } catch (err) {
           thrown = err;
         }
@@ -2821,7 +2850,7 @@ function validateProcessMessagesTestCase(testCase) {
         }
         assertExpectedConformanceError(thrown, lastErrorMsg, stepExpectError);
       } else {
-        processor.processMessages(stepMsgs, context);
+        runStep();
         const stepExpect = step.expect || (i === steps.length - 1 ? expect : undefined);
         if (stepExpect) {
           assertSurfacesMatch(processor, stepExpect);
