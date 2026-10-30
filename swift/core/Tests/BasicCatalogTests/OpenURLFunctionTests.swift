@@ -156,6 +156,35 @@ struct OpenURLFunctionTests {
     #expect(handler.openedURL?.absoluteString == "http://insecure.com")
   }
 
+  @Test func opensValidMailtoAndTelURLs() throws {
+    let handler = MockOpenURLHandler()
+    let function = OpenURLFunction(handler: handler)
+
+    _ = try function.evaluate(
+      arguments: ["url": .string("mailto:someone@example.com")],
+      context: context
+    )
+    #expect(handler.openedURL?.absoluteString == "mailto:someone@example.com")
+
+    _ = try function.evaluate(
+      arguments: ["url": .string("MAILTO:someone@example.com")],
+      context: context
+    )
+    #expect(handler.openedURL?.absoluteString == "MAILTO:someone@example.com")
+
+    _ = try function.evaluate(
+      arguments: ["url": .string("tel:+15555550100")],
+      context: context
+    )
+    #expect(handler.openedURL?.absoluteString == "tel:+15555550100")
+
+    _ = try function.evaluate(
+      arguments: ["url": .string("TEL:+15555550100")],
+      context: context
+    )
+    #expect(handler.openedURL?.absoluteString == "TEL:+15555550100")
+  }
+
   @Test func resolvesRelativeURLWhenBaseURLIsProvided() throws {
     let handler = MockOpenURLHandler()
     let baseURL = try #require(URL(string: "https://google.com/search"))
