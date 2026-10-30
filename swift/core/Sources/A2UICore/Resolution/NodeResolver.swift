@@ -1620,8 +1620,12 @@ public final class NodeResolver: Sendable {
         let resolvedUserMessage = userMessageValue.flatMap {
           self.evaluateDynamicValue($0, basePath: basePath, index: index).stringValue
         }
+        let validatedBase = try MetadataValidator.validate(
+          rawMetadata,
+          pathPrefix: "action.metadata"
+        )
         let mergedMetadata = try MetadataValidator.mergeActionMetadata(
-          base: actionMetadata,
+          base: validatedBase,
           override: callMetadata
         )
         let triggerAction = ResolvedAction(

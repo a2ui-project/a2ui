@@ -80,9 +80,38 @@ def normalize_metadata(metadata: Mapping[str, Any] | None) -> A2uiMetadata | Non
     return cloned
 
 
+def json_equals(a: Any, b: Any) -> bool:
+    """Compares two JSON-like structures with strict boolean/numeric type distinction."""
+    if a is b:
+        return True
+    if type(a) is not type(b):
+        if isinstance(a, Mapping) and isinstance(b, Mapping):
+            pass
+        else:
+            return False
+    if isinstance(a, Mapping):
+        if len(a) != len(b):
+            return False
+        return all(k in b and json_equals(v, b[k]) for k, v in a.items())
+    if isinstance(a, list):
+        if len(a) != len(b):
+            return False
+        return all(json_equals(x, y) for x, y in zip(a, b))
+    return bool(a == b)
+
+
+def metadata_equals(a: Mapping[str, Any] | None, b: Mapping[str, Any] | None) -> bool:
+    """Compares two metadata envelopes structurally with strict JSON type equality."""
+    norm_a = normalize_metadata(a)
+    norm_b = normalize_metadata(b)
+    return json_equals(norm_a, norm_b)
+
+
 __all__ = [
     "A2uiMetadata",
     "clone_metadata",
+    "json_equals",
+    "metadata_equals",
     "normalize_metadata",
     "validate_metadata",
 ]

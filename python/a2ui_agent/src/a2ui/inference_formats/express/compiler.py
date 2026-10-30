@@ -655,7 +655,7 @@ class _SurfaceScope:
     has_surface_directive: bool = False
     send_data_model: bool | None = None
     is_update: bool = False
-    extensions: dict[str, Any] | None = None
+    extensions: Any = None
     raw_symbols: dict[str, Any] = field(default_factory=dict)
     data_path_assignments: dict[str, Any] = field(default_factory=dict)
 
@@ -926,10 +926,12 @@ class ExpressScopeSession:
                 return []
             self._emitted_units.add(idx)
             self.has_emitted = True
-            return [{
-                "version": self.version,
-                SurfaceOperation.DELETE: {"surfaceId": unit.surface_id},
-            }]
+            return [
+                {
+                    "version": self.version,
+                    SurfaceOperation.DELETE: {"surfaceId": unit.surface_id},
+                }
+            ]
         if isinstance(unit, _StandaloneCall):
             if idx in self._emitted_units:
                 return []
@@ -1064,13 +1066,15 @@ class ExpressScopeSession:
                 and not surface_exists
             ):
                 raise ExpressUndefinedRootError("root")
-            messages.append({
-                "version": ctx.version,
-                SurfaceOperation.UPDATE_COMPONENTS: {
-                    "surfaceId": scope.surface_id,
-                    "components": delta_components,
-                },
-            })
+            messages.append(
+                {
+                    "version": ctx.version,
+                    SurfaceOperation.UPDATE_COMPONENTS: {
+                        "surfaceId": scope.surface_id,
+                        "components": delta_components,
+                    },
+                }
+            )
         messages.extend(data_updates)
         if messages:
             self.has_emitted = True
@@ -1230,14 +1234,16 @@ class ExpressScopeSession:
                     f" '$/' (got {type(val).__name__})."
                 )
             state.emitted_data_paths[path_name] = val
-            updates.append({
-                "version": ctx.version,
-                SurfaceOperation.UPDATE_DATA: {
-                    "surfaceId": scope.surface_id,
-                    "path": pointer,
-                    "value": val,
-                },
-            })
+            updates.append(
+                {
+                    "version": ctx.version,
+                    SurfaceOperation.UPDATE_DATA: {
+                        "surfaceId": scope.surface_id,
+                        "path": pointer,
+                        "value": val,
+                    },
+                }
+            )
         return updates
 
 
@@ -1490,10 +1496,12 @@ class ExpressCompiler:
         result_messages: list[dict[str, Any]] = []
         for unit in units:
             if isinstance(unit, _DeleteSurface):
-                result_messages.append({
-                    "version": target_version,
-                    SurfaceOperation.DELETE: {"surfaceId": unit.surface_id},
-                })
+                result_messages.append(
+                    {
+                        "version": target_version,
+                        SurfaceOperation.DELETE: {"surfaceId": unit.surface_id},
+                    }
+                )
             elif isinstance(unit, _StandaloneCall):
                 result_messages.append(self._compile_standalone_call(unit, ctx))
             else:
@@ -1670,14 +1678,16 @@ class ExpressCompiler:
                         "Cannot assign a non-map value to the root data path"
                         f" '$/' (got {type(compiled_val).__name__})."
                     )
-                data_updates.append({
-                    "version": ctx.version,
-                    SurfaceOperation.UPDATE_DATA: {
-                        "surfaceId": surf_id,
-                        "path": pointer,
-                        "value": compiled_val,
-                    },
-                })
+                data_updates.append(
+                    {
+                        "version": ctx.version,
+                        SurfaceOperation.UPDATE_DATA: {
+                            "surfaceId": surf_id,
+                            "path": pointer,
+                            "value": compiled_val,
+                        },
+                    }
+                )
             if not compiled_components:
                 if data_updates:
                     return data_updates
@@ -1702,6 +1712,90 @@ class ExpressCompiler:
 
         return self._build_create_messages(scope, compiled_components, data_model, ctx)
 
+    def _resolve_ast_var(
+        self,
+        node: Any,
+        raw_symbols: dict[str, Any],
+        ctx: _CompileContext,
+        seen: set[str],
+    ) -> Any:
+        cur = node
+        while isinstance(cur, VariableNode):
+            name = cur.name
+            ctx.referenced_vars.add(name)
+            if name in seen:
+                raise ExpressValidationError(f"Variable '{name}' refers to itself.")
+            if name not in raw_symbols:
+                if ctx.allow_pending:
+                    raise _PendingVariableError(name)
+                raise ExpressValidationError(
+                    f"Undefined variable '{name}' in {ctx.version} expression."
+                )
+            seen.add(name)
+            cur = raw_symbols[name]
+        return cur
+
+    def _check_extensions_ast(
+        self,
+        node: Any,
+        raw_symbols: dict[str, Any],
+        target: str,
+        ctx: _CompileContext,
+        seen: set[str],
+    ) -> None:
+        resolved = self._resolve_ast_var(node, raw_symbols, ctx, set(seen))
+        if isinstance(resolved, dict):
+            for v in resolved.values():
+                self._check_extensions_ast(v, raw_symbols, target, ctx, seen)
+        elif isinstance(resolved, list):
+            for item in resolved:
+                self._check_extensions_ast(item, raw_symbols, target, ctx, seen)
+        elif isinstance(resolved, CallNode):
+            cat_id = resolved.kwargs.get("catalogId")
+            if self._defines_component(resolved.name, cat_id):
+                raise ExpressValidationError(
+                    f"{target} extensions cannot contain component"
+                    f" '{resolved.name}'."
+                )
+            if (
+                resolved.name
+                in (
+                    "Event",
+                    "_template",
+                    _SURFACE_STATEMENT,
+                    _DELETE_SURFACE_STATEMENT,
+                )
+                and cat_id is None
+            ):
+                raise ExpressValidationError(
+                    f"{target} extensions cannot contain '{resolved.name}()'."
+                )
+            for arg in resolved.args:
+                self._check_extensions_ast(arg, raw_symbols, target, ctx, seen)
+            for kw_val in resolved.kwargs.values():
+                self._check_extensions_ast(kw_val, raw_symbols, target, ctx, seen)
+
+    def _compile_extensions(
+        self,
+        raw_ext: Any,
+        raw_symbols: dict[str, Any],
+        target: str,
+        ctx: _CompileContext,
+    ) -> dict[str, Any]:
+        if not ctx.at_least_v10:
+            raise ExpressValidationError(
+                f"{target} sets extensions, which needs A2UI v1.0 or later"
+                f" (target version is {ctx.version})."
+            )
+        top = self._resolve_ast_var(raw_ext, raw_symbols, ctx, set())
+        if not isinstance(top, dict):
+            raise ExpressValidationError(
+                f"{target} extensions must be a map, got: {top!r}"
+            )
+        self._check_extensions_ast(top, raw_symbols, target, ctx, set())
+        compiled_ext = self._compile_value(raw_ext, raw_symbols, ctx)
+        return _validate_extensions(compiled_ext, target, ctx)
+
     def _build_create_messages(
         self,
         scope: _SurfaceScope,
@@ -1718,10 +1812,10 @@ class ExpressCompiler:
         if scope.send_data_model is not None:
             create[_SEND_DATA_MODEL_KEY] = scope.send_data_model
         if scope.extensions is not None:
-            compiled_ext = self._compile_data_value(scope, scope.extensions, ctx)
-            _validate_extensions(compiled_ext, "surface()", ctx)
-            if compiled_ext:
-                create["metadata"] = {"extensions": compiled_ext}
+            compiled_ext = self._compile_extensions(
+                scope.extensions, scope.raw_symbols, "surface()", ctx
+            )
+            create["metadata"] = {"extensions": compiled_ext}
         if ctx.at_least_v10:
             create["components"] = compiled_components
             if data_model:
@@ -1739,14 +1833,16 @@ class ExpressCompiler:
             },
         ]
         if data_model:
-            messages.append({
-                "version": ctx.version,
-                SurfaceOperation.UPDATE_DATA: {
-                    "surfaceId": surf_id,
-                    "path": "/",
-                    "value": data_model,
-                },
-            })
+            messages.append(
+                {
+                    "version": ctx.version,
+                    SurfaceOperation.UPDATE_DATA: {
+                        "surfaceId": surf_id,
+                        "path": "/",
+                        "value": data_model,
+                    },
+                }
+            )
         return messages
 
     def _compile_standalone_call(
@@ -1862,10 +1958,10 @@ class ExpressCompiler:
         if write_cat_id is not None:
             comp_dict["catalogId"] = write_cat_id
         if raw_extensions is not None:
-            compiled_ext = self._compile_value(raw_extensions, raw_symbols, ctx)
-            _validate_extensions(compiled_ext, f"Component '{comp_name}'", ctx)
-            if compiled_ext:
-                comp_dict["metadata"] = {"extensions": compiled_ext}
+            compiled_ext = self._compile_extensions(
+                raw_extensions, raw_symbols, f"Component '{comp_name}'", ctx
+            )
+            comp_dict["metadata"] = {"extensions": compiled_ext}
 
         sibling_value_path = None
         non_check_properties = [p for p in properties if p != "checks"]

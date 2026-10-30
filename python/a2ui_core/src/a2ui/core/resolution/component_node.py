@@ -20,7 +20,12 @@ import itertools
 from typing import Any, Callable, Final, Literal, TypeGuard
 
 from ..common.events import EventSource
-from ..common.metadata import A2uiMetadata, clone_metadata, normalize_metadata
+from ..common.metadata import (
+    A2uiMetadata,
+    clone_metadata,
+    metadata_equals,
+    normalize_metadata,
+)
 from .component_context import ComponentContext
 from .data_context import DataContext
 from .resolved_binding import ResolvedBinding, WritableBinding, is_writable
@@ -136,7 +141,7 @@ class MutableComponentNode(ComponentNode):
         if self._disposed:
             return
         normalized = normalize_metadata(next_metadata)
-        if self._metadata != normalized:
+        if not metadata_equals(self._metadata, normalized):
             self._metadata = normalized
             self.on_metadata_changed.emit(clone_metadata(self._metadata))
 

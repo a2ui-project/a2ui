@@ -19,6 +19,8 @@ from ..common.events import EventSource
 from ..common.metadata import (
     A2uiMetadata,
     clone_metadata,
+    json_equals,
+    metadata_equals,
     normalize_metadata,
     validate_metadata,
 )
@@ -159,7 +161,6 @@ class ComponentModel:
         self._properties = copy.deepcopy(properties or {})
         validate_metadata(metadata, context=f"component '{component_id}' metadata")
         self._metadata: A2uiMetadata | None = normalize_metadata(metadata)
-        self._in_combined_update: bool = False
         self.on_updated = EventSource()
         self.on_metadata_changed = EventSource()
 
@@ -180,20 +181,16 @@ class ComponentModel:
         """Atomically updates both properties and metadata before emitting events."""
         validate_metadata(new_metadata, context=f"component '{self.id}' metadata")
         next_meta = normalize_metadata(new_metadata)
-        props_changed = self._properties != new_properties
-        meta_changed = self._metadata != next_meta
+        props_changed = not json_equals(self._properties, new_properties)
+        meta_changed = not metadata_equals(self._metadata, next_meta)
         if props_changed:
             self._properties = copy.deepcopy(new_properties)
         if meta_changed:
             self._metadata = next_meta
-        self._in_combined_update = props_changed and meta_changed
-        try:
-            if props_changed:
-                self.on_updated.emit(self)
-            if meta_changed:
-                self.on_metadata_changed.emit(clone_metadata(self._metadata))
-        finally:
-            self._in_combined_update = False
+        if props_changed:
+            self.on_updated.emit(self)
+        if meta_changed:
+            self.on_metadata_changed.emit(clone_metadata(self._metadata))
 
     @property
     def metadata(self) -> A2uiMetadata | None:
@@ -205,7 +202,7 @@ class ComponentModel:
         """Replaces the component's metadata envelope after validating UAX #31 keys."""
         validate_metadata(metadata, context=f"component '{self.id}' metadata")
         next_meta = normalize_metadata(metadata)
-        if self._metadata == next_meta:
+        if metadata_equals(self._metadata, next_meta):
             return
         self._metadata = next_meta
         self.on_metadata_changed.emit(clone_metadata(self._metadata))

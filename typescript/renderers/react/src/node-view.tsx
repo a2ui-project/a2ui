@@ -58,6 +58,7 @@ import type {
   NodeBuildChild,
   ReactCatalogComponent,
   ReactComponentImplementation,
+  ReactRenderProps,
 } from './react_component_implementation';
 import {WebComponentNode} from './web_component_node';
 import {HostOwner, HostRegistry} from './host_registry';
@@ -207,12 +208,14 @@ export function useNodeView(
 ): {
   viewProps: NodeProps;
   metadata: A2uiMetadata | undefined;
+  metadataSnapshot: A2uiMetadata | undefined;
+  hasReadMetadata: () => boolean;
   context: ComponentContext;
   viewBuildChild: (id: string, basePath?: string) => React.ReactNode;
   rawBuildChild: (id: string, basePath?: string) => React.ReactNode;
 } {
-  const context = contextOf(node);
-  const surface = context.dataContext.surface as SurfaceModel<ReactCatalogComponent>;
+  const baseContext = contextOf(node);
+  const surface = baseContext.dataContext.surface as SurfaceModel<ReactCatalogComponent>;
   const resolved = useSignalValue(node.props);
   const metadataReadRef = useRef(false);
   const subscribeMetadata = useCallback(
@@ -225,11 +228,39 @@ export function useNodeView(
       }),
     [node.metadata],
   );
-  const getMetadataSnapshot = useCallback(
-    () => (metadataReadRef.current ? peekValue(node.metadata) : undefined),
-    [node.metadata],
-  );
-  useSyncExternalStore(subscribeMetadata, getMetadataSnapshot);
+  const getMetadataSnapshot = useCallback(() => peekValue(node.metadata), [node.metadata]);
+  const metadataSnapshot = useSyncExternalStore(subscribeMetadata, getMetadataSnapshot);
+  const hasReadMetadata = useCallback(() => metadataReadRef.current, []);
+
+  const context = useMemo(() => {
+    const baseModel = baseContext.componentModel;
+    const trackedModel = new Proxy(baseModel, {
+      get(target, prop) {
+        if (prop === 'metadata') {
+          metadataReadRef.current = true;
+          return peekValue(node.metadata);
+        }
+        if (prop === 'extensions') {
+          metadataReadRef.current = true;
+          return peekValue(node.metadata)?.extensions;
+        }
+        const value = Reflect.get(target, prop, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+      set(target, prop, value) {
+        return Reflect.set(target, prop, value, target);
+      },
+    });
+    return new Proxy(baseContext, {
+      get(target, prop) {
+        if (prop === 'componentModel') {
+          return trackedModel;
+        }
+        const value = Reflect.get(target, prop, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+  }, [baseContext, node.metadata]);
 
   const {viewProps, childIndex} = useMemo(() => {
     const index: ChildIndex = new Map();
@@ -278,12 +309,16 @@ export function useNodeView(
 
   const result = {
     viewProps,
+    metadataSnapshot,
+    hasReadMetadata,
     context,
     viewBuildChild,
     rawBuildChild,
   } as {
     viewProps: NodeProps;
     metadata: A2uiMetadata | undefined;
+    metadataSnapshot: A2uiMetadata | undefined;
+    hasReadMetadata: () => boolean;
     context: ComponentContext;
     viewBuildChild: (id: string, basePath?: string) => React.ReactNode;
     rawBuildChild: (id: string, basePath?: string) => React.ReactNode;
@@ -306,9 +341,17 @@ const RenderFallback: React.FC<{
 }> = ({node, impl, buildChild}) => {
   // `render` reads raw component ids from the model, not the tokens the
   // conversion puts in view props, so it resolves through the raw-id map.
-  const {context, rawBuildChild} = useNodeView(node, buildChild);
+  const viewState = useNodeView(node, buildChild);
   const Render = impl.render;
-  return <Render context={context} buildChild={rawBuildChild} />;
+  const renderProps = {
+    context: viewState.context,
+    buildChild: viewState.rawBuildChild,
+  } as ReactRenderProps;
+  Object.defineProperty(renderProps, 'metadata', {
+    enumerable: true,
+    get: () => viewState.metadata,
+  });
+  return Render(renderProps);
 };
 
 /**

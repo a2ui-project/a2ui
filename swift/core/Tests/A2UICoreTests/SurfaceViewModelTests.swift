@@ -1406,6 +1406,34 @@ struct SurfaceComponentsModelTests {
     #expect(throws: A2UIValidationError.self) {
       try model.setExtension("bad-key!", value: .integer(1), forComponentID: "btn1")
     }
+
+    // Re-ordered extension keys on addComponent do not emit spurious metadata events
+    model.addComponent(
+      ComponentModel(
+        id: "btn1",
+        type: "button",
+        properties: ["label": .string("Hi")],
+        metadata: ["extensions": .object(["a": .integer(1), "b": .integer(2)])]
+      )
+    )
+    let countAfterInitialOrder = compMetadataEvents.count
+    model.addComponent(
+      ComponentModel(
+        id: "btn1",
+        type: "button",
+        properties: ["label": .string("Hi")],
+        metadata: ["extensions": .object(["b": .integer(2), "a": .integer(1)])]
+      )
+    )
+    #expect(compMetadataEvents.count == countAfterInitialOrder)
+
+    // Explicit .null metadata or extensions throws A2UIValidationError
+    #expect(throws: A2UIValidationError.self) {
+      _ = try MetadataValidator.validate(JSONValue.null)
+    }
+    #expect(throws: A2UIValidationError.self) {
+      _ = try MetadataValidator.validate(["extensions": JSONValue.null])
+    }
     compCancellable.cancel()
   }
 }

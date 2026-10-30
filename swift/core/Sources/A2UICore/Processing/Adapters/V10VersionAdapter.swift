@@ -74,8 +74,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
     let components = try parseV10ComponentsArray(actionObject["components"], action: action)
     let dataModel = try parseCreateSurfaceDataModel(actionObject["dataModel"])
     var metadata: [String: JSONValue]?
-    if let rawMetadata = actionObject["metadata"], rawMetadata != .null {
-      _ = try validateMetadata(rawMetadata, pathPrefix: "messages.0.createSurface.metadata")
+    if let rawMetadata = actionObject["metadata"] {
       metadata = try MetadataValidator.validate(
         rawMetadata,
         pathPrefix: "messages.0.createSurface.metadata"
@@ -500,71 +499,13 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
           ]
         )
       }
-      if let rawMetadata = comp["metadata"], rawMetadata != .null {
-        _ = try validateMetadata(
+      if let rawMetadata = comp["metadata"] {
+        _ = try MetadataValidator.validate(
           rawMetadata,
           pathPrefix: "messages.0.\(action).components.\(index).metadata"
         )
       }
     }
     return components
-  }
-
-  private func validateMetadata(
-    _ rawMetadata: JSONValue,
-    pathPrefix: String
-  ) throws -> [String: JSONValue] {
-    guard let metaObj = rawMetadata.objectValue else {
-      throw A2UIValidationError(
-        "Invalid 1.0 message: metadata must be an object",
-        details: [
-          A2UIErrorDetail(
-            path: pathPrefix,
-            code: "type_mismatch",
-            message: "Field 'metadata' must be an object"
-          )
-        ]
-      )
-    }
-    for key in metaObj.keys where key != "extensions" {
-      throw A2UIValidationError(
-        "Invalid 1.0 message: unrecognized property '\(key)' in metadata",
-        details: [
-          A2UIErrorDetail(
-            path: "\(pathPrefix).\(key)",
-            code: "invalid_value",
-            message: "Unrecognized property '\(key)' in metadata"
-          )
-        ]
-      )
-    }
-    if let rawExtensions = metaObj["extensions"], rawExtensions != .null {
-      guard let extObj = rawExtensions.objectValue else {
-        throw A2UIValidationError(
-          "Invalid 1.0 message: metadata.extensions must be an object",
-          details: [
-            A2UIErrorDetail(
-              path: "\(pathPrefix).extensions",
-              code: "type_mismatch",
-              message: "Field 'extensions' must be an object"
-            )
-          ]
-        )
-      }
-      for extKey in extObj.keys where !UnicodeIdentifierValidator.isValidIdentifier(extKey) {
-        let msg = "Invalid extension key \"\(extKey)\": Keys MUST be Unicode identifiers (UAX #31)."
-        throw A2UIValidationError(
-          msg,
-          details: [
-            A2UIErrorDetail(
-              path: "\(pathPrefix).extensions.\(extKey)",
-              code: "invalid_identifier",
-              message: msg
-            )
-          ]
-        )
-      }
-    }
-    return Dictionary(uniqueKeysWithValues: metaObj.map { ($0.key, $0.value) })
   }
 }

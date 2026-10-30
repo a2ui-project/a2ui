@@ -1446,6 +1446,76 @@ export class ExpressCompiler {
     return {surfaceId, catalogId, sendDataModel, update, rawExtensions};
   }
 
+  private resolveAstVar(
+    node: unknown,
+    rawSymbols: Record<string, unknown>,
+    ctx: CompileContext,
+    seen: Set<string>,
+  ): unknown {
+    let cur = node;
+    while (isExpressNode(cur, 'variable')) {
+      const refName = cur.name;
+      ctx.referencedVars.add(refName);
+      if (seen.has(refName)) {
+        throw new ExpressValidationError(
+          `Variable '${refName}' refers to itself through its own value.`,
+        );
+      }
+      if (!Object.hasOwn(rawSymbols, refName)) {
+        if (ctx.allowPending) {
+          throw new PendingVariableError(refName);
+        }
+        throw new ExpressValidationError(`Undefined variable '${refName}'.`);
+      }
+      seen.add(refName);
+      cur = rawSymbols[refName];
+    }
+    return cur;
+  }
+
+  private checkExtensionsAst(
+    node: unknown,
+    rawSymbols: Record<string, unknown>,
+    ctx: CompileContext,
+    subject: string,
+    seen: Set<string>,
+  ): void {
+    const resolved = this.resolveAstVar(node, rawSymbols, ctx, new Set(seen));
+    if (isExpressNode(resolved, 'map')) {
+      for (const v of Object.values(resolved.entries)) {
+        this.checkExtensionsAst(v, rawSymbols, ctx, subject, seen);
+      }
+    } else if (Array.isArray(resolved)) {
+      for (const item of resolved) {
+        this.checkExtensionsAst(item, rawSymbols, ctx, subject, seen);
+      }
+    } else if (isExpressNode(resolved, 'call')) {
+      const catId = resolved.kwargs.catalogId;
+      if (this.definesComponent(resolved.name, catId)) {
+        throw new ExpressValidationError(
+          `extensions on ${subject} cannot contain component '${resolved.name}'.`,
+        );
+      }
+      if (
+        catId === undefined &&
+        (resolved.name === 'Event' ||
+          resolved.name === '_template' ||
+          resolved.name === 'surface' ||
+          resolved.name === 'deleteSurface')
+      ) {
+        throw new ExpressValidationError(
+          `extensions on ${subject} cannot contain '${resolved.name}()'.`,
+        );
+      }
+      for (const arg of resolved.args) {
+        this.checkExtensionsAst(arg, rawSymbols, ctx, subject, seen);
+      }
+      for (const kwVal of Object.values(resolved.kwargs)) {
+        this.checkExtensionsAst(kwVal, rawSymbols, ctx, subject, seen);
+      }
+    }
+  }
+
   /**
    * Compiles and validates an `extensions=` keyword argument into a UAX #31-keyed map.
    */
@@ -1457,9 +1527,11 @@ export class ExpressCompiler {
     targetMajorMinor: [number, number],
     subject: string,
   ): Record<string, unknown> {
-    if (resolvesToPath(rawExt, rawSymbols)) {
+    const top = this.resolveAstVar(rawExt, rawSymbols, ctx, new Set());
+    if (!isExpressNode(top, 'map')) {
       throw new ExpressValidationError(`extensions on ${subject} must be a map.`);
     }
+    this.checkExtensionsAst(top, rawSymbols, ctx, subject, new Set());
     const compiled = this._compileValue(rawExt, rawSymbols, compIds, ctx, targetMajorMinor, false);
     if (!compiled || typeof compiled !== 'object' || Array.isArray(compiled)) {
       throw new ExpressValidationError(`extensions on ${subject} must be a map.`);
@@ -1984,9 +2056,6 @@ export class ExpressCompiler {
     const explicitId = rawKwargs.id;
     delete rawKwargs.id;
 
-    const rawExtensions = rawKwargs.extensions;
-    delete rawKwargs.extensions;
-
     if (explicitId !== undefined) {
       if (typeof explicitId !== 'string' || explicitId.length === 0) {
         throw new ExpressValidationError(
@@ -2021,6 +2090,10 @@ export class ExpressCompiler {
 
     const compId = (explicitId as string | undefined) ?? compIds.get(varName) ?? varName;
     const properties = compHelper.getComponentProperties(compName);
+    const rawExtensions = !properties.includes('extensions') ? rawKwargs.extensions : undefined;
+    if (!properties.includes('extensions')) {
+      delete rawKwargs.extensions;
+    }
     const compDict: Record<string, unknown> = {
       id: compId,
       component: compName,

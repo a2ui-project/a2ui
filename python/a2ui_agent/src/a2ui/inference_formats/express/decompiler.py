@@ -537,7 +537,6 @@ class ExpressDecompiler:
             metadata.get("extensions")
             if isinstance(metadata, dict)
             and isinstance(metadata.get("extensions"), dict)
-            and metadata.get("extensions")
             else None
         )
         dsl_lines = []
@@ -710,10 +709,8 @@ class ExpressDecompiler:
                 args_reprs.append(f"id={_decompile_string(comp_id)}")
             if self._v1:
                 comp_meta = c.get("metadata")
-                if (
-                    isinstance(comp_meta, dict)
-                    and isinstance(comp_meta.get("extensions"), dict)
-                    and comp_meta.get("extensions")
+                if isinstance(comp_meta, dict) and isinstance(
+                    comp_meta.get("extensions"), dict
                 ):
                     ext_str = self._decompile_value(
                         comp_meta["extensions"], var_names, False, surface_cat_id

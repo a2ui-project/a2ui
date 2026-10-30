@@ -1266,5 +1266,32 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
         ExpressValidationError,
       );
     });
+
+    it('treats extensions= as a component property when declared in the component schema', () => {
+      const customExtCatalog = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/ext_prop',
+        protocolVersion: '1.0',
+        components: {
+          FilePicker: {
+            type: 'object',
+            properties: {
+              component: {const: 'FilePicker'},
+              extensions: {type: 'array', items: {type: 'string'}},
+            },
+            required: ['component', 'extensions'],
+          },
+        },
+      });
+      const compiler = new ExpressCompiler([customExtCatalog], '1.0');
+      const messages = compiler.compile('root = FilePicker(extensions=[".png", ".jpg"])');
+      expect(createSurfaceComponents(messages)).toEqual([
+        {
+          id: 'root',
+          component: 'FilePicker',
+          extensions: ['.png', '.jpg'],
+        },
+      ]);
+    });
   });
 });

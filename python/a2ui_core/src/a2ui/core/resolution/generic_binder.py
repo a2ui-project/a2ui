@@ -50,12 +50,14 @@ class BehaviorNode:
 
 CHECKABLE_REF_NAMES: Final[frozenset[str]] = frozenset({"Checkable", "CheckRule"})
 ACTION_REF_NAMES: Final[frozenset[str]] = frozenset({"Action"})
-STRUCTURAL_REF_NAMES: Final[frozenset[str]] = frozenset({
-    "ChildList",
-    "ComponentId",
-    "Child",
-    "TemplateChildList",
-})
+STRUCTURAL_REF_NAMES: Final[frozenset[str]] = frozenset(
+    {
+        "ChildList",
+        "ComponentId",
+        "Child",
+        "TemplateChildList",
+    }
+)
 
 
 @cache
@@ -112,12 +114,14 @@ def _is_dynamic_def(def_schema: Any) -> bool:
     return dynamic_literal_kinds(_localize_branch_refs(items)) is not None
 
 
-_SPECIAL_BEHAVIORS: Final[frozenset[BehaviorType]] = frozenset({
-    BehaviorType.CHECKABLE,
-    BehaviorType.ACTION,
-    BehaviorType.STRUCTURAL,
-    BehaviorType.DYNAMIC,
-})
+_SPECIAL_BEHAVIORS: Final[frozenset[BehaviorType]] = frozenset(
+    {
+        BehaviorType.CHECKABLE,
+        BehaviorType.ACTION,
+        BehaviorType.STRUCTURAL,
+        BehaviorType.DYNAMIC,
+    }
+)
 
 
 def _merge_all_of_branch(
@@ -378,19 +382,7 @@ class GenericBinder:
         sub = self.context.component_model.on_updated.subscribe(
             lambda _: self._rebuild_all_bindings()
         )
-        meta_sub = self.context.component_model.on_metadata_changed.subscribe(
-            lambda _: (
-                None
-                if getattr(self.context.component_model, "_in_combined_update", False)
-                else self._notify()
-            )
-        )
-
-        def _unsub_comp() -> None:
-            sub.unsubscribe()
-            meta_sub.unsubscribe()
-
-        self.comp_unsub = _unsub_comp
+        self.comp_unsub = sub.unsubscribe
 
         self._rebuild_all_bindings()
 

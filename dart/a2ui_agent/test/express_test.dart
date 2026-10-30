@@ -500,6 +500,37 @@ surface("s1")
           },
         ]),
       );
+
+      final CatalogApi extPropCatalog = Catalog.fromJson({
+        'catalogId': 'https://example.com/ext_prop.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'FilePicker': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'FilePicker'},
+              'extensions': {
+                'type': 'array',
+                'items': {'type': 'string'},
+              },
+            },
+            'required': ['component', 'extensions'],
+          },
+        },
+      });
+      final List<AgentToRendererMessage> extPropCompiled = ExpressCompiler([
+        extPropCatalog,
+      ]).compile('root = FilePicker(extensions=[".png", ".jpg"])');
+      expect(
+        extPropCompiled.single.toJson()['createSurface'],
+        containsPair('components', [
+          {
+            'id': 'root',
+            'component': 'FilePicker',
+            'extensions': ['.png', '.jpg'],
+          },
+        ]),
+      );
     });
   });
 

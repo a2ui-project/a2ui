@@ -20,7 +20,10 @@ import {render, act, waitFor} from '@testing-library/react';
 import {z} from 'zod';
 import {Catalog, ChildListSchema, CommonSchemas, MessageProcessor} from '@a2ui/web_core/v0_9';
 import {A2uiSurface, useA2uiSurface} from '../src/A2uiSurface';
-import {createComponentImplementation} from '../src/adapter';
+import {
+  createBinderlessComponentImplementation,
+  createComponentImplementation,
+} from '../src/adapter';
 import {useNodeView, useSignalValue} from '../src/node-view';
 import type {ReactComponentImplementation} from '../src/react_component_implementation';
 
@@ -161,5 +164,128 @@ describe('useNodeView & useA2uiSurface metadata reactivity', () => {
         'Probe|inst:updated|surf:light|cat:static-v1',
       );
     });
+  });
+
+  it('forwards reactive metadata through createComponentImplementation and createBinderlessComponentImplementation', async () => {
+    let factoryRenders = 0;
+    let binderlessRenders = 0;
+    let siblingRenders = 0;
+
+    const SiblingTextImpl = createComponentImplementation(
+      {name: 'Text', schema: z.object({text: CommonSchemas.DynamicString.optional()})},
+      ({props}) => {
+        siblingRenders++;
+        return <span data-testid="sibling-text">{String(props.text ?? '')}</span>;
+      },
+    );
+
+    const ColumnImpl = createComponentImplementation(
+      {name: 'Column', schema: z.object({children: ChildListSchema.optional()})},
+      ({props, buildChild}) => {
+        const children = props.children as string[] | undefined;
+        return (
+          <div>
+            {Array.isArray(children)
+              ? children.map((id, idx) => (
+                  <React.Fragment key={`${id}-${idx}`}>{buildChild(id)}</React.Fragment>
+                ))
+              : null}
+          </div>
+        );
+      },
+    );
+
+    const FactoryProbeImpl = createComponentImplementation(
+      {
+        name: 'FactoryProbe',
+        schema: z.object({label: CommonSchemas.DynamicString.optional()}),
+        metadata: {extensions: {catalog_hint: 'factory-v1'}},
+      },
+      ({props, metadata}) => {
+        factoryRenders++;
+        const badge = (metadata?.extensions?.badge as string | undefined) ?? 'none';
+        return <div data-testid="factory-probe">{`${String(props.label ?? '')}|${badge}`}</div>;
+      },
+    );
+
+    const BinderlessProbeImpl = createBinderlessComponentImplementation(
+      {
+        name: 'BinderlessProbe',
+        schema: z.object({}),
+      },
+      ({context}) => {
+        binderlessRenders++;
+        const tag = (context.componentModel.extensions?.tag as string | undefined) ?? 'none';
+        return <div data-testid="binderless-probe">{`tag:${tag}`}</div>;
+      },
+    );
+
+    const customCatalog = new Catalog('https://example.org/meta_factory_cat', '1.0', [
+      SiblingTextImpl,
+      ColumnImpl,
+      FactoryProbeImpl,
+      BinderlessProbeImpl,
+    ]);
+
+    const processor = new MessageProcessor([customCatalog]);
+    processor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's-factory',
+          catalogId: customCatalog.id,
+          components: [
+            {id: 'root', component: 'Column', children: ['sib1', 'fp1', 'bp1']},
+            {id: 'sib1', component: 'Text', text: 'Quiet'},
+            {
+              id: 'fp1',
+              component: 'FactoryProbe',
+              label: 'Factory',
+              metadata: {extensions: {badge: 'v1'}},
+            },
+            {
+              id: 'bp1',
+              component: 'BinderlessProbe',
+              metadata: {extensions: {tag: 't1'}},
+            },
+          ],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('s-factory')!;
+    const {getByTestId} = render(<A2uiSurface surface={surface} />);
+
+    await waitFor(() => {
+      expect(getByTestId('factory-probe').textContent).toBe('Factory|v1');
+      expect(getByTestId('binderless-probe').textContent).toBe('tag:t1');
+    });
+
+    const initialSiblingRenders = siblingRenders;
+    const initialFactoryRenders = factoryRenders;
+    const initialBinderlessRenders = binderlessRenders;
+
+    // Update metadata on FactoryProbe only
+    await act(async () => {
+      surface.componentsModel.get('fp1')!.setExtension('badge', 'v2');
+    });
+
+    await waitFor(() => {
+      expect(getByTestId('factory-probe').textContent).toBe('Factory|v2');
+    });
+    expect(factoryRenders).toBeGreaterThan(initialFactoryRenders);
+    expect(siblingRenders).toBe(initialSiblingRenders);
+    expect(binderlessRenders).toBe(initialBinderlessRenders);
+
+    // Update metadata on BinderlessProbe via context.componentModel.extensions subscription
+    await act(async () => {
+      surface.componentsModel.get('bp1')!.setExtension('tag', 't2');
+    });
+
+    await waitFor(() => {
+      expect(getByTestId('binderless-probe').textContent).toBe('tag:t2');
+    });
+    expect(binderlessRenders).toBeGreaterThan(initialBinderlessRenders);
+    expect(siblingRenders).toBe(initialSiblingRenders);
   });
 });

@@ -66,10 +66,10 @@ public final class SurfaceComponentsModel: ObservableObject {
     if propsChanged {
       changedIDsSubject.send([component.id])
     }
-    componentsSubject.send(current)
-    if oldMetadata != component.metadata {
+    if !MetadataValidator.areEqual(oldMetadata, component.metadata) {
       metadataChangedSubject.send((component.id, component.metadata))
     }
+    componentsSubject.send(current)
   }
 
   /// Removes the component with the given ID.
@@ -81,10 +81,10 @@ public final class SurfaceComponentsModel: ObservableObject {
     let hadMetadata = current[id]?.metadata != nil
     current.removeValue(forKey: id)
     changedIDsSubject.send([id])
-    componentsSubject.send(current)
     if hadMetadata {
       metadataChangedSubject.send((id, nil))
     }
+    componentsSubject.send(current)
   }
 
   /// Applies a batch of removals and additions in a single publication.
@@ -121,10 +121,10 @@ public final class SurfaceComponentsModel: ObservableObject {
     if !changedIDs.isEmpty {
       changedIDsSubject.send(changedIDs)
     }
-    componentsSubject.send(current)
     for update in metadataUpdates {
       metadataChangedSubject.send(update)
     }
+    componentsSubject.send(current)
   }
 
   /// Replaces the metadata dictionary of the component with `id` after validating UAX #31 keys.
@@ -144,8 +144,8 @@ public final class SurfaceComponentsModel: ObservableObject {
     guard !MetadataValidator.areEqual(component.metadata, oldMetadata) else { return }
     objectWillChange.send()
     current[id] = component
-    componentsSubject.send(current)
     metadataChangedSubject.send((id, component.metadata))
+    componentsSubject.send(current)
   }
 
   /// Sets a single extension key on the metadata envelope of the component with `id`.
@@ -161,8 +161,8 @@ public final class SurfaceComponentsModel: ObservableObject {
     guard !MetadataValidator.areEqual(component.metadata, oldMetadata) else { return }
     objectWillChange.send()
     current[id] = component
-    componentsSubject.send(current)
     metadataChangedSubject.send((id, component.metadata))
+    componentsSubject.send(current)
   }
 
   /// Removes a single extension key from the metadata envelope of the component with `id`.
@@ -174,8 +174,8 @@ public final class SurfaceComponentsModel: ObservableObject {
     guard !MetadataValidator.areEqual(component.metadata, oldMetadata) else { return }
     objectWillChange.send()
     current[id] = component
-    componentsSubject.send(current)
     metadataChangedSubject.send((id, component.metadata))
+    componentsSubject.send(current)
   }
 
   /// Returns a publisher that emits whenever the metadata of the component with `id` changes.

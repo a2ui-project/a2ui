@@ -29,7 +29,7 @@ public enum MetadataValidator {
     _ rawMetadata: JSONValue?,
     pathPrefix: String = "metadata"
   ) throws -> [String: JSONValue]? {
-    guard let rawMetadata, rawMetadata != .null else {
+    guard let rawMetadata else {
       return nil
     }
     guard let metaObj = rawMetadata.objectValue else {
@@ -76,7 +76,7 @@ public enum MetadataValidator {
         ]
       )
     }
-    guard let rawExtensions = metadata["extensions"], rawExtensions != .null else {
+    guard let rawExtensions = metadata["extensions"] else {
       return nil
     }
     guard let extObj = rawExtensions.objectValue else {

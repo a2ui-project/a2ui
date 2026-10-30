@@ -19,6 +19,7 @@ from ..common.events import EventSource
 from ..common.metadata import (
     A2uiMetadata,
     clone_metadata,
+    metadata_equals,
     normalize_metadata,
     validate_metadata,
 )
@@ -91,7 +92,7 @@ class SurfaceModel:
         """Replaces the surface's metadata envelope after validating UAX #31 keys."""
         validate_metadata(metadata, context=f"surface '{self.id}' metadata")
         next_meta = normalize_metadata(metadata)
-        if self._metadata == next_meta:
+        if metadata_equals(self._metadata, next_meta):
             return
         self._metadata = next_meta
         self.on_metadata_changed.emit(clone_metadata(self._metadata))
@@ -221,10 +222,7 @@ class SurfaceModel:
                 merged_ext.update(payload_metadata["extensions"])
             if isinstance(metadata.get("extensions"), dict):
                 merged_ext.update(metadata["extensions"])
-            effective_metadata = dict(payload_metadata)
-            effective_metadata.update(metadata)
-            if merged_ext:
-                effective_metadata["extensions"] = merged_ext
+            effective_metadata = {"extensions": merged_ext} if merged_ext else None
         elif metadata is not None:
             effective_metadata = metadata
         else:
@@ -233,7 +231,7 @@ class SurfaceModel:
         cloned_metadata: A2uiMetadata | None = None
         if effective_metadata is not None:
             validate_metadata(effective_metadata, context="action metadata")
-            cloned_metadata = clone_metadata(effective_metadata)
+            cloned_metadata = normalize_metadata(effective_metadata)
 
         action_event: dict[str, Any] = {
             "name": name,

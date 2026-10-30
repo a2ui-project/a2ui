@@ -863,28 +863,30 @@ def test_composition_constraints_surface_and_multiple_parents():
         MessageProcessorOptions(validation_config=RELAXED_VALIDATION),
     ):
         proc = MessageProcessor([catalog], options=options)
-        proc.process_messages([
-            {
-                "version": "1.0",
-                "createSurface": {
-                    "surfaceId": "s1",
-                    "catalogId": "custom",
-                    "components": [
-                        {"id": "root", "component": "Box", "children": ["h"]},
-                        {"id": "h", "component": "Header"},
-                    ],
+        proc.process_messages(
+            [
+                {
+                    "version": "1.0",
+                    "createSurface": {
+                        "surfaceId": "s1",
+                        "catalogId": "custom",
+                        "components": [
+                            {"id": "root", "component": "Box", "children": ["h"]},
+                            {"id": "h", "component": "Header"},
+                        ],
+                    },
                 },
-            },
-            {
-                "version": "1.0",
-                "updateComponents": {
-                    "surfaceId": "s1",
-                    "components": [
-                        {"id": "root", "component": "Box", "children": []},
-                    ],
+                {
+                    "version": "1.0",
+                    "updateComponents": {
+                        "surfaceId": "s1",
+                        "components": [
+                            {"id": "root", "component": "Box", "children": []},
+                        ],
+                    },
                 },
-            },
-        ])
+            ]
+        )
         surface = proc.model.get_surface("s1")
         assert surface is not None
         assert surface.components_model.get("root").properties == {"children": []}
@@ -896,27 +898,35 @@ def test_composition_constraints_surface_and_multiple_parents():
         [catalog],
         options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
-    strict_proc.process_messages([{
-        "version": "1.0",
-        "createSurface": {
-            "surfaceId": "s1",
-            "catalogId": "custom",
-            "components": [
-                {"id": "root", "component": "Box", "children": ["h"]},
-                {"id": "h", "component": "Header"},
-            ],
-        },
-    }])
+    strict_proc.process_messages(
+        [
+            {
+                "version": "1.0",
+                "createSurface": {
+                    "surfaceId": "s1",
+                    "catalogId": "custom",
+                    "components": [
+                        {"id": "root", "component": "Box", "children": ["h"]},
+                        {"id": "h", "component": "Header"},
+                    ],
+                },
+            }
+        ]
+    )
     with pytest.raises(A2uiIntegrityError, match="not reachable from 'root'"):
-        strict_proc.process_messages([{
-            "version": "1.0",
-            "updateComponents": {
-                "surfaceId": "s1",
-                "components": [
-                    {"id": "root", "component": "Box", "children": []},
-                ],
-            },
-        }])
+        strict_proc.process_messages(
+            [
+                {
+                    "version": "1.0",
+                    "updateComponents": {
+                        "surfaceId": "s1",
+                        "components": [
+                            {"id": "root", "component": "Box", "children": []},
+                        ],
+                    },
+                }
+            ]
+        )
 
     # 2. Root component referenced by another component is still checked against
     # "Surface" (for both default "root" and a custom root_id).
@@ -928,17 +938,21 @@ def test_composition_constraints_surface_and_multiple_parents():
             r" \(Surface\)"
         ),
     ) as exc_info:
-        proc_root_ref.process_messages([{
-            "version": "1.0",
-            "createSurface": {
-                "surfaceId": "s1",
-                "catalogId": "custom",
-                "components": [
-                    {"id": "root", "component": "Card"},
-                    {"id": "box", "component": "Box", "children": ["root"]},
-                ],
-            },
-        }])
+        proc_root_ref.process_messages(
+            [
+                {
+                    "version": "1.0",
+                    "createSurface": {
+                        "surfaceId": "s1",
+                        "catalogId": "custom",
+                        "components": [
+                            {"id": "root", "component": "Card"},
+                            {"id": "box", "component": "Box", "children": ["root"]},
+                        ],
+                    },
+                }
+            ]
+        )
     assert any(d.code == "UNALLOWED_PARENT" for d in exc_info.value.details)
 
     scm_custom_root = SurfaceComponentsModel(default_catalog=catalog)
@@ -984,14 +998,18 @@ def test_composition_constraints_surface_and_multiple_parents():
                 r" \(Card\)"
             ),
         ) as exc_info:
-            proc_multi.process_messages([{
-                "version": "1.0",
-                "createSurface": {
-                    "surfaceId": "s1",
-                    "catalogId": "custom",
-                    "components": children_order,
-                },
-            }])
+            proc_multi.process_messages(
+                [
+                    {
+                        "version": "1.0",
+                        "createSurface": {
+                            "surfaceId": "s1",
+                            "catalogId": "custom",
+                            "components": children_order,
+                        },
+                    }
+                ]
+            )
         assert any(d.code == "UNALLOWED_PARENT" for d in exc_info.value.details)
 
 
@@ -1065,7 +1083,7 @@ def test_component_model_and_surface_model_metadata_api():
     assert surface.metadata is None
     assert surf_events[-1] is None
 
-    # ComponentContext and GenericBinder expose metadata and update reactively
+    # ComponentContext and GenericBinder expose metadata; binder.subscribe only fires on props changes
     surface.components_model.add_component(comp)
     ctx = ComponentContext.from_surface(surface, "c1")
     binder = GenericBinder(ctx)
@@ -1074,11 +1092,30 @@ def test_component_model_and_surface_model_metadata_api():
 
     binder_updates: list[Any] = []
     binder.subscribe(lambda props: binder_updates.append((props, binder.metadata)))
+    initial_binder_updates = len(binder_updates)
     comp.set_extension("badge", "new")
     assert ctx.metadata == {"extensions": {"badge": "new"}}
     assert binder.metadata == {"extensions": {"badge": "new"}}
-    assert binder_updates[-1][1] == {"extensions": {"badge": "new"}}
+    assert len(binder_updates) == initial_binder_updates
     binder.dispose()
+
+    # Boolean vs integer type distinction in metadata and properties equality
+    comp_bool_events: list[Any] = []
+    comp.on_metadata_changed.subscribe(lambda m: comp_bool_events.append(m))
+    comp.set_extension("flag", 1)
+    assert len(comp_bool_events) == 1
+    comp.set_extension("flag", True)
+    assert len(comp_bool_events) == 2
+    assert comp.extensions["flag"] is True
+    assert type(comp.extensions["flag"]) is bool
+
+    prop_bool_events: list[Any] = []
+    comp.apply_update({"count": 1}, comp.metadata)
+    comp.on_updated.subscribe(lambda c: prop_bool_events.append(c.properties))
+    comp.apply_update({"count": True}, comp.metadata)
+    assert len(prop_bool_events) == 1
+    assert comp.properties["count"] is True
+    assert type(comp.properties["count"]) is bool
 
     # dispatch_action merges call-site metadata over payload metadata
     dispatched: list[dict[str, Any]] = []
@@ -1094,6 +1131,14 @@ def test_component_model_and_surface_model_metadata_api():
     assert dispatched[-1]["metadata"] == {
         "extensions": {"fromPayload": 1, "fromCall": 2, "shared": "call"}
     }
+
+    # Empty action metadata envelopes normalize and omit "metadata" from action_event
+    surface.dispatch_action(
+        {"event": {"name": "click"}, "metadata": {"extensions": {}}},
+        "c1",
+        metadata={},
+    )
+    assert "metadata" not in dispatched[-1]
 
     # M2: {"extensions": None} raises A2uiValidationError and empty dicts normalize to None
     with pytest.raises(A2uiValidationError, match="dictionary"):
