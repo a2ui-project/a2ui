@@ -36,7 +36,8 @@ import 'markdown.dart';
 /// The `h1`–`h5` variants and a Markdown heading line are marked as headings
 /// of their level in the semantics tree, so screen readers announce them as
 /// headings and can navigate by them, like the `<h1>`–`<h5>` elements of the
-/// web renderer.
+/// web renderer. A Text inside an [ExcludeHeadingSemantics], such as the label
+/// of a Button, is not marked.
 Widget buildText(
   BuildContext context,
   ComponentNode<ComponentImplementation> node,
@@ -85,7 +86,7 @@ Widget buildText(
   );
   // A container, so the heading flag stays on this text and does not spread
   // to the texts beside it in a Card or a labelled component.
-  return level == null
+  return level == null || ExcludeHeadingSemantics.isIn(context)
       ? widget
       : Semantics(
           container: true,
@@ -93,6 +94,22 @@ Widget buildText(
           headingLevel: level,
           child: widget,
         );
+}
+
+/// Keeps the Texts below it from being marked as headings in the semantics
+/// tree, as a web browser does for headings inside a `<button>`, whose
+/// children are presentational.
+class ExcludeHeadingSemantics extends InheritedWidget {
+  /// Creates an [ExcludeHeadingSemantics] around [child].
+  const ExcludeHeadingSemantics({required super.child, super.key});
+
+  /// Whether [context] is below an [ExcludeHeadingSemantics].
+  static bool isIn(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ExcludeHeadingSemantics>() !=
+      null;
+
+  @override
+  bool updateShouldNotify(ExcludeHeadingSemantics oldWidget) => false;
 }
 
 /// The start of a line that is a Markdown heading, with its `#` markers in

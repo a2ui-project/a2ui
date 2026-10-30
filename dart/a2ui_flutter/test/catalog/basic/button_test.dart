@@ -69,7 +69,7 @@ void main() {
     );
   });
 
-  testWidgets('is named by a heading Text child and announces it as a '
+  testWidgets('is named by a heading Text child without becoming a '
       'heading', (tester) async {
     final SemanticsHandle handle = tester.ensureSemantics();
     await pumpComponents(tester, [
@@ -82,8 +82,8 @@ void main() {
         .getSemanticsData();
     expect(data.label, 'Go');
     expect(data.flagsCollection.isButton, isTrue);
-    expect(data.flagsCollection.isHeader, isTrue);
-    expect(data.headingLevel, 2);
+    expect(data.flagsCollection.isHeader, isFalse);
+    expect(data.headingLevel, 0);
     handle.dispose();
   });
 
