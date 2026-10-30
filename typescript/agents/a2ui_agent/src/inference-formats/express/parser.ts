@@ -136,7 +136,7 @@ export class ExpressParser extends Parser {
   /**
    * Decompiles structured A2UI messages back into Express notation.
    */
-  decompile(messages: AgentToRendererMessage | AgentToRendererMessage[]): string {
+  decompile(messages: AgentToRendererMessage[]): string {
     return this.decompiler.decompile(messages);
   }
 
@@ -145,12 +145,5 @@ export class ExpressParser extends Parser {
    */
   wrap(blocks: RawResponsePart[]): string {
     return this.decompiler.wrap(blocks);
-  }
-
-  /**
-   * Wraps individual decompiled A2UI Express DSL blocks within sentinel tags.
-   */
-  wrapDecompiledBlocks(blocks: string[]): string {
-    return this.decompiler.wrapDecompiledBlocks(blocks);
   }
 }

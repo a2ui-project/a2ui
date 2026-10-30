@@ -27,6 +27,7 @@ import {
 import {childRefKindOf} from '../types/child-ref-helpers.js';
 import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
+import {ActionDispatchOptions} from '../common/metadata.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 import {isAtLeastVersion} from '../common/semver.js';
 
@@ -371,7 +372,7 @@ export interface ResolvedChildRef {
 export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
   ? HasStringIndex<NonNullable<T>> extends true
     ? Exclude<T, DynamicTypes>
-    : (() => Promise<void>) | Extract<T, undefined>
+    : ((options?: ActionDispatchOptions) => Promise<void>) | Extract<T, undefined>
   : IsChildList<T> extends true
     ? (string | ResolvedChildRef)[] | Extract<T, undefined>
     : Exclude<T, DynamicTypes> extends never
@@ -482,7 +483,10 @@ export class GenericBinder<T> {
   // Actions resolve to closures, which downstream value comparison cannot
   // inspect; reusing the closure while the raw payload is unchanged keeps
   // unchanged action props reference-identical across rebuilds.
-  private actionClosures = new Map<string, {raw: unknown; closure: () => Promise<void>}>();
+  private actionClosures = new Map<
+    string,
+    {raw: unknown; closure: (options?: ActionDispatchOptions) => Promise<void>}
+  >();
 
   /**
    * Creates a new binder for the given component context and schema.
@@ -572,13 +576,16 @@ export class GenericBinder<T> {
     return res;
   }
 
-  private bindAction(value: unknown, path: string[]): () => Promise<void> {
+  private bindAction(
+    value: unknown,
+    path: string[],
+  ): (options?: ActionDispatchOptions) => Promise<void> {
     const cacheKey = path.join('/');
     const cached = this.actionClosures.get(cacheKey);
     if (cached && jsonEquals(cached.raw, value)) {
       return cached.closure;
     }
-    const closure = async () => {
+    const closure = async (options?: ActionDispatchOptions) => {
       if (!value || typeof value !== 'object') {
         return;
       }
@@ -600,7 +607,7 @@ export class GenericBinder<T> {
       if (resolved === undefined) {
         return;
       }
-      await this.context.dispatchAction(resolved as Action);
+      await this.context.dispatchAction(resolved as Action, options?.metadata);
     };
     this.actionClosures.set(cacheKey, {raw: value, closure});
     return closure;
@@ -721,11 +728,17 @@ export class GenericBinder<T> {
       const ruleObj =
         typeof rule === 'object' && rule !== null ? (rule as Record<string, unknown>) : undefined;
       const condition = ruleObj && ruleObj.condition !== undefined ? ruleObj.condition : rule;
-      const explicitMessage = typeof ruleObj?.message === 'string' ? ruleObj.message : undefined;
-      ruleResults[index].message = explicitMessage ?? 'Validation failed';
+      const ruleMessage = typeof ruleObj?.message === 'string' ? ruleObj.message : undefined;
+      // An explicit rule message overrides the message a condition function
+      // returns. A path-bound check reads a result the agent or application
+      // wrote, whose message carries the finding, so there the rule message
+      // is only the fallback.
+      const explicitMessage = this.isPathBoundCondition(condition) ? undefined : ruleMessage;
+      const fallbackMessage = ruleMessage ?? 'Validation failed';
+      ruleResults[index].message = fallbackMessage;
 
       const bound = this.context.dataContext.subscribeDynamicValue(condition, newVal => {
-        ruleResults[index] = this.extractValidationResult(newVal, explicitMessage);
+        ruleResults[index] = this.extractValidationResult(newVal, explicitMessage, fallbackMessage);
         updateValidationState();
       });
 
@@ -735,13 +748,26 @@ export class GenericBinder<T> {
         bound.unsubscribe();
       }
 
-      ruleResults[index] = this.extractValidationResult(bound.value, explicitMessage);
+      ruleResults[index] = this.extractValidationResult(
+        bound.value,
+        explicitMessage,
+        fallbackMessage,
+      );
     });
 
     // Set initial state
     applyValidationState();
 
     return value;
+  }
+
+  /** Whether a check condition is a data binding rather than a function call. */
+  private isPathBoundCondition(condition: unknown): boolean {
+    if (typeof condition !== 'object' || condition === null) return false;
+    const rec = condition as Record<string, unknown>;
+    return this.context.dataContext.atLeastV10
+      ? typeof rec['@path'] === 'string' && !('@call' in rec)
+      : typeof rec['path'] === 'string' && !('call' in rec);
   }
 
   private bindObject(

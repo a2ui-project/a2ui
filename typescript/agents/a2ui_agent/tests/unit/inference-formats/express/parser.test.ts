@@ -268,11 +268,6 @@ describe('ExpressParser', () => {
       const wrapped = parser.wrap(blocks);
       expect(wrapped).toBe('Here is the greeting.\n<a2ui>\nroot = Text("Hello")\n</a2ui>');
     });
-
-    it('wrapDecompiledBlocks surrounds blocks with sentinel tags', () => {
-      const wrapped = parser.wrapDecompiledBlocks(['root = Text("Hello")']);
-      expect(wrapped).toBe('<a2ui>\nroot = Text("Hello")\n</a2ui>');
-    });
   });
 
   describe('streaming', () => {

@@ -252,12 +252,26 @@ class ExpressCompiler {
         case ExpressionStatement(
           value: CallNode(name: 'surface') && final CallNode call,
         ):
+          final ExpressNode? rawExtensions = call.kwargs['extensions'];
+          if (rawExtensions != null && !_v1) {
+            throw A2uiValidationError(
+              'extensions on surface() is only supported in '
+              'A2UI v1.0 or later.',
+            );
+          }
+          final bool isUpdate = _boolArgument(call, -1, 'update') ?? false;
+          if (isUpdate && rawExtensions != null) {
+            throw A2uiValidationError(
+              'surface() with update=true does not accept extensions.',
+            );
+          }
           current = _Surface(
             _stringArgument(call, 0, 'surfaceId') ?? defaultSurfaceId,
             _surfaceHelper(_stringArgument(call, 1, 'catalogId')),
+            rawExtensions: rawExtensions,
             hasSurfaceDirective: true,
             sendDataModel: _boolArgument(call, -1, 'sendDataModel'),
-            isUpdate: _boolArgument(call, -1, 'update') ?? false,
+            isUpdate: isUpdate,
           );
           operations.add(current);
         case ExpressionStatement(
@@ -410,6 +424,7 @@ class _Surface {
   _Surface(
     this.surfaceId,
     this.helper, {
+    this.rawExtensions,
     this.hasSurfaceDirective = false,
     this.sendDataModel,
     this.isUpdate = false,
@@ -420,6 +435,9 @@ class _Surface {
   /// The surface's catalog, or null for a v1.0 surface of several catalogs,
   /// whose components and calls each name their own.
   final CatalogSchemaHelper? helper;
+
+  /// Optional `extensions=` AST expression from `surface(...)` in v1.0.
+  final ExpressNode? rawExtensions;
 
   /// Whether the surface was introduced by an explicit `surface(...)` call.
   final bool hasSurfaceDirective;
@@ -813,6 +831,13 @@ class _SurfaceCompiler {
           }),
       ];
     }
+    final Map<String, Object?>? surfaceMetadata =
+        switch (surface.rawExtensions) {
+          final ExpressNode ext => {
+            'extensions': _extensionsMap(ext, "surface '$surfaceId'"),
+          },
+          null => null,
+        };
     return [
       compiler._envelope('createSurface', {
         'surfaceId': surfaceId,
@@ -821,6 +846,7 @@ class _SurfaceCompiler {
         'components': components,
         if (readyData.isNotEmpty) 'dataModel': dataModel,
         'sendDataModel': ?surface.sendDataModel,
+        'metadata': ?surfaceMetadata,
       }),
     ];
   }
@@ -834,6 +860,12 @@ class _SurfaceCompiler {
     // Components without it update a surface created by an earlier response.
     final bool creates =
         !surface.isUpdate && surface.symbols.containsKey('root');
+    if (!creates && surface.rawExtensions != null) {
+      throw A2uiValidationError(
+        'surface() extensions require a surface-creating scope with a root '
+        'component.',
+      );
+    }
     if (!creates && !hasComponents) {
       if (surface.data.isNotEmpty) return _dataUpdates(surfaceId);
       throw A2uiValidationError(
@@ -858,6 +890,103 @@ class _SurfaceCompiler {
     }
 
     return buildCreateMessages(components, collectReadyData());
+  }
+
+  ExpressNode _resolveAstVar(ExpressNode node, Set<String> seen) {
+    var current = node;
+    while (current is VariableNode) {
+      final String name = current.name;
+      _referencedVars.add(name);
+      if (!seen.add(name)) {
+        throw A2uiValidationError("Variable '$name' refers to itself.");
+      }
+      final ExpressNode? resolved = surface.symbols[name];
+      if (resolved == null) {
+        if (allowPending) {
+          throw _PendingVariableError(name);
+        }
+        throw A2uiValidationError(
+          "Variable '$name' is not assigned in surface "
+          "'${surface.surfaceId}'.",
+        );
+      }
+      current = resolved;
+    }
+    return current;
+  }
+
+  void _checkExtensionsAst(ExpressNode node, String subject, Set<String> seen) {
+    final ExpressNode resolved = _resolveAstVar(node, {...seen});
+    switch (resolved) {
+      case MapNode(:final entries):
+        for (final ExpressNode v in entries.values) {
+          _checkExtensionsAst(v, subject, seen);
+        }
+      case ArrayNode(:final items):
+        for (final item in items) {
+          _checkExtensionsAst(item, subject, seen);
+        }
+      case CallNode():
+        if (_isComponent(resolved)) {
+          throw A2uiValidationError(
+            'extensions on $subject cannot contain component '
+            "'${resolved.name}'.",
+          );
+        }
+        if (compiler._catalogArgument(resolved) == null &&
+            (resolved.name == 'Event' ||
+                resolved.name == '_template' ||
+                resolved.name == 'surface' ||
+                resolved.name == 'deleteSurface')) {
+          throw A2uiValidationError(
+            "extensions on $subject cannot contain '${resolved.name}()'.",
+          );
+        }
+        for (final ExpressNode arg in resolved.args) {
+          _checkExtensionsAst(arg, subject, seen);
+        }
+        for (final ExpressNode kwVal in resolved.kwargs.values) {
+          _checkExtensionsAst(kwVal, subject, seen);
+        }
+      default:
+        break;
+    }
+  }
+
+  Map<String, Object?> _extensionsMap(ExpressNode rawExt, String subject) {
+    final ExpressNode top = _resolveAstVar(rawExt, <String>{});
+    if (top is! MapNode) {
+      throw A2uiValidationError('extensions on $subject must be a map.');
+    }
+    _checkExtensionsAst(top, subject, <String>{});
+    final Object? compiled = _value(
+      rawExt,
+      _Context(
+        idPrefix: 'extensions',
+        hoisted: _noHoisting,
+        allowPending: allowPending,
+      ),
+    );
+    if (compiled case final Map<Object?, Object?> map) {
+      final result = <String, Object?>{};
+      for (final MapEntry(:Object? key, :Object? value) in map.entries) {
+        if (key case final String extKey) {
+          if (!isValidUax31Identifier(extKey)) {
+            throw A2uiValidationError(
+              "Extension key '$extKey' on $subject is not a valid "
+              'UAX 31 identifier.',
+            );
+          }
+          result[extKey] = value;
+        } else {
+          throw A2uiValidationError(
+            'extensions on $subject must have string keys.',
+          );
+        }
+      }
+      return result;
+    }
+    throw A2uiValidationError('extensions on $subject must be a map.');
   }
 
   /// The `callRendererFunction` that [call], the [index]th function call of
@@ -1087,9 +1216,20 @@ class _SurfaceCompiler {
       }
       assigned.add((properties[position++], arg));
     }
+    ExpressNode? rawExtensions;
     for (final MapEntry<String, ExpressNode> kwarg in call.kwargs.entries) {
       if (kwarg.key == 'id') continue;
       if (_v1 && kwarg.key == 'catalogId') continue;
+      if (kwarg.key == 'extensions' && !properties.contains('extensions')) {
+        if (!_v1) {
+          throw A2uiValidationError(
+            "extensions on component '$name' is only supported in "
+            'A2UI v1.0 or later.',
+          );
+        }
+        rawExtensions = kwarg.value;
+        continue;
+      }
       if (_checksOf(kwarg.value) case final List<CheckNode> found) {
         checks.addAll(found);
         continue;
@@ -1115,10 +1255,17 @@ class _SurfaceCompiler {
       );
     }
 
+    final Map<String, Object?>? componentMetadata = switch (rawExtensions) {
+      final ExpressNode ext => {
+        'extensions': _extensionsMap(ext, "component '$name'"),
+      },
+      null => null,
+    };
     final component = <String, Object?>{
       'id': id,
       'component': name,
       'catalogId': ?catalogId,
+      'metadata': ?componentMetadata,
     };
     final hoisted = <Map<String, Object?>>[];
     Map<String, Object?>? valueBinding;
@@ -2064,13 +2211,18 @@ class ExpressScopeSession {
     final bool needsCreate =
         !surface.isUpdate &&
         !state.created &&
-        (!surfaceAlreadyExists || hasRootReady);
+        (!surfaceAlreadyExists ||
+            hasRootReady ||
+            surface.rawExtensions != null);
     if (needsCreate) {
       if (hasRootReady) {
-        final List<Map<String, Object?>> envelopes = sc.buildCreateMessages(
-          readyComponents,
-          readyData,
-        );
+        final List<Map<String, Object?>> envelopes;
+        try {
+          envelopes = sc.buildCreateMessages(readyComponents, readyData);
+        } on _PendingVariableError {
+          if (!isFinal) return const [];
+          rethrow;
+        }
         state.created = true;
         activeSurfaces.add(surfaceId);
         for (final comp in readyComponents) {
@@ -2082,6 +2234,12 @@ class ExpressScopeSession {
         return envelopes;
       }
       if (!isFinal) return const [];
+      if (surface.rawExtensions != null) {
+        throw A2uiValidationError(
+          'surface() extensions require a surface-creating scope with a root '
+          'component.',
+        );
+      }
     }
 
     if (surfaceAlreadyExists) {
