@@ -476,18 +476,56 @@ Example of A2A message containing the supportedCatalogIds in metadata
 
 ### Step 3: Agent Selection
 
-When the agent creates a new surface, it selects the best match from the client's `supportedCatalogIds` list. This choice is locked for the lifetime of that surface. If no compatible catalog is found, the agent will not send a UI.
+When the agent creates a new surface, it picks from the client's `supportedCatalogIds` list. If no compatible catalog is found, the agent will not send a UI. How that choice applies to the surface depends on the protocol version.
 
-Example A2UI Message from the agent defining the catalog_id used in a surface
+=== "v1.0"
 
-```json
-{
-  "createSurface": {
-    "surfaceId": "salesDashboard",
-    "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-  }
-}
-```
+    A surface can mix components and functions from any of the catalogs the client supports. The `catalogId` in `createSurface` is optional and sets the surface's default catalog. A component in `updateComponents` or a function call (`@call`) can set its own `catalogId` to use a different catalog. Anything without its own `catalogId` uses the surface default. If the surface has no default either, the renderer rejects that component or function call; it does not fall back to `supportedCatalogIds`. See [Mixable catalogs and component resolution logic](../../../specification/v1_0/docs/a2ui_protocol.md#mixable-catalogs-and-component-resolution-logic) in the v1.0 specification for the normative rules.
+
+    In this example, the surface uses the Basic Catalog by default, and the `chart` component comes from a custom catalog:
+
+    ```json
+    [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "salesDashboard",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        }
+      },
+      {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "salesDashboard",
+          "components": [
+            {"id": "root", "component": "Column", "children": ["title", "chart"]},
+            {"id": "title", "component": "Text", "text": "Quarterly sales"},
+            {
+              "id": "chart",
+              "component": "BarChart",
+              "catalogId": "https://example.com/catalogs/charts/v1/catalog.json",
+              "data": {"@path": "/sales"}
+            }
+          ]
+        }
+      }
+    ]
+    ```
+
+=== "v0.9"
+
+    The agent selects a single catalog, and this choice is locked for the lifetime of that surface.
+
+    Example A2UI Message from the agent defining the catalog_id used in a surface
+
+    ```json
+    {
+      "createSurface": {
+        "surfaceId": "salesDashboard",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      }
+    }
+    ```
 
 ## Catalog Naming & Versioning
 
