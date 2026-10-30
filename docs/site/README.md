@@ -24,32 +24,13 @@ It is designed to replace the legacy MkDocs Material site (`docs/public/` and `m
 
 ---
 
-## 2. Landing Page Outline (`src/pages/index.astro`)
+## 2. Site Architecture & Content Outline
 
-The landing page is a standalone Astro route (`/`) structured into two major narrative halves:
+The complete information architecture and content outline covering the **Landing Page**, **Docs Section**, and **Specifications Section** is maintained in the internal planning metadoc:
 
-### Part I: The Problem, The Spectrum & Real-World Adoption
+👉 **[`SITE_OUTLINE.md`](./SITE_OUTLINE.md)**
 
-1. **Hero: Give your agents UI on every surface**
-    - Headline & value proposition: Chat is a great input, but walls of prose are a terrible output. Give your agents stateful, native UI across mobile, desktop, and web.
-    - Interactive visual aid contrasting a wall of LLM text against an interactive, stateful A2UI surface bound to `dataModel` at 60fps.
-2. **The Generative UI Spectrum** _(informed by the [Generative UI Spectrum taxonomy](https://www.copilotkit.ai/generative-ui-spectrum))_
-    - Explains why no single Generative UI approach fits every screen—and how **one A2UI environment** spans the entire spectrum from **Fully Controlled** (developer-built deterministic SDUI & fixed schemas) → **Controlled / Server Macros** (predictable domain components chosen by the agent) → **Declarative Generative UI** (agent composes Lego-like catalog primitives on demand for the long tail) → **Open-Ended & MCP Apps** (embedded `ui://` MCP App sandboxes and bespoke surfaces).
-    - Interactive spectrum slider/selector showing the developer-control vs. agent-autonomy trade-off, best-fit use cases, and code for each band.
-3. **Real Use Cases in Production**
-    - **Logo Bar**: **JetBrains**, **Alation**, **ByteDance**, **Google Home**, **Gemini Notebook** (plus Google Opal & Flutter GenUI).
-    - **Interactive Use-Case Tabs with Visual Previews/Screenshots**:
-        - Switchable tabs for **Google Home**, **Gemini Notebook**, **JetBrains**, **Alation**, and **ByteDance**, showcasing a rich visual surface preview/screenshot, how each product uses A2UI along the spectrum, and architectural highlights.
-
-### Part II: Why A2UI? (Core Technical Differentiators)
-
-4. **Express: ~3x faster inference compared to JSON**
-    - Decoupled inference format vs. universal wire JSON (`10_notification-permission.a2ui` at 397 chars vs. 1,780 chars raw JSON, −77% characters / ~3x faster generation).
-    - Side-by-side code comparison, compiler pipeline diagram, and output token benchmark chart.
-5. **Macros: Give the model bigger words**
-    - Hybrid SDUI + GenUI workflow where server-defined `@macro` treatments (`FlightCard`) let the LLM output a single high-level call that expands on the server into 14 primitive nodes on the wire—shipping new UIs without App Store updates.
-6. **Native Rendering across Mobile, Desktop, and Web**
-    - Interactive 6-platform renderer switcher (**SwiftUI**, **Jetpack Compose**, **Flutter**, **React**, **Angular**, **Lit Web Components**) showing native host widgets alongside the corresponding SDK code and ecosystem transports (**AG-UI**, **A2A**, **MCP Apps**, **CopilotKit**).
+Please update and iterate on [`SITE_OUTLINE.md`](./SITE_OUTLINE.md) when planning site navigation, sections, concepts, and guides.
 
 ---
 
