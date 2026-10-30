@@ -655,7 +655,11 @@ function processSingleComponent(
     props = sanitized;
     reqList = extracted.reqList;
     description = zodComponentDescription(comp);
-    closure = context.isV10 ? undefined : (extracted.additionalProps ?? false);
+    closure = context.isV10
+      ? extracted.additionalProps === true
+        ? true
+        : undefined
+      : (extracted.additionalProps ?? false);
   }
 
   const id: JsonObject = {};

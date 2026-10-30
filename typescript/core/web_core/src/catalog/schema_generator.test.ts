@@ -399,11 +399,41 @@ describe('Catalog.validationSchema & schema_generator', () => {
       name: 'SimpleWidget',
       schema: z.object({title: z.string()}),
     };
-    const coded = new Catalog('https://example.com/v10.json', '1.0', [SimpleWidget]);
-    const codedWidget = (coded.validationSchema['components'] as Record<string, any>)[
-      'SimpleWidget'
-    ];
-    assert.strictEqual('unevaluatedProperties' in codedWidget, false);
+    const StrictWidget: ComponentApi = {
+      name: 'StrictWidget',
+      schema: z.object({title: z.string()}).strict(),
+    };
+    const OpenWidget: ComponentApi = {
+      name: 'OpenWidget',
+      schema: z.object({title: z.string()}).passthrough(),
+    };
+    const CatchallWidget: ComponentApi = {
+      name: 'CatchallWidget',
+      schema: z.object({title: z.string()}).catchall(z.number()),
+    };
+    const coded = new Catalog('https://example.com/v10.json', '1.0', [
+      SimpleWidget,
+      StrictWidget,
+      OpenWidget,
+      CatchallWidget,
+    ]);
+    const codedComponents = coded.validationSchema['components'] as Record<
+      string,
+      Record<string, unknown>
+    >;
+    assert.strictEqual(
+      Object.hasOwn(codedComponents['SimpleWidget'], 'unevaluatedProperties'),
+      false,
+    );
+    assert.strictEqual(
+      Object.hasOwn(codedComponents['StrictWidget'], 'unevaluatedProperties'),
+      false,
+    );
+    assert.strictEqual(codedComponents['OpenWidget'].unevaluatedProperties, true);
+    assert.strictEqual(
+      Object.hasOwn(codedComponents['CatchallWidget'], 'unevaluatedProperties'),
+      false,
+    );
 
     const loaded = Catalog.fromJson({
       catalogId: 'https://example.com/v10-loaded.json',
