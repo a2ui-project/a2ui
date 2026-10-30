@@ -42,9 +42,9 @@
   },
   "peerDependencies": {
     "@a2ui/markdown-it": "workspace:*",
-    "@angular/common": "^21.2.5",
-    "@angular/core": "^21.2.5",
-    "@angular/platform-browser": "^21.2.5"
+    "@angular/common": "^22.2.3",
+    "@angular/core": "^22.2.3",
+    "@angular/platform-browser": "^22.2.3"
   },
   "peerDependenciesMeta": {
     "@a2ui/markdown-it": {
@@ -53,13 +53,13 @@
   },
   "devDependencies": {
     "@a2ui/markdown-it": "workspace:*",
-    "@angular/build": "^21.2.5",
-    "@angular/cli": "^21.2.5",
-    "@angular/common": "^21.2.5",
-    "@angular/compiler": "^21.2.5",
-    "@angular/compiler-cli": "^21.2.5",
-    "@angular/core": "^21.2.5",
-    "@angular/platform-browser": "^21.2.5",
+    "@angular/build": "^22.2.3",
+    "@angular/cli": "^22.2.3",
+    "@angular/common": "^22.2.3",
+    "@angular/compiler": "^22.2.3",
+    "@angular/compiler-cli": "^22.2.3",
+    "@angular/core": "^22.2.3",
+    "@angular/platform-browser": "^22.2.3",
     "@types/express": "^5.0.6",
     "@types/jasmine": "^6.0.0",
     "@types/node": "^25.9.3",
@@ -76,11 +76,11 @@
     "karma-coverage": "^2.2.1",
     "karma-jasmine": "^5.1.0",
     "karma-jasmine-html-reporter": "^2.2.0",
-    "ng-packagr": "^22.0.0",
+    "ng-packagr": "^22.2.3",
     "prettier": "^3.8.4",
     "sass": "^1.100.0",
     "tslib": "^2.8.1",
-    "typescript": "5.9.3",
+    "typescript": "6.0.3",
     "vitest": "^4.1.8",
     "wireit": "^0.15.0-pre.2",
     "yaml": "^2.8.1"

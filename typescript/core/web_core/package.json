@@ -294,7 +294,7 @@
   "author": "Google",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@angular/core": "^21.2.5",
+    "@angular/core": "^22.2.3",
     "@types/js-yaml": "^4.0.9",
     "@types/jsdom": "^28.0.3",
     "@types/node": "^25.9.3",
@@ -306,7 +306,7 @@
     "jsdom": "^29.1.1",
     "json-schema-to-zod": "^2.8.1",
     "rxjs": "^7.8.2",
-    "typescript": "5.9.3",
+    "typescript": "6.0.3",
     "wireit": "^0.15.0-pre.2",
     "yaml": "^2.8.1"
   },
