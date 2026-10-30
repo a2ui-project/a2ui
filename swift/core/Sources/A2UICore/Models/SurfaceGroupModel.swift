@@ -40,7 +40,7 @@ public final class SurfaceGroupModel: ObservableObject {
     surfacesMap[vm.surfaceID] = vm
   }
 
-  /// Removes a surface from the group by its ID.
+  /// Removes a surface from the group by its ID and disposes its subscriptions.
   public func removeSurface(id: String) {
     guard let surface = surfacesMap.removeValue(forKey: id) else { return }
     surface.dispose()

@@ -75,6 +75,16 @@ def _confirm() -> FunctionApi:
     )
 
 
+def _agent_only() -> FunctionApi:
+    """A schema-only function restricted to agent-initiated calls."""
+    return FunctionApi(
+        name="lookupAccount",
+        return_type="string",
+        schema=_UpperArgs,
+        allowed_callers="agentOnly",
+    )
+
+
 async def _flush() -> None:
     """Lets the event loop run the callbacks of settled futures."""
     for _ in range(3):
@@ -93,7 +103,9 @@ class _Harness:
     ) -> None:
         self.outbound: list[dict[str, Any]] = []
         self.errors: list[dict[str, Any]] = []
-        catalog = Catalog(FIN_CATALOG_ID, version, [], [_upper(), _quote(), _confirm()])
+        catalog = Catalog(
+            FIN_CATALOG_ID, version, [], [_upper(), _quote(), _confirm(), _agent_only()]
+        )
         self.proc = MessageProcessor(
             [catalog],
             options=MessageProcessorOptions(
@@ -274,6 +286,23 @@ async def test_schema_only_function_requiring_user_activation() -> None:
     assert h.ctx.is_user_activated is False
 
 
+def test_agent_only_function_is_not_routed() -> None:
+    h = _Harness()
+    assert (
+        h.ctx.resolve_dynamic_value({"@call": "lookupAccount", "args": {"value": "a"}})
+        is None
+    )
+    h.ctx.resolve_action(
+        {"functionCall": {"@call": "lookupAccount", "args": {"value": "a"}}}
+    )
+    assert h.outbound == [], "an agentOnly function is never sent to the agent"
+    assert [e["code"] for e in h.errors] == ["EXPRESSION_ERROR", "EXPRESSION_ERROR"]
+    assert all(
+        "cannot be called by renderer (allowedCallers is agentOnly)" in e["message"]
+        for e in h.errors
+    )
+
+
 def test_runs_implemented_function_locally() -> None:
     h = _Harness()
     assert (
@@ -423,6 +452,33 @@ async def test_event_action_context_waits_for_agent_function_and_bypasses_cache(
     resolved2 = h.ctx.resolve_action(action)
     h.surface.dispatch_action(resolved2, "btn1")
     assert len(h.outbound) == 2
+
+
+@pytest.mark.asyncio
+async def test_event_action_waiting_for_agent_function_keeps_metadata() -> None:
+    h = _Harness()
+    dispatched: list[dict[str, Any]] = []
+    h.surface.on_action.subscribe(dispatched.append)
+
+    resolved = h.ctx.resolve_action({
+        "event": {
+            "name": "checkout",
+            "context": {"rate": {"@call": "fetchFxRate", "args": {}}},
+            "metadata": {"extensions": {"trace": "t-1"}},
+        }
+    })
+    h.surface.dispatch_action(
+        resolved, "btn1", metadata={"extensions": {"origin": "tap"}}
+    )
+    assert dispatched == []
+
+    h.respond(0, value=1.08)
+    await _flush()
+    assert len(dispatched) == 1
+    assert dispatched[0]["context"] == {"rate": 1.08}
+    assert dispatched[0]["metadata"] == {
+        "extensions": {"trace": "t-1", "origin": "tap"}
+    }
 
 
 @pytest.mark.asyncio
