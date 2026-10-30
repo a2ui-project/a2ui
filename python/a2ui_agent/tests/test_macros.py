@@ -20,6 +20,7 @@ from typing import Any, Literal, Optional, Sequence, Union
 
 import pytest
 
+from a2ui.builder import v1_0 as builder_v1_0
 from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
@@ -41,9 +42,18 @@ from a2ui.builder.v0_9.catalogs.basic import (
     Text,
 )
 from a2ui.catalog_transformers import ComponentPruningTransformer
-from a2ui.core import A2uiCatalogError, Catalog, CatalogApi
+from a2ui.core import A2uiCatalogError, Catalog, CatalogApi, MessageProcessor
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.core.schema.v0_9 import UpdateComponents, UpdateComponentsMessage
+from a2ui.core.schema.v1_0 import (
+    CreateSurface as CreateSurfaceV10,
+    CreateSurfaceMessage as CreateSurfaceMessageV10,
+    DeleteSurface as DeleteSurfaceV10,
+    DeleteSurfaceMessage as DeleteSurfaceMessageV10,
+    UpdateComponents as UpdateComponentsV10,
+    UpdateComponentsMessage as UpdateComponentsMessageV10,
+)
 from a2ui.transformers.macros import (
     MacroExpander,
     macro,
@@ -695,3 +705,319 @@ def test_macro_expander_to_catalog():
     )
     any_comp = macro_cat.validation_schema["$defs"]["anyComponent"]["oneOf"]
     assert {"$ref": "#/components/MetricBadge"} in any_comp
+
+
+def test_macro_envelope_fields_preservation_and_merging():
+    @macro
+    def StatusBadge(status: str, title: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            child=builder_v1_0.Row(
+                children=[
+                    builder_v1_0.Text(text=status.upper(), variant="caption"),
+                    builder_v1_0.Text(text=title, variant="body"),
+                ]
+            ),
+            accessibility=builder_v1_0.AccessibilityAttributes(
+                description="Default badge description"
+            ),
+            extensions={"macroMeta": {"source": "StatusBadge"}},
+        )
+
+    basic_cid = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    a11y_input = {"label": "Server status badge"}
+    meta_input = {"extensions": {"telemetry": {"traceId": "t1"}}}
+    raw_message = UpdateComponentsMessageV10(
+        version="1.0",
+        updateComponents=UpdateComponentsV10(
+            surfaceId="main",
+            components=[{
+                "component": "StatusBadge",
+                "id": "b1",
+                "status": "ok",
+                "title": "Server",
+                "accessibility": a11y_input,
+                "catalogId": basic_cid,
+                "metadata": meta_input,
+                "weight": 2.0,
+            }],
+        ),
+    )
+
+    expander = MacroExpander([StatusBadge])
+    # Calling to_catalog() must not disable macro expansion on basic catalog surfaces
+    _ = expander.to_catalog()
+    result = expander.transform_to_transport([raw_message])
+    assert len(result) == 1
+    comps = result[0].update_components.components
+    assert [c["component"] for c in comps] == ["Text", "Text", "Row", "Card"]
+
+    for c in comps:
+        assert c["catalogId"] == basic_cid
+
+    root_card = comps[-1]
+    assert root_card["id"] == "b1"
+    assert root_card["weight"] == 2.0
+    assert root_card["accessibility"] == {
+        "label": "Server status badge",
+        "description": "Default badge description",
+    }
+    assert root_card["metadata"] == {
+        "extensions": {
+            "macroMeta": {"source": "StatusBadge"},
+            "telemetry": {"traceId": "t1"},
+        }
+    }
+    # Ensure caller inputs were not mutated in-place
+    assert a11y_input == {"label": "Server status badge"}
+    assert meta_input == {"extensions": {"telemetry": {"traceId": "t1"}}}
+
+    # Verify nested "parameters" dict with declared accessibility parameter
+    @macro
+    def CustomA11yCard(
+        title: str, accessibility: AccessibilityAttributes | None = None
+    ) -> Card:
+        return Card(
+            child=Text(text=title),
+            accessibility=AccessibilityAttributes(label="Internal"),
+        )
+
+    exp_a11y = MacroExpander([CustomA11yCard])
+    nested_param_msg = UpdateComponentsMessage(
+        version="v0.9.1",
+        updateComponents=UpdateComponents(
+            surfaceId="main",
+            components=[{
+                "component": "CustomA11yCard",
+                "id": "c1",
+                "parameters": {"title": "Hello"},
+                "accessibility": {"label": "Passed as param"},
+            }],
+        ),
+    )
+    res_a11y = exp_a11y.transform_to_transport([nested_param_msg])
+    card_out = res_a11y[0].update_components.components[-1]
+    assert card_out["accessibility"] == {"label": "Internal"}
+
+
+def test_macro_mixable_catalogs_scoping_and_same_named_primitive():
+    brand_cid = "https://example.com/brand.json"
+    basic_cid = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+
+    class BrandBox(builder_v1_0.ComponentBuilderNode):
+        component: Literal["BrandBox"] = "BrandBox"
+        child: builder_v1_0.Child
+
+    @macro(name="Text")
+    def BrandText(text: str, variant: str = "body") -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            child=BrandBox(
+                child=builder_v1_0.Text(
+                    text=f"[Brand] {text}",
+                    variant=variant,  # type: ignore[arg-type]
+                )
+            )
+        )
+
+    brand_base = Catalog.from_json(
+        catalog_schema={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "protocolVersion": "1.0",
+            "catalogId": brand_cid,
+            "components": {
+                "BrandBox": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "BrandBox"},
+                        "id": {"type": "string"},
+                        "child": {"type": "string"},
+                    },
+                    "required": ["component", "id", "child"],
+                }
+            },
+            "$defs": {"anyComponent": {"oneOf": [{"$ref": "#/components/BrandBox"}]}},
+        },
+        protocol_version="1.0",
+        catalog_id=brand_cid,
+    )
+
+    expander = MacroExpander([BrandText])
+    brand_inf = expander.transform_to_inference_catalog(brand_base)
+    assert "Text" in brand_inf.validation_schema["components"]
+    assert "BrandBox" in brand_inf.validation_schema["components"]
+
+    # 1. Surface defaulting to basic catalog: basic Text stays unexpanded; brand Text expands
+    msgs = [
+        CreateSurfaceMessageV10(
+            version="1.0",
+            createSurface=CreateSurfaceV10(
+                surfaceId="main",
+                catalogId=basic_cid,
+            ),
+        ),
+        UpdateComponentsMessageV10(
+            version="1.0",
+            updateComponents=UpdateComponentsV10(
+                surfaceId="main",
+                components=[
+                    {
+                        "id": "root",
+                        "component": "Column",
+                        "children": ["t_basic", "t_brand"],
+                    },
+                    {
+                        "id": "t_basic",
+                        "component": "Text",
+                        "text": "Plain basic text",
+                        "variant": "body",
+                    },
+                    {
+                        "id": "t_brand",
+                        "component": "Text",
+                        "catalogId": brand_cid,
+                        "text": "Brand title",
+                        "variant": "body",
+                    },
+                ],
+            ),
+        ),
+    ]
+
+    lowered = expander.transform_to_transport(msgs)
+    comps = lowered[1].update_components.components
+    by_id = {c["id"]: c for c in comps}
+
+    # Unannotated basic Text was NOT expanded
+    assert by_id["t_basic"] == {
+        "id": "t_basic",
+        "component": "Text",
+        "text": "Plain basic text",
+        "variant": "body",
+    }
+    # Brand Text WAS expanded into Text -> BrandBox -> Card
+    assert by_id["t_brand"]["component"] == "Card"
+    assert "catalogId" not in by_id["t_brand"]
+    brand_box = by_id["t_brand__brandbox_1"]
+    assert brand_box["component"] == "BrandBox"
+    # BrandBox belongs to brand_base's base components, so it gets brand_cid
+    assert brand_box["catalogId"] == brand_cid
+    inner_text = by_id["t_brand__text_1"]
+    assert inner_text["component"] == "Text"
+    assert inner_text["text"] == "[Brand] Brand title"
+    assert "catalogId" not in inner_text
+
+    # 2. Delete surface and re-create with brand_cid as surface default
+    lifecycle_msgs = [
+        DeleteSurfaceMessageV10(
+            version="1.0",
+            deleteSurface=DeleteSurfaceV10(surfaceId="main"),
+        ),
+        CreateSurfaceMessageV10(
+            version="1.0",
+            createSurface=CreateSurfaceV10(
+                surfaceId="main",
+                catalogId=brand_cid,
+            ),
+        ),
+        UpdateComponentsMessageV10(
+            version="1.0",
+            updateComponents=UpdateComponentsV10(
+                surfaceId="main",
+                components=[{
+                    "id": "root",
+                    "component": "Text",
+                    "text": "Default brand surface text",
+                    "variant": "body",
+                }],
+            ),
+        ),
+    ]
+    lowered_brand_surface = expander.transform_to_transport(lifecycle_msgs)
+    brand_surface_comps = lowered_brand_surface[2].update_components.components
+    assert [c["component"] for c in brand_surface_comps] == [
+        "Text",
+        "BrandBox",
+        "Card",
+    ]
+    assert brand_surface_comps[-1]["id"] == "root"
+    assert brand_surface_comps[0]["catalogId"] == basic_cid
+    assert "catalogId" not in brand_surface_comps[1]
+    assert brand_surface_comps[2]["catalogId"] == basic_cid
+
+    # Validate both lowered streams through MessageProcessor with both catalogs
+    basic_cat_v10 = Catalog.from_json(
+        catalog_schema=BasicCatalog("1.0").validation_schema,
+        protocol_version="1.0",
+        catalog_id=basic_cid,
+    )
+    mp = MessageProcessor([basic_cat_v10, brand_base])
+    mp.process_messages(
+        [m.model_dump(by_alias=True, exclude_none=True) for m in lowered]
+    )
+    mp.process_messages(
+        [m.model_dump(by_alias=True, exclude_none=True) for m in lowered_brand_surface]
+    )
+
+    # 3. Scoped MacroExpander(catalog_id=...) ignores unannotated Text when surface_catalog_id is None
+    # or even if transform_to_inference_catalog is called on basic_cat_v10
+    scoped_expander = MacroExpander([BrandText], catalog_id=brand_cid)
+    standalone_msg = UpdateComponentsMessageV10(
+        version="1.0",
+        updateComponents=UpdateComponentsV10(
+            surfaceId="untracked_surface",
+            components=[
+                {
+                    "id": "plain_text",
+                    "component": "Text",
+                    "text": "Should remain plain",
+                },
+                {
+                    "id": "empty_cid_text",
+                    "component": "Text",
+                    "catalogId": "",
+                    "text": "Invalid empty catalogId",
+                },
+            ],
+        ),
+    )
+    scoped_out = scoped_expander.transform_to_transport([standalone_msg])
+    assert len(scoped_out[0].update_components.components) == 2
+    assert scoped_out[0].update_components.components[0]["id"] == "plain_text"
+    assert scoped_out[0].update_components.components[1]["id"] == "empty_cid_text"
+
+
+def test_macro_nested_deferred_component_expansion():
+    class InnerBadgeNode(ComponentBuilderNode):
+        component: Literal["InnerBadge"] = "InnerBadge"
+        label: str
+
+    @macro
+    def InnerBadge(label: str) -> Text:
+        return Text(text=f"Badge: {label}")
+
+    @macro
+    def OuterPanel(title: str) -> Card:
+        return Card(
+            child=Column(
+                children=[
+                    Text(text=title),
+                    InnerBadgeNode(label=title),
+                ]
+            )
+        )
+
+    expander = MacroExpander([InnerBadge, OuterPanel])
+    msg = UpdateComponentsMessage(
+        version="v0.9.1",
+        updateComponents=UpdateComponents(
+            surfaceId="main",
+            components=[{
+                "component": "OuterPanel",
+                "id": "panel_1",
+                "title": "Prod",
+            }],
+        ),
+    )
+    lowered = expander.transform_to_transport([msg])
+    comps = lowered[0].update_components.components
+    assert [c["component"] for c in comps] == ["Text", "Text", "Column", "Card"]
+    assert any(c.get("text") == "Badge: Prod" for c in comps)

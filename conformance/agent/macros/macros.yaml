@@ -191,6 +191,23 @@ macros:
         component: "Text"
         text: {$param: "title"}
 
+  - name: "Text"
+    catalog_id: "https://example.com/brand.json"
+    description: "Custom brand Text macro wrapping a basic Text inside a Card"
+    parameters:
+      text: {type: "string"}
+      variant:
+        type: "string"
+        default: "body"
+    # Native builder:
+    #   Card(child=Text(text=f"[Brand] {text}", variant=variant))
+    template:
+      component: "Card"
+      child:
+        component: "Text"
+        text: "[Brand] ${text}"
+        variant: {$param: "variant"}
+
 tests:
   - id: "01_status_badge_expansion"
     description: "Macro expanding to Card, Row, and Text components with root stitching and namespacing"
@@ -463,3 +480,46 @@ tests:
         - "Card"
         - "Button"
         - "Text"
+
+  - id: "19_envelope_attributes_preservation"
+    description: "Macro invocation with component envelope attributes (catalogId, accessibility, metadata) expands cleanly and preserves envelope fields"
+    golden: "19_envelope_attributes_preservation.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      component: "ActionButton"
+      id: "root"
+      label: "Submit"
+      action: "submit_form"
+      catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      accessibility:
+        label: "Submit form button"
+        description: "Submits the current form"
+      metadata:
+        extensions:
+          telemetry:
+            traceId: "t1"
+
+  - id: "20_mixable_catalogs_resolution"
+    description: "Mixable catalogs resolve macros by effective catalogId without colliding with identically named primitives from other catalogs"
+    golden: "20_mixable_catalogs_resolution.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    macro_catalog_id: "https://example.com/brand.json"
+    input:
+      - component: "Column"
+        id: "root"
+        children:
+          - "brand_text"
+          - "basic_text"
+      - component: "Text"
+        id: "brand_text"
+        catalogId: "https://example.com/brand.json"
+        text: "Brand Header"
+        variant: "body"
+      - component: "Text"
+        id: "basic_text"
+        text: "Plain Body"
+        variant: "body"

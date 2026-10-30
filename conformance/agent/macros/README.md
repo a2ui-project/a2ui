@@ -7,7 +7,7 @@ Cross-language golden files verifying that A2UI macro expansion and parameter co
 [`macros.yaml`](macros.yaml) declares:
 
 1. **The reference macro definitions**: Each macro specifies its parameter types, docstring description, and a declarative builder AST `template:` (matching the AST syntax from `builder.yaml`).
-2. **The test cases**: Each case specifies an input message envelope containing a macro invocation, the target surface, any validator relaxations, and the golden file the expanded output must match.
+2. **The test cases**: Each case specifies an input message envelope containing a macro invocation, the target surface, any validator relaxations, optional `envelope_version` and `macro_catalog_id` scoping, and the golden file the expanded output must match.
 
 ### Macro template AST sentinels
 
@@ -36,3 +36,5 @@ Each case is checked twice:
 6. **`06_primitive_and_dict_arguments`**: Primitive arguments (string, integer, boolean) formatted into UI output.
 7. **`07_nested_macro_composition`**: Macro composing another macro within its returned tree, verifying recursive expansion and namespacing.
 8. **`08_surface_lifecycle_envelopes`**: Full surface lifecycle message packaging `createSurface` and `updateComponents`.
+9. **`19_envelope_attributes_preservation`**: Macro invocation with component envelope attributes (`catalogId`, `accessibility`, `metadata`) expands cleanly and preserves envelope fields.
+10. **`20_mixable_catalogs_resolution`**: Mixable catalogs resolve macros by effective `catalogId` without colliding with identically named primitives from other catalogs.
