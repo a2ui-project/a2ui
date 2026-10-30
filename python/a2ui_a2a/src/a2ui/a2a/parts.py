@@ -23,10 +23,10 @@ from a2a.types import Part
 from a2a.types import TextPart as A2aTextPart
 from pydantic import BaseModel
 
+from a2ui.constants import A2UI_CLOSE_TAG
+from a2ui.constants import A2UI_OPEN_TAG
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats import to_message_dicts
-from a2ui.inference_formats.direct_json.blocks import CLOSE_TAG
-from a2ui.inference_formats.direct_json.blocks import OPEN_TAG
 from a2ui.inference_formats.direct_json.json_reader import read_json
 from a2ui.parser import A2uiPart
 from a2ui.parser import BlockLexer
@@ -45,8 +45,8 @@ A2UI_MIME_TYPE = "application/a2ui+json"
 DEPRECATED_A2UI_MIME_TYPE = "application/json+a2ui"
 
 _BLOCK_LEXER = BlockLexer(
-    open_tag=OPEN_TAG,
-    close_tag=CLOSE_TAG,
+    open_tag=A2UI_OPEN_TAG,
+    close_tag=A2UI_CLOSE_TAG,
     string_delimiters={'"', "'"},
 )
 
@@ -183,21 +183,24 @@ def parse_content_to_parts(
     return parts
 
 
-def parse_response_to_parts(
+def extract_a2ui_json_to_parts(
     content: str,
     fallback_text: str | None = None,
     version: ProtocolVersion | str | None = None,
 ) -> list[Part]:
-    """Parses raw text and A2UI JSON message blocks into A2A Parts.
+    """Extracts conversational text and `<a2ui-json>` blocks into A2A Parts.
 
-    Extracts conversational text and `<a2ui-json>` blocks from an LLM response
-    without requiring a configured Catalog or Parser. Each A2UI message inside
-    the blocks is wrapped into an A2A DataPart.
+    Splits `<a2ui-json>` blocks from an LLM response without requiring a
+    configured `Catalog` or `Parser`, wrapping each JSON message dictionary in
+    an A2A `DataPart` without schema or surface-state validation. Malformed
+    JSON blocks are logged and skipped. Use `parse_content_to_parts` when a
+    `Parser` is available.
 
     Args:
-        content: The LLM response content, potentially containing A2UI delimiters.
+        content: The LLM response content, potentially containing `<a2ui-json>`
+            delimiters.
         fallback_text: Optional text to return if no parts are successfully
-          created.
+            created.
         version: The A2UI version, as for `create_a2ui_part`.
 
     Returns:

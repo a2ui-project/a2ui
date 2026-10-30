@@ -30,6 +30,8 @@ This installs `a2ui-agent-sdk` and `a2a-sdk` as dependencies.
   parses a whole response with a `Parser`, such as
   `A2uiRequestProcessor.parser`, and logs and drops one that fails. A canvas
   agent passes it the `RendererState` it keeps with `state=`.
+  `extract_a2ui_json_to_parts` extracts text and `<a2ui-json>` blocks into
+  A2A parts without requiring a `Parser` or `Catalog`.
 
 ```python
 from a2ui.a2a import create_a2ui_part, get_a2ui_agent_extension
