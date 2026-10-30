@@ -348,7 +348,7 @@ class GenericBinder:
         self.listeners: set[Callable[[dict[str, Any]], None]] = set()
         self.current_props: dict[str, Any] = {}
         self.comp_unsub: Callable[[], None] | None = None
-        self._action_closures: dict[str, tuple[Any, Callable[[], Any]]] = {}
+        self._action_closures: dict[str, tuple[Any, Callable[..., Any]]] = {}
 
         resolved_schema = schema
         cat = context.component_model.catalog
@@ -378,9 +378,19 @@ class GenericBinder:
         sub = self.context.component_model.on_updated.subscribe(
             lambda _: self._rebuild_all_bindings()
         )
-        self.comp_unsub = lambda: sub.unsubscribe()
+        self.comp_unsub = sub.unsubscribe
 
         self._rebuild_all_bindings()
+
+    @property
+    def metadata(self) -> dict[str, Any] | None:
+        """Returns the component's metadata object (defensive copy), or None."""
+        return self.context.metadata
+
+    @property
+    def extensions(self) -> dict[str, Any] | None:
+        """Returns the component's metadata extensions dictionary (defensive copy), or None."""
+        return self.context.extensions
 
     @property
     def snapshot(self) -> dict[str, Any]:
@@ -593,13 +603,13 @@ class GenericBinder:
             bound.unsubscribe()
         return bound.value
 
-    def _bind_action(self, value: Any, path: list[str]) -> Callable[[], Any]:
+    def _bind_action(self, value: Any, path: list[str]) -> Callable[..., Any]:
         cache_key = "/".join(path)
         cached = self._action_closures.get(cache_key)
         if cached is not None and cached[0] == value:
             return cached[1]
 
-        def closure() -> Any:
+        def closure(metadata: dict[str, Any] | None = None) -> Any:
             if isinstance(value, dict):
                 fc = (
                     value["functionCall"]
@@ -610,7 +620,7 @@ class GenericBinder:
                 if isinstance(call_name, str):
                     return self.context.data_context.resolve_dynamic_value(fc)
             resolved = self.context.data_context.resolve_action(value)
-            return self.context.dispatch_action(resolved)
+            return self.context.dispatch_action(resolved, metadata=metadata)
 
         self._action_closures[cache_key] = (value, closure)
         return closure

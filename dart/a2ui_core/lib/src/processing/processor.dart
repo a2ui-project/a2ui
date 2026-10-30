@@ -21,6 +21,7 @@ import '../core/common.dart';
 import '../core/component_graph_bound.dart';
 import '../core/component_model.dart';
 import '../core/messages.dart';
+import '../core/metadata.dart';
 import '../core/renderer_capabilities.dart';
 import '../core/surface_group_model.dart';
 import '../core/surface_model.dart';
@@ -1260,10 +1261,13 @@ class MessageProcessor<T extends ComponentApi> {
 
   static void _runBatch(void Function() fn) => batch(fn);
 
-  void _applyComponentModels(SurfaceModel<T> surface, _CheckedBatch batch) {
+  void _applyComponentModels(
+    SurfaceModel<T> surface,
+    _CheckedBatch checkedBatch,
+  ) {
     final SurfaceComponentsModel model = surface.componentsModel;
-    model.refFields = batch.refFields;
-    for (final Map<String, Object?> entry in batch.resolved) {
+    model.refFields = checkedBatch.refFields;
+    for (final Map<String, Object?> entry in checkedBatch.resolved) {
       final id = entry['id']! as String;
       final type = entry['component']! as String;
       final catalogId = entry['catalogId'] as String?;
@@ -1282,8 +1286,9 @@ class MessageProcessor<T extends ComponentApi> {
       if (existing != null &&
           existing.type == type &&
           identical(surface.resolveCatalog(existing.catalog), catalog)) {
-        existing.metadata = metadata;
-        existing.properties = props;
+        batch(() {
+          existing.applyUpdate(props, metadata);
+        });
         continue;
       }
       // A new component, or one whose type or catalog changed, which is
@@ -1406,6 +1411,9 @@ class MessageProcessor<T extends ComponentApi> {
         'keys.',
         path: '/metadata',
       );
+    }
+    if (rawMetadata != null) {
+      validateMetadata(rawMetadata);
     }
 
     final bool atLeastV1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
