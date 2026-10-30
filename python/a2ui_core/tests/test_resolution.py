@@ -22,7 +22,7 @@ from a2ui.core.resolution import (
     GenericBinder,
     MissingDataBindingWarning,
 )
-from a2ui.core.catalog import Catalog
+from a2ui.core.catalog import Catalog, FunctionImplementation
 from a2ui.core.basic_catalog import BasicCatalog, v0_9
 from a2ui.core.schema.v0_9.common_types import DynamicString, StrictBaseModel
 
@@ -54,6 +54,75 @@ def test_component_context_from_surface():
     with pytest.raises(ValueError, match="Component not found"):
         ComponentContext.from_surface(surface, "missing")
 
+    surface.dispose()
+
+
+def test_component_context_dispatch_action_callback_signatures(monkeypatch):
+    import inspect
+
+    cat = BasicCatalog("0.9")
+    surface = SurfaceModel("s1", cat)
+    c1 = ComponentModel("c1", "Button", cat, {"label": "Click"})
+    surface.components_model.add_component(c1)
+    data_ctx = DataContext(surface=surface)
+    meta = {"extensions": {"trace_id": "abc"}}
+
+    recorded: list[tuple[str, Any, str, Any]] = []
+
+    def two_arg(act: dict[str, Any], cid: str) -> None:
+        recorded.append(("two_arg", act, cid, None))
+
+    def three_arg(
+        act: dict[str, Any], cid: str, metadata: dict[str, Any] | None = None
+    ) -> None:
+        recorded.append(("three_arg", act, cid, metadata))
+
+    def var_args(*args: Any) -> None:
+        recorded.append(("var_args", args[0], args[1], args[2]))
+
+    def kw_only(
+        act: dict[str, Any], cid: str, *, metadata: dict[str, Any] | None = None
+    ) -> None:
+        recorded.append(("kw_only", act, cid, metadata))
+
+    def var_kwargs(act: dict[str, Any], cid: str, **kwargs: Any) -> None:
+        recorded.append(("var_kwargs", act, cid, kwargs.get("metadata")))
+
+    for cb in (two_arg, three_arg, var_args, kw_only, var_kwargs):
+        ctx = ComponentContext(
+            c1, data_ctx, surface.components_model, dispatch_action_callback=cb
+        )
+        ctx.dispatch_action({"name": "tap"}, metadata=meta)
+
+    assert recorded == [
+        ("two_arg", {"name": "tap"}, "c1", None),
+        ("three_arg", {"name": "tap"}, "c1", meta),
+        ("var_args", {"name": "tap"}, "c1", meta),
+        ("kw_only", {"name": "tap"}, "c1", meta),
+        ("var_kwargs", {"name": "tap"}, "c1", meta),
+    ]
+
+    # Callables where inspect.signature raises ValueError or TypeError fall back to 2-arg call.
+    fallback_calls: list[tuple[dict[str, Any], str]] = []
+
+    def uninspectable(act: dict[str, Any], cid: str) -> None:
+        fallback_calls.append((act, cid))
+
+    for exc_cls in (ValueError, TypeError):
+        monkeypatch.setattr(
+            inspect,
+            "signature",
+            lambda _fn, _exc=exc_cls: (_ for _ in ()).throw(_exc("no signature")),
+        )
+        ctx = ComponentContext(
+            c1,
+            data_ctx,
+            surface.components_model,
+            dispatch_action_callback=uninspectable,
+        )
+        ctx.dispatch_action({"name": "tap"}, metadata=meta)
+
+    assert fallback_calls == [({"name": "tap"}, "c1"), ({"name": "tap"}, "c1")]
     surface.dispose()
 
 
@@ -275,7 +344,41 @@ def test_generic_binder_checks_validation():
     binder.dispose()
 
 
-def test_expression_parser_literals_and_interpolation():
+def test_generic_binder_path_bound_check_keeps_data_model_message():
+    """A path-bound ValidationResult keeps its own message; the rule message
+    is the fallback. (An evaluated check gives the rule message precedence.)"""
+    cat = BasicCatalog("1.0")
+    data_model = DataModel({
+        "check": {
+            "valid": False,
+            "code": "FROM_DATA",
+            "message": "Message from the data model",
+        }
+    })
+    comp = ComponentModel(
+        "field_1",
+        "TextField",
+        cat,
+        {
+            "label": "Field",
+            "checks": [{
+                "condition": {"@path": "/check"},
+                "message": "Rule fallback message",
+            }],
+        },
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model, protocol_version="1.0")
+    binder = GenericBinder(ComponentContext(comp, DataContext(surface, path="/")))
+
+    assert binder.current_props["validationErrors"] == ["Message from the data model"]
+
+    data_model.set("/check", {"valid": False})
+    assert binder.current_props["validationErrors"] == ["Rule fallback message"]
+
+    data_model.set("/check", False)
+    assert binder.current_props["validationErrors"] == ["Rule fallback message"]
+
+    binder.dispose()
     from a2ui.core.expressions.expression_parser import ExpressionParser
 
     parser = ExpressionParser()
@@ -325,11 +428,11 @@ def test_string_interpolation_complex_execution():
                 _format_string,
             )
 
-            self.functions["add"] = (
-                lambda args, context, abort_signal=None: args["a"] + args["b"]
+            self.functions["add"] = lambda args, context, abort_signal=None: (
+                args["a"] + args["b"]
             )
-            self.functions["formatString"] = (
-                lambda args, context, abort_signal=None: _format_string(args, context)
+            self.functions["formatString"] = lambda args, context, abort_signal=None: (
+                _format_string(args, context)
             )
 
     cat1 = MockCatalog()
@@ -351,15 +454,13 @@ def test_subscribe_dynamic_value_chained_functions():
 
         def __init__(self):
             super().__init__("string", "v0_9_1", [], [])
-            self.functions["trim"] = (
-                lambda args, context, abort_signal=None: args.get("value", "").strip()
+            self.functions["trim"] = lambda args, context, abort_signal=None: (
+                args.get("value", "").strip()
                 if isinstance(args.get("value", ""), str)
                 else args.get("value", "")
             )
-            self.functions["capitalize"] = (
-                lambda args, context, abort_signal=None: args.get(
-                    "value", ""
-                ).capitalize()
+            self.functions["capitalize"] = lambda args, context, abort_signal=None: (
+                args.get("value", "").capitalize()
                 if isinstance(args.get("value", ""), str)
                 else args.get("value", "")
             )
@@ -736,6 +837,65 @@ def test_data_context_system_function_without_catalog_id_still_runs():
     ctx = DataContext(surface, path="/items/2")
 
     assert ctx.resolve_dynamic_value({"@call": "@index"}) == 2
+    assert errors == []
+
+
+def _allowed_callers_context(
+    allowed_callers: str,
+) -> tuple[DataContext, list[str], list[dict[str, Any]]]:
+    """A v1.0 context whose catalog has a `lookup` function with the given
+    `allowedCallers`, and the calls that reached its body and the errors the
+    surface reported."""
+    calls: list[str] = []
+    errors: list[dict[str, Any]] = []
+
+    def lookup(args: dict[str, Any], ctx: Any, abort: Any) -> str:
+        calls.append("lookup")
+        return "secret"
+
+    fn = FunctionImplementation(
+        name="lookup",
+        return_type="string",
+        execute=lookup,
+        allowed_callers=allowed_callers,  # type: ignore[arg-type]
+    )
+    surface = SurfaceModel(
+        "s1", Catalog("test", protocol_version="1.0", functions=[fn])
+    )
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    return DataContext(surface, path="/"), calls, errors
+
+
+def test_data_context_refuses_agent_only_function_in_binding_and_action():
+    """An agentOnly function is restricted to agent-initiated
+    callRendererFunction, so a binding or an action that calls it is reported
+    as an EXPRESSION_ERROR and its body never runs."""
+    ctx, calls, errors = _allowed_callers_context("agentOnly")
+
+    assert ctx.resolve_dynamic_value({"@call": "lookup", "args": {}}) is None
+    assert ctx.resolve_action({"functionCall": {"@call": "lookup", "args": {}}}) is None
+
+    assert calls == []
+    assert [(e["code"], e["expression"]) for e in errors] == [
+        ("EXPRESSION_ERROR", "lookup"),
+        ("EXPRESSION_ERROR", "lookup"),
+    ]
+    for err in errors:
+        assert "cannot be called by renderer (allowedCallers is agentOnly)" in (
+            err["message"]
+        )
+
+
+def test_data_context_runs_renderer_or_agent_function_in_binding_and_action():
+    ctx, calls, errors = _allowed_callers_context("rendererOrAgent")
+
+    assert ctx.resolve_dynamic_value({"@call": "lookup", "args": {}}) == "secret"
+    assert (
+        ctx.resolve_action({"functionCall": {"@call": "lookup", "args": {}}})
+        == "secret"
+    )
+
+    assert calls == ["lookup", "lookup"]
     assert errors == []
 
 

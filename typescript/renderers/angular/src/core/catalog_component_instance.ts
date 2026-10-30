@@ -15,10 +15,13 @@
  */
 
 import {Signal} from '@angular/core';
+import {type A2uiMetadata, type Extensions} from '@a2ui/web_core/v0_9';
 
 /** Describes the properties that a Catalog component needs to implement. */
 export interface CatalogComponentInstance {
   readonly props: Signal<Record<string, unknown>>;
+  readonly metadata?: Signal<A2uiMetadata | undefined>;
+  readonly extensions?: Signal<Extensions | undefined>;
   readonly surfaceId: Signal<string>;
   readonly componentId: Signal<string>;
   readonly dataContextPath: Signal<string>;

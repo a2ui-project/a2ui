@@ -22,15 +22,18 @@ import {
   ElementRef,
   Injector,
   Type,
+  computed,
   inject,
   input,
   effect,
+  reflectComponentType,
   signal,
   untracked,
   NgZone,
 } from '@angular/core';
 import {NgComponentOutlet} from '@angular/common';
 import {
+  type A2uiMetadata,
   ComponentContext,
   type ComponentNode,
   ResolvedBinding,
@@ -129,17 +132,7 @@ function findNodeInList(
   // minification. Prettier keeps them (`quoteProps: "preserve"` in the root `.prettierrc`).
   template: `
     @if (componentType()) {
-      <ng-container
-        *ngComponentOutlet="
-          componentType()!;
-          inputs: {
-            props: props(),
-            surfaceId: surfaceId(),
-            componentId: resolvedComponentId,
-            dataContextPath: resolvedDataContextPath,
-          }
-        "
-      ></ng-container>
+      <ng-container *ngComponentOutlet="componentType()!; inputs: componentInputs()"></ng-container>
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -163,6 +156,25 @@ export class ComponentHostComponent {
 
   protected readonly componentType = signal<Type<CatalogComponentInstance> | null>(null);
   protected readonly props = signal<Record<string, BoundProperty>>({});
+  protected readonly metadata = signal<A2uiMetadata | undefined>(undefined);
+  protected readonly acceptsMetadata = computed(() => {
+    const type = this.componentType();
+    if (!type) return false;
+    const mirror = reflectComponentType(type);
+    return mirror?.inputs.some(i => i.templateName === 'metadata') ?? false;
+  });
+  protected readonly componentInputs = computed<Record<string, unknown>>(() => {
+    const inputs: Record<string, unknown> = {
+      'props': this.props(),
+      'surfaceId': this.surfaceId(),
+      'componentId': this.resolvedComponentId,
+      'dataContextPath': this.resolvedDataContextPath,
+    };
+    if (this.acceptsMetadata()) {
+      inputs['metadata'] = this.metadata();
+    }
+    return inputs;
+  });
   /** Bumped when a surface that was missing is created, so the setup effect re-runs. */
   private readonly surfaceRetry = signal(0);
   private currentBoundProps?: Record<string, BoundProperty>;
@@ -174,6 +186,7 @@ export class ComponentHostComponent {
   protected resolvedDataContextPath: string = '/';
 
   private propsSub?: Subscription;
+  private metadataSub?: Subscription;
   private surfaceSub?: Subscription;
 
   constructor() {
@@ -308,9 +321,16 @@ export class ComponentHostComponent {
   ): void {
     this.componentType.set(componentClass);
     this.updateProps();
+    this.metadata.set(getValue(node.metadata));
 
     this.propsSub = node.context!.componentModel.onUpdated.subscribe(() => {
       this.ngZone.run(() => this.updateProps());
+    });
+    this.metadataSub = node.context!.componentModel.onMetadataChanged.subscribe(nextMeta => {
+      this.ngZone.run(() => {
+        this.metadata.set(nextMeta);
+        this.cdr.markForCheck();
+      });
     });
   }
 
@@ -357,6 +377,8 @@ export class ComponentHostComponent {
   private resetState(): void {
     this.propsSub?.unsubscribe();
     this.propsSub = undefined;
+    this.metadataSub?.unsubscribe();
+    this.metadataSub = undefined;
     this.surfaceSub?.unsubscribe();
     this.surfaceSub = undefined;
 
@@ -369,6 +391,7 @@ export class ComponentHostComponent {
       this.currentBoundProps = undefined;
     }
     this.props.set({});
+    this.metadata.set(undefined);
     this.resolvedDataContextPath = '/';
 
     if (this.mountedWcEl) {
