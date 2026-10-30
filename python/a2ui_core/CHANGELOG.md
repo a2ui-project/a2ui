@@ -20,14 +20,24 @@
   settled answers per surface (bounded to 256 entries, evicted on failure and
   cleared on `deleteSurface`); imperative `action` calls always execute fresh.
   A call whose catalog cannot be resolved stays a `CATALOG_ERROR` and is not
-  routed. `MessageProcessor` enables this on v1.0 surfaces when it has an
-  `outbound_listener`; without one, such calls still fail locally. Adds
+  routed, and neither is a call to a function whose `allowed_callers` is
+  `agentOnly`, which stays an `EXPRESSION_ERROR`. `MessageProcessor` enables
+  this on v1.0 surfaces when it has an `outbound_listener`; without one, such
+  calls still fail locally. Adds
   `SurfaceModel.agent_function_caller`, `SurfaceModel.call_agent_function`,
   `SurfaceModel.disposed`, `DataContext.is_user_activated`,
   `MessageProcessor.dispose`, `RpcHandler.cancel_surface_calls`, and the
   `AgentFunctionCall` and `AgentFunctionCaller` types.
   [#3415](https://github.com/a2ui-project/a2ui/issues/3415),
   [#3536](https://github.com/a2ui-project/a2ui/issues/3536)
+- **BREAKING CHANGE**: `DataContext` refuses a function whose `allowed_callers`
+  is `agentOnly`, before running it, so a binding, check or function call
+  action that calls one reports an `EXPRESSION_ERROR` instead of running it, as
+  the v1.0 specification requires. `RpcHandler` still runs such a function for
+  an agent's `callRendererFunction`. Recommended migration: set
+  `allowed_callers` to `rendererOrAgent` on a function both the renderer and
+  the agent call ([#3483](https://github.com/a2ui-project/a2ui/issues/3483),
+  [#3773](https://github.com/a2ui-project/a2ui/pull/3773)).
 - From v0.9, a component its catalog declares with no `ComponentId` or
   `ChildList` property has no child references. Previously any of its string
   properties that named a component on the surface, such as an `Icon` named
@@ -61,6 +71,7 @@
   that breaks those rules is now rejected. The check is skipped when no catalog
   of the surface's components declares such rules.
   [#3360](https://github.com/a2ui-project/a2ui/pull/3360)
+- Add extension metadata APIs across `SurfaceModel` (`metadata`, `extensions`, `on_metadata_changed`, `set_extension`, `remove_extension`, and `dispatch_action(..., metadata=...)`), `ComponentModel` (`metadata`, `extensions`, `on_metadata_changed`, `set_extension`, `remove_extension`), `ComponentNode` (`metadata` and `on_metadata_changed`), `ComponentContext` and `GenericBinder` (`metadata`, `extensions`, and optional `metadata` on bound action closures), and `ComponentApi` (`metadata` parsed and serialized in `Catalog.from_json()` and `Catalog.to_json()`). Fix `MessageProcessor` to store component `metadata` on `ComponentModel.metadata` outside `ComponentModel.properties` and validate UAX 31 extension keys on component creation as well as updates, and fix Pydantic code generation to emit a distinct `ActionMetadata` wrapper model instead of colliding with `Extensions` ([#3103](https://github.com/a2ui-project/a2ui/issues/3103), [#3468](https://github.com/a2ui-project/a2ui/issues/3468), [#3560](https://github.com/a2ui-project/a2ui/issues/3560), [#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)).
 - A function defined without an argument schema (`FunctionApi` or
   `FunctionImplementation` without `schema`) takes any args, as one given
   `schema={}` does: `validation_schema` and `resolved_function_schema` give
@@ -83,6 +94,7 @@
   [#3653](https://github.com/a2ui-project/a2ui/pull/3653)
 - Add `map_error_to_renderer_message`, `extract_envelope_error_context`, and `ErrorEnvelopeContext` to `a2ui.core.processing` and the `a2ui.core` public facade, along with `SurfaceGroupModel.on_error` and `MessageProcessor.process_messages_with_errors` for emitting and collecting structured wire-format renderer error messages. [#3580](https://github.com/a2ui-project/a2ui/pull/3580)
 - Add `NodeResolver`, `ComponentNode`, and `NodeState` to `a2ui.core.resolution` and the `a2ui.core` public facade for reactive surface node-graph resolution, template expansion, and placeholder/cycle tracking. [#3580](https://github.com/a2ui-project/a2ui/pull/3580)
+- (v1_0) Support `@`-prefixed system function calls (such as `${@index()}`) in `ExpressionParser` string interpolation templates, and preserve `ValidationResult.message` on path-bound `CheckRule` conditions in `GenericBinder` while overriding function default messages on evaluated checks. [#3583](https://github.com/a2ui-project/a2ui/pull/3583)
 - **BREAKING CHANGE**: Cross-catalog `$ref` resolution across peer catalogs is
   removed. `Catalog.peer_catalogs`, `Catalog.with_peer_catalogs` and
   `link_catalogs` are gone, `inline_local_refs` no longer takes a `peers`

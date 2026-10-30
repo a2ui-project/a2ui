@@ -25,6 +25,7 @@ export {ComponentHostComponent, type ComponentKey} from './core/component-host.c
 export {SurfaceComponent} from './core/surface.component';
 export {SurfaceNodeResolver} from './core/surface-node-resolver.service';
 export {CatalogComponent} from './core/catalog_component';
+export {type CatalogComponentInstance} from './core/catalog_component_instance';
 export {ComponentBinder, type Child} from './core/component-binder.service';
 export {
   type BoundProperty,
