@@ -16,7 +16,7 @@
 # Standalone, user-space installer for the A2UI CLI (a2ui).
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/install_cli.sh | sh
+#   curl -sSL https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/public/install_cli.sh | sh
 #
 # Options (via environment variables):
 #   A2UI_VERSION        Version to install (e.g., "0.1.0" or "cli-v0.1.0"). Defaults to latest release.
@@ -38,7 +38,7 @@ case "$OS" in
   Darwin*) TARGET_OS="darwin" ;;
   *)
     echo "Error: Unsupported operating system '$OS'." >&2
-    echo "For Windows, use PowerShell: 'irm https://raw.githubusercontent.com/$REPO/main/scripts/install_cli.ps1 | iex'" >&2
+    echo "For Windows, use PowerShell: 'irm https://raw.githubusercontent.com/$REPO/main/scripts/public/install_cli.ps1 | iex'" >&2
     exit 1
     ;;
 esac
@@ -74,7 +74,7 @@ if [ -z "$VERSION" ] || [ "$VERSION" = "latest" ]; then
       echo "Error: No 'cli-v*' release found in repository '$REPO'." >&2
     fi
     echo "Please specify the version explicitly, e.g.:" >&2
-    echo "  curl -sSL https://raw.githubusercontent.com/$REPO/main/scripts/install_cli.sh | A2UI_VERSION=0.1.0 sh" >&2
+    echo "  curl -sSL https://raw.githubusercontent.com/$REPO/main/scripts/public/install_cli.sh | A2UI_VERSION=0.1.0 sh" >&2
     exit 1
   fi
 else

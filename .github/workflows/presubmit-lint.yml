@@ -65,6 +65,9 @@ jobs:
       - name: Check license headers
         run: ./scripts/fix_licenses.py --check
 
+      - name: Run CLI installer tests
+        run: ./scripts/test_install_cli.sh
+
   format-check:
     runs-on: ubuntu-24.04 # setup-swift does not support Ubuntu 26.04 yet
     steps:

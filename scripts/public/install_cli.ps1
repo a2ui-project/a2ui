@@ -15,7 +15,7 @@
 # Standalone, user-space installer for the A2UI CLI on Windows.
 #
 # Usage:
-#   irm https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/install_cli.ps1 | iex
+#   irm https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/public/install_cli.ps1 | iex
 
 & {
     $ErrorActionPreference = "Stop"
