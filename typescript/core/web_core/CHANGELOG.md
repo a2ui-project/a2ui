@@ -37,7 +37,7 @@
 - (v1_0) `metadata.extensions` keys containing characters outside UAX #31 identifier syntax (such as `:` or `-`) are now rejected during message and component validation ([#2931](https://github.com/a2ui-project/a2ui/pull/2931)).
 - (v0_8) Children attached via `Card.child`, `Modal.entryPointChild` or `Modal.contentChild` on v0.8 surfaces validated against a catalog loaded with `Catalog.fromJson` are now recognized as reachable from `root` instead of failing topology validation as orphaned components ([#2884](https://github.com/a2ui-project/a2ui/pull/2884)).
 - `Catalog.toJson()` and `Catalog.validationSchema` now include `args` in the outer function call schema's `required` list when a function's argument schema is a union (`oneOf` or `anyOf`) whose branches all require arguments, an `allOf` composition with a branch that requires arguments, or a local `$ref` to a definition that requires arguments ([#3363](https://github.com/a2ui-project/a2ui/issues/3363)).
-- `formatDate` copies text in single quotes through as a literal and renders `''` as an apostrophe, so `"MMM d 'at' h:mm a"` gives `Feb 2 at 3:17 PM` instead of `Feb 2 'PMt' 3:17 PM`, and reads `EEE` and `EE` as the abbreviated weekday instead of repeating it. [#2937](https://github.com/a2ui-project/a2ui/issues/2937)
+- `formatDate` copies text in single quotes through as a literal and renders `''` as an apostrophe, so `"MMM d 'at' h:mm a"` gives `Feb 2 at 3:17 PM` instead of `Feb 2 'PMt' 3:17 PM`, and reads `EEE` and `EE` as the abbreviated weekday instead of repeating it. [#2937](https://github.com/a2ui-project/a2ui/issues/2937), [#3787](https://github.com/a2ui-project/a2ui/pull/3787)
 
 ## 0.14.0
 
