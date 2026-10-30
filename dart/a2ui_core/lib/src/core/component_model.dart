@@ -491,10 +491,9 @@ class SurfaceComponentsModel {
 
   /// Disposes of the model and all its components.
   void dispose() {
-    for (final ComponentModel component in _components.values) {
-      component.dispose();
+    for (final String id in _components.keys.toList()) {
+      removeComponent(id);
     }
-    _components.clear();
     _bound = null;
     _onCreated.dispose();
     _onDeleted.dispose();

@@ -998,7 +998,6 @@ describe('GenericBinder Checkable Trait', () => {
               '@call': 'dynamic_validator',
               args: {mode: {'@path': '/mode'}},
             },
-            message: 'Default rule failure message',
           },
         ],
       },
@@ -1018,19 +1017,69 @@ describe('GenericBinder Checkable Trait', () => {
     surface.dataModel.set('/mode', 'boolean_error');
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.strictEqual(binder.snapshot.isValid, false);
-    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Default rule failure message']);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
 
     // Subsequent evaluation returning { valid: false } without message -> should reset to default message
     surface.dataModel.set('/mode', 'object_without_msg');
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.strictEqual(binder.snapshot.isValid, false);
-    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Default rule failure message']);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
 
     // Subsequent evaluation returning true -> valid
     surface.dataModel.set('/mode', 'valid');
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.strictEqual(binder.snapshot.isValid, true);
     assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+  });
+
+  it('should give explicit CheckRule.message precedence over function message', async () => {
+    const mockCatalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    (surface.defaultCatalog as any).functions = new Map([
+      [
+        'dynamic_validator',
+        {
+          execute: () => ({valid: false, message: 'Custom dynamic error'}),
+          schema: z.object({}).passthrough(),
+        },
+      ],
+    ]);
+    (surface.defaultCatalog as any).invoker = (name: string, args: any) => {
+      const fn = (surface.defaultCatalog as any).functions.get(name);
+      return fn.execute(args);
+    };
+
+    const schema = z.object({
+      field: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+
+    const compModel = new ComponentModel(
+      'c_override',
+      'Input',
+      {
+        field: 'val',
+        checks: [
+          {
+            condition: {
+              '@call': 'dynamic_validator',
+            },
+            message: 'Explicit rule message overrides function message',
+          },
+        ],
+      },
+      mockCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c_override');
+    const binder = new GenericBinder<any>(context, schema);
+    binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, [
+      'Explicit rule message overrides function message',
+    ]);
   });
 
   it('should not treat primitive fields or unannotated condition arrays as CHECKABLE', () => {
@@ -1209,6 +1258,92 @@ describe('GenericBinder Checkable Trait', () => {
       // @ts-expect-error a literal branch must still constrain the setter.
       withLiteral.setValue(123);
     });
+  });
+});
+
+describe('GenericBinder allowedCallers', () => {
+  function setup(allowedCallers: 'agentOnly' | 'rendererOrAgent') {
+    const calls: string[] = [];
+    const lookup: FunctionImplementation = {
+      name: 'lookup',
+      returnType: 'string',
+      schema: z.object({}),
+      allowedCallers,
+      execute: () => {
+        calls.push('lookup');
+        return 'secret';
+      },
+    };
+    const isValid: FunctionImplementation = {
+      name: 'isValid',
+      returnType: 'boolean',
+      schema: z.object({}),
+      allowedCallers,
+      execute: () => {
+        calls.push('isValid');
+        return true;
+      },
+    };
+    const catalog = new Catalog('test', '1.0', [], [lookup, isValid]);
+    const surface = new SurfaceModel('s1', catalog);
+    const errors: Array<{code: string; message: string; expression?: string}> = [];
+    surface.onError.subscribe(err => {
+      errors.push(err);
+    });
+
+    const schema = z.object({
+      text: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+      onTap: CommonSchemas.Action,
+    });
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c1',
+        'Test',
+        {
+          text: {'@call': 'lookup', args: {}},
+          checks: [{condition: {'@call': 'isValid', args: {}}, message: 'Invalid'}],
+          onTap: {functionCall: {'@call': 'lookup', args: {}}},
+        },
+        catalog,
+      ),
+    );
+    const binder = new GenericBinder<{text?: string; isValid?: boolean; onTap: () => void}>(
+      new ComponentContext(surface, 'c1'),
+      schema,
+    );
+    binder.subscribe(() => {});
+    return {binder, calls, errors};
+  }
+
+  it('refuses agentOnly functions in bindings, checks and actions without running them', () => {
+    const {binder, calls, errors} = setup('agentOnly');
+
+    assert.strictEqual(binder.snapshot.text, undefined);
+    assert.deepStrictEqual(new Set(errors.map(e => e.expression)), new Set(['lookup', 'isValid']));
+    const errorsBeforeTap = errors.length;
+    binder.snapshot.onTap();
+    assert.strictEqual(errors.length, errorsBeforeTap + 1);
+
+    assert.deepStrictEqual(calls, []);
+    for (const err of errors) {
+      assert.strictEqual(err.code, 'EXPRESSION_ERROR');
+      assert.match(err.message, /cannot be called by renderer \(allowedCallers is agentOnly\)/);
+    }
+    binder.dispose();
+  });
+
+  it('runs rendererOrAgent functions in bindings, checks and actions', () => {
+    const {binder, calls, errors} = setup('rendererOrAgent');
+
+    assert.strictEqual(binder.snapshot.text, 'secret');
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.ok(calls.includes('isValid'));
+    const callsBeforeTap = calls.length;
+    binder.snapshot.onTap();
+    assert.deepStrictEqual(calls.slice(callsBeforeTap), ['lookup']);
+    assert.deepStrictEqual(errors, []);
+    binder.dispose();
   });
 });
 

@@ -232,7 +232,7 @@ struct SurfaceViewModelTests {
     )
     #expect(handler.capturedErrors.count == 1)
     if case .validationFailed(let err) = handler.capturedErrors[0] {
-      #expect(err.path == "/component")
+      #expect(err.path == "/components/0/component")
     }
   }
 
@@ -246,7 +246,7 @@ struct SurfaceViewModelTests {
     )
     #expect(handler.capturedErrors.count == 1)
     if case .validationFailed(let err) = handler.capturedErrors[0] {
-      #expect(err.path == "/id")
+      #expect(err.path == "/components/0/id")
     }
   }
 
