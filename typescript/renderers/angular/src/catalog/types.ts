@@ -22,7 +22,7 @@ import {
 } from '@a2ui/web_core/v0_9/universal';
 import {z} from 'zod';
 import {CatalogComponentInstance} from '../core/catalog_component_instance';
-import {toWebComponent} from './to_web_component';
+import {componentApiFields, toWebComponent} from './to_web_component';
 import {UniversalOnlyComponent} from './universal_only.component';
 
 /**
@@ -167,14 +167,13 @@ export function createComponentImplementation(
 ): AngularComponentImplementation {
   const webComponent = isWebComponentImplementation(componentApi)
     ? componentApi
-    : toWebComponent({name: componentApi.name, schema: componentApi.schema, component});
+    : toWebComponent({...componentApiFields(componentApi), component});
 
   // Annotated wider than the return type so the Custom Element fields pass the object literal
   // check; to consumers the entry is an AngularComponentImplementation that also satisfies
   // `isWebComponentImplementation`.
   const implementation: AngularComponentImplementation & WebComponentImplementation = {
-    name: componentApi.name,
-    schema: componentApi.schema,
+    ...componentApiFields(componentApi),
     tagName: webComponent.tagName,
     element: webComponent.element,
     component,

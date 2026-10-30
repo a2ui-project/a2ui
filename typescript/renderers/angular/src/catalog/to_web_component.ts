@@ -15,6 +15,7 @@
  */
 
 import {Type} from '@angular/core';
+import {ComponentApi} from '@a2ui/web_core/v0_9';
 import {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 import type {AngularComponentImplementation} from './types';
 import {AngularWcHost} from './angular_wc_host';
@@ -33,6 +34,19 @@ function computeTagName(name: string): string {
   const count = (tagNameCounts.get(baseTagName) ?? 0) + 1;
   tagNameCounts.set(baseTagName, count);
   return count === 1 ? baseTagName : `${baseTagName}-${count}`;
+}
+
+/**
+ * Copies the `ComponentApi` fields of `api`, leaving out the fields of a richer entry such as
+ * `component`, `tagName` and `element`.
+ */
+export function componentApiFields(api: ComponentApi): ComponentApi {
+  return {
+    name: api.name,
+    schema: api.schema,
+    allowedParents: api.allowedParents,
+    allowedChildren: api.allowedChildren,
+  };
 }
 
 /**
@@ -65,8 +79,7 @@ export function toWebComponent(
   const element = class extends AngularWcHost {};
 
   const implementation: WebComponentImplementation = {
-    name: componentImpl.name,
-    schema: componentImpl.schema,
+    ...componentApiFields(componentImpl),
     tagName,
     element,
   };

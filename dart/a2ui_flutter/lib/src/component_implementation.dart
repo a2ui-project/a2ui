@@ -55,6 +55,8 @@ class ComponentImplementation extends ComponentApi {
     required super.name,
     required super.schema,
     required this.builder,
+    super.allowedParents,
+    super.allowedChildren,
   });
 }
 

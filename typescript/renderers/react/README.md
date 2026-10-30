@@ -141,6 +141,8 @@ export const MyProfileApi = {
 };
 ```
 
+The API can also restrict where the component appears, with `allowedParents` and `allowedChildren` lists of component names. The message processor then rejects a payload that places the component under another parent with `UNALLOWED_PARENT`, or gives it a child of another type with `UNALLOWED_CHILD`. A root component's parent is `Surface`. Only properties declared with `CommonSchemas.ComponentId` or `CommonSchemas.ChildList` hold children, so an id in a plain `z.string()` property is not checked against `allowedChildren`.
+
 ### 2. Create the React Implementation
 
 The `createComponentImplementation` factory uses a **Generic Binder** to resolve all dynamic values before your component renders.
