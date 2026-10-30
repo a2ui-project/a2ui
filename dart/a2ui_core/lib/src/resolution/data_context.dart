@@ -495,6 +495,8 @@ class DataContext {
               keepFailed: true,
             ),
         };
+        String? lastAgentKey;
+        _AgentCall? lastAgentCall;
         return computed(() {
           final args = <String, dynamic>{
             for (final MapEntry<String, ReadonlySignal<Object?>> entry
@@ -509,6 +511,12 @@ class DataContext {
             call,
             args,
             keepFailed: keepFailed,
+            lastAgentKey: lastAgentKey,
+            lastAgentCall: lastAgentCall,
+            onAgentCall: (key, entry) {
+              lastAgentKey = key;
+              lastAgentCall = entry;
+            },
           );
           if (result is ReadonlySignal) {
             return result.value;
@@ -640,6 +648,9 @@ class DataContext {
     FunctionCall call,
     Map<String, dynamic> args, {
     bool keepFailed = false,
+    String? lastAgentKey,
+    _AgentCall? lastAgentCall,
+    void Function(String key, _AgentCall entry)? onAgentCall,
   }) {
     final String name = call.call;
     try {
@@ -654,15 +665,26 @@ class DataContext {
       } on A2uiCatalogResolutionError catch (error) {
         final String? catalogId = _routableCatalogId(error, name);
         if (catalogId == null) rethrow;
+        final String key = _agentCallKey(call.call, catalogId, args);
         final _AgentCall? existing = _agentCalls.lookup(call, catalogId, args);
         if (existing != null) {
+          onAgentCall?.call(key, existing);
+          existing.version.value;
           return existing.failed && keepFailed
               ? _failedArg
               : existing.value.value;
         }
+        if (lastAgentKey == key &&
+            lastAgentCall != null &&
+            lastAgentCall.failed) {
+          lastAgentCall.version.value;
+          return keepFailed ? _failedArg : null;
+        }
         final AgentFunctionCaller? caller = _agentCallerOrNull;
         if (caller == null) rethrow;
         final _AgentCall entry = _agentCall(call, catalogId, args, caller);
+        onAgentCall?.call(key, entry);
+        entry.version.value;
         return entry.failed && keepFailed ? _failedArg : entry.value.value;
       }
     } catch (error) {
@@ -865,6 +887,7 @@ class DataContext {
         batch(() {
           entry.pending = false;
           entry.value.value = value;
+          entry.version.value++;
           _agentCalls.version.value++;
         });
       },
@@ -872,6 +895,7 @@ class DataContext {
         batch(() {
           entry.pending = false;
           entry.failed = true;
+          entry.version.value++;
           _agentCalls.markFailed(key);
           _agentCalls.version.value++;
         });
@@ -1238,7 +1262,10 @@ class DataContext {
   /// Resolves an action payload by evaluating dynamic values in its context and
   /// userMessage, awaiting any nested agent function calls. Returns
   /// synchronously when no nested Future is produced.
-  FutureOr<Map<String, dynamic>?> resolveActionAsync(Object? action) {
+  FutureOr<Map<String, dynamic>?> resolveActionAsync(
+    Object? action, {
+    void Function()? onExpressionFailed,
+  }) {
     if (action == null) return null;
     if (action is String) {
       if (action.isEmpty) return null;
@@ -1254,6 +1281,7 @@ class DataContext {
       if (name is! String || name.isEmpty) return null;
       final FutureOr<Map<String, dynamic>?> ev = _resolveActionFieldsAsync(
         Map<String, dynamic>.from(eventObj),
+        onExpressionFailed: onExpressionFailed,
       );
       if (ev is Future<Map<String, dynamic>?>) {
         return ev.then((resolvedEv) {
@@ -1267,14 +1295,18 @@ class DataContext {
     if (map.containsKey('name')) {
       final Object? name = map['name'];
       if (name is! String || name.isEmpty) return null;
-      return _resolveActionFieldsAsync(map);
+      return _resolveActionFieldsAsync(
+        map,
+        onExpressionFailed: onExpressionFailed,
+      );
     }
     return null;
   }
 
   FutureOr<Map<String, dynamic>?> _resolveActionFieldsAsync(
-    Map<String, dynamic> map,
-  ) {
+    Map<String, dynamic> map, {
+    void Function()? onExpressionFailed,
+  }) {
     final result = Map<String, dynamic>.from(map);
     final Object? ctx = result['context'];
     final rawContext = <String, Object?>{};
@@ -1289,6 +1321,7 @@ class DataContext {
         if (rawVal is Future) {
           hasFuture = true;
         } else if (atLeastV10 && _containsFailedArg(rawVal)) {
+          onExpressionFailed?.call();
           return null;
         }
         rawContext[e.key.toString()] = rawVal;
@@ -1305,7 +1338,10 @@ class DataContext {
       if (rawMsg is Future) {
         hasFuture = true;
       } else {
-        if (atLeastV10 && _containsFailedArg(rawMsg)) return null;
+        if (atLeastV10 && _containsFailedArg(rawMsg)) {
+          onExpressionFailed?.call();
+          return null;
+        }
         if (rawMsg != null && rawMsg is! String) return null;
       }
     }
@@ -1319,13 +1355,19 @@ class DataContext {
       for (final MapEntry<String, Object?> e in rawContext.entries) {
         final Object? rawVal = e.value;
         final Object? val = rawVal is Future ? await rawVal : rawVal;
-        if (atLeastV10 && _containsFailedArg(val)) return null;
+        if (atLeastV10 && _containsFailedArg(val)) {
+          onExpressionFailed?.call();
+          return null;
+        }
         resolvedContext[e.key] = val;
       }
       result['context'] = resolvedContext;
       if (hasUserMessage) {
         final Object? msg = rawMsg is Future ? await rawMsg : rawMsg;
-        if (atLeastV10 && _containsFailedArg(msg)) return null;
+        if (atLeastV10 && _containsFailedArg(msg)) {
+          onExpressionFailed?.call();
+          return null;
+        }
         if (msg != null && msg is! String) return null;
         result['userMessage'] = msg;
       }
@@ -1402,6 +1444,9 @@ class _AgentCall {
   /// The call's resolved value, null while pending or after a failure.
   final Signal<Object?> value = signal<Object?>(null);
 
+  /// Bumped when this call settles (with a value, including null, or an error).
+  final Signal<int> version = signal<int>(0);
+
   /// Whether the call is still awaiting its response.
   bool pending = true;
 
@@ -1412,7 +1457,11 @@ class _AgentCall {
 /// The agent calls a context and the contexts derived from it have sent,
 /// keyed by name, catalog and resolved arguments.
 class _AgentCallCache {
+  _AgentCallCache({this.defaultCatalogId});
+
   static const int _maxEntries = 256;
+
+  String? defaultCatalogId;
 
   final Map<String, _AgentCall> entries = {};
 
@@ -1436,8 +1485,11 @@ class _AgentCallCache {
 
   /// Whether the last attempt of [call] with [args] failed.
   bool hasFailed(FunctionCall call, Map<String, dynamic> args) {
-    final String writtenKey =
-        DataContext._agentCallKey(call.call, call.catalogId, args);
+    final String writtenKey = DataContext._agentCallKey(
+      call.call,
+      call.catalogId ?? defaultCatalogId,
+      args,
+    );
     return failed.contains(_aliases[writtenKey] ?? writtenKey);
   }
 
@@ -1458,8 +1510,14 @@ class _AgentCallCache {
     String? resolvedCatalogId,
     Map<String, dynamic> args,
   ) {
-    final String writtenKey =
-        DataContext._agentCallKey(call.call, call.catalogId, args);
+    if (call.catalogId == null && resolvedCatalogId != null) {
+      defaultCatalogId ??= resolvedCatalogId;
+    }
+    final String writtenKey = DataContext._agentCallKey(
+      call.call,
+      call.catalogId ?? defaultCatalogId,
+      args,
+    );
     if (resolvedCatalogId == null) {
       return entries[_aliases[writtenKey] ?? writtenKey];
     }
@@ -1530,7 +1588,8 @@ DataContext createSurfaceDataContext(
           surface.resolveCatalog(catalogId).invoke,
       isUserActivated: false,
       callAgentFunction: surface.callAgentFunction,
-      agentCalls: _surfaceAgentCalls[surface] ??= _AgentCallCache(),
+      agentCalls: _surfaceAgentCalls[surface] ??=
+          _AgentCallCache(defaultCatalogId: surface.defaultCatalog?.id),
       parent: parentDataContext,
       index: index,
       onMissingData: onMissingData ??

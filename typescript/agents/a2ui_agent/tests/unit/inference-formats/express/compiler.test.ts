@@ -1183,7 +1183,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     it('decompiles against a catalog defined in code', () => {
       const codeDefined = codeDefinedBasicCatalogV10 as unknown as CatalogApi;
       const messages = new ExpressCompiler([codeDefined], '1.0').compile(columnSource);
-      const dsl = new ExpressDecompiler([codeDefined], '1.0').decompile(messages[0]);
+      const dsl = new ExpressDecompiler([codeDefined], '1.0').decompile(messages);
       expect(new ExpressCompiler([codeDefined], '1.0').compile(dsl)).toEqual(messages);
     });
 
