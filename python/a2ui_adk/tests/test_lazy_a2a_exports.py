@@ -25,9 +25,13 @@ import pytest
 A2A_EXPORTS = [
     "A2uiEventConverter",
     "A2uiPartConverter",
+    "A2uiRpcCallback",
     "A2uiSubagentMap",
+    "AgentFunctionRegistryProvider",
+    "RendererFunctionCallsProvider",
     "SurfaceIdAlreadyExistsError",
     "a2a",
+    "a2ui_rpc_callback",
     "orchestration",
 ]
 
@@ -66,6 +70,7 @@ def test_base_exports_work_without_a2a(adk_without_a2a) -> None:
     assert adk_without_a2a.SendA2uiToClientToolset is not None
     assert adk_without_a2a.A2uiInstruction is not None
     assert adk_without_a2a.A2uiProcessorStore is not None
+    assert adk_without_a2a.A2uiRendererCallsStore is not None
 
 
 @pytest.mark.parametrize("name", A2A_EXPORTS)

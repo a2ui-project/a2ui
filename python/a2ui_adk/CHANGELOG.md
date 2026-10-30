@@ -1,5 +1,21 @@
 ## Unreleased
 
+- Add `a2ui_rpc_callback`, which returns a `before_agent_callback` that
+  answers A2UI v1.0 RPC messages without running the agent. When the user
+  content holds only `callAgentFunction` and `rendererFunctionResponse`
+  messages, it runs the agent functions of an `AgentFunctionRegistry` (or of
+  the registry a provider returns per context), settles the session's
+  renderer function calls, and returns the `agentFunctionResponse` replies as
+  the agent's response, which `A2aAgentExecutor` sends as A2UI parts. It reads
+  and writes the parts with ADK's own A2A part converters. Any other content
+  goes to the agent. It needs the `a2a` extra.
+  [#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
+- Add `A2uiRendererCallsStore`, which keeps a `RendererFunctionCalls` for each
+  session. `get` returns the session's instance, creating it on first use, and
+  is the `renderer_calls` provider of `a2ui_rpc_callback`. `remove` disposes a
+  session's instance, which fails its pending calls.
+  [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
 - **BREAKING CHANGE**: `GenAIFileResolver` is removed, along with the
   `FileResolver` it extended in `a2ui-agent-sdk`.
   [#3731](https://github.com/a2ui-project/a2ui/pull/3731)

@@ -44,6 +44,10 @@ Available with the base install:
   since ADK's session services save state as JSON and can't hold one. Its
   `is_enabled` and `get` methods are the callbacks for the toolset,
   `A2uiInstruction` and `A2uiEventConverter`.
+- `A2uiRendererCallsStore` keeps each session's `RendererFunctionCalls` (from
+  `a2ui.rpc`), which holds the agent's pending `callRendererFunction` calls.
+  Its `get` method returns the session's instance, creating it on first use,
+  and `remove` disposes it when the session ends.
 
 Available with the `a2a` extra:
 
@@ -52,6 +56,14 @@ Available with the `a2a` extra:
   request's `A2uiRequestProcessor`. `A2uiEventConverter` gets the processor
   from its `a2ui_processor` argument, such as `A2uiProcessorStore.get`. Pass
   it to ADK's `A2aAgentExecutor`.
+- `a2ui_rpc_callback` (also in `a2ui.adk.a2a`) returns a
+  `before_agent_callback` that answers A2UI v1.0 RPC messages without running
+  the agent. When the request holds only `callAgentFunction` and
+  `rendererFunctionResponse` messages, it runs the agent functions of an
+  `AgentFunctionRegistry` and settles the session's renderer function calls,
+  and returns the `agentFunctionResponse` replies as the agent's response. For
+  any other request it returns None, so the agent runs. With
+  `A2aAgentExecutor`, the replies reach the client as A2UI parts.
 - `A2uiSubagentMap` and `SurfaceIdAlreadyExistsError` (also in
   `a2ui.adk.orchestration`) track which subagent owns each surface in an
   orchestrator that talks to its subagents over A2A.
@@ -62,6 +74,30 @@ raises an `ImportError` that explains how to install the extra.
 ```python
 from a2ui.adk import A2uiEventConverter, A2uiInstruction, SendA2uiToClientToolset
 ```
+
+To answer the renderer's RPC messages, pass the callback to the agent. To
+keep a callback of your own, pass a list; ADK runs them in order until one
+returns content:
+
+```python
+from a2ui.adk import A2uiRendererCallsStore, a2ui_rpc_callback
+from a2ui.rpc import AgentFunctionRegistry
+
+renderer_calls = A2uiRendererCallsStore()
+agent = LlmAgent(
+    ...,
+    before_agent_callback=[
+        a2ui_rpc_callback(
+            agent_functions=AgentFunctionRegistry(catalogs),
+            renderer_calls=renderer_calls.get,
+        ),
+        my_before_agent_callback,
+    ],
+)
+```
+
+The RPC messages and their replies are stored in the session's events like any
+other turn.
 
 ## Running tests
 
