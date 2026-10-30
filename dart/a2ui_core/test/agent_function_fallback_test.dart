@@ -950,8 +950,8 @@ void main() {
     });
 
     test(
-        'an event action whose context expression fails reports EXPRESSION_ERROR '
-        'without a second INVALID_ACTION error', () async {
+        'an event action whose context expression fails reports '
+        'EXPRESSION_ERROR without a second INVALID_ACTION error', () async {
       final Future<void> done = invokeAction({
         'event': {
           'name': 'submit',
@@ -966,6 +966,7 @@ void main() {
             functionCallId: 'fc-mint'),
       );
       await done;
+      await _flush();
       expect(clientErrors, hasLength(1));
       expect(clientErrors.single.code, 'EXPRESSION_ERROR');
       expect(clientErrors.single.functionCallId, 'fc-mint');
