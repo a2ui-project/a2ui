@@ -130,4 +130,17 @@ describe('ExpressionParser', () => {
       parser.parse('${a@b}');
     }, /Unexpected characters at end of expression: '@b'/);
   });
+
+  it('rejects unclosed string literals and trailing backslashes', () => {
+    assert.throws(() => {
+      parser.parseExpression("'unclosed");
+    }, /Unclosed string literal/);
+    assert.throws(() => {
+      parser.parseExpression("'abc\\");
+    }, /Unclosed string literal/);
+    assert.throws(() => {
+      parser.parseExpression('fn(a: "unclosed)');
+    }, /Unclosed string literal/);
+    assert.strictEqual(parser.parseExpression("'it\\'s'"), "it's");
+  });
 });

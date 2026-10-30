@@ -367,10 +367,21 @@ function assertViewNodeProps(
   }
 }
 
+function findDomElementForNode(
+  container: HTMLElement,
+  node: ComponentNode,
+): HTMLElement | undefined {
+  const match = Array.from(container.querySelectorAll('*')).find(
+    el => (el as A2uiWebComponentElement).node === node,
+  );
+  return match as HTMLElement | undefined;
+}
+
 function assertViewTree(
   node: ComponentNode | undefined,
   expected: ExpectedViewNode,
   surface: SurfaceModel<AngularComponentImplementation>,
+  container: HTMLElement,
   nodePath = 'root',
 ): void {
   expect(node).withContext(`Missing node at ${nodePath}`).toBeDefined();
@@ -384,6 +395,20 @@ function assertViewTree(
   if (expected.state !== undefined) {
     expect(actual.state).withContext(`${nodePath}.state`).toBe(expected.state);
   }
+  // A resolved node must be mounted in the DOM, and rendered text must be
+  // visible there, not only present on the in-memory node.
+  if (actual.state === 'resolved') {
+    const domEl = findDomElementForNode(container, actual);
+    expect(domEl).withContext(`Expected a mounted DOM element for ${nodePath}`).toBeDefined();
+    for (const key of ['text', 'badgeText'] as const) {
+      const expectedText = expected[key];
+      if (typeof expectedText === 'string') {
+        expect(domEl!.textContent)
+          .withContext(`${nodePath}.${key} rendered text`)
+          .toContain(expectedText);
+      }
+    }
+  }
   assertViewNodeProps(actual, expected, nodePath);
   if (expected.children !== undefined) {
     const childNodes = extractDirectChildNodes(actual);
@@ -391,7 +416,13 @@ function assertViewTree(
       .withContext(`${nodePath}.children length`)
       .toBe(expected.children.length);
     expected.children.forEach((expectedChild, idx) => {
-      assertViewTree(childNodes[idx], expectedChild, surface, `${nodePath}/children/${idx}`);
+      assertViewTree(
+        childNodes[idx],
+        expectedChild,
+        surface,
+        container,
+        `${nodePath}/children/${idx}`,
+      );
     });
   }
 }
@@ -619,9 +650,9 @@ function assertStepIdentityAndModel(
       expect(currNode).toBe(prevNode);
       const prevEl = state.previousDomElements.get(nodePath);
       const currEl = currentDom.get(nodePath);
-      if (prevEl && currEl) {
-        expect(currEl).toBe(prevEl);
-      }
+      expect(prevEl).withContext(`Previous DOM element for ${nodePath}`).toBeDefined();
+      expect(currEl).withContext(`Current DOM element for ${nodePath}`).toBeDefined();
+      expect(currEl).toBe(prevEl);
     }
   }
   if (step.expectDataModel !== undefined) {
@@ -672,7 +703,7 @@ async function runAdapterStep(state: HarnessState, step: AdapterStep): Promise<v
     : mapNodesToDomElements(container, currentNodes);
 
   if (step.expectViewTree) {
-    assertViewTree(rootNode, step.expectViewTree, state.surface!);
+    assertViewTree(rootNode, step.expectViewTree, state.surface!, container);
   }
   if (step.expectAccessibilityTree) {
     for (const [compId, expectedA11y] of Object.entries(step.expectAccessibilityTree)) {

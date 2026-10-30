@@ -53,7 +53,10 @@ struct ValidatorConformanceTests {
 
     for testCase in testCases where matchesSuiteFilter(testCase, versionPrefix: versionPrefix) {
       let targetVersion = resolveTargetVersion(for: testCase, versionPrefix: versionPrefix)
-      let config = makeValidationConfig(strictMode: testCase.strictMode, targetVersion: targetVersion)
+      let config = makeValidationConfig(
+        strictMode: testCase.strictMode,
+        targetVersion: targetVersion
+      )
       let catalogs = try buildCatalogsWithAliases(for: testCase)
       let handler = ValidatorErrorCaptureHandler()
       let processor = MessageProcessor(
@@ -118,13 +121,17 @@ struct ValidatorConformanceTests {
     verifyExpectedSurfaces: Bool = false
   ) throws -> Int {
     var executed = 0
+    let lastStepIndex = testCase.steps.count - 1
     for (stepIndex, step) in testCase.steps.enumerated() {
       guard let payload = step.payload else { continue }
       executed += 1
       clearRecreatedSurfaces(in: payload, on: processor)
       handler.capturedErrors.removeAll()
 
-      if let expectedError = step.expectError ?? testCase.expectError {
+      // A step's own expectError applies to that step; the case's applies to
+      // the last step only, as in the Dart and TypeScript harnesses.
+      let caseError = stepIndex == lastStepIndex ? testCase.expectError : nil
+      if let expectedError = step.expectError ?? caseError {
         let error = try expectValidationFailure(
           payload: payload,
           processor: processor,
@@ -421,6 +428,18 @@ struct ValidatorConformanceTests {
     if let expectedDetails = expected.details {
       assertErrorDetails(error: error, expectedDetails: expectedDetails, testName: testName)
     }
+    // Top-level surfaceId and functionCallId name the context the error was
+    // reported in, which the emitted renderer error carries.
+    if expected.surfaceID != nil || expected.functionCallID != nil {
+      ConformanceTestHelper.assertRendererErrorMatches(
+        capturedRendererError,
+        expected: ConformanceExpectRendererError(
+          surfaceID: expected.surfaceID,
+          functionCallID: expected.functionCallID
+        ),
+        context: "\(testName) (expectError context)"
+      )
+    }
     if let expectedRendererError = expected.rendererError {
       ConformanceTestHelper.assertRendererErrorMatches(
         capturedRendererError,
@@ -542,7 +561,9 @@ struct ValidatorConformanceTests {
       let found = actualDetails.contains { actualDetail in
         detailMatches(actual: actualDetail, expected: expectedDetail)
       }
-      let message = "[\(testName)] Expected detail with path '\(expectedDetail.path)', code '\(expectedDetail.code)', message '\(expectedDetail.message)' in \(actualDetails)"
+      let message =
+        "[\(testName)] Expected detail with path '\(expectedDetail.path)', "
+        + "code '\(expectedDetail.code)', message '\(expectedDetail.message)' in \(actualDetails)"
       #expect(found, Comment(rawValue: message))
     }
   }

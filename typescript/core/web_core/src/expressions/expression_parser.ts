@@ -297,19 +297,25 @@ export class ExpressionParser {
   private parseStringLiteral(scanner: Scanner): string {
     const quote = scanner.advance();
     let result = '';
+    let closed = false;
     while (!scanner.isAtEnd()) {
       const c = scanner.advance();
       if (c === '\\') {
+        if (scanner.isAtEnd()) break;
         const next = scanner.advance();
         if (next === 'n') result += '\n';
         else if (next === 't') result += '\t';
         else if (next === 'r') result += '\r';
         else result += next;
       } else if (c === quote) {
+        closed = true;
         break;
       } else {
         result += c;
       }
+    }
+    if (!closed) {
+      throw new A2uiExpressionError(`Unclosed string literal: missing closing ${quote}`);
     }
     return result;
   }

@@ -117,6 +117,31 @@ struct ExpressionParserTests {
       _ = try parser.parse("${a@b}")
     }
     #expect(midPathMsg?.contains("Unexpected characters at end of expression: '@b'") == true)
+
+    // System function names are ASCII only, like the other engines.
+    let nonASCIIMsg = executionFailedMessage {
+      _ = try parser.parse("${@índex()}")
+    }
+    #expect(nonASCIIMsg?.contains("Invalid identifier starting with '@'") == true)
+  }
+
+  @Test func rejectsUnclosedStringLiteralsAndTrailingBackslashes() throws {
+    let unclosedMsg = executionFailedMessage {
+      _ = try parser.parseExpression("'unclosed")
+    }
+    #expect(unclosedMsg?.contains("Unclosed string literal") == true)
+
+    let trailingBackslashMsg = executionFailedMessage {
+      _ = try parser.parseExpression("'abc\\")
+    }
+    #expect(trailingBackslashMsg?.contains("Unclosed string literal") == true)
+
+    let inArgumentMsg = executionFailedMessage {
+      _ = try parser.parseExpression("fn(a: \"unclosed)")
+    }
+    #expect(inArgumentMsg?.contains("Unclosed string literal") == true)
+
+    #expect(try parser.parseExpression("'it\\'s'") == .string("it's"))
   }
 
   private func executionFailedMessage(_ body: () throws -> Void) -> String? {

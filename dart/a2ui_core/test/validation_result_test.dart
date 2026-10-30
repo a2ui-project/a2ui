@@ -101,5 +101,26 @@ void main() {
       final preserved = ValidationResult.fromEvaluation(fnResult);
       expect(preserved.message, 'Must be a valid email address.');
     });
+
+    test('a valid result keeps its message and ignores explicitMessage', () {
+      const note = ValidationResult(valid: true, message: 'Looks good.');
+      expect(
+        ValidationResult.fromEvaluation(note, explicitMessage: 'Rule').message,
+        'Looks good.',
+      );
+      expect(
+        ValidationResult.fromEvaluation(
+          {'valid': true, 'message': 'Looks good.'},
+          explicitMessage: 'Rule',
+        ).message,
+        'Looks good.',
+      );
+      expect(
+        ValidationResult.fromEvaluation({'valid': true},
+                explicitMessage: 'Rule')
+            .message,
+        isNull,
+      );
+    });
   });
 }

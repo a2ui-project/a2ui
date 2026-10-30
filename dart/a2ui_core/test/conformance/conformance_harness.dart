@@ -219,6 +219,28 @@ String? extractErrorCode(A2uiError error) {
   return (false, null);
 }
 
+/// Matches the error type an `expectError.category` names. `ValidationError`
+/// and `RecursionError` accept the sibling types the SDKs raise for the same
+/// condition.
+Matcher categoryMatches(String? category) => switch (category) {
+      'ParseError' => isA<A2uiParseError>(),
+      'ValidationError' => anyOf(
+          isA<A2uiValidationError>(),
+          isA<A2uiIntegrityError>(),
+          isA<A2uiRecursionError>(),
+          isA<A2uiCatalogError>(),
+        ),
+      'CatalogError' => isA<A2uiCatalogError>(),
+      'IntegrityError' => isA<A2uiIntegrityError>(),
+      'RecursionError' => anyOf(
+          isA<A2uiRecursionError>(),
+          isA<A2uiIntegrityError>(),
+        ),
+      'DataError' => isA<A2uiDataError>(),
+      'StateError' => isA<A2uiStateError>(),
+      _ => isA<A2uiError>(),
+    };
+
 /// Matches `code` and `path` expectations declared in an `expectError` block
 /// against a thrown [A2uiError].
 ///
@@ -228,11 +250,18 @@ String? extractErrorCode(A2uiError error) {
 /// - If the thrown [A2uiError] does not expose the field, invokes
 ///   [onUnassertedField] (defaulting to [markTestSkipped]) with
 ///   `"code/path not asserted: ..."` rather than silently passing.
+///
+/// When `expectError.rendererError` is set, the matcher requires an outbound
+/// [ErrorMessage]: [capturedErrorMessage], or else the last entry of
+/// [emittedErrors]. The list is read when the matcher runs, so a harness can
+/// hand over the list its `outboundListener` fills while the payload is still
+/// being processed.
 Matcher matchesErrorFields(
   Map<String, Object?> expectedError, {
   Object? rawMessage,
   String defaultVersion = 'v0.9',
   ErrorMessage? capturedErrorMessage,
+  List<ErrorMessage>? emittedErrors,
   void Function(String message) onUnassertedField = markTestSkipped,
 }) =>
     _ErrorFieldsMatcher(
@@ -246,6 +275,7 @@ Matcher matchesErrorFields(
       rawMessage: rawMessage,
       defaultVersion: defaultVersion,
       capturedErrorMessage: capturedErrorMessage,
+      emittedErrors: emittedErrors,
       onUnassertedField: onUnassertedField,
     );
 
@@ -259,6 +289,7 @@ class _ErrorFieldsMatcher extends Matcher {
   final Object? rawMessage;
   final String defaultVersion;
   final ErrorMessage? capturedErrorMessage;
+  final List<ErrorMessage>? emittedErrors;
   final void Function(String message) onUnassertedField;
 
   const _ErrorFieldsMatcher({
@@ -271,6 +302,7 @@ class _ErrorFieldsMatcher extends Matcher {
     this.rawMessage,
     this.defaultVersion = 'v0.9',
     this.capturedErrorMessage,
+    this.emittedErrors,
     required this.onUnassertedField,
   });
 
@@ -281,7 +313,18 @@ class _ErrorFieldsMatcher extends Matcher {
       return false;
     }
 
-    final ErrorMessage mapped = capturedErrorMessage ??
+    final ErrorMessage? emitted =
+        capturedErrorMessage ?? emittedErrors?.lastOrNull;
+    if (expectedRendererError != null && emitted == null) {
+      matchState['reason'] =
+          'expected an outbound rendererError to be emitted, but none was '
+          'captured';
+      return false;
+    }
+
+    // Without an emitted message, the mapped form only backs the `code` and
+    // `path` checks, which read the thrown error itself.
+    final ErrorMessage mapped = emitted ??
         MessageErrorMapper.map(
           item,
           rawMessage: rawMessage,

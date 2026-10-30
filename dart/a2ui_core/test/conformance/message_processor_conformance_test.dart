@@ -708,8 +708,7 @@ Matcher _matchesError(
       expectError,
       rawMessage: rawMessage,
       defaultVersion: defaultVersion,
-      capturedErrorMessage:
-          emittedErrors.isNotEmpty ? emittedErrors.last : null,
+      emittedErrors: emittedErrors,
     ),
   );
 }

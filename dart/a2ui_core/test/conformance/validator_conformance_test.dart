@@ -459,37 +459,17 @@ Matcher _matchesError(
   final Map<String, Object?> expected =
       (expectError! as Map).cast<String, Object?>();
   final matchers = <Matcher>[
-    _categoryMatches(expected['category'] as String?),
+    categoryMatches(expected['category'] as String?),
     if (expected['message'] case final String message) _messageMatches(message),
     matchesErrorFields(
       expected,
       rawMessage: rawMessage,
       defaultVersion: defaultVersion,
-      capturedErrorMessage:
-          emittedErrors.isNotEmpty ? emittedErrors.last : null,
+      emittedErrors: emittedErrors,
     ),
   ];
   return allOf(matchers);
 }
-
-Matcher _categoryMatches(String? category) => switch (category) {
-      'ParseError' => isA<A2uiParseError>(),
-      'ValidationError' => anyOf(
-          isA<A2uiValidationError>(),
-          isA<A2uiIntegrityError>(),
-          isA<A2uiRecursionError>(),
-          isA<A2uiCatalogError>(),
-        ),
-      'CatalogError' => isA<A2uiCatalogError>(),
-      'IntegrityError' => isA<A2uiIntegrityError>(),
-      'RecursionError' => anyOf(
-          isA<A2uiRecursionError>(),
-          isA<A2uiIntegrityError>(),
-        ),
-      'DataError' => isA<A2uiDataError>(),
-      'StateError' => isA<A2uiStateError>(),
-      _ => isA<A2uiError>(),
-    };
 
 Matcher _messageMatches(String pattern) => isA<A2uiError>().having(
       (e) => e.message,

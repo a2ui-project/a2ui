@@ -721,11 +721,17 @@ export class GenericBinder<T> {
       const ruleObj =
         typeof rule === 'object' && rule !== null ? (rule as Record<string, unknown>) : undefined;
       const condition = ruleObj && ruleObj.condition !== undefined ? ruleObj.condition : rule;
-      const explicitMessage = typeof ruleObj?.message === 'string' ? ruleObj.message : undefined;
-      ruleResults[index].message = explicitMessage ?? 'Validation failed';
+      const ruleMessage = typeof ruleObj?.message === 'string' ? ruleObj.message : undefined;
+      // An explicit rule message overrides the message a condition function
+      // returns. A path-bound check reads a result the agent or application
+      // wrote, whose message carries the finding, so there the rule message
+      // is only the fallback.
+      const explicitMessage = this.isPathBoundCondition(condition) ? undefined : ruleMessage;
+      const fallbackMessage = ruleMessage ?? 'Validation failed';
+      ruleResults[index].message = fallbackMessage;
 
       const bound = this.context.dataContext.subscribeDynamicValue(condition, newVal => {
-        ruleResults[index] = this.extractValidationResult(newVal, explicitMessage);
+        ruleResults[index] = this.extractValidationResult(newVal, explicitMessage, fallbackMessage);
         updateValidationState();
       });
 
@@ -735,13 +741,26 @@ export class GenericBinder<T> {
         bound.unsubscribe();
       }
 
-      ruleResults[index] = this.extractValidationResult(bound.value, explicitMessage);
+      ruleResults[index] = this.extractValidationResult(
+        bound.value,
+        explicitMessage,
+        fallbackMessage,
+      );
     });
 
     // Set initial state
     applyValidationState();
 
     return value;
+  }
+
+  /** Whether a check condition is a data binding rather than a function call. */
+  private isPathBoundCondition(condition: unknown): boolean {
+    if (typeof condition !== 'object' || condition === null) return false;
+    const rec = condition as Record<string, unknown>;
+    return this.context.dataContext.atLeastV10
+      ? typeof rec['@path'] === 'string' && !('@call' in rec)
+      : typeof rec['path'] === 'string' && !('call' in rec);
   }
 
   private bindObject(

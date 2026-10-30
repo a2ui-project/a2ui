@@ -230,7 +230,7 @@ public struct ExpressionParser: Sendable {
 
     // 1. String literals ('...' or "...")
     if let char = scanner.peek(), char == "'" || char == "\"" {
-      return .string(parseStringLiteral(&scanner))
+      return .string(try parseStringLiteral(&scanner))
     }
 
     // 2. Number literals
@@ -316,20 +316,18 @@ public struct ExpressionParser: Sendable {
 
   private func scanPathOrIdentifier(_ scanner: inout Scanner) throws -> String {
     let start = scanner.pos
+    // A leading `@` starts a system function name such as `@index`, which every engine
+    // restricts to ASCII `[A-Za-z_][A-Za-z0-9_]*`.
     if scanner.peek() == "@" {
-      guard let next = scanner.peek(offset: 1), next.isLetter || next == "_" else {
+      guard let next = scanner.peek(offset: 1), Self.isSystemFunctionStart(next) else {
         throw FunctionError.executionFailed(
           name: "expressionParser",
           message: "Invalid identifier starting with '@' in expression"
         )
       }
       _ = scanner.advance(by: 1)
-      while !scanner.isAtEnd, let c = scanner.peek() {
-        if c.isLetter || c.isNumber || c == "_" {
-          _ = scanner.advance(by: 1)
-        } else {
-          break
-        }
+      while !scanner.isAtEnd, let c = scanner.peek(), Self.isSystemFunctionContinue(c) {
+        _ = scanner.advance(by: 1)
       }
       return String(scanner.input[start..<scanner.pos])
     }
@@ -355,26 +353,41 @@ public struct ExpressionParser: Sendable {
     return String(scanner.input[start..<scanner.pos])
   }
 
-  private func parseStringLiteral(_ scanner: inout Scanner) -> String {
+  private static func isSystemFunctionStart(_ c: Character) -> Bool {
+    c == "_" || (c.isASCII && c.isLetter)
+  }
+
+  private static func isSystemFunctionContinue(_ c: Character) -> Bool {
+    isSystemFunctionStart(c) || (c.isASCII && c.isNumber)
+  }
+
+  private func parseStringLiteral(_ scanner: inout Scanner) throws -> String {
     let quote = Character(scanner.advance(by: 1))
     var result = ""
+    var closed = false
     while !scanner.isAtEnd {
       let c = Character(scanner.advance(by: 1))
       if c == "\\" {
-        if !scanner.isAtEnd {
-          let next = Character(scanner.advance(by: 1))
-          switch next {
-          case "n": result.append("\n")
-          case "t": result.append("\t")
-          case "r": result.append("\r")
-          default: result.append(next)
-          }
+        if scanner.isAtEnd { break }
+        let next = Character(scanner.advance(by: 1))
+        switch next {
+        case "n": result.append("\n")
+        case "t": result.append("\t")
+        case "r": result.append("\r")
+        default: result.append(next)
         }
       } else if c == quote {
+        closed = true
         break
       } else {
         result.append(c)
       }
+    }
+    guard closed else {
+      throw FunctionError.executionFailed(
+        name: "expressionParser",
+        message: "Unclosed string literal: missing closing \(quote)"
+      )
     }
     return result
   }

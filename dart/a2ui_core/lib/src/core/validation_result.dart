@@ -102,7 +102,7 @@ class ValidationResult {
       final bool hasCustomMessage =
           value.message != null && value.message!.isNotEmpty;
       final String? resolvedMessage = isValid
-          ? null
+          ? (hasCustomMessage ? value.message : null)
           : (hasExplicitMessage
               ? explicitMessage
               : (hasCustomMessage ? value.message : fallbackMessage));
@@ -122,13 +122,13 @@ class ValidationResult {
       final bool isValid = validityOf(value)!;
       final Object? rawMessage = value['message'];
       final customMessage = rawMessage?.toString();
+      final bool hasCustomMessage =
+          customMessage != null && customMessage.isNotEmpty;
       final String? resolvedMessage = isValid
-          ? null
+          ? (hasCustomMessage ? customMessage : null)
           : (hasExplicitMessage
               ? explicitMessage
-              : ((customMessage != null && customMessage.isNotEmpty)
-                  ? customMessage
-                  : fallbackMessage));
+              : (hasCustomMessage ? customMessage : fallbackMessage));
       final String? code =
           value['code'] is String ? value['code'] as String : null;
       final Object? rawSeverity = value['severity'];

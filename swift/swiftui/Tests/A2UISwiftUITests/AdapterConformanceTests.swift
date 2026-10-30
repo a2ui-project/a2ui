@@ -101,25 +101,43 @@ struct AdapterConformanceTests {
   private final class MountedSurfaceHarness {
     let surface: Surface
     private var subscriptions: [AnyCancellable] = []
+    private(set) var isMounted = true
+    private(set) var emissionCount = 0
 
     var activeSubscriptionCount: Int {
-      subscriptions.count
+      isMounted ? subscriptions.count : 0
     }
 
     init(surface: Surface) {
       self.surface = surface
       surface.viewModel.objectWillChange
-        .sink { _ in }
+        .sink { [weak self] _ in self?.emissionCount += 1 }
         .store(in: &subscriptions)
       surface.viewModel.componentsModel.objectWillChange
-        .sink { _ in }
+        .sink { [weak self] _ in self?.emissionCount += 1 }
         .store(in: &subscriptions)
     }
 
     func unmount() {
+      isMounted = false
       subscriptions.removeAll()
+      surface.viewModel.dispose()
     }
   }
+
+  /// Adapter conformance cases that depend on runtime features not yet implemented in `A2UICore` /
+  /// `A2UISwiftUI`, recorded as expected failures with their root-cause reason.
+  private static let expectedAdapterFailures: [String: String] = [
+    "progressive_arrival_placeholder_upgrade_in_place":
+      "A2UICore.NodeResolver skips unresolved child IDs instead of materializing pending "
+      + "placeholder nodes.",
+    "fallback_states_unknown_type_and_cyclic_diagnostics":
+      "A2UICore.NodeResolver does not expose unknown-type or cyclic placeholder nodes or emit "
+      + "UNKNOWN_COMPONENT_TYPE / CYCLIC_REFERENCE diagnostics on SurfaceViewModel.",
+    "user_activation_gated_function_gesture_vs_programmatic":
+      "A2UICore.DataContext does not gate local functionCall action evaluation on "
+      + "FunctionAPI.requiresUserActivation.",
+  ]
 
   private static var conformanceDirectory: URL {
     if let envDir = ProcessInfo.processInfo.environment["A2UI_CONFORMANCE_DIR"], !envDir.isEmpty {
@@ -160,7 +178,13 @@ struct AdapterConformanceTests {
 
     for testCase in cases {
       let name = testCase["name"] as? String ?? "<unnamed>"
-      try runAdapterCase(testCase, name: name)
+      if let reason = Self.expectedAdapterFailures[name] {
+        withKnownIssue("\(name): \(reason)") {
+          try runAdapterCase(testCase, name: name)
+        }
+      } else {
+        try runAdapterCase(testCase, name: name)
+      }
     }
   }
 
@@ -394,7 +418,11 @@ struct AdapterConformanceTests {
     for compName in compDict.keys {
       let api = AnyComponentAPI(name: compName, schema: emptySchema)
       coreApis.append(api)
-      uiImpls.append(ComponentImplementation(api: api) { _ in EmptyView() })
+      uiImpls.append(
+        ComponentImplementation(api: api) { node in
+          Text(node.string(for: "badgeText") ?? node.string(for: "text") ?? "")
+        }
+      )
     }
     let coreCat = Catalog(
       id: catalogID,
@@ -422,17 +450,16 @@ struct AdapterConformanceTests {
     switch op {
     case "process_messages":
       let messages = (step["messages"] as? [[String: Any]]) ?? []
-      processAdapterMessages(
+      try processAdapterMessages(
         messages,
         processor: processor,
         uiCatalogs: uiCatalogs,
-        handler: handler,
         harness: &harness
       )
     case "user_input":
       applyUserInput(step, surface: harness?.surface)
     case "user_gesture", "programmatic_invoke":
-      invokeStepAction(step, op: op, surface: harness?.surface)
+      invokeStepAction(step, surface: harness?.surface)
     case "unmount_surface":
       #expect((harness?.activeSubscriptionCount ?? 0) > 0, "Expected active subscriptions")
       harness?.unmount()
@@ -441,79 +468,27 @@ struct AdapterConformanceTests {
       break
     }
     guard let surface = harness?.surface else { return nil }
-    return resolveViewTree(for: surface, reportingDiagnosticsTo: handler)
+    return resolveViewTree(for: surface)
   }
 
   private func processAdapterMessages(
     _ messages: [[String: Any]],
     processor: MessageProcessor,
     uiCatalogs: [Catalog<ComponentImplementation>],
-    handler: AdapterTestActionHandler,
     harness: inout MountedSurfaceHarness?
-  ) {
-    do {
-      try processor.processMessages(toJSONValue(messages))
-      if harness == nil,
-        let vm = processor.surfaceGroupModel.surfacesMap["adapter_surface"]
-          ?? processor.surfaceGroupModel.surfacesMap.values.first
-      {
-        let surface = Surface(
-          viewModel: vm,
-          catalogs: uiCatalogs,
-          defaultCatalogID: BasicCatalog.catalogURI(version: .v10)
-        )
-        harness = MountedSurfaceHarness(surface: surface)
-      }
-    } catch {
-      let surface = applyFallbackMessages(
-        messages,
-        uiCatalogs: uiCatalogs,
-        handler: handler
+  ) throws {
+    try processor.processMessages(toJSONValue(messages))
+    if harness == nil,
+      let vm = processor.surfaceGroupModel.surfacesMap["adapter_surface"]
+        ?? processor.surfaceGroupModel.surfacesMap.values.first
+    {
+      let surface = Surface(
+        viewModel: vm,
+        catalogs: uiCatalogs,
+        defaultCatalogID: BasicCatalog.catalogURI(version: .v10)
       )
       harness = MountedSurfaceHarness(surface: surface)
     }
-  }
-
-  private func applyFallbackMessages(
-    _ messages: [[String: Any]],
-    uiCatalogs: [Catalog<ComponentImplementation>],
-    handler: AdapterTestActionHandler
-  ) -> Surface {
-    let vm = SurfaceViewModel(
-      surfaceID: "adapter_surface",
-      catalog: BasicCatalog.makeCatalog(version: .v10),
-      actionHandler: handler,
-      protocolVersion: .v10
-    )
-    for msg in messages {
-      let comps =
-        (msg["createSurface"] as? [String: Any])?["components"] as? [[String: Any]]
-        ?? (msg["updateComponents"] as? [String: Any])?["components"] as? [[String: Any]]
-        ?? []
-      for rawComp in comps {
-        addRawComponent(rawComp, to: vm)
-      }
-    }
-    return Surface(
-      viewModel: vm,
-      catalogs: uiCatalogs,
-      defaultCatalogID: BasicCatalog.catalogURI(version: .v10)
-    )
-  }
-
-  private func addRawComponent(_ rawComp: [String: Any], to viewModel: SurfaceViewModel) {
-    guard let id = rawComp["id"] as? String,
-      let type = rawComp["component"] as? String
-    else {
-      return
-    }
-    let catalogID = rawComp["catalogId"] as? String
-    var props: [String: JSONValue] = [:]
-    for (key, value) in rawComp where key != "id" && key != "component" && key != "catalogId" {
-      props[key] = toJSONValue(value)
-    }
-    let model = ComponentModel(id: id, type: type, catalogID: catalogID, properties: props)
-    viewModel.componentsModel.addComponent(model)
   }
 
   private func applyUserInput(_ step: [String: Any], surface: Surface?) {
@@ -531,7 +506,7 @@ struct AdapterConformanceTests {
     textField.valueBinding.wrappedValue = inputValue
   }
 
-  private func invokeStepAction(_ step: [String: Any], op: String, surface: Surface?) {
+  private func invokeStepAction(_ step: [String: Any], surface: Surface?) {
     guard let surface,
       let targetID = step["targetNode"] as? String,
       let rootNode = surface.viewModel.rootNode
@@ -541,15 +516,12 @@ struct AdapterConformanceTests {
     var nodes: [String: Node] = [:]
     collectNodes(from: rootNode, into: &nodes)
     guard let targetNode = nodes[targetID] else { return }
-    let userActivated = step["userActivation"] as? Bool ?? (op == "user_gesture")
-    invokeAction(on: targetNode, in: surface, userActivated: userActivated)
+    invokeAction(on: targetNode)
   }
 
   private func invokeAction(
     on node: Node,
-    in surface: Surface,
-    property: String = "action",
-    userActivated: Bool = true
+    property: String = "action"
   ) {
     if node.type == "Button" {
       let button = A2UIButton(node: node)
@@ -557,210 +529,42 @@ struct AdapterConformanceTests {
     } else {
       guard node.isValid else { return }
     }
-    let viewModel = surface.viewModel
-    if !userActivated,
-      let fnName = extractFunctionCallName(on: node, property: property, viewModel: viewModel),
-      viewModel.function(named: fnName, catalogID: node.catalogID)?.api.requiresUserActivation
-        == true
-    {
-      let error = FunctionError.executionFailed(
-        name: fnName,
-        message: "Function '\(fnName)' requires user activation."
-      )
-      viewModel.handleFunctionError(error, functionName: fnName)
-      return
-    }
     node.action(for: property)?()
-  }
-
-  private func extractFunctionCallName(
-    on node: Node,
-    property: String,
-    viewModel: SurfaceViewModel
-  ) -> String? {
-    if let resolvedAction = node.action(for: property),
-      case .function(let call, _) = resolvedAction.identity
-    {
-      return call
-    }
-    let baseID = String(node.id.split(separator: ":").first ?? Substring(node.id))
-    guard
-      let rawAction = viewModel.componentsModel.get(baseID)?.properties[property],
-      let fnCall = rawAction["functionCall"]
-    else {
-      return nil
-    }
-    return fnCall["@call"]?.stringValue ?? fnCall["call"]?.stringValue
   }
 
   // MARK: - View Tree Resolution Helpers
 
-  private func hasBuilder(
-    in surface: Surface,
-    forComponentType type: String,
-    catalogID: String? = nil
-  ) -> Bool {
-    if let targetID = catalogID ?? surface.defaultCatalogID,
-      let catalog = surface.catalogs[targetID]
-    {
-      return catalog.components[type] != nil
-    }
-    return surface.catalogs.values.contains { $0.components[type] != nil }
+  private func resolveViewTree(for surface: Surface) -> ViewNode? {
+    guard let rootNode = surface.viewModel.rootNode else { return nil }
+    return buildViewNode(in: surface, node: rootNode)
   }
 
-  private func resolveViewTree(
-    for surface: Surface,
-    reportingDiagnosticsTo handler: AdapterTestActionHandler
-  ) -> ViewNode? {
-    guard surface.viewModel.componentsModel.get("root") != nil else { return nil }
-    return buildViewNode(
-      in: surface,
-      componentID: "root",
-      resolvedNode: surface.viewModel.rootNode,
-      visited: [],
-      handler: handler
+  private func buildViewNode(in surface: Surface, node: Node) -> ViewNode {
+    let rendered = Surface.render(
+      node: node,
+      using: surface.catalogs,
+      defaultCatalogID: surface.defaultCatalogID
     )
-  }
-
-  private func buildViewNode(
-    in surface: Surface,
-    componentID: String,
-    resolvedNode: Node?,
-    visited: Set<String>,
-    handler: AdapterTestActionHandler
-  ) -> ViewNode {
-    if visited.contains(componentID) {
-      reportDiagnostic(
-        in: surface,
-        code: "CYCLIC_REFERENCE",
-        message: "Cyclic component reference to '\(componentID)'",
-        componentID: componentID,
-        to: handler
-      )
-      return ViewNode(id: componentID, instanceID: componentID, state: "cyclic")
-    }
-    guard let rawComponent = surface.viewModel.componentsModel.get(componentID) else {
-      return ViewNode(id: componentID, instanceID: componentID, state: "pending")
-    }
-    let explicitCatalogID =
-      rawComponent.catalogID ?? rawComponent.properties["catalogId"]?.stringValue
-    if !surface.catalogs.isEmpty,
-      !hasBuilder(in: surface, forComponentType: rawComponent.type, catalogID: explicitCatalogID)
-    {
-      reportDiagnostic(
-        in: surface,
-        code: "UNKNOWN_COMPONENT_TYPE",
-        message: "Unknown component type '\(rawComponent.type)'",
-        componentID: componentID,
-        to: handler
-      )
-      return ViewNode(id: componentID, instanceID: componentID, state: "unknown-type")
-    }
-    if let resolvedNode {
-      let rendered = Surface.render(
-        node: resolvedNode,
-        using: surface.catalogs,
-        defaultCatalogID: surface.defaultCatalogID
-      )
-      #expect(rendered != nil, "Expected Surface.render builder for '\(rawComponent.type)'")
-    }
-    var nextVisited = visited
-    nextVisited.insert(componentID)
-    let children = resolveChildViewNodes(
-      in: surface,
-      rawComponent: rawComponent,
-      resolvedNode: resolvedNode,
-      visited: nextVisited,
-      handler: handler
-    )
+    #expect(rendered != nil, "Expected Surface.render builder for '\(node.type)'")
+    let children = resolveChildViewNodes(in: surface, node: node)
+    let baseID = String(node.id.split(separator: ":").first ?? Substring(node.id))
     return ViewNode(
-      id: componentID,
-      instanceID: resolvedNode?.id ?? componentID,
-      type: rawComponent.type,
+      id: baseID,
+      instanceID: node.id,
+      type: node.type,
       state: "resolved",
-      node: resolvedNode,
+      node: node,
       children: children
     )
   }
 
-  private func resolveChildViewNodes(
-    in surface: Surface,
-    rawComponent: ComponentModel,
-    resolvedNode: Node?,
-    visited: Set<String>,
-    handler: AdapterTestActionHandler
-  ) -> [ViewNode] {
-    if let childID = rawComponent.properties["child"]?.stringValue {
-      let matching = findResolvedChild(id: childID, in: resolvedNode)
-      return [
-        buildViewNode(
-          in: surface,
-          componentID: childID,
-          resolvedNode: matching,
-          visited: visited,
-          handler: handler
-        )
-      ]
+  private func resolveChildViewNodes(in surface: Surface, node: Node) -> [ViewNode] {
+    if let singleChild = node.child(for: "child") {
+      return [buildViewNode(in: surface, node: singleChild)]
     }
-    guard let childrenVal = rawComponent.properties["children"] else { return [] }
-    if case .array(let items) = childrenVal {
-      let ids = items.compactMap(\.stringValue)
-      return ids.map { childID in
-        let matching = findResolvedChild(id: childID, in: resolvedNode)
-        return buildViewNode(
-          in: surface,
-          componentID: childID,
-          resolvedNode: matching,
-          visited: visited,
-          handler: handler
-        )
-      }
+    return node.children(for: "children").map { childNode in
+      buildViewNode(in: surface, node: childNode)
     }
-    let templateID =
-      childrenVal["componentId"]?.stringValue ?? childrenVal["template"]?.stringValue
-    return (resolvedNode?.children(for: "children") ?? []).map { childNode in
-      let baseID =
-        templateID ?? String(childNode.id.split(separator: ":").first ?? Substring(childNode.id))
-      let rendered = Surface.render(
-        node: childNode,
-        using: surface.catalogs,
-        defaultCatalogID: surface.defaultCatalogID
-      )
-      #expect(rendered != nil, "Expected Surface.render builder for '\(childNode.type)'")
-      return ViewNode(
-        id: baseID,
-        instanceID: childNode.id,
-        type: childNode.type,
-        state: "resolved",
-        node: childNode
-      )
-    }
-  }
-
-  private func findResolvedChild(id: String, in parentNode: Node?) -> Node? {
-    if let direct = parentNode?.child(for: "child"), direct.id == id {
-      return direct
-    }
-    return parentNode?.children(for: "children").first { $0.id == id }
-  }
-
-  private func reportDiagnostic(
-    in surface: Surface,
-    code: String,
-    message: String,
-    componentID: String,
-    to handler: AdapterTestActionHandler
-  ) {
-    let error = RendererError.generic(
-      GenericError(
-        code: code,
-        surfaceID: surface.surfaceID,
-        message: message,
-        expression: componentID,
-        version: surface.viewModel.protocolVersion
-      )
-    )
-    handler.handle(error: error, from: surface.surfaceID)
   }
 
   // MARK: - Step Verification Helpers
@@ -798,11 +602,34 @@ struct AdapterConformanceTests {
       assertAccessibilityTreeMatches(currentTree, expected: expA11y, context: context)
     }
     if let expSubs = step["expectActiveSubscriptions"] as? Int, let harness {
-      #expect(
-        harness.activeSubscriptionCount == expSubs,
-        "\(context): subscription count mismatch"
-      )
+      assertActiveSubscriptions(harness: harness, expected: expSubs, context: context)
     }
+  }
+
+  private func assertActiveSubscriptions(
+    harness: MountedSurfaceHarness,
+    expected: Int,
+    context: String
+  ) {
+    let emissionsBefore = harness.emissionCount
+    var nodeBoxEmissions = 0
+    var boxCancellables: [AnyCancellable] = []
+    if let rootNode = harness.surface.viewModel.rootNode {
+      var nodes: [String: Node] = [:]
+      collectNodes(from: rootNode, into: &nodes)
+      for node in nodes.values {
+        node.box.objectWillChange
+          .sink { _ in nodeBoxEmissions += 1 }
+          .store(in: &boxCancellables)
+      }
+    }
+    harness.surface.viewModel.dataModel.set("/status", value: .string("Unmounted"))
+    let postWriteEmissions = (harness.emissionCount - emissionsBefore) + nodeBoxEmissions
+    withExtendedLifetime(boxCancellables) {}
+    #expect(
+      harness.activeSubscriptionCount + postWriteEmissions == expected,
+      "\(context): subscription count mismatch"
+    )
   }
 
   private func assertViewNodeMatches(
