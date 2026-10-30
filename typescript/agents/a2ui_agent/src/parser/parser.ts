@@ -186,7 +186,7 @@ export abstract class Parser {
    * Compiles a block, raising any failure that is not an `A2uiError` as
    * `A2uiCompilationError`.
    */
-  private compileBlock(formatContent: string, isFinal: boolean): AgentToRendererMessage[] {
+  protected compileBlock(formatContent: string, isFinal: boolean): AgentToRendererMessage[] {
     try {
       return this.compile(formatContent, isFinal);
     } catch (e) {

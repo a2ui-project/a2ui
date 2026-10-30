@@ -1074,6 +1074,84 @@ struct NodeResolverTests {
         == .event(name: "send", context: [:], userMessage: "Updated draft")
     )
   }
+
+  @Test func nodeMetadataRecoversAndUpdatesInPlaceWithoutReResolvingTree() throws {
+    let buttonSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "type": "string" },
+            "label": { "type": "string" },
+            "action": { "$ref": "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/Action" }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "cat",
+      protocolVersion: "1.0",
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
+    )
+    let handler = ExpressionErrorCaptureHandler()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Button",
+          properties: [
+            "label": .string("Submit"),
+            "action": .object([
+              "event": .object(["name": .string("submit")]),
+              "metadata": .object([
+                "extensions": .object(["baseExt": .integer(1)])
+              ]),
+            ]),
+          ],
+          metadata: ["extensions": .object(["badge": .string("new")])]
+        )
+      ]
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel(),
+      actionHandler: handler,
+      protocolVersion: .v10
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(root.extensions == ["badge": .string("new")])
+    #expect(resolver.lastResolvedNodeCount == 1)
+
+    try componentsModel.setExtension("badge", value: .string("updated"), forComponentID: "root")
+    let updatedRoot = try #require(resolver.resolveTree())
+    #expect(updatedRoot.box === root.box)
+    #expect(updatedRoot.extensions == ["badge": .string("updated")])
+    #expect(resolver.lastResolvedNodeCount == 0)
+
+    let action = try #require(updatedRoot.action(for: "action"))
+    try action(metadata: ["extensions": .object(["callExt": .integer(2)])])
+    #expect(handler.capturedActions.count == 1)
+    #expect(
+      MetadataValidator.areEqual(
+        handler.capturedActions.first?.metadata,
+        [
+          "extensions": .object([
+            "baseExt": .integer(1),
+            "callExt": .integer(2),
+          ])
+        ]
+      )
+    )
+    #expect(throws: A2UIValidationError.self) {
+      try action(metadata: ["extensions": .object(["invalid-key": .integer(1)])])
+    }
+  }
 }
 
 private final class ExpressionErrorCaptureHandler: ActionHandling, @unchecked Sendable {
