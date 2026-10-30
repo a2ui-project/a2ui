@@ -702,7 +702,7 @@
 # before it expands the tokens; web_core, Dart and Python v1.0 keep the written offset.
 - name: test_evaluate_function_format_date_keeps_written_offset
   description: Verifies formatDate renders a timestamp with an offset in that offset, so the written wall-clock date and time are kept.
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   action: evaluate_function
   function: formatDate
   args:
