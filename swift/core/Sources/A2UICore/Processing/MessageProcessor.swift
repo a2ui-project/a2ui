@@ -1043,9 +1043,9 @@ public final class MessageProcessor: ObservableObject {
     let defaultCatalogID = surface.defaultCatalogID
     let checksBatch = config.allowDanglingReferences && config.allowMissingRoot
     var batch: [String: [String: JSONValue]] = [:]
-    for comp in components {
-      guard let id = comp["id"]?.stringValue else { continue }
-      guard batch.updateValue(comp, forKey: id) == nil else {
+    for component in components {
+      guard let id = component["id"]?.stringValue else { continue }
+      guard batch.updateValue(component, forKey: id) == nil else {
         throw A2UIIntegrityError("Duplicate component ID: \(id)")
       }
     }
@@ -1063,9 +1063,9 @@ public final class MessageProcessor: ObservableObject {
         catalogs: catalogs,
         defaultCatalogID: defaultCatalogID,
         typeOf: { id in
-          if let comp = batch[id] {
-            guard let type = comp["component"]?.stringValue else { return nil }
-            return (type, comp["catalogId"]?.stringValue ?? defaultCatalogID)
+          if let component = batch[id] {
+            guard let type = component["component"]?.stringValue else { return nil }
+            return (type, component["catalogId"]?.stringValue ?? defaultCatalogID)
           }
           return held[id].map { ($0.type, $0.catalogID ?? defaultCatalogID) }
         }

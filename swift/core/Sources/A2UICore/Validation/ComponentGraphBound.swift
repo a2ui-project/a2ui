@@ -75,7 +75,7 @@ final class ComponentGraphBound {
             ready = false
             break
           }
-          if below >= height { height = below + 1 }
+          height = max(height, below + 1)
         }
         guard ready else { continue }
         heights[frame.id] = height
@@ -98,6 +98,9 @@ final class ComponentGraphBound {
   private func setChildren(_ id: String, _ references: [String]) {
     for child in children[id] ?? [] {
       parents[child]?.remove(id)
+      if parents[child]?.isEmpty == true {
+        parents.removeValue(forKey: child)
+      }
     }
     for child in references {
       parents[child, default: []].insert(id)
@@ -119,7 +122,7 @@ final class ComponentGraphBound {
   func admits(batch: [String: [String]], limit: Int, held: (String) -> Bool) -> Bool {
     guard maxHeight <= limit else { return false }
     for (id, references) in batch {
-      if references.contains(id) { return false }
+      guard !references.contains(id) else { return false }
       setChildren(id, references)
     }
     // Raises the bound of each component above one whose bound rose, until none rises. A cycle
@@ -129,7 +132,7 @@ final class ComponentGraphBound {
       var height = 0
       for child in children[id] ?? [] where batch[child] != nil || held(child) {
         let below = heights[child] ?? 0
-        if below >= height { height = below + 1 }
+        height = max(height, below + 1)
       }
       heights[id] = height
       rising.append(id)
@@ -139,7 +142,7 @@ final class ComponentGraphBound {
       let id = rising[next]
       next += 1
       let height = heights[id] ?? 0
-      if height > limit { return false }
+      guard height <= limit else { return false }
       maxHeight = max(maxHeight, height)
       for parent in parents[id] ?? [] where (heights[parent] ?? 0) <= height {
         heights[parent] = height + 1
@@ -204,8 +207,9 @@ final class ComponentGraphBound {
       for child in childrenOf(id) where !edgeHolds(parent: id, child: child) {
         return false
       }
-      for parent in parentsOf(id) where !batchIDs.contains(parent) {
-        if !edgeHolds(parent: parent, child: id) { return false }
+      for parent in parentsOf(id)
+      where !batchIDs.contains(parent) && !edgeHolds(parent: parent, child: id) {
+        return false
       }
     }
     return true
