@@ -42,13 +42,11 @@ public struct ComponentNodeView: View {
       renderedView
         .modifier(ComponentAccessibilityHostModifier(node: renderNode))
     } else {
-      fallbackView
+      // A type missing from the surface's catalog was already reported by the resolver as
+      // `UNKNOWN_COMPONENT_TYPE`. A catalog type with no view in the SwiftUI catalogs passed to
+      // `Surface` is a host setup mismatch, which this view does not report.
+      EmptyView()
     }
-  }
-
-  private var fallbackView: some View {
-    print("[A2UI] Component view builder not found for type: \(node.type)")
-    return EmptyView()
   }
 }
 
