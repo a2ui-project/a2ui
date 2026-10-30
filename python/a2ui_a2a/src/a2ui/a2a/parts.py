@@ -24,8 +24,13 @@ from a2a.types import TextPart as A2aTextPart
 
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats import to_message_dicts
+from a2ui.inference_formats.direct_json.blocks import CLOSE_TAG
+from a2ui.inference_formats.direct_json.blocks import OPEN_TAG
+from a2ui.inference_formats.direct_json.json_reader import read_json
 from a2ui.parser import A2uiPart
+from a2ui.parser import BlockLexer
 from a2ui.parser import Parser
+from a2ui.parser import RawA2uiPart
 from a2ui.parser import ResponsePart
 from a2ui.parser import ResponseStream
 from a2ui.parser import TextPart
@@ -37,6 +42,12 @@ logger = logging.getLogger(__name__)
 MIME_TYPE_KEY = "mimeType"
 A2UI_MIME_TYPE = "application/a2ui+json"
 DEPRECATED_A2UI_MIME_TYPE = "application/json+a2ui"
+
+_BLOCK_LEXER = BlockLexer(
+    open_tag=OPEN_TAG,
+    close_tag=CLOSE_TAG,
+    string_delimiters={'"', "'"},
+)
 
 
 def create_a2ui_part(
@@ -162,6 +173,50 @@ def parse_content_to_parts(
     except Exception as e:
         # The error may quote the response, so its text is only logged at
         # debug level.
+        logger.warning("Failed to parse A2UI response: %s", type(e).__name__)
+        logger.debug("A2UI response parse error: %s", e)
+
+    if not parts and fallback_text:
+        parts.append(Part(root=A2aTextPart(text=fallback_text)))
+
+    return parts
+
+
+def parse_response_to_parts(
+    content: str,
+    fallback_text: str | None = None,
+    version: ProtocolVersion | str | None = None,
+) -> list[Part]:
+    """Parses raw text and A2UI JSON message blocks into A2A Parts.
+
+    Extracts conversational text and `<a2ui-json>` blocks from an LLM response
+    without requiring a configured Catalog or Parser. Each A2UI message inside
+    the blocks is wrapped into an A2A DataPart.
+
+    Args:
+        content: The LLM response content, potentially containing A2UI delimiters.
+        fallback_text: Optional text to return if no parts are successfully
+          created.
+        version: The A2UI version, as for `create_a2ui_part`.
+
+    Returns:
+        A list of A2A Part objects (TextPart and/or DataPart).
+    """
+    parts: list[Part] = []
+    try:
+        for raw_part in _BLOCK_LEXER.tokenize(content):
+            if isinstance(raw_part.part, TextPart):
+                if raw_part.part.text:
+                    parts.append(Part(root=A2aTextPart(text=raw_part.part.text)))
+            elif isinstance(raw_part.part, RawA2uiPart) and raw_part.is_final:
+                data = read_json(raw_part.part.a2ui_raw)
+                if isinstance(data, list):
+                    for item in data:
+                        if isinstance(item, dict):
+                            parts.append(create_a2ui_part(item, version=version))
+                elif isinstance(data, dict):
+                    parts.append(create_a2ui_part(data, version=version))
+    except Exception as e:
         logger.warning("Failed to parse A2UI response: %s", type(e).__name__)
         logger.debug("A2UI response parse error: %s", e)
 

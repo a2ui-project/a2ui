@@ -27,6 +27,7 @@ from a2ui.a2a import (
     create_a2ui_part,
     is_a2ui_part,
     parse_content_to_parts,
+    parse_response_to_parts,
     stream_response_to_parts,
     to_a2a_parts,
 )
@@ -153,3 +154,56 @@ def test_create_a2ui_part_defaults_to_the_messages_version():
     assert mime(create_a2ui_part(v0_8)) == "application/json+a2ui"
     # An explicit version still wins.
     assert mime(create_a2ui_part(v0_9_1, version="0.9")) == "application/json+a2ui"
+
+
+def test_parse_response_to_parts_extracts_text_and_a2ui_messages():
+    update = {
+        "version": "v0.9",
+        "updateComponents": {
+            "surfaceId": "s",
+            "components": [{"id": "root", "component": "Text", "text": "Hi"}],
+        },
+    }
+    content = (
+        "Here is the UI:\n"
+        f"<a2ui-json>{json.dumps([_CREATE, update])}</a2ui-json>\n"
+        "Let me know if you need anything else."
+    )
+    parts = parse_response_to_parts(content)
+
+    assert len(parts) == 4
+    assert parts[0].root.text == "Here is the UI:"
+    assert parts[1].root.data == _CREATE
+    assert parts[2].root.data == update
+    assert parts[3].root.text == "Let me know if you need anything else."
+    assert is_a2ui_part(parts[1])
+    assert is_a2ui_part(parts[2])
+
+
+def test_parse_response_to_parts_handles_single_dict_message():
+    content = f"<a2ui-json>{json.dumps(_CREATE)}</a2ui-json>"
+    parts = parse_response_to_parts(content)
+
+    assert len(parts) == 1
+    assert parts[0].root.data == _CREATE
+    assert is_a2ui_part(parts[0])
+
+
+def test_parse_response_to_parts_plain_text_without_tags():
+    parts = parse_response_to_parts("Just plain text.")
+    assert len(parts) == 1
+    assert parts[0].root.text == "Just plain text."
+
+
+def test_parse_response_to_parts_malformed_json_uses_fallback_text():
+    content = "<a2ui-json>{not valid json</a2ui-json>"
+    parts = parse_response_to_parts(content, fallback_text="Fallback text.")
+    assert len(parts) == 1
+    assert parts[0].root.text == "Fallback text."
+
+
+def test_parse_response_to_parts_with_version_override():
+    content = f"<a2ui-json>{json.dumps([_CREATE])}</a2ui-json>"
+    parts = parse_response_to_parts(content, version="0.9")
+    assert len(parts) == 1
+    assert parts[0].root.metadata["mimeType"] == "application/json+a2ui"
