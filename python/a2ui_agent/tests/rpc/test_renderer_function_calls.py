@@ -69,7 +69,7 @@ class TestCall:
         )
 
         assert not future.done()
-        dumped = message.model_dump(by_alias=True, exclude_none=True)
+        dumped = message.model_dump(by_alias=True, exclude_unset=True)
         call_id = dumped["callRendererFunction"]["functionCallId"]
         assert call_id
         assert dumped == {
@@ -93,7 +93,7 @@ class TestCall:
 
         message, future = calls.call(catalog_id=CATALOG, name="now")
 
-        dumped = message.model_dump(by_alias=True, exclude_none=True)
+        dumped = message.model_dump(by_alias=True, exclude_unset=True)
         assert "surfaceId" not in dumped["callRendererFunction"]
         assert dumped["callRendererFunction"]["callFunction"]["args"] == {}
         future.cancel()
