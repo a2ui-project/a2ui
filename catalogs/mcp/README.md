@@ -35,7 +35,7 @@ For `updateDataModel`, keys starting with `/` are absolute paths, while relative
 
 ## v1 catalog (protocol v1.0)
 
-The v1 catalog, [v1/catalog.json](v1/catalog.json), targets A2UI protocol v1.0. Its catalog ID is `https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`. It declares `callMcpTool` and `updateDataModel`, with argument and return types taken from the v1.0 `common_types.json`, and the `McpApp` component.
+The v1 catalog, [v1/catalog.json](v1/catalog.json), targets A2UI protocol v1.0. Its catalog ID is `https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`. It declares `callMcpTool` and the data functions below, with argument and return types taken from the v1.0 `common_types.json`, and the `McpApp` component.
 
 ### Tool data payload
 
@@ -45,11 +45,42 @@ The optional `targetDataPath` argument writes the payload of each successful cal
 
 ### Data functions
 
-| Function          | Arguments | Returns                                                                     |
-| :---------------- | :-------- | :-------------------------------------------------------------------------- |
-| `updateDataModel` | `updates` | Nothing. Writes each key-value pair in `updates` to the surface data model. |
+Most MCP tools return plain `content` blocks rather than A2UI resources, so a surface needs to pick the fields it wants out of the payload and write them to the data model. The v1 catalog declares these functions for that:
 
-The `updates` argument is a required `DynamicValue`, so it can be a literal object, a `@path` binding or a nested `@call`; a `null` or missing argument is rejected. Keys starting with `/` are absolute paths, while relative keys resolve against the calling data context (such as the current row scope inside a template list). `updateDataModel` does not evaluate `@path` or `@call` objects found inside the values it writes: a tool result is data, not an expression.
+| Function          | Arguments          | Returns                                                                                                                                   |
+| :---------------- | :----------------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| `transformData`   | `jmespath`, `data` | The result of evaluating the [JMESPath](https://jmespath.org/specification.html) expression against `data`, or `null` for missing fields. |
+| `updateDataModel` | `updates`          | Nothing. Writes each key-value pair in `updates` to the surface data model.                                                               |
+
+Every argument is required, and a `null` or missing argument is rejected. `transformData` implements standard JMESPath, with no extensions. `jmespath` is a `DynamicString`; `data` and `updates` are `DynamicValue`, so each can be a literal, a `@path` binding or a nested `@call`. For `updateDataModel`, keys starting with `/` are absolute paths, while relative keys resolve against the calling data context (such as the current row scope inside a template list).
+
+A surface is usually created on the basic catalog, so each call selects the MCP catalog with its own `catalogId`. A button action chains the functions this way:
+
+```json
+{
+  "@call": "updateDataModel",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+  "args": {
+    "updates": {
+      "@call": "transformData",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+      "args": {
+        "jmespath": "{\"/issues\": json[?state == 'open'].{number: to_string(number), title: title}}",
+        "data": {
+          "@call": "callMcpTool",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+          "args": {
+            "name": "list_issues",
+            "arguments": {"repository": {"@path": "/repository"}}
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+`transformData` reads the parsed `json` of the payload and builds the `{path: value}` object, and `updateDataModel` writes it. The functions do not evaluate `@path` or `@call` objects found inside tool output: a tool result is data, not an expression.
 
 ### McpApp component
 

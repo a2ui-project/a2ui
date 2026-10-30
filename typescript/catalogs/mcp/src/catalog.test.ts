@@ -24,6 +24,7 @@ import catalogJson from './catalog.json' with {type: 'json'};
 import {MCP_CATALOG_ID, mcpCatalog} from './catalog.js';
 import {A2uiMcpApp} from './components/mcp_app.js';
 import {CallMcpToolImplementation} from './functions/callMcpTool.js';
+import {TransformDataImplementation} from './functions/transform_data.js';
 import {UpdateDataModelImplementation} from './functions/update_data_model.js';
 import {EXAMPLE_CATALOGS, parseExampleMessages} from './testing/frame_test_support.js';
 
@@ -128,6 +129,7 @@ describe('mcpCatalog', () => {
       Object.keys(catalogJson['functions']).sort(),
     );
     expect(mcpCatalog.functions.get('callMcpTool')).toBe(CallMcpToolImplementation);
+    expect(mcpCatalog.functions.get('transformData')).toBe(TransformDataImplementation);
     expect(mcpCatalog.functions.get('updateDataModel')).toBe(UpdateDataModelImplementation);
   });
 

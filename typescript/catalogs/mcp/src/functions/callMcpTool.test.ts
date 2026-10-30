@@ -47,6 +47,7 @@ import {
   type McpToolDataPayload,
 } from './callMcpTool.js';
 import mcpCatalogJson from '../catalog.json' with {type: 'json'};
+import {TransformDataImplementation} from './transform_data.js';
 import {UpdateDataModelImplementation} from './update_data_model.js';
 
 const SURFACE_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
@@ -56,7 +57,7 @@ const mcpCatalog = new Catalog<any>(
   MCP_CATALOG_ID,
   '1.0',
   [],
-  [CallMcpToolImplementation, UpdateDataModelImplementation],
+  [CallMcpToolImplementation, TransformDataImplementation, UpdateDataModelImplementation],
 );
 
 /** A function that returns `{path: data}`, the shape a tool argument named `path` needs. */
@@ -246,7 +247,7 @@ describe('callMcpTool', () => {
     });
 
     it('parses a function call as the whole arguments object', () => {
-      const call = {call: 'jmespath', args: {expression: '{path: @}', data: {path: '/dir'}}};
+      const call = {call: 'transformData', args: {jmespath: '{path: @}', data: {path: '/dir'}}};
       const parsed = CallMcpToolApi.schema.parse({name: 'list_directory', arguments: call});
       assert.deepStrictEqual(parsed, {name: 'list_directory', arguments: call});
     });
@@ -935,6 +936,34 @@ describe('callMcpTool', () => {
 
       assert.strictEqual(dataModel.get('/a/text'), 'A');
       assert.strictEqual(dataModel.get('/b/text'), 'B');
+    });
+
+    it('lets transformData read the text of the returned payload', async () => {
+      const client = createFakeClient({
+        result: {content: [{type: 'text', text: 'Title: Foo\nURL: https://foo'}]},
+      });
+      const catalog = new Catalog<any>(
+        MCP_CATALOG_ID,
+        '0.9',
+        [],
+        [
+          createCallMcpToolImplementation(() => ({
+            defaultVersion: 'v0.9',
+            getMcpClientForTool: () => asClient(client),
+            processor,
+          })),
+          TransformDataImplementation,
+        ],
+      );
+      const context = createTestDataContext(new DataModel({}), catalog);
+
+      const text = await context.resolveDynamicValue({
+        call: 'transformData',
+        args: {jmespath: 'text', data: {call: 'callMcpTool', args: {name: 'search'}}},
+        returnType: 'any',
+      });
+
+      assert.strictEqual(text, 'Title: Foo\nURL: https://foo');
     });
   });
 
