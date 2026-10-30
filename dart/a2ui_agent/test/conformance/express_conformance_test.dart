@@ -79,6 +79,7 @@ const Map<String, String> _v1OnlyCases = {
   'test_compile_express_event_user_message_function_call': _noUserMessage,
   'test_decompile_express_event_action_with_function_call_user_message':
       _noUserMessage,
+  'test_express_snippet_teaches_event_user_message_from_v1_0': _noUserMessage,
   'test_compile_express_surface_targeting_names_a_catalog':
       _oneCatalogPerSurface,
   'test_decompile_express_two_surfaces_in_two_catalogs': _oneCatalogPerSurface,

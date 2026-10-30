@@ -977,6 +977,18 @@ void main() {
       );
     });
 
+    test('teaches Event userMessage= in rule 8', () {
+      final String snippet = express().promptSnippet;
+      expect(snippet, contains('`Event(name, context?, userMessage=...)`'));
+      expect(snippet, contains('Event("reply", userMessage="Replying now")'));
+      expect(
+        snippet,
+        contains(
+          r'Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)',
+        ),
+      );
+    });
+
     test('decompiles an empty createSurface with the update that fills it', () {
       final parser = ExpressParser([basic]);
       final String block = parser.decompile([

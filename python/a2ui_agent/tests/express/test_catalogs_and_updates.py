@@ -859,7 +859,29 @@ def test_single_catalog_prompt_rules_are_the_base_rules() -> None:
         "root = ComponentA(...)", "root = Column(...)"
     )
     assert "surface(" in rules
+    assert "`Event(name, context?, userMessage=...)`" in rules
+    assert "userMessage=" in rules
     assert "Multiple Catalogs" not in rules
+
+
+@pytest.mark.parametrize("version", ["v0.9", "v0.9.1"])
+def test_pre_v1_0_prompt_rules_omit_event_user_message(version: str) -> None:
+    fmt = ExpressFormat([_primary(version=version)])
+    rules = fmt.prompt_generator.generate_base_rules()
+    assert (
+        "8. Action events: represent server-side actions using the Event helper:\n"
+        '   Event("save_deal", {rep: $/form/rep})'
+    ) in rules
+    assert "userMessage=" not in rules
+
+    filtered = fmt.prompt_generator.generate_base_rules(
+        allowed_messages=["updateComponents"]
+    )
+    assert (
+        "7. Action events: represent server-side actions using the Event helper:\n"
+        '   Event("save_deal", {rep: $/form/rep})'
+    ) in filtered
+    assert "userMessage=" not in filtered
 
 
 def test_multi_catalog_prompt_rules_explain_catalog_selection() -> None:

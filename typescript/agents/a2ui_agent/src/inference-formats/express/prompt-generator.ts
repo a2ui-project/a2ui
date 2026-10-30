@@ -21,12 +21,21 @@
  * signatures and instruction blocks.
  */
 
-import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
+import {AgentToRendererMessage, CatalogApi, isAtLeastVersion} from '../../internal/web-core.js';
 import {PromptGenerator} from '../../prompt/generator.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 import {buildSchemaHelpers, catalogsDefining, resolveExpressVersion} from './catalogs.js';
 import {ExpressDecompiler, RawNumber} from './decompiler.js';
 import {CatalogSchemaHelper, commonDefName} from './schema-helper.js';
+
+const EVENT_RULE_V10 = `8. Action events: represent server-side actions using the Event helper, \`Event(name, context?, userMessage=...)\`:
+   Event("save_deal", {rep: $/form/rep})
+   Event("reply", userMessage="Replying now")
+   Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)
+   The context map is optional. Pass \`userMessage=\` as a keyword argument (a string, \`$path\` binding, or function call) to set the message shown on the user's behalf when the event fires.`;
+
+const EVENT_RULE_PRE_V10 = `8. Action events: represent server-side actions using the Event helper:
+   Event("save_deal", {rep: $/form/rep})`;
 
 export const EXPRESS_RULES = `# A2UI Express DSL Output Contract
 
@@ -66,8 +75,7 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").
 
-8. Action events: represent server-side actions using the Event helper:
-   Event("save_deal", {rep: $/form/rep})
+${EVENT_RULE_V10}
 
 9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
 
@@ -353,6 +361,9 @@ export class ExpressPromptGenerator extends PromptGenerator {
   generateBaseRules(): string {
     const allowedMessages = this.allowedMessages;
     let rules = EXPRESS_RULES;
+    if (!isAtLeastVersion(this.version, '1.0')) {
+      rules = rules.replace(EVENT_RULE_V10, EVENT_RULE_PRE_V10);
+    }
     let wantsComponentsOrData = true;
 
     if (allowedMessages) {

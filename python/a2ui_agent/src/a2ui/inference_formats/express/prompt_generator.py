@@ -26,7 +26,8 @@ import re
 from typing import Any, Literal
 
 from a2ui.core import CatalogApi
-from a2ui.core.schema import AgentToRendererMessage
+from a2ui.core.common import is_at_least_version
+from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
     build_catalog_helpers,
@@ -44,6 +45,22 @@ _EXAMPLE_MESSAGE_KEYS = (
     "deleteSurface",
     "callFunction",
     "callRendererFunction",
+)
+
+_EVENT_RULE_V1_0 = (
+    "8. Action events: represent server-side actions using the Event helper,"
+    " `Event(name, context?, userMessage=...)`:\n"
+    '   Event("save_deal", {rep: $/form/rep})\n'
+    '   Event("reply", userMessage="Replying now")\n'
+    '   Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)\n'
+    "   The context map is optional. Pass `userMessage=` as a keyword"
+    " argument (a string, `$path` binding, or function call) to set the"
+    " message shown on the user's behalf when the event fires."
+)
+
+_EVENT_RULE_PRE_V1_0 = (
+    "8. Action events: represent server-side actions using the Event helper:\n"
+    '   Event("save_deal", {rep: $/form/rep})'
 )
 
 EXPRESS_RULES = r'''# A2UI Express DSL Output Contract
@@ -84,8 +101,11 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").
 
-8. Action events: represent server-side actions using the Event helper:
+8. Action events: represent server-side actions using the Event helper, `Event(name, context?, userMessage=...)`:
    Event("save_deal", {rep: $/form/rep})
+   Event("reply", userMessage="Replying now")
+   Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)
+   The context map is optional. Pass `userMessage=` as a keyword argument (a string, `$path` binding, or function call) to set the message shown on the user's behalf when the event fires.
 
 9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
 
@@ -238,8 +258,10 @@ def _get_schema_enum(prop_schema: Any) -> list[str] | None:
     return None
 
 
-def _filter_express_rules(allowed_messages: Sequence[str]) -> str:
-    """Filters EXPRESS_RULES to only the rules for the allowed message types."""
+def _filter_express_rules(
+    allowed_messages: Sequence[str], *, rules_source: str = EXPRESS_RULES
+) -> str:
+    """Filters Express rules to only the rules for the allowed message types."""
     allowed = set(allowed_messages)
     creates = "createSurface" in allowed or "CreateSurfaceMessage" in allowed
     components = (
@@ -248,7 +270,7 @@ def _filter_express_rules(allowed_messages: Sequence[str]) -> str:
     data = "updateDataModel" in allowed or "UpdateDataModelMessage" in allowed
     delete = "deleteSurface" in allowed or "DeleteSurfaceMessage" in allowed
 
-    contract, _, rules_block = EXPRESS_RULES.partition("## Grammar Rules\n\n")
+    contract, _, rules_block = rules_source.partition("## Grammar Rules\n\n")
     raw_rules = re.split(r"\n\n(?=\d+\. )", rules_block.strip())
     rule_bodies = [
         re.sub(r"^\d+\. ", "", r).replace("\n   ", "\n").replace("\n    ", "\n ")
@@ -333,10 +355,15 @@ class ExpressPromptGenerator(PromptGenerator):
         effective_allowed = (
             allowed_messages if allowed_messages is not None else self._allowed_messages
         )
-        base = (
+        source_rules = (
             EXPRESS_RULES
+            if is_at_least_version(self._version, ProtocolVersion.V1_0)
+            else EXPRESS_RULES.replace(_EVENT_RULE_V1_0, _EVENT_RULE_PRE_V1_0)
+        )
+        base = (
+            source_rules
             if effective_allowed is None
-            else _filter_express_rules(effective_allowed)
+            else _filter_express_rules(effective_allowed, rules_source=source_rules)
         )
         root_component = _example_root_component(self.catalogs)
         if root_component is not None:

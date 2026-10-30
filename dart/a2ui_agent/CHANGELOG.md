@@ -90,8 +90,11 @@
   keyword `Event` does not define, where it used to drop them. A function call
   in an action slot nested inside a list item or object property (such as
   `items: [{label, action: openUrl(...)}]`) is now compiled as a
-  `functionCall` action. `ExpressDecompiler` writes `userMessage=` back
-  ([#3598](https://github.com/a2ui-project/a2ui/issues/3598)).
+  `functionCall` action. `ExpressDecompiler` writes `userMessage=` back, and
+  `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in
+  rule 8 for v1.0+ catalogs
+  ([#3598](https://github.com/a2ui-project/a2ui/issues/3598),
+  [#3690](https://github.com/a2ui-project/a2ui/issues/3690)).
 - `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
   `ExpressParser.unwrap` remove the backticks left at the edges of a block when
   a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or
