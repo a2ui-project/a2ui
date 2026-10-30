@@ -176,6 +176,66 @@ export function resolveRefTarget(refString, parentDefName, lazyEdges, topologica
 }
 
 /**
+ * Whether a schema only constrains which keys are present, such as
+ * `{required: ['a'], not: {required: ['b']}}`.
+ *
+ * @param {unknown} branch Schema node.
+ * @returns {boolean} True for a key-presence-only schema.
+ */
+function isKeyPresenceSchema(branch) {
+  if (!branch || typeof branch !== 'object' || Array.isArray(branch)) return false;
+  if (!Object.keys(branch).every(k => k === 'required' || k === 'not')) return false;
+  if (branch.required !== undefined && !Array.isArray(branch.required)) return false;
+  if (branch.not === undefined) return Array.isArray(branch.required);
+  // `not: {required: [a, b]}` means "not all of a and b", which a single
+  // `false` per key cannot express, so only single-key exclusions qualify.
+  const not = branch.not;
+  return (
+    not !== null &&
+    typeof not === 'object' &&
+    Object.keys(not).length === 1 &&
+    Array.isArray(not.required) &&
+    not.required.length === 1
+  );
+}
+
+/**
+ * Rewrites key-presence-only `oneOf`/`anyOf` branches into object schemas.
+ *
+ * json-schema-to-zod ignores `required` on schemas without `properties`, so
+ * `not: {required: ['b']}` compiles to `!z.any().safeParse(value).success`,
+ * which rejects every value. Each required key takes its schema from the
+ * enclosing object's `properties`, and each excluded key becomes `false`,
+ * which only passes when the key is absent. A branch that requires a key the
+ * enclosing object does not declare is left as it is.
+ *
+ * @param {object} node Schema node.
+ * @returns {object} The node with rewritten branches.
+ */
+function expandKeyPresenceBranches(node) {
+  if (!node.properties) return node;
+  const rewrite = branches =>
+    branches.map(branch => {
+      if (!isKeyPresenceSchema(branch)) return branch;
+      const required = branch.required ?? [];
+      if (!required.every(key => node.properties[key])) return branch;
+      const properties = {};
+      for (const key of required) {
+        const schema = {...node.properties[key]};
+        delete schema.description;
+        properties[key] = schema;
+      }
+      for (const key of branch.not?.required ?? []) properties[key] = false;
+      return {type: 'object', properties, required};
+    });
+  const res = {...node};
+  for (const k of ['oneOf', 'anyOf']) {
+    if (Array.isArray(res[k])) res[k] = rewrite(res[k]);
+  }
+  return res;
+}
+
+/**
  * Recursively prepares JSON Schema nodes by resolving local/remote #/$defs references.
  *
  * @param {object} node Schema node.
@@ -203,7 +263,7 @@ export function prepareRef(node, parentDefName, lazyEdges, topologicalOrder) {
     return prepareRef(fnRef, parentDefName, lazyEdges, topologicalOrder);
   }
   const res = {};
-  for (const [k, v] of Object.entries(node)) {
+  for (const [k, v] of Object.entries(expandKeyPresenceBranches(node))) {
     // Simplify oneOf to anyOf for union schemas so jsonSchemaToZod emits clean z.union([...])
     if (
       k === 'oneOf' &&
@@ -274,7 +334,9 @@ export function compileDefToZod(rawDef, name, options = {}) {
  */
 export function writeIndexFile(destDir, version, generatorSource) {
   const generatedFiles = readdirSync(destDir)
-    .filter(f => f.endsWith('.ts') && f !== 'index.ts' && f !== 'helpers.ts')
+    .filter(
+      f => f.endsWith('.ts') && !f.endsWith('.test.ts') && f !== 'index.ts' && f !== 'helpers.ts',
+    )
     .sort();
 
   let indexTs = getHeader(version, generatorSource);

@@ -22,6 +22,7 @@ import {
   STRICT_VALIDATION,
   RpcErrorCode,
 } from './message-processor.js';
+import {extractEnvelopeErrorContext, mapErrorToRendererMessage} from './message-error-mapper.js';
 import {Catalog, ComponentApi, createFunctionImplementation} from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {BasicCatalogThemeSchema} from '../universal/basic_catalog/theme.js';
@@ -29,6 +30,8 @@ import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components
 import {BASIC_FUNCTIONS} from '../catalogs/basic/v1/functions/basic_functions.js';
 import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
+import {SurfaceModel} from '../state/surface-model.js';
+import {validateCompositionConstraints} from '../state/validation-helpers.js';
 import {peekValue} from '../reactivity/signals.js';
 import {z} from 'zod';
 
@@ -857,6 +860,227 @@ describe('MessageProcessor', () => {
       // Verify that 'root' was NOT mutated
       assert.strictEqual(surface.componentsModel.get('root')?.properties.text, 'Initial');
       assert.strictEqual(surface.componentsModel.has('new_comp'), false);
+    });
+
+    it('applies Surface allowedParents rule only to rootId and checks all parents of a component', () => {
+      const compositionCatalog = Catalog.fromJson({
+        catalogId: 'custom',
+        protocolVersion: '1.0',
+        components: {
+          Box: {
+            type: 'object',
+            properties: {
+              children: {$ref: '#/$defs/ChildList'},
+            },
+          },
+          Card: {
+            type: 'object',
+            allowedParents: ['Box'],
+            properties: {
+              children: {$ref: '#/$defs/ChildList'},
+            },
+          },
+          Header: {
+            type: 'object',
+            allowedParents: ['Box'],
+          },
+        },
+      }) as unknown as Catalog<ComponentApi>;
+
+      // 1. Rewriting a container to drop a child whose allowedParents does not
+      // include 'Surface' succeeds when orphans are allowed (default), and
+      // reports an orphan IntegrityError (not UNALLOWED_PARENT) in strict mode.
+      const relaxedProc = new MessageProcessor([compositionCatalog]);
+      relaxedProc.processMessages([
+        {
+          version: '1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'custom',
+            components: [
+              {id: 'root', component: 'Box', children: ['h']},
+              {id: 'h', component: 'Header'},
+            ],
+          },
+        },
+        {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Box', children: []}],
+          },
+        },
+      ]);
+      assert.deepStrictEqual(
+        relaxedProc.getSurface('s1')?.componentsModel.get('root')?.properties.children,
+        [],
+      );
+      assert.strictEqual(relaxedProc.getSurface('s1')?.componentsModel.get('h')?.type, 'Header');
+
+      const strictProc = new MessageProcessor([compositionCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      strictProc.processMessages({
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: 'custom',
+          components: [
+            {id: 'root', component: 'Box', children: ['h']},
+            {id: 'h', component: 'Header'},
+          ],
+        },
+      });
+      assert.throws(
+        () =>
+          strictProc.processMessages({
+            version: '1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'root', component: 'Box', children: []}],
+            },
+          }),
+        (err: unknown) =>
+          err instanceof A2uiIntegrityError &&
+          err.message.includes("Component 'h' is not reachable from 'root'"),
+      );
+
+      // 2. Root component referenced by another component is still checked
+      // against 'Surface' (for both default 'root' and a custom rootId).
+      const rootRefProc = new MessageProcessor([compositionCatalog]);
+      assert.throws(
+        () =>
+          rootRefProc.processMessages({
+            version: '1.0',
+            createSurface: {
+              surfaceId: 's1',
+              catalogId: 'custom',
+              components: [
+                {id: 'root', component: 'Card'},
+                {id: 'box', component: 'Box', children: ['root']},
+              ],
+            },
+          }),
+        (err: unknown) =>
+          err instanceof A2uiValidationError &&
+          err.code === 'UNALLOWED_PARENT' &&
+          err.message.includes(
+            "Component 'root' (Card) cannot be placed under parent 'Surface' (Surface).",
+          ),
+      );
+
+      const customRootProc = new MessageProcessor([compositionCatalog], undefined, {
+        validationConfig: {rootId: 'main_root', allowOrphanComponents: true},
+      });
+      assert.throws(
+        () =>
+          customRootProc.processMessages({
+            version: '1.0',
+            createSurface: {
+              surfaceId: 's1',
+              catalogId: 'custom',
+              components: [
+                {id: 'main_root', component: 'Card'},
+                {id: 'box', component: 'Box', children: ['main_root']},
+              ],
+            },
+          }),
+        (err: unknown) =>
+          err instanceof A2uiValidationError &&
+          err.code === 'UNALLOWED_PARENT' &&
+          err.message.includes(
+            "Component 'main_root' (Card) cannot be placed under parent 'Surface' (Surface).",
+          ),
+      );
+
+      // 3. Component with multiple parents checks every parent edge regardless
+      // of component order.
+      for (const components of [
+        [
+          {id: 'root', component: 'Box', children: ['card', 'b']},
+          {id: 'card', component: 'Card', children: ['h']},
+          {id: 'b', component: 'Box', children: ['h']},
+          {id: 'h', component: 'Header'},
+        ],
+        [
+          {id: 'root', component: 'Box', children: ['b', 'card']},
+          {id: 'b', component: 'Box', children: ['h']},
+          {id: 'card', component: 'Card', children: ['h']},
+          {id: 'h', component: 'Header'},
+        ],
+      ]) {
+        const multiParentProc = new MessageProcessor([compositionCatalog]);
+        assert.throws(
+          () =>
+            multiParentProc.processMessages({
+              version: '1.0',
+              createSurface: {
+                surfaceId: 's1',
+                catalogId: 'custom',
+                components,
+              },
+            }),
+          (err: unknown) =>
+            err instanceof A2uiValidationError &&
+            err.code === 'UNALLOWED_PARENT' &&
+            err.message.includes(
+              "Component 'h' (Header) cannot be placed under parent 'card' (Card).",
+            ),
+        );
+      }
+    });
+
+    it("checks the surface's own root id against Surface, as a v0.8 beginRendering root sets it", () => {
+      const catalog = Catalog.fromJson({
+        catalogId: 'custom',
+        protocolVersion: '1.0',
+        components: {
+          Box: {type: 'object', properties: {children: {$ref: '#/$defs/ChildList'}}},
+          Card: {type: 'object', allowedParents: ['Box']},
+        },
+      }) as unknown as Catalog<ComponentApi>;
+      const surfaceWithRoot = (rootId: string) =>
+        new SurfaceModel<ComponentApi>(
+          's1',
+          catalog,
+          new Map([[catalog.id, catalog]]),
+          {},
+          false,
+          undefined,
+          rootId,
+        );
+      const resolveCatalog = () => catalog;
+
+      // The surface's root, 'main', is a Card, which may only be under a Box.
+      assert.throws(
+        () =>
+          validateCompositionConstraints(
+            surfaceWithRoot('main'),
+            [
+              {id: 'main', component: 'Card'},
+              {id: 'box', component: 'Box', children: ['main']},
+            ],
+            resolveCatalog,
+            undefined,
+          ),
+        (err: unknown) =>
+          err instanceof A2uiValidationError &&
+          err.message.includes("Component 'main' (Card) cannot be placed under parent 'Surface'"),
+      );
+
+      // A component named 'root' is not the root of this surface, so it is not
+      // checked against Surface.
+      assert.doesNotThrow(() =>
+        validateCompositionConstraints(
+          surfaceWithRoot('main'),
+          [
+            {id: 'main', component: 'Box', children: []},
+            {id: 'root', component: 'Card'},
+          ],
+          resolveCatalog,
+          undefined,
+        ),
+      );
     });
   });
 
@@ -2020,6 +2244,111 @@ describe('MessageProcessor', () => {
           message,
         );
       }
+    });
+
+    it('maps errors to ErrorMessage and emits via errorHandler, onError, and processMessagesWithErrors', () => {
+      const strictTextApi: ComponentApi = {
+        name: 'Text',
+        schema: z.object({text: z.string()}).strict(),
+      };
+      const base = new Catalog<ComponentApi>('base', '1.0', [strictTextApi]);
+      const handledErrors: any[] = [];
+      const groupErrors: any[] = [];
+      const proc = new MessageProcessor<ComponentApi>([base], undefined, {
+        version: '1.0',
+        errorHandler: msg => handledErrors.push(msg),
+      });
+      proc.model.onError.subscribe(err => {
+        groupErrors.push(err);
+      });
+
+      proc.processMessages([{version: '1.0', createSurface: {surfaceId: 's1', catalogId: 'base'}}]);
+      const surfaceErrors: any[] = [];
+      proc.getSurface('s1')!.onError.subscribe(err => {
+        surfaceErrors.push(err);
+      });
+
+      const errors = proc.processMessagesWithErrors([
+        {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Text', text: 123 as any}],
+          },
+        },
+      ]);
+
+      assert.strictEqual(errors.length, 1);
+      assert.strictEqual(errors[0].version, '1.0');
+      assert.strictEqual(errors[0].error.code, 'VALIDATION_FAILED');
+      assert.strictEqual(errors[0].error.surfaceId, 's1');
+      assert.strictEqual(errors[0].error.path, '/components/0/text');
+      assert.strictEqual(handledErrors.length, 1);
+      assert.strictEqual(surfaceErrors.length, 1);
+      assert.strictEqual(groupErrors.length, 1);
+    });
+
+    it('maps callRendererFunction envelope faults to INVALID_FUNCTION_CALL with functionCallId', () => {
+      const ctx = extractEnvelopeErrorContext({
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'fn-99',
+          callFunction: {call: 'foo', catalogId: 'cat', args: 'bad'},
+        },
+      });
+      assert.strictEqual(ctx.functionCallId, 'fn-99');
+
+      const err = new A2uiValidationError('Bad args', undefined, 'VALIDATION_FAILED', {
+        functionCallId: 'fn-99',
+      });
+      const mapped = mapErrorToRendererMessage(err, ctx);
+      assert.strictEqual(mapped.error.code, 'INVALID_FUNCTION_CALL');
+      assert.strictEqual(mapped.error.functionCallId, 'fn-99');
+      assert.strictEqual(mapped.error.surfaceId, undefined);
+      assert.strictEqual(mapped.error.path, undefined);
+    });
+
+    it('attributes prepareOperations parse errors to the failing item in multi-message arrays', async () => {
+      const textApi: ComponentApi = {name: 'Text', schema: z.object({text: z.string()})};
+      const v09Cat = new Catalog<ComponentApi>('cat-v09', '0.9', [textApi]);
+      const v10Cat = new Catalog<ComponentApi>('cat-v10', '1.0', [textApi]);
+      const handledErrors: any[] = [];
+      const proc = new MessageProcessor<ComponentApi>([v09Cat, v10Cat], undefined, {
+        errorHandler: msg => handledErrors.push(msg),
+      });
+
+      assert.throws(() => {
+        proc.processMessages([
+          {version: 'v0.9', createSurface: {surfaceId: 's1', catalogId: 'cat-v09'}},
+          {version: '1.0', updateComponents: {surfaceId: 's2', components: 'not-an-array'}},
+        ] as any);
+      });
+
+      assert.strictEqual(proc.getSurface('s1'), undefined);
+      assert.strictEqual(handledErrors.length, 1);
+      assert.strictEqual(handledErrors[0].version, '1.0');
+      assert.strictEqual(handledErrors[0].error.surfaceId, 's2');
+
+      handledErrors.length = 0;
+      await assert.rejects(async () => {
+        await proc.processMessagesAsync([
+          {version: 'v0.9', createSurface: {surfaceId: 's1', catalogId: 'cat-v09'}},
+          {
+            version: '1.0',
+            callRendererFunction: {
+              functionCallId: 'fn-item-2',
+              callFunction: {call: 'missingFn', catalogId: 'cat-v10', args: 'invalid'},
+            },
+          },
+        ] as any);
+      });
+
+      assert.strictEqual(proc.getSurface('s1'), undefined);
+      assert.strictEqual(handledErrors.length, 1);
+      assert.strictEqual(handledErrors[0].version, '1.0');
+      assert.strictEqual(handledErrors[0].error.code, 'INVALID_FUNCTION_CALL');
+      assert.strictEqual(handledErrors[0].error.functionCallId, 'fn-item-2');
+      assert.strictEqual(handledErrors[0].error.surfaceId, undefined);
     });
   });
 });
