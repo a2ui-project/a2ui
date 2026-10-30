@@ -1253,7 +1253,7 @@ describe('ExpressDecompiler', () => {
         },
       } as unknown as AgentToRendererMessage;
 
-      const dsl = decompiler.decompile(msg);
+      const dsl = decompiler.decompile([msg]);
       expect(dsl).toBe(
         'surface("s1", extensions={agui: {mode: "live"}})\nroot = Text("Hello", extensions={annot: {rank: 1}})',
       );
