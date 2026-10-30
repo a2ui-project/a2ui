@@ -745,3 +745,169 @@ remote_stubby_agent = RemoteA2aAgent(
     # ...
 )
 ```
+
+### 5. Agent Functions and Renderer Functions
+
+From v1.0, a renderer and an agent can call each other's functions. A renderer
+that evaluates a function it has no implementation for sends
+`callAgentFunction` to the agent, and the agent answers with
+`agentFunctionResponse`. In the other direction, the agent sends
+`callRendererFunction` and the renderer answers with `rendererFunctionResponse`.
+The helpers for both directions are in `a2ui.rpc`. They don't depend on an
+agent framework.
+
+#### 5a. Declaring Agent Functions
+
+An agent function is a catalog function whose handler runs on the agent. Add
+agent functions to the agent's copy of the catalog, with
+`Catalog(agent_functions=...)` or, for a catalog loaded from a file,
+`copy_with(agent_functions=...)`:
+
+```python
+from a2ui.core.catalog import AgentFunction, AgentFunctionContext
+from a2ui.processor import A2uiGenerator, CatalogConfig
+
+
+async def fetch_fx_rate(args: dict, context: AgentFunctionContext) -> str:
+    rate = await rates_service.lookup(args["base"], args["target"])
+    return f"1 {args['base']} = {rate} {args['target']}"
+
+
+fx_rate = AgentFunction(
+    "fetchFxRate",
+    handler=fetch_fx_rate,
+    return_type="string",
+    schema={
+        "type": "object",
+        "properties": {
+            "base": {"type": "string"},
+            "target": {"type": "string", "default": "USD"},
+        },
+        "required": ["base"],
+        "additionalProperties": False,
+    },
+    description="The current exchange rate from base to target, as text.",
+)
+
+catalog = CatalogConfig.from_path("path/to/catalog.json").catalog
+generator = A2uiGenerator([CatalogConfig(catalog.copy_with(agent_functions=[fx_rate]))])
+```
+
+Agent functions are ordinary entries of `catalog.functions`, so the prompt
+describes them and validation accepts model output that calls them, while an
+undeclared name is still rejected. The model writes a call to an agent
+function the same way as any other call, such as
+`{"@call": "fetchFxRate", "args": {"base": "EUR"}}`. The renderer shows a
+pending value (null) until the response arrives, so if a function is slow or
+shouldn't be used in places such as `checks`, say so in its `description`.
+
+#### 5b. Answering `callAgentFunction`
+
+`AgentFunctionRegistry` runs the agent functions of a set of catalogs, and
+`RendererMessageRouter` is the entry point for the RPC messages a renderer
+sends. Other messages, such as `action`, are not RPC messages; pass them on to
+the agent's turn:
+
+```python
+from a2ui.rpc import AgentFunctionRegistry, RendererMessageRouter
+
+registry = AgentFunctionRegistry(processor.active_catalogs)
+router = RendererMessageRouter(agent_functions=registry)
+
+if router.handles(message):
+    for reply in await router.dispatch(message):
+        await send_to_renderer(reply.model_dump(by_alias=True, exclude_unset=True))
+else:
+    ...  # run the agent's turn
+```
+
+Serialize replies with `exclude_unset=True`, not `exclude_none=True`: a
+handler that returns `None` sends `"value": null`, which the response must
+carry.
+
+The registry answers each call as follows:
+
+1. It copies the call's `functionCallId` into the response.
+2. A function or `catalogId` that the registry doesn't know gets
+   `UNKNOWN_FUNCTION`.
+3. Arguments that fail the function's schema get `INVALID_FUNCTION_CALL`, with
+   the validation error in the message. The handler receives the validated
+   arguments, with the schema's defaults applied.
+4. A handler that raises gets `EXECUTION_ERROR`, with the exception's message.
+   The traceback is logged and not sent. To send another code, such as
+   `PROVIDER_NOT_FOUND`, raise `A2uiRpcError(message, code=...)` from
+   `a2ui.core`.
+5. The handler's context, an `AgentFunctionContext`, gives the call's
+   `catalog_id`, `surface_id` and `function_call_id`.
+
+Async handlers run on the caller's event loop. Sync handlers run on a worker
+thread through `asyncio.to_thread`, so a blocking handler doesn't stall the
+loop; make sure a sync handler is safe to run on another thread. Calls are
+handled independently, and the registry keeps nothing about a call once it has
+answered, so one registry can serve many conversations. Two options bound the
+work:
+
+1. `max_concurrency` limits how many handlers run at once.
+2. `timeout` (seconds, for the registry or for one `handle` call) cancels a
+   handler that takes too long and replies `EXECUTION_ERROR`. There's no
+   default, because the renderer already times out its calls. A sync handler
+   can't be stopped: the reply is sent, but its thread runs to the end.
+
+Cancelling a `handle` or `dispatch` call cancels its handler and sends nothing.
+`registry.dispose()` cancels every running handler; those calls raise
+`A2uiRpcError` with code `DISPOSED` instead of returning a response, and later
+calls raise too.
+
+#### 5c. Calling Renderer Functions
+
+`RendererFunctionCalls` sends `callRendererFunction` and matches up the
+responses. Use one instance per conversation. `call` returns the message to
+send and a future, without waiting:
+
+```python
+from a2ui.rpc import RendererFunctionCalls, RendererMessageRouter
+
+calls = RendererFunctionCalls()
+router = RendererMessageRouter(agent_functions=registry, renderer_calls=calls)
+
+message, result = calls.call(
+    catalog_id=CATALOG_ID, name="getLocation", args={}, surface_id="s1"
+)
+await send_to_renderer(message.model_dump(by_alias=True, exclude_unset=True))
+location = await result  # settled when the router gets the response
+```
+
+1. `call` always sets `catalogId`, which `callRendererFunction` requires,
+   generates the `functionCallId`, and checks the message against the schema.
+2. The instance belongs to the event loop where it is first used. `call` must
+   run on that loop. `resolve`, which the router calls for each
+   `rendererFunctionResponse`, may be called from any thread.
+3. A call fails with `A2uiRpcError` if the renderer answers with an error (with
+   the renderer's code) or no answer arrives in time (code `TIMEOUT`). The
+   timeout is 30 seconds by default; set `default_timeout` or pass `timeout`
+   to `call`.
+4. Cancelling the future forgets the call. Responses to calls that are unknown,
+   already answered, timed out or cancelled are logged at debug level and
+   ignored.
+5. `dispose(reason)` fails every pending call (code `CANCELLED`) and makes later
+   `call`s raise. Dispose the instance when the conversation ends, or use it as
+   `async with RendererFunctionCalls() as calls:`.
+6. `max_pending` makes `call` raise instead of letting a looping model pile up
+   calls that wait for an answer.
+
+#### 5d. What Renderers Need
+
+The renderer's catalog doesn't list the agent's functions, so how it treats a
+payload that calls one depends on its validation settings:
+
+1. Renderers that use the default validation need nothing. All v1.0 renderer
+   cores accept functions they don't know by default, and route their calls
+   to the agent.
+2. A renderer with strict validation (`allowUnknownElements: false`) rejects
+   the payload as calling an unrecognized function. It can either set
+   `allowUnknownElements: true`, which keeps the other checks, or declare the
+   agent functions it expects in its catalog without implementing them
+   (schema-only), which keeps every check, including the argument schema, and
+   still routes the calls. A strict renderer can take those declarations from
+   the agent's catalog document: `catalog.to_json()` writes agent functions
+   like any other function, without the handler.

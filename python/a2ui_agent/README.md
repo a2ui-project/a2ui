@@ -68,6 +68,14 @@ The following directories contain the base protocol logic, parsing, and schema o
 - **`inference_format.py`**: Defines `InferenceFormat` and `InferenceFormatFactory`.
 - **`inference_formats/`**: Format implementations and factories for Direct JSON (`direct_json/`), Express (`express/`), and experimental Elemental and Atom (`experimental/`) formats. Direct JSON is the format that streams: the stream from `DirectJsonParser.open_stream` heals the partial JSON of each chunk (`direct_json/json_reader.py`) and emits the messages that are ready.
 
+### Function calls between agent and renderer (`src/a2ui/rpc`)
+
+- **`agent_function_registry.py`**: `AgentFunctionRegistry` answers the renderer's `callAgentFunction` messages by running the agent functions of the agent's catalogs.
+- **`renderer_function_calls.py`**: `RendererFunctionCalls` builds `callRendererFunction` messages for one conversation and settles their futures when the `rendererFunctionResponse` arrives.
+- **`router.py`**: `RendererMessageRouter` passes each renderer RPC message to the helper that handles it.
+
+See [Agent Functions and Renderer Functions](agent_development.md#5-agent-functions-and-renderer-functions) for how to use them.
+
 ## Agent framework integrations
 
 The agent SDK does not depend on an agent framework. Integrations are separate
