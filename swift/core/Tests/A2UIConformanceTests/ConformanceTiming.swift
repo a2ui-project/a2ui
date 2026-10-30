@@ -90,12 +90,17 @@ public enum ConformanceTiming {
 
   /// Times `measured` against `baseline`: each runs once untimed, so that whatever runs on first
   /// use has run, then the two run in turn `runs` times each and their median times are compared.
+  ///
+  /// - Throws: ``ConformanceTimingError`` when `runs` is less than 1.
   @MainActor
   public static func compare(
     measured: () throws -> Void,
     baseline: () throws -> Void,
     runs: Int = runs
   ) throws -> Result {
+    guard runs >= 1 else {
+      throw ConformanceTimingError("runs must be at least 1, got \(runs)")
+    }
     try baseline()
     try measured()
     var baselineTimes: [Duration] = []

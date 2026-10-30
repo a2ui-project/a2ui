@@ -42,18 +42,28 @@ struct MessageProcessorScalingConformanceTests {
     let rawYAML = try ConformanceTestHelper.loadYAML(filename: Self.suite)
     let rawCases = try #require(rawYAML as? [[String: Any]], "\(Self.suite) should hold a list")
     let cases = ConformanceTestHelper.parseTestCases(from: rawYAML)
+    // Cases that don't parse would pair the rest with the wrong raw case.
+    try #require(
+      cases.count == rawCases.count,
+      "\(Self.suite) parsed \(cases.count) of \(rawCases.count) cases"
+    )
     #expect(!cases.isEmpty, "\(Self.suite) should hold test cases")
+    var executed = 0
     for (rawCase, testCase) in zip(rawCases, cases)
     where ConformanceTiming.runsCase(named: testCase.name) {
-      try runCase(rawCase, testCase)
+      if try runCase(rawCase, testCase) {
+        executed += 1
+      }
     }
+    #expect(executed > 0, "no timing case of \(Self.suite) ran")
   }
 
-  private func runCase(_ rawCase: [String: Any], _ testCase: ConformanceTestCase) throws {
+  /// Runs a timing case, returning false when it is a known gap and was skipped.
+  private func runCase(_ rawCase: [String: Any], _ testCase: ConformanceTestCase) throws -> Bool {
     let name = testCase.name
     if let reason = Self.knownGaps[name] {
       print("[\(name)] skipped: \(reason)")
-      return
+      return false
     }
     #expect(testCase.action == "measure_growth", "[\(name)] unknown action")
     #expect(rawCase["operation"] as? String == "process_messages", "[\(name)] unknown operation")
@@ -98,5 +108,6 @@ struct MessageProcessorScalingConformanceTests {
       + "at \(sizes[0]): \(result.baseline), ratio \(result.ratio) (max \(maxRatio))"
     print(report)
     #expect(result.ratio <= maxRatio, "\(report)")
+    return true
   }
 }

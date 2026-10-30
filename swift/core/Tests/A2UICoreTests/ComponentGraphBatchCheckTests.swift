@@ -60,7 +60,7 @@ struct ComponentGraphBatchCheckTests {
   }
 
   @Test func containerRewrittenToDropDisallowedChild() throws {
-    try expectSameOutcomes(
+    let outcomes = try expectSameOutcomes(
       [
         [column("root", children: ["a"]), card("b", child: "c")],
         [card("a", child: "x")],
@@ -70,6 +70,7 @@ struct ComponentGraphBatchCheckTests {
       ],
       catalog: try compositionCatalog()
     )
+    #expect(outcomes == [true, true, false, true, true])
   }
 
   @Test func heldChildWhoseTypeChanges() throws {
@@ -127,6 +128,20 @@ struct ComponentGraphBatchCheckTests {
       catalog: try plainCatalog()
     )
     #expect(outcomes == [true, false])
+  }
+
+  @Test func duplicateIDInBatchIsRejectedWithoutCorruptingBound() throws {
+    let processor = try makeProcessor(catalog: try plainCatalog())
+    try send([column("a", children: ["b"])], to: processor)
+    #expect(throws: A2UIIntegrityError.self) {
+      try send([text("b"), text("b")], to: processor)
+    }
+    #expect(throws: A2UIRecursionError.self) {
+      try send([column("b", children: ["a"])], to: processor)
+    }
+    try send([text("b")], to: processor)
+    let surface = try #require(processor.surfaceGroupModel.surfacesMap["s"])
+    #expect(Set(surface.componentsModel.components.keys) == ["a", "b"])
   }
 
   @Test func chainDeeperThanDepthLimitIsRejected() throws {
