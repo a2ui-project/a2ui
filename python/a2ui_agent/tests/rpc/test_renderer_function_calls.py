@@ -383,6 +383,55 @@ class TestCancellationAndDisposal:
             await _settle(future)
         assert excinfo.value.code == "CANCELLED"
 
+    def test_dispose_after_the_loop_closes_does_not_raise(self) -> None:
+        loop = asyncio.new_event_loop()
+        calls = RendererFunctionCalls()
+
+        async def start() -> asyncio.Future[Any]:
+            _, future = calls.call(catalog_id=CATALOG, name="now")
+            # A callback makes failing the future schedule work on the loop,
+            # which raises once the loop is closed.
+            future.add_done_callback(lambda _: None)
+            return future
+
+        future = loop.run_until_complete(start())
+        loop.close()
+
+        thread = threading.Thread(target=calls.dispose, args=("closed",))
+        thread.start()
+        thread.join()
+
+        assert calls.disposed
+        assert calls.pending_count == 0
+        del future
+
+    def test_dispose_when_the_loop_closes_during_the_call(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        loop = asyncio.new_event_loop()
+        calls = RendererFunctionCalls()
+
+        async def start() -> asyncio.Future[Any]:
+            _, future = calls.call(catalog_id=CATALOG, name="now")
+            return future
+
+        future = loop.run_until_complete(start())
+
+        def closed(*args: Any) -> None:
+            raise RuntimeError("Event loop is closed")
+
+        # The loop is open when `dispose` checks it, then closes before the
+        # handoff, as during teardown on another thread.
+        monkeypatch.setattr(loop, "call_soon_threadsafe", closed)
+        thread = threading.Thread(target=calls.dispose, args=("closed",))
+        thread.start()
+        thread.join()
+
+        assert calls.pending_count == 0
+        assert future.done()
+        assert isinstance(future.exception(), A2uiRpcError)
+        loop.close()
+
     @pytest.mark.asyncio
     async def test_async_with_disposes(self) -> None:
         async with RendererFunctionCalls() as calls:

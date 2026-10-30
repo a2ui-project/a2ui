@@ -267,8 +267,12 @@ class RendererFunctionCalls:
         loop = self._loop
         if loop is None or _running_loop() is loop or loop.is_closed():
             self._fail_all(reason)
-        else:
+            return
+        try:
             loop.call_soon_threadsafe(self._fail_all, reason)
+        except RuntimeError:
+            # The loop closed after the check above.
+            self._fail_all(reason)
 
     async def __aenter__(self) -> RendererFunctionCalls:
         return self
@@ -344,11 +348,21 @@ class RendererFunctionCalls:
         for call_id, pending in pending_calls:
             if pending.timer is not None:
                 pending.timer.cancel()
-            if not pending.future.done():
+            if pending.future.done():
+                continue
+            try:
                 pending.future.set_exception(
                     A2uiRpcError(
                         reason, code=RpcErrorCode.CANCELLED, function_call_id=call_id
                     )
+                )
+            except RuntimeError:
+                # Failing a future schedules its callbacks on its loop, which
+                # raises once the loop is closed. Nothing can await the future
+                # then, so the call is just dropped.
+                logger.debug(
+                    "Dropping renderer function call %s: the event loop is closed.",
+                    call_id,
                 )
 
 
