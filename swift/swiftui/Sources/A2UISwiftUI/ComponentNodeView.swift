@@ -14,6 +14,7 @@
 
 import A2UICore
 import SwiftUI
+import os
 
 /// Renders a single resolved A2UI engine node by looking up its view builder
 /// from the active component catalogs in the SwiftUI environment.
@@ -42,11 +43,29 @@ public struct ComponentNodeView: View {
       renderedView
         .modifier(ComponentAccessibilityHostModifier(node: renderNode))
     } else {
-      // A type missing from the surface's catalog was already reported by the resolver as
-      // `UNKNOWN_COMPONENT_TYPE`. A catalog type with no view in the SwiftUI catalogs passed to
-      // `Surface` is a host setup mismatch, which this view does not report.
+      let _ = Self.logMissingViewBuilder(for: renderNode)
       EmptyView()
     }
+  }
+
+  private static let logger = Logger(subsystem: "A2UISwiftUI", category: "ComponentNodeView")
+
+  /// Catalog and type pairs already logged, so a missing view builder is logged once per
+  /// process instead of on every render.
+  @MainActor private static var loggedMissingViewBuilders: Set<String> = []
+
+  /// Logs a node type that has no view builder in the SwiftUI catalogs passed to `Surface`.
+  ///
+  /// A type missing from the surface's catalog was already reported to the agent by the
+  /// resolver as `UNKNOWN_COMPONENT_TYPE`. A catalog type with no view builder is a host setup
+  /// mismatch that only this log points at.
+  @MainActor private static func logMissingViewBuilder(for node: Node) {
+    let catalogID = node.catalogID ?? "default"
+    guard loggedMissingViewBuilders.insert("\(catalogID)/\(node.type)").inserted else {
+      return
+    }
+    let message = "No view builder for component type '\(node.type)' in catalog '\(catalogID)'."
+    logger.warning("\(message, privacy: .public)")
   }
 }
 
