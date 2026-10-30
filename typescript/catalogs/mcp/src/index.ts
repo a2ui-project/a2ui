@@ -29,6 +29,7 @@ export {
   type CallMcpToolOptions,
   type McpAppResourcePayload,
   type McpClientResolver,
+  type McpToolDataPayload,
   type McpToolClient,
 } from './functions/callMcpTool.js';
 export {UpdateDataModelApi, UpdateDataModelImplementation} from './functions/update_data_model.js';

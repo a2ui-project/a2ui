@@ -102,9 +102,18 @@
  * {"content": [{"type": "text", "text": "Prep time is 15 minutes."}]}
  * ```
  *
- * No resource URI and no A2UI block, so nothing renders. The raw
- * `CallToolResult` is still returned, which is what the data functions of this
+ * No resource URI and no A2UI block, so nothing renders. The call still
+ * returns its `McpToolDataPayload`, which is what the data functions of this
  * catalog read when a payload shapes tool output itself.
+ *
+ * ## Tool data payload
+ *
+ * Every successful call returns an `McpToolDataPayload`: the tool name and
+ * input, the raw result, its `structuredContent` when the server sends one,
+ * the joined `text` blocks and their `json` parse. When `targetDataPath` is
+ * set, the payload replaces the object at that path. A call whose response
+ * arrives after a newer call to the same path has started does not write, so
+ * the latest call wins, and it still returns its payload.
  *
  * ## Failures
  *
@@ -112,20 +121,24 @@
  * the tool, a transport error, a result flagged `isError`, or a payload that
  * declares the A2UI MIME type but holds invalid JSON. A resource that holds no
  * A2UI at all is not a failure: it contributes nothing and the call proceeds.
+ * A failed call writes nothing to `targetDataPath`.
  */
 
+// The argument schemas come from the v1.0 entry point: its `DynamicValue` accepts both the v1.0
+// `@path`/`@call` directives and the v0.9 `path`/`call` ones, so a v1.0 payload binding a tool
+// argument validates when the surface is processed. The message types stay the v0.9 ones, which
+// describe every payload a tool result may carry.
+import type {A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
 import {
   A2uiExpressionError,
   DynamicStringSchema,
   DynamicValueSchema,
   createFunctionImplementation,
-  type A2uiMessage,
-  type CreateSurfaceMessage,
   type DataContext,
   type FunctionCall,
   type FunctionImplementation,
   type MessageProcessor,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core/v1_0';
 import type {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
@@ -141,27 +154,58 @@ export const A2UI_MIME_TYPE = 'application/a2ui+json';
 export const MCP_APP_MIME_TYPE = 'text/html;profile=mcp-app';
 
 /**
- * Resolved MCP App resource (`text/html;profile=mcp-app`) together with its `_meta.ui` security
- * metadata and the originating tool's input and result.
+ * What a successful `callMcpTool` call returns, and writes to `targetDataPath` when it is set.
  */
-export interface McpAppResourcePayload {
-  readonly resourceUri: string;
-  readonly html: string;
+export interface McpToolDataPayload {
+  /** The name of the tool that was called. */
+  readonly toolName: string;
+  /** The resolved arguments the tool was called with. */
+  readonly toolInput: Record<string, unknown>;
+  /** The raw `CallToolResult`. */
+  readonly toolResult: Record<string, unknown>;
+  /** `toolResult.structuredContent`, unchanged, when the server sends one. */
+  readonly structuredContent?: Record<string, unknown>;
+  /** The `text` content blocks of the result, joined with `\n`. */
+  readonly text?: string;
+  /**
+   * `text` parsed as JSON when it is an object or array. Otherwise, when at least two text blocks
+   * parse to an object or array, an array of those parses, skipping the other blocks.
+   */
+  readonly json?: unknown;
+  /** The URI of the MCP App resource the call resolved, if any. */
+  readonly resourceUri?: string;
+  /** The HTML of the MCP App resource the call resolved, if any. */
+  readonly html?: string;
+  /** The `_meta.ui.csp` of the MCP App resource. */
   readonly csp?: {
     readonly connectDomains?: readonly string[];
     readonly resourceDomains?: readonly string[];
     readonly frameDomains?: readonly string[];
     readonly baseUriDomains?: readonly string[];
   };
+  /** The `_meta.ui.permissions` of the MCP App resource. */
   readonly permissions?: {
     readonly camera?: Record<string, unknown>;
     readonly microphone?: Record<string, unknown>;
     readonly geolocation?: Record<string, unknown>;
     readonly clipboardWrite?: Record<string, unknown>;
   };
-  readonly toolInput?: Record<string, unknown>;
-  readonly toolResult?: Record<string, unknown>;
 }
+
+/**
+ * Resolved MCP App resource (`text/html;profile=mcp-app`) together with its `_meta.ui` security
+ * metadata and the data payload of the originating tool call.
+ */
+export interface McpAppResourcePayload extends McpToolDataPayload {
+  readonly resourceUri: string;
+  readonly html: string;
+}
+
+/** The fields of an MCP App resource payload that come from the resource itself. */
+type McpAppResource = Pick<McpAppResourcePayload, 'resourceUri' | 'html' | 'csp' | 'permissions'>;
+
+/** The fields of `McpToolDataPayload` read out of the result content. */
+export type ToolResultContent = Pick<McpToolDataPayload, 'structuredContent' | 'text' | 'json'>;
 
 /** Maximum number of decoded UI resources to cache per implementation. */
 const MAX_CACHED_RESOURCES = 100;
@@ -198,10 +242,11 @@ export const CallMcpToolApi = {
         'The arguments to pass to the MCP tool: an object of dynamic values, or a function call that returns one.',
       ),
     targetDataPath: DynamicStringSchema.optional().describe(
-      'Optional JSON Pointer path on the surface data model where a resolved MCP App resource payload (`resourceUri`, `html`, `csp`, `permissions`, `toolInput`, `toolResult`) is written.',
+      'Optional JSON Pointer path on the surface data model where the payload of each successful call is written, replacing the object at that path. A call whose response arrives after a newer call to the same path has started does not write, so the latest call wins.',
     ),
   }),
-  description: 'Invokes a tool on a connected Model Context Protocol (MCP) server.',
+  description:
+    'Invokes a tool on a connected Model Context Protocol (MCP) server and returns a payload with `toolName`, `toolInput`, `toolResult` (the raw result), `structuredContent` (when the server sends one), `text` (the text blocks joined with newlines) and `json` (the parsed value of `text` when it is a JSON object or array, else the array of parsed values when several text blocks are each one, absent otherwise), plus `resourceUri`, `html`, `csp` and `permissions` when the result has an MCP App resource. A result flagged `isError` fails the call and writes nothing.',
 };
 
 /**
@@ -255,7 +300,7 @@ export interface CallMcpToolOptions {
 
 interface DecodedUiResource {
   readonly a2uiMessages: A2uiMessage[];
-  readonly mcpAppResources: Array<Omit<McpAppResourcePayload, 'toolInput' | 'toolResult'>>;
+  readonly mcpAppResources: McpAppResource[];
 }
 
 /**
@@ -264,7 +309,7 @@ interface DecodedUiResource {
  * The getter is read on every invocation, so the host can configure (or reconfigure) the MCP
  * client resolver and message processor after the catalog is registered. The implementation
  * invokes the named MCP tool, processes any referenced or inline `application/a2ui+json`
- * resources through the configured processor, and returns the raw `CallToolResult`.
+ * resources through the configured processor, and returns an `McpToolDataPayload`.
  *
  * @param getOptions Returns the current options; see `CallMcpToolOptions`.
  */
@@ -276,6 +321,26 @@ export function createCallMcpToolImplementation(
 
   /** Cache of tool-declared UI resource URIs per MCP client. */
   const declaredUiResourceUris = new WeakMap<McpToolClient, Promise<Map<string, string[]>>>();
+
+  /**
+   * Sequence number of the latest call per data model and absolute `targetDataPath`, so a
+   * response that arrives after a newer call to the same path has started is not written.
+   */
+  const latestCallByPath = new WeakMap<object, Map<string, number>>();
+  let callSequence = 0;
+
+  /** Records a call to `path` and returns a check that tells whether it is still the latest. */
+  function startCall(dataModel: object, path: string): () => boolean {
+    let latestByPath = latestCallByPath.get(dataModel);
+    if (!latestByPath) {
+      latestByPath = new Map<string, number>();
+      latestCallByPath.set(dataModel, latestByPath);
+    }
+    const sequence = ++callSequence;
+    latestByPath.set(path, sequence);
+    const paths = latestByPath;
+    return () => paths.get(path) === sequence;
+  }
 
   async function readUiResource(client: McpToolClient, uri: string): Promise<DecodedUiResource> {
     let decodedByResourceUri = decodedByClient.get(client);
@@ -346,6 +411,9 @@ export function createCallMcpToolImplementation(
       );
     }
     const withVersion = (message: A2uiMessage) => ensureMessageVersion(message, defaultVersion);
+    const isLatestCall = targetDataPath
+      ? startCall(context.dataModel, context.resolvePath(targetDataPath))
+      : () => true;
 
     try {
       const resolvedArguments = await resolveToolArguments(args.arguments ?? {}, context);
@@ -373,19 +441,13 @@ export function createCallMcpToolImplementation(
         throw new Error(`MCP tool '${toolName}' execution failed: ${JSON.stringify(result)}`);
       }
 
-      const emitMcpAppResource = (
-        base: Omit<McpAppResourcePayload, 'toolInput' | 'toolResult'>,
-      ) => {
-        const payload: McpAppResourcePayload = {
-          ...base,
-          toolInput: resolvedArguments,
-          toolResult: result as unknown as Record<string, unknown>,
-        };
-        if (targetDataPath) {
-          context.set(targetDataPath, payload);
-        }
-        onMcpAppResource?.(payload, context);
+      const data: McpToolDataPayload = {
+        toolName,
+        toolInput: resolvedArguments,
+        toolResult: result as unknown as Record<string, unknown>,
+        ...extractToolResultContent(result),
       };
+      const appPayloads: McpAppResourcePayload[] = [];
 
       // Prefer resource URIs from the tool result, falling back to tool-declared URIs.
       const named = readUiResourceUris(result);
@@ -400,7 +462,7 @@ export function createCallMcpToolImplementation(
           processor.processMessages(a2uiMessages.map(withVersion));
         }
         for (const appResource of mcpAppResources) {
-          emitMcpAppResource(appResource);
+          appPayloads.push({...data, ...appResource});
         }
       }
 
@@ -409,10 +471,20 @@ export function createCallMcpToolImplementation(
         processor.processMessages(messages.map(withVersion));
       }
       for (const inlineAppResource of extractInlineMcpAppResources(result.content)) {
-        emitMcpAppResource(inlineAppResource);
+        appPayloads.push({...data, ...inlineAppResource});
       }
 
-      return result;
+      const payload: McpToolDataPayload = appPayloads.at(-1) ?? data;
+      // A superseded call neither writes nor hands its MCP App to the host, but still returns.
+      if (isLatestCall()) {
+        if (targetDataPath) {
+          context.set(targetDataPath, payload);
+        }
+        for (const appPayload of appPayloads) {
+          onMcpAppResource?.(appPayload, context);
+        }
+      }
+      return payload;
     } catch (error: unknown) {
       if (error instanceof A2uiExpressionError) {
         throw error;
@@ -425,6 +497,49 @@ export function createCallMcpToolImplementation(
       );
     }
   });
+}
+
+/**
+ * Reads the text and structured data of a tool result: `text` joins the `text` content blocks with
+ * `\n`, `structuredContent` is passed through when it is an object, and `json` is `text` parsed
+ * when that is a JSON object or array. Otherwise, when at least two text blocks parse to an object
+ * or array, such as a server that sends one JSON block per row, `json` is an array of those parses,
+ * skipping the blocks that are prose. A scalar such as `"42"` stays text only.
+ */
+export function extractToolResultContent(result: CallToolResult): ToolResultContent {
+  const blocks = (result.content ?? [])
+    .filter(block => block?.type === 'text' && typeof block.text === 'string')
+    .map(block => (block as {text: string}).text);
+  const structuredContent = isRecord(result.structuredContent)
+    ? result.structuredContent
+    : undefined;
+  const text = blocks.length > 0 ? blocks.join('\n') : undefined;
+  let json = text === undefined ? undefined : parseJsonContainer(text);
+  if (json === undefined) {
+    const parsedBlocks = blocks.map(parseJsonContainer).filter(parsed => parsed !== undefined);
+    if (parsedBlocks.length >= 2) {
+      json = parsedBlocks;
+    }
+  }
+  return {
+    ...(structuredContent !== undefined ? {structuredContent} : {}),
+    ...(text !== undefined ? {text} : {}),
+    ...(json !== undefined ? {json} : {}),
+  };
+}
+
+/** Parses `text` as JSON, returning the value only when it is an object or array. */
+function parseJsonContainer(text: string): unknown {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return undefined;
+  }
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    return typeof parsed === 'object' && parsed !== null ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -566,7 +681,7 @@ function toMcpAppResource(
   resourceUri: string,
   html: string,
   uiMeta: Record<string, unknown> | undefined,
-): Omit<McpAppResourcePayload, 'toolInput' | 'toolResult'> {
+): McpAppResource {
   const csp = uiMeta?.['csp'];
   const permissions = uiMeta?.['permissions'];
   return {
@@ -584,8 +699,8 @@ function toMcpAppResource(
  */
 export function extractInlineMcpAppResources(
   content: CallToolResult['content'] | undefined,
-): Array<Omit<McpAppResourcePayload, 'toolInput' | 'toolResult'>> {
-  const resources: Array<Omit<McpAppResourcePayload, 'toolInput' | 'toolResult'>> = [];
+): Array<McpAppResource> {
+  const resources: Array<McpAppResource> = [];
   for (const item of content ?? []) {
     const block = item as {
       type?: string;
@@ -633,8 +748,8 @@ export function extractInlineMcpAppResources(
 export function parseMcpAppResources(
   resource: ReadResourceResult | undefined,
   uri: string,
-): Array<Omit<McpAppResourcePayload, 'toolInput' | 'toolResult'>> {
-  const results: Array<Omit<McpAppResourcePayload, 'toolInput' | 'toolResult'>> = [];
+): Array<McpAppResource> {
+  const results: Array<McpAppResource> = [];
   const topLevelUiMeta = (resource?._meta as Record<string, unknown> | undefined)?.['ui'] as
     | Record<string, unknown>
     | undefined;

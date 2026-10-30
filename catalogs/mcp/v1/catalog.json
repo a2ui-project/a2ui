@@ -116,7 +116,7 @@
   "functions": {
     "callMcpTool": {
       "type": "object",
-      "description": "Invokes a tool on a connected Model Context Protocol (MCP) server and returns the result.",
+      "description": "Invokes a tool on a connected Model Context Protocol (MCP) server and returns a payload with `toolName`, `toolInput`, `toolResult` (the raw result), `structuredContent` (when the server sends one), `text` (the text blocks joined with newlines) and `json` (the parsed value of `text` when it is a JSON object or array, else the array of parsed values when several text blocks are each one, absent otherwise), plus `resourceUri`, `html`, `csp` and `permissions` when the result has an MCP App resource. A result flagged `isError` fails the call and writes nothing.",
       "returnType": "any",
       "properties": {
         "@call": {
@@ -138,7 +138,7 @@
             },
             "targetDataPath": {
               "$ref": "common_types.json#/$defs/DynamicString",
-              "description": "Optional JSON Pointer path on the surface data model where a resolved MCP App resource payload (`resourceUri`, `html`, `csp`, `permissions`, `toolInput`, `toolResult`) is written."
+              "description": "Optional JSON Pointer path on the surface data model where the payload of each successful call is written, replacing the object at that path. A call whose response arrives after a newer call to the same path has started does not write, so the latest call wins."
             }
           },
           "required": ["name"],
