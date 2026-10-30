@@ -48,6 +48,11 @@ class ValidationConfig(BaseModel):
     allow_orphan_components: bool = False
     allow_dangling_references: bool = False
     allow_missing_root: bool = False
+    # Whether to allow components and functions that the resolved catalog does
+    # not define. A renderer that uses agent-side functions must either set
+    # this or declare those functions, without implementations, in the catalog
+    # the calls resolve to. Otherwise validation rejects the calls before they
+    # can be routed to the agent with `callAgentFunction`.
     allow_unknown_elements: bool = False
     allowed_messages: list[str] | None = None
     max_depth: int | None = None

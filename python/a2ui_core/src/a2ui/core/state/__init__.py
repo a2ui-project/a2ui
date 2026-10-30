@@ -20,7 +20,7 @@ from .component_model import (
 from .data_model import DataModel
 from .surface_components_model import SurfaceComponentsModel
 from .surface_group_model import SurfaceGroupModel
-from .surface_model import SurfaceModel
+from .surface_model import AgentFunctionCall, AgentFunctionCaller, SurfaceModel
 from .validation_helpers import (
     analyze_topology,
     validate_component_integrity,
@@ -29,6 +29,8 @@ from .validation_helpers import (
 )
 
 __all__ = [
+    "AgentFunctionCall",
+    "AgentFunctionCaller",
     "ComponentModel",
     "DataModel",
     "EventSource",

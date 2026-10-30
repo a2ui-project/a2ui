@@ -61,6 +61,8 @@ from a2ui.core.schema import (
     A2uiRendererCapabilities as A2uiRendererCapabilities,
 )
 from a2ui.core.state import (
+    AgentFunctionCall as AgentFunctionCall,
+    AgentFunctionCaller as AgentFunctionCaller,
     ComponentModel as ComponentModel,
     DataModel as DataModel,
     SurfaceModel as SurfaceModel,
@@ -87,6 +89,8 @@ __all__ = [
     "A2uiRpcError",
     "A2uiStateError",
     "A2uiValidationError",
+    "AgentFunctionCall",
+    "AgentFunctionCaller",
     "CallOptions",
     "CapabilitiesOptions",
     "Catalog",
