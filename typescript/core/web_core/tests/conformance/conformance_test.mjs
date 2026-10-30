@@ -195,9 +195,17 @@ const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
  * 'accessibility.yaml' tests ARIA and DOM accessibility tree rendering, which is handled
  * by UI framework renderers (Lit, React, Angular, Flutter, SwiftUI) rather than headless web_core.
  *
+ * 'adapter_conformance.yaml' tests UI framework renderers (Lit, React, Angular, Flutter, SwiftUI)
+ * rather than headless web_core.
+ *
  * 'builder.yaml' covers the agent-side typesafe builder API, which web_core does not implement.
  */
-const SKIP_TEST_SUITES = new Set(['accessibility.yaml', 'builder.yaml', 'macros.yaml']);
+const SKIP_TEST_SUITES = new Set([
+  'accessibility.yaml',
+  'adapter_conformance.yaml',
+  'builder.yaml',
+  'macros.yaml',
+]);
 
 /**
  * Action types the web_core runner deliberately does not implement, and why.
@@ -631,21 +639,21 @@ async function validateRpcTestCase(testCase) {
     );
     const storeCat = new Catalog(
       scenario.catalogId,
-      'v1.0',
+      '1.0',
       v1_0Components,
       [agentBindingFn],
       undefined,
       undefined,
     );
     procRef.current = new MessageProcessor([storeCat, v1_0BasicCatalog], undefined, {
-      version: 'v1.0',
+      version: '1.0',
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
     });
     procRef.current.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: scenario.surfaceId,
           catalogId: scenario.catalogId,
@@ -666,7 +674,7 @@ async function validateRpcTestCase(testCase) {
         expect.outboundCall.callAgentFunction.surfaceId,
       );
       procRef.current.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         agentFunctionResponse: {
           functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
           value: scenario.inboundResponseValue,
@@ -701,21 +709,21 @@ async function validateRpcTestCase(testCase) {
     );
     const storeCat = new Catalog(
       scenario.catalogId,
-      'v1.0',
+      '1.0',
       v1_0Components,
       [agentActionFn],
       undefined,
       undefined,
     );
     procRef.current = new MessageProcessor([storeCat], undefined, {
-      version: 'v1.0',
+      version: '1.0',
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
     });
     procRef.current.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: scenario.surfaceId,
           catalogId: scenario.catalogId,
@@ -732,7 +740,7 @@ async function validateRpcTestCase(testCase) {
       expect.outboundCall.callAgentFunction.surfaceId,
     );
     procRef.current.processMessages({
-      version: 'v1.0',
+      version: '1.0',
       agentFunctionResponse: {
         functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
         value: scenario.inboundResponseValue,
