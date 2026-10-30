@@ -1,5 +1,19 @@
 ## Unreleased
 
+- Add `a2ui.rpc` for v1.0 function calls between the agent and the renderer.
+  `AgentFunctionRegistry` answers `callAgentFunction` by running the handlers
+  of the catalogs' agent functions (`Catalog(agent_functions=...)` in
+  `a2ui-core`): it validates the arguments against the function's schema and
+  replies `UNKNOWN_FUNCTION`, `INVALID_FUNCTION_CALL` or `EXECUTION_ERROR`
+  when the call can't be answered. Sync handlers run on a worker thread, and
+  `max_concurrency`, `timeout` and `dispose()` bound the work.
+  `RendererFunctionCalls` sends `callRendererFunction` and settles each call's
+  future from the `rendererFunctionResponse`, with timeouts (30 seconds by
+  default), `max_pending` and `dispose()`. `RendererMessageRouter` passes each
+  renderer RPC message to the right one. `agent_development.md` describes them
+  and what strict renderers need.
+  [#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
 - Add incremental streaming support for the Express inference format via `ExpressResponseStream` (`ExpressFormat.supports_streaming` and `ExpressParser.supports_streaming` now return `True`). `ExpressFormatFactory`, `ExpressFormat`, and `ExpressParser` accept `progressive_keys` (defaulting to `DEFAULT_EXPRESS_PROGRESSIVE_KEYS = frozenset({"text"})`) to heal unclosed string literals in matching component properties and data path assignments as chunks arrive, while gating initial `createSurface` emission on `root = ...` for new surfaces, emitting delta `updateComponents` and per-path `updateDataModel` messages on subsequent chunks, and holding statements with unresolved value variables until defined ([#2896](https://github.com/a2ui-project/a2ui/issues/2896)).
 - **BREAKING CHANGE**: Use `'1.0'` (without a `'v'` prefix) as the `version`
   field on v1.0 protocol messages and capabilities in inference format
