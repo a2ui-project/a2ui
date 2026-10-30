@@ -394,7 +394,7 @@ public enum ConformanceTestHelper {
       let returnTypeStr = funcVal["returnType"]?.stringValue ?? "any"
       let retType = FunctionReturnType(rawValue: returnTypeStr) ?? .any
       if let schema = try? Schema(rawSchema: .object(paramObj), context: context) {
-        let api = FunctionAPI(name: funcName, returnType: retType, schema: schema)
+        let api = functionAPI(name: funcName, returnType: retType, schema: schema, from: funcVal)
         functions.append(ConformanceFunctionImplementation(api: api))
       }
     }
@@ -411,10 +411,28 @@ public enum ConformanceTestHelper {
       let retType = FunctionReturnType(rawValue: returnTypeStr) ?? .any
       let paramObj = funcVal["parameters"]?.objectValue ?? [:]
       if let schema = try? Schema(rawSchema: .object(paramObj), context: context) {
-        let api = FunctionAPI(name: name, returnType: retType, schema: schema)
+        let api = functionAPI(name: name, returnType: retType, schema: schema, from: funcVal)
         functions.append(ConformanceFunctionImplementation(api: api))
       }
     }
+  }
+
+  /// A function signature carrying the `allowedCallers` and `requiresUserActivation` its catalog
+  /// definition declares, so the core's caller and activation checks apply to it.
+  private static func functionAPI(
+    name: String,
+    returnType: FunctionReturnType,
+    schema: Schema,
+    from definition: JSONValue
+  ) -> FunctionAPI {
+    FunctionAPI(
+      name: name,
+      returnType: returnType,
+      schema: schema,
+      allowedCallers: definition["allowedCallers"]?.stringValue.flatMap(AllowedCallers.init)
+        ?? .rendererOnly,
+      requiresUserActivation: definition["requiresUserActivation"]?.boolValue ?? false
+    )
   }
 
   /// Builds a `Catalog` from a test case catalog configuration dictionary.
