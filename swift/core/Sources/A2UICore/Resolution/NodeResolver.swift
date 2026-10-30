@@ -2004,6 +2004,7 @@ extension NodeResolver: FunctionHandler {
   /// - Returns: The agent's result if already received, else `nil`.
   public func agentFunctionValue(for call: AgentFunctionCall) -> JSONValue? {
     guard !isDisposed else { return nil }
+    let hadCallInCurrentPass = currentNodeAgentCalls?.contains(call) == true
     currentNodeAgentCalls?.insert(call)
     currentActionAgentCalls?.insert(call)
     guard let agentCallHost else {
@@ -2012,6 +2013,12 @@ extension NodeResolver: FunctionHandler {
     }
     if let actionCache = currentActionCallCache {
       return agentCallHost.actionAgentFunctionValue(for: call, in: actionCache)
+    }
+    if let nodeKey = currentComponentID,
+      !hadCallInCurrentPass,
+      !(nodesByAgentCall[call]?.contains(nodeKey) ?? false)
+    {
+      agentCallHost.agentCallCache.forgetFailure(call)
     }
     return agentCallHost.agentFunctionValue(
       for: call,
