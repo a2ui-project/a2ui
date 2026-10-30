@@ -82,6 +82,18 @@ export GEMINI_API_KEY="your_gemini_api_key_here"
         yarn dev
         ```
 
+    ??? tip "Running with the Node.js agent (no Python/`uv` or API key required)"
+        Prefer a pure Node.js setup without Python/`uv`? Run the Node restaurant
+        agent instead:
+
+        ```bash
+        # Live Gemini model (uses GEMINI_API_KEY, no Python/uv required)
+        yarn demo:restaurant:node
+
+        # Stub mode (canned A2UI responses, no GEMINI_API_KEY or Python/uv required)
+        yarn demo:restaurant:stub
+        ```
+
     > [!INFO]
     > **About Package Managers:**
     >

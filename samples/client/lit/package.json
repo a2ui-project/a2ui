@@ -8,9 +8,13 @@
   ],
   "scripts": {
     "serve:agent:restaurant": "cd ../../agent/adk/restaurant_finder && uv run .",
+    "serve:agent:restaurant:node": "yarn workspace @a2ui/agent-restaurant-node start",
+    "serve:agent:restaurant:stub": "STUB_LLM=true yarn workspace @a2ui/agent-restaurant-node start",
     "serve:shell": "yarn workspace @a2ui/shell dev",
     "build:renderer": "yarn workspace @a2ui/web_core build && yarn workspace @a2ui/markdown-it build && yarn workspace @a2ui/lit build",
     "demo:restaurant": "yarn build:renderer && concurrently -k -n \"SHELL,REST\" -c \"magenta,blue\" \"yarn serve:shell\" \"yarn serve:agent:restaurant\"",
+    "demo:restaurant:node": "yarn build:renderer && concurrently -k -n \"SHELL,REST\" -c \"magenta,blue\" \"yarn serve:shell\" \"yarn serve:agent:restaurant:node\"",
+    "demo:restaurant:stub": "yarn build:renderer && concurrently -k -n \"SHELL,REST\" -c \"magenta,blue\" \"yarn serve:shell\" \"yarn serve:agent:restaurant:stub\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "echo \"Workspace has no tests.\"",
