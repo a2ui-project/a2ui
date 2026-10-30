@@ -66,6 +66,22 @@
     category: "ParseError"
     message: "Unexpected characters"
 
+- name: test_expr_combining_marks_and_supplementary_plane_path
+  description: >-
+    Path segments accept combining marks in XID_Continue, including right after a
+    slash or a dot, and supplementary-plane XID_Continue code points such as 𠮷.
+  action: parse_expression_template
+  input: "${/a/\u0301b/gru\u0308ße/𠮷.\u0301c}"
+  expect: [{path: "/a/\u0301b/gru\u0308ße/𠮷.\u0301c"}]
+
+- name: test_expr_error_supplementary_plane_non_identifier_in_path
+  description: A supplementary-plane character outside XID_Continue, such as 🚀, ends the path.
+  action: parse_expression_template
+  input: "${a🚀}"
+  expect_error:
+    category: "ParseError"
+    message: "Unexpected characters"
+
 - name: test_expr_literal_between_bindings
   description: Literal text surrounding interpolations is preserved.
   action: parse_expression_template
