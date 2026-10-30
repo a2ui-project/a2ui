@@ -27,6 +27,7 @@ dependencies = [
     "litellm>=1.83.7",
     "jsonschema>=4.0.0",
     "a2ui-a2a",
+    "a2ui-adk",
     "a2ui-agent-sdk",
     "uvicorn>=0.40.0",
 ]
@@ -47,4 +48,5 @@ default = true
 
 [tool.uv.sources]
 a2ui-a2a = { workspace = true }
+a2ui-adk = { workspace = true }
 a2ui-agent-sdk = { workspace = true }

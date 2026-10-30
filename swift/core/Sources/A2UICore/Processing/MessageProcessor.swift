@@ -1090,6 +1090,11 @@ public final class MessageProcessor: ObservableObject {
     let validator = payloadValidator(for: targetCatalog, config: config)
     do {
       if surface.protocolVersion.isAtLeastV10 {
+        if let rawMeta = componentDict["metadata"] {
+          _ = try MetadataValidator.validate(rawMeta, pathPrefix: "components.\(id).metadata")
+        }
+        // The validator takes a component that names no catalogId to be in the surface default
+        // catalog, so it names one only when the component's catalog isn't the default.
         let componentInDefault = targetCatalog.id == surface.defaultCatalogID
         try validator.validateComponent(
           componentDict,
@@ -1398,9 +1403,13 @@ public final class MessageProcessor: ObservableObject {
 
       var props: [String: JSONValue] = [:]
       for (key, val) in componentDict
-      where key != "id" && key != "component" && key != "catalogId" {
+      where key != "id" && key != "component" && key != "catalogId" && key != "metadata" {
         props[key] = val
       }
+      let metadata = try? MetadataValidator.validate(
+        componentDict["metadata"],
+        pathPrefix: "components.\(id).metadata"
+      )
 
       let existing = surface.componentsModel.get(id)
       if let existing, existing.type != type || existing.catalogID != componentCatalogID {
@@ -1411,7 +1420,8 @@ public final class MessageProcessor: ObservableObject {
           id: id,
           type: type,
           catalogID: componentCatalogID,
-          properties: props
+          properties: props,
+          metadata: metadata
         )
       )
     }
@@ -1478,6 +1488,7 @@ public final class MessageProcessor: ObservableObject {
         timestamp: ISO8601DateFormatter().string(from: Date()),
         context: context ?? [:],
         userMessage: userMessage,
+        metadata: action.metadata,
         version: version
       )
       outboundListener?(.action(rendererAction))
