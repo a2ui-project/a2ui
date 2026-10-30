@@ -15,6 +15,7 @@
 import 'dart:convert';
 
 import 'package:a2ui_agent/a2ui_agent.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 import 'suites.dart';
@@ -33,6 +34,7 @@ void main() {
   for (final suite in [
     'compiler',
     'response_parser',
+    'response_streaming',
     'prompt_generator',
     'decompiler',
   ]) {
@@ -121,6 +123,10 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
 }
 
 void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
+  if (testCase['action'] == 'parse_chunk') {
+    _runChunks(testCase, version);
+    return;
+  }
   final Object? error = testCase['expect_error'];
   if (error != null) {
     expectThrowsCategory(() => _perform(testCase, version), error);
@@ -146,11 +152,107 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
   }
 }
 
+void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
+  final args = testCase['args']! as Map<String, Object?>;
+  final bool wrapped = args['wrapped'] as bool? ?? true;
+  final String? catalogId = version.injectedCatalog(testCase);
+  List<Object?> lift(List<StreamPart> parts) =>
+      version.partsJson(parts, injectedCatalogId: catalogId, join: true);
+  final Parser parser = _format(testCase, version).createParser();
+  final ResponseReader<StreamPart> stream =
+      args['after_rejected_block'] == 'continue'
+      ? parser.openContinuingStream(wrapped: wrapped)
+      : parser.openStream(wrapped: wrapped);
+  void expectInBlock(Map<String, Object?> step, int i) {
+    if (step['expect_in_block'] case final bool inBlock) {
+      expect(stream.isInBlock, inBlock, reason: 'step $i: in block');
+    }
+  }
+
+  final chunks = <String>[];
+  final yielded = <Object?>[];
+  for (final (int i, Object? step)
+      in (testCase['steps']! as List<Object?>).indexed) {
+    final stepCase = step! as Map<String, Object?>;
+    final chunk = stepCase['input']! as String;
+    chunks.add(chunk);
+    if (stepCase['expect_error'] case final Object error) {
+      A2uiError? thrown;
+      expectThrowsCategory(
+        () {
+          try {
+            stream.feed(chunk);
+          } on A2uiError catch (e) {
+            thrown = e;
+            rethrow;
+          }
+        },
+        error,
+        reason: 'step $i',
+      );
+      if (stepCase['expect_partial_results'] case final Object partial) {
+        expect(
+          lift(thrown!.partialResults),
+          partial,
+          reason: 'step $i: partial results',
+        );
+      }
+      expectInBlock(stepCase, i);
+      return;
+    }
+    final List<Object?> parts = lift(stream.feed(chunk));
+    expect(parts, stepCase['expect'], reason: 'step $i: ${stepCase['input']}');
+    expectInBlock(stepCase, i);
+    yielded.addAll(parts);
+  }
+  if (testCase['expect_error'] case final Object error) {
+    expectThrowsCategory(stream.close, error, reason: 'close');
+    return;
+  }
+  final List<Object?> closed = lift(stream.close());
+  if (testCase['expect_close'] case final Object expected) {
+    expect(closed, expected, reason: 'close');
+  }
+  yielded.addAll(closed);
+  if (testCase['expect_matches_single_shot'] == true) {
+    expect(
+      _mergeAdjacentText(yielded),
+      _mergeAdjacentText(
+        lift(parser.parseResponse(chunks.join(), wrapped: wrapped)),
+      ),
+    );
+  }
+}
+
+List<Object?> _mergeAdjacentText(List<Object?> parts) {
+  final merged = <Object?>[];
+  for (final part in parts) {
+    if (merged.isNotEmpty &&
+        merged.last is Map<String, Object?> &&
+        part is Map<String, Object?> &&
+        (merged.last as Map<String, Object?>).containsKey('text') &&
+        part.containsKey('text')) {
+      final lastMap = Map<String, Object?>.from(
+        merged.last as Map<String, Object?>,
+      );
+      lastMap['text'] = '${lastMap['text']}${part['text']}';
+      merged[merged.length - 1] = lastMap;
+    } else {
+      merged.add(part);
+    }
+  }
+  return merged;
+}
+
 InferenceFormat _format(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
+  final progressiveKeys = args['progressive_keys'] as List<Object?>?;
   return ExpressFormatFactory(
     allowedMessages: (args['allowed_messages'] as List<Object?>?)
         ?.cast<String>(),
+    progressiveKeys: progressiveKeys == null
+        ? defaultExpressProgressiveKeys
+        : {for (final Object? key in progressiveKeys) key! as String},
   ).createFormat(
     version.catalogs(args),
     examples: [

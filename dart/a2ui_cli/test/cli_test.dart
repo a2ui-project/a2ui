@@ -31,6 +31,24 @@ String _findRepoRoot() {
   return dir.path;
 }
 
+/// The `dart` CLI executable (`Platform.resolvedExecutable` when running under
+/// `dart`, or locating `dart-sdk/bin/dart` when running under `flutter_tester`).
+String get _dartExecutable {
+  final String exe = Platform.resolvedExecutable;
+  final String name = p.basename(exe);
+  if (name == 'dart' || name == 'dart.exe') return exe;
+  final dartBin = Platform.isWindows ? 'dart.exe' : 'dart';
+  for (
+    Directory dir = File(exe).parent;
+    dir.parent.path != dir.path;
+    dir = dir.parent
+  ) {
+    final candidate = File(p.join(dir.path, 'dart-sdk', 'bin', dartBin));
+    if (candidate.existsSync()) return candidate.path;
+  }
+  return dartBin;
+}
+
 /// Helper that runs [runCli] while capturing [stdout] and [stderr].
 Future<({int exitCode, String stdout, String stderr})> _captureCli(
   List<String> args,
@@ -80,6 +98,17 @@ void main() {
         expect(result.exitCode, equals(0));
         expect(result.stdout.trim(), equals('0.0.1-wip001'));
       }
+    });
+
+    test('honors -DCLI_VERSION compile-time override', () {
+      final ProcessResult result = Process.runSync(_dartExecutable, [
+        'run',
+        '-DCLI_VERSION=9.9.9-test',
+        'bin/a2ui.dart',
+        '--version',
+      ], workingDirectory: p.join(repoRoot, 'dart', 'a2ui_cli'));
+      expect(result.exitCode, equals(0), reason: result.stderr.toString());
+      expect(result.stdout.toString().trim(), equals('9.9.9-test'));
     });
 
     test(
@@ -364,6 +393,65 @@ void main() {
       } finally {
         tmpDir.deleteSync(recursive: true);
       }
+    });
+  });
+
+  group('Compile Tool (tool/compile.dart)', () {
+    test('displays usage information with --help and -h', () {
+      final String compileScript = p.join(
+        repoRoot,
+        'dart',
+        'a2ui_cli',
+        'tool',
+        'compile.dart',
+      );
+      for (final flag in ['--help', '-h']) {
+        final ProcessResult result = Process.runSync(_dartExecutable, [
+          compileScript,
+          flag,
+        ]);
+        expect(result.exitCode, equals(0));
+        expect(result.stdout, contains('Usage: dart tool/compile.dart'));
+        expect(result.stdout, contains('--target'));
+        expect(result.stdout, contains('--version'));
+        expect(result.stdout, contains('--output'));
+      }
+    });
+
+    test('exits with code 64 on unknown flag', () {
+      final String compileScript = p.join(
+        repoRoot,
+        'dart',
+        'a2ui_cli',
+        'tool',
+        'compile.dart',
+      );
+      final ProcessResult result = Process.runSync(_dartExecutable, [
+        compileScript,
+        '--invalid-option',
+      ]);
+      expect(result.exitCode, equals(64));
+      expect(
+        result.stderr,
+        contains('Could not find an option named "--invalid-option"'),
+      );
+    });
+
+    test('exits with code 64 on target mismatch', () {
+      final String compileScript = p.join(
+        repoRoot,
+        'dart',
+        'a2ui_cli',
+        'tool',
+        'compile.dart',
+      );
+      final ProcessResult result = Process.runSync(_dartExecutable, [
+        compileScript,
+        '--target',
+        'nonexistent-arch',
+      ]);
+      expect(result.exitCode, equals(64));
+      expect(result.stderr, contains('does not match host'));
     });
   });
 }
