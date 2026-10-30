@@ -18,7 +18,15 @@ import {DataModel} from './data-model.js';
 import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from '../catalog/types.js';
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {EventEmitter, EventSource} from '../common/events.js';
+import {
+  A2uiMetadata,
+  cloneMetadata,
+  Extensions,
+  mergeActionMetadata,
+  metadataEquals,
+} from '../common/metadata.js';
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
+import {computed, getValue, peekValue, setValue, signal, Signal} from '../reactivity/signals.js';
 import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
 
 /**
@@ -57,6 +65,8 @@ export interface ActionPayload {
   catalogId?: string;
   /** Optional user-facing message explaining the action. */
   userMessage?: string;
+  /** Optional extension metadata attached to the action. */
+  metadata?: A2uiMetadata;
   [key: string]: unknown;
 }
 
@@ -118,6 +128,8 @@ export class SurfaceModel<
   private readonly _onAction = new EventEmitter<ActionPayload>();
   private readonly _onError = new EventEmitter<A2uiErrorPayload>();
   private readonly _onWarning = new EventEmitter<A2uiWarningPayload>();
+  private readonly _onMetadataChanged = new EventEmitter<A2uiMetadata | undefined>();
+  private readonly _metadataSignal: Signal<A2uiMetadata | undefined>;
 
   /** Event source firing whenever an action is dispatched from this surface. */
   readonly onAction: EventSource<ActionPayload> = this._onAction;
@@ -127,6 +139,12 @@ export class SurfaceModel<
 
   /** Event source firing whenever a non-fatal warning occurs on this surface. */
   readonly onWarning: EventSource<A2uiWarningPayload> = this._onWarning;
+
+  /** Event source firing whenever surface metadata changes. */
+  readonly onMetadataChanged: EventSource<A2uiMetadata | undefined> = this._onMetadataChanged;
+
+  /** Read-only reactive signal reflecting the current surface metadata. */
+  readonly metadataSignal: Signal<A2uiMetadata | undefined>;
 
   /**
    * Catalogs available to this surface, keyed by catalog ID.
@@ -183,7 +201,7 @@ export class SurfaceModel<
     sendDataModel?: boolean,
     dataModel?: DataModel,
     rootId?: string,
-    metadata?: Record<string, unknown>,
+    metadata?: A2uiMetadata,
     protocolVersion?: string,
   );
   /**
@@ -216,9 +234,11 @@ export class SurfaceModel<
     /** Identifier of the root component on this surface (defaults to `'root'`). */
     readonly rootId: string = 'root',
     /** Optional surface-level metadata for vendor extensions. */
-    readonly metadata?: Record<string, unknown>,
+    metadata?: A2uiMetadata,
     protocolVersion?: string,
   ) {
+    this._metadataSignal = signal<A2uiMetadata | undefined>(cloneMetadata(metadata));
+    this.metadataSignal = computed(() => getValue(this._metadataSignal));
     this.protocolVersion = canonicalProtocolVersion(
       protocolVersion ?? defaultCatalog?.protocolVersion,
     );
@@ -301,17 +321,99 @@ export class SurfaceModel<
   }
 
   /**
+   * Synchronous snapshot of the surface's metadata envelope.
+   */
+  get metadata(): A2uiMetadata | undefined {
+    return peekValue(this._metadataSignal);
+  }
+
+  /**
+   * Replaces the surface's metadata envelope, validating UAX #31 extension
+   * keys and emitting changes when structurally modified.
+   */
+  set metadata(metadata: A2uiMetadata | undefined) {
+    const next = cloneMetadata(metadata);
+    if (metadataEquals(peekValue(this._metadataSignal), next)) {
+      return;
+    }
+    setValue(this._metadataSignal, next);
+    void this._onMetadataChanged.emit(next);
+  }
+
+  /**
+   * Convenience view of `metadata.extensions`.
+   */
+  get extensions(): Extensions | undefined {
+    return peekValue(this._metadataSignal)?.extensions;
+  }
+
+  /**
+   * Sets a single extension entry on the surface metadata.
+   *
+   * Passing `undefined` removes the extension key. Passing `null` stores
+   * `null` as an explicit JSON value.
+   *
+   * @param key Extension identifier (must satisfy UAX #31).
+   * @param value Extension payload value.
+   */
+  setExtension(key: string, value: unknown): void {
+    if (value === undefined) {
+      this.removeExtension(key);
+      return;
+    }
+    const current = peekValue(this._metadataSignal);
+    const nextExtensions: Record<string, unknown> = {
+      ...(current?.extensions ?? {}),
+      [key]: value,
+    };
+    this.metadata = {
+      ...(current ?? {}),
+      extensions: nextExtensions,
+    };
+  }
+
+  /**
+   * Removes an extension entry by key, clearing `metadata` to `undefined` when
+   * no metadata entries remain.
+   *
+   * @param key Extension identifier to remove.
+   */
+  removeExtension(key: string): void {
+    const current = peekValue(this._metadataSignal);
+    const currentExtensions = current?.extensions;
+    if (!currentExtensions || !(key in currentExtensions)) {
+      return;
+    }
+    const nextExtensions: Record<string, unknown> = {...currentExtensions};
+    delete nextExtensions[key];
+    const rest: Record<string, unknown> = {...current};
+    delete rest.extensions;
+    if (Object.keys(nextExtensions).length > 0) {
+      this.metadata = {...rest, extensions: nextExtensions};
+    } else if (Object.keys(rest).length > 0) {
+      this.metadata = rest;
+    } else {
+      this.metadata = undefined;
+    }
+  }
+
+  /**
    * Dispatches an action from this surface to registered listeners.
    *
-   * Resolves event action payload details, propagates any explicit `catalogId`,
-   * and emits an `ActionPayload` via `onAction`. Local function actions (`functionCall`)
-   * are executed locally and are not emitted as agent actions.
+   * Resolves event action payload details, propagates any explicit `catalogId`
+   * and `metadata`, and emits an `ActionPayload` via `onAction`. Local function
+   * actions (`functionCall`) are executed locally and are not emitted as agent actions.
    *
    * @param payload Action payload (name and context) to dispatch.
    * @param sourceComponentId Identifier of the component that triggered the action.
+   * @param metadata Optional metadata envelope to attach to the outbound action.
    * @returns A promise that resolves once all registered listeners have processed the action.
    */
-  async dispatchAction(payload: any, sourceComponentId: string): Promise<void> {
+  async dispatchAction(
+    payload: any,
+    sourceComponentId: string,
+    metadata?: A2uiMetadata,
+  ): Promise<void> {
     if (!payload || typeof payload !== 'object') {
       return;
     }
@@ -349,6 +451,12 @@ export class SurfaceModel<
 
     if (typeof eventPayload.userMessage === 'string' && eventPayload.userMessage.length > 0) {
       actionToDispatch.userMessage = eventPayload.userMessage;
+    }
+
+    const payloadMetadata = eventPayload.metadata ?? payload.metadata;
+    const mergedMetadata = mergeActionMetadata(payloadMetadata, metadata);
+    if (mergedMetadata !== undefined) {
+      actionToDispatch.metadata = mergedMetadata;
     }
 
     await this._onAction.emit(actionToDispatch);
@@ -389,6 +497,7 @@ export class SurfaceModel<
     this._onAction.dispose();
     this._onError.dispose();
     this._onWarning.dispose();
+    this._onMetadataChanged.dispose();
   }
 }
 

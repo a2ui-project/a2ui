@@ -19,6 +19,7 @@ import {By} from '@angular/platform-browser';
 import {ComponentHostComponent} from './component-host.component';
 import {A2uiRendererService} from './a2ui-renderer.service';
 import {
+  A2uiMetadata,
   ComponentApi,
   ComponentIdSchema,
   ComponentModel,
@@ -29,7 +30,16 @@ import {
 } from '@a2ui/web_core/v0_9';
 import {A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
 import {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
-import {Component, EnvironmentInjector, EventEmitter, Input, NgZone, Type} from '@angular/core';
+import {
+  Component,
+  EnvironmentInjector,
+  EventEmitter,
+  Input,
+  NgZone,
+  Type,
+  computed,
+  input,
+} from '@angular/core';
 import {CatalogComponentInstance} from './catalog_component_instance';
 import {AngularCatalog, createComponentImplementation} from '../catalog/types';
 import {UniversalOnlyComponent} from '../catalog/universal_only.component';
@@ -47,6 +57,8 @@ class TestChildComponent {
   @Input() surfaceId?: string;
   @Input() componentId?: string;
   @Input() dataContextPath?: string;
+  readonly metadata = input<A2uiMetadata | undefined>(undefined);
+  readonly extensions = computed(() => this.metadata()?.extensions);
 }
 
 @Component({
@@ -167,6 +179,27 @@ describe('ComponentHostComponent', () => {
       flush(fixture);
 
       expect(childInstance.props.other.value()).toBe('new value');
+    });
+
+    it('should bind and update metadata and extensions when component metadata changes', () => {
+      const rootModel = surface.componentsModel.get('root')!;
+      rootModel.metadata = {extensions: {badge: 'initial'}};
+      fixture.detectChanges();
+
+      const childInstance = fixture.debugElement.query(By.directive(TestChildComponent))
+        .componentInstance as TestChildComponent;
+      expect(childInstance.metadata()).toEqual({extensions: {badge: 'initial'}});
+      expect(childInstance.extensions()).toEqual({badge: 'initial'});
+
+      rootModel.setExtension('badge', 'updated');
+      flush(fixture);
+      expect(childInstance.metadata()).toEqual({extensions: {badge: 'updated'}});
+      expect(childInstance.extensions()).toEqual({badge: 'updated'});
+
+      rootModel.removeExtension('badge');
+      flush(fixture);
+      expect(childInstance.metadata()).toBeUndefined();
+      expect(childInstance.extensions()).toBeUndefined();
     });
 
     it('should update bound values when the data model changes', () => {
@@ -548,7 +581,7 @@ describe('ComponentHostComponent', () => {
       expect(fixture.nativeElement.querySelector('a2ui-ng-testtype')).toBeFalsy();
     });
 
-    it('should render native Web Component when useUniversalComponents is true for basic catalog components', () => {
+    it('should render native Web Component when useUniversalComponents is true for basic catalog components', async () => {
       const basicImpl = createComponentImplementation(
         A2uiText,
         TestChildComponent as unknown as Type<CatalogComponentInstance>,
@@ -562,6 +595,7 @@ describe('ComponentHostComponent', () => {
       testFixture.componentRef.setInput('componentKey', 'root');
       testFixture.componentRef.setInput('surfaceId', 'surf1');
       testFixture.detectChanges();
+      await settle();
 
       expect(testFixture.nativeElement.querySelector(A2uiText.tagName)).toBeTruthy();
       expect(testFixture.nativeElement.querySelector('a2ui-ng-testtype')).toBeFalsy();
