@@ -3324,8 +3324,8 @@ async function validateRouteAgentFunctionTestCase(testCase) {
           const comp = new ComponentModel(probeId, 'Probe', {});
           surface.componentsModel.addComponent(comp);
           const binder = new GenericBinder(
-            new ComponentContext(surface, comp),
-            CommonSchemas.Checkable,
+            new ComponentContext(surface, probeId),
+            CommonSchemas.Checkable.describe(''),
           );
           const sub = binder.subscribe(() => {});
           comp.properties = {

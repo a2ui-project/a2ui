@@ -30,7 +30,12 @@ import {type FunctionCall, type Action} from '../types/common-types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 import {A2uiCatalogError, A2uiExpressionError, A2uiValidationError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
-import {FailedArgument, isThenable, recordSettledValue} from '../common/settle_deep.js';
+import {
+  FailedArgument,
+  findFailedArgument,
+  isThenable,
+  recordSettledValue,
+} from '../common/settle_deep.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
 import {resolveSurfaceCatalog} from '../state/resolve-surface-catalog.js';
@@ -989,7 +994,11 @@ export class DataContext {
       if (ev.context && typeof ev.context === 'object' && !Array.isArray(ev.context)) {
         resolvedContext = {};
         for (const [key, value] of Object.entries(ev.context as Record<string, unknown>)) {
-          resolvedContext[key] = this.resolveDynamicValue(value, 0, false, true);
+          const resolvedValue = this.resolveDynamicValue(value, 0, false, true);
+          if (findFailedArgument(resolvedValue)) {
+            return undefined;
+          }
+          resolvedContext[key] = resolvedValue;
         }
       }
       const resolvedEvent: Record<string, unknown> = {
@@ -1001,6 +1010,9 @@ export class DataContext {
       }
       if (ev.userMessage !== undefined) {
         const resolvedMsg = this.resolveDynamicValue(ev.userMessage, 0, false, true);
+        if (findFailedArgument(resolvedMsg)) {
+          return undefined;
+        }
         if (!isThenable(resolvedMsg) && typeof resolvedMsg !== 'string') {
           return this.handleInvalidAction("Action event 'userMessage' must resolve to a string.");
         }

@@ -152,6 +152,16 @@
       expectErrors:
         - code: "EXPRESSION_ERROR"
           message: "No such function: fetchFxRate"
+    - evaluate:
+        "@call": "fetchFxRate"
+        args:
+          base: "EUR"
+      expectOutbound:
+        - "@call": "fetchFxRate"
+          catalogId: "conformance/routing"
+          args:
+            base: "EUR"
+      expectValues: [null, null]
 
 - name: test_agent_routing_unknown_catalog_is_catalog_error
   description: >-

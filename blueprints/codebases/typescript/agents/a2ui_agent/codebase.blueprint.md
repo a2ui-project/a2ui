@@ -64,6 +64,8 @@ Protocol versions and core dependencies are handled in a few fixed places, and a
 - `Parser` adds a `parseStream` async generator for iterating over streams.
 - `ResponseStream` takes the type of the parts it returns as a parameter, and `openStream` is overloaded so that only a stream opened with `afterRejectedBlock: 'continue'` is typed to return `ErrorPart`s.
 - Flat `ResponsePart` shapes from the conformance suites are reassembled by the harness (`adaptParts`) into disjoint `TextPart` and `A2uiPart` types, rather than bending the lexer to the flat Python-derived structure.
+- `A2uiRequestProcessor.catalogs` replaces the module blueprint's `active_catalogs` property so it matches `RendererState.catalogs`, `Parser.catalogs`, and `PromptGenerator.catalogs`.
+- `SkillSet` follows JavaScript's `Map` collection contract (`size`, `has`, `keys()`, `values()`, `entries()`, and `[Symbol.iterator]()` yielding `[filename, skill]` entries) rather than Python dict key iteration.
 
 Where the port follows Python even though conformance disagrees, `typescript/agents/a2ui_agent/KNOWN_GAPS.md` records the case (§4), so issues can be filed upstream.
 

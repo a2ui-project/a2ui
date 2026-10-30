@@ -249,16 +249,18 @@ class GenericBinder {
               return;
             }
           }
+          var expressionFailed = false;
           final FutureOr<Object?> resolvedOrFuture = _resolveEventAction(
-            context.dataContext,
+            context.dataContext.withUserActivation(),
             value,
+            onExpressionFailed: () => expressionFailed = true,
           );
           final Object? resolved = resolvedOrFuture is Future
               ? await resolvedOrFuture
               : resolvedOrFuture;
           if (resolved is Map) {
             await context.dispatchAction(Map<String, dynamic>.from(resolved));
-          } else {
+          } else if (!expressionFailed) {
             await context.surface.dispatchError(
               A2uiRendererError(
                 code: 'INVALID_ACTION',
@@ -666,24 +668,29 @@ class GenericBinder {
 
   FutureOr<Object?> _resolveEventAction(
     DataContext dataContext,
-    Object? value,
-  ) {
-    final FutureOr<Map<String, dynamic>?> direct =
-        dataContext.resolveActionAsync(value);
+    Object? value, {
+    void Function()? onExpressionFailed,
+  }) {
+    final FutureOr<Map<String, dynamic>?> direct = dataContext
+        .resolveActionAsync(value, onExpressionFailed: onExpressionFailed);
     if (direct is Future<Map<String, dynamic>?>) {
       return direct.then((resolved) {
         if (resolved != null) return resolved;
         if (dataContext.isDataBinding(value)) {
-          return dataContext
-              .resolveActionAsync(dataContext.resolveDynamicValue(value));
+          return dataContext.resolveActionAsync(
+            dataContext.resolveDynamicValue(value),
+            onExpressionFailed: onExpressionFailed,
+          );
         }
         return null;
       });
     }
     if (direct != null) return direct;
     if (dataContext.isDataBinding(value)) {
-      return dataContext
-          .resolveActionAsync(dataContext.resolveDynamicValue(value));
+      return dataContext.resolveActionAsync(
+        dataContext.resolveDynamicValue(value),
+        onExpressionFailed: onExpressionFailed,
+      );
     }
     return null;
   }

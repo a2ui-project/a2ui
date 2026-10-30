@@ -38,7 +38,10 @@ from ..validation.payload_validator import (
     ValidationConfig,
     validate_system_function,
 )
-from .validation_result_coercion import coerce_validation_results
+from .validation_result_coercion import (
+    _json_schema_properties,
+    coerce_validation_results,
+)
 
 
 class MissingDataBindingWarning(UserWarning):
@@ -107,6 +110,18 @@ def _collect_pending(value: Any, pending: list[_PendingResult]) -> None:
             _collect_pending(item, pending)
 
 
+def _collect_subscribables(value: Any, subscribables: list[Any]) -> None:
+    """Appends every object with `.subscribe` nested in `value` to `subscribables`."""
+    if hasattr(value, "subscribe") and callable(value.subscribe):
+        subscribables.append(value)
+    elif isinstance(value, dict):
+        for item in value.values():
+            _collect_subscribables(item, subscribables)
+    elif isinstance(value, list):
+        for item in value:
+            _collect_subscribables(item, subscribables)
+
+
 def _has_failed_result(value: Any) -> bool:
     """Returns whether a `_PendingResult` nested in `value` failed."""
     if isinstance(value, _PendingResult):
@@ -141,9 +156,9 @@ def _schema_defaults(schema: Any) -> dict[str, Any]:
     """Returns the `default` of each top-level property of a JSON schema."""
     if not isinstance(schema, dict):
         return {}
-    properties = schema.get("properties")
+    properties = _json_schema_properties(schema)
     if not isinstance(properties, dict):
-        args = schema.get("args") or schema.get("parameters")
+        args = schema.get("args")
         if isinstance(args, dict):
             return _schema_defaults(args)
         return {}
@@ -644,9 +659,27 @@ class DataContext:
                     if not is_sync[0]:
                         on_change(init_val)
             else:
-                current_val[0] = raw_res
-                if not is_sync[0]:
-                    on_change(raw_res)
+                nested_streams: list[Any] = []
+                _collect_subscribables(raw_res, nested_streams)
+                if nested_streams:
+                    snap = self._settled_value(raw_res)
+                    current_val[0] = snap
+                    if not is_sync[0]:
+                        on_change(snap)
+                    initializing = [True]
+
+                    def _on_nested(_: Any = None) -> None:
+                        if initializing[0]:
+                            return
+                        _update_output(self._settled_value(raw_res))
+
+                    for ns in nested_streams:
+                        stream_sub.append(ns.subscribe(_on_nested))
+                    initializing[0] = False
+                else:
+                    current_val[0] = raw_res
+                    if not is_sync[0]:
+                        on_change(raw_res)
 
         if paths:
             for p in paths:
