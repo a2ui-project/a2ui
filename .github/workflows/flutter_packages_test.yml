@@ -37,6 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.generate_matrix.outputs.matrix }}
+      performance_matrix: ${{ steps.generate_matrix.outputs.performance_matrix }}
       flutter_version: ${{ steps.generate_matrix.outputs.flutter_version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,22 +47,23 @@ jobs:
       - name: Generate testing matrix
         id: generate_matrix
         run: |
-          DIRS_TO_TEST=$(find samples dart -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -not -path "*/e2e_test_v0_9/*" -exec dirname {} \;)
+          DIRS_TO_TEST=$(find samples dart -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -not -path "*/e2e_test_v0_9/*" -exec dirname {} \; | sort)
 
-          JSON_MATRIX="["
-          FIRST=true
-          for dir in $DIRS_TO_TEST; do
-            if [ "$FIRST" = false ]; then
-              JSON_MATRIX="$JSON_MATRIX,"
+          # Turns package paths, one per line, into matrix entries.
+          to_matrix() {
+            jq -cnR '[inputs | select(. != "") | {name: gsub("/"; "_"), path: .}]'
+          }
+
+          echo "matrix=$(echo "$DIRS_TO_TEST" | to_matrix)" >> $GITHUB_OUTPUT
+
+          # The packages whose dart_test.yaml defines a `performance` preset,
+          # for the `performance` job below.
+          PERFORMANCE_DIRS=$(for dir in $DIRS_TO_TEST; do
+            if [ -f "$dir/dart_test.yaml" ] && yq -e '.presets.performance' "$dir/dart_test.yaml" > /dev/null; then
+              echo "$dir"
             fi
-            FIRST=false
-            package_name=$(echo "$dir" | tr '/' '_')
-            package_path="$dir"
-            JSON_MATRIX="$JSON_MATRIX{\"name\":\"$package_name\",\"path\":\"$package_path\"}"
-          done
-          JSON_MATRIX="$JSON_MATRIX]"
-
-          echo "matrix=$JSON_MATRIX" >> $GITHUB_OUTPUT
+          done)
+          echo "performance_matrix=$(echo "$PERFORMANCE_DIRS" | to_matrix)" >> $GITHUB_OUTPUT
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo 'flutter_version=["stable"]' >> $GITHUB_OUTPUT
@@ -181,19 +183,17 @@ jobs:
   # loaded runner can fail them, so `dart_test.yaml` skips them in the jobs
   # above and they run here, in a job of their own. package:test cannot stop a
   # test that never yields, and a regression can make these run for minutes,
-  # so the job has a time limit of its own.
+  # so the job has a time limit of its own. It runs for every tested package
+  # whose dart_test.yaml defines the `performance` preset.
   performance:
+    needs: matrix
     name: ${{ matrix.package.name }} (stable, performance)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        package:
-          - name: dart_a2ui_agent
-            path: dart/a2ui_agent
-          - name: dart_a2ui_core
-            path: dart/a2ui_core
+        package: ${{ fromJson(needs.matrix.outputs.performance_matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
