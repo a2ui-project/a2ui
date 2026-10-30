@@ -189,7 +189,7 @@
         - Explain how container components (`List`, `Row`, `Column`) dynamically generate children from a data model array using a template object:
             ```json
             "children": {
-              "@path": "/breeds",
+              "path": "/breeds",
               "componentId": "breedTemplate"
             }
             ```
