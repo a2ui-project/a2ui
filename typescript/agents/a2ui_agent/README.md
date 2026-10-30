@@ -59,7 +59,7 @@ A response parsed whole is applied to the state all or nothing. To check one pay
 
 ## Streaming
 
-Direct JSON responses can be read as they arrive. `openStream` returns a `ResponseStream` for one response: pass each chunk to `feed` and call `close` after the last one. Each message the stream emits has been checked and applied to the state, so a canvas state matches what the client received even when a response fails part way.
+Both Express and Direct JSON responses can be read as they arrive. `openStream` returns a `ResponseStream` for one response: pass each chunk to `feed` and call `close` after the last one. Each message the stream emits has been checked and applied to the state, so a canvas state matches what the client received even when a response fails part way.
 
 ```ts
 const stream = processor.openStream({state});
@@ -69,7 +69,7 @@ for await (const chunk of modelStream) {
 for (const part of stream.close()) send(part);
 ```
 
-`close` emits text that was held back because it could have started a tag, throws a `ParseError` if a block is still open, and checks the tree of a response read with `wrapped: false`. A stream that throws has ended. The error's `partialResults` holds the parts the chunk made ready before the failure, which have been applied to the state, so send them too. Express responses are read whole.
+`close` emits text that was held back because it could have started a tag, throws a `ParseError` if a block is still open, and checks the tree of a response read with `wrapped: false`. A stream that throws has ended. The error's `partialResults` holds the parts the chunk made ready before the failure, which have been applied to the state, so send them too.
 
 By default the first rejected block ends the stream. To show the rest of the response, open the stream with `afterRejectedBlock: 'continue'`. `feed` and `close` then return an `ErrorPart` in place of a rejected block and go on with the text and blocks after it. The messages the block emitted before it was rejected stay in the state.
 
@@ -82,6 +82,8 @@ for (const part of stream.feed(chunk)) {
 ```
 
 `stream.isInBlock` tells whether the response read so far ends inside a block. A client that joins the chunks of a paused and resumed response reads it before adding a space between them, since a space inside a block could break it.
+
+In `wrapped: true` mode, `openStream` strips Markdown code fences and inline backticks placed either inside or immediately outside `<a2ui>` and `</a2ui>` tags, checks surface topology as each `<a2ui>` block closes (unlike `parseResponse`, which checks topology across all blocks at the end of the response), and requires the opening `<a2ui>` tag rather than recovering a block whose opening tag was omitted.
 
 ### An app that is both agent and renderer
 

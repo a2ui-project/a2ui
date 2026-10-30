@@ -22,6 +22,7 @@ import {
   STRICT_VALIDATION,
   RpcErrorCode,
 } from './message-processor.js';
+import {extractEnvelopeErrorContext, mapErrorToRendererMessage} from './message-error-mapper.js';
 import {Catalog, ComponentApi, createFunctionImplementation} from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {BasicCatalogThemeSchema} from '../universal/basic_catalog/theme.js';
@@ -2157,6 +2158,111 @@ describe('MessageProcessor', () => {
           message,
         );
       }
+    });
+
+    it('maps errors to ErrorMessage and emits via errorHandler, onError, and processMessagesWithErrors', () => {
+      const strictTextApi: ComponentApi = {
+        name: 'Text',
+        schema: z.object({text: z.string()}).strict(),
+      };
+      const base = new Catalog<ComponentApi>('base', '1.0', [strictTextApi]);
+      const handledErrors: any[] = [];
+      const groupErrors: any[] = [];
+      const proc = new MessageProcessor<ComponentApi>([base], undefined, {
+        version: '1.0',
+        errorHandler: msg => handledErrors.push(msg),
+      });
+      proc.model.onError.subscribe(err => {
+        groupErrors.push(err);
+      });
+
+      proc.processMessages([{version: '1.0', createSurface: {surfaceId: 's1', catalogId: 'base'}}]);
+      const surfaceErrors: any[] = [];
+      proc.getSurface('s1')!.onError.subscribe(err => {
+        surfaceErrors.push(err);
+      });
+
+      const errors = proc.processMessagesWithErrors([
+        {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Text', text: 123 as any}],
+          },
+        },
+      ]);
+
+      assert.strictEqual(errors.length, 1);
+      assert.strictEqual(errors[0].version, '1.0');
+      assert.strictEqual(errors[0].error.code, 'VALIDATION_FAILED');
+      assert.strictEqual(errors[0].error.surfaceId, 's1');
+      assert.strictEqual(errors[0].error.path, '/components/0/text');
+      assert.strictEqual(handledErrors.length, 1);
+      assert.strictEqual(surfaceErrors.length, 1);
+      assert.strictEqual(groupErrors.length, 1);
+    });
+
+    it('maps callRendererFunction envelope faults to INVALID_FUNCTION_CALL with functionCallId', () => {
+      const ctx = extractEnvelopeErrorContext({
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'fn-99',
+          callFunction: {call: 'foo', catalogId: 'cat', args: 'bad'},
+        },
+      });
+      assert.strictEqual(ctx.functionCallId, 'fn-99');
+
+      const err = new A2uiValidationError('Bad args', undefined, 'VALIDATION_FAILED', {
+        functionCallId: 'fn-99',
+      });
+      const mapped = mapErrorToRendererMessage(err, ctx);
+      assert.strictEqual(mapped.error.code, 'INVALID_FUNCTION_CALL');
+      assert.strictEqual(mapped.error.functionCallId, 'fn-99');
+      assert.strictEqual(mapped.error.surfaceId, undefined);
+      assert.strictEqual(mapped.error.path, undefined);
+    });
+
+    it('attributes prepareOperations parse errors to the failing item in multi-message arrays', async () => {
+      const textApi: ComponentApi = {name: 'Text', schema: z.object({text: z.string()})};
+      const v09Cat = new Catalog<ComponentApi>('cat-v09', '0.9', [textApi]);
+      const v10Cat = new Catalog<ComponentApi>('cat-v10', '1.0', [textApi]);
+      const handledErrors: any[] = [];
+      const proc = new MessageProcessor<ComponentApi>([v09Cat, v10Cat], undefined, {
+        errorHandler: msg => handledErrors.push(msg),
+      });
+
+      assert.throws(() => {
+        proc.processMessages([
+          {version: 'v0.9', createSurface: {surfaceId: 's1', catalogId: 'cat-v09'}},
+          {version: '1.0', updateComponents: {surfaceId: 's2', components: 'not-an-array'}},
+        ] as any);
+      });
+
+      assert.strictEqual(proc.getSurface('s1'), undefined);
+      assert.strictEqual(handledErrors.length, 1);
+      assert.strictEqual(handledErrors[0].version, '1.0');
+      assert.strictEqual(handledErrors[0].error.surfaceId, 's2');
+
+      handledErrors.length = 0;
+      await assert.rejects(async () => {
+        await proc.processMessagesAsync([
+          {version: 'v0.9', createSurface: {surfaceId: 's1', catalogId: 'cat-v09'}},
+          {
+            version: '1.0',
+            callRendererFunction: {
+              functionCallId: 'fn-item-2',
+              callFunction: {call: 'missingFn', catalogId: 'cat-v10', args: 'invalid'},
+            },
+          },
+        ] as any);
+      });
+
+      assert.strictEqual(proc.getSurface('s1'), undefined);
+      assert.strictEqual(handledErrors.length, 1);
+      assert.strictEqual(handledErrors[0].version, '1.0');
+      assert.strictEqual(handledErrors[0].error.code, 'INVALID_FUNCTION_CALL');
+      assert.strictEqual(handledErrors[0].error.functionCallId, 'fn-item-2');
+      assert.strictEqual(handledErrors[0].error.surfaceId, undefined);
     });
   });
 });

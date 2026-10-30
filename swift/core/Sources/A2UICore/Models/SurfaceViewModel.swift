@@ -44,9 +44,24 @@ public final class SurfaceViewModel: ObservableObject {
     return Catalog(id: "empty", components: [])
   }
   public let theme: [String: JSONValue]?
-  public let metadata: [String: JSONValue]?
+  @Published public private(set) var metadata: [String: JSONValue]?
   public let sendDataModel: Bool
   public let protocolVersion: A2UIProtocolVersion
+
+  /// Convenience accessor returning `metadata["extensions"]` as a dictionary, or `nil`.
+  public var extensions: [String: JSONValue]? {
+    MetadataValidator.extensions(from: metadata)
+  }
+
+  /// Emits whenever the surface's metadata dictionary is replaced or mutated.
+  public var metadataPublisher: AnyPublisher<[String: JSONValue]?, Never> {
+    $metadata.dropFirst().eraseToAnyPublisher()
+  }
+
+  /// Alias for ``metadataPublisher`` matching the core blueprint's `onMetadataChanged` stream.
+  public var onMetadataChanged: AnyPublisher<[String: JSONValue]?, Never> {
+    metadataPublisher
+  }
 
   public let dataModel: DataModel
   public let componentsModel: SurfaceComponentsModel
@@ -159,6 +174,32 @@ public final class SurfaceViewModel: ObservableObject {
     nodeResolver.getCatalog(id: id)
   }
 
+  /// Replaces the surface's metadata dictionary after validating UAX #31 extension keys.
+  public func setMetadata(_ metadata: [String: JSONValue]?) throws {
+    let nextMetadata = try MetadataValidator.validate(metadata, pathPrefix: "surface.metadata")
+    guard !MetadataValidator.areEqual(self.metadata, nextMetadata) else { return }
+    self.metadata = nextMetadata
+  }
+
+  /// Sets a single extension key inside the surface's metadata envelope.
+  public func setExtension(_ key: String, value: JSONValue) throws {
+    let nextMetadata = try MetadataValidator.settingExtension(
+      key,
+      value: value,
+      in: metadata,
+      pathPrefix: "surface.metadata"
+    )
+    guard !MetadataValidator.areEqual(self.metadata, nextMetadata) else { return }
+    self.metadata = nextMetadata
+  }
+
+  /// Removes a single extension key from the surface's metadata envelope.
+  public func removeExtension(_ key: String) {
+    let nextMetadata = MetadataValidator.removingExtension(key, from: metadata)
+    guard !MetadataValidator.areEqual(self.metadata, nextMetadata) else { return }
+    self.metadata = nextMetadata
+  }
+
   private func setUpSubscriptions() {
     componentsModel.componentsPublisher
       .sink { [weak self] _ in
@@ -181,6 +222,13 @@ public final class SurfaceViewModel: ObservableObject {
     if self.rootNode?.box !== newRoot?.box {
       self.rootNode = newRoot
     }
+  }
+
+  /// Cancels internal model subscriptions and disposes the node resolver and data model.
+  public func dispose() {
+    cancellables.removeAll()
+    nodeResolver.dispose()
+    dataModel.dispose()
   }
 }
 
