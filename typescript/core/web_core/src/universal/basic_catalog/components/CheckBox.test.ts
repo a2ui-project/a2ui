@@ -181,6 +181,54 @@ describe('CheckBox Component', () => {
     assert.notStrictEqual(errorDiv, null);
     assert.strictEqual(errorDiv?.textContent?.trim(), 'This is required');
 
+    const errorAlert = el.querySelector('.a2ui-validation-errors');
+    assert.notStrictEqual(errorAlert, null);
+    assert.strictEqual(errorAlert?.getAttribute('role'), 'alert');
+
+    const input = el.querySelector('input[type="checkbox"]');
+    assert.strictEqual(input?.getAttribute('aria-invalid'), 'true');
+    assert.strictEqual(input?.getAttribute('aria-describedby'), errorAlert?.id);
+
+    document.body.removeChild(el);
+  });
+
+  it('applies accessibility label and description on checkbox input and clears aria-invalid when valid', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'checkbox_a11y',
+              component: 'CheckBox',
+              label: 'Accept terms',
+              value: true,
+              accessibility: {
+                label: 'Accept terms of service',
+                description: 'Required before continuing',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-checkbox') as A2uiWebComponentElement;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'checkbox_a11y');
+    });
+
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    assert.strictEqual(el.hasAttribute('aria-description'), false);
+    const input = el.querySelector('input[type="checkbox"]');
+    assert.strictEqual(input?.getAttribute('aria-label'), 'Accept terms of service');
+    assert.strictEqual(input?.getAttribute('aria-description'), 'Required before continuing');
+    assert.strictEqual(input?.hasAttribute('aria-invalid'), false);
+    assert.strictEqual(input?.hasAttribute('aria-describedby'), false);
+
     document.body.removeChild(el);
   });
 });

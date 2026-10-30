@@ -129,7 +129,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     });
   });
 
-  it('applies accessibility attributes (aria-label, aria-description, aria-live, aria-hidden) on BasicCatalogA2uiLitElement', async () => {
+  it('applies accessibility attributes across BasicCatalogA2uiLitElement host and inner semantic element', async () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
@@ -174,12 +174,18 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       e.context = new ComponentContext(surface, 'txt1');
     });
 
-    assert.strictEqual(el.getAttribute('aria-label'), 'Dynamic Accessible Label');
-    assert.strictEqual(el.getAttribute('aria-description'), 'Extra description');
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    assert.strictEqual(el.hasAttribute('aria-description'), false);
     assert.strictEqual(el.getAttribute('aria-live'), 'polite');
     assert.strictEqual(el.getAttribute('aria-hidden'), 'true');
 
-    // Verify subsequent reactive data model updates propagate to host attributes
+    const innerText = el.querySelector('.a2ui-text');
+    assert.notStrictEqual(innerText, null);
+    assert.strictEqual(innerText?.getAttribute('role'), 'note');
+    assert.strictEqual(innerText?.getAttribute('aria-label'), 'Dynamic Accessible Label');
+    assert.strictEqual(innerText?.getAttribute('aria-description'), 'Extra description');
+
+    // Verify subsequent reactive data model updates propagate to the inner element
     processor.processMessages([
       {
         version: '1.0',
@@ -190,8 +196,8 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         },
       },
     ]);
-    await (el as any).updateComplete;
-    assert.strictEqual(el.getAttribute('aria-label'), 'Updated Accessible Label');
+    await asyncUpdate(el, () => {});
+    assert.strictEqual(innerText?.getAttribute('aria-label'), 'Updated Accessible Label');
   });
 
   it('renders TextField placeholder, Video posterUrl, and Slider steps in v1.0 basicCatalog', async () => {

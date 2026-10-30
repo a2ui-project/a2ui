@@ -14,19 +14,16 @@
  * limitations under the License.
  */
 
-import {html, nothing} from 'lit';
-import type {z} from 'zod';
 import {ComponentApi, type InferredComponentApiSchemaType} from '../../../catalog/types.js';
 import type {ResolveA2uiProps} from '../../../resolution/generic-binder.js';
-import type {AccessibilityAttributesSchema} from '../../../types/common-types.js';
+import {nextNodeId} from '../../../resolution/node-id.js';
 import {A2uiLitElement} from '../../index.js';
 import {injectBasicCatalogStyles, computeColorVariant} from '../styles/default.js';
 import {isValidCssColor} from '../theme.js';
-
-/** Resolved accessibility attributes, as rendered onto the element. */
-type ResolvedAccessibilityAttributes = ResolveA2uiProps<
-  z.infer<typeof AccessibilityAttributesSchema>
->;
+import {
+  setHostAccessibilityAttributes,
+  type ResolvedAccessibilityAttributes,
+} from './accessibility.js';
 
 /**
  * The resolved props this base class reads. Not every protocol version
@@ -35,12 +32,6 @@ type ResolvedAccessibilityAttributes = ResolveA2uiProps<
 interface CommonResolvedProps {
   weight?: number;
   accessibility?: ResolvedAccessibilityAttributes;
-}
-
-/** Props that the binder adds to components with validation checks. */
-interface CheckableResolvedProps {
-  isValid?: boolean;
-  validationErrors?: string[];
 }
 
 /**
@@ -57,6 +48,18 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
   Api,
   ResolveA2uiProps<InferredComponentApiSchemaType<Api>>
 > {
+  private fallbackDomId?: string;
+
+  /**
+   * Document-unique ID prefix for associating internal labels, controls, and error messages.
+   *
+   * Reads `ComponentNode.id` when rendered through a `NodeResolver`; an element mounted
+   * with only a `ComponentContext` draws one lazily from the same id sequence.
+   */
+  protected get domId(): string {
+    return this.node?.id ?? (this.fallbackDomId ??= nextNodeId());
+  }
+
   /**
    * Renders into the element's direct children (Light DOM) instead of a ShadowRoot.
    */
@@ -113,42 +116,6 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
       this.style.removeProperty('--a2ui-color-primary-dark');
       this.style.removeProperty('--a2ui-color-primary-hover');
     }
-    this.applyAccessibilityAttributes(props?.accessibility);
-  }
-
-  protected renderValidationErrors(props?: CheckableResolvedProps) {
-    if (props?.isValid === false && props.validationErrors?.length) {
-      return props.validationErrors.map(
-        (msg: string) => html`<div class="a2ui-error-message">${msg}</div>`,
-      );
-    }
-    return nothing;
-  }
-
-  private applyAccessibilityAttributes(a11y?: ResolvedAccessibilityAttributes): void {
-    if (this.hasAttributeValue(a11y?.label)) {
-      this.setAttribute('aria-label', String(a11y?.label));
-    } else {
-      this.removeAttribute('aria-label');
-    }
-    if (this.hasAttributeValue(a11y?.description)) {
-      this.setAttribute('aria-description', String(a11y?.description));
-    } else {
-      this.removeAttribute('aria-description');
-    }
-    if (this.hasAttributeValue(a11y?.live)) {
-      this.setAttribute('aria-live', String(a11y?.live));
-    } else {
-      this.removeAttribute('aria-live');
-    }
-    if (typeof a11y?.hidden === 'boolean') {
-      this.setAttribute('aria-hidden', String(a11y.hidden));
-    } else {
-      this.removeAttribute('aria-hidden');
-    }
-  }
-
-  private hasAttributeValue(value: unknown): boolean {
-    return value !== undefined && value !== null && value !== '';
+    setHostAccessibilityAttributes(this, props?.accessibility);
   }
 }

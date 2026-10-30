@@ -212,10 +212,16 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
 
     const textEl = el.renderRoot.querySelector('a2ui-basic-text') as HTMLElement;
     assert.ok(textEl, 'Should render a2ui-basic-text');
-    assert.strictEqual(textEl.getAttribute('aria-label'), 'Live Status Banner');
-    assert.strictEqual(textEl.getAttribute('aria-description'), 'Detailed status description');
+    assert.strictEqual(textEl.hasAttribute('aria-label'), false);
+    assert.strictEqual(textEl.hasAttribute('aria-description'), false);
     assert.strictEqual(textEl.getAttribute('aria-live'), 'polite');
     assert.strictEqual(textEl.getAttribute('aria-hidden'), 'true');
+
+    const innerSpan = textEl.querySelector('.a2ui-text');
+    assert.ok(innerSpan, 'Should render inner .a2ui-text element');
+    assert.strictEqual(innerSpan.getAttribute('role'), 'note');
+    assert.strictEqual(innerSpan.getAttribute('aria-label'), 'Live Status Banner');
+    assert.strictEqual(innerSpan.getAttribute('aria-description'), 'Detailed status description');
   });
 
   it('evaluates @index inside a List template', async () => {
