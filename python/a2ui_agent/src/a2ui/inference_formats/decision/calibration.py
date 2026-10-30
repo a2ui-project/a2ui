@@ -47,6 +47,8 @@ class SynthesizerLike(Protocol):
         *,
         surface_id: str | None = None,
         mutable_paths: Collection[str] = (),
+        layout: Sequence[str] | None = None,
+        variety_seed: int | None = None,
         config: SynthesisConfig | None = None,
     ) -> SynthesisOutput:
         """Synthesizes an A2UI surface output for the given intent and payload."""
