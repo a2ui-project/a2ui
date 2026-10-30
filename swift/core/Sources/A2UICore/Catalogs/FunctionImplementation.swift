@@ -24,6 +24,13 @@ public protocol FunctionImplementation: Sendable {
   /// The API definition (name, returnType, schema).
   var api: FunctionAPI { get }
 
+  /// Whether the renderer can execute the function.
+  ///
+  /// `false` for a declaration of a function that the agent implements, such as
+  /// ``SchemaOnlyFunction``. From v1.0, a surface that can call the agent sends calls to such a
+  /// function to the agent instead of evaluating them. Defaults to `true`.
+  var hasLocalImplementation: Bool { get }
+
   /// Evaluates the function with the given arguments.
   ///
   /// - Parameter arguments: A dictionary of named arguments.
@@ -32,4 +39,8 @@ public protocol FunctionImplementation: Sendable {
   /// - Throws: ``FunctionError`` if evaluation fails.
   @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue
+}
+
+extension FunctionImplementation {
+  public var hasLocalImplementation: Bool { true }
 }

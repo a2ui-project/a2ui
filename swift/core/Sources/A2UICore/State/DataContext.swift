@@ -26,21 +26,56 @@ public final class DataContext {
   public let protocolVersion: A2UIProtocolVersion?
   public let index: Int?
 
+  /// Whether this context evaluates in response to a user gesture, such as an action.
+  ///
+  /// A call routed to the agent for a declared function with `requiresUserActivation` is rejected
+  /// unless this is `true`.
+  public let isUserActivated: Bool
+
   /// A reference to the function handler to evaluate dynamic function calls.
   public weak var functionHandler: FunctionHandler?
+
+  /// The number of function calls evaluated that have no value: calls routed to the agent that
+  /// are still awaiting its response or failed, and calls that failed with a reported error.
+  ///
+  /// A function call whose arguments include such a call is not evaluated or sent: its value is
+  /// pending too, like the value of the nested call. A failed nested call has been reported
+  /// already, so the enclosing call reports nothing.
+  private var unsettledCallCount = 0
+
+  /// Whether a function call was not evaluated or sent because one of its arguments includes a
+  /// call that has no value (see `unsettledCallCount`).
+  ///
+  /// ``NodeResolver`` runs an action's function call again once those calls have settled.
+  private(set) var hasDeferredFunctionCall = false
+
+  /// Whether a function call failed with an error that was reported.
+  ///
+  /// ``NodeResolver`` doesn't run an action's function call again after such a failure.
+  private(set) var hasFailedFunctionCall = false
+
+  /// The outcome of looking up the function that a v1.0 call runs.
+  private enum V10FunctionTarget {
+    /// The renderer runs the function.
+    case local(any FunctionImplementation)
+    /// The agent runs the function. `declaration` is the catalog's declaration, if any.
+    case agent(declaration: (any FunctionImplementation)?, catalogID: String)
+  }
 
   public init(
     dataModel: DataModel,
     path: String,
     functionHandler: FunctionHandler,
     protocolVersion: A2UIProtocolVersion? = nil,
-    index: Int? = nil
+    index: Int? = nil,
+    isUserActivated: Bool = false
   ) {
     self.dataModel = dataModel
     self.path = path
     self.functionHandler = functionHandler
     self.protocolVersion = protocolVersion
     self.index = index
+    self.isUserActivated = isUserActivated
   }
 
   public var atLeastV10: Bool {
@@ -81,7 +116,8 @@ public final class DataContext {
       path: absPath,
       functionHandler: handler,
       protocolVersion: protocolVersion,
-      index: index ?? self.index
+      index: index ?? self.index,
+      isUserActivated: isUserActivated
     )
   }
 
@@ -133,10 +169,20 @@ public final class DataContext {
   ) -> JSONValue {
     let function: (any FunctionImplementation)?
     if atLeastV10 {
-      guard let resolved = resolveV10Function(name: callName, dict: dict) else {
+      switch resolveV10Function(name: callName, dict: dict) {
+      case nil:
+        recordFailedCall()
         return .null
+      case .local(let resolved):
+        function = resolved
+      case .agent(let declaration, let catalogID):
+        return routeToAgent(
+          name: callName,
+          declaration: declaration,
+          catalogID: catalogID,
+          callDictionary: dict
+        )
       }
-      function = resolved
     } else {
       // Before v1.0 a call can't select a catalog: it always runs in the surface catalog.
       function =
@@ -148,6 +194,7 @@ public final class DataContext {
         FunctionError.functionNotFound(callName),
         functionName: callName
       )
+      recordFailedCall()
       return .null
     }
     // Bindings, checks and actions are renderer callers. In v1.0 an agentOnly function runs
@@ -158,29 +205,130 @@ public final class DataContext {
         FunctionError.callerDisallowed(name: callName, caller: "renderer"),
         functionName: callName
       )
+      recordFailedCall()
       return .null
     }
 
-    var resolvedArgs: [String: JSONValue] = [:]
-    let argPropsSchema: OrderedDictionary<String, JSONValue>? =
-      atLeastV10 ? function.api.schema.jsonValue["properties"]?.objectValue : nil
-    if let argsObj = dict["args"]?.dictionaryValue {
-      for (argKey, argVal) in argsObj {
-        let resolvedVal = resolveDynamicValue(argVal)
-        if let propSchema = argPropsSchema?[argKey] {
-          resolvedArgs[argKey] = Self.coerceValidationResults(schema: propSchema, value: resolvedVal)
-        } else {
-          resolvedArgs[argKey] = resolvedVal
+    guard var resolvedArguments = resolveArguments(of: dict) else {
+      return .null
+    }
+    if atLeastV10,
+      let argPropsSchema = function.api.schema.jsonValue["properties"]?.objectValue
+    {
+      for (argKey, resolvedVal) in resolvedArguments {
+        if let propSchema = argPropsSchema[argKey] {
+          resolvedArguments[argKey] = Self.coerceValidationResults(
+            schema: propSchema,
+            value: resolvedVal
+          )
         }
       }
     }
 
     do {
-      return try function.evaluate(arguments: resolvedArgs, context: self)
+      return try function.evaluate(arguments: resolvedArguments, context: self)
     } catch {
       functionHandler?.handleFunctionError(error, functionName: callName)
+      recordFailedCall()
       return .null
     }
+  }
+
+  /// Records a function call that failed with a reported error: it has no value, so a call that
+  /// takes it as an argument doesn't run.
+  private func recordFailedCall() {
+    unsettledCallCount += 1
+    hasFailedFunctionCall = true
+  }
+
+  /// Resolves the arguments of a function call.
+  ///
+  /// - Returns: The resolved arguments, or `nil` if an argument includes a call that has no
+  ///   value: a call routed to the agent that is still awaiting the agent's response or failed,
+  ///   or a call that failed with a reported error. The calling function's value is then pending
+  ///   too, and it reports nothing.
+  private func resolveArguments(
+    of callDictionary: OrderedDictionary<String, JSONValue>
+  ) -> [String: JSONValue]? {
+    let unsettledBefore = unsettledCallCount
+    let resolvedArguments =
+      callDictionary["args"]?.dictionaryValue?.mapValues { resolveDynamicValue($0) } ?? [:]
+    guard unsettledCallCount == unsettledBefore else {
+      hasDeferredFunctionCall = true
+      return nil
+    }
+    return resolvedArguments
+  }
+
+  /// Sends a v1.0 call that the renderer has no local implementation for to the agent: the
+  /// fallback routing of `callAgentFunction`.
+  ///
+  /// A call to a declared function must be allowed for renderer callers and satisfy its
+  /// `requiresUserActivation`, and its arguments must match its schema; the schema's top-level
+  /// defaults are applied to the arguments sent.
+  ///
+  /// - Returns: The agent's result, or `null` while it is pending or after reporting an error.
+  private func routeToAgent(
+    name callName: String,
+    declaration: (any FunctionImplementation)?,
+    catalogID: String,
+    callDictionary: OrderedDictionary<String, JSONValue>
+  ) -> JSONValue {
+    if let declaration {
+      guard declaration.api.allowedCallers != .agentOnly else {
+        functionHandler?.handleFunctionError(
+          FunctionError.callerDisallowed(name: callName, caller: "renderer"),
+          functionName: callName
+        )
+        recordFailedCall()
+        return .null
+      }
+      guard !declaration.api.requiresUserActivation || isUserActivated else {
+        functionHandler?.handleFunctionError(
+          FunctionError.securityConstraintViolation(
+            "Function '\(callName)' requires user activation and cannot be evaluated without an"
+              + " active user gesture."
+          ),
+          functionName: callName
+        )
+        recordFailedCall()
+        return .null
+      }
+    }
+    guard var arguments = resolveArguments(of: callDictionary) else {
+      return .null
+    }
+    if let declaration {
+      let schema = declaration.api.schema
+      if let argPropsSchema = schema.jsonValue["properties"]?.objectValue {
+        for (argKey, resolvedVal) in arguments {
+          if let propSchema = argPropsSchema[argKey] {
+            arguments[argKey] = Self.coerceValidationResults(
+              schema: propSchema,
+              value: resolvedVal
+            )
+          }
+        }
+      }
+      arguments = Self.applyingArgumentDefaults(of: schema.jsonValue, to: arguments)
+      let result = schema.validate(.object(OrderedDictionary(uniqueKeysWithValues: arguments)))
+      guard result.isValid else {
+        functionHandler?.handleFunctionError(
+          A2UIValidationError(
+            "Validation failed for function '\(callName)': the arguments do not match its schema."
+          ),
+          functionName: callName
+        )
+        recordFailedCall()
+        return .null
+      }
+    }
+    let call = AgentFunctionCall(name: callName, catalogID: catalogID, args: arguments)
+    guard let value = functionHandler?.agentFunctionValue(for: call) else {
+      unsettledCallCount += 1
+      return .null
+    }
+    return value
   }
 
   private static func isDynamicBooleanSchema(_ schema: JSONValue) -> Bool {
@@ -224,6 +372,20 @@ public final class DataContext {
     return value
   }
 
+  /// Adds the `default` of each top-level property in an argument schema that `arguments` lacks.
+  private static func applyingArgumentDefaults(
+    of schemaJSON: JSONValue,
+    to arguments: [String: JSONValue]
+  ) -> [String: JSONValue] {
+    guard let properties = schemaJSON["properties"]?.dictionaryValue else { return arguments }
+    var result = arguments
+    for (name, propertySchema) in properties where result[name] == nil {
+      if let defaultValue = propertySchema["default"] {
+        result[name] = defaultValue
+      }
+    }
+    return result
+  }
   /// Looks up the function a v1.0 call runs, reporting any failure to the function handler.
   ///
   /// A reserved `@` system function belongs to no catalog: a call to one that carries a
@@ -231,12 +393,18 @@ public final class DataContext {
   /// catalog it names, else in the default catalog; a non-string `catalogId` or a catalog that
   /// can't be resolved is reported as a catalog error, not looked up in the default catalog.
   ///
-  /// - Returns: The function, or `nil` after reporting an error. A function missing from its
-  ///   resolved catalog is reported as `FunctionError.functionNotFound`.
+  /// A function that the resolved catalog doesn't declare, or declares without a local
+  /// implementation, runs on the agent when the function handler can call it (see
+  /// ``FunctionHandler/agentFunctionCatalogID(forCallCatalogID:)``). Reserved `@` system
+  /// functions never do.
+  ///
+  /// - Returns: Where the function runs, or `nil` after reporting an error. A function missing
+  ///   from its resolved catalog, and not routed to the agent, is reported as
+  ///   `FunctionError.functionNotFound`.
   private func resolveV10Function(
     name callName: String,
     dict: OrderedDictionary<String, JSONValue>
-  ) -> (any FunctionImplementation)? {
+  ) -> V10FunctionTarget? {
     let rawCatalogID = dict["catalogId"]
     let catalogIDPath = CatalogResolutionErrors.callCatalogIDPath(functionName: callName)
     let failure: any Error
@@ -247,7 +415,9 @@ public final class DataContext {
           catalogID: rawCatalogID.stringValue ?? Self.jsonText(rawCatalogID)
         )
       } else if callName == "@index" {
-        return functionHandler?.function(named: callName, catalogID: nil) ?? IndexFunction()
+        return .local(
+          functionHandler?.function(named: callName, catalogID: nil) ?? IndexFunction()
+        )
       } else {
         failure = FunctionError.functionNotFound(callName)
       }
@@ -265,8 +435,17 @@ public final class DataContext {
         functionHandler?.handleFunctionError(error, functionName: callName)
         return nil
       }
-      if let function = functionHandler?.function(named: callName, catalogID: catalogID) {
-        return function
+      let function = functionHandler?.function(named: callName, catalogID: catalogID)
+      if let function, function.hasLocalImplementation {
+        return .local(function)
+      }
+      if let agentCatalogID = functionHandler?.agentFunctionCatalogID(
+        forCallCatalogID: catalogID
+      ) {
+        return .agent(declaration: function, catalogID: agentCatalogID)
+      }
+      if let function {
+        return .local(function)
       }
       failure = FunctionError.functionNotFound(callName)
     }

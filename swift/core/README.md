@@ -143,6 +143,41 @@ let chatCatalog = try BasicCatalog.makeCatalog(version: .v10).derive(
 )
 ```
 
+### Agent-side functions
+
+From v1.0, a function call that the renderer can't run locally goes to the agent: the fallback
+routing of `callAgentFunction`. This covers a function that the call's catalog doesn't declare,
+and one that it declares with `SchemaOnlyFunction`, which has no local implementation:
+
+```swift
+let lookupPrice = SchemaOnlyFunction(
+  api: FunctionAPI(
+    name: "lookupPrice",
+    returnType: .number,
+    schema: try! Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": { "sku": { "type": "string" } },
+          "required": ["sku"]
+        }
+        """
+    )
+  )
+)
+```
+
+`MessageProcessor` routes these calls while it has an `outboundListener`. It sends a
+`callAgentFunction` message naming the catalog the call resolved to, and the bound value is `null`
+until the agent answers. A declared function's arguments are validated before the call is sent,
+and an agent error or timeout (`agentFunctionTimeoutSeconds`) is reported as an
+`EXPRESSION_ERROR`. The surface keeps each answer for bindings and checks, so bindings that make
+the same call (same catalog, function and arguments) send it once and all read the answer, while
+actions always send a fresh call. A function call that takes an agent result as an argument runs
+once that result arrives, including in an action. Payload validation with `ValidationConfig.strict`
+rejects undeclared functions, so declare the agent-side functions you expect, or allow unknown
+elements.
+
 ---
 
 ## 4. Development and testing
