@@ -15,19 +15,50 @@
  */
 
 import {html, nothing} from 'lit';
+import type {z} from 'zod';
 import {ComponentApi, type InferredComponentApiSchemaType} from '../../../catalog/types.js';
-import type {ResolveA2uiProps} from '../../../resolution/generic-binder.js';
+import type {ResolveA2uiProp, ResolveA2uiProps} from '../../../resolution/generic-binder.js';
+import {nextNodeId} from '../../../resolution/node-id.js';
 import {A2uiLitElement} from '../../index.js';
 import {injectBasicCatalogStyles, computeColorVariant} from '../styles/default.js';
 import {isValidCssColor} from '../theme.js';
+import type {AccessibilityAttributesSupportedSchemas} from './supported_apis.js';
 
-/** Resolved accessibility attributes across supported protocol versions. */
-export interface ResolvedAccessibilityAttributes {
-  label?: string;
-  description?: string;
-  live?: 'off' | 'polite' | 'assertive';
-  hidden?: boolean;
-}
+type ResolvedUnionMember<T> = T extends unknown ? Partial<ResolveA2uiProp<T>> : never;
+type UnionKeys<T> = T extends unknown ? keyof T : never;
+
+type SupportedAccessibilityAttributes = z.infer<AccessibilityAttributesSupportedSchemas>;
+type AccessibilityAttributeKey = UnionKeys<SupportedAccessibilityAttributes>;
+
+/** Resolved accessibility attributes inferred across supported protocol versions. */
+export type ResolvedAccessibilityAttributes = ResolvedUnionMember<SupportedAccessibilityAttributes>;
+
+// Quoted keys survive minification and enforce completeness across AccessibilityAttributeKey.
+const HOST_ACCESSIBILITY_HANDLERS: Record<
+  AccessibilityAttributeKey,
+  (host: HTMLElement, a11y: ResolvedAccessibilityAttributes | undefined) => void
+> = {
+  // Forwarded to inner semantic controls or container groups by subclasses.
+  'label': () => {},
+  'description': () => {},
+  'live': (host, a11y) => {
+    const live = a11y && 'live' in a11y ? a11y.live : undefined;
+    if (live != null) {
+      host.setAttribute('aria-live', String(live));
+    } else {
+      host.removeAttribute('aria-live');
+    }
+  },
+  'hidden': (host, a11y) => {
+    if (a11y && 'hidden' in a11y && typeof a11y.hidden === 'boolean') {
+      host.setAttribute('aria-hidden', String(a11y.hidden));
+    } else {
+      host.removeAttribute('aria-hidden');
+    }
+  },
+};
+
+const HOST_ACCESSIBILITY_HANDLER_LIST = Object.values(HOST_ACCESSIBILITY_HANDLERS);
 
 /**
  * The resolved props this base class reads. Not every protocol version
@@ -44,8 +75,6 @@ export interface CheckableResolvedProps {
   validationErrors?: string[];
 }
 
-let nextBasicElementDomId = 0;
-
 /**
  * Internal base class for the built-in Basic Catalog components.
  *
@@ -60,10 +89,17 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
   Api,
   ResolveA2uiProps<InferredComponentApiSchemaType<Api>>
 > {
+  private fallbackDomId?: string;
+
   /**
    * Document-unique ID prefix for associating internal labels, controls, and error messages.
+   *
+   * Reads `ComponentNode.id` when rendered through a `NodeResolver`; an element mounted
+   * with only a `ComponentContext` draws one lazily from the same id sequence.
    */
-  protected readonly domId = `a2ui-bc-${++nextBasicElementDomId}`;
+  protected get domId(): string {
+    return this.node?.id ?? (this.fallbackDomId ??= nextNodeId());
+  }
 
   /**
    * Renders into the element's direct children (Light DOM) instead of a ShadowRoot.
@@ -175,15 +211,8 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
   }
 
   private applyAccessibilityAttributes(a11y?: ResolvedAccessibilityAttributes): void {
-    if (this.hasAttributeValue(a11y?.live)) {
-      this.setAttribute('aria-live', String(a11y?.live));
-    } else {
-      this.removeAttribute('aria-live');
-    }
-    if (typeof a11y?.hidden === 'boolean') {
-      this.setAttribute('aria-hidden', String(a11y.hidden));
-    } else {
-      this.removeAttribute('aria-hidden');
+    for (const apply of HOST_ACCESSIBILITY_HANDLER_LIST) {
+      apply(this, a11y);
     }
   }
 

@@ -25,7 +25,11 @@ import {
   ComponentApi,
   SurfaceModel,
   Subscription,
+  peekValue,
 } from '../../../v0_9/index.js';
+import {CheckableSchema} from '../../../v0_9/schema/common-types.js';
+import {NodeResolver} from '../../../resolution/node-resolver.js';
+import type {ComponentNode} from '../../../resolution/component-node.js';
 
 describe('BasicCatalogA2uiLitElement', () => {
   let customCatalog: Catalog<ComponentApi>;
@@ -40,6 +44,7 @@ describe('BasicCatalogA2uiLitElement', () => {
     const TestComponentSchema = z.object({
       text: z.string().optional(),
       weight: z.number().optional(),
+      checks: CheckableSchema.shape.checks,
       accessibility: z
         .object({
           label: z.string().optional(),
@@ -69,7 +74,10 @@ describe('BasicCatalogA2uiLitElement', () => {
       protected override readonly api = TestComponentApi;
 
       override render() {
-        return html`<div class="inner">${this.controller?.props?.text ?? ''}</div>`;
+        return html`
+          <div class="inner">${this.controller?.props?.text ?? ''}</div>
+          ${this.renderValidationErrors(this.controller?.props)}
+        `;
       }
     }
 
@@ -400,5 +408,52 @@ describe('BasicCatalogA2uiLitElement', () => {
     await asyncUpdate(element, () => {});
     assert.strictEqual(element.hasAttribute('aria-live'), false);
     assert.strictEqual(element.hasAttribute('aria-hidden'), false);
+  });
+
+  it('uses ComponentNode.id for domId when rendered with a node and falls back to nextNodeId otherwise', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'TestComponent',
+              text: 'Invalid',
+              checks: [{condition: false, message: 'Required'}],
+            },
+          ],
+        },
+      },
+    ]);
+
+    const resolver = new NodeResolver(surface);
+    const rootNode = peekValue(resolver.rootNode);
+    assert.ok(rootNode);
+
+    element = document.createElement('a2ui-test-basic-element');
+    document.body.appendChild(element);
+
+    await asyncUpdate(element, (e: HTMLElement & {node?: ComponentNode}) => {
+      e.node = rootNode;
+    });
+
+    const nodeErrorEl = element.querySelector('.a2ui-validation-errors');
+    assert.strictEqual(nodeErrorEl?.id, `${rootNode.id}-error`);
+
+    const contextOnlyEl = document.createElement('a2ui-test-basic-element');
+    document.body.appendChild(contextOnlyEl);
+    try {
+      await asyncUpdate(contextOnlyEl, (e: HTMLElement & {context?: ComponentContext}) => {
+        e.context = new ComponentContext(surface, 'root');
+      });
+      const fallbackErrorEl = contextOnlyEl.querySelector('.a2ui-validation-errors');
+      assert.ok(fallbackErrorEl?.id.startsWith('a2ui-n'));
+      assert.notStrictEqual(fallbackErrorEl?.id, `${rootNode.id}-error`);
+    } finally {
+      contextOnlyEl.remove();
+      resolver.dispose();
+    }
   });
 });
