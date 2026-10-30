@@ -149,7 +149,7 @@ root_agent = Agent(
 )
 ```
 
-> **WARNING**: Do not pass `processor.prompt_snippet` to `Agent(instruction=...)` as a string. ADK reads `{name}` templates in a string instruction and replaces them with session state, and the A2UI prompt holds braces that are not state keys, such as the `${expression}` in the basic catalog's `formatString` and the data bindings in the examples. Under `adk run` or `adk web` the agent then fails with `KeyError: "Context variable not found: 'expression'."`. `A2uiInstruction` avoids this: it is a callable instruction provider, which ADK uses as it is, and it still reads `{name}` templates out of your own instruction string. If you only have `a2ui-agent-sdk` and `google-adk` installed, a plain callable has the same effect on the templates: `instruction=lambda _ctx: A2UI_AND_AGENT_INSTRUCTION`.
+> **WARNING**: Do not pass `processor.prompt_snippet` to `Agent(instruction=...)` as a string. ADK reads `{name}` templates in a string instruction and replaces them with session state, and the A2UI prompt holds braces that are not state keys, such as the `${expression}` in the basic catalog's `formatString` and the data bindings in the examples. Under `adk run` or `adk web` the agent then fails with `KeyError: "Context variable not found: 'expression'."`. `A2uiInstruction` avoids this: it is a callable instruction provider, which ADK uses as it is, and it still reads `{name}` templates out of your own instruction string. If you only have `a2ui-agent-sdk` and `google-adk` installed, a plain callable has the same effect on the templates: `instruction=lambda _ctx: f"{ROLE_DESCRIPTION}\n\n## UI Description:\n{UI_DESCRIPTION}\n\n{processor.prompt_snippet}"`.
 
 ## Understanding the Output
 

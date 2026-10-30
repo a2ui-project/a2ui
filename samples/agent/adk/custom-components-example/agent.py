@@ -50,7 +50,7 @@ from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.parser import A2uiPart
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.utils import to_version_number
+from a2ui.utils import load_examples, to_version_number
 from a2ui_examples import load_floor_plan_example
 from prompt_builder import ROLE_DESCRIPTION, UI_DESCRIPTION, WORKFLOW_DESCRIPTION, get_text_prompt
 from tools import get_contact_info
@@ -135,9 +135,10 @@ class ContactAgent:
             processor = self._build_default_processor(version, generator)
             self._generators[version] = generator
             self._processors[version] = processor
-            agent = self._build_llm_agent(
-                processor, examples_path=f"examples/{to_version_number(version)}"
+            examples_path = os.path.join(
+                os.path.dirname(__file__), "examples", to_version_number(version)
             )
+            agent = self._build_llm_agent(processor, examples_path=examples_path)
             self._ui_runners[version] = self._build_runner(agent)
 
         self._agent_card = self._build_agent_card()
@@ -246,8 +247,6 @@ class ContactAgent:
         examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
-        from a2ui.utils import load_examples
-
         LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.6-flash")
 
         if processor:
@@ -264,12 +263,9 @@ class ContactAgent:
                 prompt_parts.append(f"### Examples:\n{examples}")
             base_prompt = "\n\n".join(prompt_parts)
             # A2uiInstruction appends the processor's prompt outside ADK's
-            # session state templates. The agent's own prompt is given as a
-            # provider too, since the raw example files hold data bindings
-            # such as `{"path": "/items"}` that are not state keys either.
-            instruction = A2uiInstruction(
-                lambda _ctx: base_prompt, a2ui_processor=processor
-            )
+            # session state templates: the `${expression}` in the catalog
+            # schema is not a state key.
+            instruction = A2uiInstruction(base_prompt, a2ui_processor=processor)
         else:
             instruction = get_text_prompt()
 

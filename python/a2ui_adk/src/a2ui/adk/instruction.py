@@ -52,7 +52,13 @@ from google.adk.utils.feature_decorator import experimental
 
 from a2ui.processor import A2uiRequestProcessor
 
-from .send_a2ui_to_client_toolset import A2uiEnabledProvider, A2uiProcessorProvider
+from .send_a2ui_to_client_toolset import (
+    A2uiEnabledProvider,
+    A2uiProcessorProvider,
+    _resolve_enabled,
+    _resolve_processor,
+    _warn_if_shared_state,
+)
 
 __all__ = [
     "A2uiInstruction",
@@ -120,20 +126,13 @@ class A2uiInstruction:
               disabled, for an agent whose text-only instruction differs.
               Defaults to `instruction` without the A2UI prompt.
         """
-        if (
-            isinstance(a2ui_processor, A2uiRequestProcessor)
-            and a2ui_processor.state is not None
-        ):
-            logger.warning(
-                "A2uiInstruction got one processor for every request, with a"
-                " RendererState bound to it: every conversation shares that"
-                " state. Pass a provider that returns each conversation's"
-                " processor instead."
-            )
+        _warn_if_shared_state(a2ui_processor, caller="A2uiInstruction", log=logger)
         self._instruction = instruction
         self._a2ui_processor = a2ui_processor
         self._a2ui_enabled = a2ui_enabled
-        self._fallback_instruction = fallback_instruction
+        self._fallback_instruction: str | InstructionProvider = (
+            instruction if fallback_instruction is None else fallback_instruction
+        )
 
     async def __call__(self, ctx: readonly_context.ReadonlyContext) -> str:
         """Returns the agent's instruction with the A2UI prompt appended.
@@ -144,40 +143,11 @@ class A2uiInstruction:
             TypeError: If A2UI is enabled and the processor provider returns
               something else than an `A2uiRequestProcessor`.
         """
-        if not await self._resolve_enabled(ctx):
-            fallback = self._fallback_instruction
-            if fallback is None:
-                fallback = self._instruction
-            return await _resolve_instruction(fallback, ctx)
+        if not await _resolve_enabled(self._a2ui_enabled, ctx):
+            return await _resolve_instruction(self._fallback_instruction, ctx)
         instruction = await _resolve_instruction(self._instruction, ctx)
-        processor = await self._resolve_processor(ctx)
+        processor = await _resolve_processor(
+            self._a2ui_processor, ctx, caller="A2uiInstruction"
+        )
         parts = [part for part in (instruction, processor.prompt_snippet) if part]
         return "\n\n".join(parts)
-
-    async def _resolve_enabled(self, ctx: readonly_context.ReadonlyContext) -> bool:
-        if isinstance(self._a2ui_enabled, bool):
-            return self._a2ui_enabled
-        enabled = self._a2ui_enabled(ctx)
-        if inspect.isawaitable(enabled):
-            enabled = await enabled
-        return enabled
-
-    async def _resolve_processor(
-        self, ctx: readonly_context.ReadonlyContext
-    ) -> A2uiRequestProcessor:
-        if isinstance(self._a2ui_processor, A2uiRequestProcessor):
-            return self._a2ui_processor
-        processor = self._a2ui_processor(ctx)
-        if inspect.isawaitable(processor):
-            processor = await processor
-        if not isinstance(processor, A2uiRequestProcessor):
-            hint = (
-                " A2UI is enabled for a context that has no processor."
-                if processor is None
-                else ""
-            )
-            raise TypeError(
-                "A2uiInstruction expects an A2uiRequestProcessor, got"
-                f" {type(processor).__name__}.{hint}"
-            )
-        return processor

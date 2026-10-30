@@ -93,6 +93,60 @@ A2uiProcessorProvider: TypeAlias = Callable[
 ]
 
 
+def _warn_if_shared_state(
+    processor: A2uiRequestProcessor | A2uiProcessorProvider,
+    *,
+    caller: str,
+    log: logging.Logger = logger,
+) -> None:
+    """Warns when a shared processor has a `RendererState` bound to it."""
+    if isinstance(processor, A2uiRequestProcessor) and processor.state is not None:
+        log.warning(
+            "%s got one processor for every request, with a RendererState bound"
+            " to it: every conversation shares that state. Pass a provider that"
+            " returns each conversation's processor instead.",
+            caller,
+        )
+
+
+async def _resolve_enabled(
+    enabled: bool | A2uiEnabledProvider,
+    ctx: readonly_context.ReadonlyContext,
+) -> bool:
+    """Resolves a boolean or an `A2uiEnabledProvider` for `ctx`."""
+    if isinstance(enabled, bool):
+        return enabled
+    resolved = enabled(ctx)
+    if inspect.isawaitable(resolved):
+        resolved = await resolved
+    return resolved
+
+
+async def _resolve_processor(
+    processor: A2uiRequestProcessor | A2uiProcessorProvider,
+    ctx: readonly_context.ReadonlyContext,
+    *,
+    caller: str,
+) -> A2uiRequestProcessor:
+    """Resolves an `A2uiRequestProcessor` or `A2uiProcessorProvider` for `ctx`."""
+    if isinstance(processor, A2uiRequestProcessor):
+        return processor
+    resolved = processor(ctx)
+    if inspect.isawaitable(resolved):
+        resolved = await resolved
+    if not isinstance(resolved, A2uiRequestProcessor):
+        hint = (
+            " A2UI is enabled for a context that has no processor."
+            if resolved is None
+            else ""
+        )
+        raise TypeError(
+            f"{caller} expects an A2uiRequestProcessor,"
+            f" got {type(resolved).__name__}.{hint}"
+        )
+    return resolved
+
+
 @experimental
 class SendA2uiToClientToolset(base_toolset.BaseToolset):
     """A toolset that provides A2UI Tools and can be enabled/disabled."""
@@ -122,16 +176,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
               conversation would share that state.
         """
         super().__init__()
-        if (
-            isinstance(a2ui_processor, A2uiRequestProcessor)
-            and a2ui_processor.state is not None
-        ):
-            logger.warning(
-                "SendA2uiToClientToolset got one processor for every request,"
-                " with a RendererState bound to it: every conversation shares"
-                " that state. Pass a provider that returns each conversation's"
-                " processor instead."
-            )
+        _warn_if_shared_state(a2ui_processor, caller="SendA2uiToClientToolset")
         self._a2ui_enabled = a2ui_enabled
         self._ui_tool = self._SendA2uiJsonToClientTool(a2ui_processor)
         self._ui_tools: list[base_tool.BaseTool] = [self._ui_tool]
@@ -147,12 +192,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
         Returns:
             If A2UI is enabled, return True. Otherwise, return False.
         """
-        if isinstance(self._a2ui_enabled, bool):
-            return self._a2ui_enabled
-        a2ui_enabled = self._a2ui_enabled(ctx)
-        if inspect.isawaitable(a2ui_enabled):
-            a2ui_enabled = await a2ui_enabled
-        return a2ui_enabled
+        return await _resolve_enabled(self._a2ui_enabled, ctx)
 
     async def get_tools(
         self,
@@ -256,22 +296,9 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                   `A2uiRequestProcessor`, such as None when the context has no
                   processor.
             """
-            if isinstance(self._processor, A2uiRequestProcessor):
-                return self._processor
-            processor = self._processor(ctx)
-            if inspect.isawaitable(processor):
-                processor = await processor
-            if not isinstance(processor, A2uiRequestProcessor):
-                hint = (
-                    " A2UI is enabled for a context that has no processor."
-                    if processor is None
-                    else ""
-                )
-                raise TypeError(
-                    f"Tool {self.TOOL_NAME} expects an A2uiRequestProcessor,"
-                    f" got {type(processor).__name__}.{hint}"
-                )
-            return processor
+            return await _resolve_processor(
+                self._processor, ctx, caller=f"Tool {self.TOOL_NAME}"
+            )
 
         def _tool_instruction(self) -> str:
             return (
