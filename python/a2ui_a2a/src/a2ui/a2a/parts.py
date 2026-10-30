@@ -215,13 +215,15 @@ def parse_response_to_parts(
                     if isinstance(data, BaseModel):
                         pass
                     elif isinstance(data, Mapping):
-                        parts.append(create_a2ui_part(data, version=version))
+                        parts.append(create_a2ui_part(dict(data), version=version))
                     elif isinstance(data, (str, bytes)):
                         pass
                     elif isinstance(data, Iterable):
                         for item in data:
                             if isinstance(item, Mapping):
-                                parts.append(create_a2ui_part(item, version=version))
+                                parts.append(
+                                    create_a2ui_part(dict(item), version=version)
+                                )
                 except Exception as e:
                     logger.warning(
                         "Failed to parse A2UI block JSON: %s", type(e).__name__
