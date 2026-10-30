@@ -124,6 +124,12 @@ class CheckWorkflowsTest(unittest.TestCase):
         content = VALID.replace("-${{ github.event_name }}", "")
         self.assert_one_error(content, "does not include `github.event_name`")
 
+    def test_concurrency_without_cancel_in_progress_passes(self) -> None:
+        content = VALID.replace("-${{ github.event_name }}", "").replace(
+            "cancel-in-progress: true", "cancel-in-progress: false"
+        )
+        self.assertEqual(self.check(example=content), [])
+
     def test_workflow_without_concurrency_passes(self) -> None:
         start = VALID.index("concurrency:")
         content = VALID[:start] + VALID[VALID.index("jobs:") :]

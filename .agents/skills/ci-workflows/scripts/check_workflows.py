@@ -54,6 +54,7 @@ EXEMPT = {
         "checks the changelog of a pull request against its base branch, so"
         " a nightly run has nothing to check"
     ),
+    "release-cli-binaries.yml": "publishes CLI binaries and is not a test",
     "release-pypi.yml": "publishes packages and is not a test",
     "release-verify-pypi.yml": "checks a release and is not a test",
     "triage.yml": "labels issues and pull requests and is not a test",
@@ -130,13 +131,13 @@ def check_workflow(workflow: dict[Any, Any]) -> tuple[list[str], str | None]:
     if "workflow_dispatch" not in on:
         errors.append("has no `workflow_dispatch` trigger")
 
+    # A group given as a plain string does not cancel runs in progress.
     concurrency = workflow.get("concurrency")
-    group = (
-        concurrency.get("group", "")
-        if isinstance(concurrency, dict)
-        else concurrency or ""
-    )
-    if concurrency and "github.event_name" not in group:
+    if (
+        isinstance(concurrency, dict)
+        and concurrency.get("cancel-in-progress") is True
+        and "github.event_name" not in concurrency.get("group", "")
+    ):
         errors.append(
             "concurrency group does not include `github.event_name`, so a push"
             " cancels the scheduled run"
