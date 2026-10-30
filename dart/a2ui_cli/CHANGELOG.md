@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add standalone curl and PowerShell installer scripts (`scripts/install_cli.sh`, `scripts/install_cli.ps1`) for pre-built CLI binary releases.
+- Add standalone curl and PowerShell installer scripts (`scripts/public/install_cli.sh`, `scripts/public/install_cli.ps1`) for pre-built CLI binary releases.
 
 ## 0.1.0
 

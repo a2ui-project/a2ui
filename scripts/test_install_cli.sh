@@ -16,7 +16,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALLER="$SCRIPT_DIR/install_cli.sh"
+INSTALLER="$SCRIPT_DIR/public/install_cli.sh"
 
 echo "=== Running A2UI CLI Installer Test Suite ==="
 
