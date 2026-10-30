@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: `DataContext` refuses a function whose `allowed_callers`
+  is `agentOnly`, before running it, so a binding, check or function call
+  action that calls one reports an `EXPRESSION_ERROR` instead of running it, as
+  the v1.0 specification requires. `RpcHandler` still runs such a function for
+  an agent's `callRendererFunction`. Recommended migration: set
+  `allowed_callers` to `rendererOrAgent` on a function both the renderer and
+  the agent call ([#3483](https://github.com/a2ui-project/a2ui/issues/3483)).
 - From v0.9, a component its catalog declares with no `ComponentId` or
   `ChildList` property has no child references. Previously any of its string
   properties that named a component on the surface, such as an `Icon` named
