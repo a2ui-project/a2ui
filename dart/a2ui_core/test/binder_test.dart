@@ -475,7 +475,6 @@ void main() {
                 'result': {'path': '/r2'},
               },
             },
-            'message': 'Fallback 2',
           },
           {
             'condition': {
@@ -484,7 +483,6 @@ void main() {
                 'result': {'path': '/r3'},
               },
             },
-            'message': 'Fallback 3',
           },
           {
             'condition': {
@@ -493,7 +491,6 @@ void main() {
                 'result': {'path': '/r4'},
               },
             },
-            'message': 'Fallback 4',
           },
           {
             'condition': {
@@ -503,6 +500,19 @@ void main() {
               },
             },
             'message': 'Fallback 5',
+          },
+          {
+            'condition': {
+              'call': 'checkResult',
+              'args': {
+                'result': {'path': '/r2'},
+              },
+            },
+            'message': 'Explicit rule override',
+          },
+          {
+            'condition': {'path': '/r2'},
+            'message': 'Path fallback ignored when message present',
           },
         ],
       });
@@ -515,6 +525,8 @@ void main() {
       expect(binder.resolvedProps.value['validationErrors'], [
         'Function error message',
         'Fallback 5',
+        'Explicit rule override',
+        'Function error message',
       ]);
       expect(binder.resolvedProps.value['validationResults'], [
         const ValidationResult(
@@ -538,6 +550,18 @@ void main() {
         const ValidationResult(
           valid: false,
           message: 'Fallback 5',
+          severity: 'error',
+        ),
+        const ValidationResult(
+          valid: false,
+          message: 'Explicit rule override',
+          code: 'ERR_CUSTOM',
+          severity: 'error',
+        ),
+        const ValidationResult(
+          valid: false,
+          message: 'Function error message',
+          code: 'ERR_CUSTOM',
           severity: 'error',
         ),
       ]);

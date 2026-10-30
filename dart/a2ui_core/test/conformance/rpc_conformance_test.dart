@@ -152,6 +152,7 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
     await _runInboundMessageScenario(
       message,
       expected,
+      expectError,
       userActivation,
       processor,
       sent,
@@ -203,21 +204,52 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
 Future<void> _runInboundMessageScenario(
   Map<String, Object?> message,
   Map<String, Object?>? expected,
+  Map<String, Object?>? expectError,
   bool userActivation,
   MessageProcessor<ComponentApi> processor,
   List<RendererToAgentMessage> sent,
 ) async {
   final errorSpec = expected?['error'] as Map<String, Object?>?;
-  if (errorSpec != null) {
-    final part = errorSpec['message'] as String?;
+  if (errorSpec != null || expectError != null) {
+    // Run first: the processor emits the outbound error before it throws,
+    // and the field matcher reads that emitted message.
+    Object? thrown;
+    try {
+      processor.processMessages(message);
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown, isNotNull, reason: 'expected processMessages to throw');
+
+    final part = errorSpec?['message'] as String?;
     expect(
-      () => processor.processMessages(message),
-      throwsA(isA<Object>().having(
-        (e) => e.toString(),
-        'message',
-        part == null ? anything : contains(part),
-      )),
+      thrown,
+      allOf([
+        if (expectError != null)
+          categoryMatches(expectError['category'] as String?),
+        if (part != null)
+          isA<Object>().having((e) => e.toString(), 'message', contains(part)),
+        if (expectError != null)
+          matchesErrorFields(
+            expectError,
+            rawMessage: message,
+            defaultVersion: '1.0',
+            emittedErrors: sent.whereType<ErrorMessage>().toList(),
+          ),
+      ]),
     );
+    // `expect.error` describes the outbound error the processor emits for
+    // the call, so its code and functionCallId are read from that message.
+    if (errorSpec != null) {
+      final ErrorMessage? emitted = sent.whereType<ErrorMessage>().lastOrNull;
+      expect(emitted, isNotNull, reason: 'expected an outbound error message');
+      if (errorSpec['code'] case final String code) {
+        expect(emitted!.error.code, code);
+      }
+      if (errorSpec['functionCallId'] case final String callId) {
+        expect(emitted!.error.functionCallId, callId);
+      }
+    }
     return;
   }
   if (expected == null || !expected.containsKey('response')) return;
