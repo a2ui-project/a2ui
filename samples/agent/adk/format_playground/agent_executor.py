@@ -57,9 +57,11 @@ def classify_data_part(data: Any) -> tuple[DataPartKind, Any]:
         return "payload", data
     if "useStreaming" in data:
         return "streaming", bool(data["useStreaming"])
-    if data.get("version") == ProtocolVersion.V0_9 and isinstance(
-        data.get("action"), Mapping
-    ):
+    if data.get("version") in (
+        ProtocolVersion.V0_9,
+        ProtocolVersion.V0_9_1,
+        ProtocolVersion.V1_0,
+    ) and isinstance(data.get("action"), Mapping):
         return "action", data["action"]
     if isinstance(data.get("userAction"), Mapping):
         return "action", data["userAction"]

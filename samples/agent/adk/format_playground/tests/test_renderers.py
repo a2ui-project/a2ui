@@ -333,3 +333,23 @@ async def test_render_tool_result_synthesizes_with_zero_llm_calls() -> None:
     assert res.metrics.llm_calls == 0
     assert res.metrics.decision_latency_ms is not None
     assert "0 LLM calls" in res.metrics.footer()
+
+    # Verify render_decision forwards fallback_dsl/title/summary via to_synthesis_kwargs (M22)
+    abstain_renderers = Renderers(
+        versions=["1.0"],
+        backend=DeterministicMockBackend(
+            scripted={"family": {"browse": 0.0}, "root": {"Card": 0.0}}
+        ),
+    )
+    block_with_fallback = DecisionBlock.from_mapping({
+        "intent": "Show metric count",
+        "payload": {"count": 42},
+        "fallbackDsl": (
+            'surface("turn-title")\nroot = Column([Text("Explicit Fallback DSL")])'
+        ),
+    })
+    with_fallback = await abstain_renderers.render_decision(
+        block_with_fallback, surface_id="turn-title", version="1.0"
+    )
+    assert with_fallback.ok
+    assert "Explicit Fallback DSL" in json.dumps(messages_of(with_fallback.parts))

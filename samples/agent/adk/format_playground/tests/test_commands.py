@@ -85,8 +85,9 @@ def test_help_text_names_every_mode_backend_and_model() -> None:
 
 def test_classify_data_part_shapes() -> None:
     assert classify_data_part({"useStreaming": False}) == ("streaming", False)
-    v09 = {"version": "v0.9", "action": {"name": "submit", "context": {"a": 1}}}
-    assert classify_data_part(v09) == ("action", v09["action"])
+    for ver in ("v0.9", "v0.9.1", "1.0"):
+        act = {"version": ver, "action": {"name": "submit", "context": {"a": 1}}}
+        assert classify_data_part(act) == ("action", act["action"])
     user = {"userAction": {"name": "submit", "surfaceId": "turn-1", "context": {}}}
     assert classify_data_part(user) == ("action", user["userAction"])
     pasted = {"name": "Casa Verde", "rating": 4.6}

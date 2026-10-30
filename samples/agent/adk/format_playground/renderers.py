@@ -23,6 +23,7 @@ the sample clients render surfaces only.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass
 import json
@@ -256,6 +257,7 @@ class Renderers:
 
     def set_backend(self, backend: DecisionBackend) -> None:
         """Replaces the active decision backend across all configured protocol versions."""
+        old_factory = self._decision_factory
         self._raw_backend = backend
         self._decision_factory = DecisionFormatFactory(
             backend=backend, config=self._config, fallback_card=True
@@ -265,6 +267,11 @@ class Renderers:
             self._processors[(RenderMode.DECISION, key)] = self._build_processor(
                 version, self._decision_factory
             )
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(old_factory.aclose())
+        except RuntimeError:
+            pass
 
     @staticmethod
     def _build_processor(version: str, factory: Any) -> A2uiRequestProcessor:
@@ -315,12 +322,10 @@ class Renderers:
         """Compiles `block` with the decision synthesizer; no model call."""
         started = time.perf_counter()
         try:
+            kwargs = block.to_synthesis_kwargs(default_surface_id=surface_id)
+            kwargs["surface_id"] = surface_id
             output = await self._synthesizer(version).synthesize(
-                block.intent,
-                block.payload,
-                surface_id=surface_id,
-                mutable_paths=block.mutable_paths,
-                layout=block.layout or None,
+                block.intent, block.payload, **kwargs
             )
         except (A2uiError, ValueError, httpx.HTTPError) as exc:
             logger.warning("Decision render failed: %s", exc)

@@ -110,42 +110,6 @@ find_or_build_gev_server() {
     return 0
   fi
 
-  local citc_root="/google/src/cloud/${USER}"
-  if [[ -d "${citc_root}" ]]; then
-    local ws bin
-    while IFS= read -r ws; do
-      [[ -z "${ws}" ]] && continue
-      bin="${citc_root}/${ws}/google3/blaze-bin/prototypes/projects/gev/server"
-      if [[ -x "${bin}" ]]; then
-        echo "${bin}"
-        return 0
-      fi
-    done < <(ls -t "${citc_root}" 2>/dev/null | head -n 25)
-
-    local build_ws=""
-    while IFS= read -r ws; do
-      [[ -z "${ws}" ]] && continue
-      if [[ -f "${citc_root}/${ws}/google3/prototypes/projects/gev/BUILD" ]]; then
-        build_ws="${citc_root}/${ws}/google3"
-        break
-      fi
-    done < <(ls -t "${citc_root}" 2>/dev/null | head -n 25)
-
-    if [[ -n "${build_ws}" ]]; then
-      echo "Building //prototypes/projects/gev:server in ${build_ws}..." >&2
-      local blaze_cmd="blaze"
-      if [[ -x "/google/bin/releases/arca9-local-blaze-cli/blaze-for-agents" ]]; then
-        blaze_cmd="/google/bin/releases/arca9-local-blaze-cli/blaze-for-agents"
-      fi
-      (cd "${build_ws}" && "${blaze_cmd}" build //prototypes/projects/gev:server >&2)
-      bin="${build_ws}/blaze-bin/prototypes/projects/gev/server"
-      if [[ -x "${bin}" ]]; then
-        echo "${bin}"
-        return 0
-      fi
-    fi
-  fi
-
   return 1
 }
 

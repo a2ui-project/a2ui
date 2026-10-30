@@ -76,6 +76,7 @@ the quickest way to try your own data shapes.
 | Command                                             | Effect                                                                                 |
 | :-------------------------------------------------- | :------------------------------------------------------------------------------------- |
 | `/mode decision` \| `express` \| `direct` \| `tool` | Picks how the next requests render.                                                    |
+| `/backend jev` \| `gev` \| `mock`                   | Switches the active decision model backend at runtime.                                 |
 | `/compare`                                          | Renders the next request through all three chat modes from the same data.              |
 | `/trace`                                            | Shows the planner's questions, answers, and thresholds for the last `decision` render. |
 | `/rate <mode> [comment]`                            | Records a preference vote for the last rendered turn.                                  |
@@ -98,7 +99,7 @@ direct · llm · 2 LLM calls · 5.6 s · 12,044 in / 890 out tokens
 The `decision` row counts only the stage-1 call; the other two add the format's
 own call. When stage 2 had to retry an invalid reply the footer says
 `fallback: validation_retry`; when the decision planner abstained and rendered
-the fallback card it says `fallback: fallback_card`.
+the fallback card it says `abstained -> card`.
 
 ## Disclaimer
 
