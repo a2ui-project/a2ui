@@ -54,7 +54,7 @@ Most MCP tools return plain `content` blocks rather than A2UI resources, so a su
 
 Every argument is required, and a `null` or missing argument is rejected. `transformData` implements standard JMESPath, with no extensions. `jmespath` is a `DynamicString`; `data` and `updates` are `DynamicValue`, so each can be a literal, a `@path` binding or a nested `@call`. For `updateDataModel`, keys starting with `/` are absolute paths, while relative keys resolve against the calling data context (such as the current row scope inside a template list).
 
-A surface is usually created on the basic catalog, so each call selects the MCP catalog with its own `catalogId`. A button action chains the functions this way:
+A surface is usually created on the basic catalog, so each call selects the MCP catalog with its own `catalogId`. The first button of [mcp-json-tool-result.json](v1/examples/mcp-json-tool-result.json) chains the functions this way:
 
 ```json
 {
@@ -80,7 +80,7 @@ A surface is usually created on the basic catalog, so each call selects the MCP 
 }
 ```
 
-`transformData` reads the parsed `json` of the payload and builds the `{path: value}` object, and `updateDataModel` writes it. The functions do not evaluate `@path` or `@call` objects found inside tool output: a tool result is data, not an expression.
+`transformData` reads the parsed `json` of the payload and builds the `{path: value}` object, and `updateDataModel` writes it. The second button only sets `targetDataPath: "/issueResponse"`, and its list binds to `/issueResponse/structuredContent/issues`. The functions do not evaluate `@path` or `@call` objects found inside tool output: a tool result is data, not an expression.
 
 ### McpApp component
 
@@ -101,6 +101,7 @@ Tool calls and function calls that are not listed are rejected with a JSON-RPC e
 The [v1/examples](v1/examples/) directory holds A2UI message sequences that validate against the v1 catalog combined with the v1 basic catalog:
 
 - [mcp-app-3d-geometry.json](v1/examples/mcp-app-3d-geometry.json) renders a 3D Holographic Geometry Studio `McpApp`: a 60fps canvas renderer that A2UI components alone cannot express. It showcases two-way `data.paths` binding (the sibling `TextField` preset and the app's camera telemetry), `ui/update-model-context` publishing the camera pose and preset to `/scene3d/modelContext`, `tools/call` (`capture_3d_snapshot`), and `ui/notifications/host-context-changed` (`containerDimensions`) driving a responsive canvas; `tests/examples/mcp_app_3d_geometry.test.ts` of the TypeScript package runs it end to end.
+- [mcp-json-tool-result.json](v1/examples/mcp-json-tool-result.json) loads the open issues of a repository from a headless `list_issues` tool: one button chains `callMcpTool`, `transformData` and `updateDataModel` to fill a template list from the `json` of the payload, and a second button writes the payload to `targetDataPath` and binds a list to its `structuredContent`; `src/catalog.test.ts` of the TypeScript package runs both actions against a mock client.
 
 ## Implementations
 

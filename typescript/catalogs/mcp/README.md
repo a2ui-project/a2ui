@@ -194,7 +194,7 @@ A surface created with the MCP catalog id as its default needs no `catalogId` on
 
 ### Shape a headless tool result
 
-Most MCP tools return plain `content` blocks rather than A2UI resources. The payload `callMcpTool` returns already holds their `text` and its `json` parse, so `transformData` reads it directly and builds an object of data model paths, and `updateDataModel` writes it. A button action that loads the open issues of a repository into `/issues`:
+Most MCP tools return plain `content` blocks rather than A2UI resources. The payload `callMcpTool` returns already holds their `text` and its `json` parse, so `transformData` reads it directly and builds an object of data model paths, and `updateDataModel` writes it. A button action that loads the open issues of a repository into `/issues`, from [mcp-json-tool-result.json](../../../catalogs/mcp/v1/examples/mcp-json-tool-result.json):
 
 ```json
 {
@@ -224,7 +224,7 @@ Most MCP tools return plain `content` blocks rather than A2UI resources. The pay
 
 `callMcpTool` is asynchronous, so its result reaches the enclosing `transformData` as a pending Promise. The runtime awaits the pending arguments of a call before it validates them and runs the function, so each function in the chain returns a Promise in turn, which is why the action resolves to a Promise a host can await; with settled arguments the functions run synchronously, so a binding that uses them stays reactive.
 
-When the data needs no reshaping, `targetDataPath` alone is enough: a second action writes the payload to `/issueResponse`, and a list binds to `/issueResponse/structuredContent/issues`. Only writes to `targetDataPath` follow the latest-call rule, so bind autocomplete results there rather than writing them with `updateDataModel`.
+When the data needs no reshaping, `targetDataPath` alone is enough: the same example's second button writes the payload to `/issueResponse`, and a list binds to `/issueResponse/structuredContent/issues`. Only writes to `targetDataPath` follow the latest-call rule, so bind autocomplete results there rather than writing them with `updateDataModel`.
 
 ## The `McpApp` component
 
