@@ -165,7 +165,7 @@ A component for selecting one or more options from a list.
 A control for selecting a numeric value within a range.
 
 **Rendering Guidelines:** Render using the platform's native slider or seek bar component. Optionally display the current numeric value next to the slider track.
-**Behavior & State:** Set `min` and `max` limits. Perform two-way binding, updating the numeric `value` path as the user drags the slider. Note that the value is a `number` rather than an integer, allowing for decimal ranges (e.g., 0.0 to 1.0).
+**Behavior & State:** Set `min` and `max` limits. Perform two-way binding, updating the numeric `value` path as the user drags the slider. Note that the value is a `number` rather than an integer, allowing for decimal ranges (e.g., 0.0 to 1.0). If `value` is outside the range, show it clamped to `min` or `max` without writing the clamped value back to the data model. If `max` is less than `min`, treat the range as the single value `min`.
 
 ### DateTimeInput
 
