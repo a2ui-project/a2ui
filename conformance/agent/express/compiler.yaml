@@ -2205,4 +2205,3 @@
     root = Text("Hello", extensions={onTap: Event("tap")})
   expect_error:
     category: "ValidationError"
-
