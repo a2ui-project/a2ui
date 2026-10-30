@@ -128,11 +128,10 @@
   a component the surface already held, so a strict config now reports an
   item naming a missing component as a dangling reference, and error paths
   read `name[i]` instead of `name.[i]`.
-
-- `MessageProcessor.get_renderer_capabilities` now gives each v1.0 inline
-  catalog its `catalogId` and the bare `protocolVersion` (`1.0`), as web_core
-  does, also when the catalog document does not declare them. An inline catalog
-  without `protocolVersion` reads as `0.9` (#3061).
+- (v1_0) `MessageProcessor.get_renderer_capabilities` now populates `catalogId`
+  and the bare `protocolVersion` (for example `'1.0'`) on each inline catalog
+  even when the source catalog document omits them.
+  [#3382](https://github.com/a2ui-project/a2ui/pull/3382)
 
 ## 0.4.0 (2026-10-17)
 

@@ -446,17 +446,22 @@ class MessageProcessor:
         undeclared `protocolVersion` reads as `0.9`. Matches web_core.
 
         Returns:
-            The inline catalog, or None if the catalog has no `to_json`.
+            The inline catalog, or None if the catalog has no `to_json` or it
+            does not return a mapping.
         """
         to_json = getattr(catalog, "to_json", None)
         if not callable(to_json):
             return None
-        document = to_json()
+        raw_document = to_json()
+        if not isinstance(raw_document, Mapping):
+            return None
+        # A shallow copy, so a catalog that hands out its own dict keeps it.
+        document = dict(raw_document)
         catalog_id = getattr(catalog, "catalog_id", None)
         if catalog_id is not None and not callable(catalog_id):
             document["catalogId"] = catalog_id
         version = document.get("protocolVersion")
-        if not isinstance(version, str):
+        if not isinstance(version, str) or not version.strip():
             version = None
             raw_version = getattr(catalog, "protocol_version", None)
             if raw_version is not None and not callable(raw_version):
@@ -468,7 +473,10 @@ class MessageProcessor:
             version = version.strip()
             if version[:1] in ("v", "V") and version[1:2].isdigit():
                 version = version[1:]
+        if version:
             document["protocolVersion"] = version
+        else:
+            document.pop("protocolVersion", None)
         return document
 
     def get_renderer_capabilities(
