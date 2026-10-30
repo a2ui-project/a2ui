@@ -82,6 +82,19 @@ export default defineConfig({
           items: [{label: '5-Minute Quickstart (Pilot)', slug: 'quickstart'}],
         },
         {
+          label: 'Concepts',
+          items: [
+            {
+              label: 'Catalogs, Components, and Functions',
+              slug: 'concepts/catalogs-components-functions',
+            },
+            {
+              label: 'Data Model and Data Binding',
+              slug: 'concepts/data-binding',
+            },
+          ],
+        },
+        {
           label: 'Specifications',
           items: [
             {

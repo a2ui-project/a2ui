@@ -1,0 +1,1097 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+---
+
+<div class="ca-root not-content">
+  <!-- Top Handshake Bar -->
+  <div class="ca-handshake">
+    <div class="ca-endpoint ca-endpoint--agent">
+      <div class="ca-endpoint__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4Z" />
+          <path d="M16 14H8a4 4 0 0 0-4 4v2h16v-2a4 4 0 0 0-4-4Z" />
+        </svg>
+      </div>
+      <div class="ca-endpoint__body">
+        <span class="ca-endpoint__label">Agent Runtime</span>
+        <span class="ca-endpoint__sub">Prompts LLM &amp; validates output against schema</span>
+      </div>
+    </div>
+
+    <div class="ca-handshake__bridge">
+      <div class="ca-handshake__pill">
+        <span class="ca-handshake__dot"></span>
+        <span>Capabilities Handshake</span>
+      </div>
+      <div class="ca-handshake__wire">
+        <code>supportedCatalogIds</code>
+        <span class="ca-arrow">&harr;</span>
+        <code>createSurface.catalogId</code>
+      </div>
+    </div>
+
+    <div class="ca-endpoint ca-endpoint--renderer">
+      <div class="ca-endpoint__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2" />
+          <path d="M8 21h8" />
+          <path d="M12 17v4" />
+        </svg>
+      </div>
+      <div class="ca-endpoint__body">
+        <span class="ca-endpoint__label">Client Renderer</span>
+        <span class="ca-endpoint__sub">Maps components to native widgets &amp; runs functions</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Catalog Contract Card -->
+  <div class="ca-catalog">
+    <div class="ca-catalog__header">
+      <div class="ca-catalog__title-group">
+        <span class="ca-badge ca-badge--teal">CATALOG CONTRACT</span>
+        <code class="ca-catalog__uri">https://example.com/catalogs/travel/v1/catalog.json</code>
+      </div>
+      <div class="ca-catalog__meta">
+        <span class="ca-meta-tag">protocolVersion: <strong>"1.0"</strong></span>
+        <span class="ca-meta-tag">$defs: <strong>anyComponent | anyFunction</strong></span>
+      </div>
+    </div>
+
+    <!-- Two-Column Core: Components + Functions -->
+    <div class="ca-grid">
+      <!-- Left Column: Components -->
+      <div class="ca-panel">
+        <div class="ca-panel__head">
+          <div class="ca-panel__title">
+            <span class="ca-panel__num">1</span>
+            <span>Components</span>
+            <code class="ca-panel__key">"components"</code>
+          </div>
+          <span class="ca-panel__caption">Declarative UI building blocks</span>
+        </div>
+
+        <!-- Highlighted Domain Component -->
+        <div class="ca-item ca-item--featured">
+          <div class="ca-item__top">
+            <div class="ca-item__name-row">
+              <span class="ca-comp-icon">&lt;/&gt;</span>
+              <code class="ca-item__name">FlightStatusCard</code>
+            </div>
+            <span class="ca-chip ca-chip--accent">Domain Component</span>
+          </div>
+          <p class="ca-item__desc">Displays live flight itinerary, gate status, and boarding actions.</p>
+
+          <div class="ca-props">
+            <div class="ca-prop">
+              <code class="ca-prop__name">flightNumber</code>
+              <span class="ca-prop__type">DynamicString</span>
+              <span class="ca-prop__req">required</span>
+            </div>
+            <div class="ca-prop">
+              <code class="ca-prop__name">fareAmount</code>
+              <span class="ca-prop__type">DynamicNumber</span>
+              <span class="ca-prop__opt">bound via <code>@path</code> / <code>@call</code></span>
+            </div>
+            <div class="ca-prop">
+              <code class="ca-prop__name">actionsSlot</code>
+              <span class="ca-prop__type">ChildList</span>
+              <span class="ca-prop__opt">child IDs or template</span>
+            </div>
+          </div>
+
+          <div class="ca-item__footer">
+            <span class="ca-rule-tag">
+              <strong>allowedParents:</strong> <code>["Column", "List"]</code>
+            </span>
+          </div>
+        </div>
+
+        <!-- Borrowed Basic Primitives -->
+        <div class="ca-primitives">
+          <div class="ca-primitives__label">Standard Layout &amp; Input Primitives</div>
+          <div class="ca-primitives__list">
+            <div class="ca-mini-card">
+              <code>Column</code>
+              <span>children: ChildList</span>
+            </div>
+            <div class="ca-mini-card">
+              <code>Text</code>
+              <span>text: DynamicString</span>
+            </div>
+            <div class="ca-mini-card">
+              <code>Button</code>
+              <span>action: Action</span>
+            </div>
+            <div class="ca-mini-card">
+              <code>TextField</code>
+              <span>value + checks[]</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Functions -->
+      <div class="ca-panel">
+        <div class="ca-panel__head">
+          <div class="ca-panel__title">
+            <span class="ca-panel__num">2</span>
+            <span>Functions</span>
+            <code class="ca-panel__key">"functions"</code>
+          </div>
+          <span class="ca-panel__caption">Typed logic &amp; caller boundaries</span>
+        </div>
+
+        <div class="ca-fn-list">
+          <!-- Function 1: Formatting -->
+          <div class="ca-fn">
+            <div class="ca-fn__top">
+              <code class="ca-fn__sig">formatCurrency(value, currency)</code>
+              <span class="ca-chip ca-chip--teal">returnType: "string"</span>
+            </div>
+            <p class="ca-fn__desc">Formats numeric state into a localized currency string during property resolution.</p>
+            <div class="ca-fn__badges">
+              <span class="ca-caller ca-caller--local">
+                <span class="ca-dot ca-dot--teal"></span>
+                allowedCallers: "rendererOnly"
+              </span>
+              <span class="ca-latency">0ms local evaluation</span>
+            </div>
+          </div>
+
+          <!-- Function 2: Agent-Callable Renderer Function -->
+          <div class="ca-fn">
+            <div class="ca-fn__top">
+              <code class="ca-fn__sig">holdSeatInventory(flight, seat)</code>
+              <span class="ca-chip ca-chip--blue">returnType: "boolean"</span>
+            </div>
+            <p class="ca-fn__desc">Registered on the client and invoked by the agent via <code>callRendererFunction</code> to lock local state.</p>
+            <div class="ca-fn__badges">
+              <span class="ca-caller ca-caller--blue">
+                <span class="ca-dot ca-dot--blue"></span>
+                allowedCallers: "agentOnly"
+              </span>
+              <span class="ca-latency">Client execution (agent RPC)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Strip: Prompt Instructions -->
+    <div class="ca-instructions">
+      <div class="ca-instructions__left">
+        <span class="ca-panel__num">3</span>
+        <div>
+          <div class="ca-instructions__title">
+            <span>Catalog Instructions</span>
+            <code class="ca-panel__key">"instructions"</code>
+          </div>
+          <p class="ca-instructions__sub">
+            Markdown layout rules and domain examples embedded in the catalog. Injected into the LLM system prompt by <code>A2uiGenerator</code>.
+          </p>
+        </div>
+      </div>
+      <div class="ca-instructions__code">
+        <code>"Use FlightStatusCard inside a Column. Format fares with formatCurrency(value, currency)..."</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .ca-root {
+    margin: 1.75rem 0 2.25rem;
+    font-family: var(--sl-font);
+    color: #e2e8f0;
+  }
+
+  :root[data-theme='light'] .ca-root {
+    color: #0f172a;
+  }
+
+  /* Top Handshake Bar */
+  .ca-handshake {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  .ca-endpoint {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  }
+
+  :root[data-theme='light'] .ca-endpoint {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  }
+
+  .ca-endpoint__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  .ca-endpoint--agent .ca-endpoint__icon {
+    background: rgba(20, 184, 166, 0.14);
+    color: #2dd4bf;
+    border: 1px solid rgba(20, 184, 166, 0.3);
+  }
+
+  :root[data-theme='light'] .ca-endpoint--agent .ca-endpoint__icon {
+    background: #ccfbf1;
+    color: #0f766e;
+    border-color: #99f6e4;
+  }
+
+  .ca-endpoint--renderer .ca-endpoint__icon {
+    background: rgba(56, 189, 248, 0.14);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+  }
+
+  :root[data-theme='light'] .ca-endpoint--renderer .ca-endpoint__icon {
+    background: #e0f2fe;
+    color: #0369a1;
+    border-color: #bae6fd;
+  }
+
+  .ca-endpoint__icon svg {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  .ca-endpoint__body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .ca-endpoint__label {
+    font-weight: 700;
+    font-size: 0.86rem;
+    letter-spacing: -0.01em;
+  }
+
+  .ca-endpoint__sub {
+    font-size: 0.74rem;
+    color: #94a3b8;
+    line-height: 1.3;
+  }
+
+  :root[data-theme='light'] .ca-endpoint__sub {
+    color: #475569;
+  }
+
+  .ca-handshake__bridge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0 0.35rem;
+  }
+
+  .ca-handshake__pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    background: rgba(20, 184, 166, 0.12);
+    color: #2dd4bf;
+    border: 1px solid rgba(20, 184, 166, 0.28);
+  }
+
+  :root[data-theme='light'] .ca-handshake__pill {
+    background: #ccfbf1;
+    color: #0f766e;
+    border-color: #5eead4;
+  }
+
+  .ca-handshake__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #14b8a6;
+  }
+
+  .ca-handshake__wire {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .ca-handshake__wire {
+    color: #475569;
+  }
+
+  .ca-handshake__wire code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.7rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid #1e293b;
+    color: #cbd5e1;
+  }
+
+  :root[data-theme='light'] .ca-handshake__wire code {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #1e293b;
+  }
+
+  .ca-arrow {
+    color: #2dd4bf;
+    font-weight: 700;
+  }
+
+  :root[data-theme='light'] .ca-arrow {
+    color: #0d9488;
+  }
+
+  /* Main Catalog Container */
+  .ca-catalog {
+    border-radius: 14px;
+    background: linear-gradient(180deg, #0c1322 0%, #090d16 100%);
+    border: 1px solid #1e293b;
+    box-shadow:
+      0 12px 32px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+  }
+
+  :root[data-theme='light'] .ca-catalog {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  }
+
+  .ca-catalog__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.9rem 1.25rem;
+    background: rgba(15, 23, 42, 0.75);
+    border-bottom: 1px solid #1e293b;
+  }
+
+  :root[data-theme='light'] .ca-catalog__header {
+    background: #f8fafc;
+    border-bottom-color: #e2e8f0;
+  }
+
+  .ca-catalog__title-group {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+  }
+
+  .ca-badge {
+    font-family: var(--sl-font-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    padding: 0.22rem 0.55rem;
+    border-radius: 5px;
+    text-transform: uppercase;
+  }
+
+  .ca-badge--teal {
+    background: rgba(20, 184, 166, 0.16);
+    color: #2dd4bf;
+    border: 1px solid rgba(20, 184, 166, 0.35);
+  }
+
+  :root[data-theme='light'] .ca-badge--teal {
+    background: #ccfbf1;
+    color: #0f766e;
+    border-color: #5eead4;
+  }
+
+  .ca-catalog__uri {
+    font-family: var(--sl-font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #f8fafc;
+    word-break: break-all;
+  }
+
+  :root[data-theme='light'] .ca-catalog__uri {
+    color: #0f172a;
+  }
+
+  .ca-catalog__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .ca-meta-tag {
+    font-family: var(--sl-font-mono);
+    font-size: 0.72rem;
+    padding: 0.18rem 0.5rem;
+    border-radius: 5px;
+    background: rgba(30, 41, 59, 0.65);
+    border: 1px solid #334155;
+    color: #94a3b8;
+  }
+
+  .ca-meta-tag strong {
+    color: #e2e8f0;
+  }
+
+  :root[data-theme='light'] .ca-meta-tag {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #475569;
+  }
+
+  :root[data-theme='light'] .ca-meta-tag strong {
+    color: #0f172a;
+  }
+
+  /* Two-Column Grid */
+  .ca-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 1.1rem;
+    padding: 1.15rem 1.25rem;
+  }
+
+  .ca-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding: 1rem;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid #1e293b;
+    min-width: 0;
+  }
+
+  :root[data-theme='light'] .ca-panel {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  .ca-panel__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+    flex-wrap: wrap;
+  }
+
+  :root[data-theme='light'] .ca-panel__head {
+    border-bottom-color: #e2e8f0;
+  }
+
+  .ca-panel__title {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-weight: 700;
+    font-size: 0.92rem;
+    white-space: nowrap;
+  }
+
+  .ca-panel__num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 50%;
+    font-family: var(--sl-font-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: #14b8a6;
+    color: #042f2e;
+    flex-shrink: 0;
+  }
+
+  :root[data-theme='light'] .ca-panel__num {
+    background: #0d9488;
+    color: #ffffff;
+  }
+
+  .ca-panel__key {
+    font-family: var(--sl-font-mono);
+    font-size: 0.74rem;
+    color: #2dd4bf;
+    background: rgba(20, 184, 166, 0.1);
+    padding: 0.1rem 0.38rem;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  :root[data-theme='light'] .ca-panel__key {
+    color: #0f766e;
+    background: #ccfbf1;
+  }
+
+  .ca-panel__caption {
+    font-size: 0.73rem;
+    color: #94a3b8;
+    white-space: nowrap;
+  }
+
+  :root[data-theme='light'] .ca-panel__caption {
+    color: #64748b;
+  }
+
+  /* Featured Component Card */
+  .ca-item--featured {
+    padding: 0.9rem;
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.55);
+    border: 1px solid rgba(20, 184, 166, 0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  :root[data-theme='light'] .ca-item--featured {
+    background: #ffffff;
+    border-color: #5eead4;
+    box-shadow: 0 2px 6px rgba(13, 148, 136, 0.06);
+  }
+
+  .ca-item__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .ca-item__name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+  }
+
+  .ca-comp-icon {
+    font-family: var(--sl-font-mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #2dd4bf;
+  }
+
+  :root[data-theme='light'] .ca-comp-icon {
+    color: #0d9488;
+  }
+
+  .ca-item__name {
+    font-family: var(--sl-font-mono);
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #f8fafc;
+    white-space: nowrap;
+  }
+
+  :root[data-theme='light'] .ca-item__name {
+    color: #0f172a;
+  }
+
+  .ca-item__desc {
+    margin: 0;
+    font-size: 0.78rem;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+
+  :root[data-theme='light'] .ca-item__desc {
+    color: #475569;
+  }
+
+  .ca-props {
+    display: flex;
+    flex-direction: column;
+    gap: 0.38rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid #1e293b;
+  }
+
+  :root[data-theme='light'] .ca-props {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  .ca-prop {
+    display: grid;
+    grid-template-columns: 6.2rem auto 1fr;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.74rem;
+  }
+
+  .ca-prop__name {
+    font-family: var(--sl-font-mono);
+    font-weight: 600;
+    color: #e2e8f0;
+    white-space: nowrap;
+  }
+
+  :root[data-theme='light'] .ca-prop__name {
+    color: #0f172a;
+  }
+
+  .ca-prop__type {
+    font-family: var(--sl-font-mono);
+    font-size: 0.68rem;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.1);
+    padding: 0.08rem 0.35rem;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  :root[data-theme='light'] .ca-prop__type {
+    color: #0369a1;
+    background: #e0f2fe;
+  }
+
+  .ca-prop__req {
+    font-family: var(--sl-font-mono);
+    font-size: 0.68rem;
+    color: #f43f5e;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  :root[data-theme='light'] .ca-prop__req {
+    color: #be123c;
+  }
+
+  .ca-prop__opt {
+    font-size: 0.67rem;
+    color: #94a3b8;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .ca-prop__opt code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.66rem;
+    color: #cbd5e1;
+  }
+
+  :root[data-theme='light'] .ca-prop__opt {
+    color: #64748b;
+  }
+
+  :root[data-theme='light'] .ca-prop__opt code {
+    color: #334155;
+  }
+
+  .ca-item__footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    padding-top: 0.2rem;
+  }
+
+  .ca-rule-tag {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid #334155;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+  }
+
+  .ca-rule-tag strong {
+    color: #cbd5e1;
+  }
+
+  .ca-rule-tag code {
+    font-family: var(--sl-font-mono);
+    color: #2dd4bf;
+  }
+
+  :root[data-theme='light'] .ca-rule-tag {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #475569;
+  }
+
+  :root[data-theme='light'] .ca-rule-tag strong {
+    color: #1e293b;
+  }
+
+  :root[data-theme='light'] .ca-rule-tag code {
+    color: #0f766e;
+  }
+
+  /* Borrowed Primitives Grid */
+  .ca-primitives {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .ca-primitives__label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .ca-primitives__label {
+    color: #64748b;
+  }
+
+  .ca-primitives__list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+  }
+
+  .ca-mini-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 6px;
+    background: rgba(2, 6, 23, 0.4);
+    border: 1px solid #1e293b;
+  }
+
+  :root[data-theme='light'] .ca-mini-card {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .ca-mini-card code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #e2e8f0;
+  }
+
+  :root[data-theme='light'] .ca-mini-card code {
+    color: #0f172a;
+  }
+
+  .ca-mini-card span {
+    font-family: var(--sl-font-mono);
+    font-size: 0.68rem;
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .ca-mini-card span {
+    color: #64748b;
+  }
+
+  /* Functions List */
+  .ca-fn-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .ca-fn {
+    padding: 0.65rem 0.75rem;
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.45);
+    border: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  :root[data-theme='light'] .ca-fn {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .ca-fn__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .ca-fn__sig {
+    font-family: var(--sl-font-mono);
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #f8fafc;
+  }
+
+  :root[data-theme='light'] .ca-fn__sig {
+    color: #0f172a;
+  }
+
+  .ca-fn__desc {
+    margin: 0;
+    font-size: 0.74rem;
+    color: #94a3b8;
+    line-height: 1.38;
+  }
+
+  .ca-fn__desc code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.7rem;
+    color: #cbd5e1;
+  }
+
+  :root[data-theme='light'] .ca-fn__desc {
+    color: #475569;
+  }
+
+  :root[data-theme='light'] .ca-fn__desc code {
+    color: #0f172a;
+  }
+
+  .ca-fn__badges {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    padding-top: 0.15rem;
+  }
+
+  /* Chips & Caller Badges */
+  .ca-chip {
+    font-family: var(--sl-font-mono);
+    font-size: 0.66rem;
+    font-weight: 600;
+    padding: 0.12rem 0.42rem;
+    border-radius: 4px;
+  }
+
+  .ca-chip--accent,
+  .ca-chip--teal {
+    background: rgba(20, 184, 166, 0.14);
+    color: #2dd4bf;
+    border: 1px solid rgba(20, 184, 166, 0.3);
+  }
+
+  :root[data-theme='light'] .ca-chip--accent,
+  :root[data-theme='light'] .ca-chip--teal {
+    background: #ccfbf1;
+    color: #0f766e;
+    border-color: #99f6e4;
+  }
+
+  .ca-chip--blue {
+    background: rgba(56, 189, 248, 0.14);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+  }
+
+  :root[data-theme='light'] .ca-chip--blue {
+    background: #e0f2fe;
+    color: #0369a1;
+    border-color: #bae6fd;
+  }
+
+  .ca-caller {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--sl-font-mono);
+    font-size: 0.67rem;
+    padding: 0.12rem 0.45rem;
+    border-radius: 4px;
+  }
+
+  .ca-caller--local {
+    background: rgba(20, 184, 166, 0.08);
+    color: #5eead4;
+    border: 1px solid rgba(20, 184, 166, 0.22);
+  }
+
+  :root[data-theme='light'] .ca-caller--local {
+    background: #f0fdfa;
+    color: #0f766e;
+    border-color: #99f6e4;
+  }
+
+  .ca-caller--blue {
+    background: rgba(56, 189, 248, 0.1);
+    color: #7dd3fc;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+  }
+
+  :root[data-theme='light'] .ca-caller--blue {
+    background: #f0f9ff;
+    color: #0369a1;
+    border-color: #bae6fd;
+  }
+
+  .ca-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .ca-dot--teal {
+    background: #14b8a6;
+  }
+
+  .ca-dot--blue {
+    background: #38bdf8;
+  }
+
+  .ca-latency {
+    font-size: 0.68rem;
+    color: #94a3b8;
+    font-weight: 600;
+  }
+
+  :root[data-theme='light'] .ca-latency {
+    color: #475569;
+  }
+
+  /* Bottom Instructions Strip */
+  .ca-instructions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1.25rem;
+    background: rgba(15, 23, 42, 0.8);
+    border-top: 1px solid #1e293b;
+    flex-wrap: wrap;
+  }
+
+  :root[data-theme='light'] .ca-instructions {
+    background: #f8fafc;
+    border-top-color: #e2e8f0;
+  }
+
+  .ca-instructions__left {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    flex: 1;
+    min-width: 240px;
+  }
+
+  .ca-instructions__title {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-weight: 700;
+    font-size: 0.86rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .ca-instructions__sub {
+    margin: 0;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+
+  .ca-instructions__sub code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.72rem;
+    color: #cbd5e1;
+  }
+
+  :root[data-theme='light'] .ca-instructions__sub {
+    color: #475569;
+  }
+
+  :root[data-theme='light'] .ca-instructions__sub code {
+    color: #0f172a;
+  }
+
+  .ca-instructions__code {
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    background: rgba(2, 6, 23, 0.6);
+    border: 1px solid #1e293b;
+    max-width: 360px;
+  }
+
+  :root[data-theme='light'] .ca-instructions__code {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .ca-instructions__code code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.71rem;
+    color: #5eead4;
+    line-height: 1.4;
+    display: block;
+  }
+
+  :root[data-theme='light'] .ca-instructions__code code {
+    color: #0f766e;
+  }
+
+  @media (max-width: 860px) {
+    .ca-handshake {
+      grid-template-columns: 1fr;
+    }
+
+    .ca-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .ca-instructions__code {
+      max-width: 100%;
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .ca-prop {
+      grid-template-columns: 1fr;
+      gap: 0.25rem;
+    }
+  }
+</style>
