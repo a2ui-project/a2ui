@@ -25,7 +25,12 @@
 
 import type React from 'react';
 import type {ZodTypeAny} from 'zod';
-import type {ComponentApi, ComponentContext, ComponentNode} from '@a2ui/web_core/v0_9';
+import type {
+  A2uiMetadata,
+  ComponentApi,
+  ComponentContext,
+  ComponentNode,
+} from '@a2ui/web_core/v0_9';
 import type {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 
 /** Renders a resolved child node, or falls back for an unresolved id. */
@@ -44,6 +49,7 @@ export type NodeViewProps = {
 export type ReactRenderProps = {
   context: ComponentContext;
   buildChild: (id: string, basePath?: string) => React.ReactNode;
+  metadata?: A2uiMetadata;
 };
 
 /** A catalog entry implemented as a React component. */
@@ -71,4 +77,5 @@ export type ReactA2uiComponentProps<T> = {
   props: T;
   buildChild: (id: string, basePath?: string) => React.ReactNode;
   context: ComponentContext;
+  metadata?: A2uiMetadata;
 };

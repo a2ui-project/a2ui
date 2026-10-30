@@ -138,7 +138,7 @@
       expectError:
         category: "ValidationError"
         details:
-          - path: "chartType"
+          - path: "/chartType"
             code: "invalid_value"
     - messages:
         - version: "v0.9"
@@ -151,7 +151,7 @@
       expectError:
         category: "ValidationError"
         details:
-          - path: "children"
+          - path: "/children"
             code: "invalid_value"
     - messages:
         - version: "v0.9"
@@ -163,7 +163,7 @@
       expectError:
         category: "ValidationError"
         details:
-          - path: "children"
+          - path: "/children"
             code: "missing_field"
     - messages:
         - version: "v0.9"
@@ -175,7 +175,7 @@
       expectError:
         category: "ValidationError"
         details:
-          - path: "component"
+          - path: "/component"
             code: "invalid_value"
 
 - name: test_recursion_limit_function_call_depth_exceeded_error
@@ -354,6 +354,13 @@
                 foo: "bar"
       expectError:
         category: "ValidationError"
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "VALIDATION_FAILED"
+            surfaceId: "s1"
+            path: "/components/0/component"
+            message: "UnknownWidget"
 
 - name: test_v09_unknown_component_property
   description: Tests that extra unknown component properties fail schema validation in v0.9.
@@ -461,6 +468,12 @@
       expectError:
         category: ValidationError
         message: Duplicate component ID
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "INTEGRITY_ERROR"
+            surfaceId: "s1"
+            message: "Duplicate component ID"
 
 - name: test_v09_topology_template_child_reachable
   description: Tests that a component referenced only as a list template is reachable from the root in v0.9 strict mode.
@@ -516,6 +529,12 @@
       expectError:
         category: ValidationError
         message: references non-existent component 'missing_id'
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "INTEGRITY_ERROR"
+            surfaceId: "s1"
+            message: "missing_id"
 
 - name: test_v09_invalid_binding_path_error
   description: Tests that a data binding path with an invalid JSON Pointer escape ('~2') fails validation in v0.9.
@@ -1248,6 +1267,12 @@
       expectError:
         category: ValidationError
         message: Duplicate component ID
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "INTEGRITY_ERROR"
+            surfaceId: "s1"
+            message: "Duplicate component ID"
 
 - name: test_v09_topology_structured_array_item_dangling_child_error
   description: Tests that a dangling child reference inside a structured array item (Tabs.tabs[].child) fails validation in v0.9 strict mode.
@@ -1568,6 +1593,13 @@
               primaryColor: not-a-hex-color
       expectError:
         category: ValidationError
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "VALIDATION_FAILED"
+            surfaceId: "s1"
+            path: "/theme/primaryColor"
+            message: "primaryColor"
 
 - name: test_v09_incremental_update_same_component_id_across_messages
   description: Tests that updating the same component ID across separate updateComponents messages succeeds in v0.9 strict mode.
