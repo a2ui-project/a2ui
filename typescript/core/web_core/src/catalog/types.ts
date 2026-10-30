@@ -929,6 +929,7 @@ function createCatalogInvoker<F extends FunctionApi>(
           assertRendererCaller(fn);
           assertUserActivation(fn, ctx);
         }
+        const bypassCache = Boolean(ctx?.isActionExecution);
         const sendToAgent = (resolvedArgs: unknown): unknown => {
           const failed = findFailedArgument(resolvedArgs);
           if (failed) {
@@ -952,7 +953,7 @@ function createCatalogInvoker<F extends FunctionApi>(
             args = parsed.data as Record<string, unknown>;
           }
           return surface.callAgentFunction({'@call': name, catalogId, args}, abortSignal, {
-            bypassCache: Boolean(ctx?.isActionExecution),
+            bypassCache,
           });
         };
         const settledArgs = settleDeep(rawArgs);

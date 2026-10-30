@@ -15,7 +15,7 @@
  */
 
 import * as assert from 'node:assert';
-import {beforeEach, describe, it} from 'node:test';
+import {afterEach, beforeEach, describe, it} from 'node:test';
 import {z} from 'zod';
 
 import {Catalog, createFunctionImplementation, FunctionApi} from '../catalog/types.js';
@@ -75,6 +75,7 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
   };
 
   const setUp = (options: {outboundListener?: boolean; defaultTimeoutMs?: number} = {}) => {
+    proc?.dispose();
     outbound = [];
     errors = [];
     const catalog = new Catalog<any, any>(
@@ -104,6 +105,7 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
   };
 
   beforeEach(() => setUp());
+  afterEach(() => proc?.dispose());
 
   it('sends an undeclared function to the agent with the resolved catalogId', async () => {
     const sig = ctx.resolveSignal({'@call': 'fetchFxRate', 'args': {'base': 'EUR'}});
@@ -552,5 +554,55 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     assert.strictEqual(outbound.length, 0);
     assert.strictEqual(errors.length, 1);
     assert.match(errors[0].message, /Function not found/);
+  });
+
+  it('bypasses cache for outer action calls whose arguments contain a pending agent call', async () => {
+    const action = {
+      functionCall: {
+        '@call': 'submitOrder',
+        'args': {
+          token: {'@call': 'getCsrfToken', 'args': {}},
+        },
+      },
+    };
+    const p1 = Promise.resolve(ctx.resolveAction(action));
+    await flush();
+    assert.strictEqual(outbound.length, 1);
+    assert.strictEqual(outbound[0].callAgentFunction.callFunction['@call'], 'getCsrfToken');
+    respond(0, {value: 'tok-fixed'});
+    await flush();
+    assert.strictEqual(outbound.length, 2);
+    assert.strictEqual(outbound[1].callAgentFunction.callFunction['@call'], 'submitOrder');
+    respond(1, {value: 'order-1'});
+    assert.strictEqual(await p1, 'order-1');
+
+    // Second click with the same inner token answer still dispatches submitOrder fresh.
+    const p2 = Promise.resolve(ctx.resolveAction(action));
+    await flush();
+    assert.strictEqual(outbound.length, 3);
+    assert.strictEqual(outbound[2].callAgentFunction.callFunction['@call'], 'getCsrfToken');
+    respond(2, {value: 'tok-fixed'});
+    await flush();
+    assert.strictEqual(outbound.length, 4);
+    assert.strictEqual(outbound[3].callAgentFunction.callFunction['@call'], 'submitOrder');
+    respond(3, {value: 'order-2'});
+    assert.strictEqual(await p2, 'order-2');
+  });
+
+  it('aborts event action resolution synchronously when a context entry fails synchronously', async () => {
+    const resolved = ctx.resolveAction({
+      event: {
+        name: 'checkout',
+        context: {
+          badQuote: {'@call': 'quote', 'args': {'value': 'not-a-number'}},
+        },
+        userMessage: {'@call': 'fetchSummary', 'args': {}},
+      },
+    });
+    assert.strictEqual(resolved, undefined);
+    await flush();
+    assert.strictEqual(outbound.length, 0);
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
   });
 });

@@ -994,7 +994,11 @@ export class DataContext {
       if (ev.context && typeof ev.context === 'object' && !Array.isArray(ev.context)) {
         resolvedContext = {};
         for (const [key, value] of Object.entries(ev.context as Record<string, unknown>)) {
-          resolvedContext[key] = this.resolveDynamicValue(value, 0, false, true);
+          const resolvedValue = this.resolveDynamicValue(value, 0, false, true);
+          if (findFailedArgument(resolvedValue)) {
+            return undefined;
+          }
+          resolvedContext[key] = resolvedValue;
         }
       }
       const resolvedEvent: Record<string, unknown> = {

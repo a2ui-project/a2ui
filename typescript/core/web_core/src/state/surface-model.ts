@@ -199,7 +199,7 @@ export class SurfaceModel<
   >();
   /**
    * Settled reactive agent function answers, keyed by canonical call key in
-   * insertion/access order (bounded to {@link MAX_AGENT_CALL_CACHE_Entries}).
+   * insertion/access order (bounded to {@link MAX_AGENT_CALL_CACHE_ENTRIES}).
    */
   private readonly settledAgentCalls = new Map<string, {value: unknown}>();
   private isDisposed = false;
