@@ -204,6 +204,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private readonly defaultVersion?: ProtocolVersion;
   private readonly errorHandler?: (error: RendererErrorMessage) => void;
   private readonly reportErrorsOnly: boolean;
+  /** Whether outbound messages, and so `callAgentFunction`, can reach the agent. */
+  private readonly hasOutboundListener: boolean;
   /**
    * What the last check of each surface's components found, under a config
    * that defers the reference and reachability checks, with the number of
@@ -234,12 +236,16 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       outboundListener: options?.outboundListener,
       defaultTimeoutMs: options?.defaultTimeoutMs,
     });
+    this.hasOutboundListener = Boolean(options?.outboundListener);
     this.validationConfig = options?.validationConfig
       ? withStrictDefaults(options.validationConfig)
       : undefined;
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
+    this.model.onSurfaceDeleted.subscribe(surfaceId => {
+      this.rpc.cancelSurfaceCalls(surfaceId);
+    });
   }
 
   /** The catalogs the processor was created with, in priority order. */
@@ -267,6 +273,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Disposes the MessageProcessor, tearing down active surfaces and rejecting pending RPC calls.
    */
   dispose(): void {
+    this.model.dispose();
     this.rpc.dispose();
   }
 
@@ -1078,6 +1085,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       op.metadata,
       surfaceVersion,
     );
+    // From v1.0, a function the renderer does not implement runs on the agent.
+    // Without an outbound listener there is no way to reach it, so such calls
+    // keep failing locally.
+    if (this.hasOutboundListener && isAtLeastVersion(surface.protocolVersion, '1.0')) {
+      surface.agentFunctionCaller = call =>
+        this.rpc.callAgentFunction(surfaceId, call, {version: surface.protocolVersion});
+    }
     this.model.addSurface(surface);
 
     if (dataModel) {
@@ -1099,6 +1113,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private processDeleteSurfaceOp(op: InternalDeleteSurfaceOp): void {
     if (!op.surfaceId) return;
     this.model.deleteSurface(op.surfaceId);
+    this.rpc.cancelSurfaceCalls(op.surfaceId);
   }
 
   private validateComponentProperties(

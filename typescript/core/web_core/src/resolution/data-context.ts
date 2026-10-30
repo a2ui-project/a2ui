@@ -30,7 +30,12 @@ import {type FunctionCall, type Action} from '../types/common-types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 import {A2uiCatalogError, A2uiExpressionError, A2uiValidationError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
-import {isThenable} from '../common/settle_deep.js';
+import {
+  FailedArgument,
+  findFailedArgument,
+  isThenable,
+  recordSettledValue,
+} from '../common/settle_deep.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
 import {resolveSurfaceCatalog} from '../state/resolve-surface-catalog.js';
@@ -378,6 +383,11 @@ export class DataContext {
     return this._isPassiveEvaluation || Boolean(this.parent?.isPassiveEvaluation);
   }
 
+  /** Whether the current function evaluation was initiated by an imperative action. */
+  get isActionExecution(): boolean {
+    return this._isActionExecution || Boolean(this.parent?.isActionExecution);
+  }
+
   /**
    * Returns the 0-based iteration index if this context (or an ancestor context)
    * is scoped to a collection template item, or `undefined` when outside any
@@ -523,13 +533,13 @@ export class DataContext {
    * @param userActivated Whether the evaluation was initiated by an active user action.
    * @returns The synchronously resolved value.
    */
-  resolveDynamicValue<V>(value: unknown, depth = 0, userActivated = false): V {
+  resolveDynamicValue<V>(value: unknown, depth = 0, userActivated = false, keepPending = false): V {
     if (depth > MAX_DYNAMIC_VALUE_DEPTH) {
       const err = new A2uiExpressionError(
         `Maximum dynamic value nesting depth exceeded (${MAX_DYNAMIC_VALUE_DEPTH})`,
       );
       this.dispatchExpressionError(err, 'DynamicValue');
-      return undefined as any;
+      return (keepPending ? new FailedArgument(err) : undefined) as any;
     }
 
     if (value === null || typeof value !== 'object' || isThenable(value)) {
@@ -540,7 +550,9 @@ export class DataContext {
       if (!this.containsDynamicValue(value)) {
         return value as V;
       }
-      return value.map(item => this.resolveDynamicValue(item, depth + 1, userActivated)) as V;
+      return value.map(item =>
+        this.resolveDynamicValue(item, depth + 1, userActivated, keepPending),
+      ) as V;
     }
 
     const rec = value as Record<string, unknown>;
@@ -556,43 +568,55 @@ export class DataContext {
     }
 
     if (this.isFunctionCallObject(rec)) {
-      return this.resolveFunctionCallValue<V>(rec as unknown as FunctionCall, depth, userActivated);
+      return this.resolveFunctionCallValue<V>(
+        rec as unknown as FunctionCall,
+        depth,
+        userActivated,
+        keepPending,
+      );
     }
 
-    return this.resolvePlainObjectValue<V>(rec, depth, userActivated);
+    return this.resolvePlainObjectValue<V>(rec, depth, userActivated, keepPending);
   }
 
   /**
    * Resolves a function call by validating arguments and invoking the function.
    *
-   * An asynchronous function returns a pending Promise. At the top level of an
-   * expression the Promise is returned with its rejection turned into an
-   * `EXPRESSION_ERROR` on the surface, since nothing else would report it;
-   * nested in the arguments of another call it is returned as it is, so the
-   * enclosing call awaits it and a rejection reaches that call's handler.
+   * An asynchronous function returns a pending Promise. Outside function
+   * arguments (`!keepPending`), the Promise is returned with its rejection
+   * turned into an `EXPRESSION_ERROR` on the surface, since nothing else would
+   * report it; inside the arguments of another call (`keepPending`) it is
+   * wrapped so the inner call reports its own rejection once and resolves to a
+   * `FailedArgument` that stops the enclosing call from executing.
    *
    * @param call Function call definition to execute.
    * @param depth Current recursion depth for nested expression tracking.
    * @param userActivated Whether the evaluation was initiated by an active user action.
+   * @param keepPending Whether the call is nested inside a function argument.
    * @returns The resolved function return value.
    */
-  private resolveFunctionCallValue<V>(call: FunctionCall, depth = 0, userActivated = false): V {
+  private resolveFunctionCallValue<V>(
+    call: FunctionCall,
+    depth = 0,
+    userActivated = false,
+    keepPending = false,
+  ): V {
     const callName = (call['@call'] ?? call.call)!;
     // Resolve before validating: the arguments must be checked against the
     // catalog that will actually run the call, not the surface default.
     const targetCatalog = this.resolveCallCatalog(callName, call);
     if (!targetCatalog) {
-      return undefined as V;
+      return (keepPending ? new FailedArgument(undefined) : undefined) as V;
     }
     try {
       validateFunctionArgs(callName, call.args, targetCatalog);
     } catch (e: unknown) {
       this.dispatchExpressionError(e, callName);
-      return undefined as V;
+      return (keepPending ? new FailedArgument(e) : undefined) as V;
     }
     const args: Record<string, unknown> = {};
     for (const [key, argVal] of Object.entries(call.args ?? {})) {
-      args[key] = this.resolveDynamicValue(argVal, depth + 1, userActivated);
+      args[key] = this.resolveDynamicValue(argVal, depth + 1, userActivated, true);
     }
 
     const abortController = new AbortController();
@@ -605,6 +629,7 @@ export class DataContext {
         args,
         targetCatalog.invoker,
         abortController.signal,
+        keepPending,
       );
     } finally {
       this._isUserActivated = prevActivated;
@@ -614,14 +639,25 @@ export class DataContext {
       return undefined as unknown as V;
     }
 
+    if (result instanceof FailedArgument) {
+      return (keepPending ? result : undefined) as unknown as V;
+    }
+
     if (isThenable(result)) {
-      if (depth > 0) {
-        return result as V;
+      if (keepPending) {
+        return this.keepPendingResult(result, callName, abortController.signal) as V;
       }
       return Promise.resolve(result).then(
-        value => value,
+        value => {
+          if (value instanceof FailedArgument) {
+            return undefined;
+          }
+          return isSignal(value) ? peekValue(value) : value;
+        },
         (e: unknown) => {
-          this.dispatchExpressionError(e, callName);
+          if (!this.surface?.disposed) {
+            this.dispatchExpressionError(e, callName);
+          }
           return undefined;
         },
       ) as V;
@@ -636,12 +672,14 @@ export class DataContext {
    * @param rec Plain object dictionary to resolve.
    * @param depth Current recursion depth for nested expression tracking.
    * @param userActivated Whether the evaluation was initiated by an active user action.
+   * @param keepPending Whether the object is nested inside a function argument.
    * @returns A copy of the object with all nested dynamic values resolved.
    */
   private resolvePlainObjectValue<V>(
     rec: Record<string, unknown>,
     depth = 0,
     userActivated = false,
+    keepPending = false,
   ): V {
     if (this.atLeastV10) {
       validateReservedDirectives(Object.keys(rec), this.surfaceProtocolVersion);
@@ -652,7 +690,7 @@ export class DataContext {
     const resolved: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(rec)) {
       const key = this.atLeastV10 ? unescapeObjectKey(k) : k;
-      resolved[key] = this.resolveDynamicValue(v, depth + 1, userActivated);
+      resolved[key] = this.resolveDynamicValue(v, depth + 1, userActivated, keepPending);
     }
     return resolved as unknown as V;
   }
@@ -710,6 +748,24 @@ export class DataContext {
    * @returns A reactive Signal containing the result of the evaluation.
    */
   resolveSignal<V>(value: unknown, depth = 0): Signal<V> {
+    return this.resolveSignalValue<V>(value, depth, false);
+  }
+
+  /**
+   * Resolves a DynamicValue into a reactive Signal, as {@link resolveSignal}.
+   *
+   * Inside the arguments of a function call (`keepPending`), the pending
+   * result of an asynchronous function stays in its signal as a Promise, so
+   * the invoker of the enclosing call waits for it before validating and
+   * running, as it does when the value is resolved once. Elsewhere the
+   * signal holds `undefined` until the result settles.
+   *
+   * @param value The DynamicValue or raw value to evaluate and observe.
+   * @param depth The current recursion depth.
+   * @param keepPending Whether the value is (part of) a function argument.
+   * @returns A reactive Signal containing the result of the evaluation.
+   */
+  private resolveSignalValue<V>(value: unknown, depth: number, keepPending: boolean): Signal<V> {
     if (depth > MAX_DYNAMIC_VALUE_DEPTH) {
       const err = new A2uiExpressionError(
         `Maximum dynamic value nesting depth exceeded (${MAX_DYNAMIC_VALUE_DEPTH})`,
@@ -720,7 +776,7 @@ export class DataContext {
           ? (((value as any)['@call'] ?? (value as any).call) as string)
           : 'DynamicValue',
       );
-      return signal(undefined as unknown as V);
+      return signal((keepPending ? new FailedArgument(err) : undefined) as unknown as V);
     }
 
     // 1. Primitive literals
@@ -728,8 +784,12 @@ export class DataContext {
       return signal(value as V);
     }
 
-    // 1a. A pending value: the signal holds `undefined` until it settles.
+    // 1a. A pending value: the signal holds `undefined` until it settles, or
+    // the Promise itself inside a function argument.
     if (isThenable(value)) {
+      if (keepPending) {
+        return signal(this.keepPendingResult(value, 'DynamicValue') as V);
+      }
       const pendingSig = signal<V | undefined>(undefined);
       this.settleIntoSignal(pendingSig, value, 'DynamicValue');
       return pendingSig as Signal<V>;
@@ -741,7 +801,7 @@ export class DataContext {
       if (!this.containsDynamicValue(value)) {
         return signal(value as V);
       }
-      const itemSignals = value.map(item => this.resolveSignal(item, depth + 1));
+      const itemSignals = value.map(item => this.resolveSignalValue(item, depth + 1, keepPending));
       const resultSig = computed(() => itemSignals.map(s => getValue(s))) as Signal<V>;
       resultSig.unsubscribe = () => {
         for (const s of itemSignals) {
@@ -769,18 +829,18 @@ export class DataContext {
       // catalog that will actually run the call, not the surface default.
       const targetCatalog = this.resolveCallCatalog(callName, call);
       if (!targetCatalog) {
-        return signal(undefined as unknown as V);
+        return signal((keepPending ? new FailedArgument(undefined) : undefined) as unknown as V);
       }
       try {
         validateFunctionArgs(callName, call.args, targetCatalog);
       } catch (e: unknown) {
         this.dispatchExpressionError(e, callName);
-        return signal(undefined as unknown as V);
+        return signal((keepPending ? new FailedArgument(e) : undefined) as unknown as V);
       }
       const argSignals: Record<string, Signal<unknown>> = {};
 
       for (const [key, argVal] of Object.entries(call.args ?? {})) {
-        argSignals[key] = this.resolveSignal(argVal, depth + 1);
+        argSignals[key] = this.resolveSignalValue(argVal, depth + 1, true);
       }
 
       if (Object.keys(argSignals).length === 0) {
@@ -790,14 +850,21 @@ export class DataContext {
           args: {},
           abortSignal: abortController.signal,
           invoker: targetCatalog.invoker,
+          keepPending,
         });
         let sig: Signal<V>;
         if (isSignal(result)) {
           sig = result;
         } else if (isThenable(result)) {
-          const pendingSig = signal<V | undefined>(undefined);
-          this.settleIntoSignal(pendingSig, result, callName, abortController.signal);
-          sig = pendingSig as Signal<V>;
+          if (keepPending) {
+            sig = signal(this.keepPendingResult(result, callName, abortController.signal) as V);
+          } else {
+            const pendingSig = signal<V | undefined>(undefined);
+            this.settleIntoSignal(pendingSig, result, callName, abortController.signal);
+            sig = pendingSig as Signal<V>;
+          }
+        } else if (result instanceof FailedArgument) {
+          sig = signal((keepPending ? result : undefined) as unknown as V);
         } else {
           sig = signal(result as V);
         }
@@ -834,6 +901,7 @@ export class DataContext {
             args,
             abortSignal: abortController.signal,
             invoker: targetCatalog.invoker,
+            keepPending,
           });
 
           if (isSignal(res)) {
@@ -849,16 +917,25 @@ export class DataContext {
               setValue(resultSig, getValue(res));
             });
           } else if (isThenable(res)) {
-            // Keep the current value until the call settles; a completion
-            // that arrives after the arguments changed again is ignored.
-            this.settleIntoSignal(resultSig, res, callName, abortController.signal);
+            if (keepPending) {
+              setValue(
+                resultSig,
+                this.keepPendingResult(res, callName, abortController.signal) as V,
+              );
+            } else {
+              // Keep the current value until the call settles; a completion
+              // that arrives after the arguments changed again is ignored.
+              this.settleIntoSignal(resultSig, res, callName, abortController.signal);
+            }
+          } else if (res instanceof FailedArgument) {
+            setValue(resultSig, (keepPending ? res : undefined) as V | undefined);
           } else {
             setValue(resultSig, res);
           }
         } catch (e: unknown) {
           this.dispatchExpressionError(e, callName);
           // In reactive mode, we should not throw. Instead, reset the signal value.
-          setValue(resultSig, undefined);
+          setValue(resultSig, (keepPending ? new FailedArgument(e) : undefined) as V | undefined);
         }
       });
 
@@ -884,7 +961,7 @@ export class DataContext {
 
     const entrySignals = Object.entries(rec).map(([k, v]) => {
       const key = this.atLeastV10 ? unescapeObjectKey(k) : k;
-      return [key, this.resolveSignal(v, depth + 1)] as const;
+      return [key, this.resolveSignalValue(v, depth + 1, keepPending)] as const;
     });
     const objSig = computed(() => {
       const resolved: Record<string, unknown> = {};
@@ -918,28 +995,41 @@ export class DataContext {
     if (typeof ev.name !== 'string' || ev.name.length === 0) {
       return this.handleInvalidAction("Action event is missing required 'name' string.");
     }
-    let resolvedContext: Record<string, unknown> | undefined = undefined;
-    if (ev.context && typeof ev.context === 'object' && !Array.isArray(ev.context)) {
-      resolvedContext = {};
-      for (const [key, value] of Object.entries(ev.context as Record<string, unknown>)) {
-        resolvedContext[key] = this.resolveDynamicValue(value);
+    const prevAction = this._isActionExecution;
+    this._isActionExecution = true;
+    try {
+      let resolvedContext: Record<string, unknown> | undefined = undefined;
+      if (ev.context && typeof ev.context === 'object' && !Array.isArray(ev.context)) {
+        resolvedContext = {};
+        for (const [key, value] of Object.entries(ev.context as Record<string, unknown>)) {
+          const resolvedValue = this.resolveDynamicValue(value, 0, false, true);
+          if (findFailedArgument(resolvedValue)) {
+            return undefined;
+          }
+          resolvedContext[key] = resolvedValue;
+        }
       }
-    }
-    const resolvedEvent: Record<string, unknown> = {
-      ...ev,
-      ...(resolvedContext !== undefined ? {context: resolvedContext} : {}),
-    };
-    if (ev.context === undefined) {
-      delete resolvedEvent.context;
-    }
-    if (ev.userMessage !== undefined) {
-      const resolvedMsg = this.resolveDynamicValue(ev.userMessage);
-      if (typeof resolvedMsg !== 'string') {
-        return this.handleInvalidAction("Action event 'userMessage' must resolve to a string.");
+      const resolvedEvent: Record<string, unknown> = {
+        ...ev,
+        ...(resolvedContext !== undefined ? {context: resolvedContext} : {}),
+      };
+      if (ev.context === undefined) {
+        delete resolvedEvent.context;
       }
-      resolvedEvent.userMessage = resolvedMsg;
+      if (ev.userMessage !== undefined) {
+        const resolvedMsg = this.resolveDynamicValue(ev.userMessage, 0, false, true);
+        if (findFailedArgument(resolvedMsg)) {
+          return undefined;
+        }
+        if (!isThenable(resolvedMsg) && typeof resolvedMsg !== 'string') {
+          return this.handleInvalidAction("Action event 'userMessage' must resolve to a string.");
+        }
+        resolvedEvent.userMessage = resolvedMsg;
+      }
+      return resolvedEvent;
+    } finally {
+      this._isActionExecution = prevAction;
     }
-    return resolvedEvent;
   }
 
   private executeActionFunctionCall(
@@ -1089,12 +1179,13 @@ export class DataContext {
     args: Record<string, unknown>;
     invoker: FunctionInvoker;
     abortSignal?: AbortSignal;
+    keepPending?: boolean;
   }): Signal<V> | V {
-    const {name, args, invoker, abortSignal} = options;
+    const {name, args, invoker, abortSignal, keepPending = false} = options;
     const prevPassive = this._isPassiveEvaluation;
     this._isPassiveEvaluation = true;
     try {
-      return this.evaluateFunctionReactive<V>(name, args, invoker, abortSignal);
+      return this.evaluateFunctionReactive<V>(name, args, invoker, abortSignal, keepPending);
     } finally {
       this._isPassiveEvaluation = prevPassive;
     }
@@ -1112,6 +1203,7 @@ export class DataContext {
    * @param args Resolved arguments to pass to the function.
    * @param invoker Invoker of the catalog the call resolved to.
    * @param abortSignal Optional abort signal to cancel asynchronous execution.
+   * @param keepPending Whether the call is nested inside a function argument.
    * @returns The evaluated result as a reactive `Signal` or static value, or `undefined` on failure.
    */
   private evaluateFunctionReactive<V>(
@@ -1119,13 +1211,51 @@ export class DataContext {
     args: Record<string, unknown>,
     invoker: FunctionInvoker,
     abortSignal?: AbortSignal,
+    keepPending = false,
   ): Signal<V> | V {
     try {
       return invoker(name, args, this, abortSignal) as Signal<V> | V;
     } catch (e: unknown) {
       this.dispatchExpressionError(e, name);
-      return undefined as unknown as V;
+      return (keepPending ? new FailedArgument(e) : undefined) as unknown as V;
     }
+  }
+
+  /**
+   * Wraps a pending function result nested inside a function argument.
+   *
+   * The inner call reports its own rejection once (attributed to `name`) and
+   * resolves to a `FailedArgument`, which stops the enclosing call from
+   * executing or reporting a duplicate error. Settled values are recorded so
+   * `settleDeep` can read them synchronously if a sibling reactive dependency
+   * changes later.
+   *
+   * @param pending The pending result.
+   * @param name Name of the function that produced `pending`.
+   * @param abortSignal Signal that marks the evaluation as stale.
+   * @returns A Promise resolving to the settled value or a `FailedArgument`.
+   */
+  private keepPendingResult(
+    pending: PromiseLike<unknown>,
+    name: string,
+    abortSignal?: AbortSignal,
+  ): Promise<unknown> {
+    const tracked: Promise<unknown> = Promise.resolve(pending).then(
+      value => {
+        const unwrapped = isSignal(value) ? peekValue(value) : value;
+        recordSettledValue(tracked, unwrapped);
+        return unwrapped;
+      },
+      (e: unknown) => {
+        if (!abortSignal?.aborted && !this.surface?.disposed) {
+          this.dispatchExpressionError(e, name);
+        }
+        const failed = new FailedArgument(e);
+        recordSettledValue(tracked, failed);
+        return failed;
+      },
+    );
+    return tracked;
   }
 
   /**
@@ -1150,12 +1280,18 @@ export class DataContext {
   ): void {
     Promise.resolve(pending).then(
       value => {
-        if (!abortSignal?.aborted) {
-          setValue(sig, value as V);
+        if (!abortSignal?.aborted && !this.surface?.disposed) {
+          const unwrapped =
+            value instanceof FailedArgument
+              ? undefined
+              : isSignal(value)
+                ? peekValue(value)
+                : value;
+          setValue(sig, unwrapped as V);
         }
       },
       (e: unknown) => {
-        if (!abortSignal?.aborted) {
+        if (!abortSignal?.aborted && !this.surface?.disposed) {
           this.dispatchExpressionError(e, name);
           setValue(sig, undefined);
         }
@@ -1175,7 +1311,7 @@ export class DataContext {
    * @param name Name of the function being evaluated.
    */
   private dispatchExpressionError(e: unknown, name: string): void {
-    if (!this.surface) return;
+    if (!this.surface || this.surface.disposed) return;
     if (
       e instanceof z.ZodError ||
       (typeof e === 'object' && e !== null && (e as {name?: string}).name === 'ZodError')
