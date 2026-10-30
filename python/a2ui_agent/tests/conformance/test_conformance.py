@@ -296,12 +296,16 @@ def _format_for(
     progressive_keys=None,
 ):
     if format_name == "express":
+        express_kwargs = {}
+        if progressive_keys is not None:
+            express_kwargs["progressive_keys"] = frozenset(progressive_keys)
         return ExpressFormat(
             catalogs=catalogs,
             examples=examples,
             allowed_messages=allowed_messages,
             surface_id=CONFORMANCE_SURFACE_ID,
             version=_protocol_version(catalogs),
+            **express_kwargs,
         )
     if format_name == "elemental":
         return ElementalFormat(
@@ -587,6 +591,8 @@ def test_response_parser_conformance(name, test_case):
 
 cases_response_streaming = get_marked_conformance_cases(
     "agent/direct_json/response_streaming.yaml",
+) + get_marked_conformance_cases(
+    "agent/express/response_streaming.yaml",
 )
 
 
@@ -628,6 +634,11 @@ def test_response_streaming_conformance(name, test_case):
         if "expect_in_block" in step:
             assert stream.is_in_block == step["expect_in_block"]
         yielded.extend(part_to_dict(p) for p in parts)
+
+    if "expect_error" in test_case:
+        with assert_raises(test_case["expect_error"]):
+            stream.close()
+        return
 
     closed = stream.close()
     if "expect_close" in test_case:
@@ -848,9 +859,13 @@ def _factory_for(format_name, allowed_messages=None, progressive_keys=None):
     from a2ui.inference_formats.express import ExpressFormatFactory
 
     if format_name == "express":
+        express_kwargs = {}
+        if progressive_keys is not None:
+            express_kwargs["progressive_keys"] = frozenset(progressive_keys)
         return ExpressFormatFactory(
             allowed_messages=allowed_messages,
             surface_id=CONFORMANCE_SURFACE_ID,
+            **express_kwargs,
         )
     if format_name == "elemental":
         return ElementalFormatFactory(
