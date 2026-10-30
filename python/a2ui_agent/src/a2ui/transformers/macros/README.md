@@ -25,9 +25,8 @@ Before transmitting messages to the client renderer, `MacroExpander` expands `<P
 The `@macro` decorator inspects a Python function's type annotations and docstring to synthesize a catalog component JSON schema and an execution wrapper.
 
 ```python
+from a2ui.builder.v1_0 import Action, Button, Card, Column, Text
 from a2ui.transformers.macros import macro
-from a2ui.builder.v0_9 import Action
-from a2ui.builder.v0_9.catalogs.basic import Button, Card, Column, Text
 
 @macro
 def product_card(
@@ -47,8 +46,8 @@ def product_card(
     return Card(
         child=Column(
             children=[
-                Text(text=title, variant="h3"),
-                Text(text=price, variant="body"),
+                Text(text=title, variant="body"),
+                Text(text=price, variant="caption"),
                 Button(
                     child=Text(text="Buy Now" if in_stock else "Out of Stock"),
                     action=on_buy,
@@ -59,16 +58,18 @@ def product_card(
     )
 ```
 
+_(Both `a2ui.builder.v1_0` and `a2ui.builder.v0_9` types are supported polymorphically.)_
+
 ### Parameter Type Mapping
 
-The decorator maps Python type hints to canonical A2UI JSON schema definitions:
+The decorator maps Python type hints to canonical A2UI JSON schema definitions across both Protocol v1.0 and v0.9:
 
 - **Primitives**: `str`, `int`, `float`, and `bool` map to standard JSON schema types.
 - **Enums**: `Enum` subclasses or `Literal["a", "b"]` map to enum string schemas.
 - **Slots (Single Child)**: Parameters typed as `ComponentBuilderNode`, `Child`, or concrete component classes (like `Text`) map to `#/$defs/ComponentId`. When the model passes a component ID, `MacroProcessor` coerces the input into a `ComponentRef(id=...)`.
-- **Slot Lists (Children)**: Parameters typed as `Sequence[ComponentBuilderNode]` or `ChildList` map to `#/$defs/ChildList`. Incoming ID arrays are coerced to lists of `ComponentRef`.
-- **Actions**: Parameters typed as `Action` map to `#/$defs/Action`. In Python, build one as `Action(event=ActionEvent(name="name", context=...))`; `MacroProcessor` coerces standard shorthands emitted by models (`"name"`, `{"event": "name"}`, `{"name": ..., "context": ...}`).
-- **Data Bindings**: Values passed as `{"path": "/..."}` are coerced into `DataBinding` objects.
+- **Slot Lists (Children)**: Parameters typed as `Sequence[ComponentBuilderNode]`, `Sequence[Child]`, or `ChildList` map to `#/$defs/ChildList`. Incoming ID arrays are coerced to lists of `ComponentRef`, and dynamic child list dictionaries (`{"path": "/...", "componentId": "..."}`) are coerced into `DynamicChildList`.
+- **Actions**: Parameters typed as `Action` map to `#/$defs/Action`. In Python, build one as `Action(event=ActionEvent(name="name", user_message=..., context=...))`; `MacroProcessor` coerces standard shorthands emitted by models (`"name"`, `{"event": "name"}`, `{"name": ..., "userMessage": ..., "context": ...}`, and `{"functionCall": ...}`).
+- **Data Bindings & Function Calls**: Values passed as `{"@path": "/..."}` (v1.0) or `{"path": "/..."}` (v0.9) are coerced into `DataBinding` objects, and `{"@call": "...", "args": ...}` (v1.0) or `{"call": "...", "args": ...}` (v0.9) are coerced into `FunctionCall` objects.
 
 ### Docstring Contract
 

@@ -191,6 +191,23 @@ macros:
         component: "Text"
         text: {$param: "title"}
 
+  - name: "Text"
+    catalog_id: "https://example.com/brand.json"
+    description: "Custom brand Text macro wrapping a basic Text inside a Card"
+    parameters:
+      text: {type: "string"}
+      variant:
+        type: "string"
+        default: "body"
+    # Native builder:
+    #   Card(child=Text(text=f"[Brand] {text}", variant=variant))
+    template:
+      component: "Card"
+      child:
+        component: "Text"
+        text: "[Brand] ${text}"
+        variant: {$param: "variant"}
+
 tests:
   - id: "01_status_badge_expansion"
     description: "Macro expanding to Card, Row, and Text components with root stitching and namespacing"
@@ -463,3 +480,135 @@ tests:
         - "Card"
         - "Button"
         - "Text"
+
+  - id: "19_envelope_attributes_preservation"
+    description: "Macro invocation with component envelope attributes (catalogId, accessibility, metadata) expands cleanly and preserves envelope fields"
+    golden: "19_envelope_attributes_preservation.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      component: "ActionButton"
+      id: "root"
+      label: "Submit"
+      action: "submit_form"
+      catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      accessibility:
+        label: "Submit form button"
+        description: "Submits the current form"
+      metadata:
+        extensions:
+          telemetry:
+            traceId: "t1"
+
+  - id: "20_mixable_catalogs_resolution"
+    description: "Mixable catalogs resolve macros by effective catalogId without colliding with identically named primitives from other catalogs"
+    golden: "20_mixable_catalogs_resolution.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    macro_catalog_id: "https://example.com/brand.json"
+    input:
+      - component: "Column"
+        id: "root"
+        children:
+          - "brand_text"
+          - "basic_text"
+      - component: "Text"
+        id: "brand_text"
+        catalogId: "https://example.com/brand.json"
+        text: "Brand Header"
+        variant: "body"
+      - component: "Text"
+        id: "basic_text"
+        text: "Plain Body"
+        variant: "body"
+
+  - id: "21_v1_0_data_binding_and_function_call_coercion"
+    description: "v1.0 macro coerces @path data bindings and @call function calls into DynamicString slots"
+    golden: "21_v1_0_data_binding_and_function_call_coercion.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      - component: "Column"
+        id: "root"
+        children:
+          - "metric_path"
+          - "metric_call"
+      - component: "BoundMetric"
+        id: "metric_path"
+        label: "CPU Usage"
+        value:
+          "@path": "/system/cpu"
+      - component: "BoundMetric"
+        id: "metric_call"
+        label: "Formatted CPU"
+        value:
+          "@call": "formatString"
+          args:
+            value: "CPU: ${/system/cpu}%"
+
+  - id: "22_v1_0_action_user_message_coercion"
+    description: "v1.0 Action parameter coerces bare event body with userMessage and context"
+    golden: "22_v1_0_action_user_message_coercion.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      component: "ActionButton"
+      id: "root"
+      label: "Ask Assistant"
+      action:
+        name: "submit_prompt"
+        userMessage: "Please summarize the report"
+        context:
+          reportId:
+            "@path": "/report/id"
+
+  - id: "23_v1_0_synthetic_catalog_generation"
+    description: "Deriving a v1.0 inference catalog from v1_0 builder macro annotations synthesizes valid schemas and preserves protocol version 1.0"
+    action: "transform_to_inference_catalog"
+    envelope_version: "1.0"
+    expect:
+      protocol_version: "1.0"
+      augmented_components:
+        - "StatusBadge"
+        - "SlotContainer"
+        - "MultiSlotContainer"
+        - "ActionButton"
+        - "BoundMetric"
+        - "ConfigCard"
+        - "NestedMacroCard"
+        - "ComplexCard"
+      any_component_references:
+        - "#/components/StatusBadge"
+        - "#/components/SlotContainer"
+        - "#/components/MultiSlotContainer"
+        - "#/components/ActionButton"
+        - "#/components/BoundMetric"
+        - "#/components/ConfigCard"
+        - "#/components/NestedMacroCard"
+        - "#/components/ComplexCard"
+      component_properties:
+        ComplexCard:
+          title: {type: "string"}
+          dynamic_title: {$ref: "common_types.json#/$defs/DynamicString"}
+          metric: {$ref: "common_types.json#/$defs/DynamicNumber"}
+          is_active: {$ref: "common_types.json#/$defs/DynamicBoolean"}
+          tags: {$ref: "common_types.json#/$defs/DynamicStringList"}
+          anything: {$ref: "common_types.json#/$defs/DynamicValue"}
+          on_click: {$ref: "common_types.json#/$defs/Action"}
+          checks: {type: "array", items: {$ref: "common_types.json#/$defs/CheckRule"}}
+          accessibility: {$ref: "common_types.json#/$defs/AccessibilityAttributes"}
+          footer: {$ref: "common_types.json#/$defs/ComponentId"}
+          items: {$ref: "common_types.json#/$defs/ChildList"}
+          theme: {type: "string", enum: ["primary", "secondary"]}
+
+  - id: "24_error_reserved_surface_macro_name"
+    description: "Declaring a macro named Surface raises ValidationError because Surface is reserved"
+    action: "transform_catalog"
+    envelope_version: "1.0"
+    colliding_macro: "Surface"
+    expect_error:
+      category: "ValidationError"
