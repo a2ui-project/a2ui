@@ -1213,11 +1213,14 @@ struct NodeResolverTests {
   }
 }
 
-private final class ObservationCounterBox: @unchecked Sendable {
+@MainActor
+private final class ObservationCounterBox {
   private(set) var count = 0
 
-  func increment() {
-    count += 1
+  nonisolated func increment() {
+    MainActor.assumeIsolated {
+      count += 1
+    }
   }
 }
 

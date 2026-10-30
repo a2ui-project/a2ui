@@ -805,7 +805,7 @@ struct SurfaceRedrawTests {
     #expect(recorder.value(for: "second") == "Tab Two")
 
     // 3. Appending a third child re-renders the parent and mounts "third" while skipping
-    //    unchanged SegmentItemViews ("first" and "second") via Equatable / Node.==.
+    //    unchanged SegmentItemViews ("first" and "second") via stable NodeBox identity.
     counter.reset()
     viewModel.componentsModel.applyBatch(adding: [
       ComponentModel(
@@ -835,7 +835,7 @@ struct SurfaceRedrawTests {
     #expect(counter.count(for: "segment_third") == 1)
     #expect(recorder.value(for: "third") == "Tab Three")
 
-    // 4. Subsequent mutation to /first after parent Equatable-skip still invalidates "first".
+    // 4. Subsequent mutation to /first after parent redraw-skip still invalidates "first".
     counter.reset()
     viewModel.dataModel.set("/first", value: .string("Tab One Final"))
     #if canImport(AppKit)
@@ -885,7 +885,8 @@ private struct RenderedTextsPreferenceKey: PreferenceKey {
   }
 }
 
-private final class RenderedOutputRecorder: @unchecked Sendable {
+@MainActor
+private final class RenderedOutputRecorder {
   private var values: [String: String] = [:]
 
   func replaceAll(_ newValues: [String: String]) {
@@ -931,7 +932,7 @@ private struct SegmentedGroupView: View {
   }
 }
 
-private struct SegmentItemView: View, Equatable {
+private struct SegmentItemView: View {
   let child: Node
   let counter: RedrawCounter
 

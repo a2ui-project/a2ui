@@ -16,15 +16,13 @@ import Observation
 import OrderedJSON
 
 /// A persistent, observable backing store for a resolved component node.
-///
-/// `@unchecked Sendable` is safe because instances are initialized once in `Node.init` and
-/// only ever mutated on `@MainActor` via ``updateProperties(_:)``.
-package final class NodeBox: Observable, @unchecked Sendable {
+@MainActor
+package final class NodeBox: Observable {
   private let registrar = ObservationRegistrar()
 
-  let id: String
-  let type: String
-  let catalogID: String?
+  nonisolated let id: String
+  nonisolated let type: String
+  nonisolated let catalogID: String?
   private var _properties: [String: any Resolved]
   package private(set) var revision: UInt64 = 0
 
@@ -33,7 +31,7 @@ package final class NodeBox: Observable, @unchecked Sendable {
     return _properties
   }
 
-  init(
+  nonisolated init(
     id: String,
     type: String,
     catalogID: String? = nil,
@@ -47,7 +45,6 @@ package final class NodeBox: Observable, @unchecked Sendable {
 
   /// Updates the box's resolved properties in-place, notifying `Observation` observers
   /// only when its own non-node properties or child `NodeBox` references (`===`) change.
-  @MainActor
   func updateProperties(_ newProperties: [String: any Resolved]) {
     let changed = !Self.arePropertiesShallowEqual(_properties, newProperties)
     if changed {
@@ -94,12 +91,13 @@ package final class NodeBox: Observable, @unchecked Sendable {
 }
 
 /// A resolved component representation.
-public struct Node: Identifiable, Equatable, Sendable {
+public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
   package let box: NodeBox
 
   public var id: String { box.id }
   public var type: String { box.type }
   public var catalogID: String? { box.catalogID }
+  @MainActor
   public var properties: [String: any Resolved] { box.properties }
 
   /// Creates a new resolved component node.
@@ -118,6 +116,7 @@ public struct Node: Identifiable, Equatable, Sendable {
     box.updateProperties(newProperties)
   }
 
+  @MainActor
   public static func == (lhs: Node, rhs: Node) -> Bool {
     if lhs.box === rhs.box {
       return true
@@ -134,6 +133,7 @@ public struct Node: Identifiable, Equatable, Sendable {
   }
 }
 
+@MainActor
 extension Node {
   /// All resolved child nodes found by scanning the node's properties.
   ///
@@ -175,6 +175,7 @@ extension Node {
 
 // MARK: - Typed Property Accessors
 
+@MainActor
 extension Node {
   /// Returns the resolved string value for the given property key.
   ///
@@ -344,4 +345,10 @@ extension Node {
   }
 }
 
-extension Node: Resolved {}
+extension Node: @preconcurrency Resolved {
+  @MainActor
+  public func isEqual(to other: any Resolved) -> Bool {
+    guard let otherNode = other as? Node else { return false }
+    return self == otherNode
+  }
+}

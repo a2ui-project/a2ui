@@ -65,6 +65,7 @@ public struct ResolvedCheck: Resolved, Equatable, Sendable {
   }
 }
 
+@MainActor
 extension Node {
   /// All resolved validation checks for this node found by scanning the node's properties.
   ///
