@@ -1888,4 +1888,11 @@ extension NodeResolver {
     }
     actionHandler?.handle(error: error, from: surfaceID)
   }
+
+  /// Cancels model change subscriptions and clears cached resolution state.
+  public func dispose() {
+    modelCancellables.removeAll()
+    activeNodes.removeAll()
+    nodeRecords.removeAll()
+  }
 }

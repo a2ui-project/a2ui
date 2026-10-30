@@ -398,7 +398,7 @@ def check_allowed_children(
             msg = (
                 f"Container '{comp_id}' ({model.type}) cannot contain child"
                 f" '{child_id}' ({child_type}). Allowed children:"
-                f" {allowed_children} (allowedChildren)."
+                f" {allowed_children}."
             )
             raise A2uiValidationError(
                 msg,
