@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
 import pytest
@@ -50,9 +50,11 @@ class _FakeSynthesizer:
         *,
         surface_id: str | None = None,
         mutable_paths: Collection[str] = (),
+        layout: Sequence[str] | None = None,
+        variety_seed: int | None = None,
         config: SynthesisConfig | None = None,
     ) -> SynthesisOutput:
-        del payload, surface_id
+        del payload, surface_id, layout, variety_seed
         self.calls.append((intent, tuple(mutable_paths)))
         self.seen_configs.append(config)
         return self._scripted[intent]
