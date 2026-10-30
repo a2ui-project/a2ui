@@ -1372,6 +1372,76 @@ struct SurfaceComponentsModelTests {
     #expect(announced[1]["btn1"]?.type == "button")
     #expect(readBack[1]?.type == "button")
   }
+
+  @Test func surfaceAndComponentMetadataAPIsPublishAndValidateKeys() throws {
+    let model = SurfaceComponentsModel()
+    var compMetadataEvents: [[String: JSONValue]?] = []
+    let compCancellable = model.metadataPublisher(forComponentID: "btn1").sink { meta in
+      compMetadataEvents.append(meta)
+    }
+    model.addComponent(
+      ComponentModel(
+        id: "btn1",
+        type: "button",
+        properties: ["label": .string("Hi")],
+        metadata: ["extensions": .object(["tag": .string("v1")])]
+      )
+    )
+    #expect(model.get("btn1")?.extensions == ["tag": .string("v1")])
+    #expect(compMetadataEvents.count == 1)
+
+    // Identical metadata update is a no-op
+    try model.setMetadata(
+      ["extensions": .object(["tag": .string("v1")])],
+      forComponentID: "btn1"
+    )
+    #expect(compMetadataEvents.count == 1)
+
+    // setExtension with explicit .null preserves the key
+    try model.setExtension("nullable", value: .null, forComponentID: "btn1")
+    #expect(model.get("btn1")?.extensions == ["tag": .string("v1"), "nullable": .null])
+    #expect(compMetadataEvents.count == 2)
+
+    // removeExtension clears metadata when last key is removed
+    model.removeExtension("tag", forComponentID: "btn1")
+    model.removeExtension("nullable", forComponentID: "btn1")
+    #expect(model.get("btn1")?.metadata == nil)
+    #expect(compMetadataEvents.last == .some(nil))
+
+    // Invalid UAX #31 key throws A2UIValidationError
+    #expect(throws: A2UIValidationError.self) {
+      try model.setExtension("bad-key!", value: .integer(1), forComponentID: "btn1")
+    }
+
+    // Re-ordered extension keys on addComponent do not emit spurious metadata events
+    model.addComponent(
+      ComponentModel(
+        id: "btn1",
+        type: "button",
+        properties: ["label": .string("Hi")],
+        metadata: ["extensions": .object(["a": .integer(1), "b": .integer(2)])]
+      )
+    )
+    let countAfterInitialOrder = compMetadataEvents.count
+    model.addComponent(
+      ComponentModel(
+        id: "btn1",
+        type: "button",
+        properties: ["label": .string("Hi")],
+        metadata: ["extensions": .object(["b": .integer(2), "a": .integer(1)])]
+      )
+    )
+    #expect(compMetadataEvents.count == countAfterInitialOrder)
+
+    // Explicit .null metadata or extensions throws A2UIValidationError
+    #expect(throws: A2UIValidationError.self) {
+      _ = try MetadataValidator.validate(JSONValue.null)
+    }
+    #expect(throws: A2UIValidationError.self) {
+      _ = try MetadataValidator.validate(["extensions": JSONValue.null])
+    }
+    compCancellable.cancel()
+  }
 }
 
 // MARK: - DataModel Tests
