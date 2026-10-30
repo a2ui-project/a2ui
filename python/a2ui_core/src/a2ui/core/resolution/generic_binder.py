@@ -711,33 +711,51 @@ class GenericBinder:
 
         for idx, rule in enumerate(rules):
             condition = rule
-            explicit_msg: str | None = None
+            rule_msg: str | None = None
             if isinstance(rule, dict):
                 condition = rule.get("condition", rule)
                 if isinstance(rule.get("message"), str):
-                    explicit_msg = rule["message"]
+                    rule_msg = rule["message"]
 
-            rule_results[idx]["message"] = explicit_msg or "Validation failed"
+            # An explicit rule message overrides the message a condition
+            # function returns. A path-bound check reads a result the agent or
+            # application wrote, whose message carries the finding, so there
+            # the rule message is only the fallback.
+            explicit_msg = None if self._is_path_bound(condition) else rule_msg
+            fallback_msg = rule_msg or "Validation failed"
+            rule_results[idx]["message"] = fallback_msg
 
-            def make_on_change(i: int, exp_msg: str | None) -> Callable[[Any], None]:
+            def make_on_change(
+                i: int, exp_msg: str | None, fb_msg: str
+            ) -> Callable[[Any], None]:
                 def on_change(new_val: Any) -> None:
-                    rule_results[i] = self._process_rule_val(new_val, exp_msg)
+                    rule_results[i] = self._process_rule_val(new_val, exp_msg, fb_msg)
                     _apply_validation_state(reactive=True)
 
                 return on_change
 
             bound = self.context.data_context.subscribe_dynamic_value(
-                condition, make_on_change(idx, explicit_msg)
+                condition, make_on_change(idx, explicit_msg, fallback_msg)
             )
             if not is_sync:
                 self.data_listeners.append(bound)
             else:
                 bound.unsubscribe()
 
-            rule_results[idx] = self._process_rule_val(bound.value, explicit_msg)
+            rule_results[idx] = self._process_rule_val(
+                bound.value, explicit_msg, fallback_msg
+            )
 
         _apply_validation_state(reactive=False)
         return value
+
+    def _is_path_bound(self, condition: Any) -> bool:
+        """Whether a check condition is a data binding rather than a call."""
+        if not isinstance(condition, dict):
+            return False
+        if self.context.data_context.at_least_v10:
+            return isinstance(condition.get("@path"), str) and "@call" not in condition
+        return isinstance(condition.get("path"), str) and "call" not in condition
 
     def _notify(self) -> None:
         for listener in list(self.listeners):

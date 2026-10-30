@@ -1,9 +1,9 @@
 # [a2ui_cli](https://pub.dev/packages/a2ui_cli) Changelog
 
-## Unreleased
+## 0.1.0
 
-- Support compile-time `CLI_VERSION` overrides for `packageVersion`. [#3700](https://github.com/a2ui-project/a2ui/pull/3700)
-- Bump `a2ui_core` dependency to `^0.4.0`.
 - Initial release of the A2UI CLI developer tool and typesafe component generator.
 - Support `codegen` command for generating Python client component builders from catalog schemas across protocol versions 0.9, 0.9.1, and 1.0.
 - Resolve `$defs/Child` references as single child components (`Child`) and target `a2ui.builder.v1_0` when generating code from v1.0 catalogs.
+- Support compile-time `CLI_VERSION` overrides for `packageVersion` ([#3700](https://github.com/a2ui-project/a2ui/pull/3700)).
+- Bump `a2ui_core` dependency to `^0.4.0`.

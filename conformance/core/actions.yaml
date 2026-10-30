@@ -132,3 +132,165 @@
     name: "click"
     context:
       target: "btn1"
+
+- name: test_action_v10_event_with_at_path_and_at_call_context
+  description: Verifies v1.0 @path and @call context bindings, @@ literal prefix unescaping, and @index inside template scope.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "row_btn"
+  scope: "/items/1"
+  dataModel:
+    items:
+      - title: "First"
+      - title: "Second"
+  actionPayload:
+    event:
+      name: "item_selected"
+      context:
+        itemTitle:
+          "@path": "title"
+        upperTitle:
+          "@call": "formatString"
+          args:
+            value: "Selected: ${title}"
+        itemIndex:
+          "@call": "@index"
+        oneBasedIndex:
+          "@call": "@index"
+          args:
+            offset: 1
+        escapedKey:
+          "@@path": "/literal/not/bound"
+  expectDispatched:
+    name: "item_selected"
+    surfaceId: "main_surface"
+    sourceComponentId: "row_btn"
+    timestampIso8601: true
+    context:
+      itemTitle: "Second"
+      upperTitle: "Selected: Second"
+      itemIndex: 1
+      oneBasedIndex: 2
+      escapedKey:
+        "@path": "/literal/not/bound"
+
+- name: test_action_v10_event_context_literal_path_and_call_keys
+  description: Verifies v1.0 literal 'path' and 'call' keys inside event.context are preserved as literal keys through GenericBinder / NodeResolver without being misread as v0.9 bindings.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "save_btn"
+  dataModel:
+    user: "Ada"
+  actionPayload:
+    event:
+      name: "save_document"
+      context:
+        path: "/documents/report.md"
+        call: "sync"
+        author:
+          "@path": "/user"
+  expectDispatched:
+    name: "save_document"
+    surfaceId: "main_surface"
+    sourceComponentId: "save_btn"
+    timestampIso8601: true
+    context:
+      path: "/documents/report.md"
+      call: "sync"
+      author: "Ada"
+
+- name: test_action_function_call_local_mutation_no_event_dispatched
+  description: Verifies a local functionCall action executes locally, mutates dataModel, and dispatches no outbound event (expectDispatched is null).
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "inc_btn"
+  dataModel:
+    count: 1
+  actionPayload:
+    functionCall:
+      "@call": "incrementCounter"
+      args:
+        path: "/count"
+        step: 2
+  expectDataModel:
+    count: 3
+  expectDispatched: null
+
+- name: test_action_function_call_open_url_with_user_activation_allowed
+  description: Verifies openUrl functionCall action succeeds when userActivation is true and dispatches no outbound event.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "link_btn"
+  userActivation: true
+  actionPayload:
+    functionCall:
+      "@call": "openUrl"
+      args:
+        url: "https://example.com"
+  expectDispatched: null
+
+- name: test_action_function_call_open_url_without_user_activation_denied
+  description: Verifies openUrl functionCall action fails when userActivation is false and emits EXECUTION_ERROR / INVALID_ACTION on surface.onError.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "link_btn"
+  userActivation: false
+  actionPayload:
+    functionCall:
+      "@call": "openUrl"
+      args:
+        url: "https://example.com"
+  expectDispatched: null
+  expectError:
+    surfaceId: "main_surface"
+    message: "openUrl"
+
+- name: test_action_event_missing_name_error
+  description: Verifies dispatch_action with a missing event name emits INVALID_ACTION on surface.onError.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "bad_btn"
+  actionPayload:
+    event:
+      context:
+        foo: "bar"
+  expectDispatched: null
+  expectError:
+    code: "INVALID_ACTION"
+    surfaceId: "main_surface"
+
+- name: test_action_event_non_string_user_message_error
+  description: Verifies dispatch_action with a non-string userMessage emits INVALID_ACTION on surface.onError.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "bad_msg_btn"
+  actionPayload:
+    event:
+      name: "submit"
+      userMessage: 12345
+  expectDispatched: null
+  expectError:
+    code: "INVALID_ACTION"
+    surfaceId: "main_surface"
+
+- name: test_action_function_call_execution_error
+  description: Verifies a failing local functionCall action emits EXECUTION_ERROR on surface.onError and dispatches no outbound event.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "fail_btn"
+  actionPayload:
+    functionCall:
+      "@call": "failingAction"
+      args: {}
+  expectDispatched: null
+  expectError:
+    code: "EXECUTION_ERROR"
+    surfaceId: "main_surface"
