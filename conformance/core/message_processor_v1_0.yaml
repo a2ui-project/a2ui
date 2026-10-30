@@ -1216,6 +1216,62 @@
       s:
         exists: true
 
+- name: test_v10_strict_function_call_to_schema_only_function_of_surface_catalog
+  description: >-
+    Under strictMode: true, a function call that names no catalogId is checked against the surface default catalog, and a function that catalog declares without an implementation (schema-only, as for a function that runs on the agent) passes. Strict validation rejects only functions no catalog declares; a renderer that validates strictly can declare the agent's functions this way and still route calls to them via callAgentFunction.
+  action: process_messages
+  protocolVersion: "1.0"
+  strictMode: true
+  catalogs:
+    - catalogId: "agent-fns-v10"
+      protocolVersion: "1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+      functions:
+        fetchGreeting:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: fetchGreeting
+            args:
+              type: object
+              properties:
+                name:
+                  type: string
+              required: ["name"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "agent-fns-v10"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Badge"
+            label:
+              "@call": "fetchGreeting"
+              args:
+                name: "Ada"
+  expect:
+    surfaces:
+      s:
+        exists: true
+        components:
+          - id: "root"
+            component: "Badge"
+
 - name: test_v10_function_call_naming_unknown_catalog_errors
   description: >-
     A function call that names a catalogId the client does not have is rejected.

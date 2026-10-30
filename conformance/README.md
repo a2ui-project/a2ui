@@ -33,6 +33,7 @@ The suites that do not depend on an inference format sit directly under `agent/`
 - `agent/request_processor.yaml`: Building an inference format from its factory, and taking registered catalogs and renderer capabilities through to a request processor.
 - `agent/skill.yaml`: Generating skill documents and skill sets from a format and a catalog.
 - `agent/multi_catalog_formats.yaml`: Resolving components and function calls across active catalogs (omitting `createSurface.catalogId` when multiple catalogs are active, resolving un-annotated components and function calls by name when unique across active catalogs, and requiring an explicit `catalogId` override when ambiguous), across `direct_json` (and later `express`): compiling, decompiling (including omitting `catalogId` when name lookup is unambiguous), parsing a response, rendering a prompt snippet, and building a format. Component order inside a message carries no meaning, so a harness may compare the `components` of a compiled message by `id`.
+- `agent/agent_functions.yaml`: Agent functions and the agent's side of function RPC (v1.0). It covers declaring agent functions on the agent's copy of a catalog, answering `callAgentFunction` (the response values and error codes, schema defaults, the handler's context, and which catalog a call runs in), validating model output that calls agent functions, and calling renderer functions with `callRendererFunction` (settling calls with responses, ignoring unknown, late and duplicate responses, timeouts, disposal and the limit on pending calls). See [Writing cases for the agent function suite](#writing-cases-for-the-agent-function-suite).
 - `agent/streamed_answer.yaml`: Reading a streamed answer into a renderer's message processor, for an app that is both the agent and the renderer, and keeping the answer's text, surfaces and rejected blocks in the order the model wrote them. It runs on `direct_json`, the format that streams. The suite belongs to the optional `agent_renderer_app` feature, and only an SDK that implements it runs the suite.
 
 A case names its format with `args.format`, an `InferenceFormatName`: `direct_json` (or `express`).
@@ -139,6 +140,31 @@ The case then runs its `steps` in order. An `evaluate` step evaluates a `Functio
 - `expectValues`: the current value of every `binding` and `check` evaluated so far in the case, in order. A pending value is `null`, as is `undefined` or `None`. A check's value is whether its rule passes; while the rule waits for the agent its value differs between SDKs, so cases check it only once the agent has answered. An `action` has no value.
 
 The cases use no timers, so they do not cover the timeout of an agent call. An SDK that cannot run a case lists it as a known divergence with the reason: the Dart core cannot declare a function without an implementation, so it skips the cases that use `agentFunctions`.
+
+### Writing cases for the agent function suite
+
+`agent/agent_functions.yaml` declares agent functions in `AgentFunctionCatalog` entries (`conformance_schema.json`): a catalog document in `catalog`, named as in the other agent suites, and `agent_functions`, the functions the agent adds to its copy of that catalog, by name. A declaration carries the JSON Schema of the function's `args`, its `returnType`, and optionally `description` and `allowedCallers`. In place of a handler it states a `behavior`, so every SDK runs the same function:
+
+- `returns`: returns that value, which may be `null`.
+- `returns_args: true`: returns the arguments the handler received, after validation and with the schema's defaults applied.
+- `returns_context: true`: returns the context of the call as `{catalogId, surfaceId, functionCallId}`.
+- `raises`: fails with `message`. With `code`, it fails the way the SDK lets a handler choose the response's RPC error code; without one, it fails with an ordinary error.
+
+The suite has four actions:
+
+- `declare_agent_functions` builds one catalog with its agent functions. `expect` lists, without regard to order, the catalog's functions (agent functions included), its agent functions, and the functions its `toJson()` document lists. `expect_error` names a catalog the SDK must refuse to build, such as one whose agent function takes the name of a function the catalog already declares.
+- `handle_agent_function` builds the `catalogs`, registers their agent functions, and answers `message`, a `callAgentFunction` message as received. `expect` is the `agentFunctionResponse` body: `functionCallId` and either `value` or `error`. `error.code` is compared exactly and `error.message` is a substring of the message sent. `expect_error` means handling the message fails instead of answering it, which happens only when the message has no `functionCallId` to copy.
+- `validate_payload` validates `messages` against the `catalogs`, the way an agent checks model output before sending it. A case states `expect_valid: true` or `expect_error`.
+- `call_renderer_function` makes calls to renderer functions and settles them, in `steps`. Each step does one thing: `call` makes a call named by its `label` (with `catalogId`, `name`, and optionally `args`, `surfaceId` and `timeout_ms`), `respond` hands over a `rendererFunctionResponse` for a labelled `call` or a literal `functionCallId`, `advance_ms` moves the clock, and `dispose` disposes the calls with an optional `reason`. `args` may set `default_timeout_ms` (otherwise the SDK's default of 30 seconds applies) and `max_pending`.
+
+A `call_renderer_function` harness runs the calls on a fake clock that only `advance_ms` moves, so the cases never wait on real time and a timer fires exactly when the clock reaches it. After each step it lets pending asynchronous work run, then checks:
+
+- `expect_message`, on a `call` step: the `callRendererFunction` message without its `functionCallId`. Separately, the harness checks that every call in a case got a different, non-empty `functionCallId`.
+- `expect_error`, on a `call` step: the call is refused with that RPC error `code`.
+- `expect_calls`: the state of each labelled call, which is `pending`, `{value}`, or `{error: {code, message?}}` with `message` a substring.
+- `expect_pending_count`: how many calls are waiting for a response.
+
+The TypeScript and Dart agent SDKs do not implement agent functions yet, so their harnesses skip every case of this suite with that reason.
 
 ### Writing cases for the agent SDK suites
 
