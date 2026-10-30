@@ -78,9 +78,10 @@ export const _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION: SignalImplementations = {
       (signal as any).set(value);
       return;
     }
-    if (!(signal instanceof PreactComputed)) {
-      (signal as PreactSignal<T>).value = value;
+    if (signal instanceof PreactComputed || typeof signal === 'function') {
+      throw new TypeError('Cannot set value of a read-only computed signal.');
     }
+    (signal as PreactSignal<T>).value = value;
   },
   peekValue: <T>(signal: Signal<T>): T => {
     if (typeof (signal as any)?.peek === 'function') {

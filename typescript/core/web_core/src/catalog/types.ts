@@ -19,6 +19,7 @@ import type {ProtocolVersion} from '../processing/adapters/base.js';
 import {DataContext} from '../resolution/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
+import {A2uiMetadata} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {SpecVersion} from '../spec_versions.js';
@@ -189,6 +190,9 @@ export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
 
   /** Optional allowed child component types (e.g. ['Text', 'Button']). */
   readonly allowedChildren?: string[];
+
+  /** Optional component-level metadata from the catalog definition. */
+  readonly metadata?: A2uiMetadata;
 }
 
 /**

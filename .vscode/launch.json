@@ -42,6 +42,26 @@
       "request": "launch",
       "command": "./scripts/fix_format.sh --write",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:3483-allowcallers}",
+      "name": "Debug A2UISchemaGenerator",
+      "target": "A2UISchemaGenerator",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug A2UISchemaGenerator"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:3483-allowcallers}",
+      "name": "Release A2UISchemaGenerator",
+      "target": "A2UISchemaGenerator",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release A2UISchemaGenerator"
     }
   ]
 }
