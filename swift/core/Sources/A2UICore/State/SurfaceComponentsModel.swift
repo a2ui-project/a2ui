@@ -25,6 +25,7 @@ public final class SurfaceComponentsModel: ObservableObject {
 
   private let componentsSubject: CurrentValueSubject<[String: ComponentModel], Never>
   let changedIDsSubject = PassthroughSubject<Set<String>, Never>()
+  let metadataChangedSubject = PassthroughSubject<(String, [String: JSONValue]?), Never>()
 
   /// Counts the changes to the components map: each call that stores a map raises it by one.
   ///
@@ -63,8 +64,18 @@ public final class SurfaceComponentsModel: ObservableObject {
     revision += 1
     objectWillChange.send()
     var current = componentsSubject.value
+    let old = current[component.id]
+    let oldMetadata = old?.metadata
+    let propsChanged =
+      old == nil || old?.type != component.type || old?.catalogID != component.catalogID
+      || old?.properties != component.properties
     current[component.id] = component
-    changedIDsSubject.send([component.id])
+    if propsChanged {
+      changedIDsSubject.send([component.id])
+    }
+    if !MetadataValidator.areEqual(oldMetadata, component.metadata) {
+      metadataChangedSubject.send((component.id, component.metadata))
+    }
     componentsSubject.send(current)
   }
 
@@ -75,8 +86,12 @@ public final class SurfaceComponentsModel: ObservableObject {
     revision += 1
     objectWillChange.send()
     var current = componentsSubject.value
+    let hadMetadata = current[id]?.metadata != nil
     current.removeValue(forKey: id)
     changedIDsSubject.send([id])
+    if hadMetadata {
+      metadataChangedSubject.send((id, nil))
+    }
     componentsSubject.send(current)
   }
 
@@ -89,17 +104,97 @@ public final class SurfaceComponentsModel: ObservableObject {
     revision += 1
     objectWillChange.send()
     var current = componentsSubject.value
+    var metadataUpdates: [(String, [String: JSONValue]?)] = []
+    var changedIDs = Set(removedIDs)
     for id in removedIDs {
+      let wasAddedAgain = added.contains { $0.id == id }
+      if !wasAddedAgain, current[id]?.metadata != nil {
+        metadataUpdates.append((id, nil))
+      }
       current.removeValue(forKey: id)
     }
     for component in added {
+      let old = current[component.id]
+      let oldMetadata = old?.metadata
+      let propsChanged =
+        old == nil || old?.type != component.type || old?.catalogID != component.catalogID
+        || old?.properties != component.properties
       current[component.id] = component
+      if propsChanged {
+        changedIDs.insert(component.id)
+      }
+      if !MetadataValidator.areEqual(oldMetadata, component.metadata) {
+        metadataUpdates.append((component.id, component.metadata))
+      }
     }
-    let changedIDs = Set(removedIDs).union(added.map(\.id))
     if !changedIDs.isEmpty {
       changedIDsSubject.send(changedIDs)
     }
+    for update in metadataUpdates {
+      metadataChangedSubject.send(update)
+    }
     componentsSubject.send(current)
+  }
+
+  /// Replaces the metadata dictionary of the component with `id` after validating UAX #31 keys.
+  ///
+  /// - Parameters:
+  ///   - metadata: Replacement metadata dictionary (`["extensions": .object(...)]`), or `nil`.
+  ///   - id: The component ID to update.
+  /// - Throws: ``A2UIValidationError`` when any extension key violates UAX #31.
+  public func setMetadata(
+    _ metadata: [String: JSONValue]?,
+    forComponentID id: String
+  ) throws {
+    var current = componentsSubject.value
+    guard var component = current[id] else { return }
+    let oldMetadata = component.metadata
+    try component.setMetadata(metadata)
+    guard !MetadataValidator.areEqual(component.metadata, oldMetadata) else { return }
+    objectWillChange.send()
+    current[id] = component
+    metadataChangedSubject.send((id, component.metadata))
+    componentsSubject.send(current)
+  }
+
+  /// Sets a single extension key on the metadata envelope of the component with `id`.
+  public func setExtension(
+    _ key: String,
+    value: JSONValue,
+    forComponentID id: String
+  ) throws {
+    var current = componentsSubject.value
+    guard var component = current[id] else { return }
+    let oldMetadata = component.metadata
+    try component.setExtension(key, value: value)
+    guard !MetadataValidator.areEqual(component.metadata, oldMetadata) else { return }
+    objectWillChange.send()
+    current[id] = component
+    metadataChangedSubject.send((id, component.metadata))
+    componentsSubject.send(current)
+  }
+
+  /// Removes a single extension key from the metadata envelope of the component with `id`.
+  public func removeExtension(_ key: String, forComponentID id: String) {
+    var current = componentsSubject.value
+    guard var component = current[id] else { return }
+    let oldMetadata = component.metadata
+    component.removeExtension(key)
+    guard !MetadataValidator.areEqual(component.metadata, oldMetadata) else { return }
+    objectWillChange.send()
+    current[id] = component
+    metadataChangedSubject.send((id, component.metadata))
+    componentsSubject.send(current)
+  }
+
+  /// Returns a publisher that emits whenever the metadata of the component with `id` changes.
+  public func metadataPublisher(
+    forComponentID id: String
+  ) -> AnyPublisher<[String: JSONValue]?, Never> {
+    metadataChangedSubject
+      .filter { $0.0 == id }
+      .map(\.1)
+      .eraseToAnyPublisher()
   }
 
   /// Validates references across the component graph
