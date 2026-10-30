@@ -6,8 +6,19 @@
   "type": "object",
   "properties": {
     "v0.9.1": {
+      "$ref": "#/$defs/Capabilities",
+      "description": "The capabilities structure for version 0.9.1 of the A2UI protocol."
+    },
+    "v0.9": {
+      "$ref": "#/$defs/Capabilities",
+      "description": "The capabilities structure for version 0.9 of the A2UI protocol, which a client that supports both versions sends beside the v0.9.1 entry."
+    }
+  },
+  "required": ["v0.9.1"],
+  "$defs": {
+    "Capabilities": {
       "type": "object",
-      "description": "The capabilities structure for version 0.9.1 of the A2UI protocol.",
+      "description": "The capabilities structure for one version of the A2UI protocol.",
       "properties": {
         "supportedCatalogIds": {
           "type": "array",
@@ -21,10 +32,7 @@
         }
       },
       "required": ["supportedCatalogIds"]
-    }
-  },
-  "required": ["v0.9.1"],
-  "$defs": {
+    },
     "FunctionDefinition": {
       "type": "object",
       "description": "Describes a function's interface.",

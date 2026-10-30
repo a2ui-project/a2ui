@@ -35,11 +35,11 @@ In `client_capabilities.json` and `server_capabilities.json`, the capabilities e
 }
 ```
 
-A client that supports both versions can send a `v0.9` entry and a `v0.9.1` entry side by side.
+A client that supports both versions can send a `v0.9` entry and a `v0.9.1` entry side by side, and `client_capabilities.json` checks both.
 
 ## 3. Migration Guide
 
 Since v0.9.1 is fully compatible with v0.9 messages (the version fields in the message schemas accept both `"v0.9"` and `"v0.9.1"`), clients and servers can upgrade seamlessly.
 
 - **Action for Implementers**: Update any hardcoded MIME type references from `application/json+a2ui` to `application/a2ui+json`.
-- **Action for Implementers**: Send and read v0.9.1 capabilities under the `v0.9.1` key. An agent that also serves v0.9 clients can fall back to the `v0.9` entry when there is no `v0.9.1` entry.
+- **Action for Implementers**: Send and read v0.9.1 capabilities under the `v0.9.1` key. An agent that also serves v0.9 clients can fall back to the `v0.9` entry when there is no `v0.9.1` entry, or when the `v0.9.1` entry names none of its catalogs.

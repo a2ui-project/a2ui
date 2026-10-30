@@ -1,9 +1,11 @@
 ## Unreleased
 
 - `resolve_catalogs` reads the capabilities of v0.9 and v0.9.1 catalogs from
-  the `v0.9.1` entry, and falls back to the `v0.9` entry when there is none. It
-  read only `v0.9`, so it rejected the `v0.9.1` entry that web_core and the
-  Python core renderer write for v0.9.1.
+  the `v0.9.1` entry, and from the `v0.9` entry when there is no `v0.9.1` entry
+  or it activates no catalog. It read only `v0.9`, so it rejected the `v0.9.1`
+  entry that web_core and the Python core renderer write for v0.9.1. When a
+  renderer sends both entries, both are validated, and each inline catalog
+  targets the protocol version of the entry that declares it.
 - Add incremental streaming support for the Express inference format via `ExpressResponseStream` (`ExpressFormat.supports_streaming` and `ExpressParser.supports_streaming` now return `True`). `ExpressFormatFactory`, `ExpressFormat`, and `ExpressParser` accept `progressive_keys` (defaulting to `DEFAULT_EXPRESS_PROGRESSIVE_KEYS = frozenset({"text"})`) to heal unclosed string literals in matching component properties and data path assignments as chunks arrive, while gating initial `createSurface` emission on `root = ...` for new surfaces, emitting delta `updateComponents` and per-path `updateDataModel` messages on subsequent chunks, and holding statements with unresolved value variables until defined ([#2896](https://github.com/a2ui-project/a2ui/issues/2896)).
 - **BREAKING CHANGE**: Use `'1.0'` (without a `'v'` prefix) as the `version`
   field on v1.0 protocol messages and capabilities in inference format

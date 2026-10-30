@@ -214,6 +214,42 @@ def test_the_v0_9_1_entry_is_read_before_the_v0_9_entry(protocol_version):
     assert _ids(resolved) == ["a"]
 
 
+@pytest.mark.parametrize("protocol_version", ["0.9", "0.9.1"])
+def test_the_v0_9_entry_is_read_when_the_v0_9_1_entry_activates_no_catalog(
+    protocol_version,
+):
+    capabilities = {
+        "v0.9": {"supportedCatalogIds": ["a"]},
+        "v0.9.1": {"supportedCatalogIds": ["other"]},
+    }
+
+    resolved = resolve_catalogs([_config("a", protocol_version, "Text")], capabilities)
+
+    assert _ids(resolved) == ["a"]
+
+
+def test_no_match_in_either_v0_9_entry_names_the_registered_catalogs():
+    capabilities = {
+        "v0.9": {"supportedCatalogIds": ["other"]},
+        "v0.9.1": {"supportedCatalogIds": ["other"]},
+    }
+
+    with pytest.raises(
+        A2uiCatalogError, match=r"No client-supported catalog found.*\['a'\]"
+    ):
+        resolve_catalogs([_config("a", "0.9", "Text")], capabilities)
+
+
+def test_a_malformed_v0_9_entry_beside_a_v0_9_1_entry_is_invalid():
+    capabilities = {
+        "v0.9": {"supportedCatalogIds": "a"},
+        "v0.9.1": {"supportedCatalogIds": ["a"]},
+    }
+
+    with pytest.raises(A2uiValidationError, match="Invalid 'v0.9' renderer"):
+        resolve_catalogs([_config("a", "0.9", "Text")], capabilities)
+
+
 def test_v0_9_and_v0_9_1_catalogs_resolve_together():
     catalogs = [_config("a", "0.9", "Text"), _config("b", "0.9.1", "Text")]
 
@@ -267,9 +303,19 @@ def test_catalogs_that_read_different_capabilities_keys_are_rejected():
         resolve_catalogs(catalogs, {"1.0": {"supportedCatalogIds": ["b"]}})
 
 
-def test_inline_catalogs_use_the_registered_catalogs_version():
+@pytest.mark.parametrize("key", ["v0.9", "v0.9.1"])
+@pytest.mark.parametrize(
+    "registered_versions",
+    [("0.9", "0.9.1"), ("0.9.1", "0.9")],
+    ids=["v0.9_first", "v0.9.1_first"],
+)
+def test_inline_catalogs_take_the_version_of_their_entry(key, registered_versions):
+    catalogs = [
+        _config(catalog_id, version, "Text")
+        for catalog_id, version in zip(["a", "b"], registered_versions)
+    ]
     capabilities = {
-        "v0.9": {
+        key: {
             "supportedCatalogIds": [],
             "inlineCatalogs": [{
                 "catalogId": "inline",
@@ -278,12 +324,10 @@ def test_inline_catalogs_use_the_registered_catalogs_version():
         }
     }
 
-    (resolved,) = resolve_catalogs(
-        [_config("a", "0.9", "Text")], capabilities, accepts_inline_catalogs=True
-    )
+    (resolved,) = resolve_catalogs(catalogs, capabilities, accepts_inline_catalogs=True)
 
     assert resolved.catalog_id == "inline"
-    assert resolved.protocol_version == "v0.9"
+    assert resolved.protocol_version == key
     assert set(resolved.components) == {"Marquee"}
 
 
