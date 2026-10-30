@@ -68,7 +68,7 @@ The archetype grammar supports exploration and layout variation:
 
 ### 4. Custom Catalogs (`patterns.json` and `templates.json`)
 
-Custom catalogs can define `patterns.json` and `templates.json` sidecar files alongside `catalog.json` to map semantic blocks or fixed domain templates onto catalog components.
+To onboard any custom `catalog.json` (in this repository or an external repository) to the decision synthesis route, use the [a2ui-generate-catalog-patterns](../../../../../.agents/skills/a2ui-generate-catalog-patterns/SKILL.md) skill and its helper CLI (`catalog_patterns_tool.py`). Depending on whether the catalog provides composable containers, fixed domain surfaces, or both, the skill generates and validates `patterns.json`, `templates.json`, and `sample_payloads.json` alongside `catalog.json`.
 
 Load those sidecars directly from the catalog directory at runtime:
 
