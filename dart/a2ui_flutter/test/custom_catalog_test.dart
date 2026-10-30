@@ -256,4 +256,122 @@ void main() {
     expect(tester.widget<Text>(find.byKey(const Key('qty'))).data, '3');
     expect(tester.widget<Text>(find.byKey(const Key('Stepper'))).data, '+');
   });
+
+  testWidgets(
+    'reads node.metadata.value reactively and passes ActionDispatchOptions',
+    (tester) async {
+      final CatalogImplementation badgeCatalog = CatalogImplementation(
+        id: _demoCatalogId,
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: [
+          ComponentImplementation(
+            name: 'MetaBadge',
+            schema: Schema.object(
+              properties: {
+                'onTap': Schema.fromMap({
+                  r'$ref': r'common_types.json#/$defs/Action',
+                }),
+              },
+            ),
+            builder: (context, node, props, buildChild) {
+              final Map<String, Object?>? meta = node.metadata.value;
+              final ext = meta?['extensions'] as Map<String, Object?>?;
+              return ElevatedButton(
+                onPressed: () {
+                  unawaited(
+                    props
+                        .action('onTap')
+                        ?.call(
+                          const ActionDispatchOptions(
+                            metadata: {
+                              'extensions': {'trace_ext': 't-42'},
+                            },
+                          ),
+                        ),
+                  );
+                },
+                child: Text('badge:${ext?['badge_ext'] ?? 'none'}'),
+              );
+            },
+          ),
+        ],
+      );
+
+      final SurfaceHarness harness = await pumpSurface(tester, [
+        {
+          'version': '1.0',
+          'createSurface': {
+            'surfaceId': testSurfaceId,
+            'catalogId': _demoCatalogId,
+            'components': [
+              {
+                'id': 'root',
+                'component': 'MetaBadge',
+                'metadata': {
+                  'extensions': {'badge_ext': 'v1'},
+                },
+                'onTap': {
+                  'event': {'name': 'tapped'},
+                },
+              },
+            ],
+          },
+        },
+      ], catalog: badgeCatalog);
+
+      expect(harness.errors, isEmpty);
+      expect(find.text('badge:v1'), findsOneWidget);
+
+      harness
+          .surface()
+          .componentsModel
+          .get('root')!
+          .setExtension('badge_ext', 'v2');
+      await tester.pump();
+      expect(find.text('badge:v2'), findsOneWidget);
+
+      await tester.tap(find.byType(ElevatedButton));
+      await tester.pump();
+
+      expect(harness.actions, hasLength(1));
+      expect(harness.actions.single.name, 'tapped');
+      expect(harness.actions.single.metadata, {
+        'extensions': {'trace_ext': 't-42'},
+      });
+    },
+  );
+
+  testWidgets(
+    'does not rebuild a component when its own metadata changes if its '
+    'builder never reads node.metadata',
+    (tester) async {
+      var buildCount = 0;
+      final plainItem = ComponentImplementation(
+        name: 'PlainItem',
+        schema: Schema.object(
+          properties: {'label': CommonSchemas.dynamicString},
+        ),
+        builder: (context, node, props, buildChild) {
+          buildCount++;
+          return Text('plain:${props.string('label') ?? ''}');
+        },
+      );
+
+      final SurfaceHarness harness = await pumpComponents(tester, [
+        {'id': 'root', 'component': 'PlainItem', 'label': 'Stable'},
+      ], catalog: _demoCatalog([plainItem]));
+
+      expect(find.text('plain:Stable'), findsOneWidget);
+      final initialBuilds = buildCount;
+
+      harness
+          .surface()
+          .componentsModel
+          .get('root')!
+          .setExtension('unused_ext', 'value1');
+      await tester.pump();
+
+      expect(buildCount, initialBuilds);
+    },
+  );
 }

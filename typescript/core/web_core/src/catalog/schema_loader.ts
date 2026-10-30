@@ -16,6 +16,7 @@
 
 import {z} from 'zod';
 
+import {validateMetadata} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {assertUax31Identifier} from '../common/uax31.js';
 import {A2uiCatalogError} from '../errors.js';
@@ -1153,6 +1154,14 @@ function parseCatalogComponents(
             propName,
             `property identifier: '${propName}' in component '${name}'`,
           );
+        }
+      }
+      const rawMeta = rawComp.metadata;
+      if (rawMeta !== undefined) {
+        try {
+          validateMetadata(rawMeta);
+        } catch (err) {
+          throw new A2uiCatalogError(err instanceof Error ? err.message : String(err));
         }
       }
     }
