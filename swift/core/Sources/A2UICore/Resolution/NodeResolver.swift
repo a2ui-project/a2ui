@@ -712,9 +712,8 @@ public final class NodeResolver: Sendable {
     if let existing = activeNodes[nodeKey],
       existing.type == type && existing.catalogID == effectiveCatalogID
     {
-      let updated = existing.updatingProperties(resolvedProperties)
-      activeNodes[nodeKey] = updated
-      return updated
+      existing.updateProperties(resolvedProperties)
+      return existing
     }
 
     let node = Node(

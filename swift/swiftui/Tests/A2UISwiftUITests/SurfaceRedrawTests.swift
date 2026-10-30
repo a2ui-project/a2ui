@@ -18,6 +18,7 @@ import A2UISwiftUI
 import BasicCatalog
 import BasicCatalogSwiftUI
 import Combine
+import JSONSchema
 import OrderedJSON
 import SwiftUI
 import Testing
@@ -28,7 +29,11 @@ import Testing
   import UIKit
 #endif
 
-private final class RedrawCounter: @unchecked Sendable {
+private final class RedrawCounter: Equatable, @unchecked Sendable {
+  static func == (lhs: RedrawCounter, rhs: RedrawCounter) -> Bool {
+    lhs === rhs
+  }
+
   private(set) var counts: [String: Int] = [:]
 
   func record(_ id: String) {
@@ -82,6 +87,7 @@ struct SurfaceRedrawTests {
       RunLoop.main.run(until: Date())
       hostingView.layoutSubtreeIfNeeded()
     }
+
   #elseif canImport(UIKit)
     private func flushLayout(in window: UIWindow, hostingView: UIView) {
       RunLoop.main.run(until: Date())
@@ -572,5 +578,367 @@ struct SurfaceRedrawTests {
     #expect(counter.count(for: "Surface") == 0)
     #expect(counter.count(for: "itemsContainer") == 1)
     #expect(counter.totalComponentRedraws == 1)
+  }
+
+  @Test func inlineCustomContainerTracksChildNodePropertiesWithoutWorkarounds() throws {
+    let counter = RedrawCounter()
+    let recorder = RenderedOutputRecorder()
+    let buttonGroupSchema = try makeChildListContainerSchema()
+
+    let buttonGroupImpl = ComponentImplementation(
+      name: "ButtonGroup",
+      schema: buttonGroupSchema
+    ) { node in
+      counter.record("buttonGroupBuilder")
+      return InlineButtonGroupView(node: node, counter: counter)
+    }
+
+    let baseCoreCatalog = BasicCatalog.makeCatalog(version: .v091)
+    let coreCatalog = Catalog(
+      id: "custom-inline",
+      protocolVersion: .v091,
+      components: Array(baseCoreCatalog.components.values) + [
+        AnyComponentAPI(name: "ButtonGroup", schema: buttonGroupSchema)
+      ]
+    )
+    let baseSwiftUICatalog = BasicCatalogImplementation.makeCatalog(version: .v091)
+    let swiftUICatalog = Catalog(
+      id: "custom-inline",
+      protocolVersion: .v091,
+      components: Array(baseSwiftUICatalog.components.values) + [buttonGroupImpl]
+    )
+
+    let viewModel = SurfaceViewModel(surfaceID: "inline-container", catalog: coreCatalog)
+    viewModel.dataModel.set("/first", value: .string("First Initial"))
+    viewModel.dataModel.set("/second", value: .string("Second Initial"))
+    viewModel.dataModel.set("/unused", value: .string("Unused Initial"))
+
+    viewModel.componentsModel.applyBatch(adding: [
+      ComponentModel(
+        id: "root",
+        type: "ButtonGroup",
+        properties: ["children": .array([.string("first"), .string("second")])]
+      ),
+      ComponentModel(
+        id: "first",
+        type: "Text",
+        properties: ["text": .object(["path": .string("/first")])]
+      ),
+      ComponentModel(
+        id: "second",
+        type: "Text",
+        properties: ["text": .object(["path": .string("/second")])]
+      ),
+    ])
+
+    let cancellable = viewModel.objectWillChange.sink { _ in
+      counter.record("Surface")
+    }
+    defer { _ = cancellable }
+
+    let rootView = Surface(viewModel: viewModel, catalog: swiftUICatalog)
+      .onPreferenceChange(RenderedTextsPreferenceKey.self) { texts in
+        MainActor.assumeIsolated {
+          recorder.replaceAll(texts)
+        }
+      }
+
+    #if canImport(AppKit)
+      let hostingView = NSHostingView(rootView: rootView)
+      hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
+      let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 400, height: 200),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+      )
+      window.contentView = hostingView
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      let hostingController = UIHostingController(rootView: rootView)
+      let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 200))
+      window.rootViewController = hostingController
+      window.makeKeyAndVisible()
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    // 1. Initial render mounts both child labels inline without ComponentNodeView.
+    #expect(counter.count(for: "buttonGroupBuilder") == 1)
+    #expect(counter.count(for: "buttonGroupBody") == 1)
+    #expect(recorder.value(for: "first") == "First Initial")
+    #expect(recorder.value(for: "second") == "Second Initial")
+
+    // 2. Mutating /first re-evaluates InlineButtonGroupView.body directly via Observation
+    //    and updates the hosted SwiftUI view tree output.
+    counter.reset()
+    viewModel.dataModel.set("/first", value: .string("First Updated"))
+    #if canImport(AppKit)
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    #expect(counter.count(for: "Surface") == 0)
+    #expect(counter.count(for: "buttonGroupBuilder") == 0)
+    #expect(counter.count(for: "buttonGroupBody") == 1)
+    #expect(recorder.value(for: "first") == "First Updated")
+    #expect(recorder.value(for: "second") == "Second Initial")
+
+    // 3. Mutating an unrelated /unused path or writing the same value causes 0 redraws.
+    counter.reset()
+    viewModel.dataModel.set("/unused", value: .string("Unused Updated"))
+    viewModel.dataModel.set("/first", value: .string("First Updated"))
+    #if canImport(AppKit)
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    #expect(counter.counts.isEmpty)
+  }
+
+  @Test func subviewCustomContainerIsolatesRedrawsToMutatedChildSubview() throws {
+    let counter = RedrawCounter()
+    let recorder = RenderedOutputRecorder()
+    let segmentedSchema = try makeChildListContainerSchema()
+
+    let segmentedImpl = ComponentImplementation(
+      name: "SegmentedGroup",
+      schema: segmentedSchema
+    ) { node in
+      counter.record("segmentedBuilder")
+      return SegmentedGroupView(node: node, counter: counter)
+    }
+
+    let baseCoreCatalog = BasicCatalog.makeCatalog(version: .v091)
+    let coreCatalog = Catalog(
+      id: "custom-subview",
+      protocolVersion: .v091,
+      components: Array(baseCoreCatalog.components.values) + [
+        AnyComponentAPI(name: "SegmentedGroup", schema: segmentedSchema)
+      ]
+    )
+    let baseSwiftUICatalog = BasicCatalogImplementation.makeCatalog(version: .v091)
+    let swiftUICatalog = Catalog(
+      id: "custom-subview",
+      protocolVersion: .v091,
+      components: Array(baseSwiftUICatalog.components.values) + [segmentedImpl]
+    )
+
+    let viewModel = SurfaceViewModel(surfaceID: "subview-container", catalog: coreCatalog)
+    viewModel.dataModel.set("/first", value: .string("Tab One"))
+    viewModel.dataModel.set("/second", value: .string("Tab Two"))
+    viewModel.dataModel.set("/unused", value: .string("Unused"))
+
+    viewModel.componentsModel.applyBatch(adding: [
+      ComponentModel(
+        id: "root",
+        type: "SegmentedGroup",
+        properties: ["children": .array([.string("first"), .string("second")])]
+      ),
+      ComponentModel(
+        id: "first",
+        type: "Text",
+        properties: ["text": .object(["path": .string("/first")])]
+      ),
+      ComponentModel(
+        id: "second",
+        type: "Text",
+        properties: ["text": .object(["path": .string("/second")])]
+      ),
+    ])
+
+    let cancellable = viewModel.objectWillChange.sink { _ in
+      counter.record("Surface")
+    }
+    defer { _ = cancellable }
+
+    let rootView = Surface(viewModel: viewModel, catalog: swiftUICatalog)
+      .onPreferenceChange(RenderedTextsPreferenceKey.self) { texts in
+        MainActor.assumeIsolated {
+          recorder.replaceAll(texts)
+        }
+      }
+
+    #if canImport(AppKit)
+      let hostingView = NSHostingView(rootView: rootView)
+      hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
+      let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 400, height: 200),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+      )
+      window.contentView = hostingView
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      let hostingController = UIHostingController(rootView: rootView)
+      let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 200))
+      window.rootViewController = hostingController
+      window.makeKeyAndVisible()
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    // 1. Initial mount renders the container once and each SegmentItemView once.
+    #expect(counter.count(for: "segmentedBuilder") == 1)
+    #expect(counter.count(for: "segmentedBody") == 1)
+    #expect(counter.count(for: "segment_first") == 1)
+    #expect(counter.count(for: "segment_second") == 1)
+    #expect(recorder.value(for: "first") == "Tab One")
+    #expect(recorder.value(for: "second") == "Tab Two")
+
+    // 2. Mutating /first re-renders ONLY SegmentItemView("first") — 0 parent & 0 sibling redraws.
+    counter.reset()
+    viewModel.dataModel.set("/first", value: .string("Tab One Updated"))
+    #if canImport(AppKit)
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    #expect(counter.count(for: "Surface") == 0)
+    #expect(counter.count(for: "segmentedBuilder") == 0)
+    #expect(counter.count(for: "segmentedBody") == 0)
+    #expect(counter.count(for: "segment_first") == 1)
+    #expect(counter.count(for: "segment_second") == 0)
+    #expect(recorder.value(for: "first") == "Tab One Updated")
+    #expect(recorder.value(for: "second") == "Tab Two")
+
+    // 3. Appending a third child re-renders the parent and mounts "third" while skipping
+    //    unchanged SegmentItemViews ("first" and "second") via Equatable / Node.==.
+    counter.reset()
+    viewModel.componentsModel.applyBatch(adding: [
+      ComponentModel(
+        id: "third",
+        type: "Text",
+        properties: ["text": .string("Tab Three")]
+      ),
+      ComponentModel(
+        id: "root",
+        type: "SegmentedGroup",
+        properties: [
+          "children": .array([.string("first"), .string("second"), .string("third")])
+        ]
+      ),
+    ])
+    #if canImport(AppKit)
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    #expect(counter.count(for: "Surface") == 0)
+    #expect(counter.count(for: "segmentedBuilder") == 1)
+    #expect(counter.count(for: "segmentedBody") == 1)
+    #expect(counter.count(for: "segment_first") == 0)
+    #expect(counter.count(for: "segment_second") == 0)
+    #expect(counter.count(for: "segment_third") == 1)
+    #expect(recorder.value(for: "third") == "Tab Three")
+
+    // 4. Subsequent mutation to /first after parent Equatable-skip still invalidates "first".
+    counter.reset()
+    viewModel.dataModel.set("/first", value: .string("Tab One Final"))
+    #if canImport(AppKit)
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    #expect(counter.count(for: "segmentedBody") == 0)
+    #expect(counter.count(for: "segment_first") == 1)
+    #expect(counter.count(for: "segment_second") == 0)
+    #expect(counter.count(for: "segment_third") == 0)
+    #expect(recorder.value(for: "first") == "Tab One Final")
+    #expect(recorder.value(for: "second") == "Tab Two")
+    #expect(recorder.value(for: "third") == "Tab Three")
+  }
+
+  private func makeChildListContainerSchema() throws -> Schema {
+    try Schema(
+      instance: """
+        {
+          "allOf": [
+            { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ComponentCommon" },
+            {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "component": { "type": "string" },
+                "children": {
+                  "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ChildList"
+                }
+              }
+            }
+          ]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+  }
+}
+
+private struct RenderedTextsPreferenceKey: PreferenceKey {
+  static let defaultValue: [String: String] = [:]
+
+  static func reduce(value: inout [String: String], nextValue: () -> [String: String]) {
+    value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
+  }
+}
+
+private final class RenderedOutputRecorder: @unchecked Sendable {
+  private var values: [String: String] = [:]
+
+  func replaceAll(_ newValues: [String: String]) {
+    values = newValues
+  }
+
+  func value(for id: String) -> String? {
+    values[id]
+  }
+}
+
+private struct InlineButtonGroupView: View {
+  let node: Node
+  let counter: RedrawCounter
+
+  var body: some View {
+    let _ = counter.record("buttonGroupBody")
+    let items = node.children(for: "children").map { child in
+      (id: child.id, label: child.string(for: "text") ?? "", action: child.action(for: "action"))
+    }
+    HStack {
+      ForEach(items, id: \.id) { item in
+        Button(item.label) {
+          item.action?()
+        }
+        .preference(key: RenderedTextsPreferenceKey.self, value: [item.id: item.label])
+      }
+    }
+  }
+}
+
+private struct SegmentedGroupView: View {
+  let node: Node
+  let counter: RedrawCounter
+
+  var body: some View {
+    let _ = counter.record("segmentedBody")
+    HStack {
+      ForEach(node.children(for: "children")) { child in
+        SegmentItemView(child: child, counter: counter)
+      }
+    }
+  }
+}
+
+private struct SegmentItemView: View, Equatable {
+  let child: Node
+  let counter: RedrawCounter
+
+  var body: some View {
+    let _ = counter.record("segment_\(child.id)")
+    let label = child.string(for: "text") ?? ""
+    Text(label)
+      .preference(key: RenderedTextsPreferenceKey.self, value: [child.id: label])
   }
 }

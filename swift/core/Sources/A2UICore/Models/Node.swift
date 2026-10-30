@@ -12,19 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import Combine
+import Observation
 import OrderedJSON
 
 /// A persistent, observable backing store for a resolved component node.
 ///
 /// `@unchecked Sendable` is safe because instances are initialized once in `Node.init` and
 /// only ever mutated on `@MainActor` via ``updateProperties(_:)``.
-package final class NodeBox: ObservableObject, @unchecked Sendable {
+package final class NodeBox: Observable, @unchecked Sendable {
+  private let registrar = ObservationRegistrar()
+
   let id: String
   let type: String
   let catalogID: String?
-  private(set) var properties: [String: any Resolved]
+  private var _properties: [String: any Resolved]
   package private(set) var revision: UInt64 = 0
+
+  var properties: [String: any Resolved] {
+    registrar.access(self, keyPath: \.properties)
+    return _properties
+  }
 
   init(
     id: String,
@@ -35,20 +42,21 @@ package final class NodeBox: ObservableObject, @unchecked Sendable {
     self.id = id
     self.type = type
     self.catalogID = catalogID
-    self.properties = properties
+    self._properties = properties
   }
 
-  /// Updates the box's resolved properties in-place, publishing `objectWillChange`
+  /// Updates the box's resolved properties in-place, notifying `Observation` observers
   /// only when its own non-node properties or child `NodeBox` references (`===`) change.
   @MainActor
   func updateProperties(_ newProperties: [String: any Resolved]) {
-    let changed = !Self.arePropertiesShallowEqual(properties, newProperties)
+    let changed = !Self.arePropertiesShallowEqual(_properties, newProperties)
     if changed {
-      objectWillChange.send()
-    }
-    properties = newProperties
-    if changed {
+      registrar.withMutation(of: self, keyPath: \.properties) {
+        _properties = newProperties
+      }
       revision &+= 1
+    } else {
+      _properties = newProperties
     }
   }
 
@@ -88,7 +96,6 @@ package final class NodeBox: ObservableObject, @unchecked Sendable {
 /// A resolved component representation.
 public struct Node: Identifiable, Equatable, Sendable {
   package let box: NodeBox
-  private let renderRevision: UInt64
 
   public var id: String { box.id }
   public var type: String { box.type }
@@ -103,36 +110,17 @@ public struct Node: Identifiable, Equatable, Sendable {
     properties: [String: any Resolved]
   ) {
     self.box = NodeBox(id: id, type: type, catalogID: catalogID, properties: properties)
-    self.renderRevision = 0
   }
 
-  private init(box: NodeBox, renderRevision: UInt64) {
-    self.box = box
-    self.renderRevision = renderRevision
-  }
-
-  /// Updates the backing box's resolved properties in-place and returns a `Node` stamped with
-  /// the box's resulting revision.
+  /// Updates the backing box's resolved properties in-place.
   @MainActor
-  func updatingProperties(_ newProperties: [String: any Resolved]) -> Node {
+  func updateProperties(_ newProperties: [String: any Resolved]) {
     box.updateProperties(newProperties)
-    return withCurrentRevision()
-  }
-
-  /// Returns a copy stamped with the backing box's current revision so SwiftUI diffs
-  /// catalog component view structs as changed when `ComponentNodeView` re-renders.
-  package func withCurrentRevision() -> Node {
-    renderRevision == box.revision ? self : Node(box: box, renderRevision: box.revision)
-  }
-
-  /// Returns a copy with a neutral render revision for container child identity checks.
-  package func withoutRenderRevision() -> Node {
-    renderRevision == 0 ? self : Node(box: box, renderRevision: 0)
   }
 
   public static func == (lhs: Node, rhs: Node) -> Bool {
     if lhs.box === rhs.box {
-      return lhs.renderRevision == rhs.renderRevision
+      return true
     }
     guard lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID,
       lhs.properties.count == rhs.properties.count

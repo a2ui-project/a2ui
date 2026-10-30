@@ -25,22 +25,19 @@ public struct ComponentNodeView: View {
   @Environment(\.a2uiCatalogs) private var catalogs
   @Environment(\.a2uiDefaultCatalogID) private var defaultCatalogID
 
-  @ObservedObject private var box: NodeBox
   public let node: Node
 
   public init(node: Node) {
-    let cleanNode = node.withoutRenderRevision()
-    self.node = cleanNode
-    self.box = cleanNode.box
+    self.node = node
   }
 
   public var body: some View {
-    let renderNode = node.withCurrentRevision()
+    let _ = node.properties
     if let renderedView = Surface.render(
-      node: renderNode, using: catalogs, defaultCatalogID: defaultCatalogID)
+      node: node, using: catalogs, defaultCatalogID: defaultCatalogID)
     {
       renderedView
-        .modifier(ComponentAccessibilityHostModifier(node: renderNode))
+        .modifier(ComponentAccessibilityHostModifier(node: node))
     } else {
       fallbackView
     }
