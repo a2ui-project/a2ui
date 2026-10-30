@@ -406,7 +406,7 @@ export class ExpressDecompiler {
    */
   private formatSurfaceHeader(
     surfaceId: string,
-    opts: {sendDataModel?: boolean; update?: boolean} = {},
+    opts: {sendDataModel?: boolean; update?: boolean; extensions?: Record<string, unknown>} = {},
   ): string {
     const parts: string[] = [decompileString(surfaceId)];
     if (typeof opts.sendDataModel === 'boolean') {
@@ -415,18 +415,10 @@ export class ExpressDecompiler {
     if (opts.update) {
       parts.push('update=true');
     }
+    if (opts.extensions !== undefined) {
+      parts.push(`extensions=${this.decompileValue(opts.extensions, new Map(), false)}`);
+    }
     return `surface(${parts.join(', ')})`;
-  }
-
-  /**
-   * Wraps individual decompiled A2UI Express DSL blocks within sentinel tags.
-   *
-   * @param blocks A list of decompiled A2UI Express DSL statement strings.
-   * @returns The merged A2UI Express DSL string enclosed within opening and closing sentinel tags.
-   */
-  wrapDecompiledBlocks(blocks: string[]): string {
-    const fullDsl = blocks.join('\n');
-    return `${A2UI_INFERENCE_OPEN_TAG}\n${fullDsl}\n${A2UI_INFERENCE_CLOSE_TAG}`;
   }
 
   /**
@@ -450,18 +442,12 @@ export class ExpressDecompiler {
   /**
    * Decompiles standard A2UI wire JSON into clean A2UI Express lines.
    *
-   * @param messages Standard A2UI wire JSON envelope dict or list of message dicts.
+   * @param messages Standard A2UI wire JSON message envelopes.
    * @param useKeywordArgs Whether to format component arguments as keyword parameters (e.g. param=value).
    * @returns The decompiled A2UI Express DSL string.
    */
-  decompile(
-    messages: AgentToRendererMessage | AgentToRendererMessage[],
-    useKeywordArgs = false,
-  ): string {
-    const rawList = Array.isArray(messages) ? messages : [messages];
-    const coalesced = this.coalesceSurfaceMessages(
-      rawList as unknown as Array<Record<string, unknown>>,
-    );
+  decompile(messages: AgentToRendererMessage[], useKeywordArgs = false): string {
+    const coalesced = this.coalesceSurfaceMessages(messages);
     const surfaceCatalogs = new Map<string, string>();
     const blocks: string[] = [];
     let callIndex = 0;
@@ -630,9 +616,18 @@ export class ExpressDecompiler {
     const {surfaceCatalogId, helper} = this.resolveSurfaceContext(surfaceId, surfaceCatalogs);
 
     const sendDataModel = typeof cs.sendDataModel === 'boolean' ? cs.sendDataModel : undefined;
+    const meta = this.isV1 ? asRecord(cs.metadata) : undefined;
+    const extensions = meta ? asRecord(meta.extensions) : undefined;
     const dslLines: string[] = [];
-    if (!(isFirst && surfaceId === 'default_surface' && sendDataModel === undefined)) {
-      dslLines.push(this.formatSurfaceHeader(surfaceId, {sendDataModel}));
+    if (
+      !(
+        isFirst &&
+        surfaceId === 'default_surface' &&
+        sendDataModel === undefined &&
+        extensions === undefined
+      )
+    ) {
+      dslLines.push(this.formatSurfaceHeader(surfaceId, {sendDataModel, extensions}));
     }
 
     const components = Array.isArray(cs.components)
@@ -773,8 +768,13 @@ export class ExpressDecompiler {
     const properties = helper.getComponentProperties(compName);
     const checkProp = helper.getCheckRuleProperty(compName);
     const argsReprs: string[] = [];
+    const metaRecord = this.isV1 ? asRecord(comp.metadata) : undefined;
+    const compExtensions = metaRecord ? asRecord(metaRecord.extensions) : undefined;
 
     for (const propName of properties) {
+      if (propName === 'metadata' && compExtensions !== undefined) {
+        continue;
+      }
       const arg =
         checkProp && propName === checkProp
           ? this.formatCheckPropertyArg(
@@ -808,6 +808,11 @@ export class ExpressDecompiler {
     }
     if (varName !== compId) {
       argsReprs.push(`id=${decompileString(compId)}`);
+    }
+    if (compExtensions !== undefined) {
+      argsReprs.push(
+        `extensions=${this.decompileValue(compExtensions, varNames, false, helper, surfaceCatalogId)}`,
+      );
     }
 
     return `${varName} = ${compName}(${argsReprs.join(', ')})`;

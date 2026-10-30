@@ -21,6 +21,32 @@ interface V8ErrorConstructor extends ErrorConstructor {
 }
 
 /**
+ * Structured validation or processing error detail for a specific field path.
+ */
+export interface A2uiErrorDetail {
+  /** RFC 6901 JSON Pointer path to the offending field. */
+  path: string;
+  /** Machine-readable error code. */
+  code: string;
+  /** Human-readable error message. */
+  message: string;
+  /** Optional target surface identifier. */
+  surfaceId?: string;
+}
+
+/**
+ * Optional context metadata for A2UI errors.
+ */
+export interface A2uiErrorContext {
+  /** RFC 6901 JSON Pointer path to the offending field. */
+  path?: string;
+  /** Target surface identifier. */
+  surfaceId?: string;
+  /** Correlated RPC function call identifier. */
+  functionCallId?: string;
+}
+
+/**
  * Base class for all A2UI specific errors.
  *
  * Includes a machine-readable `code` for categorical handling and ensures
@@ -34,17 +60,29 @@ interface V8ErrorConstructor extends ErrorConstructor {
 export class A2uiError extends Error {
   /** Machine-readable string identifying the error category. */
   public readonly code: string;
+  /** Optional RFC 6901 JSON Pointer path to the offending field. */
+  public path?: string;
+  /** Optional target surface identifier. */
+  public surfaceId?: string;
+  /** Optional correlated RPC function call identifier. */
+  public functionCallId?: string;
 
   /**
    * Initializes a new `A2uiError` instance.
    *
    * @param message Human-readable error description.
    * @param code Machine-readable error category code.
+   * @param context Optional error context metadata (path, surfaceId, functionCallId).
    */
-  constructor(message: string, code: string = 'UNKNOWN_ERROR') {
+  constructor(message: string, code: string = 'UNKNOWN_ERROR', context?: A2uiErrorContext) {
     super(message);
     this.name = this.constructor.name;
     this.code = code;
+    if (context?.path !== undefined) this.path = context.path;
+    if (context?.surfaceId !== undefined) this.surfaceId = context.surfaceId;
+    if (context?.functionCallId !== undefined) {
+      this.functionCallId = context.functionCallId;
+    }
 
     // Maintains proper stack trace for where our error was thrown (only available on V8)
     if ((Error as V8ErrorConstructor).captureStackTrace) {
@@ -63,13 +101,15 @@ export class A2uiValidationError extends A2uiError {
    * @param message Error description detailing the validation failure.
    * @param details Additional error context or Zod validation issues.
    * @param code Optional error category code.
+   * @param context Optional error context metadata.
    */
   constructor(
     message: string,
     public readonly details?: any,
     code: string = 'VALIDATION_ERROR',
+    context?: A2uiErrorContext,
   ) {
-    super(message, code);
+    super(message, code, context);
   }
 }
 
@@ -82,12 +122,10 @@ export class A2uiDataError extends A2uiError {
    *
    * @param message Error description.
    * @param path Target data model path where the mutation failed.
+   * @param surfaceId Optional target surface identifier.
    */
-  constructor(
-    message: string,
-    public readonly path?: string,
-  ) {
-    super(message, 'DATA_ERROR');
+  constructor(message: string, path?: string, surfaceId?: string) {
+    super(message, 'DATA_ERROR', {path, surfaceId});
   }
 }
 
@@ -101,13 +139,15 @@ export class A2uiExpressionError extends A2uiError {
    * @param message Error description.
    * @param expression Evaluated expression string.
    * @param details Additional error details.
+   * @param context Optional error context metadata.
    */
   constructor(
     message: string,
     public readonly expression?: string,
     public readonly details?: any,
+    context?: A2uiErrorContext,
   ) {
-    super(message, 'EXPRESSION_ERROR');
+    super(message, 'EXPRESSION_ERROR', context);
   }
 }
 
@@ -119,9 +159,10 @@ export class A2uiStateError extends A2uiError {
    * Initializes a new `A2uiStateError` instance.
    *
    * @param message Error description.
+   * @param context Optional error context metadata.
    */
-  constructor(message: string) {
-    super(message, 'STATE_ERROR');
+  constructor(message: string, context?: A2uiErrorContext) {
+    super(message, 'STATE_ERROR', context);
   }
 }
 
@@ -137,9 +178,10 @@ export class A2uiCatalogError extends A2uiError {
    *
    * @param message Human-readable error description.
    * @param code Machine-readable error category code. Defaults to `'CATALOG_ERROR'`.
+   * @param context Optional error context metadata.
    */
-  constructor(message: string, code: string = 'CATALOG_ERROR') {
-    super(message, code);
+  constructor(message: string, code: string = 'CATALOG_ERROR', context?: A2uiErrorContext) {
+    super(message, code, context);
   }
 }
 
@@ -153,9 +195,15 @@ export class A2uiIntegrityError extends A2uiValidationError {
    * @param message Error description.
    * @param details Additional error details.
    * @param code Error category code. Defaults to 'INTEGRITY_ERROR'.
+   * @param context Optional error context metadata.
    */
-  constructor(message: string, details?: any, code: string = 'INTEGRITY_ERROR') {
-    super(message, details, code);
+  constructor(
+    message: string,
+    details?: any,
+    code: string = 'INTEGRITY_ERROR',
+    context?: A2uiErrorContext,
+  ) {
+    super(message, details, code, context);
     this.name = 'A2uiIntegrityError';
   }
 }
@@ -170,9 +218,15 @@ export class A2uiRecursionError extends A2uiValidationError {
    * @param message Error description.
    * @param details Additional error details.
    * @param code Error category code. Defaults to 'RECURSION_ERROR'.
+   * @param context Optional error context metadata.
    */
-  constructor(message: string, details?: any, code: string = 'RECURSION_ERROR') {
-    super(message, details, code);
+  constructor(
+    message: string,
+    details?: any,
+    code: string = 'RECURSION_ERROR',
+    context?: A2uiErrorContext,
+  ) {
+    super(message, details, code, context);
     this.name = 'A2uiRecursionError';
   }
 }
@@ -225,7 +279,7 @@ export class A2uiRpcError extends A2uiError {
     message: string,
     code: RpcErrorCode | string = RpcErrorCode.UNKNOWN_ERROR,
     /** Identifier of the failed function call, if available. */
-    public readonly functionCallId?: string,
+    public override readonly functionCallId?: string,
     /** Structured error details or original error cause, if available. */
     public readonly details?: unknown,
   ) {
