@@ -18,9 +18,15 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Catches breakage from outside the repository, such as a new dependency
+  # release or runner image, when nothing is merged for a while.
+  schedule:
+    - cron: "45 2 * * *" # daily at 02:45 UTC
+  workflow_dispatch:
 
+# A scheduled run has a group of its own, so that a push does not cancel it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref_name || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -65,6 +71,12 @@ jobs:
       - name: Check license headers
         run: ./scripts/fix_licenses.py --check
 
+      - uses: ./.github/actions/setup-python
+
+      # See .agents/skills/ci-workflows/SKILL.md for the rules.
+      - name: Check that CI workflows run nightly
+        run: uv run --no-project --with pyyaml==6.0.3 python3 .agents/skills/ci-workflows/scripts/check_workflows.py
+
   format-check:
     runs-on: ubuntu-24.04 # setup-swift does not support Ubuntu 26.04 yet
     steps:
@@ -99,3 +111,23 @@ jobs:
         run: yarn build:all
       - name: Run yarn lint:all
         run: yarn lint:all
+
+  # Files an issue when the nightly run fails, or adds the run to the open
+  # issue. A manual run does not file one.
+  report-failure:
+    needs: [static-checks, format-check, workspace-lint]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      # Lets create_issue.sh find the last passing run.
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Create Issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/create_issue.sh "Presubmit lint" "ci_failure"
