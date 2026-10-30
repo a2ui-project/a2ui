@@ -143,16 +143,14 @@ class TestExpressParser(unittest.TestCase):
         res_partial = to_message_dicts(compiler.compile(incomplete_dsl, is_final=False))
         self.assertEqual(
             res_partial,
-            [
-                {
-                    "version": "1.0",
-                    "updateDataModel": {
-                        "surfaceId": "default_surface",
-                        "path": "/foo",
-                        "value": 123,
-                    },
-                }
-            ],
+            [{
+                "version": "1.0",
+                "updateDataModel": {
+                    "surfaceId": "default_surface",
+                    "path": "/foo",
+                    "value": 123,
+                },
+            }],
         )
 
     def test_schema_driven_child_reference_helper(self):
@@ -401,23 +399,17 @@ class TestExpressDecompileEventAndNestedActions(unittest.TestCase):
             },
             protocol_version="0.9",
         )
-        decompiled = ExpressParser([catalog], version="v0.9").decompile(
-            [
-                {
-                    "version": "v0.9",
-                    "updateComponents": {
-                        "surfaceId": "s1",
-                        "components": [
-                            {
-                                "id": "root",
-                                "component": "Card",
-                                "child": {"event": {"name": "go", "userMessage": "hi"}},
-                            }
-                        ],
-                    },
-                }
-            ]
-        )
+        decompiled = ExpressParser([catalog], version="v0.9").decompile([{
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [{
+                    "id": "root",
+                    "component": "Card",
+                    "child": {"event": {"name": "go", "userMessage": "hi"}},
+                }],
+            },
+        }])
         self.assertNotIn("Event(", decompiled)
         self.assertIn("{event: {name:", decompiled)
 

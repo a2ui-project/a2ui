@@ -926,12 +926,10 @@ class ExpressScopeSession:
                 return []
             self._emitted_units.add(idx)
             self.has_emitted = True
-            return [
-                {
-                    "version": self.version,
-                    SurfaceOperation.DELETE: {"surfaceId": unit.surface_id},
-                }
-            ]
+            return [{
+                "version": self.version,
+                SurfaceOperation.DELETE: {"surfaceId": unit.surface_id},
+            }]
         if isinstance(unit, _StandaloneCall):
             if idx in self._emitted_units:
                 return []
@@ -1066,15 +1064,13 @@ class ExpressScopeSession:
                 and not surface_exists
             ):
                 raise ExpressUndefinedRootError("root")
-            messages.append(
-                {
-                    "version": ctx.version,
-                    SurfaceOperation.UPDATE_COMPONENTS: {
-                        "surfaceId": scope.surface_id,
-                        "components": delta_components,
-                    },
-                }
-            )
+            messages.append({
+                "version": ctx.version,
+                SurfaceOperation.UPDATE_COMPONENTS: {
+                    "surfaceId": scope.surface_id,
+                    "components": delta_components,
+                },
+            })
         messages.extend(data_updates)
         if messages:
             self.has_emitted = True
@@ -1234,16 +1230,14 @@ class ExpressScopeSession:
                     f" '$/' (got {type(val).__name__})."
                 )
             state.emitted_data_paths[path_name] = val
-            updates.append(
-                {
-                    "version": ctx.version,
-                    SurfaceOperation.UPDATE_DATA: {
-                        "surfaceId": scope.surface_id,
-                        "path": pointer,
-                        "value": val,
-                    },
-                }
-            )
+            updates.append({
+                "version": ctx.version,
+                SurfaceOperation.UPDATE_DATA: {
+                    "surfaceId": scope.surface_id,
+                    "path": pointer,
+                    "value": val,
+                },
+            })
         return updates
 
 
@@ -1496,12 +1490,10 @@ class ExpressCompiler:
         result_messages: list[dict[str, Any]] = []
         for unit in units:
             if isinstance(unit, _DeleteSurface):
-                result_messages.append(
-                    {
-                        "version": target_version,
-                        SurfaceOperation.DELETE: {"surfaceId": unit.surface_id},
-                    }
-                )
+                result_messages.append({
+                    "version": target_version,
+                    SurfaceOperation.DELETE: {"surfaceId": unit.surface_id},
+                })
             elif isinstance(unit, _StandaloneCall):
                 result_messages.append(self._compile_standalone_call(unit, ctx))
             else:
@@ -1678,16 +1670,14 @@ class ExpressCompiler:
                         "Cannot assign a non-map value to the root data path"
                         f" '$/' (got {type(compiled_val).__name__})."
                     )
-                data_updates.append(
-                    {
-                        "version": ctx.version,
-                        SurfaceOperation.UPDATE_DATA: {
-                            "surfaceId": surf_id,
-                            "path": pointer,
-                            "value": compiled_val,
-                        },
-                    }
-                )
+                data_updates.append({
+                    "version": ctx.version,
+                    SurfaceOperation.UPDATE_DATA: {
+                        "surfaceId": surf_id,
+                        "path": pointer,
+                        "value": compiled_val,
+                    },
+                })
             if not compiled_components:
                 if data_updates:
                     return data_updates
@@ -1754,8 +1744,7 @@ class ExpressCompiler:
             cat_id = resolved.kwargs.get("catalogId")
             if self._defines_component(resolved.name, cat_id):
                 raise ExpressValidationError(
-                    f"{target} extensions cannot contain component"
-                    f" '{resolved.name}'."
+                    f"{target} extensions cannot contain component '{resolved.name}'."
                 )
             if (
                 resolved.name
@@ -1833,16 +1822,14 @@ class ExpressCompiler:
             },
         ]
         if data_model:
-            messages.append(
-                {
-                    "version": ctx.version,
-                    SurfaceOperation.UPDATE_DATA: {
-                        "surfaceId": surf_id,
-                        "path": "/",
-                        "value": data_model,
-                    },
-                }
-            )
+            messages.append({
+                "version": ctx.version,
+                SurfaceOperation.UPDATE_DATA: {
+                    "surfaceId": surf_id,
+                    "path": "/",
+                    "value": data_model,
+                },
+            })
         return messages
 
     def _compile_standalone_call(

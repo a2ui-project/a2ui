@@ -863,30 +863,28 @@ def test_composition_constraints_surface_and_multiple_parents():
         MessageProcessorOptions(validation_config=RELAXED_VALIDATION),
     ):
         proc = MessageProcessor([catalog], options=options)
-        proc.process_messages(
-            [
-                {
-                    "version": "1.0",
-                    "createSurface": {
-                        "surfaceId": "s1",
-                        "catalogId": "custom",
-                        "components": [
-                            {"id": "root", "component": "Box", "children": ["h"]},
-                            {"id": "h", "component": "Header"},
-                        ],
-                    },
+        proc.process_messages([
+            {
+                "version": "1.0",
+                "createSurface": {
+                    "surfaceId": "s1",
+                    "catalogId": "custom",
+                    "components": [
+                        {"id": "root", "component": "Box", "children": ["h"]},
+                        {"id": "h", "component": "Header"},
+                    ],
                 },
-                {
-                    "version": "1.0",
-                    "updateComponents": {
-                        "surfaceId": "s1",
-                        "components": [
-                            {"id": "root", "component": "Box", "children": []},
-                        ],
-                    },
+            },
+            {
+                "version": "1.0",
+                "updateComponents": {
+                    "surfaceId": "s1",
+                    "components": [
+                        {"id": "root", "component": "Box", "children": []},
+                    ],
                 },
-            ]
-        )
+            },
+        ])
         surface = proc.model.get_surface("s1")
         assert surface is not None
         assert surface.components_model.get("root").properties == {"children": []}
@@ -898,35 +896,27 @@ def test_composition_constraints_surface_and_multiple_parents():
         [catalog],
         options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
-    strict_proc.process_messages(
-        [
-            {
-                "version": "1.0",
-                "createSurface": {
-                    "surfaceId": "s1",
-                    "catalogId": "custom",
-                    "components": [
-                        {"id": "root", "component": "Box", "children": ["h"]},
-                        {"id": "h", "component": "Header"},
-                    ],
-                },
-            }
-        ]
-    )
+    strict_proc.process_messages([{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": "custom",
+            "components": [
+                {"id": "root", "component": "Box", "children": ["h"]},
+                {"id": "h", "component": "Header"},
+            ],
+        },
+    }])
     with pytest.raises(A2uiIntegrityError, match="not reachable from 'root'"):
-        strict_proc.process_messages(
-            [
-                {
-                    "version": "1.0",
-                    "updateComponents": {
-                        "surfaceId": "s1",
-                        "components": [
-                            {"id": "root", "component": "Box", "children": []},
-                        ],
-                    },
-                }
-            ]
-        )
+        strict_proc.process_messages([{
+            "version": "1.0",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [
+                    {"id": "root", "component": "Box", "children": []},
+                ],
+            },
+        }])
 
     # 2. Root component referenced by another component is still checked against
     # "Surface" (for both default "root" and a custom root_id).
@@ -938,21 +928,17 @@ def test_composition_constraints_surface_and_multiple_parents():
             r" \(Surface\)"
         ),
     ) as exc_info:
-        proc_root_ref.process_messages(
-            [
-                {
-                    "version": "1.0",
-                    "createSurface": {
-                        "surfaceId": "s1",
-                        "catalogId": "custom",
-                        "components": [
-                            {"id": "root", "component": "Card"},
-                            {"id": "box", "component": "Box", "children": ["root"]},
-                        ],
-                    },
-                }
-            ]
-        )
+        proc_root_ref.process_messages([{
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "s1",
+                "catalogId": "custom",
+                "components": [
+                    {"id": "root", "component": "Card"},
+                    {"id": "box", "component": "Box", "children": ["root"]},
+                ],
+            },
+        }])
     assert any(d.code == "UNALLOWED_PARENT" for d in exc_info.value.details)
 
     scm_custom_root = SurfaceComponentsModel(default_catalog=catalog)
@@ -998,18 +984,14 @@ def test_composition_constraints_surface_and_multiple_parents():
                 r" \(Card\)"
             ),
         ) as exc_info:
-            proc_multi.process_messages(
-                [
-                    {
-                        "version": "1.0",
-                        "createSurface": {
-                            "surfaceId": "s1",
-                            "catalogId": "custom",
-                            "components": children_order,
-                        },
-                    }
-                ]
-            )
+            proc_multi.process_messages([{
+                "version": "1.0",
+                "createSurface": {
+                    "surfaceId": "s1",
+                    "catalogId": "custom",
+                    "components": children_order,
+                },
+            }])
         assert any(d.code == "UNALLOWED_PARENT" for d in exc_info.value.details)
 
 
