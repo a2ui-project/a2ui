@@ -141,9 +141,11 @@ class _Runner {
   final List<_Json> functions = [];
   final List<_Json> errors = [];
   final Map<_Node, int> emissions = Map.identity();
+  final Map<_Node, int> metadataEmissions = Map.identity();
   final List<_Node> destroyedNodes = [];
   final Map<String, int> destroyed = {};
   final Map<_Node, Object?> lastEmission = Map.identity();
+  final Map<_Node, Object?> lastMetadataEmission = Map.identity();
   final Map<_Node, String> watched = Map.identity();
   final List<void Function()> subscriptions = [];
 
@@ -157,6 +159,7 @@ class _Runner {
     );
     final catalog = Catalog<ComponentApi, FunctionImplementation>(
       id: parsed.id,
+      protocolVersion: parsed.protocolVersion,
       components: parsed.components.values.toList(),
       functions: [
         for (final FunctionApi api in parsed.functions.values)
@@ -164,7 +167,11 @@ class _Runner {
       ],
       definitions: parsed.definitions,
     );
-    surface = SurfaceModel('s', defaultCatalog: catalog);
+    surface = SurfaceModel(
+      's',
+      defaultCatalog: catalog,
+      protocolVersion: catalog.protocolVersion?.jsonValue,
+    );
     processor = MessageProcessor<ComponentApi>(catalogs: [catalog]);
     processor.model.addSurface(surface);
     surface.dataModel.set('/', _copy(fixture['data']));
@@ -174,6 +181,7 @@ class _Runner {
         'name': event.name,
         'source_component_id': event.sourceComponentId,
         'context': _copy(event.context),
+        if (event.metadata != null) 'metadata': _copy(event.metadata),
       });
     });
     surface.onError.subscribe((err) {
@@ -231,6 +239,17 @@ class _Runner {
           lastEmission[node] = _normalize(props, path);
         }),
       );
+      subscriptions.add(
+        node.metadata.subscribe((meta) {
+          if (subscribing) return;
+          metadataEmissions.update(
+            node,
+            (count) => count + 1,
+            ifAbsent: () => 1,
+          );
+          lastMetadataEmission[node] = _copy(meta);
+        }),
+      );
       subscribing = false;
       node.onDestroyed.subscribe((_) {
         final String path = watched[node]!;
@@ -239,9 +258,11 @@ class _Runner {
       });
     }
     emissions.clear();
+    metadataEmissions.clear();
     destroyedNodes.clear();
     destroyed.clear();
     lastEmission.clear();
+    lastMetadataEmission.clear();
     events.clear();
     functions.clear();
     errors.clear();
@@ -252,16 +273,26 @@ class _Runner {
       final component = value! as _Json;
       final id = component['id']! as String;
       final type = component['component']! as String;
+      final Map<String, Object?>? metadata =
+          (component['metadata'] as Map?)?.cast<String, Object?>();
       final properties = Map<String, Object?>.from(component)
         ..remove('id')
-        ..remove('component');
+        ..remove('component')
+        ..remove('metadata');
       final ComponentModel? existing = surface.componentsModel.get(id);
       if (existing == null || existing.type != type) {
         surface.componentsModel.addComponent(
-          ComponentModel(id, type, properties),
+          ComponentModel(id, type, properties, metadata: metadata),
         );
       } else {
-        existing.properties = properties;
+        expect(
+          existing.type,
+          type,
+          reason: 'update_components preserves component type',
+        );
+        batch(() {
+          existing.applyUpdate(properties, metadata);
+        });
       }
     }
   }
@@ -286,8 +317,15 @@ class _Runner {
       case 'invoke':
         final Object? action =
             before[step['node']]!.props.peek()[step['property']];
-        expect(action, isA<Future<void> Function()>());
-        await (action! as Future<void> Function())();
+        expect(action, isA<NodeAction>());
+        final Object? rawMeta = step['metadata'];
+        await (action! as NodeAction)(
+          rawMeta != null
+              ? ActionDispatchOptions(
+                  metadata: (_copy(rawMeta) as Map).cast<String, Object?>(),
+                )
+              : null,
+        );
       case 'dispose':
         resolver.dispose();
       default:
@@ -319,6 +357,13 @@ class _Runner {
         retainedEmissions[path] = entry.value;
       }
     }
+    final retainedMetadataEmissions = <String, int>{};
+    for (final MapEntry<_Node, int> entry in metadataEmissions.entries) {
+      final String path = watched[entry.key]!;
+      if (identical(current[path], entry.key)) {
+        retainedMetadataEmissions[path] = entry.value;
+      }
+    }
     for (final _Node node in destroyedNodes) {
       expect(
         node.disposed,
@@ -331,6 +376,13 @@ class _Runner {
       expected['emissions'] ?? {},
       reason: '$reason: emissions',
     );
+    if (expected.containsKey('metadata_emissions')) {
+      expect(
+        retainedMetadataEmissions,
+        expected['metadata_emissions'] ?? {},
+        reason: '$reason: metadata_emissions',
+      );
+    }
     expect(
       destroyed,
       expected['destroyed'] ?? {},
@@ -351,6 +403,15 @@ class _Runner {
           entry.value,
           _normalize(entry.key.props.peek(), watched[entry.key]!),
           reason: '$reason: complete emitted snapshot',
+        );
+      }
+    }
+    for (final MapEntry<_Node, Object?> entry in lastMetadataEmission.entries) {
+      if (current.values.any((node) => identical(node, entry.key))) {
+        expect(
+          entry.value,
+          entry.key.metadata.peek(),
+          reason: '$reason: complete emitted metadata snapshot',
         );
       }
     }
@@ -394,6 +455,7 @@ class _Runner {
       'type': nodeType,
       'state': node.state.jsonValue,
       'data_path': node.dataPath,
+      'metadata': node.metadata.peek(),
       'isValid': rawProps['isValid'],
       'validationErrors': rawProps['validationErrors'],
       'validationResults': rawProps['validationResults'] is List

@@ -102,7 +102,15 @@ Web adapters that share element implementations across frameworks follow the [un
 
 ## 3. Consuming the Node API
 
-The adapter consumes `NodeResolver`, `ComponentNode`, `ResolvedBinding`, `WritableBinding`, and `NodeAction` as defined in the [node resolution feature blueprint](../features/node_resolution.blueprint.md). Core resolves bindings, child references, actions, and normalized check properties (`isValid`, `validationErrors`, `validationResults`) onto `node.props` before the adapter sees them, and stores envelope `metadata` on `ComponentModel.metadata` (which views ignore unless forwarding it to developer tooling).
+The adapter consumes `NodeResolver`, `ComponentNode`, `ResolvedBinding`, `WritableBinding`, and `NodeAction` as defined in the [node resolution feature blueprint](../features/node_resolution.blueprint.md). Core resolves bindings, child references, actions, and normalized check properties (`isValid`, `validationErrors`, `validationResults`) onto `node.props` before the adapter sees them.
+
+Envelope `metadata` reaches views through three separate channels, so that a telemetry or policy update never re-renders a view that only reads `props`:
+
+- Component instance metadata: the node's read-only reactive `metadata` value. The adapter exposes it through the same reactive primitive it uses for `props` (a hook return value, a lazily subscribed controller getter, a signal input, a listener, or an observed revision), and a view that never reads it never subscribes to it.
+- Catalog definition metadata: `node.impl.metadata`, static for the life of the node.
+- Surface metadata: `SurfaceModel.metadata` and its reactive `metadataSignal` (or the language's equivalent publisher), reached through the adapter's ambient surface context.
+
+When a component implementation dispatches a `NodeAction`, it may pass `ActionDispatchOptions` with `metadata` to attach an `action.metadata` envelope to the outbound action.
 
 On the adapter side, two cross-cutting rules apply when rendering nodes:
 
