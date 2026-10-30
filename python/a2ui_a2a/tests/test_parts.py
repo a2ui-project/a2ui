@@ -202,6 +202,21 @@ def test_parse_response_to_parts_malformed_json_uses_fallback_text():
     assert parts[0].root.text == "Fallback text."
 
 
+def test_parse_response_to_parts_skips_malformed_block_and_parses_valid_block():
+    content = (
+        "Intro text\n"
+        "<a2ui-json>{broken json</a2ui-json>\n"
+        f"<a2ui-json>{json.dumps([_CREATE])}</a2ui-json>\n"
+        "Outro text"
+    )
+    parts = parse_response_to_parts(content)
+    assert len(parts) == 3
+    assert parts[0].root.text == "Intro text"
+    assert parts[1].root.data == _CREATE
+    assert is_a2ui_part(parts[1])
+    assert parts[2].root.text == "Outro text"
+
+
 def test_parse_response_to_parts_with_version_override():
     content = f"<a2ui-json>{json.dumps([_CREATE])}</a2ui-json>"
     parts = parse_response_to_parts(content, version="0.9")

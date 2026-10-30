@@ -14,13 +14,14 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterable, Sequence
+from collections.abc import AsyncIterable, Iterable, Mapping, Sequence
 import logging
 from typing import Any
 
 from a2a.types import DataPart
 from a2a.types import Part
 from a2a.types import TextPart as A2aTextPart
+from pydantic import BaseModel
 
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats import to_message_dicts
@@ -209,13 +210,23 @@ def parse_response_to_parts(
                 if raw_part.part.text:
                     parts.append(Part(root=A2aTextPart(text=raw_part.part.text)))
             elif isinstance(raw_part.part, RawA2uiPart) and raw_part.is_final:
-                data = read_json(raw_part.part.a2ui_raw)
-                if isinstance(data, list):
-                    for item in data:
-                        if isinstance(item, dict):
-                            parts.append(create_a2ui_part(item, version=version))
-                elif isinstance(data, dict):
-                    parts.append(create_a2ui_part(data, version=version))
+                try:
+                    data = read_json(raw_part.part.a2ui_raw)
+                    if isinstance(data, BaseModel):
+                        pass
+                    elif isinstance(data, Mapping):
+                        parts.append(create_a2ui_part(data, version=version))
+                    elif isinstance(data, (str, bytes)):
+                        pass
+                    elif isinstance(data, Iterable):
+                        for item in data:
+                            if isinstance(item, Mapping):
+                                parts.append(create_a2ui_part(item, version=version))
+                except Exception as e:
+                    logger.warning(
+                        "Failed to parse A2UI block JSON: %s", type(e).__name__
+                    )
+                    logger.debug("A2UI block JSON parse error: %s", e)
     except Exception as e:
         logger.warning("Failed to parse A2UI response: %s", type(e).__name__)
         logger.debug("A2UI response parse error: %s", e)
