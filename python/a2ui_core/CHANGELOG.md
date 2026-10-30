@@ -6,7 +6,8 @@
   the v1.0 specification requires. `RpcHandler` still runs such a function for
   an agent's `callRendererFunction`. Recommended migration: set
   `allowed_callers` to `rendererOrAgent` on a function both the renderer and
-  the agent call ([#3483](https://github.com/a2ui-project/a2ui/issues/3483)).
+  the agent call ([#3483](https://github.com/a2ui-project/a2ui/issues/3483),
+  [#3773](https://github.com/a2ui-project/a2ui/pull/3773)).
 - From v0.9, a component its catalog declares with no `ComponentId` or
   `ChildList` property has no child references. Previously any of its string
   properties that named a component on the surface, such as an `Icon` named
