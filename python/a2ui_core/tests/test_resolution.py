@@ -758,7 +758,9 @@ def _allowed_callers_context(
         execute=lookup,
         allowed_callers=allowed_callers,  # type: ignore[arg-type]
     )
-    surface = SurfaceModel("s1", Catalog("test", protocol_version="1.0", functions=[fn]))
+    surface = SurfaceModel(
+        "s1", Catalog("test", protocol_version="1.0", functions=[fn])
+    )
     surface.on_error.subscribe(lambda err: errors.append(err))
     return DataContext(surface, path="/"), calls, errors
 
