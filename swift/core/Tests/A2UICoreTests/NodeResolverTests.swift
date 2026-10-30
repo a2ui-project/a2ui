@@ -16,6 +16,7 @@ import A2UICore
 import A2UIJSON
 import Foundation
 import JSONSchema
+import Observation
 import OrderedJSON
 import Testing
 
@@ -1073,6 +1074,153 @@ struct NodeResolverTests {
       handler.capturedActions.first?.identity
         == .event(name: "send", context: [:], userMessage: "Updated draft")
     )
+  }
+
+  @Test func observationTrackingFiresOnlyForMutatedNode() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: ["children": .array([.string("first"), .string("second")])]
+        ),
+        "first": ComponentModel(
+          id: "first",
+          type: "Text",
+          properties: ["text": .object(["path": .string("/first")])]
+        ),
+        "second": ComponentModel(
+          id: "second",
+          type: "Text",
+          properties: ["text": .object(["path": .string("/second")])]
+        ),
+      ]
+    )
+    let dataModel = DataModel(
+      initial: .object([
+        "first": .string("One"),
+        "second": .string("Two"),
+        "unused": .string("Idle"),
+      ])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let children = root.children(for: "children")
+    #expect(children.count == 2)
+    let first = children[0]
+    let second = children[1]
+
+    let rootChanges = ObservationCounterBox()
+    let firstChanges = ObservationCounterBox()
+    let secondChanges = ObservationCounterBox()
+
+    func observeRoot() -> [Node] {
+      withObservationTracking {
+        root.children(for: "children")
+      } onChange: {
+        rootChanges.increment()
+      }
+    }
+
+    func observeFirst() -> String? {
+      withObservationTracking {
+        first.string(for: "text")
+      } onChange: {
+        firstChanges.increment()
+      }
+    }
+
+    func observeSecond() -> String? {
+      withObservationTracking {
+        second.string(for: "text")
+      } onChange: {
+        secondChanges.increment()
+      }
+    }
+
+    #expect(observeRoot().map(\.id) == ["first", "second"])
+    #expect(observeFirst() == "One")
+    #expect(observeSecond() == "Two")
+
+    // 1. Mutating sibling /second fires only second's tracker (not first, not root).
+    dataModel.set("/second", value: .string("Two Updated"))
+    _ = try #require(resolver.resolveTree())
+    #expect(firstChanges.count == 0)
+    #expect(secondChanges.count == 1)
+    #expect(rootChanges.count == 0)
+    #expect(observeSecond() == "Two Updated")
+
+    // 2. Mutating /first fires only first's tracker (not second, not root).
+    dataModel.set("/first", value: .string("One Updated"))
+    _ = try #require(resolver.resolveTree())
+    #expect(firstChanges.count == 1)
+    #expect(secondChanges.count == 1)
+    #expect(rootChanges.count == 0)
+    #expect(observeFirst() == "One Updated")
+
+    // 3. No-op data writes and re-resolutions producing shallow-equal properties do not fire.
+    dataModel.set("/first", value: .string("One Updated"))
+    dataModel.set("/unused", value: .string("Still Unused"))
+    _ = try #require(resolver.resolveTree())
+    #expect(firstChanges.count == 1)
+    #expect(secondChanges.count == 1)
+    #expect(rootChanges.count == 0)
+
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "first",
+        type: "Text",
+        properties: [
+          "text": .object(["path": .string("/first")]),
+          "ignoredNull": .null,
+        ]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(firstChanges.count == 1)
+
+    // 4. Changing root's child list fires only root's tracker, leaving first and second untouched.
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "third",
+        type: "Text",
+        properties: ["text": .string("Three")]
+      )
+    )
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: [
+          "children": .array([.string("first"), .string("second"), .string("third")])
+        ]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(rootChanges.count == 1)
+    #expect(firstChanges.count == 1)
+    #expect(secondChanges.count == 1)
+    #expect(observeRoot().map(\.id) == ["first", "second", "third"])
+  }
+}
+
+@MainActor
+private final class ObservationCounterBox {
+  private(set) var count = 0
+
+  nonisolated func increment() {
+    MainActor.assumeIsolated {
+      count += 1
+    }
   }
 }
 

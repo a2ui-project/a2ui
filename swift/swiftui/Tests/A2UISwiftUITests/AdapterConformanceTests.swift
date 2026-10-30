@@ -20,6 +20,7 @@ import BasicCatalogSwiftUI
 import Combine
 import Foundation
 import JSONSchema
+import Observation
 import OrderedCollections
 import OrderedJSON
 import SwiftUI
@@ -632,21 +633,27 @@ struct AdapterConformanceTests {
     expected: Int,
     context: String
   ) {
+    @MainActor
+    final class NodeEmissionCounter {
+      var count = 0
+    }
     let emissionsBefore = harness.emissionCount
-    var nodeBoxEmissions = 0
-    var boxCancellables: [AnyCancellable] = []
+    let nodeCounter = NodeEmissionCounter()
     if let rootNode = harness.surface.viewModel.rootNode {
       var nodes: [String: Node] = [:]
       collectNodes(from: rootNode, into: &nodes)
       for node in nodes.values {
-        node.box.objectWillChange
-          .sink { _ in nodeBoxEmissions += 1 }
-          .store(in: &boxCancellables)
+        withObservationTracking {
+          _ = node.properties
+        } onChange: {
+          MainActor.assumeIsolated {
+            nodeCounter.count += 1
+          }
+        }
       }
     }
     harness.surface.viewModel.dataModel.set("/status", value: .string("Unmounted"))
-    let postWriteEmissions = (harness.emissionCount - emissionsBefore) + nodeBoxEmissions
-    withExtendedLifetime(boxCancellables) {}
+    let postWriteEmissions = (harness.emissionCount - emissionsBefore) + nodeCounter.count
     #expect(
       harness.activeSubscriptionCount + postWriteEmissions == expected,
       "\(context): subscription count mismatch"
