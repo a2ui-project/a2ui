@@ -82,7 +82,8 @@
     "tslib": "^2.8.1",
     "typescript": "5.9.3",
     "vitest": "^4.1.8",
-    "wireit": "^0.15.0-pre.2"
+    "wireit": "^0.15.0-pre.2",
+    "yaml": "^2.8.1"
   },
   "sideEffects": false,
   "prettier": {
@@ -126,7 +127,11 @@
       ],
       "files": [
         "src/**/*",
-        "tsconfig.json"
+        "tsconfig.json",
+        "karma.conf.js",
+        "../../../conformance/core/accessibility.yaml",
+        "../../../conformance/core/adapter_conformance.yaml",
+        "../../../catalogs/basic/v1/catalog.json"
       ]
     },
     "test:integration": {

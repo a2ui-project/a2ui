@@ -30,7 +30,8 @@
       {"$ref": "#/$defs/CreateProcessorTest"},
       {"$ref": "#/$defs/EvaluateFunctionTest"},
       {"$ref": "#/$defs/DispatchActionTest"},
-      {"$ref": "#/$defs/DeriveTest"}
+      {"$ref": "#/$defs/DeriveTest"},
+      {"$ref": "#/$defs/RenderSurfaceTest"}
     ]
   },
   "$defs": {
@@ -209,7 +210,7 @@
           "description": "Sequential steps for multi-step execution tests."
         },
         "expect": {
-          "description": "Expected outcome of the test action (evaluated as a contains / subset match rather than an exact match)."
+          "description": "Expected outcome of the test action (evaluated as a contains / subset match rather than an exact match). Supports surfaces.<id>.{isValid, validationErrors, validationResults} alongside validationResult."
         },
         "expectError": {
           "$ref": "#/$defs/ExpectError"
@@ -651,7 +652,17 @@
           "description": "For data_model set steps, the value to write. For validate_common_type steps, the value validated against the case's definition."
         },
         "expect": {
-          "description": "Expected output for this step (evaluated as a contains / subset match rather than an exact match)."
+          "description": "Expected output for this step (evaluated as a contains / subset match rather than an exact match). Supports surfaces.<id>.{isValid, validationErrors, validationResults} alongside validationResult."
+        },
+        "assertions": {
+          "oneOf": [
+            {"$ref": "#/$defs/AccessibilityAssertions"},
+            {
+              "type": "array",
+              "items": {"type": "object"}
+            }
+          ],
+          "description": "Accessibility assertions to verify for this step."
         },
         "expectError": {
           "$ref": "#/$defs/ExpectError"
@@ -812,9 +823,24 @@
           "items": {"type": "string"},
           "description": "Catalog JSON fixture paths relative to repository root."
         },
+        "catalog": {
+          "$ref": "#/$defs/Catalog"
+        },
+        "catalogs": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/Catalog"}
+        },
         "surfaceId": {
           "type": "string",
           "description": "Surface identifier (default 'main')."
+        },
+        "sourceComponentId": {
+          "type": "string",
+          "description": "Identifier of the component dispatching the action."
+        },
+        "userActivation": {
+          "type": "boolean",
+          "description": "Whether the action was triggered by a direct user activation gesture."
         },
         "scope": {
           "type": "string",
@@ -833,17 +859,21 @@
           "description": "Optional action.metadata envelope ({extensions}) passed to dispatchAction."
         },
         "expectDispatched": {
-          "type": "object",
+          "type": ["object", "null"],
           "properties": {
             "name": {"type": "string"},
             "context": {"type": "object"},
             "userMessage": {"type": "string"},
+            "surfaceId": {"type": "string"},
+            "sourceComponentId": {"type": "string"},
+            "timestampIso8601": {"type": "boolean"},
             "metadata": {
               "type": ["object", "null"],
               "description": "Expected action.metadata envelope on the dispatched action."
             }
           },
-          "description": "Expected dispatched client action payload for server-bound events."
+          "additionalProperties": false,
+          "description": "Expected dispatched client action payload for server-bound events, or null when no event is dispatched."
         },
         "expectDataModel": {
           "type": "object",
@@ -892,6 +922,15 @@
         "metadata": {
           "type": ["object", "null"],
           "description": "Expected envelope metadata ({extensions}) on the node; null asserts no metadata."
+        },
+        "isValid": {"type": "boolean"},
+        "validationErrors": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "validationResults": {
+          "type": "array",
+          "items": {"type": "object"}
         }
       },
       "additionalProperties": false
@@ -953,6 +992,10 @@
             "required": ["name", "args"],
             "additionalProperties": false
           }
+        },
+        "errors": {
+          "type": "array",
+          "items": {"type": "object"}
         }
       },
       "required": ["nodes"],
@@ -962,8 +1005,7 @@
       "type": "object",
       "properties": {
         "expect": {
-          "$ref": "#/$defs/NodeResolutionExpectation",
-          "required": ["emissions"]
+          "$ref": "#/$defs/NodeResolutionExpectation"
         }
       },
       "required": ["op", "expect"],
@@ -1010,6 +1052,16 @@
             }
           },
           "required": ["node", "property"]
+        },
+        {
+          "properties": {
+            "op": {"const": "process_messages"},
+            "messages": {
+              "type": "array",
+              "items": {"type": "object"}
+            }
+          },
+          "required": ["messages"]
         },
         {
           "properties": {
@@ -1971,6 +2023,15 @@
             "code": {
               "type": "string"
             },
+            "path": {
+              "type": "string"
+            },
+            "surfaceId": {
+              "type": "string"
+            },
+            "functionCallId": {
+              "type": "string"
+            },
             "message": {
               "type": "string"
             },
@@ -1985,16 +2046,84 @@
                   "code": {
                     "type": "string"
                   },
+                  "surfaceId": {
+                    "type": "string"
+                  },
                   "message": {
                     "type": "string"
                   }
-                }
+                },
+                "additionalProperties": false
               }
+            },
+            "rendererError": {
+              "type": "object",
+              "description": "Expected outbound renderer-to-agent error envelope ({version, error: {code, surfaceId?, functionCallId?, path?, message}}).",
+              "required": ["version", "error"],
+              "properties": {
+                "version": {"$ref": "#/$defs/ProtocolVersion"},
+                "error": {
+                  "type": "object",
+                  "required": ["code", "message"],
+                  "properties": {
+                    "code": {"type": "string"},
+                    "surfaceId": {"type": "string"},
+                    "functionCallId": {"type": "string"},
+                    "path": {"type": "string"},
+                    "message": {"type": "string"}
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
         }
       ]
+    },
+    "RenderSurfaceTest": {
+      "type": "object",
+      "required": ["name", "action", "steps"],
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "catalogPaths": {"type": "array", "items": {"type": "string"}},
+        "catalogs": {"type": "array", "items": {"type": "object"}},
+        "action": {"const": "render_surface"},
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["op"],
+            "properties": {
+              "op": {
+                "enum": [
+                  "process_messages",
+                  "user_input",
+                  "user_gesture",
+                  "programmatic_invoke",
+                  "unmount_surface"
+                ]
+              },
+              "messages": {"type": "array", "items": {"type": "object"}},
+              "targetNode": {"type": "string"},
+              "inputValue": {},
+              "userActivation": {"type": "boolean"},
+              "expectViewTree": {"type": "object"},
+              "expectAccessibilityTree": {"type": "object"},
+              "expectDataModel": {"type": "object"},
+              "expectActions": {"type": "array", "items": {"type": "object"}},
+              "expectErrors": {"type": "array", "items": {"type": "object"}},
+              "expectSameViewIdentity": {"type": "array", "items": {"type": "string"}},
+              "expectActiveSubscriptions": {"type": "integer"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

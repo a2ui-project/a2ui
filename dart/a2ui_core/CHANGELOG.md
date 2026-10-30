@@ -25,6 +25,11 @@
   exceptions into structured wire-format `ErrorMessage` envelopes, and
   populated structured `A2uiErrorDetail` entries on `PayloadValidator`
   component and function validation failures.
+- `GenericBinder` and `ValidationResult.fromEvaluation` (`explicitMessage`) now
+  apply an explicit `CheckRule.message` on an evaluated check over the default
+  message of a failing `ValidationResult` returned by a check function, while
+  preserving `ValidationResult.message` on path-bound checks
+  ([#3583](https://github.com/a2ui-project/a2ui/pull/3583)).
 - `MessageProcessor.processMessages` and `processMessagesAsync` take a
   `validationConfig` for one call, which replaces the processor's own while
   the call checks and applies its messages. An agent that checks its messages

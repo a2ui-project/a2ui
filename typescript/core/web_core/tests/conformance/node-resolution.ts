@@ -21,7 +21,11 @@ import yaml from 'js-yaml';
 import {Catalog, ComponentApi, createFunctionImplementation} from '../../src/catalog/types.js';
 import {A2uiMetadata, ActionDispatchOptions, jsonValueEquals} from '../../src/common/metadata.js';
 import {MessageProcessor} from '../../src/processing/message-processor.js';
-import {ComponentNode, isComponentNode} from '../../src/resolution/component-node.js';
+import {
+  ComponentNode,
+  PLACEHOLDER_TYPE,
+  isComponentNode,
+} from '../../src/resolution/component-node.js';
 import {NodeResolver} from '../../src/resolution/node-resolver.js';
 import {ResolvedBinding, isWritable} from '../../src/resolution/resolved-binding.js';
 import {batchWrite, effect, getValue, peekValue} from '../../src/reactivity/signals.js';
@@ -158,6 +162,7 @@ function checkNodes(
   nodes: Map<string, ComponentNode>,
   expected: Expectation,
   reason: string,
+  surface?: SurfaceModel,
 ): void {
   assert.deepEqual(
     [...nodes.keys()].sort(),
@@ -166,9 +171,13 @@ function checkNodes(
   );
   for (const [path, fields] of Object.entries(expected.nodes)) {
     const node = requiredNode(nodes, path);
+    const nodeType =
+      node.state === 'cyclic' && node.type === PLACEHOLDER_TYPE && surface
+        ? (surface.componentsModel.get(node.componentId)?.type ?? node.type)
+        : node.type;
     const actual = {
       component_id: node.componentId,
-      type: node.type,
+      type: nodeType,
       state: node.state,
       data_path: node.dataPath,
     };
@@ -392,7 +401,7 @@ export async function runNodeResolutionCase(
 
   function check(expected: Expectation, before: Map<string, ComponentNode>, reason: string): void {
     const after = mountedNodes(resolver);
-    checkNodes(after, expected, reason);
+    checkNodes(after, expected, reason, surface);
     const surviving = new Set(after.values());
     const emissions: Record<string, number> = {};
     const metadataEmissions: Record<string, number> = {};

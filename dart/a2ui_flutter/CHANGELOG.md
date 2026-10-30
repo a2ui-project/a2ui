@@ -27,6 +27,9 @@
   old indicator should render their own loading state until the fallback API
   from [#2013](https://github.com/a2ui-project/a2ui/issues/2013) lands
   ([#3714](https://github.com/a2ui-project/a2ui/pull/3714)).
+- Dynamic bindings in `accessibility` attributes (`label`, `description`,
+  `live`, and `hidden`) now update `NodeView` semantics reactively
+  ([#3583](https://github.com/a2ui-project/a2ui/pull/3583)).
 - `NodeView` subscribes to `node.metadata` so custom `ComponentImplementation` widgets rebuild when component extension metadata changes, and `ComponentProps.action(key)` returns a `NodeAction?` accepting optional `ActionDispatchOptions(metadata: ...)` ([#3469](https://github.com/a2ui-project/a2ui/issues/3469), [#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)).
 
 ## 0.0.1-wip003

@@ -371,11 +371,18 @@ class GenericBinder {
           }
           final Object? condition =
               rawRule.containsKey('condition') ? rawRule['condition'] : rawRule;
+          final bool isPathBound = condition is Map &&
+              ((condition.containsKey('@path') &&
+                      !condition.containsKey('@call')) ||
+                  (condition.containsKey('path') &&
+                      !condition.containsKey('call')));
           final Object? rawMessage = rawRule['message'];
-          final fallbackMessage =
+          final String? ruleMessage =
               (rawMessage != null && rawMessage.toString().isNotEmpty)
                   ? rawMessage.toString()
-                  : 'Validation failed';
+                  : null;
+          final String fallbackMessage = ruleMessage ?? 'Validation failed';
+          final String? explicitMessage = isPathBound ? null : ruleMessage;
 
           final int slot = ruleResults.length;
           ruleResults.add(const ValidationResult(valid: true));
@@ -384,6 +391,7 @@ class GenericBinder {
               ? null
               : ValidationResult.fromEvaluation(
                   state.value,
+                  explicitMessage: explicitMessage,
                   fallbackMessage: fallbackMessage,
                 );
 

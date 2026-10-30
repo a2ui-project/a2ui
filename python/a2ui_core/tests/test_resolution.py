@@ -344,7 +344,41 @@ def test_generic_binder_checks_validation():
     binder.dispose()
 
 
-def test_expression_parser_literals_and_interpolation():
+def test_generic_binder_path_bound_check_keeps_data_model_message():
+    """A path-bound ValidationResult keeps its own message; the rule message
+    is the fallback. (An evaluated check gives the rule message precedence.)"""
+    cat = BasicCatalog("1.0")
+    data_model = DataModel({
+        "check": {
+            "valid": False,
+            "code": "FROM_DATA",
+            "message": "Message from the data model",
+        }
+    })
+    comp = ComponentModel(
+        "field_1",
+        "TextField",
+        cat,
+        {
+            "label": "Field",
+            "checks": [{
+                "condition": {"@path": "/check"},
+                "message": "Rule fallback message",
+            }],
+        },
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model, protocol_version="1.0")
+    binder = GenericBinder(ComponentContext(comp, DataContext(surface, path="/")))
+
+    assert binder.current_props["validationErrors"] == ["Message from the data model"]
+
+    data_model.set("/check", {"valid": False})
+    assert binder.current_props["validationErrors"] == ["Rule fallback message"]
+
+    data_model.set("/check", False)
+    assert binder.current_props["validationErrors"] == ["Rule fallback message"]
+
+    binder.dispose()
     from a2ui.core.expressions.expression_parser import ExpressionParser
 
     parser = ExpressionParser()

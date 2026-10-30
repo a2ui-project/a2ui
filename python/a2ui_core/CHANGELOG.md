@@ -56,6 +56,7 @@
   [#3653](https://github.com/a2ui-project/a2ui/pull/3653)
 - Add `map_error_to_renderer_message`, `extract_envelope_error_context`, and `ErrorEnvelopeContext` to `a2ui.core.processing` and the `a2ui.core` public facade, along with `SurfaceGroupModel.on_error` and `MessageProcessor.process_messages_with_errors` for emitting and collecting structured wire-format renderer error messages. [#3580](https://github.com/a2ui-project/a2ui/pull/3580)
 - Add `NodeResolver`, `ComponentNode`, and `NodeState` to `a2ui.core.resolution` and the `a2ui.core` public facade for reactive surface node-graph resolution, template expansion, and placeholder/cycle tracking. [#3580](https://github.com/a2ui-project/a2ui/pull/3580)
+- (v1_0) Support `@`-prefixed system function calls (such as `${@index()}`) in `ExpressionParser` string interpolation templates, and preserve `ValidationResult.message` on path-bound `CheckRule` conditions in `GenericBinder` while overriding function default messages on evaluated checks. [#3583](https://github.com/a2ui-project/a2ui/pull/3583)
 - **BREAKING CHANGE**: Cross-catalog `$ref` resolution across peer catalogs is
   removed. `Catalog.peer_catalogs`, `Catalog.with_peer_catalogs` and
   `link_catalogs` are gone, `inline_local_refs` no longer takes a `peers`
