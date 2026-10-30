@@ -167,7 +167,13 @@ export function createComponentImplementation(
 ): AngularComponentImplementation {
   const webComponent = isWebComponentImplementation(componentApi)
     ? componentApi
-    : toWebComponent({name: componentApi.name, schema: componentApi.schema, component});
+    : toWebComponent({
+        name: componentApi.name,
+        schema: componentApi.schema,
+        allowedParents: componentApi.allowedParents,
+        allowedChildren: componentApi.allowedChildren,
+        component,
+      });
 
   // Annotated wider than the return type so the Custom Element fields pass the object literal
   // check; to consumers the entry is an AngularComponentImplementation that also satisfies
@@ -175,6 +181,8 @@ export function createComponentImplementation(
   const implementation: AngularComponentImplementation & WebComponentImplementation = {
     name: componentApi.name,
     schema: componentApi.schema,
+    allowedParents: componentApi.allowedParents,
+    allowedChildren: componentApi.allowedChildren,
     tagName: webComponent.tagName,
     element: webComponent.element,
     component,

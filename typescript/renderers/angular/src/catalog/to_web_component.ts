@@ -67,6 +67,8 @@ export function toWebComponent(
   const implementation: WebComponentImplementation = {
     name: componentImpl.name,
     schema: componentImpl.schema,
+    allowedParents: componentImpl.allowedParents,
+    allowedChildren: componentImpl.allowedChildren,
     tagName,
     element,
   };
