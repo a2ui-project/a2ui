@@ -182,6 +182,13 @@ public final class SurfaceViewModel: ObservableObject {
       self.rootNode = newRoot
     }
   }
+
+  /// Cancels internal model subscriptions and disposes the node resolver and data model.
+  public func dispose() {
+    cancellables.removeAll()
+    nodeResolver.dispose()
+    dataModel.dispose()
+  }
 }
 
 // MARK: - FunctionHandler Conformance

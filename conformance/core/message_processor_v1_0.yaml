@@ -285,6 +285,13 @@
             catalogId: "cat-v09"
   expectError:
     category: "CatalogError"
+    surfaceId: "s_mismatch"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "CATALOG_NOT_FOUND"
+        surfaceId: "s_mismatch"
+        message: "cat-v09"
 
 - name: test_unsupported_protocol_version_error
   description: Verifies rejecting unsupported protocol version strings (v99.0).
@@ -390,6 +397,13 @@
             text: "Duplicate"
   expectError:
     category: "IntegrityError"
+    surfaceId: "s_dup"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "s_dup"
+        message: "c1"
 
 - name: test_batch_atomic_rollback_on_candidate_topology_cycle
   description: Verifies candidate topology pre-flight cycle check aborts without mutating existing valid component tree.
@@ -431,6 +445,13 @@
                 children: ["c1"]
       expectError:
         category: "IntegrityError"
+        surfaceId: "s_cycle"
+        rendererError:
+          version: "1.0"
+          error:
+            code: "RECURSION_LIMIT_EXCEEDED"
+            surfaceId: "s_cycle"
+            message: "Circular"
 
 - name: test_update_components_on_deleted_surface_error
   description: Verifies updating components on a deleted surface raises IntegrityError.
@@ -940,7 +961,14 @@
             text: "Hello"
   expectError:
     category: "CatalogError"
+    surfaceId: "s"
     message: "has no default catalogId"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "CATALOG_NOT_FOUND"
+        surfaceId: "s"
+        message: "has no default catalogId"
 
 - name: test_v10_components_naming_catalogs_on_surface_without_default
   description: >-
@@ -1103,7 +1131,15 @@
                 value: "Hello"
   expectError:
     category: "ValidationError"
+    surfaceId: "s"
     message: "Unrecognized function 'formatString'"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "VALIDATION_FAILED"
+        surfaceId: "s"
+        path: "/components/0/text"
+        message: "Unrecognized function 'formatString'"
 
 - name: test_v10_function_call_naming_catalog_with_invalid_args_errors
   description: >-
@@ -1158,7 +1194,15 @@
                 phrase: 3
   expectError:
     category: "ValidationError"
+    surfaceId: "s"
     message: "phrase"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "VALIDATION_FAILED"
+        surfaceId: "s"
+        path: "/components/0/text/args/phrase"
+        message: "phrase"
 
 - name: test_v10_function_call_naming_catalog_with_valid_args
   description: >-
@@ -1458,7 +1502,14 @@
                 value: "Hello"
   expectError:
     category: "CatalogError"
+    surfaceId: "s"
     message: "has no default catalogId"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "CATALOG_NOT_FOUND"
+        surfaceId: "s"
+        message: "has no default catalogId"
 
 - name: test_v10_index_function_on_surface_without_default
   description: >-
@@ -1556,7 +1607,14 @@
             text: "Goodbye"
   expectError:
     category: "CatalogError"
+    surfaceId: "s"
     message: "has no default catalogId"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "CATALOG_NOT_FOUND"
+        surfaceId: "s"
+        message: "has no default catalogId"
 
 - name: test_v10_component_update_without_catalog_id_uses_surface_default
   description: >-
@@ -1852,7 +1910,14 @@
                     value: "hi"
   expectError:
     category: "CatalogError"
+    surfaceId: "s"
     message: "has no default catalogId"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "CATALOG_NOT_FOUND"
+        surfaceId: "s"
+        message: "has no default catalogId"
 
 - name: test_v10_call_in_index_args_is_checked
   description: >-
@@ -2018,7 +2083,14 @@
                     value: 1
   expectError:
     category: "CatalogError"
+    surfaceId: "s"
     message: "has no default catalogId"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "CATALOG_NOT_FOUND"
+        surfaceId: "s"
+        message: "has no default catalogId"
 
 - name: test_v10_calls_in_lists_naming_their_catalog
   description: >-
@@ -2433,7 +2505,14 @@
                 value: "hi"
   expectError:
     category: "CatalogError"
+    surfaceId: "s"
     message: "has no default catalogId"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "CATALOG_NOT_FOUND"
+        surfaceId: "s"
+        message: "has no default catalogId"
 
 - name: test_v10_call_naming_unknown_catalog_errors_without_strict_mode
   description: >-
@@ -2794,7 +2873,14 @@
             text: "Hello"
   expectError:
     category: "CatalogError"
+    surfaceId: "s"
     message: "has no default catalogId"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "CATALOG_NOT_FOUND"
+        surfaceId: "s"
+        message: "has no default catalogId"
 
 # Data model requests and surfaces without a default catalog. A surface keeps
 # the protocol version of the message that created it, so a surface with no
@@ -2861,3 +2947,74 @@
     version: "v0.9"
     surfaces:
       t: {}
+
+- name: test_v10_permissive_incremental_streaming_out_of_order_before_root
+  description: >-
+    Multi-step strictMode: false incremental streaming case verifying that out-of-order child components arriving before root emit zero errors and assemble cleanly once root arrives.
+  action: process_messages
+  protocolVersion: "1.0"
+  strictMode: false
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_stream"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "s_stream"
+            components:
+              - id: "leaf_text"
+                component: "Text"
+                text: "Streamed Leaf"
+      expect:
+        surfaces:
+          s_stream:
+            exists: true
+            components:
+              - id: "leaf_text"
+                component: "Text"
+                text: "Streamed Leaf"
+    - messages:
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "s_stream"
+            components:
+              - id: "mid_card"
+                component: "Card"
+                child: "leaf_text"
+      expect:
+        surfaces:
+          s_stream:
+            exists: true
+            components:
+              - id: "leaf_text"
+                component: "Text"
+                text: "Streamed Leaf"
+              - id: "mid_card"
+                component: "Card"
+                child: "leaf_text"
+    - messages:
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "s_stream"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["mid_card"]
+      expect:
+        surfaces:
+          s_stream:
+            exists: true
+            components:
+              - id: "leaf_text"
+                component: "Text"
+                text: "Streamed Leaf"
+              - id: "mid_card"
+                component: "Card"
+                child: "leaf_text"
+              - id: "root"
+                component: "Column"
+                children: ["mid_card"]
