@@ -610,6 +610,32 @@ def test_formatting_falls_back_for_unusable_locale(version, locale):
     )
 
 
+@pytest.mark.parametrize("version", ["v0_9", "v1_0"])
+@pytest.mark.parametrize(
+    ("pattern", "expected"),
+    [
+        ("MMM d 'at' h:mm a", "Feb 2 at 3:17 PM"),
+        ("h 'o''clock'", "3 o'clock"),
+        ("h''mm", "3'17"),
+        ("EEE, EE, E", "Mon, Mon, Mon"),
+        # An unclosed quote runs to the end of the pattern.
+        ("h 'at end", "3 at end"),
+    ],
+)
+def test_format_date_quoted_literals_and_short_weekday(version, pattern, expected):
+    import importlib
+
+    module = importlib.import_module(
+        f"a2ui.core.basic_catalog.{version}.function_impls"
+    )
+    format_date = module.create_format_date_implementation(None)
+
+    assert (
+        format_date.execute({"value": "2026-02-02T15:17:09Z", "format": pattern})
+        == expected
+    )
+
+
 def test_validation_return_types_v09_vs_v10():
     from a2ui.core.basic_catalog import v0_9, v1_0
 

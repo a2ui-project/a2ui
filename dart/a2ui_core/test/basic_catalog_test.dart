@@ -808,6 +808,16 @@ void main() {
       );
     });
 
+    test('copies quoted literals and reads EEE as the short weekday', () {
+      const value = '2026-02-02T15:17:09Z';
+      expect(format(value, "MMM d 'at' h:mm a"), 'Feb 2 at 3:17 PM');
+      expect(format(value, "h 'o''clock'"), "3 o'clock");
+      expect(format(value, "h''mm"), "3'17");
+      expect(format(value, 'EEE, EE, E'), 'Mon, Mon, Mon');
+      // An unclosed quote runs to the end of the pattern.
+      expect(format(value, "h 'at end"), '3 at end');
+    });
+
     test('keeps the wall-clock time of an offset timestamp', () {
       expect(format('2026-09-04T23:30:00-05:00', 'yyyy-MM-dd'), '2026-09-04');
       expect(format('2026-09-04T23:30:00-05:00', 'HH:mm'), '23:30');

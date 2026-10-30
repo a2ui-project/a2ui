@@ -118,6 +118,11 @@
   a component the surface already held, so a strict config now reports an
   item naming a missing component as a dangling reference, and error paths
   read `name[i]` instead of `name.[i]`.
+- `formatDate` (v0.9 and v1.0) copies text in single quotes through as a
+  literal and renders `''` as an apostrophe, so `"MMM d 'at' h:mm a"` gives
+  `Feb 2 at 3:17 PM` instead of `Feb 2 'PMt' 3:17 PM`, and reads `EEE` and
+  `EE` as the abbreviated weekday instead of repeating it.
+  [#2937](https://github.com/a2ui-project/a2ui/issues/2937)
 
 ## 0.4.0 (2026-10-17)
 

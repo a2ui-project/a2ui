@@ -154,6 +154,16 @@ describe('Common Basic Functions', () => {
       assert.strictEqual(executeFormatDate('invalid-date'), '');
     });
 
+    it('executeFormatDate copies quoted literals and reads EEE as the short weekday', () => {
+      const value = '2026-02-02T15:17:09Z';
+      assert.strictEqual(executeFormatDate(value, "MMM d 'at' h:mm a"), 'Feb 2 at 3:17 PM');
+      assert.strictEqual(executeFormatDate(value, "h 'o''clock'"), "3 o'clock");
+      assert.strictEqual(executeFormatDate(value, "h''mm"), "3'17");
+      assert.strictEqual(executeFormatDate(value, 'EEE, EE, E'), 'Mon, Mon, Mon');
+      // An unclosed quote runs to the end of the pattern.
+      assert.strictEqual(executeFormatDate(value, "h 'at end"), '3 at end');
+    });
+
     it('parseTimestamp', () => {
       const parsed = parseTimestamp('2025-01-01T12:00:00+02:00');
       assert.ok(parsed);

@@ -109,8 +109,12 @@ String formatCurrency(
   return format.format(number);
 }
 
+/// TR35 pattern tokens, plus quoted literals: `''` is an apostrophe, and text
+/// in single quotes (with `''` inside it standing for an apostrophe) is copied
+/// through. An unclosed quote runs to the end of the pattern, as in web_core.
 final RegExp _dateTokens = RegExp(
-  'yyyy|yy|MMMM|MMM|MM|M|EEEE|E|dd|d|HH|H|hh|h|mm|ss|a',
+  r"''|'((?:''|[^'])+)(?:'|$)"
+  '|yyyy|yy|MMMM|MMM|MM|M|EEEE|EEE|EE|E|dd|d|HH|H|hh|h|mm|ss|a',
 );
 
 /// The offset at the end of a timestamp's time part: `Z`, `+hh`, `+hhmm` or
@@ -212,8 +216,9 @@ DateSymbols _dateSymbolsFor(String locale) {
 
 /// Formats an ISO 8601 timestamp [value] with a TR35 [pattern].
 ///
-/// Supports the tokens `yyyy yy MMMM MMM MM M EEEE E dd d HH H hh h mm ss a`;
-/// other text is copied through. A timestamp with an offset keeps its
+/// Supports the tokens
+/// `yyyy yy MMMM MMM MM M EEEE EEE EE E dd d HH H hh h mm ss a` and quoted
+/// literals; other text is copied through. A timestamp with an offset keeps its
 /// wall-clock fields, so `2026-09-04T23:30:00-05:00` formats as `2026-09-04`.
 /// The pattern `ISO` emits the UTC instant as `YYYY-MM-DDTHH:mm:ss.sssZ`.
 /// Returns an empty string for a missing or unparseable [value].
@@ -238,6 +243,8 @@ String formatDate(
   return (format.isEmpty ? 'yyyy-MM-dd' : format).replaceAllMapped(
     _dateTokens,
     (match) => switch (match[0]) {
+      _ when match[1] != null => match[1]!.replaceAll("''", "'"),
+      "''" => "'",
       'yyyy' => '${shifted.year}',
       'yy' => pad(shifted.year % 100),
       'MMMM' => names.STANDALONEMONTHS[shifted.month - 1],
@@ -245,7 +252,7 @@ String formatDate(
       'MM' => pad(shifted.month),
       'M' => '${shifted.month}',
       'EEEE' => names.STANDALONEWEEKDAYS[weekday],
-      'E' => names.STANDALONESHORTWEEKDAYS[weekday],
+      'EEE' || 'EE' || 'E' => names.STANDALONESHORTWEEKDAYS[weekday],
       'dd' => pad(shifted.day),
       'd' => '${shifted.day}',
       'HH' => pad(shifted.hour),
