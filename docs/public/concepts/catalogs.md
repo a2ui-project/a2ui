@@ -6,48 +6,180 @@ This guide defines the A2UI Catalog architecture and provides a roadmap for impl
 
 ## Catalog Schema
 
-A catalog schema is a [JSON Schema file](../../../specification/v0_9/json/client_capabilities.json#L62C5-L95C6) outlining the components, functions, and themes that agents can use to define A2UI surfaces using server-driven UI. All A2UI JSON sent from the agent is validated against the chosen catalog.
+A catalog is a JSON Schema file outlining the components and functions (and, in v0.9, themes) that agents can use to define A2UI surfaces using server-driven UI. All A2UI JSON sent from the agent is validated against the chosen catalog.
 
-[Catalog JSON Schema](../../../specification/v0_9/json/client_capabilities.json#L62C5-L95C6) is below
+The structure of a catalog is itself defined by a JSON Schema, which depends on the protocol version:
+
+=== "v1.0"
+
+    The [catalog definition schema](../../../specification/v1_0/json/catalog_definition.json) is below. `functions` is a map from function name to [function definition](#function-definitions). This excerpt leaves out `$schema`, `$id`, the `protocolVersion` pattern, and the schema's own `$defs`.
+
+    ```json
+    {
+      "title": "A2UI Catalog Definition Schema",
+      "description": "A collection of component and function definitions.",
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "string",
+          "default": "0.9",
+          "description": "The A2UI specification version of this catalog definition (e.g. '1.0'). Defaults to '0.9' if omitted."
+        },
+        "$defs": {
+          "type": "object",
+          "description": "Standardized schema definitions referenced from outside the catalog file.",
+          "properties": {
+            "anyComponent": {
+              "title": "A2UI Any Component Schema",
+              "description": "Unified validation schema for all components.",
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            },
+            "anyFunction": {
+              "title": "A2UI Any Function Schema",
+              "description": "Unified validation schema for all functions.",
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            }
+          },
+          "required": ["anyComponent", "anyFunction"],
+          "additionalProperties": false
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the catalog."
+        },
+        "description": {
+          "type": "string",
+          "description": "A human-readable description of the catalog."
+        },
+        "catalogId": {
+          "type": "string",
+          "description": "Unique identifier for this catalog."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Markdown-formatted design guidelines or instructions specific to this catalog."
+        },
+        "components": {
+          "type": "object",
+          "description": "Definitions for UI components supported by this catalog.",
+          "propertyNames": {
+            "not": {"const": "Surface"}
+          },
+          "additionalProperties": {"$ref": "#/$defs/ComponentDefinition"}
+        },
+        "functions": {
+          "type": "object",
+          "description": "Definitions for functions supported by this catalog.",
+          "additionalProperties": {"$ref": "#/$defs/FunctionDefinition"}
+        }
+      },
+      "required": ["catalogId"],
+      "additionalProperties": false
+    }
+    ```
+
+=== "v0.9"
+
+    The `Catalog` definition from the [v0.9 client capabilities schema](../../../specification/v0_9/json/client_capabilities.json) is below. `functions` is an array.
+
+    ```json
+    {
+      "Catalog": {
+        "type": "object",
+        "description": "A collection of component and function definitions.",
+        "properties": {
+          "catalogId": {
+            "type": "string",
+            "description": "Unique identifier for this catalog."
+          },
+          "components": {
+            "type": "object",
+            "description": "Definitions for UI components supported by this catalog.",
+            "additionalProperties": {
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            }
+          },
+          "functions": {
+            "type": "array",
+            "description": "Definitions for functions supported by this catalog.",
+            "items": {
+              "$ref": "#/$defs/FunctionDefinition"
+            }
+          },
+          "theme": {
+            "title": "A2UI Theme",
+            "description": "A schema that defines a catalog of A2UI theme properties.",
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "https://json-schema.org/draft/2020-12/schema"
+            }
+          }
+        },
+        "required": ["catalogId"],
+        "additionalProperties": false
+      }
+    }
+    ```
+
+### Function Definitions
+
+In v1.0, each entry in a catalog's `functions` map is a JSON Schema that validates calls to the function: `properties` holds the `@call` name and the schema of its `args`. Each entry also declares how the function can be used:
+
+| Field                    | Required | Values                                                                              | Meaning                                                                                                                                                                                                                                                                                  |
+| :----------------------- | :------- | :---------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `returnType`             | Yes      | `string`, `number`, `boolean`, `array`, `object`, `validationResult`, `any`, `void` | The type of value the function returns. Validation functions for `checks` return `validationResult`, an object with `valid` and optional `code`, `message`, and `severity` (`checks` also accept a `boolean`). Functions that only have a side effect, such as `openUrl`, return `void`. |
+| `allowedCallers`         | No       | `rendererOnly` (default), `agentOnly`, `rendererOrAgent`                            | Who can call the function. The renderer calls `rendererOnly` functions from component properties, `checks`, and actions. The agent calls `agentOnly` functions with a `callRendererFunction` message. `rendererOrAgent` allows both.                                                     |
+| `requiresUserActivation` | No       | `true`, `false` (default)                                                           | Whether the function runs only in response to a user gesture, such as a button click. A function with `requiresUserActivation: true` must use `allowedCallers: "rendererOnly"`.                                                                                                          |
+
+This catalog defines a validation function, a function the agent can also call, and a function that needs a user gesture:
 
 ```json
 {
-  "Catalog": {
-    "type": "object",
-    "description": "A collection of component and function definitions.",
-    "properties": {
-      "catalogId": {
-        "type": "string",
-        "description": "Unique identifier for this catalog."
-      },
-      "components": {
-        "type": "object",
-        "description": "Definitions for UI components supported by this catalog.",
-        "additionalProperties": {
-          "$ref": "https://json-schema.org/draft/2020-12/schema"
+  "catalogId": "https://example.com/catalogs/checkout/v1/catalog.json",
+  "protocolVersion": "1.0",
+  "functions": {
+    "isPostalCode": {
+      "type": "object",
+      "description": "Checks that the value is a valid postal code.",
+      "returnType": "validationResult",
+      "properties": {
+        "@call": {"const": "isPostalCode"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {"$ref": "common_types.json#/$defs/DynamicString"}
+          },
+          "required": ["value"],
+          "unevaluatedProperties": false
         }
       },
-      "functions": {
-        "type": "array",
-        "description": "Definitions for functions supported by this catalog.",
-        "items": {
-          "$ref": "#/$defs/FunctionDefinition"
-        }
-      },
-      "theme": {
-        "title": "A2UI Theme",
-        "description": "A schema that defines a catalog of A2UI theme properties.",
-        "type": "object",
-        "additionalProperties": {
-          "$ref": "https://json-schema.org/draft/2020-12/schema"
-        }
-      }
+      "required": ["@call", "args"]
     },
-    "required": ["catalogId"],
-    "additionalProperties": false
+    "getScreenResolution": {
+      "type": "object",
+      "description": "Returns the screen width and height in pixels.",
+      "returnType": "array",
+      "allowedCallers": "rendererOrAgent",
+      "properties": {
+        "@call": {"const": "getScreenResolution"}
+      },
+      "required": ["@call"]
+    },
+    "startCheckout": {
+      "type": "object",
+      "description": "Opens the payment sheet.",
+      "returnType": "void",
+      "requiresUserActivation": true,
+      "properties": {
+        "@call": {"const": "startCheckout"}
+      },
+      "required": ["@call"]
+    }
   }
 }
 ```
+
+To let components call these functions, the catalog also lists them in `$defs.anyFunction`, for example `{"oneOf": [{"$ref": "#/functions/isPostalCode"}, {"$ref": "#/functions/getScreenResolution"}, {"$ref": "#/functions/startCheckout"}]}`. See [Defining Custom Functions](../../../specification/v1_0/docs/a2ui_custom_functions.md) for a complete example.
 
 ## Catalog Strategy
 
@@ -86,7 +218,7 @@ For simplicity we recommend building catalogs that directly reflect a client's d
 
 ## Building a Catalog
 
-A catalog is a JSON Schema file that conforms to the [Catalog schema](../../../specification/v0_9/json/client_capabilities.json#L62C5-L95C6) that defines the components, themes and functions an agent can use when building a surface.
+A catalog is a JSON Schema file that conforms to the catalog schema for its protocol version ([v1.0](../../../specification/v1_0/json/catalog_definition.json), [v0.9](../../../specification/v0_9/json/client_capabilities.json)) and defines the components, functions, and (in v0.9) themes an agent can use when building a surface.
 
 ### Example: A Minimal Catalog
 
