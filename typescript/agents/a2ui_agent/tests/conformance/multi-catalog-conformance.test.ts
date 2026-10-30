@@ -396,7 +396,7 @@ function runFormatCase(testCase: LoadedCase): void {
     }
 
     const {processor, snippet} = create();
-    const active = processor.activeCatalogs;
+    const active = processor.catalogs;
     const expected = (testCase.expect as Record<string, unknown>) || {};
 
     if (expected.active_catalog_ids) {

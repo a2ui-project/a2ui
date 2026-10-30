@@ -1614,11 +1614,16 @@ A2UI defines optional `metadata.extensions` containers across five scopes:
 
 #### SDK Accessor Pattern
 
-Renderers and client SDKs expose surface and component metadata using uniform accessors and change notification callbacks:
+Renderers and client SDKs expose surface and component metadata through a uniform set of properties, mutators, and change notifications. Names follow each language's conventions (for example `setMetadata` in TypeScript and `set_metadata` in Python), but the shape is the same everywhere:
 
-- `getMetadata()`: Retrieves the metadata object containing extensions.
-- `setMetadata(metadata)`: Updates the metadata object and notifies listeners.
-- `onMetadataChanged(callback)`: Registers a callback that fires whenever metadata updates.
+- `metadata`: Read-only snapshot of the current metadata object containing `extensions`, exposed on the surface state model and on each component state model. `extensions` is a convenience view of `metadata.extensions`.
+- `setMetadata(metadata)`: Validates every `extensions` key against UAX #31, stores a defensive copy, and notifies listeners when the value changes. Setting a structurally equal value is a no-op.
+- `setExtension(key, value)` and `removeExtension(key)`: Set or delete a single extension key. Removing the last key clears `metadata` entirely.
+- `onMetadataChanged`: An event source that fires whenever metadata changes, either from an incoming `updateComponents` message or from a local mutation.
+- Resolved component nodes expose instance metadata as a read-only reactive value (for example `ComponentNode.metadata`), separate from the schema-defined component properties, so a metadata-only update never re-renders views that read only properties. Catalog component definition metadata is available statically from the resolved component implementation (`node.impl.metadata`).
+- Outbound action dispatch accepts an optional `metadata` argument so renderers can attach `action.metadata.extensions` to the emitted action message.
+
+An `updateComponents` message replaces a component definition in full, including its `metadata`. A component update that omits `metadata` clears any previously stored component metadata, and renderers notify metadata subscribers of that change.
 
 [json pointer]: https://datatracker.ietf.org/doc/html/rfc6901
 [rfc 6901]: https://datatracker.ietf.org/doc/html/rfc6901

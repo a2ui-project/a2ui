@@ -88,8 +88,12 @@ struct NodeResolutionConformanceTests {
     let fixtureRaw = try ConformanceTestHelper.loadYAML(filename: fixturePath)
     let fixture = try #require(fixtureRaw as? [String: Any], "[\(name)] Invalid fixture YAML")
 
+    let fixtureCatalog = fixture["catalog"] as? String ?? ""
+    let isV10 = fixtureCatalog.contains("/v1/") || fixtureCatalog.contains("v1_0")
+    let version: A2UIProtocolVersion = isV10 ? .v10 : .v091
+
     let capture = NodeResolutionActionCapture()
-    let catalogs = buildNodeResolutionCatalogs(capture: capture)
+    let catalogs = buildNodeResolutionCatalogs(capture: capture, version: version)
     let processor = MessageProcessor(
       catalogs: catalogs,
       actionHandler: capture,
@@ -100,7 +104,7 @@ struct NodeResolutionConformanceTests {
       catalogs: catalogs,
       defaultCatalogID: "basic",
       actionHandler: capture,
-      protocolVersion: .v091
+      protocolVersion: version
     )
     processor.surfaceGroupModel.addSurface(surface)
 
@@ -131,20 +135,22 @@ struct NodeResolutionConformanceTests {
   }
 
   private func buildNodeResolutionCatalogs(
-    capture: NodeResolutionActionCapture
+    capture: NodeResolutionActionCapture,
+    version: A2UIProtocolVersion
   ) -> [AnyCatalog] {
-    let baseCatalog = BasicCatalog.makeCatalog(version: .v091)
+    let baseCatalog = BasicCatalog.makeCatalog(version: version)
     let wrappedFunctions: [any FunctionImplementation] = baseCatalog.functions.values.map { fn in
       RecordingFunctionImplementation(api: fn.api, base: fn, capture: capture)
     }
     var components = Array(baseCatalog.components.values)
-    if let tabsSchema = try? makeTabsComponentSchema() {
+    if version != .v10, let tabsSchema = try? makeTabsComponentSchema() {
       components.append(AnyComponentAPI(name: "Tabs", schema: tabsSchema))
     }
+    let versionString = version == .v10 ? "1.0" : "v0.9.1"
     return ["basic", baseCatalog.id].map { id in
       Catalog(
         id: id,
-        protocolVersion: "v0.9.1",
+        protocolVersion: versionString,
         components: components,
         functions: wrappedFunctions,
         themeSchema: baseCatalog.themeSchema
@@ -192,15 +198,20 @@ struct NodeResolutionConformanceTests {
         let type = compDict["component"] as? String
       else { continue }
       var props: [String: JSONValue] = [:]
-      for (key, val) in compDict where key != "id" && key != "component" && key != "catalogId" {
+      for (key, val) in compDict
+      where key != "id" && key != "component" && key != "catalogId" && key != "metadata" {
         props[key] = ConformanceTestHelper.toJSONValue(val)
+      }
+      let metadata = compDict["metadata"].flatMap { rawMeta in
+        try? MetadataValidator.validate(ConformanceTestHelper.toJSONValue(rawMeta))
       }
       models.append(
         ComponentModel(
           id: id,
           type: type,
           catalogID: compDict["catalogId"] as? String,
-          properties: props
+          properties: props,
+          metadata: metadata
         )
       )
     }
@@ -291,7 +302,12 @@ struct NodeResolutionConformanceTests {
       Issue.record("[\(caseName)] invoke step could not locate action")
       return
     }
-    action()
+    if let rawMeta = step["metadata"] {
+      let callMeta = ConformanceTestHelper.toJSONValue(rawMeta).dictionaryValue
+      try? action(metadata: callMeta)
+    } else {
+      action()
+    }
   }
 
   private func findNodeByPath(
@@ -477,6 +493,19 @@ struct NodeResolutionConformanceTests {
         "[\(caseName)] \(nodePath) validationErrors mismatch"
       )
     }
+    if spec.keys.contains("metadata") {
+      if spec["metadata"] is NSNull {
+        #expect(node.metadata == nil, "[\(caseName)] \(nodePath) expected nil metadata")
+      } else {
+        let expectedMeta = try? MetadataValidator.validate(
+          ConformanceTestHelper.toJSONValue(spec["metadata"] as Any)
+        )
+        #expect(
+          MetadataValidator.areEqual(node.metadata, expectedMeta),
+          "[\(caseName)] \(nodePath) metadata mismatch"
+        )
+      }
+    }
     if let expectedProps = spec["props"] as? [String: Any] {
       assertNodePropsMatch(node: node, expectedProps: expectedProps, nodePath: nodePath, caseName: caseName)
     }
@@ -555,6 +584,22 @@ struct NodeResolutionConformanceTests {
             "[\(caseName)] Event context[\(key)] mismatch"
           )
         }
+      }
+      if expSpec.keys.contains("metadata") {
+        if expSpec["metadata"] is NSNull {
+          #expect(actualEvent.metadata == nil, "[\(caseName)] Expected nil event metadata")
+        } else {
+          let expectedMeta = try? MetadataValidator.validate(
+            ConformanceTestHelper.toJSONValue(expSpec["metadata"] as Any),
+            pathPrefix: "action.metadata"
+          )
+          #expect(
+            MetadataValidator.areEqual(actualEvent.metadata, expectedMeta),
+            "[\(caseName)] Event metadata mismatch"
+          )
+        }
+      } else {
+        #expect(actualEvent.metadata == nil, "[\(caseName)] Expected nil event metadata")
       }
     }
   }

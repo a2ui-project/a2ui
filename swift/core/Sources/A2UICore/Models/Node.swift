@@ -24,32 +24,50 @@ package final class NodeBox: ObservableObject, @unchecked Sendable {
   let type: String
   let catalogID: String?
   private(set) var properties: [String: any Resolved]
+  private(set) var metadata: [String: JSONValue]?
   package private(set) var revision: UInt64 = 0
 
   init(
     id: String,
     type: String,
     catalogID: String? = nil,
-    properties: [String: any Resolved]
+    properties: [String: any Resolved],
+    metadata: [String: JSONValue]? = nil
   ) {
     self.id = id
     self.type = type
     self.catalogID = catalogID
     self.properties = properties
+    self.metadata = metadata
   }
 
-  /// Updates the box's resolved properties in-place, publishing `objectWillChange`
-  /// only when its own non-node properties or child `NodeBox` references (`===`) change.
+  /// Updates the box's resolved properties and metadata in-place, publishing `objectWillChange`
+  /// only when its own non-node properties, metadata, or child `NodeBox` references (`===`) change.
   @MainActor
-  func updateProperties(_ newProperties: [String: any Resolved]) {
-    let changed = !Self.arePropertiesShallowEqual(properties, newProperties)
+  func updateProperties(
+    _ newProperties: [String: any Resolved],
+    metadata newMetadata: [String: JSONValue]? = nil
+  ) {
+    let propsChanged = !Self.arePropertiesShallowEqual(properties, newProperties)
+    let metaChanged = !MetadataValidator.areEqual(metadata, newMetadata)
+    let changed = propsChanged || metaChanged
     if changed {
       objectWillChange.send()
     }
     properties = newProperties
+    metadata = newMetadata
     if changed {
       revision &+= 1
     }
+  }
+
+  /// Updates the box's metadata in-place without re-resolving properties or child subtrees.
+  @MainActor
+  func updateMetadata(_ newMetadata: [String: JSONValue]?) {
+    guard !MetadataValidator.areEqual(metadata, newMetadata) else { return }
+    objectWillChange.send()
+    metadata = newMetadata
+    revision &+= 1
   }
 
   private static func arePropertiesShallowEqual(
@@ -94,15 +112,24 @@ public struct Node: Identifiable, Equatable, Sendable {
   public var type: String { box.type }
   public var catalogID: String? { box.catalogID }
   public var properties: [String: any Resolved] { box.properties }
+  public var metadata: [String: JSONValue]? { box.metadata }
+  public var extensions: [String: JSONValue]? { MetadataValidator.extensions(from: box.metadata) }
 
   /// Creates a new resolved component node.
   public init(
     id: String,
     type: String,
     catalogID: String? = nil,
-    properties: [String: any Resolved]
+    properties: [String: any Resolved],
+    metadata: [String: JSONValue]? = nil
   ) {
-    self.box = NodeBox(id: id, type: type, catalogID: catalogID, properties: properties)
+    self.box = NodeBox(
+      id: id,
+      type: type,
+      catalogID: catalogID,
+      properties: properties,
+      metadata: metadata
+    )
     self.renderRevision = 0
   }
 
@@ -111,11 +138,22 @@ public struct Node: Identifiable, Equatable, Sendable {
     self.renderRevision = renderRevision
   }
 
-  /// Updates the backing box's resolved properties in-place and returns a `Node` stamped with
-  /// the box's resulting revision.
+  /// Updates the backing box's resolved properties and metadata in-place and returns a `Node`
+  /// stamped with the box's resulting revision.
   @MainActor
-  func updatingProperties(_ newProperties: [String: any Resolved]) -> Node {
-    box.updateProperties(newProperties)
+  func updatingProperties(
+    _ newProperties: [String: any Resolved],
+    metadata newMetadata: [String: JSONValue]? = nil
+  ) -> Node {
+    box.updateProperties(newProperties, metadata: newMetadata)
+    return withCurrentRevision()
+  }
+
+  /// Updates the backing box's metadata in-place and returns a `Node` stamped with the box's
+  /// resulting revision.
+  @MainActor
+  func updatingMetadata(_ newMetadata: [String: JSONValue]?) -> Node {
+    box.updateMetadata(newMetadata)
     return withCurrentRevision()
   }
 
@@ -135,6 +173,7 @@ public struct Node: Identifiable, Equatable, Sendable {
       return lhs.renderRevision == rhs.renderRevision
     }
     guard lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID,
+      MetadataValidator.areEqual(lhs.metadata, rhs.metadata),
       lhs.properties.count == rhs.properties.count
     else {
       return false
