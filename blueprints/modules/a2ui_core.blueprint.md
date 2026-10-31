@@ -852,6 +852,8 @@ export class PayloadValidator {
 }
 ```
 
+`allowUnknownElements` covers functions as well as components: under `false`, a call to a function that the catalog it resolves to doesn't declare is rejected as an unrecognized function. From v1.0 such a call would otherwise be [routed to the agent](#rpc-execution-lifecycle--safeguards), so a renderer that validates strictly and uses agent-side functions has two options. It can set `allowUnknownElements: true`, which keeps the other checks. Or it can declare the agent functions it expects as schema-only entries in the catalog the calls resolve to, which keeps every check, including argument validation, and still routes the calls, because a schema-only function has no local implementation. Supplying no `ValidationConfig` at all skips these checks, so calls to undeclared functions are accepted and routed.
+
 ##### In-Memory Schema Resolution (Zero Network, Zero Disk I/O)
 
 When validating message payloads, catalogs, or function signatures against JSON Schema (e.g., using `Draft202012Validator` in Python or `Ajv` in TypeScript), validators must operate entirely independently of the host file system or network connectivity:
@@ -1027,6 +1029,9 @@ export class RpcHandler {
   /** Correlates and settles an inbound agentFunctionResponse message with its pending call. */
   handleAgentFunctionResponse(message: AgentFunctionResponseMessage): void;
 
+  /** Fails every pending outbound call made from the surface with `RpcErrorCode.CANCELLED`. */
+  cancelSurfaceCalls(surfaceId: string): void;
+
   /** Disposes the handler, cancelling all pending outbound requests. */
   dispose(reason?: string): void;
 }
@@ -1053,11 +1058,26 @@ export class RpcHandler {
    - **Listener Task Error Trapping**: Transport listener task completion callbacks must only remove or reject pending calls when the listener task itself fails or is cancelled; successful outbound delivery preserves the pending call to await the agent's correlated response.
    - **Timeout Enforcement**: If no correlated response is received before `timeoutSeconds` expires (default: 30 seconds), the pending call is rejected with `RpcErrorCode.TIMEOUT` and cleaned up.
 
-3. **Synchronous & Asynchronous Loop Bridging**:
+3. **Renderer Fallback Routing (v1.0+)**:
+
+   A renderer sends a function call it cannot run locally to the agent, as "Function Location Resolution & Fallback Routing" under `callAgentFunction` in the [v1.0 protocol](../../specification/v1_0/docs/a2ui_protocol.md) requires. This is required behavior for every renderer core, not an optional feature. The agent's side is the optional [`agent_functions`](../features/agent_functions.blueprint.md) feature.
+
+   - **When a call routes**: All of the following hold. The surface is v1.0 or later. The function is not a reserved `@` system function. The call's catalog resolves (its `catalogId`, else the surface default; see [Catalog Scope](#catalog-scope)); a call whose catalog doesn't resolve is a `CATALOG_ERROR` and is never sent. The resolved catalog has no executable implementation of the function: it either doesn't declare it, or declares it schema-only. The surface has an agent function caller. Otherwise nothing changes: an implemented function runs locally, and a missing one is the usual local `EXPRESSION_ERROR`.
+   - **The surface's agent function caller**: `SurfaceModel` holds an optional caller that sends a call to the agent and resolves with its result. `MessageProcessor` installs it on each v1.0 surface only when it has an outbound listener, and dispatches through `RpcHandler.callAgentFunction` with the processor's timeout. Without a listener there is no way to reach the agent, so calls keep failing locally rather than with `NO_LISTENER`.
+   - **Resolved `catalogId`**: Every outbound `callFunction` names the catalog the call resolved to, also when the payload left `catalogId` out and relied on the surface default, so the agent never tracks surface defaults. `args` carries resolved values.
+   - **Schema-only functions**: For a function the resolved catalog declares without an implementation, apply the same checks a local call gets before sending: refuse an `agentOnly` function and enforce `requiresUserActivation`, both as `EXPRESSION_ERROR`, then validate the arguments against the declared schema. A validation failure is an `EXPRESSION_ERROR` and nothing is sent. Send the parsed arguments, with the schema's defaults applied, which is what a local implementation would receive. A function the catalog doesn't declare is sent with its resolved arguments as they are.
+   - **Pending value and errors**: The value is pending (the language's null or undefined) until `agentFunctionResponse` arrives. An agent error response or a timeout is reported on the surface as `EXPRESSION_ERROR`, carrying the agent's message and the `functionCallId`, and the value stays null. Routing applies to every renderer call: property bindings, check rules, and `functionCall` actions.
+   - **Nested arguments**: Settle asynchronous argument values before the call runs or is sent, as for local calls. A call whose argument is a pending agent result waits for it instead of running with a null argument. If a nested argument failed, the enclosing call does not run or send, and the failure is reported once rather than again for each enclosing call.
+   - **Sharing and caching**: Calls are identified by resolved `catalogId`, function name and arguments, compared with object keys in canonical order. For reactive evaluation (bindings and checks), an identical call still awaiting its response shares that request, and the surface caches settled answers so that re-evaluating a binding, or a bound argument returning to an earlier value, does not send the request again. The cache is bounded (256 entries in the current SDKs, dropping the oldest first), and a failed call is not cached, so the next evaluation retries it. Imperative calls from actions never share a request or read the cache: each one sends a fresh call.
+   - **Surface deletion and disposal**: `deleteSurface` cancels the surface's pending calls through `RpcHandler.cancelSurfaceCalls` (code `CANCELLED`). Disposing the surface removes its caller and clears its shared calls and cache, so a disposed surface sends nothing more to the agent.
+   - **Inbound calls are unaffected**: Fallback routing applies only to calls the renderer evaluates. An agent's `callRendererFunction` for a function the resolved catalog doesn't have still gets `RpcErrorCode.INVALID_FUNCTION_CALL`.
+   - **Validation**: Fallback routing only applies to calls validation accepts. See `allowUnknownElements` under [`ValidationConfig`](#validationconfig--payloadvalidator) for what a strict renderer must do. Inside expression evaluation, a call to a function the catalog lacks is not rejected before routing when the surface has a caller.
+
+4. **Synchronous & Asynchronous Loop Bridging**:
    - In hybrid or synchronous runtime environments (e.g. Python synchronous SDK consumers), calling asynchronous RPC handlers while an event loop is already active must avoid re-entrant loop conflicts (such as `RuntimeError: This event loop is already running`).
    - Implementations bridge this by dispatching the asynchronous execution to a dedicated background single-worker thread (`ThreadPoolExecutor(max_workers=1)`) and waiting on the result synchronously.
 
-4. **Lifecycle Disposal (`dispose`)**:
+5. **Lifecycle Disposal (`dispose`)**:
    - Calling `dispose(reason)` cancels all outstanding pending calls with `RpcErrorCode.DISPOSED`, clears all active timeout timers, removes registered transport listeners, and cleans up internal executor threads.
 
 ---
@@ -1540,3 +1560,5 @@ export class A2uiExpressionError extends A2uiError {
 See [Conformance README](../../conformance/README.md) for setup and schema definitions.
 
 `conformance/core/` covers this module.
+
+- `conformance/core/agent_function_routing.yaml` covers renderer fallback routing: when a call routes, the resolved `catalogId`, schema-only functions, nested and failed arguments, sharing and caching, check rules and actions.
