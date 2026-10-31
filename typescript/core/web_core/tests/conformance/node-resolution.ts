@@ -17,20 +17,22 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
+
 import yaml from 'js-yaml';
+
 import {Catalog, ComponentApi, createFunctionImplementation} from '../../src/catalog/types.js';
 import {A2uiMetadata, ActionDispatchOptions, jsonValueEquals} from '../../src/common/metadata.js';
 import {MessageProcessor} from '../../src/processing/message-processor.js';
+import {batchWrite, effect, getValue, peekValue} from '../../src/reactivity/signals.js';
 import {
   ComponentNode,
-  PLACEHOLDER_TYPE,
   isComponentNode,
+  PLACEHOLDER_TYPE,
 } from '../../src/resolution/component-node.js';
 import {NodeResolver} from '../../src/resolution/node-resolver.js';
-import {ResolvedBinding, isWritable} from '../../src/resolution/resolved-binding.js';
-import {batchWrite, effect, getValue, peekValue} from '../../src/reactivity/signals.js';
+import {isWritable, ResolvedBinding} from '../../src/resolution/resolved-binding.js';
 import {ComponentModel} from '../../src/state/component-model.js';
-import {SurfaceModel, A2uiErrorPayload} from '../../src/state/surface-model.js';
+import {A2uiErrorPayload, SurfaceModel} from '../../src/state/surface-model.js';
 
 type Component = Record<string, unknown> & {id: string; component: string};
 interface Fixture {
@@ -86,6 +88,64 @@ interface Watch {
 }
 
 const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+
+const KNOWN_KEYS = {
+  case: new Set(['action', 'description', 'expect', 'features', 'fixture', 'name', 'steps']),
+  fixture: new Set(['catalog', 'components', 'data']),
+  expect: new Set([
+    'data',
+    'destroyed',
+    'emissions',
+    'errors',
+    'events',
+    'functions',
+    'metadata_emissions',
+    'nodes',
+    'replaced_nodes',
+    'same_nodes',
+  ]),
+  node: new Set([
+    'component_id',
+    'data_path',
+    'isValid',
+    'metadata',
+    'props',
+    'state',
+    'type',
+    'validationErrors',
+    'validationResults',
+  ]),
+  event: new Set(['context', 'metadata', 'name', 'source_component_id']),
+  function: new Set(['args', 'name']),
+  error: new Set(['code', 'message', 'surfaceId']),
+  step: {
+    set_data: new Set(['expect', 'op', 'path', 'value']),
+    update_components: new Set(['components', 'expect', 'op']),
+    remove_component: new Set(['component_id', 'expect', 'op']),
+    write: new Set(['expect', 'node', 'op', 'property', 'value']),
+    invoke: new Set(['expect', 'metadata', 'node', 'op', 'property']),
+    process_messages: new Set(['expect', 'messages', 'op']),
+    dispose: new Set(['expect', 'op']),
+  },
+} as const;
+
+function assertKnownKeys(obj: unknown, allowed: ReadonlySet<string>, where: string): void {
+  if (obj === undefined || obj === null) return;
+  assert.ok(typeof obj === 'object' && !Array.isArray(obj), `${where}: expected object`);
+  const unknown = Object.keys(obj).filter(key => !allowed.has(key));
+  assert.deepEqual(
+    unknown,
+    [],
+    `${where}: unknown keys: ${unknown.map(k => `${where}.${k}`).join(', ')}`,
+  );
+}
+
+function assertKnownKeysList(items: unknown, allowed: ReadonlySet<string>, where: string): void {
+  if (!Array.isArray(items)) return;
+  for (let i = 0; i < items.length; i++) {
+    assertKnownKeys(items[i], allowed, `${where}[${i}]`);
+  }
+}
 
 /** Detached values preserve binding snapshots and name child references by tree position. */
 function normalize(value: unknown, path: string): unknown {
@@ -170,6 +230,7 @@ function checkNodes(
     `${reason}: node paths`,
   );
   for (const [path, fields] of Object.entries(expected.nodes)) {
+    assertKnownKeys(fields, KNOWN_KEYS.node, `${reason}.expect.nodes.${path}`);
     const node = requiredNode(nodes, path);
     const nodeType =
       node.state === 'cyclic' && node.type === PLACEHOLDER_TYPE && surface
@@ -253,6 +314,7 @@ function checkExpectedErrors(
   assert.equal(actualErrors.length, expectedErrors.length, `${reason}: errors count`);
   for (let i = 0; i < expectedErrors.length; i++) {
     const expErr: {code?: string; surfaceId?: string; message?: string} = expectedErrors[i];
+    assertKnownKeys(expErr, KNOWN_KEYS.error, `${reason}.expect.errors[${i}]`);
     const actErr = actualErrors[i];
     if (expErr.code !== undefined) {
       assert.equal(actErr.code, expErr.code, `${reason}: errors[${i}].code`);
@@ -280,15 +342,19 @@ async function executeNodeResolutionStep(
 ): Promise<void> {
   switch (step.op) {
     case 'set_data':
+      assertKnownKeys(step, KNOWN_KEYS.step.set_data, reason);
       surface.dataModel.set(step.path, step.value);
       break;
     case 'update_components':
+      assertKnownKeys(step, KNOWN_KEYS.step.update_components, reason);
       updateComponents(surface, catalog, step.components);
       break;
     case 'remove_component':
+      assertKnownKeys(step, KNOWN_KEYS.step.remove_component, reason);
       surface.componentsModel.removeComponent(step.component_id);
       break;
     case 'write': {
+      assertKnownKeys(step, KNOWN_KEYS.step.write, reason);
       const binding = peekValue(requiredNode(before, step.node).props)[step.property];
       assert.ok(
         binding instanceof ResolvedBinding && isWritable(binding),
@@ -298,6 +364,7 @@ async function executeNodeResolutionStep(
       break;
     }
     case 'invoke': {
+      assertKnownKeys(step, KNOWN_KEYS.step.invoke, reason);
       const action = peekValue(requiredNode(before, step.node).props)[step.property];
       assert.equal(typeof action, 'function', `${reason}: not an action`);
       await (action as (options?: ActionDispatchOptions) => unknown)(
@@ -306,14 +373,130 @@ async function executeNodeResolutionStep(
       break;
     }
     case 'process_messages':
+      assertKnownKeys(step, KNOWN_KEYS.step.process_messages, reason);
       processor.processMessages(step.messages as any);
       break;
     case 'dispose':
+      assertKnownKeys(step, KNOWN_KEYS.step.dispose, reason);
       resolver.dispose();
       break;
     default:
       assert.fail(`Unknown node operation: ${(step as {op: string}).op}`);
   }
+}
+
+interface ResolutionContext {
+  resolver: NodeResolver;
+  surface: SurfaceModel;
+  watches: Map<ComponentNode, Watch>;
+  events: unknown[];
+  functions: unknown[];
+  errors: A2uiErrorPayload[];
+}
+
+function watchNodes(nodes: Map<string, ComponentNode>, watches: Map<ComponentNode, Watch>): void {
+  for (const [path, node] of nodes) {
+    const existing = watches.get(node);
+    if (existing) {
+      existing.path = path;
+      continue;
+    }
+    const watch: Watch = {
+      path,
+      emissions: 0,
+      metadataEmissions: 0,
+      destroyed: 0,
+      stop: () => {},
+    };
+    const stopProps = effect(() => {
+      const props = getValue(node.props);
+      watch.emissions++;
+      watch.lastProps = normalize(props, watch.path);
+    });
+    const stopMetadata = effect(() => {
+      getValue(node.metadata);
+      watch.metadataEmissions++;
+    });
+    const stopDestroyed = node.onDestroyed.subscribe(() => {
+      watch.destroyed++;
+    });
+    watch.stop = () => {
+      stopProps();
+      stopMetadata();
+      stopDestroyed.unsubscribe();
+    };
+    watches.set(node, watch);
+  }
+}
+
+function checkExpectation(
+  expected: Expectation,
+  before: Map<string, ComponentNode>,
+  ctx: ResolutionContext,
+  reason: string,
+): void {
+  assertKnownKeys(expected, KNOWN_KEYS.expect, `${reason}.expect`);
+  assertKnownKeysList(expected.events, KNOWN_KEYS.event, `${reason}.expect.events`);
+  assertKnownKeysList(expected.functions, KNOWN_KEYS.function, `${reason}.expect.functions`);
+  const after = mountedNodes(ctx.resolver);
+  checkNodes(after, expected, reason, ctx.surface);
+  const surviving = new Set(after.values());
+  const emissions: Record<string, number> = {};
+  const metadataEmissions: Record<string, number> = {};
+  const destroyed: Record<string, number> = {};
+  for (const [node, watch] of ctx.watches) {
+    // Removal may update a binding before teardown; only surviving nodes have
+    // exact emission counts. Retired nodes remain watched for destruction.
+    if (watch.emissions && surviving.has(node)) {
+      emissions[watch.path] = (emissions[watch.path] ?? 0) + watch.emissions;
+      assert.deepEqual(
+        watch.lastProps,
+        normalize(peekValue(node.props), watch.path),
+        `${reason}: ${watch.path} last emission`,
+      );
+    }
+    if (watch.metadataEmissions && surviving.has(node)) {
+      metadataEmissions[watch.path] =
+        (metadataEmissions[watch.path] ?? 0) + watch.metadataEmissions;
+    }
+    if (watch.destroyed) {
+      destroyed[watch.path] = (destroyed[watch.path] ?? 0) + watch.destroyed;
+      assert.equal(node.disposed, true, `${reason}: ${watch.path} destruction without disposal`);
+    }
+  }
+  assert.deepEqual(emissions, expected.emissions ?? {}, `${reason}: emissions`);
+  if (expected.metadata_emissions !== undefined) {
+    assert.deepEqual(
+      metadataEmissions,
+      expected.metadata_emissions,
+      `${reason}: metadata_emissions`,
+    );
+  }
+  assert.deepEqual(destroyed, expected.destroyed ?? {}, `${reason}: destroyed`);
+  for (const path of expected.same_nodes ?? []) {
+    assert.equal(
+      requiredNode(after, path),
+      requiredNode(before, path),
+      `${reason}: ${path} identity`,
+    );
+  }
+  for (const path of expected.replaced_nodes ?? []) {
+    assert.notEqual(
+      requiredNode(after, path),
+      requiredNode(before, path),
+      `${reason}: ${path} replacement`,
+    );
+  }
+  for (const [path, value] of Object.entries(expected.data ?? {})) {
+    assert.deepEqual(
+      normalize(ctx.surface.dataModel.get(path), path),
+      value,
+      `${reason}: data ${path}`,
+    );
+  }
+  assert.deepEqual(ctx.events, expected.events ?? [], `${reason}: events`);
+  assert.deepEqual(ctx.functions, expected.functions ?? [], `${reason}: functions`);
+  checkExpectedErrors(ctx.errors, expected.errors, reason);
 }
 
 /**
@@ -324,10 +507,12 @@ export async function runNodeResolutionCase(
   testCase: ConformanceCase,
   conformanceRoot: string,
 ): Promise<void> {
+  assertKnownKeys(testCase, KNOWN_KEYS.case, testCase.name || 'resolve_nodes');
   assert.equal(testCase.action, 'resolve_nodes');
   const fixture = yaml.load(
     readFileSync(join(conformanceRoot, testCase.fixture), 'utf8'),
   ) as Fixture;
+  assertKnownKeys(fixture, KNOWN_KEYS.fixture, `${testCase.name}.fixture`);
   const parsed = Catalog.fromJson(
     JSON.parse(readFileSync(join(conformanceRoot, fixture.catalog), 'utf8')),
   );
@@ -352,6 +537,7 @@ export async function runNodeResolutionCase(
   updateComponents(surface, catalog, fixture.components);
   const resolver = new NodeResolver(surface, catalog);
   const watches = new Map<ComponentNode, Watch>();
+  const ctx: ResolutionContext = {resolver, surface, watches, events, functions, errors};
   const stopActions = surface.onAction.subscribe(action => {
     events.push({
       name: action.name,
@@ -364,110 +550,13 @@ export async function runNodeResolutionCase(
     errors.push(err);
   });
 
-  function watchNodes(nodes: Map<string, ComponentNode>): void {
-    for (const [path, node] of nodes) {
-      const existing = watches.get(node);
-      if (existing) {
-        existing.path = path;
-        continue;
-      }
-      const watch: Watch = {
-        path,
-        emissions: 0,
-        metadataEmissions: 0,
-        destroyed: 0,
-        stop: () => {},
-      };
-      const stopProps = effect(() => {
-        const props = getValue(node.props);
-        watch.emissions++;
-        watch.lastProps = normalize(props, watch.path);
-      });
-      const stopMetadata = effect(() => {
-        getValue(node.metadata);
-        watch.metadataEmissions++;
-      });
-      const stopDestroyed = node.onDestroyed.subscribe(() => {
-        watch.destroyed++;
-      });
-      watch.stop = () => {
-        stopProps();
-        stopMetadata();
-        stopDestroyed.unsubscribe();
-      };
-      watches.set(node, watch);
-    }
-  }
-
-  function check(expected: Expectation, before: Map<string, ComponentNode>, reason: string): void {
-    const after = mountedNodes(resolver);
-    checkNodes(after, expected, reason, surface);
-    const surviving = new Set(after.values());
-    const emissions: Record<string, number> = {};
-    const metadataEmissions: Record<string, number> = {};
-    const destroyed: Record<string, number> = {};
-    for (const [node, watch] of watches) {
-      // Removal may update a binding before teardown; only surviving nodes have
-      // exact emission counts. Retired nodes remain watched for destruction.
-      if (watch.emissions && surviving.has(node)) {
-        emissions[watch.path] = (emissions[watch.path] ?? 0) + watch.emissions;
-        assert.deepEqual(
-          watch.lastProps,
-          normalize(peekValue(node.props), watch.path),
-          `${reason}: ${watch.path} last emission`,
-        );
-      }
-      if (watch.metadataEmissions && surviving.has(node)) {
-        metadataEmissions[watch.path] =
-          (metadataEmissions[watch.path] ?? 0) + watch.metadataEmissions;
-      }
-      if (watch.destroyed) {
-        destroyed[watch.path] = (destroyed[watch.path] ?? 0) + watch.destroyed;
-        assert.equal(node.disposed, true, `${reason}: ${watch.path} destruction without disposal`);
-      }
-    }
-    assert.deepEqual(emissions, expected.emissions ?? {}, `${reason}: emissions`);
-    if (expected.metadata_emissions !== undefined) {
-      assert.deepEqual(
-        metadataEmissions,
-        expected.metadata_emissions,
-        `${reason}: metadata_emissions`,
-      );
-    }
-    assert.deepEqual(destroyed, expected.destroyed ?? {}, `${reason}: destroyed`);
-    for (const path of expected.same_nodes ?? []) {
-      assert.equal(
-        requiredNode(after, path),
-        requiredNode(before, path),
-        `${reason}: ${path} identity`,
-      );
-    }
-    for (const path of expected.replaced_nodes ?? []) {
-      assert.notEqual(
-        requiredNode(after, path),
-        requiredNode(before, path),
-        `${reason}: ${path} replacement`,
-      );
-    }
-    for (const [path, value] of Object.entries(expected.data ?? {})) {
-      assert.deepEqual(
-        normalize(surface.dataModel.get(path), path),
-        value,
-        `${reason}: data ${path}`,
-      );
-    }
-    assert.deepEqual(events, expected.events ?? [], `${reason}: events`);
-    assert.deepEqual(functions, expected.functions ?? [], `${reason}: functions`);
-    checkExpectedErrors(errors, expected.errors, reason);
-  }
-
   try {
     await flush();
-    check(testCase.expect, new Map(), `${testCase.name} initial`);
+    checkExpectation(testCase.expect, new Map(), ctx, `${testCase.name} initial`);
     for (const [index, step] of testCase.steps.entries()) {
       const reason = `${testCase.name} step ${index} (${step.op})`;
       const before = mountedNodes(resolver);
-      watchNodes(before);
+      watchNodes(before, watches);
       for (const watch of watches.values()) {
         watch.emissions = 0;
         watch.metadataEmissions = 0;
@@ -480,7 +569,7 @@ export async function runNodeResolutionCase(
       const bindings = saveBindings(before);
       await executeNodeResolutionStep(step, before, surface, catalog, processor, resolver, reason);
       await flush();
-      check(step.expect, before, reason);
+      checkExpectation(step.expect, before, ctx, reason);
       for (const [binding, value] of bindings) {
         assert.deepEqual(
           normalize(binding.value, ''),
