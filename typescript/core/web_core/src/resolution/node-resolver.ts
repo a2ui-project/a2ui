@@ -34,7 +34,7 @@ import {
 } from './component-node.js';
 import {extractRefFields, RefFields} from './ref-fields.js';
 import {ResolvedBinding, WritableBinding, sameBinding} from './resolved-binding.js';
-import {Signal, signal, setValue, peekValue} from '../reactivity/signals.js';
+import {computed, getValue, Signal, signal, setValue, peekValue} from '../reactivity/signals.js';
 import {Subscription} from '../common/events.js';
 import {A2uiStateError} from '../errors.js';
 
@@ -341,6 +341,7 @@ export class NodeResolver<
           undefined,
           undefined,
           'unknown-type',
+          computed(() => getValue(model.metadataSignal)),
         ),
         {edgeKey, parent, occurrence, refFields: EMPTY_REF_FIELDS, componentModel: model},
       ).node;
@@ -363,6 +364,8 @@ export class NodeResolver<
         {},
         api,
         context,
+        'resolved',
+        computed(() => getValue(model.metadataSignal)),
       ),
       {
         edgeKey,

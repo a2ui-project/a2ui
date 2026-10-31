@@ -16,7 +16,16 @@
 
 import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
-import {signal, computed, peekValue, getValue, setValue, effect} from '../reactivity/signals.js';
+import {
+  signal,
+  computed,
+  peekValue,
+  getValue,
+  setValue,
+  effect,
+  setSignalImplementation,
+  _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
+} from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel} from '../state/data-model.js';
 import {SurfaceModel} from '../state/surface-model.js';
@@ -383,6 +392,76 @@ describe('DataContext', () => {
     assert.strictEqual(sub.value, 'Hello Bob');
 
     sub.unsubscribe();
+  });
+
+  it('does not expose a transient undefined for nested Signal-returning calls when effects are deferred', () => {
+    // Emulate a reactivity backend (e.g. Angular) where effects do not run
+    // synchronously on creation but are queued until the next flush, in
+    // creation order. Effects created during a flush are appended to the
+    // same queue, mirroring Angular's root effect scheduler.
+    const base = _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION;
+    const queue: Array<() => void> = [];
+    const flush = () => {
+      while (queue.length > 0) {
+        queue.shift()!();
+      }
+    };
+    setSignalImplementation({
+      ...base,
+      effect: fn => {
+        let dispose: (() => void) | undefined;
+        let cancelled = false;
+        queue.push(() => {
+          if (!cancelled) dispose = base.effect(fn);
+        });
+        return () => {
+          cancelled = true;
+          dispose?.();
+        };
+      },
+    });
+
+    try {
+      const errors: unknown[] = [];
+      const fnInvoker = (name: string, args: Record<string, unknown>) => {
+        // Mirrors `areComponentsValid(...)`: takes arguments and returns a Signal.
+        if (name === 'isAlice') return computed(() => args.name === 'Alice');
+        // Mirrors `not(...)`: rejects an undefined argument with a ZodError.
+        if (name === 'not') {
+          z.any()
+            .refine(v => v !== undefined, 'Required')
+            .parse(args.value);
+          return !args.value;
+        }
+        return null;
+      };
+      const ctx = createTestDataContext(model, '/user', fnInvoker, e => errors.push(e));
+
+      const observed: unknown[] = [];
+      const sub = ctx.subscribeDynamicValue(
+        {
+          call: 'not',
+          args: {value: {call: 'isAlice', args: {name: {path: 'name'}}, returnType: 'any'}},
+          returnType: 'any',
+        },
+        v => observed.push(v),
+      );
+      flush();
+
+      assert.deepStrictEqual(errors, [], 'no spurious EXPRESSION_ERROR expected');
+      assert.deepStrictEqual(observed, [false], 'parent must never observe undefined');
+      assert.strictEqual(sub.value, false);
+
+      // Reactivity is preserved: the forwarding effect still propagates updates.
+      ctx.set('name', 'Bob');
+      flush();
+      assert.strictEqual(sub.value, true);
+      assert.deepStrictEqual(errors, []);
+
+      sub.unsubscribe();
+    } finally {
+      setSignalImplementation(base);
+    }
   });
 
   describe('resolveAction', () => {
