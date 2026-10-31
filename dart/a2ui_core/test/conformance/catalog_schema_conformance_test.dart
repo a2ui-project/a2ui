@@ -32,20 +32,71 @@ void main() {
   group('conformance core/catalog.yaml', () {
     test('suite has cases', () => expect(cases, isNotEmpty));
 
-    for (final testCase in cases) {
-      final name = testCase['name']! as String;
-      test(
-        name,
-        () => _runCase(testCase),
-        skip: _knownDivergences[name] ??
-            (testCase['protocolVersion'] == 'v0.8' &&
-                    testCase['action'] != 'round_trip'
-                ? _noV08
-                : null),
-      );
-    }
+    runConformanceSuite(
+      cases,
+      _runCase,
+      suite: 'core/catalog.yaml',
+      unsupported: _knownDivergences,
+      skipReason: (testCase) => testCase['protocolVersion'] == 'v0.8' &&
+              testCase['action'] != 'round_trip'
+          ? _noV08
+          : null,
+    );
   });
 }
+
+const Map<String, Set<String>> _knownKeys = {
+  'case:derive': {
+    ...caseMetadataKeys,
+    'args',
+    'catalog',
+    'catalogId',
+    'catalogPath',
+    'expect',
+    'expectError',
+    'protocolVersion',
+  },
+  'case:from_json': {
+    ...caseMetadataKeys,
+    'catalog',
+    'catalogId',
+    'catalogPath',
+    'expect',
+    'expectError',
+    'protocolVersion',
+  },
+  'case:round_trip': {
+    ...caseMetadataKeys,
+    'catalog',
+    'catalogId',
+    'catalogPath',
+    'protocolVersion',
+  },
+  'case:to_json': {
+    ...caseMetadataKeys,
+    'builtinCatalog',
+    'catalog',
+    'catalogId',
+    'catalogPath',
+    'expectFile',
+    'protocolVersion',
+  },
+  'case:validation_schema': {
+    ...caseMetadataKeys,
+    'catalog',
+    'catalogId',
+    'catalogPath',
+    'expectError',
+    'expectFile',
+    'protocolVersion',
+  },
+  'args:derive': {
+    'catalogId',
+    'components',
+    'functions',
+    'instructions',
+  },
+};
 
 /// Why a case naming protocol version v0.8 is skipped, unless it is a
 /// `round_trip`, which reads and writes the document without a v0.8 basic
@@ -69,6 +120,10 @@ final Map<String, CatalogApi> _builtinCatalogs = {
 
 void _runCase(Map<String, Object?> testCase) {
   final action = testCase['action'] as String?;
+  final Set<String>? allowed = _knownKeys['case:$action'];
+  if (allowed != null) {
+    assertKnownKeys(testCase, allowed, 'case:$action');
+  }
   switch (action) {
     case 'from_json':
       _runFromJsonCase(testCase);
@@ -287,7 +342,7 @@ Map<String, Object?> _functionSignatures(CatalogApi catalog) => {
 
 /// The protocol version a case names, or null when it names none.
 ///
-/// A case may spell it with or without the `v` prefix.
+/// A case may write it with or without the `v` prefix.
 A2uiProtocolVersion? _version(Map<String, Object?> testCase) =>
     switch (testCase['protocolVersion']) {
       final String version => A2uiProtocolVersion.tryParseSemVer(version),
@@ -535,6 +590,7 @@ void _runDeriveCase(Map<String, Object?> testCase) {
   );
   final Map<String, Object?> args =
       (testCase['args']! as Map).cast<String, Object?>();
+  assertKnownKeys(args, _knownKeys['args:derive']!, 'args:derive');
 
   /// The new entries of the kind [section] in [list], keyed by name.
   Map<String, Object?> added(String section, List<Object?>? list) {

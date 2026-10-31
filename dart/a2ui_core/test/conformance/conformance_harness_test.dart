@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
@@ -252,7 +255,30 @@ void main() {
       );
     });
 
-    test('records skip when expectError.path is absent on thrown error', () {
+    test('fails by default when expectError.path is absent on thrown error',
+        () {
+      final errorWithoutPath = A2uiParseError('Missing field');
+
+      expect(
+        () => expect(
+          errorWithoutPath,
+          matchesErrorFields(const {'path': 'messages.0.version'}),
+        ),
+        throwsA(
+          isA<TestFailure>().having(
+            (e) => e.message,
+            'message',
+            allOf(
+              contains('code/path not asserted'),
+              contains('messages.0.version'),
+            ),
+          ),
+        ),
+      );
+    });
+
+    test('invokes custom onUnassertedField when expectError.path is absent',
+        () {
       final skippedMessages = <String>[];
       final errorWithoutPath = A2uiParseError('Missing field');
 
@@ -270,6 +296,98 @@ void main() {
           contains('code/path not asserted'),
           contains('messages.0.version'),
         ),
+      );
+    });
+  });
+
+  group('assertKnownKeys', () {
+    test('succeeds when all keys are allowed', () {
+      assertKnownKeys(
+        const {'name': 'c1', 'action': 'validate'},
+        const {'name', 'action', 'description'},
+        'case',
+      );
+    });
+
+    test('fails when an unknown key is present', () {
+      expect(
+        () => assertKnownKeys(
+          const {'name': 'c1', 'bogus': true},
+          const {'name'},
+          'case',
+        ),
+        throwsA(
+          isA<TestFailure>().having(
+            (e) => e.message,
+            'message',
+            contains('Unhandled keys at case: [bogus]'),
+          ),
+        ),
+      );
+    });
+  });
+
+  group('recordManifest', () {
+    test('writes passed, xfailed, and skipped records to manifestDir',
+        () async {
+      final Directory tempDir = Directory.systemTemp.createTempSync(
+        'a2ui_manifest_test_',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+
+      await runConformanceCase(
+        const {'name': 'passing_case'},
+        () {},
+        suite: 'core/sample.yaml',
+        manifestDir: tempDir.path,
+      );
+      await runConformanceCase(
+        const {'name': 'xfailing_case'},
+        () => fail('expected gap'),
+        suite: 'core/sample.yaml',
+        expectedFailures: const {'xfailing_case': 'known gap'},
+        onSkip: (_) {},
+        manifestDir: tempDir.path,
+      );
+      await runConformanceCase(
+        const {'name': 'unsupported_case'},
+        () => fail('should not run'),
+        suite: 'core/sample.yaml',
+        unsupported: const {'unsupported_case': 'not implemented'},
+        onSkip: (_) {},
+        manifestDir: tempDir.path,
+      );
+
+      final List<File> files = tempDir.listSync().whereType<File>().toList();
+      expect(files, hasLength(1));
+      final List<Map<String, Object?>> records = files.single
+          .readAsLinesSync()
+          .map((line) => jsonDecode(line) as Map<String, Object?>)
+          .toList();
+      expect(
+        records,
+        equals([
+          {
+            'harness': 'dart-core',
+            'suite': 'core/sample.yaml',
+            'case': 'passing_case',
+            'status': 'passed',
+          },
+          {
+            'harness': 'dart-core',
+            'suite': 'core/sample.yaml',
+            'case': 'xfailing_case',
+            'status': 'xfailed',
+            'reason': 'known gap',
+          },
+          {
+            'harness': 'dart-core',
+            'suite': 'core/sample.yaml',
+            'case': 'unsupported_case',
+            'status': 'skipped',
+            'reason': 'not implemented',
+          },
+        ]),
       );
     });
   });

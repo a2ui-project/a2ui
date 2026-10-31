@@ -15,6 +15,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:path/path.dart' as p;
@@ -23,6 +24,70 @@ import 'package:yaml/yaml.dart';
 
 /// A single decoded conformance test case map from a YAML suite.
 typedef ConformanceTestCase = Map<String, Object?>;
+
+/// Common metadata keys allowed at the top level of every conformance case.
+const Set<String> caseMetadataKeys = {
+  'action',
+  'description',
+  'features',
+  'name',
+};
+
+/// Keys recognized inside an `expectError` block by [matchesErrorFields] and
+/// suite error assertions.
+const Set<String> knownExpectErrorKeys = {
+  'category',
+  'code',
+  'details',
+  'functionCallId',
+  'message',
+  'path',
+  'rendererError',
+  'surfaceId',
+};
+
+/// Fails the current test if [obj] contains any keys not in [allowed].
+void assertKnownKeys(
+  Map<String, Object?> obj,
+  Set<String> allowed,
+  String where,
+) {
+  final List<String> unknown =
+      obj.keys.where((k) => !allowed.contains(k)).toList()..sort();
+  if (unknown.isNotEmpty) {
+    fail('Unhandled keys at $where: $unknown');
+  }
+}
+
+/// Appends an executed-case manifest entry when
+/// `A2UI_CONFORMANCE_MANIFEST_DIR` (or [manifestDir]) is set.
+void recordManifest(
+  String suite,
+  String name,
+  String status, [
+  String? reason,
+  String? manifestDir,
+]) {
+  final String? dir =
+      manifestDir ?? Platform.environment['A2UI_CONFORMANCE_MANIFEST_DIR'];
+  if (dir == null || dir.isEmpty) return;
+  Directory(dir).createSync(recursive: true);
+  final file = File(
+    p.join(dir, 'dart-core-$pid-${Isolate.current.hashCode}.jsonl'),
+  );
+  final record = <String, Object?>{
+    'harness': 'dart-core',
+    'suite': suite,
+    'case': name,
+    'status': status,
+    if (reason != null && reason.isNotEmpty) 'reason': reason,
+  };
+  file.writeAsStringSync(
+    '${jsonEncode(record)}\n',
+    mode: FileMode.append,
+    flush: true,
+  );
+}
 
 String resolveConformancePath(String relativePath) {
   final String root = _conformanceRoot();
@@ -128,7 +193,8 @@ String? caseVersion(ConformanceTestCase testCase) {
 }
 
 /// Executes a single conformance [testCase] [body], applying [expectedFailures]
-/// semantics when the case name is listed.
+/// and [unsupported] semantics when the case name is listed, and recording the
+/// outcome to the executed-case manifest when [suite] is provided.
 ///
 /// A case listed in [expectedFailures] still runs [body]:
 /// - If [body] throws (either a [TestFailure] or an unhandled error), the
@@ -139,16 +205,71 @@ String? caseVersion(ConformanceTestCase testCase) {
 Future<void> runConformanceCase(
   ConformanceTestCase testCase,
   FutureOr<void> Function() body, {
+  String? suite,
   Map<String, String> expectedFailures = const {},
+  Map<String, String> unsupported = const {},
   void Function(String message) onSkip = markTestSkipped,
+  String? manifestDir,
 }) async {
   final name = testCase['name']! as String;
-  final String? reason = expectedFailures[name];
-  if (reason == null) {
-    await body();
+  final String? unsupportedReason = unsupported[name];
+  if (unsupportedReason != null) {
+    _recordIfSuite(suite, name, 'skipped', unsupportedReason, manifestDir);
+    onSkip('unsupported: $unsupportedReason');
     return;
   }
 
+  final String? reason = expectedFailures[name];
+  if (reason == null) {
+    await _runStandardCase(body, suite, name, manifestDir);
+    return;
+  }
+
+  await _runExpectedFailureCase(
+    body,
+    suite: suite,
+    name: name,
+    reason: reason,
+    onSkip: onSkip,
+    manifestDir: manifestDir,
+  );
+}
+
+void _recordIfSuite(
+  String? suite,
+  String name,
+  String status, [
+  String? reason,
+  String? manifestDir,
+]) {
+  if (suite != null) {
+    recordManifest(suite, name, status, reason, manifestDir);
+  }
+}
+
+Future<void> _runStandardCase(
+  FutureOr<void> Function() body,
+  String? suite,
+  String name,
+  String? manifestDir,
+) async {
+  try {
+    await body();
+  } catch (error) {
+    _recordIfSuite(suite, name, 'failed', '$error', manifestDir);
+    rethrow;
+  }
+  _recordIfSuite(suite, name, 'passed', null, manifestDir);
+}
+
+Future<void> _runExpectedFailureCase(
+  FutureOr<void> Function() body, {
+  required String? suite,
+  required String name,
+  required String reason,
+  required void Function(String message) onSkip,
+  required String? manifestDir,
+}) async {
   Object? caughtError;
   try {
     await body();
@@ -157,36 +278,83 @@ Future<void> runConformanceCase(
   }
 
   if (caughtError != null) {
+    _recordIfSuite(suite, name, 'xfailed', reason, manifestDir);
     onSkip('expected failure: $reason ($caughtError)');
     return;
   }
 
+  _recordIfSuite(
+    suite,
+    name,
+    'failed',
+    'Passed unexpectedly while listed in expectedFailures.',
+    manifestDir,
+  );
   fail(
     'Test "$name" passed unexpectedly; remove "$name" from expectedFailures.',
   );
 }
 
 /// Registers a `test(...)` for each entry in [cases], wrapping execution in
-/// [runConformanceCase] with [expectedFailures].
+/// [runConformanceCase] with [expectedFailures] and [unsupported].
 void runConformanceSuite(
   List<ConformanceTestCase> cases,
   FutureOr<void> Function(ConformanceTestCase testCase) runCase, {
+  String? suite,
   Map<String, String> expectedFailures = const {},
+  Map<String, String> unsupported = const {},
   String? Function(ConformanceTestCase testCase)? skipReason,
   void Function(String message) onSkip = markTestSkipped,
+  String? manifestDir,
 }) {
+  _verifyNoUnusedEntries(suite, cases, expectedFailures, unsupported);
   for (final testCase in cases) {
     final name = testCase['name']! as String;
+    final String? skip = skipReason?.call(testCase);
     test(
       name,
-      () => runConformanceCase(
-        testCase,
-        () => runCase(testCase),
-        expectedFailures: expectedFailures,
-        onSkip: onSkip,
-      ),
-      skip: skipReason?.call(testCase),
+      () {
+        if (skip != null) {
+          _recordIfSuite(suite, name, 'skipped', skip, manifestDir);
+          markTestSkipped(skip);
+          return null;
+        }
+        return runConformanceCase(
+          testCase,
+          () => runCase(testCase),
+          suite: suite,
+          expectedFailures: expectedFailures,
+          unsupported: unsupported,
+          onSkip: onSkip,
+          manifestDir: manifestDir,
+        );
+      },
     );
+  }
+}
+
+void _verifyNoUnusedEntries(
+  String? suite,
+  List<ConformanceTestCase> cases,
+  Map<String, String> expectedFailures,
+  Map<String, String> unsupported,
+) {
+  if (suite == null) return;
+  final Set<String> caseNames = {
+    for (final ConformanceTestCase testCase in cases)
+      testCase['name']! as String,
+  };
+  final List<String> unusedExpected =
+      expectedFailures.keys.where((k) => !caseNames.contains(k)).toList();
+  final List<String> unusedUnsupported =
+      unsupported.keys.where((k) => !caseNames.contains(k)).toList();
+  if (unusedExpected.isNotEmpty || unusedUnsupported.isNotEmpty) {
+    test('$suite: no unused expectedFailures or unsupported entries', () {
+      fail(
+        'Unused expectedFailures ($unusedExpected) or '
+        'unsupported ($unusedUnsupported) in $suite.',
+      );
+    });
   }
 }
 
@@ -248,7 +416,7 @@ Matcher categoryMatches(String? category) => switch (category) {
 /// - If the thrown [A2uiError] exposes that field, asserts equality with the
 ///   expected value.
 /// - If the thrown [A2uiError] does not expose the field, invokes
-///   [onUnassertedField] (defaulting to [markTestSkipped]) with
+///   [onUnassertedField] (defaulting to [fail]) with
 ///   `"code/path not asserted: ..."` rather than silently passing.
 ///
 /// When `expectError.rendererError` is set, the matcher requires an outbound
@@ -262,22 +430,24 @@ Matcher matchesErrorFields(
   String defaultVersion = 'v0.9',
   ErrorMessage? capturedErrorMessage,
   List<ErrorMessage>? emittedErrors,
-  void Function(String message) onUnassertedField = markTestSkipped,
-}) =>
-    _ErrorFieldsMatcher(
-      expectedCode: expectedError['code'] as String?,
-      expectedPath: expectedError['path'] as String?,
-      expectedSurfaceId: expectedError['surfaceId'] as String?,
-      expectedFunctionCallId: expectedError['functionCallId'] as String?,
-      expectedDetails: expectedError['details'] as List<Object?>?,
-      expectedRendererError:
-          expectedError['rendererError'] as Map<String, Object?>?,
-      rawMessage: rawMessage,
-      defaultVersion: defaultVersion,
-      capturedErrorMessage: capturedErrorMessage,
-      emittedErrors: emittedErrors,
-      onUnassertedField: onUnassertedField,
-    );
+  void Function(String message) onUnassertedField = fail,
+}) {
+  assertKnownKeys(expectedError, knownExpectErrorKeys, 'expectError');
+  return _ErrorFieldsMatcher(
+    expectedCode: expectedError['code'] as String?,
+    expectedPath: expectedError['path'] as String?,
+    expectedSurfaceId: expectedError['surfaceId'] as String?,
+    expectedFunctionCallId: expectedError['functionCallId'] as String?,
+    expectedDetails: expectedError['details'] as List<Object?>?,
+    expectedRendererError:
+        expectedError['rendererError'] as Map<String, Object?>?,
+    rawMessage: rawMessage,
+    defaultVersion: defaultVersion,
+    capturedErrorMessage: capturedErrorMessage,
+    emittedErrors: emittedErrors,
+    onUnassertedField: onUnassertedField,
+  );
+}
 
 class _ErrorFieldsMatcher extends Matcher {
   final String? expectedCode;
