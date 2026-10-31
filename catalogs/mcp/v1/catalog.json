@@ -3,7 +3,7 @@
   "$id": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
   "protocolVersion": "1.0",
   "title": "A2UI MCP Catalog",
-  "description": "A2UI catalog for Model Context Protocol (MCP) integrations. It defines the `callMcpTool` function and the `McpApp` component that renders a sandboxed MCP App connected to the host through the MCP Apps bridge.",
+  "description": "A2UI catalog for Model Context Protocol (MCP) integrations. It defines the `callMcpTool` function, the `updateDataModel` function that writes values to the surface data model, and the `McpApp` component that renders a sandboxed MCP App connected to the host through the MCP Apps bridge.",
   "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
   "components": {
     "McpApp": {
@@ -146,6 +146,28 @@
         }
       },
       "required": ["@call", "args"]
+    },
+    "updateDataModel": {
+      "type": "object",
+      "description": "Writes key-value pairs to the surface data model.",
+      "returnType": "any",
+      "properties": {
+        "@call": {
+          "const": "updateDataModel"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "updates": {
+              "$ref": "common_types.json#/$defs/DynamicValue",
+              "description": "An object mapping data model paths to the values to write (e.g., {\"/entries\": [...], \"/title\": \"Home\"}). Paths starting with \"/\" are absolute; relative paths resolve against the current data context."
+            }
+          },
+          "required": ["updates"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"]
     }
   },
   "$defs": {
@@ -163,6 +185,9 @@
       "oneOf": [
         {
           "$ref": "#/functions/callMcpTool"
+        },
+        {
+          "$ref": "#/functions/updateDataModel"
         }
       ]
     }
