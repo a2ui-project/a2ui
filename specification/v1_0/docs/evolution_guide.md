@@ -112,6 +112,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Enforced runtime lookup of function execution boundaries and return types. If a renderer receives a remote call to a function configured as `rendererOnly` or if the function is unregistered, it rejects the call and returns an error with the code `INVALID_FUNCTION_CALL`.
 - Enforced catalog entity naming compliance with Unicode Standard Annex #31 (UAX #31).
 - Restricted `@index` evaluation scope strictly to template instantiation loops (Collection Scope). Calling `@index` outside of template iteration results in an evaluation error.
+- Defined `DynamicBoolean` coercion for strings, numbers, `null`, objects and arrays, applied to properties and function arguments alike.
 
 ### 2.8. Terminology standardization
 

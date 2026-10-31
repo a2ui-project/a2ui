@@ -125,7 +125,7 @@ A2UI v1.0 is defined by three interacting JSON schemas.
 
 The [`common_types.json`] schema defines reusable primitives used throughout the protocol.
 
-- **`DynamicString` / `DynamicNumber` / `DynamicBoolean` / `DynamicStringList`**: The core of the data binding system. Any property that can be bound to data is defined as a `Dynamic*` type. It accepts either a literal value, a `DataBinding` (`{"@path": "..."}` using [JSON Pointer]), or a `FunctionCall` (`{"@call": "...", "args": {...}}`). When a `DynamicBoolean` resolves to a `ValidationResult` object (an object with a boolean `valid` property), it is coerced to `result.valid`.
+- **`DynamicString` / `DynamicNumber` / `DynamicBoolean` / `DynamicStringList`**: The core of the data binding system. Any property that can be bound to data is defined as a `Dynamic*` type. It accepts either a literal value, a `DataBinding` (`{"@path": "..."}` using [JSON Pointer]), or a `FunctionCall` (`{"@call": "...", "args": {...}}`). When a `DynamicBoolean` resolves to a `ValidationResult` object (an object with a boolean `valid` property), it is coerced to `result.valid`; strings, numbers, `null`, objects, and arrays are coerced as defined under [`DynamicBoolean` and `CheckRule` Coercion](#dynamicboolean-and-checkrule-coercion).
 - **`ChildList`**: Defines how containers hold children. It supports:
   - `array`: A static array of `ComponentId` component references.
   - `object`: A template for generating children from a list in the data model (requires a template `componentId` and a JSON Pointer `path` string; note that `path` here is a plain string property on the template object, not a `DataBinding` `{"@path": "..."}` object).
@@ -1122,7 +1122,7 @@ Because `ValidationResult` permits additional unconstrained properties, validati
 
 #### `DynamicBoolean` and `CheckRule` Coercion
 
-To allow validation functions (`required`, `email`, `regex`, `length`, `numeric`, which return `ValidationResult`) to compose with boolean properties and functions accepting `DynamicBoolean` arguments (such as `and`, `or`, and `not`, which return `boolean`), renderers apply two coercion rules:
+To allow validation functions (`required`, `email`, `regex`, `length`, `numeric`, which return `ValidationResult`) to compose with boolean properties and functions accepting `DynamicBoolean` arguments (such as `and`, `or`, and `not`, which return `boolean`), renderers apply three coercion rules:
 
 1. **`ValidationResult` → `boolean` in `DynamicBoolean`**:
    - Schema validation of a `DynamicBoolean` occurs on the written wire payload (which accepts a literal `boolean`, any `DataBinding`, or any `FunctionCall`) before nested expressions are evaluated.
@@ -1132,6 +1132,19 @@ To allow validation functions (`required`, `email`, `regex`, `length`, `numeric`
    - When a `CheckRule.condition` evaluates to `true`, the renderer coerces it to `{"valid": true}`.
    - When a `CheckRule.condition` evaluates to `false`, the renderer coerces it to `{"valid": false, "message": <CheckRule.message>, "severity": "error"}`.
    - When a `CheckRule.condition` evaluates to a `ValidationResult` with `valid: false`, `CheckRule.message` is used as a fallback if `ValidationResult.message` is omitted, and `severity` defaults to `"error"` if omitted.
+3. **Any value → `boolean` in `DynamicBoolean`**:
+   - This coercion applies wherever a `DynamicBoolean` is resolved, including component properties typed `DynamicBoolean` and `DynamicBoolean` function arguments (`and`, `or`, `not`, and any catalog function whose argument schema references `DynamicBoolean`), before the function runs:
+
+     | Resolved value                                                 | Coerced `boolean`             |
+     | :------------------------------------------------------------- | :---------------------------- |
+     | `boolean`                                                      | Unchanged (`true` or `false`) |
+     | `ValidationResult` (an object with a boolean `valid` property) | `result.valid`                |
+     | `string` `"true"` or `"false"` (in any letter case)            | `true` or `false`             |
+     | Any other `string`, including `""` and `"hello"`               | `false`                       |
+     | `number` `0`                                                   | `false`                       |
+     | Any other `number`                                             | `true`                        |
+     | `null` or absent                                               | `false`                       |
+     | Any other object or array                                      | `false`                       |
 
 _Example Component Definition:_
 

@@ -1392,11 +1392,16 @@ class DataModel {
 
 **Type Coercion Standards**:
 
+These rules apply to component properties and to function arguments whose schema type is `DynamicBoolean`, `DynamicString` or `DynamicNumber`.
+
 | Input Type                 | Target Type | Result                                                                  |
 | :------------------------- | :---------- | :---------------------------------------------------------------------- |
 | `String` ("true", "false") | `Boolean`   | `true` or `false` (case-insensitive). Any other string maps to `false`. |
 | `Number` (non-zero)        | `Boolean`   | `true`                                                                  |
 | `Number` (0)               | `Boolean`   | `false`                                                                 |
+| `null` / absent            | `Boolean`   | `false`                                                                 |
+| `ValidationResult`         | `Boolean`   | Its `valid` property                                                    |
+| Other object or array      | `Boolean`   | `false`                                                                 |
 | `Any`                      | `String`    | Locale-neutral string representation                                    |
 | `null` / `undefined`       | `String`    | `""` (empty string)                                                     |
 | `null` / `undefined`       | `Number`    | `0`                                                                     |
