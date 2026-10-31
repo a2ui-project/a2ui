@@ -167,6 +167,8 @@ The interface is `generate()` alone. Application code gets a prompt generator fr
 
 Every format's generator renders the prompt example turns it is given in the order given. Each turn is the list of `AgentToRendererMessage` objects making it up. An example carries no label of its own: what the model learns from it is the payload, so a description would be the prompt author's prose rather than part of the contract.
 
+A generator lists only agent-callable functions as `callRendererFunction` targets (see [Agent-callable functions](#agent-callable-functions)).
+
 ```python
 class PromptGenerator(ABC):
     """Abstract base class for format-specific prompt generators."""
@@ -472,6 +474,10 @@ and its implementation matrix.
 A stateless check sees one outbound payload at a time, the agent-to-renderer messages the agent is about to send, with nothing else to compare it against. When that payload updates a surface it did not itself create, it carries no component tree, so a reference to a component the agent sent in an earlier payload cannot be resolved and is accepted.
 
 An agent that keeps one `MessageProcessor` across a session and runs its own outbound messages through it holds that tree. References then resolve against the components the surface already has, and cycles are found across the whole surface instead of one payload at a time. The renderer runs these same checks when the payload arrives, so an agent that runs them first catches a bad payload before sending it rather than after.
+
+#### Agent-callable functions
+
+A function is agent-callable when its catalog `allowedCallers` is `"agentOnly"` or `"rendererOrAgent"` (default `"rendererOnly"`). Prompt generators MUST list only agent-callable functions as targets of `callRendererFunction`. Parsers and `ResponseStream`, or the core `MessageProcessor` they delegate to, MUST reject a `callRendererFunction` that names a function that is not agent-callable in the negotiated catalogs with `A2uiValidationError`. `catalog_definition.json` already forbids `requiresUserActivation: true` on agent-callable functions; an SDK MAY also exclude activation-gated functions as a safeguard, as Dart does (`express/prompt_generator.dart:166-174`).
 
 ---
 
@@ -779,6 +785,19 @@ def resolve_catalogs(
     pass
 ```
 
+#### `read_renderer_capabilities`
+
+`read_renderer_capabilities(metadata, version)` (TypeScript and Dart `readRendererCapabilities`) is transport-neutral. It returns the capabilities object under the version's key (`a2uiClientCapabilities` for v0.8 and v0.9, `a2uiRendererCapabilities` for v1.0, and the bare v0.8 entry), returns `None` when the key is absent (A2UI is off for the turn), ignores another version's key, and raises `A2uiCatalogError` for a non-mapping value or a malformed entry for that version.
+
+```python
+def read_renderer_capabilities(
+    metadata: Optional[Mapping[str, Any]],
+    version: ProtocolVersion = ProtocolVersion.V1_0,
+) -> Optional[A2uiRendererCapabilities]:
+    """Reads and validates renderer capabilities for the given protocol version from a transport metadata mapping."""
+    pass
+```
+
 ---
 
 ## 4. Inference Format Strategy Implementations
@@ -1067,7 +1086,7 @@ The suites covering this document live under `conformance/agent/`:
 | `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                    |
 | `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs` |
 
-Suites under `conformance/agent/legacy/` describe the earlier interface still implemented by `python/a2ui_agent` and `kotlin/agent_sdk_legacy`, and stay until those SDKs move to the interface above.
+Suites under `conformance/agent/legacy/` describe the earlier interface of `kotlin/agent_sdk_legacy`, which runs them. `python/a2ui_agent` implements the current interface above and runs none of them. The TypeScript agent harness runs the subset of `legacy/parser.yaml` and `legacy/inference_format.yaml` that the current suites do not supersede (`typescript/agents/a2ui_agent/tests/conformance/loader.ts:55-114`).
 
 Where a suite fixes something this document leaves open, the decision is stated in that suite's header rather than left for a reader to infer from the cases.
 
