@@ -56,10 +56,12 @@ from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.utils.feature_decorator import experimental
 from google.genai import types as genai_types
 
-from a2ui.a2a import create_a2ui_parts, get_a2ui_messages
+from a2ui.a2a import create_a2ui_parts
 from a2ui.core import A2uiRpcError, A2uiValidationError
 from a2ui.core.schema.v1_0 import AgentToRendererMessage
 from a2ui.rpc import AgentFunctionRegistry, RendererFunctionCalls, RendererMessageRouter
+
+from ._rpc import CALL_AGENT_FUNCTION, RENDERER_FUNCTION_RESPONSE, genai_part_a2ui_messages
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +81,6 @@ A2uiRpcCallback: TypeAlias = Callable[
     [CallbackContext], Awaitable[genai_types.Content | None]
 ]
 """A `before_agent_callback` that answers A2UI RPC messages."""
-
-_CALL_AGENT_FUNCTION = "callAgentFunction"
-_RENDERER_FUNCTION_RESPONSE = "rendererFunctionResponse"
 
 
 @experimental
@@ -104,7 +103,8 @@ def a2ui_rpc_callback(
     2. `rendererFunctionResponse` settles the call in the session's
        `RendererFunctionCalls`, from `renderer_calls`, and sends no reply. A
        request holding only such responses gets a response with no parts,
-       and `A2aAgentExecutor` ends its task without a result.
+       which `A2aAgentExecutor` ends in the `working` state;
+       `a2ui_rpc_interceptor` ends it `completed` instead.
 
     For any other content, such as text, a renderer's `action`, or a mix of
     RPC messages and other parts, it returns None and the agent runs as usual.
@@ -143,9 +143,9 @@ def a2ui_rpc_callback(
 
         registry: AgentFunctionRegistry | None = None
         calls: RendererFunctionCalls | None = None
-        if any(_CALL_AGENT_FUNCTION in message for message in messages):
+        if any(CALL_AGENT_FUNCTION in message for message in messages):
             registry = await _resolve_registry(agent_functions, callback_context)
-        if any(_RENDERER_FUNCTION_RESPONSE in message for message in messages):
+        if any(RENDERER_FUNCTION_RESPONSE in message for message in messages):
             calls = await _resolve_calls(renderer_calls, callback_context)
         router = RendererMessageRouter(agent_functions=registry, renderer_calls=calls)
         if not all(router.handles(message) for message in messages):
@@ -172,10 +172,7 @@ def _rpc_messages(content: genai_types.Content | None) -> list[dict[str, Any]]:
         return []
     messages: list[dict[str, Any]] = []
     for part in content.parts:
-        a2a_part = part_converter.convert_genai_part_to_a2a_part(part)
-        if a2a_part is None:
-            return []
-        part_messages = get_a2ui_messages([a2a_part])
+        part_messages = genai_part_a2ui_messages(part)
         if not part_messages:
             return []
         messages.extend(part_messages)

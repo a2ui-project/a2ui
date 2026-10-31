@@ -11,6 +11,18 @@
   goes to the agent. It needs the `a2a` extra.
   [#3536](https://github.com/a2ui-project/a2ui/issues/3536),
   [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
+- Add `a2ui_rpc_interceptor`, an `A2aAgentExecutor` interceptor that ends a
+  task `completed` when its request held only `callAgentFunction` and
+  `rendererFunctionResponse` messages and ADK would end it `working` because
+  there was nothing to send back. Other final states are left as they are. It
+  needs the `a2a` extra.
+  [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
+- `SendA2uiToClientToolset` removes A2UI RPC messages (`callAgentFunction`,
+  `agentFunctionResponse`, `callRendererFunction`, `rendererFunctionResponse`)
+  from the contents sent to the model; the session's events keep them. Add
+  `exclude_a2ui_rpc_from_prompt`, a `before_model_callback` that does the same
+  for agents without the toolset. It needs the `a2a` extra.
+  [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
 - Add `A2uiRendererCallsStore`, which keeps a `RendererFunctionCalls` for each
   session. `get` returns the session's instance, creating it on first use, and
   is the `renderer_calls` provider of `a2ui_rpc_callback`. `remove` disposes a

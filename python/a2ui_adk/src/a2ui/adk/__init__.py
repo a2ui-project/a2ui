@@ -16,11 +16,11 @@
 
 `SendA2uiToClientToolset`, `A2uiInstruction`, `A2uiProcessorStore` and
 `A2uiRendererCallsStore` only need ADK. The ADK-to-A2A converters
-(`A2uiPartConverter`, `A2uiEventConverter`), the A2UI RPC callback
-(`a2ui_rpc_callback`), the `a2a` subpackage they live in, and the A2A
-subagent orchestration helpers (`A2uiSubagentMap`,
-`SurfaceIdAlreadyExistsError`, the `orchestration` subpackage) need the `a2a`
-extra:
+(`A2uiPartConverter`, `A2uiEventConverter`), the A2UI RPC helpers
+(`a2ui_rpc_callback`, `a2ui_rpc_interceptor`, `exclude_a2ui_rpc_from_prompt`),
+the `a2a` subpackage they live in, and the A2A subagent orchestration helpers
+(`A2uiSubagentMap`, `SurfaceIdAlreadyExistsError`, the `orchestration`
+subpackage) need the `a2a` extra:
 
   pip install "a2ui-adk[a2a]"
 
@@ -51,6 +51,8 @@ if TYPE_CHECKING:
         AgentFunctionRegistryProvider,
         RendererFunctionCallsProvider,
         a2ui_rpc_callback,
+        a2ui_rpc_interceptor,
+        exclude_a2ui_rpc_from_prompt,
     )
     from .orchestration import A2uiSubagentMap, SurfaceIdAlreadyExistsError
 
@@ -66,6 +68,8 @@ _A2A_EXPORTS: dict[str, tuple[str, str | None]] = {
     "AgentFunctionRegistryProvider": (".a2a", "AgentFunctionRegistryProvider"),
     "RendererFunctionCallsProvider": (".a2a", "RendererFunctionCallsProvider"),
     "a2ui_rpc_callback": (".a2a", "a2ui_rpc_callback"),
+    "a2ui_rpc_interceptor": (".a2a", "a2ui_rpc_interceptor"),
+    "exclude_a2ui_rpc_from_prompt": (".a2a", "exclude_a2ui_rpc_from_prompt"),
     "A2uiSubagentMap": (".orchestration", "A2uiSubagentMap"),
     "SurfaceIdAlreadyExistsError": (
         ".orchestration",
@@ -125,5 +129,7 @@ __all__ = [
     "SurfaceIdAlreadyExistsError",
     "a2a",
     "a2ui_rpc_callback",
+    "a2ui_rpc_interceptor",
+    "exclude_a2ui_rpc_from_prompt",
     "orchestration",
 ]

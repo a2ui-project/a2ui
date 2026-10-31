@@ -31,6 +31,7 @@ from a2a.types import (
     DataPart,
     Message,
     MessageSendParams,
+    Part,
     Role,
     TaskArtifactUpdateEvent,
     TaskStatusUpdateEvent,
@@ -41,6 +42,7 @@ from google.adk.a2a.executor.a2a_agent_executor import (
     A2aAgentExecutor,
     A2aAgentExecutorConfig,
 )
+from google.adk.a2a.executor.config import ExecuteInterceptor
 from google.adk.agents.base_agent import BaseAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.invocation_context import InvocationContext
@@ -52,7 +54,12 @@ import pytest
 
 from a2ui.a2a import A2UI_MIME_TYPE, create_a2ui_part, get_a2ui_messages
 from a2ui.adk import A2uiProcessorStore, A2uiRendererCallsStore
-from a2ui.adk.a2a import A2uiEventConverter, A2uiPartConverter, a2ui_rpc_callback
+from a2ui.adk.a2a import (
+    A2uiEventConverter,
+    A2uiPartConverter,
+    a2ui_rpc_callback,
+    a2ui_rpc_interceptor,
+)
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.catalog import AgentFunction, AgentFunctionContext
 from a2ui.core.schema import ProtocolVersion
@@ -180,6 +187,16 @@ async def _run(agent: BaseAgent, content: genai_types.Content) -> list[Event]:
             user_id="u", session_id=session.id, new_message=content
         )
     ]
+
+
+class _SilentAgent(BaseAgent):
+    """Sends nothing."""
+
+    async def _run_async_impl(
+        self, ctx: InvocationContext
+    ) -> AsyncGenerator[Event, None]:
+        return
+        yield
 
 
 def _texts(events: list[Event]) -> list[str]:
@@ -413,7 +430,10 @@ async def test_composes_with_another_callback_in_a_list() -> None:
 
 
 async def _execute(
-    agent: BaseAgent, a2a_message: dict[str, Any], session_id: str
+    agent: BaseAgent,
+    request_parts: list[Part],
+    session_id: str,
+    interceptors: list[ExecuteInterceptor] | None = None,
 ) -> list[Any]:
     """Runs one A2A request through ADK's `A2aAgentExecutor`.
 
@@ -428,7 +448,8 @@ async def _execute(
     executor = A2aAgentExecutor(
         runner=runner,
         config=A2aAgentExecutorConfig(
-            event_converter=A2uiEventConverter(a2ui_processor=processors.get)
+            event_converter=A2uiEventConverter(a2ui_processor=processors.get),
+            execute_interceptors=interceptors,
         ),
     )
     request = RequestContext(
@@ -436,7 +457,7 @@ async def _execute(
             message=Message(
                 message_id=str(uuid.uuid4()),
                 role=Role.user,
-                parts=[create_a2ui_part(a2a_message)],
+                parts=request_parts,
                 context_id=session_id,
             )
         ),
@@ -478,7 +499,7 @@ async def test_a2a_agent_executor_sends_the_reply_as_an_a2ui_part() -> None:
         ),
     )
 
-    events = await _execute(agent, _call(), str(uuid.uuid4()))
+    events = await _execute(agent, [create_a2ui_part(_call())], str(uuid.uuid4()))
 
     # The reply goes out in the working status update, from the agent, and
     # again as the task's artifact.
@@ -516,7 +537,7 @@ async def test_a2a_agent_executor_settles_a_renderer_function_call() -> None:
         },
     }
 
-    events = await _execute(agent, response, session_id)
+    events = await _execute(agent, [create_a2ui_part(response)], session_id)
 
     assert await result == "Paris"
     assert _agent_status_parts(events) == []
@@ -525,3 +546,120 @@ async def test_a2a_agent_executor_settles_a_renderer_function_call() -> None:
     final = events[-1]
     assert isinstance(final, TaskStatusUpdateEvent)
     assert final.final
+
+
+def _renderer_response(call_id: str, value: Any = "Paris") -> dict[str, Any]:
+    return {
+        "version": "1.0",
+        "rendererFunctionResponse": {"functionCallId": call_id, "value": value},
+    }
+
+
+def _final_state(events: list[Any]) -> str:
+    final = events[-1]
+    assert isinstance(final, TaskStatusUpdateEvent)
+    assert final.final
+    return final.status.state
+
+
+@pytest.mark.asyncio
+async def test_interceptor_completes_an_rpc_only_task() -> None:
+    session_id = str(uuid.uuid4())
+    store = A2uiRendererCallsStore()
+    message, result = store.get_for_session(session_id).call(
+        catalog_id=CATALOG_ID, name="getLocation"
+    )
+    agent = _StubAgent(
+        name="agent",
+        before_agent_callback=a2ui_rpc_callback(renderer_calls=store.get),
+    )
+    response = _renderer_response(message.call_renderer_function.function_call_id)
+
+    events = await _execute(
+        agent, [create_a2ui_part(response)], session_id, [a2ui_rpc_interceptor()]
+    )
+
+    assert await result == "Paris"
+    assert _final_state(events) == "completed"
+    assert _agent_status_parts(events) == []
+
+
+@pytest.mark.asyncio
+async def test_interceptor_leaves_a_task_with_a_result_unchanged() -> None:
+    agent = _StubAgent(
+        name="agent",
+        before_agent_callback=a2ui_rpc_callback(
+            agent_functions=AgentFunctionRegistry([CATALOG])
+        ),
+    )
+
+    events = await _execute(
+        agent,
+        [create_a2ui_part(_call())],
+        str(uuid.uuid4()),
+        [a2ui_rpc_interceptor()],
+    )
+
+    assert get_a2ui_messages(_agent_status_parts(events)) == [_reply()]
+    assert _final_state(events) == "completed"
+
+
+@pytest.mark.asyncio
+async def test_interceptor_leaves_other_requests_unchanged() -> None:
+    interceptor = a2ui_rpc_interceptor()
+    callback = a2ui_rpc_callback(renderer_calls=A2uiRendererCallsStore().get)
+
+    # A text request whose agent sends nothing stays `working`, as ADK reports.
+    text_events = await _execute(
+        _SilentAgent(name="agent", before_agent_callback=callback),
+        [Part(root=TextPart(text="hi"))],
+        str(uuid.uuid4()),
+        [interceptor],
+    )
+    assert _final_state(text_events) == "working"
+
+    # So does a request that mixes text and an RPC message, which the agent
+    # handles.
+    mixed_events = await _execute(
+        _SilentAgent(name="agent", before_agent_callback=callback),
+        [Part(root=TextPart(text="hi")), create_a2ui_part(_renderer_response("c1"))],
+        str(uuid.uuid4()),
+        [interceptor],
+    )
+    assert _final_state(mixed_events) == "working"
+
+    # A normal turn with a reply completes as usual.
+    normal_events = await _execute(
+        _StubAgent(name="agent", before_agent_callback=callback),
+        [Part(root=TextPart(text="hi"))],
+        str(uuid.uuid4()),
+        [interceptor],
+    )
+    assert _final_state(normal_events) == "completed"
+    assert [
+        part.root.text
+        for part in _agent_status_parts(normal_events)
+        if isinstance(part.root, TextPart)
+    ] == [AGENT_TEXT]
+
+
+@pytest.mark.asyncio
+async def test_interceptor_leaves_a_failed_rpc_task_unchanged() -> None:
+    session_id = str(uuid.uuid4())
+
+    def failing_provider(ctx: Any) -> Any:
+        raise RuntimeError("no calls")
+
+    agent = _StubAgent(
+        name="agent",
+        before_agent_callback=a2ui_rpc_callback(renderer_calls=failing_provider),
+    )
+
+    events = await _execute(
+        agent,
+        [create_a2ui_part(_renderer_response("c1"))],
+        session_id,
+        [a2ui_rpc_interceptor()],
+    )
+
+    assert _final_state(events) == "failed"

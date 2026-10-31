@@ -935,4 +935,9 @@ agent = LlmAgent(
 )
 ```
 
-See the [`a2ui-adk` README](../a2ui_adk/README.md) for details.
+Add `a2ui_rpc_interceptor()` to the executor's `execute_interceptors`, so a
+task whose request held only RPC messages ends `completed` even when there is
+no reply to send. The RPC messages stay in the session's events but not in the
+model's prompt: `SendA2uiToClientToolset` removes them, and agents without it
+pass `exclude_a2ui_rpc_from_prompt` as their `before_model_callback`. See the
+[`a2ui-adk` README](../a2ui_adk/README.md) for details.

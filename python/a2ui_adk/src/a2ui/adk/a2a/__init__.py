@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI ADK A2A integration: converters and the A2UI RPC callback."""
+"""A2UI ADK A2A integration: converters and the A2UI RPC helpers."""
 
 from .event_converter import A2uiEventConverter
 from .part_converter import A2uiPartConverter
@@ -22,6 +22,8 @@ from .rpc_callback import (
     RendererFunctionCallsProvider,
     a2ui_rpc_callback,
 )
+from .rpc_interceptor import a2ui_rpc_interceptor
+from .rpc_prompt_filter import exclude_a2ui_rpc_from_prompt
 
 __all__ = [
     "A2uiEventConverter",
@@ -30,4 +32,6 @@ __all__ = [
     "AgentFunctionRegistryProvider",
     "RendererFunctionCallsProvider",
     "a2ui_rpc_callback",
+    "a2ui_rpc_interceptor",
+    "exclude_a2ui_rpc_from_prompt",
 ]

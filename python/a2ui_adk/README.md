@@ -64,6 +64,18 @@ Available with the `a2a` extra:
   and returns the `agentFunctionResponse` replies as the agent's response. For
   any other request it returns None, so the agent runs. With
   `A2aAgentExecutor`, the replies reach the client as A2UI parts.
+- `a2ui_rpc_interceptor` (also in `a2ui.adk.a2a`) returns an
+  `A2aAgentExecutor` interceptor that ends a task `completed` when its request
+  held only `callAgentFunction` and `rendererFunctionResponse` messages. ADK's
+  executor would otherwise end a task with nothing to send back, such as one
+  holding only `rendererFunctionResponse`, in the `working` state.
+- `exclude_a2ui_rpc_from_prompt` (also in `a2ui.adk.a2a`) is a
+  `before_model_callback` that removes A2UI RPC messages in either direction
+  (`callAgentFunction`, `agentFunctionResponse`, `callRendererFunction`,
+  `rendererFunctionResponse`) from the contents sent to the model. The session's
+  events keep them, and other A2UI messages, such as `action` or
+  `createSurface`, are kept. `SendA2uiToClientToolset` does the same for its
+  agent, so only agents without the toolset need the callback.
 - `A2uiSubagentMap` and `SurfaceIdAlreadyExistsError` (also in
   `a2ui.adk.orchestration`) track which subagent owns each surface in an
   orchestrator that talks to its subagents over A2A.
@@ -96,8 +108,23 @@ agent = LlmAgent(
 )
 ```
 
-The RPC messages and their replies are stored in the session's events like any
-other turn.
+To end RPC-only tasks `completed`, add the interceptor to the executor:
+
+```python
+from a2ui.adk import A2uiEventConverter, a2ui_rpc_interceptor
+
+config = A2aAgentExecutorConfig(
+    event_converter=A2uiEventConverter(a2ui_processor=processors.get),
+    execute_interceptors=[a2ui_rpc_interceptor()],
+)
+```
+
+ADK stores the RPC messages and their replies in the session's events like any
+other turn. `SendA2uiToClientToolset` removes them from the model's prompt; an
+agent without the toolset passes
+`before_model_callback=exclude_a2ui_rpc_from_prompt`. This includes the
+`callRendererFunction` messages the agent sent: the model asked for them
+through a tool, whose call and result already record the exchange.
 
 ## Running tests
 
