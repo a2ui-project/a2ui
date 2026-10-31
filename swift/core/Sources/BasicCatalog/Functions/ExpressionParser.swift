@@ -325,30 +325,22 @@ public struct ExpressionParser: Sendable {
           message: "Invalid identifier starting with '@' in expression"
         )
       }
-      _ = scanner.advance(by: 1)
-      while !scanner.isAtEnd, let c = scanner.peek(), Self.isSystemFunctionContinue(c) {
-        _ = scanner.advance(by: 1)
+      scanner.advance(by: 1)
+      while let character = scanner.peek(), Self.isSystemFunctionContinue(character) {
+        scanner.advance(by: 1)
       }
       return String(scanner.input[start..<scanner.pos])
     }
-    while !scanner.isAtEnd, let c = scanner.peek() {
-      if c.isLetter || c.isNumber || c == "/" || c == "." || c == "_" || c == "-" {
-        _ = scanner.advance(by: 1)
-      } else {
-        break
-      }
+    while let character = scanner.peek(), Self.isPathCharacter(character) {
+      scanner.advance(by: 1)
     }
     return String(scanner.input[start..<scanner.pos])
   }
 
   private func scanIdentifier(_ scanner: inout Scanner) -> String {
     let start = scanner.pos
-    while !scanner.isAtEnd, let c = scanner.peek() {
-      if c.isLetter || c.isNumber || c == "_" {
-        _ = scanner.advance(by: 1)
-      } else {
-        break
-      }
+    while let character = scanner.peek(), Self.isIdentifierCharacter(character) {
+      scanner.advance(by: 1)
     }
     return String(scanner.input[start..<scanner.pos])
   }
@@ -469,6 +461,22 @@ public struct ExpressionParser: Sendable {
     return c >= "0" && c <= "9"
   }
 
+  /// Whether every scalar of `character` is in UAX #31 `XID_Continue`, which includes `_`.
+  /// Matches the other engines, unlike `Character.isLetter` or `isNumber`, which also accept
+  /// `½` or `²`.
+  private static func isIdentifierCharacter(_ character: Character) -> Bool {
+    character.unicodeScalars.allSatisfy(\.properties.isXIDContinue)
+  }
+
+  /// Whether every scalar of `character` may appear in a path: `XID_Continue`, `/`, `.`, or `-`.
+  /// A `Character` is a grapheme cluster, so a separator followed by a combining mark such as
+  /// U+0301 arrives as one `Character`; checking per scalar accepts it like the other engines.
+  private static func isPathCharacter(_ character: Character) -> Bool {
+    character.unicodeScalars.allSatisfy {
+      $0.properties.isXIDContinue || $0 == "/" || $0 == "." || $0 == "-"
+    }
+  }
+
   // MARK: - Nested Scanner
 
   private struct Scanner {
@@ -511,16 +519,14 @@ public struct ExpressionParser: Sendable {
     }
 
     mutating func matchesKeyword(_ keyword: String) -> Bool {
-      if matches(keyword) {
-        if let nextChar = peek(offset: keyword.count) {
-          if nextChar.isLetter || nextChar.isNumber || nextChar == "_" {
-            return false
-          }
-        }
-        advance(by: keyword.count)
-        return true
+      guard matches(keyword) else { return false }
+      if let nextCharacter = peek(offset: keyword.count),
+        ExpressionParser.isIdentifierCharacter(nextCharacter)
+      {
+        return false
       }
-      return false
+      advance(by: keyword.count)
+      return true
     }
 
     mutating func skipWhitespace() {
