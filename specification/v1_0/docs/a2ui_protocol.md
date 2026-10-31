@@ -1259,23 +1259,23 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 >
 > **Escaping via Prefix Doubling**: Plain objects that require literal property names starting with `@` must escape them by doubling the prefix: `"@@path"` evaluates to `"@path"`, `"@@type"` evaluates to `"@type"`, etc. Plain objects with `"path"` and `"call"` keys are literal objects and are never intercepted as dynamic bindings.
 
-| Function           | Description                                                              |
-| :----------------- | :----------------------------------------------------------------------- |
-| **@index**         | Returns the 0-based index of the current item during template rendering. |
-| **required**       | Checks that the value is not null, undefined, or empty.                  |
-| **regex**          | Checks that the value matches a regular expression string.               |
-| **length**         | Checks string length constraints.                                        |
-| **numeric**        | Checks numeric range constraints.                                        |
-| **email**          | Checks that the value is a valid email address.                          |
-| **formatString**   | Does string interpolation of data model values and registered functions. |
-| **formatNumber**   | Formats a number with grouping and precision.                            |
-| **formatCurrency** | Formats a number as a currency string.                                   |
-| **formatDate**     | Formats a date/time using a pattern.                                     |
-| **pluralize**      | Selects a localized string based on a numeric count.                     |
-| **openUrl**        | Opens a URL in a browser (requires user activation).                     |
-| **and**            | Logical AND operation on a list of boolean values or validation results. |
-| **or**             | Logical OR operation on a list of boolean values or validation results.  |
-| **not**            | Logical NOT operation on a boolean value or validation result.           |
+| Function           | Description                                                                     |
+| :----------------- | :------------------------------------------------------------------------------ |
+| **@index**         | Returns the 0-based index of the current item during template rendering.        |
+| **required**       | Checks that the value is not null, undefined, or empty.                         |
+| **regex**          | Checks that the value contains a match for a pattern in the A2UI regex dialect. |
+| **length**         | Checks string length constraints.                                               |
+| **numeric**        | Checks numeric range constraints.                                               |
+| **email**          | Checks that the value is a valid email address.                                 |
+| **formatString**   | Does string interpolation of data model values and registered functions.        |
+| **formatNumber**   | Formats a number with grouping and precision.                                   |
+| **formatCurrency** | Formats a number as a currency string.                                          |
+| **formatDate**     | Formats a date/time using a pattern.                                            |
+| **pluralize**      | Selects a localized string based on a numeric count.                            |
+| **openUrl**        | Opens a URL in a browser (requires user activation).                            |
+| **and**            | Logical AND operation on a list of boolean values or validation results.        |
+| **or**             | Logical OR operation on a list of boolean values or validation results.         |
+| **not**            | Logical NOT operation on a boolean value or validation result.                  |
 
 ### The `formatString` function
 
@@ -1330,6 +1330,36 @@ When a non-string value is interpolated, the renderer converts it to a string:
 - **Numbers/Booleans**: Standard string representation.
 - **Null/Undefined**: An empty string `""`.
 - **Objects/Arrays**: Stringified as JSON to ensure consistency across different renderer implementations.
+
+### The `regex` function
+
+The `regex` validation function evaluates a regular expression pattern in the **A2UI regex dialect** and applies a static safety check before matching. Any catalog function that accepts a regular expression pattern (`regex`, `regexCapture`, `split`) SHOULD use this dialect and safety check.
+
+#### `regex` dialect
+
+The dialect is a portable subset of ECMAScript `Pattern` syntax, evaluated in Unicode mode (`u`) with no other flags:
+
+1. **Matching semantics**: Matching is case-sensitive. `.` matches any code point except U+000A, U+000D, U+2028, and U+2029. `^` and `$` match only at the start and end of the value (no multiline mode, and `$` does not match before a trailing newline). `\d`, `\w`, and `\b` are ASCII-only. `\s` is the ECMAScript WhiteSpace and LineTerminator set. The function uses search semantics: it returns valid when the pattern matches anywhere in the value, like `RegExp.prototype.test`.
+2. **Allowed syntax**: Literals, `.`, character classes with ranges and negation, the class escapes `\d \D \w \W \s \S`, `\b \B`, control escapes `\t \n \v \f \r`, `\0` not followed by a digit, `\xHH`, `\uHHHH`, `\u{H...}`, identity escapes of syntax characters, capturing groups `( )`, non-capturing groups `(?: )`, lookahead `(?= )` and `(?! )`, alternation, and the quantifiers `* + ? {n} {n,} {n,m}` with optional lazy `?`.
+3. **Not allowed**: Backreferences (`\1`-`\9`, `\k<name>`), lookbehind (`(?<=`, `(?<!`), named groups (`(?<name>`), `\p{...}`/`\P{...}`, `\cX`, legacy octal escapes, and inline flags. A pattern that does not parse in this dialect, or uses a construct that is not allowed, fails with `code: "EXPRESSION_ERROR"`.
+
+#### `regex` safety check
+
+Before any matching, the renderer applies a static safety check and rejects the pattern with `code: "EXPRESSION_ERROR"` when:
+
+1. It is longer than 256 code points.
+2. A quantifier whose upper bound is above 1 applies to a subexpression that contains an unbounded quantifier (`*`, `+`, `{n,}`).
+3. An unbounded quantifier applies to an alternation two of whose branches can start with the same character.
+4. Two unbounded-quantified atoms with overlapping character sets are adjacent in one concatenation, where only zero-width assertions or items that can match the empty string lie between them.
+
+`?` and `{0,1}` count as upper bound 1. Counted bounds such as `{1,1000}` are bounded. A group whose only content is one quantified atom counts as that atom. Rule 3 compares the first-character sets of the branches after unwrapping groups.
+
+A value longer than 4,096 code points does not match; `regex` returns `{"valid": false}` and reports no error.
+
+#### `regex` examples
+
+- **Accepted**: `^[a-z]+@[a-z]+\.com$`, `^(?=.*\d).{8,}$`, `\w+\s+\w+`.
+- **Rejected**: `(a+)+$` (rule 2), `(a|ab)*c` (rule 3), `\d+\s*\d+` (rule 4), `(\w)\1` (backreference).
 
 ### The `@index` function
 

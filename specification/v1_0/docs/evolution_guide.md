@@ -113,6 +113,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Enforced catalog entity naming compliance with Unicode Standard Annex #31 (UAX #31).
 - Restricted `@index` evaluation scope strictly to template instantiation loops (Collection Scope). Calling `@index` outside of template iteration results in an evaluation error.
 - Defined `DynamicBoolean` coercion for strings, numbers, `null`, objects and arrays, applied to properties and function arguments alike.
+- Defined the `regex` dialect and a static safety check; unsafe or unsupported patterns fail with `EXPRESSION_ERROR`.
 
 ### 2.8. Terminology standardization
 

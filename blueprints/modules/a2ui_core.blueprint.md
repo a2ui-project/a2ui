@@ -404,6 +404,31 @@ The Basic Catalog requires a `formatString` function capable of interpreting `${
 3.  **Escaping**: Literal `${` sequences must be handled (typically escaping as `\${`).
 4.  **Reactive Coercion**: Results are transformed into strings using the standard Type Coercion rules.
 
+##### Regular expression guard (`regex`)
+
+The `regex` validation function and any other catalog function that accepts a regular expression pattern MUST enforce the A2UI regex dialect and static safety check defined in [The `regex` function](../../specification/v1_0/docs/a2ui_protocol.md#the-regex-function).
+
+**Implementation Requirements**:
+
+1. **Shared Subset Parser**: Each SDK MUST parse the pattern with a subset parser shared by the safety check and host-engine translation, rather than passing raw strings directly to the host regex engine.
+2. **Host-Engine Translation**:
+
+   | Language       | Engine & Translation Strategy                                                                                                                                                                                                                              |
+   | :------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | **TypeScript** | Evaluates with `new RegExp(pattern, 'u')` after the subset parser and static safety check pass (replacing `redos-detector`).                                                                                                                               |
+   | **Dart**       | Evaluates with `RegExp(pattern, unicode: true)` after the subset parser and static safety check pass.                                                                                                                                                      |
+   | **Python**     | Translates the parsed AST to Python `re`: replaces `$` with `\Z` so `$` never matches before a trailing newline, expands `\d`/`\D`, `\w`/`\W`, `\b`/`\B`, and `\s`/`\S` to explicit ASCII/ECMAScript character classes, and translates `\u{H...}` escapes. |
+   | **Swift**      | Translates the parsed AST to ICU (`NSRegularExpression`): replaces `$` with `\z`, expands `\d`/`\D`, `\w`/`\W`, `\b`/`\B`, and `\s`/`\S` to explicit ASCII/ECMAScript classes, and normalizes Unicode code point escapes.                                  |
+
+3. **Error Reporting and Stable Tokens**: Rejections MUST raise `A2uiExpressionError` (reported on the wire as `EXPRESSION_ERROR`) whose message contains one stable diagnostic token that conformance tests match on:
+   - `PATTERN_TOO_LONG`: Pattern exceeds 256 code points (rule 1).
+   - `UNSUPPORTED_SYNTAX`: Pattern fails to parse in the A2UI regex dialect or uses a disallowed construct.
+   - `NESTED_QUANTIFIER`: A quantifier with upper bound above 1 wraps a subexpression containing an unbounded quantifier (rule 2).
+   - `OVERLAPPING_ALTERNATION`: An unbounded quantifier wraps an alternation whose branches can start with the same character (rule 3).
+   - `ADJACENT_OVERLAP`: Two unbounded-quantified atoms with overlapping character sets are adjacent in one concatenation (rule 4).
+4. **Value Length Cap**: Input values longer than 4,096 code points do not match; `regex` returns `{"valid": false}` without raising an error.
+5. **Version Applicability**: The guard MUST apply to v1.0 surfaces and SHOULD apply to v0.9 and v0.9.1 surfaces, since v0.9.1 leaves the regular expression dialect unspecified.
+
 #### Composing Your Own Catalog
 
 You can define your own catalog by composing components and functions that reflect your design system. While you can build a catalog entirely from scratch, you can also import or combine definitions with the Basic Catalog to save time.
