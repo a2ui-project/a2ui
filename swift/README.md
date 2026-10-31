@@ -76,6 +76,23 @@ Plural rules and numeric boundary behavior follow the installed operating system
 fractional and very large counts. They are not pinned to an ICU release and may differ from Web
 `Intl.PluralRules`. Non-finite numbers return `other`.
 
+## Opening links
+
+`openUrl` checks that the URL is `http`, `https`, `mailto` or `tel` and passes the resolved URL to
+the `openURL` closure the catalog was built with. Without one, as in `makeCatalog(version:)` and
+`allCatalogs`, it opens nothing. On iOS:
+
+```swift
+let catalog = BasicCatalog.makeCatalog(
+  version: .v10,
+  locale: BasicFunctions.defaultLocale,
+  openURL: { url in Task { @MainActor in UIApplication.shared.open(url) } }
+)
+```
+
+`BasicCatalogImplementation.makeCatalog(version:locale:openURL:)` takes the same closure. Give it
+to the catalogs of your `MessageProcessor`, because that is where functions run.
+
 ## Agent guidelines and coding standards
 
 For AI agents and contributors working in this directory hierarchy:

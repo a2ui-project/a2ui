@@ -22,24 +22,32 @@ public protocol OpenURLHandler: AnyObject, Sendable {
   func open(_ url: URL)
 }
 
-/// Opens a URL using a registered handler, ensuring it has an `http` or `https` scheme.
+/// Opens a URL using a registered opener, ensuring it has an `http`, `https`, `mailto` or `tel`
+/// scheme.
 public final class OpenURLFunction: FunctionImplementation, @unchecked Sendable {
   public let api: FunctionAPI
   public weak var handler: (any OpenURLHandler)?
+  /// Opens the resolved URL on the host platform. When set, it is used instead of `handler`.
+  public let openURL: (@Sendable (URL) -> Void)?
   public let baseURL: URL?
 
   /// Initializes a new openUrl function.
   ///
+  /// Without `openURL` or `handler`, the function only validates the URL.
+  ///
   /// - Parameters:
   ///   - handler: An optional weak reference to a handler that opens the URL on the host platform.
+  ///   - openURL: An optional closure, held strongly, that opens the URL on the host platform.
   ///   - baseURL: An optional base URL to resolve relative URLs against.
   ///   - requiresUserActivation: Whether this function requires user activation (true in v1.0).
   public init(
     handler: (any OpenURLHandler)? = nil,
+    openURL: (@Sendable (URL) -> Void)? = nil,
     baseURL: URL? = nil,
     requiresUserActivation: Bool = false
   ) {
     self.handler = handler
+    self.openURL = openURL
     self.baseURL = baseURL
     self.api = FunctionAPI(
       name: "openUrl",
@@ -59,10 +67,11 @@ public final class OpenURLFunction: FunctionImplementation, @unchecked Sendable 
     )
   }
 
-  /// Evaluates the openUrl function by resolving the URL and invoking the handler.
+  /// Evaluates the openUrl function by resolving the URL and passing it to `openURL`, or to
+  /// `handler` when `openURL` is not set.
   ///
-  /// The resolved URL is checked against a strict allowlist of schemes (`http` and `https`)
-  /// to prevent security issues such as XSS via `javascript:` or `data:`.
+  /// The resolved URL is checked against a strict allowlist of schemes (`http`, `https`,
+  /// `mailto` and `tel`) to prevent security issues such as XSS via `javascript:` or `data:`.
   ///
   /// - Parameters:
   ///   - arguments: The dictionary of arguments provided to the function.
@@ -89,8 +98,11 @@ public final class OpenURLFunction: FunctionImplementation, @unchecked Sendable 
         "URL scheme must be http, https, mailto, or tel. Found: \(scheme ?? "none")")
     }
 
-    // Delegate to the handler
-    handler?.open(resolvedURL)
+    if let openURL {
+      openURL(resolvedURL)
+    } else {
+      handler?.open(resolvedURL)
+    }
 
     return .null
   }
