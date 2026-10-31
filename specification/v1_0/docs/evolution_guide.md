@@ -59,6 +59,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `posterUrl` property to the `Video` component in `catalogs/basic/catalog.json`, allowing a preview image to be displayed before the video plays.
 - Added `placeholder` prop to the `TextField` component schema, and removed `TextField.validationRegexp` in favor of `checks` using the `regex` validation function.
 - Added a `steps` property to the `Slider` component schema to snap values to discrete intervals.
+- Narrowed the `Text` component's `variant` enum from `h1`, `h2`, `h3`, `h4`, `h5`, `caption`, and `body` to `caption` and `body`. Because `Text.text` already supports Markdown, headings are written with Markdown heading markers (`#` through `#####`) in `Text.text` instead.
 - Updated `openUrl` function definition in `catalogs/basic/catalog.json` to set `"requiresUserActivation": true`.
 - Refactored component definitions in `catalogs/basic/catalog.json` from `allOf: [ComponentCommon, ...]` and `unevaluatedProperties: false` to direct explicit property definitions (including explicit `component` const and `weight` props) or `$defs/Checkable`.
 - Added an optional `instructions` field to the `Catalog` schema (`catalogs/basic/catalog.json`) to embed Markdown guidelines/rules directly, replacing the external `rules.txt` file.
@@ -143,6 +144,7 @@ This section outlines the steps required to migrate existing applications and co
 - Ensure all generated catalog entity names conform to UAX #31 identifier rules.
 - Do not include `allowedCallers` or `returnType` properties in wire-level `FunctionCall` payloads. Set static `allowedCallers`, `returnType`, and optional `requiresUserActivation` metadata in catalog function definitions where needed.
 - Update `Video`, `TextField`, and `Slider` components to support optional `posterUrl`, `placeholder`, and `steps` properties, and migrate any `TextField.validationRegexp` usage to `checks` with the `regex` validation function. Update `openUrl` functions to specify `"requiresUserActivation": true`.
+- Replace `Text.variant` values `h1` through `h5` with the matching Markdown heading markers (`#` through `#####`) at the start of `Text.text`, for example `"text": "## Welcome"` instead of `"variant": "h2"`. For data-bound text, prepend the markers with a `formatString` call, for example `"text": {"@call": "formatString", "args": {"value": "## ${/title}"}}`. Only `caption` and `body` remain valid `Text.variant` values.
 - Explicitly set values to `null` in `updateDataModel` messages to delete keys at specified paths. The `value` property is now required, and omitting it is a schema validation error.
 - Handle remote function execution requests from renderers (`callAgentFunction`) and respond with `agentFunctionResponse` messages.
 - Rename all references, constants, and endpoints mapping to `server_to_client.json` or `server_capabilities.json` to use `agent_to_renderer.json` and `agent_capabilities.json`.
@@ -159,6 +161,7 @@ This section outlines the steps required to migrate existing applications and co
 - Enforce Unicode identifier naming by verifying that all catalog entity names (components, functions, prop keys) conform to UAX #31 identifier rules.
 - Support built-in `@index` evaluation during list template rendering (Collection Scope) to provide the 0-based iteration index, adjusted by any `offset` parameter.
 - Support dynamic `ValidationResult` objects (`valid`, `code`, `message`, `severity`) returned by component validation check conditions, falling back to static `CheckRule.message` if present.
+- Remove the `h1` through `h5` `Text.variant` styles, and render headings from the Markdown in `Text.text`.
 - Rename all references, constants, and endpoints mapping to `client_to_server.json` or `client_capabilities.json` to use `renderer_to_agent.json` and `renderer_capabilities.json`.
 
 ### For catalog authors
