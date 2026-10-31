@@ -1,0 +1,24 @@
+{
+  "schema": "agent_capabilities.json",
+  "tests": [
+    {
+      "description": "Valid version-keyed agent capabilities",
+      "valid": true,
+      "data": {
+        "1.0": {
+          "supportedCatalogIds": [
+            "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+          ],
+          "acceptsInlineCatalogs": true
+        }
+      }
+    },
+    {
+      "description": "Invalid flat agent capabilities missing 1.0 version key",
+      "valid": false,
+      "data": {
+        "supportedCatalogIds": ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"]
+      }
+    }
+  ]
+}

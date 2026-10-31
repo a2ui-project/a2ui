@@ -1605,23 +1605,23 @@ If a function call within a content pipeline fails (returns an `agentFunctionRes
 
 ## Capabilities and metadata
 
-In A2UI v1.0, capabilities and other metadata are exchanged via **transport metadata** or initialization payloads (e.g., A2A metadata, Agent Cards, or MCP initialization) rather than as first-class A2UI messages.
+In A2UI v1.0, capabilities and other metadata travel in **transport metadata** or a **transport handshake**, with each transport binding defining where they are placed rather than encoding them as first-class A2UI messages.
 
 ### Agent capabilities
 
-An agent advertises its capabilities using the [`agent_capabilities.json`] schema. This indicates which catalogs it can generate UI for, and whether it accepts inline catalogs from the renderer. The exact mechanism depends on the transport (e.g., the `params` object in an A2A AgentCard, or agent capabilities in MCP).
+An agent advertises its capabilities using the [`agent_capabilities.json`] schema. This indicates which catalogs it can generate UI for, and whether it accepts inline catalogs from the renderer. Each transport binding defines where this advertisement is carried.
 
 **Properties:**
 
 - `1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
-  - `supportedCatalogIds` (array of strings, required): An array of strings identifying the Catalog Definition Schemas the agent can generate.
+  - `supportedCatalogIds` (array of strings, optional): An array of strings identifying the Catalog Definition Schemas the agent can generate.
   - `acceptsInlineCatalogs` (boolean, optional, default `false`): Indicates if the agent can accept custom inline component/function catalogs in the renderer's capabilities metadata.
 
 ### Renderer capabilities
 
-The `a2uiRendererCapabilities` object in the transport metadata follows the [`renderer_capabilities.json`] schema to describe the renderer's capabilities.
+The `a2uiRendererCapabilities` object in transport metadata follows the [`renderer_capabilities.json`] schema to describe the renderer's capabilities.
 
-If `a2uiRendererCapabilities` is carried on message metadata (eg, in A2A), it should be scoped to that conversation turn, and omitting it on subsequent messages should withdraw A2UI support for those turns. If `a2uiRendererCapabilities` is carried on session metadata (eg, in MCP initialize) it should be scoped to the session.
+Capabilities carried per message are scoped to that message's turn, and omitting them withdraws A2UI for that turn; capabilities carried at session setup are scoped to the session. Each transport binding states which applies (see [Capability scoping](../extensions/a2a/docs/a2ui_extension_specification.md#capability-scoping) for the A2A rule).
 
 **Properties:**
 

@@ -14,7 +14,7 @@ This URI is the canonical way to communicate protocol versioning between rendere
 
 ## Agent Card
 
-Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the renderer whether to send `message.metadata["a2uiRendererCapabilities"]`. The `params` object defines the agent's specific UI support and corresponds directly to the [Agent Capabilities Schema](../../../json/agent_capabilities.json).
+Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the renderer whether to send `message.metadata["a2uiRendererCapabilities"]`. The `params` object defines the agent's specific UI support and MUST validate against [`agent_capabilities.json#/properties/1.0`](../../../json/agent_capabilities.json). Because `agent_capabilities.json` keys capabilities by version so one object can describe several versions, while A2A gives each version its own extension URI, `params` carries only the inner `1.0` object and never the `{"1.0": {...}}` wrapper.
 
 Example AgentCard payload:
 
@@ -48,12 +48,12 @@ The `params` object corresponds to the `1.0` object in the `agent_capabilities.j
 
 ## A2A Extension activation
 
-Activating the A2UI extension is optional. Renderers and agents can negotiate A2UI support using `message.metadata["a2uiRendererCapabilities"]` A2A `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`.
+Activating the A2UI extension is optional. Renderers and agents can negotiate A2UI support using `message.metadata["a2uiRendererCapabilities"]` and A2A `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`.
 
 Specifically:
 
 - If a renderer includes `message.metadata["a2uiRendererCapabilities"]`, the agent can use this object to determine the supported A2UI protocol version and catalogs.
-- If an agent returns A2A A2A `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`, the renderer knows the payload contains A2UI messages.
+- If an agent returns A2A `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`, the renderer knows the payload contains A2UI messages.
 
 While explicit activation is not required, renderers can still explicitly activate the extension using the transport-defined A2A extension activation mechanism. The [A2A Extensions Guide](https://a2a-protocol.org/latest/topics/extensions/) defines this process.
 
@@ -99,20 +99,19 @@ To activate the A2UI A2A Extension, the renderer adds the extension URI to A2A `
     "parts": [
       {
         "text": "Hello, show me the dashboard"
-        }
-      ]
-    }
+      }
+    ]
   }
 }
 ```
 
 ## A2A Renderer to Agent Metadata
 
-Renderers attach `a2uiRendererCapabilities` and `a2uiRendererDataModel` to A2A messages to communicate their state and supported catalogs.
+Renderers attach `a2uiRendererCapabilities` and `a2uiRendererDataModel` to A2A message metadata (`message.metadata`) to communicate their state and supported catalogs.
 
 ### `a2uiRendererCapabilities`
 
-The renderer sends `sendMessageRequest.message["a2uiRendererCapabilities"]` = [Renderer Capabilities Schema](../../../json/renderer_capabilities.json) to advertise which catalogs the renderer supports.
+The renderer sends `message.metadata["a2uiRendererCapabilities"]`, whose value is the whole version-keyed capabilities object and MUST validate against the [Renderer Capabilities Schema](../../../json/renderer_capabilities.json), to advertise which catalogs the renderer supports.
 
 Additionally, the renderer determines a function's execution boundary (e.g., `rendererOnly` status) at runtime by reading its configuration from the active catalog definition.
 
@@ -140,9 +139,13 @@ Additionally, the renderer determines a function's execution boundary (e.g., `re
 }
 ```
 
+### Capability scoping
+
+In A2A, renderer capabilities ride on message metadata, so they are scoped to that message's turn. An agent MUST treat a message that carries no `a2uiRendererCapabilities` entry for its version as a turn in which the renderer offers no A2UI, and MUST NOT send `application/a2ui+json` DataParts in reply to it. Activating the extension through `X-A2A-Extensions` alone does not offer catalogs. An entry keyed for another version is ignored. Agent SDKs expose this lookup as `read_renderer_capabilities`, and `a2ui.a2a` wraps it for an A2A `Message`, reading `Message.metadata` first and then each `DataPart`'s metadata in order.
+
 ### `a2uiRendererDataModel`
 
-When a surface enables Data Model Sync, the renderer sends `sendMessageRequest.message["a2uiRendererDataModel"]` = [Renderer Data Model Schema](../../../json/renderer_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](../../../../../docs/public/concepts/actions.md).
+When a surface enables Data Model Sync, the renderer sends `message.metadata["a2uiRendererDataModel"]` = [Renderer Data Model Schema](../../../json/renderer_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](../../../../../docs/public/concepts/actions.md).
 
 **Example `SendMessageRequest` with Data Model:**
 
