@@ -121,13 +121,36 @@ describe('A2uiLitElement', () => {
     surface = processor.model.getSurface('test-surface')!;
   });
 
-  it('should default to Shadow DOM rendering (creates a ShadowRoot)', () => {
+  it('defaults to light DOM (createRenderRoot returns this)', () => {
     const el = document.createElement('test-a2ui-element') as any;
-    assert.notStrictEqual(el.createRenderRoot(), el);
-    assert.ok(
-      el.createRenderRoot() instanceof (globalThis as any).ShadowRoot ||
-        el.createRenderRoot() !== el,
-    );
+    assert.strictEqual(el.createRenderRoot(), el);
+    assert.strictEqual(el.shadowRoot, null);
+  });
+
+  it('adopts scoped styles into the document by default', () => {
+    class TestLightStyledElement extends A2uiLitElement<any> {
+      static override styles = css`
+        :host {
+          display: block;
+        }
+        .title {
+          color: blue;
+        }
+      `;
+      override createController() {
+        return {dispose: () => {}} as any;
+      }
+    }
+    customElements.define('test-light-styled-element', TestLightStyledElement);
+
+    const el = document.createElement('test-light-styled-element') as TestLightStyledElement;
+    document.body.appendChild(el);
+
+    assert.strictEqual(el.renderRoot, el);
+    assert.strictEqual(el.shadowRoot, null);
+    assert.ok((TestLightStyledElement as any)._processedCss?.includes('test-light-styled-element'));
+    assert.ok((TestLightStyledElement as any)._adoptedRoots?.has(document));
+    document.body.removeChild(el);
   });
 
   it('does not adopt its styles into the document when it renders into a ShadowRoot', () => {
@@ -137,6 +160,9 @@ describe('A2uiLitElement', () => {
           color: red;
         }
       `;
+      protected override createRenderRoot() {
+        return this.attachShadow({mode: 'open'});
+      }
       override createController() {
         return {dispose: () => {}} as any;
       }
@@ -322,7 +348,7 @@ describe('A2uiLitElement', () => {
     assert.strictEqual(el.context, root.context);
     assert.strictEqual(controllerCreatedCount, 1);
     // renderNode('child_id') hands the child element the child's own node.
-    const childEl = el.shadowRoot.querySelector('a2ui-basic-text');
+    const childEl = el.querySelector('a2ui-basic-text');
     assert.strictEqual(childEl.node, childNode);
     assert.strictEqual(childEl.context, childNode.context);
 
