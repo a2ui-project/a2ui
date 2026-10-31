@@ -238,7 +238,7 @@ def _record_schema_error(record: ManifestRecord) -> str | None:
     first_error = next(_VALIDATOR.iter_errors(payload), None)
     if first_error is None or _is_unreasoned_only(payload):
         return None
-    return first_error.message
+    return str(first_error.message)
 
 
 def _check_single_record(
