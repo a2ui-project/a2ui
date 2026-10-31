@@ -242,7 +242,14 @@ export class PayloadValidator {
     }
 
     const knownKeys = getKnownSchemaKeys(componentApi.schema);
-    this.validateCommonEnvelopeFields(properties, knownKeys, componentType, id, componentCatalogId);
+    this.validateCommonEnvelopeFields(
+      properties,
+      comp['metadata'],
+      knownKeys,
+      componentType,
+      id,
+      componentCatalogId,
+    );
 
     const result = componentApi.schema.safeParse(properties);
     if (!result.success) {
@@ -264,11 +271,16 @@ export class PayloadValidator {
 
   /**
    * Validates `accessibility` and `metadata` from `ComponentCommon` when the
-   * component schema does not explicitly declare them, removing them from
-   * `properties` before strict component schema parsing.
+   * component schema does not explicitly declare them, removing
+   * `accessibility` from `properties` before strict component schema parsing.
+   *
+   * `metadata` is an envelope key, so `stripEnvelopeKeys` has already removed
+   * it from `properties`; it is passed separately and, as it exists only from
+   * v1.0, checked only on v1.0+ catalogs.
    */
   private validateCommonEnvelopeFields(
     properties: Record<string, unknown>,
+    metadata: unknown,
     knownKeys: Set<string> | null | undefined,
     componentType: string,
     id: string,
@@ -291,10 +303,8 @@ export class PayloadValidator {
       this.validateNestedFunctions(accVal, componentCatalogId, '/accessibility');
     }
 
-    if ('metadata' in properties && !knownKeys?.has('metadata')) {
-      const metaVal = properties['metadata'];
-      delete properties['metadata'];
-      const metaResult = ComponentCommonSchema.shape.metadata.safeParse(metaVal);
+    if (this.enforceIdentifiers && metadata !== undefined && !knownKeys?.has('metadata')) {
+      const metaResult = ComponentCommonSchema.shape.metadata.safeParse(metadata);
       if (!metaResult.success) {
         const formattedErrors = metaResult.error.errors.map(formatZodIssue).join(', ');
         const details = zodIssuesToDetails(metaResult.error.issues, '/metadata');
