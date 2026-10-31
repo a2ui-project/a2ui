@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `Modal` (from `@a2ui/web_core`) shows its overlay in a native `<dialog>` opened with `showModal()`, so it renders in the browser's top layer and is no longer covered by host UI when an ancestor of the surface creates a stacking context. It also closes on Escape. [#3807](https://github.com/a2ui-project/a2ui/issues/3807)
+
 ## 0.15.0
 
 - **BREAKING CHANGE**: `<a2ui-surface>` renders nothing until its root component arrives, instead of `Loading surface...`. Apps that relied on the built-in text should render their own loading state until the fallback API from [#2013](https://github.com/a2ui-project/a2ui/issues/2013) lands. [#3723](https://github.com/a2ui-project/a2ui/pull/3723)

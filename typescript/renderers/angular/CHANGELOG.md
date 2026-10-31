@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9) `Modal` shows its overlay in a native `<dialog>` opened with `showModal()`, so it renders in the browser's top layer: it is no longer covered by host UI when an ancestor of the surface creates a stacking context, and it closes on Escape and keeps focus inside the modal. The overlay's classes and `--a2ui-modal-*` variables are unchanged; the content element no longer carries `role="dialog"`/`aria-modal`, which the `<dialog>` now provides. [#3807](https://github.com/a2ui-project/a2ui/issues/3807)
+
 ## 0.14.0
 
 - Add `metadata` (`input<A2uiMetadata | undefined>()`) and `extensions` (`computed<Extensions | undefined>()`) signals on `CatalogComponent` and `CatalogComponentInstance`, bound reactively from `ComponentNode.metadata` in `ComponentHostComponent` and `ComponentBinder.bindNode`. [#3469](https://github.com/a2ui-project/a2ui/issues/3469), [#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)
