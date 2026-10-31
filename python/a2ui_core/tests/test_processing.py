@@ -737,6 +737,33 @@ def test_message_processor_v10_call_args_unchecked_without_validation_config():
     assert surface.components_model.get("root") is not None
 
 
+def test_message_processor_v10_checks_inline_component_metadata():
+    from a2ui.core.basic_catalog import v1_0
+
+    processor = MessageProcessor(catalogs=[v1_0.BasicCatalog()])
+
+    with pytest.raises(
+        A2uiValidationError,
+        match=(
+            r"Invalid 1\.0 message:"
+            r" createSurface\.components\.0\.metadata\.extensions: .*'bad-key'"
+        ),
+    ):
+        processor.process_messages([{
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "s",
+                "catalogId": v1_0.BasicCatalog().catalog_id,
+                "components": [{
+                    "id": "root",
+                    "component": "Text",
+                    "text": "x",
+                    "metadata": {"extensions": {"bad-key": True}},
+                }],
+            },
+        }])
+
+
 _V10_SHOUT_CATALOG_ID = "https://example.com/v10/shout_catalog.json"
 
 

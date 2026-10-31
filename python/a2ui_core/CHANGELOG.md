@@ -8,6 +8,12 @@
   `allowed_callers` to `rendererOrAgent` on a function both the renderer and
   the agent call ([#3483](https://github.com/a2ui-project/a2ui/issues/3483),
   [#3773](https://github.com/a2ui-project/a2ui/pull/3773)).
+- (v1_0) `MessageProcessor` checks each component's `metadata` in
+  `createSurface` and `updateComponents` against the spec's `ComponentCommon`,
+  with or without a `ValidationConfig`, as it already did for
+  `createSurface.metadata`. A component whose `metadata.extensions` has a key
+  that is not a UAX 31 identifier, or whose `metadata` has a key other than
+  `extensions`, now raises `A2uiValidationError` instead of being accepted.
 - From v0.9, a component its catalog declares with no `ComponentId` or
   `ChildList` property has no child references. Previously any of its string
   properties that named a component on the surface, such as an `Icon` named
