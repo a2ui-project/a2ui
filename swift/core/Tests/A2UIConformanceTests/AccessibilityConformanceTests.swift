@@ -60,14 +60,10 @@ struct AccessibilityConformanceTests {
     "messages",
   ]
 
-  @Test func accessibilityConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/accessibility.yaml")
-    #expect(!cases.isEmpty, "Should find test cases in accessibility.yaml")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        try runSingleAccessibilityCase(conformanceCase)
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/accessibility.yaml"))
+  func accessibilityConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runSingleAccessibilityCase(conformanceCase)
     }
   }
 

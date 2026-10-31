@@ -17,6 +17,7 @@ import Testing
 
 /// Verifies that every `conformance/core/*.yaml` suite and action is registered in
 /// `ConformanceTestHelper` and records skipped manifest entries for unsupported suites.
+@MainActor
 struct SuiteRegistryTests {
   @Test func allCoreSuitesAndActionsAreRegistered() throws {
     let coreDir = ConformanceTestHelper.repoRoot
@@ -45,7 +46,31 @@ struct SuiteRegistryTests {
     )
 
     try verifySupportedSuiteActions()
+    verifyOverrideTablesAreUsed()
     recordUnsupportedSuiteSkips()
+  }
+
+  @MainActor
+  private func verifyOverrideTablesAreUsed() {
+    let deriveNames = Set(
+      ConformanceTestHelper.cases("core/catalog.yaml", action: "derive").map(\.name))
+    for skippedName in CatalogDeriveConformanceTests.skippedCases.keys {
+      #expect(deriveNames.contains(skippedName), "Unused skip entry '\(skippedName)'")
+    }
+
+    let mpV10Names = Set(
+      ConformanceTestHelper.cases("core/message_processor_v1_0.yaml").map(\.name))
+    for skippedName in MessageProcessorConformanceTests.skippedCases.keys {
+      #expect(mpV10Names.contains(skippedName), "Unused skip entry '\(skippedName)'")
+    }
+    for errorName in MessageProcessorConformanceTests.expectedRuntimeErrors.keys {
+      #expect(mpV10Names.contains(errorName), "Unused expectedRuntimeErrors entry '\(errorName)'")
+    }
+
+    let nodeResNames = Set(ConformanceTestHelper.cases("core/node_resolution.yaml").map(\.name))
+    for knownIssueName in NodeResolutionConformanceTests.placeholderKnownIssues.keys {
+      #expect(nodeResNames.contains(knownIssueName), "Unused known issue '\(knownIssueName)'")
+    }
   }
 
   private func verifySupportedSuiteActions() throws {

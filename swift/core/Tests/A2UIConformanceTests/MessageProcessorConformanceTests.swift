@@ -37,7 +37,7 @@ private final class ConformanceActionCaptureHandler: ActionHandling,
 @MainActor
 struct MessageProcessorConformanceTests {
   /// `process_messages` cases whose payload is accepted but reports an error when it renders.
-  private static let expectedRuntimeErrors: [String: ExpectedRuntimeError] = [
+  static let expectedRuntimeErrors: [String: ExpectedRuntimeError] = [
     "test_v10_call_to_undeclared_function_without_strict_mode_accepted": ExpectedRuntimeError(
       code: "EXPRESSION_ERROR",
       surfaceID: "s",
@@ -48,7 +48,7 @@ struct MessageProcessorConformanceTests {
   /// Cases of the optional agent_renderer_app feature
   /// (blueprints/features/agent_renderer_app.blueprint.md), which passes a validation config to
   /// one call. This SDK has no agent, so it does not implement the feature.
-  private static let skippedCases: [String: String] = [
+  static let skippedCases: [String: String] = [
     "test_v10_call_validation_config_relaxes_strict_processor":
       "per-call validationConfig is part of the optional agent_renderer_app feature",
     "test_v10_call_validation_config_tightens_permissive_processor":
@@ -113,47 +113,33 @@ struct MessageProcessorConformanceTests {
   ]
 
   /// A runtime error a case expects rendering to report through the action handler.
-  private struct ExpectedRuntimeError {
+  struct ExpectedRuntimeError {
     let code: String
     let surfaceID: String
     let messageContains: String
   }
 
-  @Test func messageProcessorV09Conformance() throws {
-    try runMessageProcessorSuite(
-      filename: "core/message_processor_v0_9.yaml",
-      defaultVersion: "v0.9"
-    )
+  @Test(arguments: ConformanceTestHelper.cases("core/message_processor_v0_9.yaml"))
+  func messageProcessorV09Conformance(_ conformanceCase: ConformanceCase) throws {
+    try runSingleMessageProcessorCase(conformanceCase, defaultVersion: "v0.9")
   }
 
-  @Test func messageProcessorV10Conformance() throws {
-    let cases = ConformanceTestHelper.cases("core/message_processor_v1_0.yaml")
-    let caseNames = Set(cases.map(\.name))
-    for skippedName in Self.skippedCases.keys {
-      #expect(caseNames.contains(skippedName), "Unused skip entry '\(skippedName)'")
-    }
-    try runMessageProcessorSuite(
-      filename: "core/message_processor_v1_0.yaml",
-      defaultVersion: "1.0"
-    )
+  @Test(arguments: ConformanceTestHelper.cases("core/message_processor_v1_0.yaml"))
+  func messageProcessorV10Conformance(_ conformanceCase: ConformanceCase) throws {
+    try runSingleMessageProcessorCase(conformanceCase, defaultVersion: "1.0")
   }
 
-  private func runMessageProcessorSuite(
-    filename: String,
+  private func runSingleMessageProcessorCase(
+    _ conformanceCase: ConformanceCase,
     defaultVersion: String
   ) throws {
-    let cases = ConformanceTestHelper.cases(filename)
-    #expect(!cases.isEmpty, "\(filename) should hold test cases")
-
-    for conformanceCase in cases {
-      let skippedReason = Self.skippedCases[conformanceCase.name]
-      try ConformanceManifest.run(conformanceCase, skippedReason: skippedReason) {
-        try dispatchMessageProcessorCase(
-          conformanceCase.rawDictionary,
-          name: conformanceCase.name,
-          defaultVersion: defaultVersion
-        )
-      }
+    let skippedReason = Self.skippedCases[conformanceCase.name]
+    try ConformanceManifest.run(conformanceCase, skippedReason: skippedReason) {
+      try dispatchMessageProcessorCase(
+        conformanceCase.rawDictionary,
+        name: conformanceCase.name,
+        defaultVersion: defaultVersion
+      )
     }
   }
 

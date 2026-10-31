@@ -65,26 +65,24 @@ struct ValidatorConformanceTests {
     "surfaceId",
   ]
 
-  @Test func validatorConformance() throws {
-    try runValidatorSuite(filename: "core/validator_v0_9.yaml", versionPrefix: "v0.9")
+  @Test(arguments: ConformanceTestHelper.cases("core/validator_v0_9.yaml"))
+  func validatorConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runSingleValidatorCase(conformanceCase, versionPrefix: "v0.9")
+    }
   }
 
-  @Test func validatorV10Conformance() throws {
-    try runValidatorSuite(filename: "core/validator_v1_0.yaml", versionPrefix: "1.0")
+  @Test(arguments: ConformanceTestHelper.cases("core/validator_v1_0.yaml"))
+  func validatorV10Conformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runSingleValidatorCase(conformanceCase, versionPrefix: "1.0")
+    }
   }
 
-  @Test func errorResponsesConformance() throws {
-    try runValidatorSuite(filename: "core/error_responses.yaml", versionPrefix: nil)
-  }
-
-  private func runValidatorSuite(filename: String, versionPrefix: String?) throws {
-    let cases = ConformanceTestHelper.cases(filename)
-    #expect(!cases.isEmpty, "\(filename) should hold test cases")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        try runSingleValidatorCase(conformanceCase, versionPrefix: versionPrefix)
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/error_responses.yaml"))
+  func errorResponsesConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runSingleValidatorCase(conformanceCase, versionPrefix: nil)
     }
   }
 
@@ -344,14 +342,10 @@ struct ValidatorConformanceTests {
     }
   }
 
-  @Test func compositionConstraintsConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/composition_constraints.yaml")
-    #expect(!cases.isEmpty, "Should find test cases in core/composition_constraints.yaml")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        try runSingleCompositionCase(conformanceCase)
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/composition_constraints.yaml"))
+  func compositionConstraintsConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runSingleCompositionCase(conformanceCase)
     }
   }
 
@@ -415,14 +409,10 @@ struct ValidatorConformanceTests {
     return catalogs
   }
 
-  @Test func reservedKeysConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/reserved_keys.yaml")
-    #expect(!cases.isEmpty, "Should find test cases in core/reserved_keys.yaml")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        try runSingleReservedKeysCase(conformanceCase)
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/reserved_keys.yaml"))
+  func reservedKeysConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runSingleReservedKeysCase(conformanceCase)
     }
   }
 

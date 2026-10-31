@@ -120,23 +120,19 @@ struct BasicCatalogConformanceTests {
     #expect(result == .string("Welcome Alice, you are 30 years old."))
   }
 
-  @Test func evaluateFunctionConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/functions.yaml", action: "evaluate_function")
-    #expect(!cases.isEmpty, "core/functions.yaml should hold evaluate_function cases")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        let testCase = conformanceCase.rawDictionary
-        try ConformanceTestHelper.assertKnownKeys(
-          testCase,
-          Self.knownEvaluateFunctionCaseKeys,
-          "functions.yaml evaluate_function case '\(conformanceCase.name)'"
-        )
-        if let surfaceDict = testCase["surface"] as? [String: Any] {
-          try runSurfaceEvaluateFunctionCase(testCase, surfaceDict: surfaceDict)
-        } else {
-          try runDirectEvaluateFunctionCase(testCase)
-        }
+  @Test(arguments: ConformanceTestHelper.cases("core/functions.yaml", action: "evaluate_function"))
+  func evaluateFunctionConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      let testCase = conformanceCase.rawDictionary
+      try ConformanceTestHelper.assertKnownKeys(
+        testCase,
+        Self.knownEvaluateFunctionCaseKeys,
+        "functions.yaml evaluate_function case '\(conformanceCase.name)'"
+      )
+      if let surfaceDict = testCase["surface"] as? [String: Any] {
+        try runSurfaceEvaluateFunctionCase(testCase, surfaceDict: surfaceDict)
+      } else {
+        try runDirectEvaluateFunctionCase(testCase)
       }
     }
   }
@@ -385,25 +381,17 @@ struct BasicCatalogConformanceTests {
     )
   }
 
-  @Test func functionsValidateConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/functions.yaml", action: "validate")
-    #expect(!cases.isEmpty, "core/functions.yaml should hold validate cases")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        try runValidatedCatalogCase(conformanceCase, suiteName: "functions.yaml")
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/functions.yaml", action: "validate"))
+  func functionsValidateConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runValidatedCatalogCase(conformanceCase, suiteName: "functions.yaml")
     }
   }
 
-  @Test func indexFunctionConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/index_function.yaml", action: "validate")
-    #expect(!cases.isEmpty, "Should load test cases from index_function.yaml")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        try runValidatedCatalogCase(conformanceCase, suiteName: "index_function.yaml")
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/index_function.yaml", action: "validate"))
+  func indexFunctionConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runValidatedCatalogCase(conformanceCase, suiteName: "index_function.yaml")
     }
   }
 
@@ -598,14 +586,10 @@ struct BasicCatalogConformanceTests {
     }
   }
 
-  @Test func validationResultConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/validation_result.yaml", action: "validate")
-    #expect(!cases.isEmpty, "Should load test cases from validation_result.yaml")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        try runValidationResultCase(conformanceCase)
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/validation_result.yaml", action: "validate"))
+  func validationResultConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runValidationResultCase(conformanceCase)
     }
   }
 

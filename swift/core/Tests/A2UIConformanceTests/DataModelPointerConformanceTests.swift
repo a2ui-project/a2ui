@@ -50,22 +50,32 @@ struct DataModelPointerConformanceTests {
     "path",
   ]
 
-  @Test func dataModelPointersConformance() throws {
-    try runPayloadDataModelSuite(filename: "core/data_model_pointers.yaml")
+  @Test(arguments: ConformanceTestHelper.cases("core/data_model_pointers.yaml"))
+  func dataModelPointersConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runPayloadDataModelCase(
+        conformanceCase.rawDictionary,
+        name: conformanceCase.name,
+        suite: "core/data_model_pointers.yaml"
+      )
+    }
   }
 
-  @Test func dataDeletionConformance() throws {
-    try runPayloadDataModelSuite(filename: "core/data_deletion.yaml")
+  @Test(arguments: ConformanceTestHelper.cases("core/data_deletion.yaml"))
+  func dataDeletionConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runPayloadDataModelCase(
+        conformanceCase.rawDictionary,
+        name: conformanceCase.name,
+        suite: "core/data_deletion.yaml"
+      )
+    }
   }
 
-  @Test func dataContextPathResolutionConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/data_context.yaml")
-    #expect(!cases.isEmpty, "core/data_context.yaml should hold test cases")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        try runDataContextCase(conformanceCase.rawDictionary, name: conformanceCase.name)
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/data_context.yaml"))
+  func dataContextPathResolutionConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runDataContextCase(conformanceCase.rawDictionary, name: conformanceCase.name)
     }
   }
 
@@ -91,21 +101,6 @@ struct DataModelPointerConformanceTests {
     let expected = testCase["expect"] as? String ?? ""
     let actual = JSONValue.absolutePath(for: path, in: contextPath)
     #expect(actual == expected, "\(name): got \(actual), expected \(expected)")
-  }
-
-  private func runPayloadDataModelSuite(filename: String) throws {
-    let cases = ConformanceTestHelper.cases(filename)
-    #expect(!cases.isEmpty, "\(filename) should hold test cases")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        try runPayloadDataModelCase(
-          conformanceCase.rawDictionary,
-          name: conformanceCase.name,
-          suite: filename
-        )
-      }
-    }
   }
 
   private func runPayloadDataModelCase(

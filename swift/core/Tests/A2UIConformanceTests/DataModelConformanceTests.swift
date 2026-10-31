@@ -68,14 +68,10 @@ struct DataModelConformanceTests {
     }
   }
 
-  @Test func dataModelConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/data_model.yaml")
-    #expect(!cases.isEmpty, "core/data_model.yaml should hold test cases")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        try runDataModelCase(conformanceCase.rawDictionary, name: conformanceCase.name)
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/data_model.yaml"))
+  func dataModelConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runDataModelCase(conformanceCase.rawDictionary, name: conformanceCase.name)
     }
   }
 

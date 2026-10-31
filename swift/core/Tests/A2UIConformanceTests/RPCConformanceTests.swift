@@ -110,14 +110,10 @@ struct RPCConformanceTests {
     "rendererError",
   ]
 
-  @Test func rpcFunctionsConformance() async throws {
-    let cases = ConformanceTestHelper.cases("core/rpc_functions.yaml")
-    #expect(!cases.isEmpty, "Should load test cases from rpc_functions.yaml")
-
-    for conformanceCase in cases {
-      try await ConformanceManifest.runAsync(conformanceCase) {
-        try await runSingleRPCCase(conformanceCase)
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/rpc_functions.yaml"))
+  func rpcFunctionsConformance(_ conformanceCase: ConformanceCase) async throws {
+    try await ConformanceManifest.runAsync(conformanceCase) {
+      try await runSingleRPCCase(conformanceCase)
     }
   }
 

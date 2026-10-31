@@ -117,19 +117,11 @@ struct NodeResolutionConformanceTests {
     "validationResults",
   ]
 
-  @Test func nodeResolutionConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/node_resolution.yaml")
-    #expect(!cases.isEmpty, "core/node_resolution.yaml should hold test cases")
-    let caseNames = Set(cases.map(\.name))
-    for knownIssueName in Self.placeholderKnownIssues.keys {
-      #expect(caseNames.contains(knownIssueName), "Unused known issue '\(knownIssueName)'")
-    }
-
-    for conformanceCase in cases {
-      let knownIssueReason = Self.placeholderKnownIssues[conformanceCase.name]
-      try ConformanceManifest.run(conformanceCase, knownIssueReason: knownIssueReason) {
-        try runResolveNodesCase(conformanceCase.rawDictionary)
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/node_resolution.yaml"))
+  func nodeResolutionConformance(_ conformanceCase: ConformanceCase) throws {
+    let knownIssueReason = Self.placeholderKnownIssues[conformanceCase.name]
+    try ConformanceManifest.run(conformanceCase, knownIssueReason: knownIssueReason) {
+      try runResolveNodesCase(conformanceCase.rawDictionary)
     }
   }
 

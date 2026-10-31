@@ -25,7 +25,7 @@ import Testing
 /// check `absentKeys`.
 struct CatalogDeriveConformanceTests {
   /// Cases that check a catalog field the Swift catalog does not have.
-  private static let skippedCases: [String: String] = [
+  static let skippedCases: [String: String] = [
     // `derive` takes no instructions, since a Swift catalog has none.
     "test_v10_catalog_derive_sets_instructions":
       "Swift Catalog does not store agent instructions"
@@ -67,19 +67,11 @@ struct CatalogDeriveConformanceTests {
     remoteSchema: A2UICommonSchema.allSchemas
   )
 
-  @Test func catalogDeriveConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/catalog.yaml", action: "derive")
-    #expect(!cases.isEmpty, "core/catalog.yaml should hold derive cases")
-    let caseNames = Set(cases.map(\.name))
-    for skippedName in Self.skippedCases.keys {
-      #expect(caseNames.contains(skippedName), "Unused skip entry '\(skippedName)'")
-    }
-
-    for conformanceCase in cases {
-      let skippedReason = Self.skippedCases[conformanceCase.name]
-      try ConformanceManifest.run(conformanceCase, skippedReason: skippedReason) {
-        try runDeriveCase(conformanceCase.json, name: conformanceCase.name)
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/catalog.yaml", action: "derive"))
+  func catalogDeriveConformance(_ conformanceCase: ConformanceCase) throws {
+    let skippedReason = Self.skippedCases[conformanceCase.name]
+    try ConformanceManifest.run(conformanceCase, skippedReason: skippedReason) {
+      try runDeriveCase(conformanceCase.json, name: conformanceCase.name)
     }
   }
 

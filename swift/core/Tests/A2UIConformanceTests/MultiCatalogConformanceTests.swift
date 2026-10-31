@@ -55,14 +55,10 @@ struct MultiCatalogConformanceTests {
     "message",
   ]
 
-  @Test func multiCatalogConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/multi_catalog.yaml")
-    #expect(!cases.isEmpty, "core/multi_catalog.yaml should hold test cases")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        try dispatchMultiCatalogCase(conformanceCase.rawDictionary, name: conformanceCase.name)
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/multi_catalog.yaml"))
+  func multiCatalogConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try dispatchMultiCatalogCase(conformanceCase.rawDictionary, name: conformanceCase.name)
     }
   }
 

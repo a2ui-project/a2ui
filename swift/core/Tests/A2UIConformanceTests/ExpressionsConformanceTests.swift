@@ -46,17 +46,15 @@ struct ExpressionsConformanceTests {
 
   private let parser = ExpressionParser()
 
-  @Test func expressionsConformance() throws {
-    let cases = ConformanceTestHelper.cases(
+  @Test(
+    arguments: ConformanceTestHelper.cases(
       "core/expressions.yaml",
       action: "parse_expression_template"
     )
-    #expect(!cases.isEmpty, "core/expressions.yaml should hold parse_expression_template cases")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        try runParseExpressionCase(conformanceCase.rawDictionary, name: conformanceCase.name)
-      }
+  )
+  func expressionsConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runParseExpressionCase(conformanceCase.rawDictionary, name: conformanceCase.name)
     }
   }
 
@@ -129,42 +127,38 @@ struct ExpressionsConformanceTests {
   /// Runs the `validate` cases of `core/expressions.yaml`, which render `formatString` templates
   /// on a v1.0 surface and compare the resolved component properties.
   @MainActor
-  @Test func expressionsValidateConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/expressions.yaml", action: "validate")
-    #expect(!cases.isEmpty, "core/expressions.yaml should hold validate cases")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        let rawDict = conformanceCase.rawDictionary
-        try ConformanceTestHelper.assertKnownKeys(
-          rawDict,
-          Self.knownValidateCaseKeys,
-          "expressions.yaml validate case '\(conformanceCase.name)'"
-        )
-        if let steps = rawDict["steps"] as? [[String: Any]] {
-          for step in steps {
+  @Test(arguments: ConformanceTestHelper.cases("core/expressions.yaml", action: "validate"))
+  func expressionsValidateConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      let rawDict = conformanceCase.rawDictionary
+      try ConformanceTestHelper.assertKnownKeys(
+        rawDict,
+        Self.knownValidateCaseKeys,
+        "expressions.yaml validate case '\(conformanceCase.name)'"
+      )
+      if let steps = rawDict["steps"] as? [[String: Any]] {
+        for step in steps {
+          try ConformanceTestHelper.assertKnownKeys(
+            step,
+            Self.knownValidateStepKeys,
+            "expressions.yaml step in '\(conformanceCase.name)'",
+            allowMetadata: false
+          )
+          if let errDict = step["expectError"] as? [String: Any] {
             try ConformanceTestHelper.assertKnownKeys(
-              step,
-              Self.knownValidateStepKeys,
-              "expressions.yaml step in '\(conformanceCase.name)'",
+              errDict,
+              Self.knownExpectErrorKeys,
+              "expressions.yaml step.expectError in '\(conformanceCase.name)'",
               allowMetadata: false
             )
-            if let errDict = step["expectError"] as? [String: Any] {
-              try ConformanceTestHelper.assertKnownKeys(
-                errDict,
-                Self.knownExpectErrorKeys,
-                "expressions.yaml step.expectError in '\(conformanceCase.name)'",
-                allowMetadata: false
-              )
-            }
           }
         }
-        let testCase = try #require(
-          conformanceCase.parsedTestCase(),
-          "[\(conformanceCase.name)] Could not parse validate case"
-        )
-        try runValidateCase(testCase)
       }
+      let testCase = try #require(
+        conformanceCase.parsedTestCase(),
+        "[\(conformanceCase.name)] Could not parse validate case"
+      )
+      try runValidateCase(testCase)
     }
   }
 

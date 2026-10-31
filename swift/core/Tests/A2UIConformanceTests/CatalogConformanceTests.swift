@@ -65,24 +65,20 @@ struct CatalogConformanceTests {
     "message",
   ]
 
-  @Test func catalogConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/catalog.yaml", actions: Self.supportedActions)
-    #expect(!cases.isEmpty, "core/catalog.yaml should hold test cases")
-
-    for conformanceCase in cases {
-      let testCase = conformanceCase.rawDictionary
-      let version = testCase["protocolVersion"] as? String
-      let skippedReason =
-        version == "v0.8" ? "protocol version v0.8 is not supported by A2UICore" : nil
-      try ConformanceManifest.run(conformanceCase, skippedReason: skippedReason) {
-        try ConformanceTestHelper.assertKnownKeys(
-          testCase,
-          Self.knownCaseKeys,
-          "catalog.yaml case '\(conformanceCase.name)'"
-        )
-        let action = testCase["action"] as? String ?? ""
-        try dispatchCatalogCase(testCase, action: action)
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/catalog.yaml", actions: Self.supportedActions))
+  func catalogConformance(_ conformanceCase: ConformanceCase) throws {
+    let testCase = conformanceCase.rawDictionary
+    let version = testCase["protocolVersion"] as? String
+    let skippedReason =
+      version == "v0.8" ? "protocol version v0.8 is not supported by A2UICore" : nil
+    try ConformanceManifest.run(conformanceCase, skippedReason: skippedReason) {
+      try ConformanceTestHelper.assertKnownKeys(
+        testCase,
+        Self.knownCaseKeys,
+        "catalog.yaml case '\(conformanceCase.name)'"
+      )
+      let action = testCase["action"] as? String ?? ""
+      try dispatchCatalogCase(testCase, action: action)
     }
   }
 

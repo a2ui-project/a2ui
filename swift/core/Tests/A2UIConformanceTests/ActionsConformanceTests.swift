@@ -138,21 +138,17 @@ struct ActionsConformanceTests {
     "userMessage",
   ]
 
-  @Test func actionsConformance() throws {
-    let cases = ConformanceTestHelper.cases("core/actions.yaml")
-    #expect(!cases.isEmpty, "core/actions.yaml should hold test cases")
-
-    for conformanceCase in cases {
-      try ConformanceManifest.run(conformanceCase) {
-        let testCase = conformanceCase.rawDictionary
-        let action = testCase["action"] as? String ?? ""
-        guard action == "dispatch_action" else {
-          throw UnknownConformanceKeyError(
-            "[\(conformanceCase.name)] Unknown actions.yaml action '\(action)'"
-          )
-        }
-        try runDispatchActionCase(testCase, name: conformanceCase.name)
+  @Test(arguments: ConformanceTestHelper.cases("core/actions.yaml"))
+  func actionsConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      let testCase = conformanceCase.rawDictionary
+      let action = testCase["action"] as? String ?? ""
+      guard action == "dispatch_action" else {
+        throw UnknownConformanceKeyError(
+          "[\(conformanceCase.name)] Unknown actions.yaml action '\(action)'"
+        )
       }
+      try runDispatchActionCase(testCase, name: conformanceCase.name)
     }
   }
 
