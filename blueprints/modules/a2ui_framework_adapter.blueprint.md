@@ -339,22 +339,14 @@ A new error kind joins the `error` category through `error.type`, so it needs no
 
 #### Shape
 
-The shape is the same on every platform: `fallbacks` → category → a configuration object → `builder`. Each category takes an object rather than a bare function, so later options can be added without breaking changes.
+The shape is the same on every platform: `fallbacks` → category (`pending` / `error`) → a builder function that takes `info` (in Angular, a `TemplateRef`). Extensions go on `info` or on `A2uiFallbacks` itself, so neither needs a wrapper object.
 
 ```typescript
 interface A2uiFallbacks<V> {
-  pending?: A2uiPendingFallback<V>;
-  error?: A2uiErrorFallback<V>;
-}
-
-interface A2uiPendingFallback<V> {
   /** Returns the view for a pending node, or null/undefined to render nothing. */
-  builder: (info: A2uiPendingInfo) => V | null | undefined;
-}
-
-interface A2uiErrorFallback<V> {
+  pending?: (info: A2uiPendingInfo) => V | null | undefined;
   /** Returns the view for a node in error, or null/undefined to render nothing. */
-  builder: (info: A2uiErrorInfo) => V | null | undefined;
+  error?: (info: A2uiErrorInfo) => V | null | undefined;
 }
 
 interface A2uiPendingInfo {
@@ -378,23 +370,23 @@ interface A2uiFallbackError {
 }
 ```
 
-`V` is the platform's view type. The concept names (`fallbacks`, `pending`, `error`, `builder`, and the `info` fields) are the same everywhere; only the delivery follows each framework:
+`V` is the platform's view type. The concept names (`fallbacks`, `pending`, `error`, and the `info` fields) are the same everywhere; only the delivery follows each framework:
 
-| Platform | API                                                                                                                                                              |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Flutter  | `A2uiSurface(surface: surface, fallbacks: A2uiFallbacks(pending: A2uiPendingFallback(builder: (context, info) => ...), error: A2uiErrorFallback(builder: ...)))` |
-| React    | `<A2uiSurface surface={surface} fallbacks={{pending: {builder: info => ...}, error: {builder: info => ...}}} />`                                                 |
-| Lit      | ``<a2ui-surface .surface=${surface} .fallbacks=${{pending: {builder: info => html`...`}}}></a2ui-surface>``                                                      |
-| Angular  | `<a2ui-v09-surface [surfaceId]="surfaceId" [fallbacks]="{pending: {template: pendingTpl}, error: {template: errorTpl}}" />`, with `info` as the template context |
-| SwiftUI  | `Surface(viewModel: viewModel, catalogs: catalogs, fallbacks: A2UIFallbacks(pending: .init { info in ... }, error: .init { info in ... }))`                      |
+| Platform | API                                                                                                                                                                        |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Flutter  | `A2uiSurface(surface: surface, fallbacks: A2uiFallbacks(pending: (context, info) => ..., error: (context, info) => ...))`                                                  |
+| React    | `<A2uiSurface surface={surface} fallbacks={{pending: info => ..., error: info => ...}} />`                                                                                 |
+| Lit      | ``<a2ui-surface .surface=${surface} .fallbacks=${{pending: info => html`...`, error: info => html`...`}}></a2ui-surface>``                                                 |
+| Angular  | `<a2ui-v09-surface [surfaceId]="surfaceId" [fallbacks]="{pending: pendingTpl, error: errorTpl}" />`, each a `TemplateRef` rendered with `{$implicit: info}` as its context |
+| SwiftUI  | `Surface(viewModel: viewModel, catalogs: catalogs, fallbacks: A2UIFallbacks(pending: { info in ... }, error: { info in ... }))`                                            |
 
-Angular uses `template` (a `TemplateRef`) instead of `builder`, because a template is Angular's way to pass a view factory.
+Angular passes a `TemplateRef`, Angular's way to hand over a view factory, rendered with `{$implicit: info}` as its context so `<ng-template let-info>` works directly. A template opts out by rendering no element (for example a false `@if`). The host stays `display: contents`, so an empty view produces no layout item, which counts as nothing.
 
 #### Behavior
 
 1. **Every rendering path.** The adapter consults fallbacks wherever it would otherwise render nothing for an unresolved node: the root before it arrives, the node dispatcher (§6), and any shared path that renders children itself (on web, the universal element layer's `renderA2uiNode` and `A2uiLitElement.renderNode`). A fallback that only some paths honor is a bug.
-2. **Reaching nested nodes.** Fallbacks belong to the surface, so every node of that surface sees them, however deeply nested and whichever path renders it. Adapters deliver them through their ambient mechanism (Flutter `InheritedWidget`, React context, SwiftUI `Environment`, Angular DI). Paths outside the framework's own tree, such as universal web elements, look them up from the node's `SurfaceModel` in an adapter-side per-surface registry (a `WeakMap<SurfaceModel, A2uiFallbacks>`, as `HostRegistry.forSurface` does). Core's `SurfaceModel` does not change.
-3. **The adapter builds `info`.** It maps the node's state onto the category and `error.type`, and passes the type of the parent that is rendering the child as `parentComponentType`.
+2. **Reaching nested nodes.** Fallbacks belong to the surface, so every node of that surface sees them, however deeply nested and whichever path renders it. Adapters deliver them through their ambient mechanism (Flutter `InheritedWidget`, React context, SwiftUI `Environment`, Angular DI). Paths outside the framework's own tree, such as universal web elements, can't render framework views (a `ReactNode`, a `TemplateRef`) directly. For those, the adapter registers a per-surface **fallback renderer** (a callback, kept in a `WeakMap<SurfaceModel, …>` as `HostRegistry.forSurface` does). The callback turns a category and `info` into something the path can place in the DOM, such as a host element the adapter fills through a portal or an embedded view, or into nothing. Core's `SurfaceModel` does not change.
+3. **The caller supplies the context; the adapter builds `info`.** A placeholder `ComponentNode` has no `context`, so it can't reach its surface or parent. Whoever renders a child passes them in: the root `Surface`, a parent's `buildChild`, or a universal element's `renderNode`. Each passes the surface and its own type (as `parentComponentType`) to `NodeView` / `renderA2uiNode`. The adapter maps the node's state onto the category and `error.type`.
 4. **Nothing is still nothing.** A missing category, or a builder that returns null/undefined, renders nothing, with no layout footprint (§6).
 5. **Layout.** A fallback that renders UI is a real child and takes a slot like any other. Where every child needs a widget (Flutter), the adapter provides a helper for containers, for example `buildChildren(context, nodes)`, that builds each child or its fallback and leaves out the ones that render nothing. Containers in the basic catalog use it, and custom containers should too.
 6. **Identity.** A fallback renders in the node's slot, under the node's `instanceId` key. When the component arrives, the real view replaces it in place without remounting the parent.
@@ -408,7 +400,7 @@ Each of these can be added later without breaking changes:
 - `error.message`: a developer-facing description, planned together with debug-mode diagnostics.
 - Recovery: for example `error.actions: [{kind: 'retry', run}]`, once there is an error the client can recover from.
 - Boundaries: letting one fallback replace a whole ancestor subtree (for example a Card). This needs a subtree-status signal from Core.
-- Core-computed `info`: exposing the category and an error object on `ComponentNode`, so adapters don't map states themselves.
+- Core-computed `info`: exposing the category, an error object, and the surface and parent on `ComponentNode`, so adapters don't map states or pass context themselves.
 - A small helper for delayed fallbacks (for example `A2uiDelayed(delay, child)`).
 
 ---
