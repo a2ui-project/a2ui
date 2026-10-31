@@ -114,6 +114,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Restricted `@index` evaluation scope strictly to template instantiation loops (Collection Scope). Calling `@index` outside of template iteration results in an evaluation error.
 - Defined `DynamicBoolean` coercion for strings, numbers, `null`, objects and arrays, applied to properties and function arguments alike.
 - Defined the `regex` dialect and a static safety check; unsafe or unsupported patterns fail with `EXPRESSION_ERROR`.
+- A `createSurface` carrying `theme` fails strict validation; relaxed renderers drop it.
 
 ### 2.8. Terminology standardization
 

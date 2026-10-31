@@ -793,7 +793,7 @@ A shared base class should implement `extractOperations` once, covering payload 
 5. **Semantic version compatibility (`isCatalogVersionCompatible`)**: Compares protocol versions using SemVer rules rather than strict string equality. Leading `'v'` prefixes are stripped, and compatibility checks allow matching major/minor specifications while rejecting breaking mismatches, for example `v0.9` against `v1.0`. An absent catalog version is accepted for pre-v1.0 surfaces and rejected for v1.0 and later. Callers pass the version straight through and act on the result; they MUST NOT skip the call when the version is missing, since that converts an unversioned catalog into a universally compatible one.
 6. **Per-version `createSurface` fields**: Adapters extract only the fields their version defines, and MUST NOT carry a field forward into a version that removed it.
    - `root`: present in v0.8 only. The adapter extracts it into `SurfaceModel.rootId`, which the topology check uses as the tree root. Hardcoding the root id to `'root'` rejects valid v0.8 payloads that name it otherwise, and omitting `root` from `InternalCreateSurfaceOp` makes those payloads impossible to represent.
-   - `theme`: present in v0.8 and v0.9/v0.9.1 only. **v1.0 removed `theme` with no replacement field** (see [`agent_to_renderer.json`](../../specification/v1_0/json/agent_to_renderer.json)), so the v1.0 adapter MUST NOT extract it. Extracting it anyway lets a non-conformant payload through and triggers theme validation that should never run for v1.0.
+   - `theme`: present in v0.8 and v0.9/v0.9.1 only. **v1.0 removed `theme` with no replacement field** (see [`agent_to_renderer.json`](../../specification/v1_0/json/agent_to_renderer.json)), so the v1.0 adapter MUST NOT extract it. Extracting it anyway lets a non-conformant payload through and triggers theme validation that should never run for v1.0. Under strict validation a v1.0 `createSurface` carrying `theme` raises `A2uiValidationError` (`VALIDATION_FAILED`). Under `RELAXED_VALIDATION` the adapter drops the field and the surface model's `theme` stays unset.
    - `catalogId`, `sendDataModel`: present in v0.9 and later.
 
 #### Renderer vs. Agent Execution Patterns
@@ -872,7 +872,7 @@ export class PayloadValidator {
   /** Validates one function call's arguments against the catalog's schema for it. */
   validateFunction(name: string, args: Record<string, any>): void;
 
-  /** Validates theme / surfaceProperties against the catalog's theme schema. */
+  /** Validates theme / surfaceProperties against the catalog's theme schema (pre-v1.0 only). */
   validateTheme(surfaceProperties: Record<string, any> | null): void;
 }
 ```
@@ -976,7 +976,7 @@ The matrix below details the specific validation checks, their responsible compo
 | **Component Keys**       | Required `id` and `component` (type name) on creation                                             | `PayloadValidator` (Zod envelope schema)                                  | `A2uiValidationError`                      |
 | **Component Properties** | Property schema validation against catalog definition                                             | `PayloadValidator.validateComponent()`                                    | `A2uiValidationError`                      |
 | **Function Arguments**   | Function call arguments validated against the catalog's function schema                           | `PayloadValidator.validateFunction()` / `RpcHandler`                      | `A2uiValidationError`                      |
-| **Theme / Properties**   | `Theme` / `surfaceProperties` validation against catalog schema                                   | `PayloadValidator.validateTheme()`                                        | `A2uiValidationError`                      |
+| **Theme / Properties**   | `Theme` / `surfaceProperties` validation against catalog schema (pre-v1.0 only)                   | `PayloadValidator.validateTheme()`                                        | `A2uiValidationError`                      |
 | **Graph Integrity**      | Duplicate component IDs within surface                                                            | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`                       |
 | **Graph Integrity**      | Missing root component (`id="root"`)                                                              | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`                       |
 | **Graph Integrity**      | Dangling component references (pointers to missing IDs)                                           | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`                       |
