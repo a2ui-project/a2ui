@@ -694,18 +694,16 @@ public enum ConformanceTestHelper {
     let stepDicts =
       (dictionary["steps"] as? [[String: Any]])
       ?? (dictionary["validate"] as? [[String: Any]])
+    // Explicit steps carry only their own expectations. The case's `expectError` and `expect`
+    // apply to the final step, which each runner checks against `ConformanceTestCase`.
     if let stepDicts {
-      let lastIndex = stepDicts.count - 1
-      return stepDicts.enumerated().map { index, stepDictionary in
+      return stepDicts.map { stepDictionary in
         let stepPayload = (stepDictionary["payload"] ?? stepDictionary["messages"]).map {
           toJSONValue($0)
         }
-        let fallbackError = index == lastIndex ? defaultExpectError : nil
         let stepError =
           parseExpectError(stepDictionary["expect_error"] ?? stepDictionary["expectError"])
-          ?? fallbackError
-        let stepExpect =
-          (stepDictionary["expect"] as? [String: Any]).map { toJSONValue($0) } ?? defaultExpect
+        let stepExpect = (stepDictionary["expect"] as? [String: Any]).map { toJSONValue($0) }
         return ConformanceStep(payload: stepPayload, expectError: stepError, expect: stepExpect)
       }
     }
@@ -1079,6 +1077,199 @@ public struct ConformanceExpectError: Sendable {
 public typealias ConformanceExpectRendererError = ConformanceExpectError.RendererError
 
 extension ConformanceTestHelper {
+  /// Runs a `validate` case that renders components on a surface: processes each step's payload,
+  /// checks the errors a step expects, and compares the resolved properties of the expected
+  /// components.
+  ///
+  /// The case-level `expectError` and `expect` apply to the final step only.
+  @MainActor
+  public static func runValidateCase(_ testCase: ConformanceTestCase) throws {
+    // Without a declared version, `PayloadValidator` and `MessageProcessor` infer it from the
+    // catalog and the surface.
+    let targetVersion =
+      testCase.protocolVersion
+      ?? testCase.catalogConfiguration?["protocolVersion"]?.stringValue
+      ?? testCase.catalogConfiguration?["protocol_version"]?.stringValue
+    let processor = MessageProcessor(
+      catalogs: try ConformanceTestHelper.buildCatalogs(for: testCase),
+      validationConfig: ValidationConfig(targetVersion: targetVersion)
+    )
+    // Expression errors raised while resolving nodes reach the surface as `EXPRESSION_ERROR`
+    // rather than being thrown out of `processMessages`.
+    var capturedErrors: [RendererError] = []
+    processor.outboundListener = { message in
+      MainActor.assumeIsolated {
+        if case .error(let error) = message {
+          capturedErrors.append(error)
+        }
+      }
+    }
+
+    for (stepIndex, step) in testCase.steps.enumerated() {
+      guard let payload = step.payload else {
+        continue
+      }
+      capturedErrors.removeAll()
+
+      let isFinalStep = stepIndex == testCase.steps.count - 1
+      if let expectedError = step.expectError ?? (isFinalStep ? testCase.expectError : nil) {
+        assertValidateStepFails(
+          payload: payload,
+          processor: processor,
+          expectedError: expectedError,
+          capturedErrors: { capturedErrors },
+          context: "\(testCase.name) step \(stepIndex)"
+        )
+        continue
+      }
+
+      try processor.processMessages(payload)
+      #expect(
+        capturedErrors.isEmpty,
+        "\(testCase.name): unexpected error at step \(stepIndex): \(capturedErrors)"
+      )
+
+      let expectedSurfaces =
+        (step.expect ?? (isFinalStep ? testCase.expect : nil))?["surfaces"]?.objectValue ?? [:]
+      for (surfaceID, expectedSurface) in expectedSurfaces {
+        let surface = try #require(
+          processor.surfaceGroupModel[surfaceID],
+          "\(testCase.name): expected surface '\(surfaceID)'"
+        )
+        let expectedComponents = expectedSurface["components"]?.objectValue ?? [:]
+        for (componentID, expectedComponent) in expectedComponents {
+          let node = try #require(
+            surface.findNode(id: componentID),
+            "\(testCase.name): expected resolved node '\(componentID)'"
+          )
+          try assertValidateNode(
+            node,
+            matches: expectedComponent,
+            context: "\(testCase.name): '\(componentID)'"
+          )
+        }
+      }
+    }
+  }
+
+  /// Processes a `validate` step that must fail and checks the error against `expectedError`.
+  ///
+  /// A thrown error must be an `A2UIError` of the expected category. An error raised while
+  /// resolving nodes, such as an expression that fails to parse, is reported on the surface
+  /// instead of thrown; like the Dart runner, it counts as a `ValidationError`.
+  @MainActor
+  private static func assertValidateStepFails(
+    payload: JSONValue,
+    processor: MessageProcessor,
+    expectedError: ConformanceExpectError,
+    capturedErrors: () -> [RendererError],
+    context: String
+  ) {
+    var thrownError: (any Error)?
+    do {
+      try processor.processMessages(payload)
+    } catch {
+      thrownError = error
+    }
+    let reportedMessages = capturedErrors().map { error in
+      switch error {
+      case .validationFailed(let validationError): validationError.message
+      case .generic(let genericError): genericError.message
+      }
+    }
+
+    var errorMessages: [String] = []
+    if let thrownError {
+      guard let a2uiError = thrownError as? any A2UIError else {
+        Issue.record("\(context): unexpected non-A2UI error: \(thrownError)")
+        return
+      }
+      errorMessages.append(a2uiError.message)
+      if let category = expectedError.category {
+        #expect(
+          errorMatchesCategory(a2uiError, category: category),
+          "\(context): expected a \(category), got \(type(of: a2uiError)): \(a2uiError.message)"
+        )
+      }
+    } else if !reportedMessages.isEmpty, let category = expectedError.category {
+      #expect(
+        category == "ValidationError",
+        "\(context): expected a thrown \(category), got surface errors \(reportedMessages)"
+      )
+    }
+    errorMessages += reportedMessages
+
+    #expect(!errorMessages.isEmpty, "\(context): expected an error")
+    if let expectedMessage = expectedError.message {
+      #expect(
+        errorMessages.contains { messageMatches($0, expected: expectedMessage) },
+        "\(context): messages \(errorMessages) do not match '\(expectedMessage)'"
+      )
+    }
+  }
+
+  /// Whether `error` belongs to a conformance `expectError.category`, as in the Dart runner.
+  private static func errorMatchesCategory(_ error: any A2UIError, category: String) -> Bool {
+    switch category {
+    case "ValidationError":
+      error is A2UIValidationError || error is A2UIIntegrityError
+        || error is A2UIRecursionError || error is A2UICatalogError
+    case "CatalogError": error is A2UICatalogError
+    case "IntegrityError": error is A2UIIntegrityError
+    case "RecursionError": error is A2UIRecursionError
+    case "DataError": error is A2UIDataError
+    case "ParseError": error is A2UIParseError
+    default: true
+    }
+  }
+
+  /// Checks a resolved node against the expected component of a `validate` case: its type and
+  /// the text of each listed string property.
+  @MainActor
+  private static func assertValidateNode(
+    _ node: A2UICore.Node,
+    matches expectedComponent: JSONValue,
+    context: String
+  ) throws {
+    if let expectedType = expectedComponent["component"]?.stringValue {
+      #expect(
+        node.type == expectedType,
+        "\(context) has type '\(node.type)', expected '\(expectedType)'"
+      )
+    }
+    for (property, expectedValue) in expectedComponent.objectValue ?? [:]
+    where property != "component" {
+      let binding = try #require(
+        node.properties[property] as? DataBinding<String>,
+        "\(context).\(property) is not a string binding"
+      )
+      // A `Text` renders a scalar result as its JSON text.
+      let expectedText: String?
+      switch expectedValue {
+      case .string(let string):
+        expectedText = string
+      case .boolean(let boolean):
+        expectedText = String(boolean)
+      case .integer(let integer):
+        expectedText = String(integer)
+      case .number(let number):
+        expectedText = Int(exactly: number).map(String.init) ?? String(number)
+      case .null:
+        expectedText = nil
+      case .array, .object:
+        Issue.record("\(context).\(property): unsupported expected value \(expectedValue)")
+        continue
+      }
+      #expect(
+        binding.value == expectedText,
+        """
+        \(context).\(property) is \(String(describing: binding.value)), \
+        expected \(String(describing: expectedText))
+        """
+      )
+    }
+  }
+
   public static func parsePayload(_ payload: JSONValue) throws -> [AgentToRendererMessage] {
     let data = try JSONEncoder().encode(payload)
     let decoder = JSONDecoder()
