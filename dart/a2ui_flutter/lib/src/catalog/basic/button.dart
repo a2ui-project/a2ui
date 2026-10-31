@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 
 import '../../component_implementation.dart';
 import '../../component_props.dart';
+import 'text.dart';
 
 /// Builds the basic `Button` component: an [OutlinedButton], a [FilledButton]
 /// for the `primary` variant or a [TextButton] for `borderless`, which runs
@@ -32,13 +33,18 @@ Widget buildButton(
   final ComponentNode<ComponentImplementation>? child = props.child('child');
   final Widget label = child == null
       ? const SizedBox.shrink()
-      : buildChild(child);
+      : ExcludeHeadingSemantics(child: buildChild(child));
   final VoidCallback? onPressed = props.isValid ? props.action('action') : null;
-  final Widget button = switch (props.string('variant')) {
-    'primary' => FilledButton(onPressed: onPressed, child: label),
-    'borderless' => TextButton(onPressed: onPressed, child: label),
-    _ => OutlinedButton(onPressed: onPressed, child: label),
-  };
+  // Merged, so the button takes its name from a child that is a semantics
+  // container of its own, such as a labelled component. A heading Text in the
+  // child is not marked as a heading, so the button does not become one.
+  final Widget button = MergeSemantics(
+    child: switch (props.string('variant')) {
+      'primary' => FilledButton(onPressed: onPressed, child: label),
+      'borderless' => TextButton(onPressed: onPressed, child: label),
+      _ => OutlinedButton(onPressed: onPressed, child: label),
+    },
+  );
   final String? reason = props.isValid
       ? null
       : props.validationErrors.firstOrNull;
