@@ -49,8 +49,9 @@ final class AudioPlayerModel: ObservableObject {
   func load(urlString: String) {
     guard urlString != currentURLString else { return }
     cleanup()
+    // Leave `currentURLString` empty for a rejected URL so `togglePlay()` does not retry it.
+    guard let url = BasicCatalog.sanitizeMediaURL(urlString) else { return }
     currentURLString = urlString
-    guard let url = URL(string: urlString), !urlString.isEmpty else { return }
 
     let playerItem = AVPlayerItem(url: url)
     let newPlayer = AVPlayer(playerItem: playerItem)
