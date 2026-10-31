@@ -40,55 +40,124 @@ struct AccessibilityConformanceTests {
   /// at the referenced paths.
   private static let dataModelRounds = 2
 
+  private static let knownCaseKeys: Set<String> = [
+    "action",
+    "assertions",
+    "catalogPath",
+    "messages",
+    "protocolVersion",
+    "steps",
+    "surface",
+  ]
+
+  private static let knownAssertionsKeys: Set<String> = [
+    "accessibilityTree",
+    "axeCore",
+  ]
+
+  private static let knownStepKeys: Set<String> = [
+    "assertions",
+    "messages",
+  ]
+
   @Test func accessibilityConformance() throws {
-    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/accessibility.yaml")
-    let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
+    let cases = ConformanceTestHelper.cases("core/accessibility.yaml")
+    #expect(!cases.isEmpty, "Should find test cases in accessibility.yaml")
 
-    #expect(!testCases.isEmpty, "Should find test cases in accessibility.yaml")
-
-    var checkedFields = 0
-    var checkedReferences = 0
-
-    for testCase in testCases {
-      guard testCase.action == "accessibility_check" else {
-        Issue.record("[\(testCase.name)] Unhandled action '\(testCase.action ?? "")'")
-        continue
-      }
-      guard let surfaceDefinition = testCase.surface else {
-        Issue.record("[\(testCase.name)] The case has no surface")
-        continue
-      }
-      guard let expectedTree = testCase.assertions?["accessibilityTree"]?.objectValue else {
-        Issue.record("[\(testCase.name)] The case has no accessibilityTree assertions")
-        continue
-      }
-
-      let surface = try makeSurface(testCase: testCase, surfaceDefinition: surfaceDefinition)
-
-      let references = dataModelReferences(in: expectedTree, testCase: testCase)
-      guard !references.isEmpty else {
-        checkedFields += check(expectedTree, on: surface, testCase: testCase)
-        continue
-      }
-      let sortedReferences = references.sorted { $0.key < $1.key }
-      for round in 0..<Self.dataModelRounds {
-        for (index, (path, field)) in sortedReferences.enumerated() {
-          guard
-            let value = sampleValue(for: field, path: path, index: index, round: round)
-          else {
-            Issue.record(
-              "[\(testCase.name)] No sample value for field '\(field)' bound to '\(path)'")
-            continue
-          }
-          surface.dataModel.set(path, value: value)
-          checkedReferences += 1
-        }
-        checkedFields += check(expectedTree, on: surface, testCase: testCase)
+    for conformanceCase in cases {
+      try ConformanceManifest.run(conformanceCase) {
+        try runSingleAccessibilityCase(conformanceCase)
       }
     }
+  }
 
-    #expect(checkedFields > 0, "no accessibilityTree assertion of the suite was checked")
-    #expect(checkedReferences > 0, "no data model reference of the suite was checked")
+  private func runSingleAccessibilityCase(_ conformanceCase: ConformanceCase) throws {
+    try validateCaseStructure(conformanceCase)
+    let testCase = try #require(
+      conformanceCase.parsedTestCase(),
+      "[\(conformanceCase.name)] Could not parse accessibility case"
+    )
+    guard testCase.action == "accessibility_check" else {
+      Issue.record("[\(testCase.name)] Unhandled action '\(testCase.action ?? "")'")
+      throw UnknownConformanceKeyError(
+        "[\(testCase.name)] Unhandled action '\(testCase.action ?? "")'"
+      )
+    }
+    let surfaceDefinition = try #require(
+      testCase.surface,
+      "[\(testCase.name)] The case has no surface"
+    )
+    let expectedTree = try #require(
+      testCase.assertions?["accessibilityTree"]?.objectValue,
+      "[\(testCase.name)] The case has no accessibilityTree assertions"
+    )
+
+    let surface = try makeSurface(testCase: testCase, surfaceDefinition: surfaceDefinition)
+    let references = dataModelReferences(in: expectedTree, testCase: testCase)
+    if references.isEmpty {
+      let checkedFields = try check(expectedTree, on: surface, testCase: testCase)
+      #expect(checkedFields > 0, "[\(testCase.name)] no accessibilityTree assertion was checked")
+      return
+    }
+    try checkDataModelRounds(
+      expectedTree: expectedTree,
+      references: references,
+      surface: surface,
+      testCase: testCase
+    )
+  }
+
+  private func validateCaseStructure(_ conformanceCase: ConformanceCase) throws {
+    let rawDict = conformanceCase.rawDictionary
+    try ConformanceTestHelper.assertKnownKeys(
+      rawDict,
+      Self.knownCaseKeys,
+      "core/accessibility.yaml case '\(conformanceCase.name)'"
+    )
+    if let assertions = rawDict["assertions"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        assertions,
+        Self.knownAssertionsKeys,
+        "core/accessibility.yaml assertions in '\(conformanceCase.name)'",
+        allowMetadata: false
+      )
+    }
+    if let steps = rawDict["steps"] as? [[String: Any]] {
+      for (index, step) in steps.enumerated() {
+        try ConformanceTestHelper.assertKnownKeys(
+          step,
+          Self.knownStepKeys,
+          "core/accessibility.yaml step[\(index)] in '\(conformanceCase.name)'"
+        )
+      }
+    }
+  }
+
+  private func checkDataModelRounds(
+    expectedTree: OrderedDictionary<String, JSONValue>,
+    references: [String: String],
+    surface: SurfaceViewModel,
+    testCase: ConformanceTestCase
+  ) throws {
+    let sortedReferences = references.sorted { $0.key < $1.key }
+    var checkedFields = 0
+    var checkedReferences = 0
+    for round in 0..<Self.dataModelRounds {
+      for (index, (path, field)) in sortedReferences.enumerated() {
+        let value = try sampleValue(
+          for: field,
+          path: path,
+          index: index,
+          round: round,
+          testName: testCase.name
+        )
+        surface.dataModel.set(path, value: value)
+        checkedReferences += 1
+      }
+      checkedFields += try check(expectedTree, on: surface, testCase: testCase)
+    }
+    #expect(checkedFields > 0, "[\(testCase.name)] no accessibilityTree assertion was checked")
+    #expect(checkedReferences > 0, "[\(testCase.name)] no data model reference was checked")
   }
 
   /// Creates a surface with the case's catalogs and adds the case's components to it.
@@ -148,7 +217,7 @@ struct AccessibilityConformanceTests {
     _ expectedTree: OrderedDictionary<String, JSONValue>,
     on surface: SurfaceViewModel,
     testCase: ConformanceTestCase
-  ) -> Int {
+  ) throws -> Int {
     guard surface.rootNode != nil else {
       Issue.record("[\(testCase.name)] The surface resolved no tree")
       return 0
@@ -159,61 +228,92 @@ struct AccessibilityConformanceTests {
         Issue.record("[\(testCase.name)] Expectation for '\(componentID)' is not an object")
         continue
       }
-      guard
-        let node = surface.findNode(id: componentID)
-          ?? resolveDetached(componentID: componentID, on: surface)
-      else {
-        Issue.record("[\(testCase.name)] Component '\(componentID)' could not be resolved")
-        continue
-      }
-      let attributes = node.accessibilityAttributes
-      for (field, expectedShape) in expectedFields {
-        guard !Self.rendererOnlyFields.contains(field) else { continue }
-        let actual: JSONValue?
-        switch field {
-        case "label": actual = attributes?.label.map(JSONValue.string)
-        case "description": actual = attributes?.description.map(JSONValue.string)
-        case "live": actual = attributes?.live.map(JSONValue.string)
-        case "hidden": actual = attributes?.hidden.map(JSONValue.boolean)
-        default:
-          Issue.record("[\(testCase.name)] Unhandled field '\(field)' for '\(componentID)'")
-          continue
-        }
-        guard
-          let expected = resolveExpectation(
-            expectedShape,
-            dataModel: surface.dataModel,
-            context: "[\(testCase.name)] \(componentID).\(field)"
-          )
-        else { continue }
-        #expect(
-          actual == expected,
-          """
-          [\(testCase.name)] Expected \(field) \(expected) for '\(componentID)', \
-          got \(actual.map { "\($0)" } ?? "nil")
-          """
-        )
-        checkedFields += 1
-      }
+      checkedFields += try checkComponentFields(
+        componentID: componentID,
+        expectedFields: expectedFields,
+        on: surface,
+        testCase: testCase
+      )
     }
     return checkedFields
   }
 
+  private func checkComponentFields(
+    componentID: String,
+    expectedFields: OrderedDictionary<String, JSONValue>,
+    on surface: SurfaceViewModel,
+    testCase: ConformanceTestCase
+  ) throws -> Int {
+    guard
+      let node = surface.findNode(id: componentID)
+        ?? resolveDetached(componentID: componentID, on: surface)
+    else {
+      Issue.record("[\(testCase.name)] Component '\(componentID)' could not be resolved")
+      return 0
+    }
+    let attributes = node.accessibilityAttributes
+    var checkedFields = 0
+    for (field, expectedShape) in expectedFields {
+      guard !Self.rendererOnlyFields.contains(field) else { continue }
+      let actual = try actualFieldValue(
+        field: field,
+        attributes: attributes,
+        componentID: componentID,
+        testName: testCase.name
+      )
+      guard
+        let expected = try resolveExpectation(
+          expectedShape,
+          dataModel: surface.dataModel,
+          context: "[\(testCase.name)] \(componentID).\(field)"
+        )
+      else { continue }
+      #expect(
+        actual == expected,
+        """
+        [\(testCase.name)] Expected \(field) \(expected) for '\(componentID)', \
+        got \(actual.map { "\($0)" } ?? "nil")
+        """
+      )
+      checkedFields += 1
+    }
+    return checkedFields
+  }
+
+  private func actualFieldValue(
+    field: String,
+    attributes: AccessibilityAttributes?,
+    componentID: String,
+    testName: String
+  ) throws -> JSONValue? {
+    switch field {
+    case "label": return attributes?.label.map(JSONValue.string)
+    case "description": return attributes?.description.map(JSONValue.string)
+    case "live": return attributes?.live.map(JSONValue.string)
+    case "hidden": return attributes?.hidden.map(JSONValue.boolean)
+    default:
+      Issue.record("[\(testName)] Unhandled field '\(field)' for '\(componentID)'")
+      throw UnknownConformanceKeyError(
+        "[\(testName)] Unhandled field '\(field)' for '\(componentID)'"
+      )
+    }
+  }
+
   /// Returns the value an expectation stands for: a string or a boolean as is, or the data model
-  /// value at the path of a `{path}` or `{"@path"}` reference. Records an issue and returns `nil`
-  /// for any other shape, and for a reference to a path that has no value.
+  /// value at the path of a `{path}` or `{"@path"}` reference. Throws for any other shape, and
+  /// records an issue and returns `nil` for a reference to a path that has no value.
   private func resolveExpectation(
     _ shape: JSONValue,
     dataModel: DataModel,
     context: String
-  ) -> JSONValue? {
+  ) throws -> JSONValue? {
     switch shape {
     case .string, .boolean:
       return shape
     default:
       guard let path = referencedPath(in: shape) else {
         Issue.record("\(context): unhandled expectation shape \(shape)")
-        return nil
+        throw UnknownConformanceKeyError("\(context): unhandled expectation shape \(shape)")
       }
       guard let value = dataModel.get(path) else {
         Issue.record("\(context): the data model has no value at '\(path)'")
@@ -256,14 +356,19 @@ struct AccessibilityConformanceTests {
     for field: String,
     path: String,
     index: Int,
-    round: Int
-  ) -> JSONValue? {
+    round: Int,
+    testName: String
+  ) throws -> JSONValue {
     let isEvenStep = (round + index).isMultiple(of: 2)
     switch field {
     case "label", "description": return .string("\(field) \(path) \(round)")
     case "live": return .string(isEvenStep ? "polite" : "assertive")
     case "hidden": return .boolean(isEvenStep)
-    default: return nil
+    default:
+      Issue.record("[\(testName)] No sample value for field '\(field)' bound to '\(path)'")
+      throw UnknownConformanceKeyError(
+        "[\(testName)] No sample value for field '\(field)' bound to '\(path)'"
+      )
     }
   }
 

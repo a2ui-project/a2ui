@@ -19,9 +19,34 @@ import Foundation
 import OrderedJSON
 import Testing
 
-/// Runs the shared `conformance/core/data_model.yaml` and `conformance/core/data_deletion.yaml` suites.
+/// Runs the shared `conformance/core/data_model.yaml` suite.
 @MainActor
 struct DataModelConformanceTests {
+  private static let knownCaseKeys: Set<String> = [
+    "action",
+    "catalog",
+    "initial",
+    "steps",
+    "watch",
+  ]
+
+  private static let knownStepKeys: Set<String> = [
+    "expect",
+    "expect_absent",
+    "expect_error",
+    "expect_notified",
+    "expect_type",
+    "expect_values",
+    "op",
+    "path",
+    "value",
+  ]
+
+  private static let knownExpectErrorKeys: Set<String> = [
+    "category",
+    "message",
+  ]
+
   @MainActor
   private final class Observer {
     let path: String
@@ -44,81 +69,144 @@ struct DataModelConformanceTests {
   }
 
   @Test func dataModelConformance() throws {
-    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/data_model.yaml")
-    let cases = (rawYAML as? [[String: Any]]) ?? []
+    let cases = ConformanceTestHelper.cases("core/data_model.yaml")
     #expect(!cases.isEmpty, "core/data_model.yaml should hold test cases")
 
-    for testCase in cases {
-      let name = testCase["name"] as? String ?? "<unnamed>"
-      let steps = testCase["steps"] as? [[String: Any]] ?? []
-
-      let initial =
-        testCase["initial"].map { ConformanceTestHelper.toJSONValue($0) } ?? .object([:])
-      let model = DataModel(initial: initial)
-
-      var observers: [Observer] = []
-      if let watchPaths = testCase["watch"] as? [String] {
-        for watchPath in watchPaths {
-          observers.append(try Observer(model: model, path: watchPath))
-        }
+    for conformanceCase in cases {
+      try ConformanceManifest.run(conformanceCase) {
+        try runDataModelCase(conformanceCase.rawDictionary, name: conformanceCase.name)
       }
+    }
+  }
 
-      for (index, step) in steps.enumerated() {
-        for observer in observers {
-          observer.changeCount = 0
-        }
+  private func runDataModelCase(_ testCase: [String: Any], name: String) throws {
+    try ConformanceTestHelper.assertKnownKeys(
+      testCase,
+      Self.knownCaseKeys,
+      "data_model.yaml case '\(name)'"
+    )
+    let action = testCase["action"] as? String ?? ""
+    guard action == "data_model" else {
+      throw UnknownConformanceKeyError("[\(name)] Unknown data_model.yaml action '\(action)'")
+    }
+    let steps = testCase["steps"] as? [[String: Any]] ?? []
+    let initial = testCase["initial"].map { ConformanceTestHelper.toJSONValue($0) } ?? .object([:])
+    let model = DataModel(initial: initial)
 
-        let operation = step["op"] as? String ?? ""
-        let path = step["path"] as? String ?? "/"
-        let location = "\(name) step \(index) (\(operation) \(path))"
-
-        if let expectError = step["expect_error"] as? [String: Any] {
-          let expectedSubstring = expectError["message"] as? String
-          do {
-            try applyOp(model: model, step: step, location: location)
-            Issue.record("\(location): expected DataError, but succeeded")
-          } catch let error as A2UIDataError {
-            if let expectedSubstring {
-              #expect(
-                error.message.contains(expectedSubstring),
-                "\(location): expected error containing '\(expectedSubstring)', got '\(error.message)'"
-              )
-            }
-          } catch {
-            Issue.record("\(location): expected A2UIDataError, got \(error)")
-          }
-          continue
-        }
-
-        try applyOp(model: model, step: step, location: location)
-
-        if let expectedNotified = step["expect_notified"] as? [String] {
-          var actualNotified: [String] = []
-          for observer in observers where observer.changeCount > 0 {
-            for _ in 0..<observer.changeCount {
-              actualNotified.append(observer.path)
-            }
-          }
-          #expect(
-            actualNotified.sorted() == expectedNotified.sorted(),
-            "\(location): notified \(actualNotified), expected \(expectedNotified)"
-          )
-        }
-
-        if let expectedValues = step["expect_values"] as? [String: Any] {
-          for (watchedPath, rawExpected) in expectedValues {
-            guard let observer = observers.first(where: { $0.path == watchedPath }) else {
-              Issue.record("\(location): \(watchedPath) is not watched")
-              continue
-            }
-            let expectedVal = ConformanceTestHelper.toJSONValue(rawExpected)
-            #expect(
-              observer.currentValue == expectedVal,
-              "\(location) (\(watchedPath)): got \(String(describing: observer.currentValue)), expected \(expectedVal)"
-            )
-          }
-        }
+    var observers: [Observer] = []
+    if let watchPaths = testCase["watch"] as? [String] {
+      for watchPath in watchPaths {
+        observers.append(try Observer(model: model, path: watchPath))
       }
+    }
+
+    for (index, step) in steps.enumerated() {
+      try runDataModelStep(
+        step,
+        index: index,
+        model: model,
+        observers: observers,
+        caseName: name
+      )
+    }
+  }
+
+  private func runDataModelStep(
+    _ step: [String: Any],
+    index: Int,
+    model: DataModel,
+    observers: [Observer],
+    caseName: String
+  ) throws {
+    try ConformanceTestHelper.assertKnownKeys(
+      step,
+      Self.knownStepKeys,
+      "data_model.yaml step \(index) in '\(caseName)'",
+      allowMetadata: false
+    )
+    for observer in observers {
+      observer.changeCount = 0
+    }
+
+    let operation = step["op"] as? String ?? ""
+    let path = step["path"] as? String ?? "/"
+    let location = "\(caseName) step \(index) (\(operation) \(path))"
+
+    if let expectError = step["expect_error"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        expectError,
+        Self.knownExpectErrorKeys,
+        "data_model.yaml expect_error at \(location)",
+        allowMetadata: false
+      )
+      assertStepError(model: model, step: step, expectError: expectError, location: location)
+      return
+    }
+
+    try applyOp(model: model, step: step, location: location)
+    assertStepNotifications(step: step, observers: observers, location: location)
+    assertStepWatchedValues(step: step, observers: observers, location: location)
+  }
+
+  private func assertStepError(
+    model: DataModel,
+    step: [String: Any],
+    expectError: [String: Any],
+    location: String
+  ) {
+    let expectedSubstring = expectError["message"] as? String
+    do {
+      try applyOp(model: model, step: step, location: location)
+      Issue.record("\(location): expected DataError, but succeeded")
+    } catch let error as A2UIDataError {
+      if let expectedSubstring {
+        #expect(
+          error.message.contains(expectedSubstring),
+          "\(location): expected error containing '\(expectedSubstring)', got '\(error.message)'"
+        )
+      }
+    } catch {
+      Issue.record("\(location): expected A2UIDataError, got \(error)")
+    }
+  }
+
+  private func assertStepNotifications(
+    step: [String: Any],
+    observers: [Observer],
+    location: String
+  ) {
+    guard let expectedNotified = step["expect_notified"] as? [String] else { return }
+    var actualNotified: [String] = []
+    for observer in observers where observer.changeCount > 0 {
+      for _ in 0..<observer.changeCount {
+        actualNotified.append(observer.path)
+      }
+    }
+    #expect(
+      actualNotified.sorted() == expectedNotified.sorted(),
+      "\(location): notified \(actualNotified), expected \(expectedNotified)"
+    )
+  }
+
+  private func assertStepWatchedValues(
+    step: [String: Any],
+    observers: [Observer],
+    location: String
+  ) {
+    guard let expectedValues = step["expect_values"] as? [String: Any] else { return }
+    for (watchedPath, rawExpected) in expectedValues {
+      guard let observer = observers.first(where: { $0.path == watchedPath }) else {
+        Issue.record("\(location): \(watchedPath) is not watched")
+        continue
+      }
+      let expectedVal = ConformanceTestHelper.toJSONValue(rawExpected)
+      #expect(
+        observer.currentValue == expectedVal,
+        """
+        \(location) (\(watchedPath)): got \(String(describing: observer.currentValue)), \
+        expected \(expectedVal)
+        """
+      )
     }
   }
 
@@ -132,28 +220,7 @@ struct DataModelConformanceTests {
 
     switch operation {
     case "get":
-      let actual = try model.getThrowing(path)
-      if let expected = step["expect"] {
-        #expect(
-          actual == ConformanceTestHelper.toJSONValue(expected),
-          "\(location): got \(actual.map { "\($0)" } ?? "nil")"
-        )
-      }
-      if (step["expect_absent"] as? Bool) == true {
-        #expect(
-          actual == nil || actual == .null,
-          "\(location): expected nothing, got \(actual.map { "\($0)" } ?? "nil")"
-        )
-      }
-      if let expectedType = step["expect_type"] as? String {
-        let matches =
-          (expectedType == "list" && actual?.arrayValue != nil)
-          || (expectedType == "object" && actual?.objectValue != nil)
-        #expect(
-          matches,
-          "\(location): expected a \(expectedType), got \(actual.map { "\($0)" } ?? "nil")"
-        )
-      }
+      try applyGetOp(model: model, path: path, step: step, location: location)
     case "set":
       let val =
         step.keys.contains("value")
@@ -165,39 +232,38 @@ struct DataModelConformanceTests {
     case "dispose":
       model.dispose()
     default:
-      Issue.record("\(location): unknown op")
+      Issue.record("\(location): unknown op '\(operation)'")
+      throw UnknownConformanceKeyError("\(location): unknown op '\(operation)'")
     }
   }
 
-  @Test func dataDeletionConformance() throws {
-    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/data_deletion.yaml")
-    let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
-
-    #expect(!testCases.isEmpty, "Should load test cases from data_deletion.yaml")
-
-    for testCase in testCases {
-      let processor = MessageProcessor(
-        catalogs: ConformanceTestHelper.basicCatalogs(for: .v10),
-        validationConfig: ValidationConfig(targetVersion: "1.0")
+  private func applyGetOp(
+    model: DataModel,
+    path: String,
+    step: [String: Any],
+    location: String
+  ) throws {
+    let actual = try model.getThrowing(path)
+    if let expected = step["expect"] {
+      #expect(
+        actual == ConformanceTestHelper.toJSONValue(expected),
+        "\(location): got \(actual.map { "\($0)" } ?? "nil")"
       )
-
-      for step in testCase.steps {
-        guard let payload = step.payload else { continue }
-        let messages = try ConformanceTestHelper.parsePayload(payload)
-        processor.process(messages: messages)
-      }
-
-      if let expectSurfaces = testCase.expect?["surfaces"]?.objectValue {
-        for (surfaceID, expectedSurface) in expectSurfaces {
-          if let expectedDataModel = expectedSurface["dataModel"] {
-            let actualDataModel = processor.getRendererDataModel(surfaceID: surfaceID)
-            #expect(
-              actualDataModel == expectedDataModel,
-              "[\(testCase.name)] Data model for \(surfaceID) did not match expected"
-            )
-          }
-        }
-      }
+    }
+    if (step["expect_absent"] as? Bool) == true {
+      #expect(
+        actual == nil || actual == .null,
+        "\(location): expected nothing, got \(actual.map { "\($0)" } ?? "nil")"
+      )
+    }
+    if let expectedType = step["expect_type"] as? String {
+      let matches =
+        (expectedType == "list" && actual?.arrayValue != nil)
+        || (expectedType == "object" && actual?.objectValue != nil)
+      #expect(
+        matches,
+        "\(location): expected a \(expectedType), got \(actual.map { "\($0)" } ?? "nil")"
+      )
     }
   }
 }

@@ -27,22 +27,63 @@ private struct LoadedCatalogInfo {
   let resolvedProtocolVersion: String
 }
 
-/// Runs the shared `conformance/core/catalog.yaml` suite.
+/// Runs the shared `conformance/core/catalog.yaml` suite (non-`derive` actions).
 struct CatalogConformanceTests {
+  static let supportedActions: Set<String> = [
+    "from_json",
+    "round_trip",
+    "to_json",
+    "validation_schema",
+  ]
+
+  private static let knownCaseKeys: Set<String> = [
+    "action",
+    "builtinCatalog",
+    "catalog",
+    "catalogId",
+    "catalogPath",
+    "expect",
+    "expectError",
+    "expectFile",
+    "protocolVersion",
+  ]
+
+  private static let knownFromJSONExpectKeys: Set<String> = [
+    "catalogId",
+    "componentMetadata",
+    "components",
+    "functions",
+    "invalidComponents",
+    "matchesBuiltinCatalog",
+    "protocolVersion",
+    "selfContained",
+    "validComponents",
+  ]
+
+  private static let knownExpectErrorKeys: Set<String> = [
+    "category",
+    "message",
+  ]
+
   @Test func catalogConformance() throws {
-    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/catalog.yaml")
-    let cases = (rawYAML as? [[String: Any]]) ?? []
+    let cases = ConformanceTestHelper.cases("core/catalog.yaml", actions: Self.supportedActions)
     #expect(!cases.isEmpty, "core/catalog.yaml should hold test cases")
 
-    var executed = 0
-    for testCase in cases {
+    for conformanceCase in cases {
+      let testCase = conformanceCase.rawDictionary
       let version = testCase["protocolVersion"] as? String
-      if version == "v0.8" { continue }
-      let action = testCase["action"] as? String ?? "from_json"
-      try dispatchCatalogCase(testCase, action: action)
-      executed += 1
+      let skippedReason =
+        version == "v0.8" ? "protocol version v0.8 is not supported by A2UICore" : nil
+      try ConformanceManifest.run(conformanceCase, skippedReason: skippedReason) {
+        try ConformanceTestHelper.assertKnownKeys(
+          testCase,
+          Self.knownCaseKeys,
+          "catalog.yaml case '\(conformanceCase.name)'"
+        )
+        let action = testCase["action"] as? String ?? ""
+        try dispatchCatalogCase(testCase, action: action)
+      }
     }
-    #expect(executed > 0, "Should execute catalog conformance cases")
   }
 
   private func dispatchCatalogCase(_ testCase: [String: Any], action: String) throws {
@@ -56,7 +97,7 @@ struct CatalogConformanceTests {
     case "validation_schema":
       try runValidationSchemaCase(testCase)
     default:
-      break
+      throw UnknownConformanceKeyError("Unknown catalog.yaml action '\(action)'")
     }
   }
 
@@ -64,6 +105,14 @@ struct CatalogConformanceTests {
 
   private func runFromJSONCase(_ testCase: [String: Any]) throws {
     let name = testCase["name"] as? String ?? "<unnamed>"
+    if let errDict = (testCase["expectError"] ?? testCase["expect_error"]) as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        errDict,
+        Self.knownExpectErrorKeys,
+        "catalog.yaml expectError in '\(name)'",
+        allowMetadata: false
+      )
+    }
     let expectError = ConformanceTestHelper.parseExpectError(
       testCase["expectError"] ?? testCase["expect_error"]
     )
@@ -73,6 +122,12 @@ struct CatalogConformanceTests {
     }
     let loaded = try loadCatalogFromTestCase(testCase)
     if let expect = testCase["expect"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        expect,
+        Self.knownFromJSONExpectKeys,
+        "catalog.yaml expect in '\(name)'",
+        allowMetadata: false
+      )
       try assertFromJSONExpectations(loaded, expect: expect, caseName: name)
     }
   }
@@ -270,7 +325,10 @@ struct CatalogConformanceTests {
     if let obj = node.objectValue {
       if let ref = obj["$ref"]?.stringValue, !isSupportedV10Ref(ref) {
         throw A2UICatalogError(
-          "Unsupported external $ref '\(ref)' at \(pointer)/$ref: a v1.0 catalog may only reference its own components and functions (#/...) or common_types.json."
+          """
+          Unsupported external $ref '\(ref)' at \(pointer)/$ref: a v1.0 catalog may only \
+          reference its own components and functions (#/...) or common_types.json.
+          """
         )
       }
       for (key, value) in obj {
@@ -491,7 +549,8 @@ struct CatalogConformanceTests {
     if let expectedVersion = expect["protocolVersion"] as? String {
       let normalizedExpected = expectedVersion == "v1.0" ? "1.0" : expectedVersion
       #expect(
-        loaded.resolvedProtocolVersion == normalizedExpected || loaded.resolvedProtocolVersion == expectedVersion,
+        loaded.resolvedProtocolVersion == normalizedExpected
+          || loaded.resolvedProtocolVersion == expectedVersion,
         "[\(caseName)] protocolVersion mismatch"
       )
     }
@@ -544,7 +603,10 @@ struct CatalogConformanceTests {
     if let expectedNames = rawExpected as? [String] {
       #expect(
         Set(catalog.components.keys) == Set(expectedNames),
-        "[\(caseName)] Expected component names \(expectedNames), got \(Array(catalog.components.keys))"
+        """
+        [\(caseName)] Expected component names \(expectedNames), \
+        got \(Array(catalog.components.keys))
+        """
       )
       return
     }
@@ -568,10 +630,12 @@ struct CatalogConformanceTests {
     caseName: String
   ) {
     if let expParents = spec["allowedParents"] as? [String] {
-      #expect(comp.allowedParents == expParents, "[\(caseName)] \(comp.name) allowedParents mismatch")
+      #expect(
+        comp.allowedParents == expParents, "[\(caseName)] \(comp.name) allowedParents mismatch")
     }
     if let expChildren = spec["allowedChildren"] as? [String] {
-      #expect(comp.allowedChildren == expChildren, "[\(caseName)] \(comp.name) allowedChildren mismatch")
+      #expect(
+        comp.allowedChildren == expChildren, "[\(caseName)] \(comp.name) allowedChildren mismatch")
     }
     if let expDesc = spec["description"] as? String {
       let actualDesc =
@@ -676,7 +740,9 @@ struct CatalogConformanceTests {
     if let invalidComps = expect["invalidComponents"] as? [[String: Any]] {
       for comp in invalidComps {
         let jsonComp = ConformanceTestHelper.toJSONValue(comp)
-        #expect(throws: (any Error).self, "[\(caseName)] Expected component \(comp) to fail validation") {
+        #expect(
+          throws: (any Error).self, "[\(caseName)] Expected component \(comp) to fail validation"
+        ) {
           try validator.validateComponent(jsonComp)
         }
       }

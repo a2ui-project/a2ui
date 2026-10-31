@@ -33,6 +33,38 @@ private final class ValidatorErrorCaptureHandler: ActionHandling, @unchecked Sen
 
 @MainActor
 struct ValidatorConformanceTests {
+  private static let knownCaseKeys: Set<String> = [
+    "action",
+    "catalog",
+    "catalogPaths",
+    "expect",
+    "expectError",
+    "messages",
+    "payload",
+    "protocolVersion",
+    "steps",
+    "strictMode",
+    "validationConfig",
+  ]
+
+  private static let knownStepKeys: Set<String> = [
+    "expect",
+    "expectError",
+    "messages",
+    "payload",
+  ]
+
+  private static let knownExpectErrorKeys: Set<String> = [
+    "category",
+    "code",
+    "details",
+    "functionCallId",
+    "message",
+    "path",
+    "rendererError",
+    "surfaceId",
+  ]
+
   @Test func validatorConformance() throws {
     try runValidatorSuite(filename: "core/validator_v0_9.yaml", versionPrefix: "v0.9")
   }
@@ -44,47 +76,85 @@ struct ValidatorConformanceTests {
   @Test func errorResponsesConformance() throws {
     try runValidatorSuite(filename: "core/error_responses.yaml", versionPrefix: nil)
   }
+
   private func runValidatorSuite(filename: String, versionPrefix: String?) throws {
-    let rawYAML = try ConformanceTestHelper.loadYAML(filename: filename)
-    let testCases = ConformanceTestHelper.parseTestCases(from: rawYAML)
-    #expect(!testCases.isEmpty, "\(filename) should hold test cases")
+    let cases = ConformanceTestHelper.cases(filename)
+    #expect(!cases.isEmpty, "\(filename) should hold test cases")
 
-    var executedSteps = 0
-
-    for testCase in testCases where matchesSuiteFilter(testCase, versionPrefix: versionPrefix) {
-      let targetVersion = resolveTargetVersion(for: testCase, versionPrefix: versionPrefix)
-      let config = makeValidationConfig(
-        strictMode: testCase.strictMode,
-        targetVersion: targetVersion
-      )
-      let catalogs = try buildCatalogsWithAliases(for: testCase)
-      let handler = ValidatorErrorCaptureHandler()
-      let processor = MessageProcessor(
-        catalogs: catalogs,
-        actionHandler: handler,
-        validationConfig: config
-      )
-
-      executedSteps += try executeValidationSteps(
-        for: testCase,
-        processor: processor,
-        handler: handler
-      )
+    for conformanceCase in cases {
+      try ConformanceManifest.run(conformanceCase) {
+        try runSingleValidatorCase(conformanceCase, versionPrefix: versionPrefix)
+      }
     }
-
-    #expect(executedSteps > 0, "no step of \(filename) was executed")
   }
 
-  private func matchesSuiteFilter(_ testCase: ConformanceTestCase, versionPrefix: String?) -> Bool {
-    guard testCase.action == "validate" else { return false }
-    guard let versionPrefix else { return true }
-    if let pv = testCase.protocolVersion {
-      if versionPrefix == "v1.0" || versionPrefix == "1.0" {
-        return pv.hasPrefix("1.0") || pv.hasPrefix("v1.0")
-      }
-      return pv.hasPrefix(versionPrefix)
+  private func runSingleValidatorCase(
+    _ conformanceCase: ConformanceCase,
+    versionPrefix: String?
+  ) throws {
+    try validateCaseStructure(conformanceCase)
+    let testCase = try #require(
+      conformanceCase.parsedTestCase(),
+      "[\(conformanceCase.name)] Could not parse validator case"
+    )
+    guard testCase.action == "validate" else {
+      throw UnknownConformanceKeyError(
+        "[\(conformanceCase.name)] Unknown validator action '\(testCase.action)'"
+      )
     }
-    return true
+    let targetVersion = resolveTargetVersion(for: testCase, versionPrefix: versionPrefix)
+    let config = makeValidationConfig(
+      strictMode: testCase.strictMode,
+      targetVersion: targetVersion
+    )
+    let catalogs = try buildCatalogsWithAliases(for: testCase)
+    let handler = ValidatorErrorCaptureHandler()
+    let processor = MessageProcessor(
+      catalogs: catalogs,
+      actionHandler: handler,
+      validationConfig: config
+    )
+
+    _ = try executeValidationSteps(
+      for: testCase,
+      processor: processor,
+      handler: handler
+    )
+  }
+
+  private func validateCaseStructure(_ conformanceCase: ConformanceCase) throws {
+    let rawDict = conformanceCase.rawDictionary
+    try ConformanceTestHelper.assertKnownKeys(
+      rawDict,
+      Self.knownCaseKeys,
+      "\(conformanceCase.suite) case '\(conformanceCase.name)'"
+    )
+    if let errDict = rawDict["expectError"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        errDict,
+        Self.knownExpectErrorKeys,
+        "\(conformanceCase.suite) expectError in '\(conformanceCase.name)'",
+        allowMetadata: false
+      )
+    }
+    if let steps = rawDict["steps"] as? [[String: Any]] {
+      for step in steps {
+        try ConformanceTestHelper.assertKnownKeys(
+          step,
+          Self.knownStepKeys,
+          "\(conformanceCase.suite) step in '\(conformanceCase.name)'",
+          allowMetadata: false
+        )
+        if let stepErr = step["expectError"] as? [String: Any] {
+          try ConformanceTestHelper.assertKnownKeys(
+            stepErr,
+            Self.knownExpectErrorKeys,
+            "\(conformanceCase.suite) step.expectError in '\(conformanceCase.name)'",
+            allowMetadata: false
+          )
+        }
+      }
+    }
   }
 
   private func resolveTargetVersion(
@@ -138,7 +208,7 @@ struct ValidatorConformanceTests {
           testName: testCase.name,
           stepIndex: stepIndex
         )
-        assertErrorMatches(
+        try assertErrorMatches(
           error: error,
           capturedRendererError: handler.capturedErrors.last,
           expected: expectedError,
@@ -275,40 +345,55 @@ struct ValidatorConformanceTests {
   }
 
   @Test func compositionConstraintsConformance() throws {
-    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/composition_constraints.yaml")
-    let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
-    #expect(!testCases.isEmpty, "Should find test cases in core/composition_constraints.yaml")
+    let cases = ConformanceTestHelper.cases("core/composition_constraints.yaml")
+    #expect(!cases.isEmpty, "Should find test cases in core/composition_constraints.yaml")
 
-    for testCase in testCases {
-    for testCase in testCases {
-      let catalogs = buildCompositionCatalogs(for: testCase)
-      let handler = ValidatorErrorCaptureHandler()
-      let validationConfig: ValidationConfig
-      if let flags = testCase.validationConfig {
-        guard
-          let config = ConformanceTestHelper.validationConfig(
-            from: flags, targetVersion: "1.0")
-        else {
-          Issue.record("[\(testCase.name)] Missing or unknown validationConfig flags")
-          continue
-        }
-        validationConfig = config
-      } else {
-        validationConfig = ValidationConfig(targetVersion: "1.0")
+    for conformanceCase in cases {
+      try ConformanceManifest.run(conformanceCase) {
+        try runSingleCompositionCase(conformanceCase)
       }
-      let processor = MessageProcessor(
-        catalogs: catalogs,
-        actionHandler: handler,
-        validationConfig: validationConfig
-      )
+    }
+  }
 
-      _ = try executeValidationSteps(
-        for: testCase,
-        processor: processor,
-        handler: handler
+  private func runSingleCompositionCase(_ conformanceCase: ConformanceCase) throws {
+    try validateCaseStructure(conformanceCase)
+    let testCase = try #require(
+      conformanceCase.parsedTestCase(),
+      "[\(conformanceCase.name)] Could not parse composition case"
+    )
+    guard testCase.action == "process_messages" || testCase.action == "validate" else {
+      throw UnknownConformanceKeyError(
+        "[\(conformanceCase.name)] Unknown composition action '\(testCase.action ?? "")'"
       )
     }
+    let catalogs = buildCompositionCatalogs(for: testCase)
+    let handler = ValidatorErrorCaptureHandler()
+    let validationConfig: ValidationConfig
+    if let flags = testCase.validationConfig {
+      guard
+        let config = ConformanceTestHelper.validationConfig(
+          from: flags,
+          targetVersion: "1.0"
+        )
+      else {
+        Issue.record("[\(testCase.name)] Missing or unknown validationConfig flags")
+        return
+      }
+      validationConfig = config
+    } else {
+      validationConfig = ValidationConfig(targetVersion: "1.0")
     }
+    let processor = MessageProcessor(
+      catalogs: catalogs,
+      actionHandler: handler,
+      validationConfig: validationConfig
+    )
+
+    _ = try executeValidationSteps(
+      for: testCase,
+      processor: processor,
+      handler: handler
+    )
   }
 
   private func buildCompositionCatalogs(for testCase: ConformanceTestCase) -> [AnyCatalog] {
@@ -331,28 +416,42 @@ struct ValidatorConformanceTests {
   }
 
   @Test func reservedKeysConformance() throws {
-    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/reserved_keys.yaml")
-    let testCases = ConformanceTestHelper.parseTestCases(from: rawYAML)
-    #expect(!testCases.isEmpty, "Should find test cases in core/reserved_keys.yaml")
+    let cases = ConformanceTestHelper.cases("core/reserved_keys.yaml")
+    #expect(!cases.isEmpty, "Should find test cases in core/reserved_keys.yaml")
 
-    var executed = 0
-    for testCase in testCases {
-      let catalogs = try buildCatalogsWithAliases(for: testCase)
-      let handler = ValidatorErrorCaptureHandler()
-      let processor = MessageProcessor(
-        catalogs: catalogs,
-        actionHandler: handler,
-        validationConfig: ValidationConfig(targetVersion: "1.0")
-      )
+    for conformanceCase in cases {
+      try ConformanceManifest.run(conformanceCase) {
+        try runSingleReservedKeysCase(conformanceCase)
+      }
+    }
+  }
 
-      executed += try executeValidationSteps(
-        for: testCase,
-        processor: processor,
-        handler: handler,
-        verifyExpectedSurfaces: true
+  private func runSingleReservedKeysCase(_ conformanceCase: ConformanceCase) throws {
+    try validateCaseStructure(conformanceCase)
+    let testCase = try #require(
+      conformanceCase.parsedTestCase(),
+      "[\(conformanceCase.name)] Could not parse reserved_keys case"
+    )
+    guard testCase.action == "process_messages" || testCase.action == "validate" else {
+      throw UnknownConformanceKeyError(
+        "[\(conformanceCase.name)] Unknown reserved_keys action '\(testCase.action ?? "")'"
       )
     }
-    #expect(executed == testCases.count, "All cases in reserved_keys.yaml should execute")
+    let catalogs = try buildCatalogsWithAliases(for: testCase)
+    let handler = ValidatorErrorCaptureHandler()
+    let processor = MessageProcessor(
+      catalogs: catalogs,
+      actionHandler: handler,
+      validationConfig: ValidationConfig(targetVersion: "1.0")
+    )
+
+    let executed = try executeValidationSteps(
+      for: testCase,
+      processor: processor,
+      handler: handler,
+      verifyExpectedSurfaces: true
+    )
+    #expect(executed > 0, "[\(testCase.name)] Expected at least one step to execute")
   }
 
   private func assertReservedKeysSurfaces(
@@ -404,9 +503,9 @@ struct ValidatorConformanceTests {
     capturedRendererError: RendererError?,
     expected: ConformanceExpectError,
     testName: String
-  ) {
+  ) throws {
     if let category = expected.category {
-      assertErrorCategory(error: error, category: category, testName: testName)
+      try assertErrorCategory(error: error, category: category, testName: testName)
     }
     if let expectedCode = expected.code {
       assertErrorCode(
@@ -451,7 +550,7 @@ struct ValidatorConformanceTests {
     }
   }
 
-  private func assertErrorCategory(error: Error, category: String, testName: String) {
+  private func assertErrorCategory(error: Error, category: String, testName: String) throws {
     switch category {
     case "ValidationError":
       #expect(
@@ -474,7 +573,8 @@ struct ValidatorConformanceTests {
         "[\(testName)] Expected A2UICatalogError for '\(category)', got \(type(of: error))"
       )
     default:
-      break
+      Issue.record("[\(testName)] Unknown error category '\(category)'")
+      throw UnknownConformanceKeyError("[\(testName)] Unknown error category '\(category)'")
     }
   }
 

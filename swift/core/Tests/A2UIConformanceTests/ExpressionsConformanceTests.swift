@@ -20,91 +20,277 @@ import Testing
 
 /// Runs the shared `conformance/core/expressions.yaml` suite.
 struct ExpressionsConformanceTests {
+  private static let knownParseCaseKeys: Set<String> = [
+    "action",
+    "expect",
+    "expect_error",
+    "input",
+  ]
+
+  private static let knownValidateCaseKeys: Set<String> = [
+    "action",
+    "catalog",
+    "expect",
+    "steps",
+  ]
+
+  private static let knownValidateStepKeys: Set<String> = [
+    "expectError",
+    "payload",
+  ]
+
+  private static let knownExpectErrorKeys: Set<String> = [
+    "category",
+    "message",
+  ]
+
   private let parser = ExpressionParser()
 
   @Test func expressionsConformance() throws {
-    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/expressions.yaml")
-    let cases = (rawYAML as? [[String: Any]]) ?? []
-    #expect(!cases.isEmpty, "core/expressions.yaml should hold test cases")
+    let cases = ConformanceTestHelper.cases(
+      "core/expressions.yaml",
+      action: "parse_expression_template"
+    )
+    #expect(!cases.isEmpty, "core/expressions.yaml should hold parse_expression_template cases")
 
-    var executed = 0
-
-    for testCase in cases {
-      guard let action = testCase["action"] as? String, action == "parse_expression_template" else {
-        continue
-      }
-
-      guard let name = testCase["name"] as? String,
-        let input = testCase["input"] as? String
-      else {
-        continue
-      }
-
-      executed += 1
-
-      if let expectError = (testCase["expect_error"] ?? testCase["expectError"]) as? [String: Any] {
-        let expectedMessage = expectError["message"] as? String
-        let expectedCategory = expectError["category"] as? String
-
-        do {
-          _ = try parser.parse(input)
-          Issue.record("\(name): expected an error for input: \(input)")
-        } catch let error as FunctionError {
-          if let expectedCategory {
-            #expect(!expectedCategory.isEmpty, "\(name): expected category '\(expectedCategory)'")
-          }
-          if let expectedMessage {
-            switch error {
-            case .executionFailed(_, let message):
-              let matches =
-                message.localizedCaseInsensitiveContains(expectedMessage)
-                || ((try? NSRegularExpression(pattern: expectedMessage).firstMatch(
-                  in: message,
-                  range: NSRange(message.startIndex..., in: message)
-                )) != nil)
-              #expect(
-                matches,
-                "\(name): message '\(message)' does not match pattern '\(expectedMessage)'"
-              )
-            default:
-              Issue.record("\(name): expected executionFailed error, but got \(error)")
-            }
-          }
-        } catch {
-          Issue.record("\(name): threw unexpected error \(error)")
-        }
-      } else if let expectedRaw = testCase["expect"] as? [Any] {
-        let actual = try parser.parse(input)
-        let joinedActual = joinLiterals(actual)
-        let expectedValues = expectedRaw.map { ConformanceTestHelper.toJSONValue($0) }
-
-        #expect(
-          looselyEqual(joinedActual, expectedValues),
-          "\(name) mismatch: got \(joinedActual), expected \(expectedValues)"
-        )
-      } else {
-        Issue.record("\(name): test case does not define 'expect' or 'expect_error'")
+    for conformanceCase in cases {
+      try ConformanceManifest.run(conformanceCase) {
+        try runParseExpressionCase(conformanceCase.rawDictionary, name: conformanceCase.name)
       }
     }
+  }
 
-    #expect(executed > 0, "No cases of expressions.yaml could be executed")
+  private func runParseExpressionCase(_ testCase: [String: Any], name: String) throws {
+    try ConformanceTestHelper.assertKnownKeys(
+      testCase,
+      Self.knownParseCaseKeys,
+      "expressions.yaml parse case '\(name)'"
+    )
+    let input = try #require(testCase["input"] as? String, "\(name): missing input")
+
+    if let expectError = (testCase["expect_error"] ?? testCase["expectError"]) as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        expectError,
+        Self.knownExpectErrorKeys,
+        "expressions.yaml expect_error in '\(name)'",
+        allowMetadata: false
+      )
+      assertParseExpressionThrows(input: input, expectError: expectError, name: name)
+    } else if let expectedRaw = testCase["expect"] as? [Any] {
+      let actual = try parser.parse(input)
+      let joinedActual = joinLiterals(actual)
+      let expectedValues = expectedRaw.map { ConformanceTestHelper.toJSONValue($0) }
+      #expect(
+        looselyEqual(joinedActual, expectedValues),
+        "\(name) mismatch: got \(joinedActual), expected \(expectedValues)"
+      )
+    } else {
+      Issue.record("\(name): test case does not define 'expect' or 'expect_error'")
+    }
+  }
+
+  private func assertParseExpressionThrows(
+    input: String,
+    expectError: [String: Any],
+    name: String
+  ) {
+    let expectedMessage = expectError["message"] as? String
+    let expectedCategory = expectError["category"] as? String
+
+    do {
+      _ = try parser.parse(input)
+      Issue.record("\(name): expected an error for input: \(input)")
+    } catch let error as FunctionError {
+      if let expectedCategory {
+        #expect(!expectedCategory.isEmpty, "\(name): expected category '\(expectedCategory)'")
+      }
+      if let expectedMessage {
+        switch error {
+        case .executionFailed(_, let message):
+          let matches =
+            message.localizedCaseInsensitiveContains(expectedMessage)
+            || ((try? NSRegularExpression(pattern: expectedMessage).firstMatch(
+              in: message,
+              range: NSRange(message.startIndex..., in: message)
+            )) != nil)
+          #expect(
+            matches,
+            "\(name): message '\(message)' does not match pattern '\(expectedMessage)'"
+          )
+        default:
+          Issue.record("\(name): expected executionFailed error, but got \(error)")
+        }
+      }
+    } catch {
+      Issue.record("\(name): threw unexpected error \(error)")
+    }
   }
 
   /// Runs the `validate` cases of `core/expressions.yaml`, which render `formatString` templates
   /// on a v1.0 surface and compare the resolved component properties.
   @MainActor
   @Test func expressionsValidateConformance() throws {
-    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/expressions.yaml")
-    let testCases = ConformanceTestHelper.parseTestCases(from: rawYAML)
+    let cases = ConformanceTestHelper.cases("core/expressions.yaml", action: "validate")
+    #expect(!cases.isEmpty, "core/expressions.yaml should hold validate cases")
 
-    var executed = 0
+    for conformanceCase in cases {
+      try ConformanceManifest.run(conformanceCase) {
+        let rawDict = conformanceCase.rawDictionary
+        try ConformanceTestHelper.assertKnownKeys(
+          rawDict,
+          Self.knownValidateCaseKeys,
+          "expressions.yaml validate case '\(conformanceCase.name)'"
+        )
+        if let steps = rawDict["steps"] as? [[String: Any]] {
+          for step in steps {
+            try ConformanceTestHelper.assertKnownKeys(
+              step,
+              Self.knownValidateStepKeys,
+              "expressions.yaml step in '\(conformanceCase.name)'",
+              allowMetadata: false
+            )
+            if let errDict = step["expectError"] as? [String: Any] {
+              try ConformanceTestHelper.assertKnownKeys(
+                errDict,
+                Self.knownExpectErrorKeys,
+                "expressions.yaml step.expectError in '\(conformanceCase.name)'",
+                allowMetadata: false
+              )
+            }
+          }
+        }
+        let testCase = try #require(
+          conformanceCase.parsedTestCase(),
+          "[\(conformanceCase.name)] Could not parse validate case"
+        )
+        try runValidateCase(testCase)
+      }
+    }
+  }
 
-    for testCase in testCases where testCase.action == "validate" {
-      executed += 1
-      try ConformanceTestHelper.runValidateCase(testCase)
+  @MainActor
+  private func runValidateCase(_ testCase: ConformanceTestCase) throws {
+    let processor = MessageProcessor(
+      catalogs: try ConformanceTestHelper.buildCatalogs(for: testCase),
+      validationConfig: ValidationConfig(targetVersion: "1.0")
+    )
+    // Expression errors raised while resolving nodes reach the surface as `EXPRESSION_ERROR`
+    // rather than being thrown out of `processMessages`.
+    var capturedErrors: [RendererError] = []
+    processor.outboundListener = { message in
+      MainActor.assumeIsolated {
+        if case .error(let error) = message {
+          capturedErrors.append(error)
+        }
+      }
     }
 
-    #expect(executed > 0, "No validate case of expressions.yaml could be executed")
+    for (stepIndex, step) in testCase.steps.enumerated() {
+      guard let payload = step.payload else { continue }
+      capturedErrors.removeAll()
+
+      let isFinalStep = stepIndex == testCase.steps.count - 1
+      if let expectedError = step.expectError ?? (isFinalStep ? testCase.expectError : nil) {
+        assertValidateStepError(
+          payload: payload,
+          processor: processor,
+          capturedErrors: &capturedErrors,
+          expectedError: expectedError,
+          testName: testCase.name,
+          stepIndex: stepIndex
+        )
+        continue
+      }
+
+      try processor.processMessages(payload)
+      #expect(
+        capturedErrors.isEmpty,
+        "\(testCase.name): unexpected error at step \(stepIndex): \(capturedErrors)"
+      )
+
+      let expectedSurfaces = (step.expect ?? testCase.expect)?["surfaces"]?.objectValue ?? [:]
+      try assertValidateSurfaces(
+        OrderedDictionary(uniqueKeysWithValues: expectedSurfaces.map { ($0.key, $0.value) }),
+        on: processor,
+        testName: testCase.name
+      )
+    }
+  }
+
+  @MainActor
+  private func assertValidateStepError(
+    payload: JSONValue,
+    processor: MessageProcessor,
+    capturedErrors: inout [RendererError],
+    expectedError: ConformanceExpectError,
+    testName: String,
+    stepIndex: Int
+  ) {
+    var errorMessages: [String] = []
+    do {
+      try processor.processMessages(payload)
+    } catch {
+      let message = (error as? (any A2UIError))?.message ?? error.localizedDescription
+      errorMessages.append(message)
+    }
+    for error in capturedErrors {
+      switch error {
+      case .validationFailed(let validationError):
+        errorMessages.append(validationError.message)
+      case .generic(let genericError):
+        errorMessages.append(genericError.message)
+      }
+    }
+    #expect(
+      !errorMessages.isEmpty,
+      "\(testName): expected an error at step \(stepIndex)"
+    )
+    if let expectedMessage = expectedError.message {
+      #expect(
+        errorMessages.contains { $0.localizedCaseInsensitiveContains(expectedMessage) },
+        "\(testName): messages \(errorMessages) do not contain '\(expectedMessage)'"
+      )
+    }
+  }
+
+  @MainActor
+  private func assertValidateSurfaces(
+    _ expectedSurfaces: OrderedDictionary<String, JSONValue>,
+    on processor: MessageProcessor,
+    testName: String
+  ) throws {
+    for (surfaceID, expectedSurface) in expectedSurfaces {
+      if let surfObj = expectedSurface.objectValue {
+        try ConformanceTestHelper.assertKnownKeys(
+          surfObj,
+          ["components"],
+          "expressions.yaml expect.surfaces.\(surfaceID) in '\(testName)'",
+          allowMetadata: false
+        )
+      }
+      let surface = try #require(
+        processor.surfaceGroupModel[surfaceID],
+        "\(testName): expected surface '\(surfaceID)'"
+      )
+      let expectedComponents = expectedSurface["components"]?.objectValue ?? [:]
+      for (componentID, expectedComponent) in expectedComponents {
+        let node = try #require(
+          surface.findNode(id: componentID),
+          "\(testName): expected resolved node '\(componentID)'"
+        )
+        for (property, expectedValue) in expectedComponent.objectValue ?? [:]
+        where property != "component" {
+          let binding = try #require(
+            node.properties[property] as? DataBinding<String>,
+            "\(testName): '\(componentID).\(property)' is not a string binding"
+          )
+          #expect(
+            binding.value == expectedValue.stringValue,
+            "\(testName): '\(componentID).\(property)' is '\(String(describing: binding.value))'"
+          )
+        }
+      }
+    }
   }
 
   /// Joins adjacent literal strings and drops empty string literals.

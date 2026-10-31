@@ -25,9 +25,41 @@ import Testing
 /// check `absentKeys`.
 struct CatalogDeriveConformanceTests {
   /// Cases that check a catalog field the Swift catalog does not have.
-  private static let skippedCases: Set<String> = [
+  private static let skippedCases: [String: String] = [
     // `derive` takes no instructions, since a Swift catalog has none.
-    "test_v10_catalog_derive_sets_instructions"
+    "test_v10_catalog_derive_sets_instructions":
+      "Swift Catalog does not store agent instructions"
+  ]
+
+  private static let knownCaseKeys: Set<String> = [
+    "action",
+    "args",
+    "catalog",
+    "catalogPath",
+    "expect",
+    "expectError",
+  ]
+
+  private static let knownArgsKeys: Set<String> = [
+    "catalogId",
+    "components",
+    "functions",
+    "instructions",
+  ]
+
+  private static let knownExpectKeys: Set<String> = [
+    "absentKeys",
+    "catalogId",
+    "components",
+    "functions",
+    "instructions",
+    "protocolVersion",
+    "theme",
+  ]
+
+  private static let knownExpectErrorKeys: Set<String> = [
+    "category",
+    "message",
   ]
 
   private static let context = Context(
@@ -36,25 +68,39 @@ struct CatalogDeriveConformanceTests {
   )
 
   @Test func catalogDeriveConformance() throws {
-    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/catalog.yaml")
-    let cases = ((rawYAML as? [[String: Any]]) ?? []).filter {
-      $0["action"] as? String == "derive"
-    }
+    let cases = ConformanceTestHelper.cases("core/catalog.yaml", action: "derive")
     #expect(!cases.isEmpty, "core/catalog.yaml should hold derive cases")
-
-    var executed = 0
-    for testCase in cases {
-      let name = testCase["name"] as? String ?? "<unnamed>"
-      if Self.skippedCases.contains(name) { continue }
-      try runDeriveCase(ConformanceTestHelper.toJSONValue(testCase), name: name)
-      executed += 1
+    let caseNames = Set(cases.map(\.name))
+    for skippedName in Self.skippedCases.keys {
+      #expect(caseNames.contains(skippedName), "Unused skip entry '\(skippedName)'")
     }
-    #expect(executed > 0, "no derive case of core/catalog.yaml was executed")
+
+    for conformanceCase in cases {
+      let skippedReason = Self.skippedCases[conformanceCase.name]
+      try ConformanceManifest.run(conformanceCase, skippedReason: skippedReason) {
+        try runDeriveCase(conformanceCase.json, name: conformanceCase.name)
+      }
+    }
   }
 
   private func runDeriveCase(_ testCase: JSONValue, name: String) throws {
+    if let obj = testCase.objectValue {
+      try ConformanceTestHelper.assertKnownKeys(
+        obj,
+        Self.knownCaseKeys,
+        "catalog.yaml derive case '\(name)'"
+      )
+    }
     let source = try sourceCatalog(of: testCase)
     let args = testCase["args"]
+    if let argsObj = args?.objectValue {
+      try ConformanceTestHelper.assertKnownKeys(
+        argsObj,
+        Self.knownArgsKeys,
+        "catalog.yaml derive args in '\(name)'",
+        allowMetadata: false
+      )
+    }
     let catalogID = try #require(args?["catalogId"]?.stringValue, "\(name): no catalogId")
     let components = try args?["components"]?.arrayValue.map { entries in
       try entries.map(componentEntry)
@@ -64,6 +110,14 @@ struct CatalogDeriveConformanceTests {
     }
 
     if let expectError = testCase["expectError"] {
+      if let errObj = expectError.objectValue {
+        try ConformanceTestHelper.assertKnownKeys(
+          errObj,
+          Self.knownExpectErrorKeys,
+          "catalog.yaml derive expectError in '\(name)'",
+          allowMetadata: false
+        )
+      }
       #expect(expectError["category"]?.stringValue == "CatalogError", "\(name)")
       let message = expectError["message"]?.stringValue ?? ""
       do {
@@ -77,6 +131,14 @@ struct CatalogDeriveConformanceTests {
 
     let derived = try source.derive(id: catalogID, components: components, functions: functions)
     let expect = try #require(testCase["expect"], "\(name): no expect")
+    if let expectObj = expect.objectValue {
+      try ConformanceTestHelper.assertKnownKeys(
+        expectObj,
+        Self.knownExpectKeys,
+        "catalog.yaml derive expect in '\(name)'",
+        allowMetadata: false
+      )
+    }
     if let expectedID = expect["catalogId"]?.stringValue {
       #expect(derived.id == expectedID, "\(name)")
     }

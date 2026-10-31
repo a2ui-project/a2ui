@@ -65,22 +65,85 @@ private final class RecordingFunctionImplementation: FunctionImplementation, @un
 /// Runs the shared `conformance/core/node_resolution.yaml` suite.
 @MainActor
 struct NodeResolutionConformanceTests {
-  @Test func nodeResolutionConformance() throws {
-    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/node_resolution.yaml")
-    let cases = (rawYAML as? [[String: Any]]) ?? []
-    #expect(!cases.isEmpty, "core/node_resolution.yaml should hold test cases")
+  static let placeholderKnownIssues: [String: String] = [
+    "cyclic_component_reference_same_scope": "NodeResolver omits placeholder nodes",
+    "pending_child_replacement": "NodeResolver omits placeholder nodes",
+    "shared_definition_independent_instances": "NodeResolver omits placeholder nodes",
+    "unknown_component_type_placeholder": "NodeResolver omits placeholder nodes",
+  ]
 
-    var executed = 0
-    for testCase in cases {
-      guard (testCase["action"] as? String) == "resolve_nodes" else { continue }
-      try runResolveNodesCase(testCase)
-      executed += 1
+  private static let knownCaseKeys: Set<String> = [
+    "action",
+    "expect",
+    "fixture",
+    "steps",
+  ]
+
+  private static let knownStepKeys: Set<String> = [
+    "component_id",
+    "components",
+    "expect",
+    "messages",
+    "metadata",
+    "node",
+    "op",
+    "path",
+    "property",
+    "value",
+  ]
+
+  private static let knownExpectKeys: Set<String> = [
+    "data",
+    "destroyed",
+    "emissions",
+    "errors",
+    "events",
+    "functions",
+    "metadata_emissions",
+    "nodes",
+    "replaced_nodes",
+    "same_nodes",
+  ]
+
+  private static let knownNodeSpecKeys: Set<String> = [
+    "component_id",
+    "data_path",
+    "isValid",
+    "metadata",
+    "props",
+    "state",
+    "type",
+    "validationErrors",
+    "validationResults",
+  ]
+
+  @Test func nodeResolutionConformance() throws {
+    let cases = ConformanceTestHelper.cases("core/node_resolution.yaml")
+    #expect(!cases.isEmpty, "core/node_resolution.yaml should hold test cases")
+    let caseNames = Set(cases.map(\.name))
+    for knownIssueName in Self.placeholderKnownIssues.keys {
+      #expect(caseNames.contains(knownIssueName), "Unused known issue '\(knownIssueName)'")
     }
-    #expect(executed > 0, "Should execute at least one resolve_nodes case")
+
+    for conformanceCase in cases {
+      let knownIssueReason = Self.placeholderKnownIssues[conformanceCase.name]
+      try ConformanceManifest.run(conformanceCase, knownIssueReason: knownIssueReason) {
+        try runResolveNodesCase(conformanceCase.rawDictionary)
+      }
+    }
   }
 
   private func runResolveNodesCase(_ testCase: [String: Any]) throws {
     let name = testCase["name"] as? String ?? "<unnamed>"
+    try ConformanceTestHelper.assertKnownKeys(
+      testCase,
+      Self.knownCaseKeys,
+      "node_resolution.yaml case '\(name)'"
+    )
+    let action = testCase["action"] as? String ?? ""
+    guard action == "resolve_nodes" else {
+      throw UnknownConformanceKeyError("[\(name)] Unknown node_resolution.yaml action '\(action)'")
+    }
     let fixturePath = try #require(
       testCase["fixture"] as? String,
       "[\(name)] Missing fixture path"
@@ -111,7 +174,7 @@ struct NodeResolutionConformanceTests {
     applyFixture(fixture, to: surface)
 
     if let initialExpect = testCase["expect"] as? [String: Any] {
-      assertStepExpectations(
+      try assertStepExpectations(
         initialExpect,
         surface: processor.surfaceGroupModel["s"],
         capture: capture,
@@ -124,7 +187,7 @@ struct NodeResolutionConformanceTests {
       capture.clearStep()
       try executeStep(step, processor: processor, caseName: name)
       if let stepExpect = step["expect"] as? [String: Any] {
-        assertStepExpectations(
+        try assertStepExpectations(
           stepExpect,
           surface: processor.surfaceGroupModel["s"],
           capture: capture,
@@ -225,7 +288,13 @@ struct NodeResolutionConformanceTests {
     processor: MessageProcessor,
     caseName: String
   ) throws {
-    guard let op = step["op"] as? String else { return }
+    try ConformanceTestHelper.assertKnownKeys(
+      step,
+      Self.knownStepKeys,
+      "node_resolution.yaml step in '\(caseName)'",
+      allowMetadata: false
+    )
+    let op = step["op"] as? String ?? ""
     switch op {
     case "write":
       executeWriteStep(step, surface: processor.surfaceGroupModel["s"], caseName: caseName)
@@ -253,7 +322,7 @@ struct NodeResolutionConformanceTests {
     case "dispose":
       processor.surfaceGroupModel.removeSurface(id: "s")
     default:
-      break
+      throw UnknownConformanceKeyError("[\(caseName)] Unknown node_resolution step op '\(op)'")
     }
   }
 
@@ -356,30 +425,13 @@ struct NodeResolutionConformanceTests {
       return node.properties[segment]
     }
     if let nodes = current as? [Node], let idx = Int(segment) {
-      if let parentNode, let propertyKey, let surface {
-        let parentDefID =
-          parentNode.id.split(separator: "_").first.map(String.init) ?? parentNode.id
-        if let rawChildren = surface.componentsModel.components[parentDefID]?.properties[
-          propertyKey
-        ]?.arrayValue,
-          rawChildren.indices.contains(idx),
-          let childDefID = rawChildren[idx].stringValue
-        {
-          guard surface.componentsModel.components[childDefID] != nil else {
-            return nil
-          }
-          if let match = nodes.first(where: {
-            $0.id == childDefID || $0.id.hasPrefix("\(childDefID)_")
-              || $0.id.hasPrefix("\(childDefID):")
-          }) {
-            return match
-          }
-        }
-      }
-      if nodes.indices.contains(idx) {
-        return nodes[idx]
-      }
-      return nil
+      return stepNodeArrayElement(
+        nodes: nodes,
+        idx: idx,
+        parentNode: parentNode,
+        propertyKey: propertyKey,
+        surface: surface
+      )
     }
     if let arr = current as? ResolvedArray,
       let idx = Int(segment),
@@ -393,25 +445,34 @@ struct NodeResolutionConformanceTests {
     return nil
   }
 
-  private func isPendingChildSlot(_ path: String, surface: SurfaceViewModel?) -> Bool {
-    guard let surface, let root = surface.rootNode else { return false }
-    let segments = path.split(separator: "/").map(String.init)
-    guard segments.count >= 3, let idx = Int(segments.last ?? "") else { return false }
-    let propKey = segments[segments.count - 2]
-    let parentPath = segments.dropLast(2).joined(separator: "/")
-    guard let parentNode = findNodeByPath(parentPath, from: root, surface: surface) else {
-      return false
+  private func stepNodeArrayElement(
+    nodes: [Node],
+    idx: Int,
+    parentNode: Node?,
+    propertyKey: String?,
+    surface: SurfaceViewModel?
+  ) -> Node? {
+    if let parentNode, let propertyKey, let surface {
+      let parentDefID =
+        parentNode.id.split(separator: "_").first.map(String.init) ?? parentNode.id
+      if let rawChildren = surface.componentsModel.components[parentDefID]?.properties[
+        propertyKey
+      ]?.arrayValue,
+        rawChildren.indices.contains(idx),
+        let childDefID = rawChildren[idx].stringValue
+      {
+        guard surface.componentsModel.components[childDefID] != nil else {
+          return nil
+        }
+        if let match = nodes.first(where: {
+          $0.id == childDefID || $0.id.hasPrefix("\(childDefID)_")
+            || $0.id.hasPrefix("\(childDefID):")
+        }) {
+          return match
+        }
+      }
     }
-    let parentDefID = parentNode.id.split(separator: "_").first.map(String.init) ?? parentNode.id
-    guard
-      let rawChildren = surface.componentsModel.components[parentDefID]?.properties[propKey]?
-        .arrayValue,
-      rawChildren.indices.contains(idx),
-      let childDefID = rawChildren[idx].stringValue
-    else {
-      return false
-    }
-    return surface.componentsModel.components[childDefID] == nil
+    return nodes.indices.contains(idx) ? nodes[idx] : nil
   }
 
   private func assertStepExpectations(
@@ -419,9 +480,15 @@ struct NodeResolutionConformanceTests {
     surface: SurfaceViewModel?,
     capture: NodeResolutionActionCapture,
     caseName: String
-  ) {
+  ) throws {
+    try ConformanceTestHelper.assertKnownKeys(
+      expect,
+      Self.knownExpectKeys,
+      "node_resolution.yaml expect in '\(caseName)'",
+      allowMetadata: false
+    )
     if let expectedNodes = expect["nodes"] as? [String: Any] {
-      assertExpectedNodes(expectedNodes, surface: surface, caseName: caseName)
+      try assertExpectedNodes(expectedNodes, surface: surface, caseName: caseName)
     }
     if let expectedData = expect["data"] as? [String: Any], let surface {
       for (path, rawVal) in expectedData {
@@ -443,23 +510,20 @@ struct NodeResolutionConformanceTests {
     _ expectedNodes: [String: Any],
     surface: SurfaceViewModel?,
     caseName: String
-  ) {
+  ) throws {
     if expectedNodes.isEmpty {
       #expect(surface?.rootNode == nil, "[\(caseName)] Expected empty tree (rootNode == nil)")
       return
     }
     for (nodePath, rawSpec) in expectedNodes {
       guard let spec = rawSpec as? [String: Any] else { continue }
-      let state = spec["state"] as? String ?? "resolved"
-      let resolvedNode = findNodeByPath(nodePath, from: surface?.rootNode, surface: surface)
-      if state == "pending" || state == "unknown-type" || state == "cyclic"
-        || (resolvedNode == nil && isPendingChildSlot(nodePath, surface: surface))
-      {
-        // Swift's value-type NodeResolver omits unresolved/cyclic placeholders or resolves known
-        // component definitions; only verify resolved nodes.
-        continue
-      }
-      guard let node = resolvedNode else {
+      try ConformanceTestHelper.assertKnownKeys(
+        spec,
+        Self.knownNodeSpecKeys,
+        "node_resolution.yaml node spec '\(nodePath)' in '\(caseName)'",
+        allowMetadata: false
+      )
+      guard let node = findNodeByPath(nodePath, from: surface?.rootNode, surface: surface) else {
         Issue.record("[\(caseName)] Expected resolved node at '\(nodePath)'")
         continue
       }
@@ -473,12 +537,20 @@ struct NodeResolutionConformanceTests {
     nodePath: String,
     caseName: String
   ) {
+    let expectedState = spec["state"] as? String ?? "resolved"
+    #expect(
+      expectedState == "resolved",
+      "[\(caseName)] \(nodePath) state mismatch: got 'resolved', expected '\(expectedState)'"
+    )
     if let expectedCompID = spec["component_id"] as? String {
       let baseID = node.id.split(separator: ":").first.map(String.init) ?? node.id
       let strippedID = baseID.split(separator: "_").first.map(String.init) ?? baseID
       #expect(
         node.id == expectedCompID || baseID == expectedCompID || strippedID == expectedCompID,
-        "[\(caseName)] \(nodePath) component_id mismatch: got '\(node.id)', expected '\(expectedCompID)'"
+        """
+        [\(caseName)] \(nodePath) component_id mismatch: \
+        got '\(node.id)', expected '\(expectedCompID)'
+        """
       )
     }
     if let expectedType = spec["type"] as? String {
@@ -507,7 +579,8 @@ struct NodeResolutionConformanceTests {
       }
     }
     if let expectedProps = spec["props"] as? [String: Any] {
-      assertNodePropsMatch(node: node, expectedProps: expectedProps, nodePath: nodePath, caseName: caseName)
+      assertNodePropsMatch(
+        node: node, expectedProps: expectedProps, nodePath: nodePath, caseName: caseName)
     }
   }
 
@@ -527,8 +600,11 @@ struct NodeResolutionConformanceTests {
           nodePath: nodePath,
           caseName: caseName
         )
-      } else if let propSpec = rawExpectedProp as? [String: Any], propSpec["action"] as? Bool == true {
-        #expect(node.action(for: propKey) != nil, "[\(caseName)] \(nodePath).\(propKey) expected action")
+      } else if let propSpec = rawExpectedProp as? [String: Any],
+        propSpec["action"] as? Bool == true
+      {
+        #expect(
+          node.action(for: propKey) != nil, "[\(caseName)] \(nodePath).\(propKey) expected action")
       } else if let childSpecs = rawExpectedProp as? [[String: Any]],
         childSpecs.first?["node"] != nil
       {
@@ -550,7 +626,10 @@ struct NodeResolutionConformanceTests {
     if let expStr = expectedVal.stringValue {
       #expect(
         node.string(for: propKey) == expStr,
-        "[\(caseName)] \(nodePath).\(propKey) string mismatch: got '\(String(describing: node.string(for: propKey)))', expected '\(expStr)'"
+        """
+        [\(caseName)] \(nodePath).\(propKey) string mismatch: \
+        got '\(String(describing: node.string(for: propKey)))', expected '\(expStr)'
+        """
       )
     } else if let expBool = expectedVal.boolValue {
       #expect(
@@ -567,41 +646,56 @@ struct NodeResolutionConformanceTests {
   ) {
     #expect(actual.count == expectedEvents.count, "[\(caseName)] Event count mismatch")
     for (actualEvent, expSpec) in zip(actual, expectedEvents) {
-      guard case .event(let name, let context, _) = actualEvent.identity else {
-        Issue.record("[\(caseName)] Expected .event identity")
-        continue
-      }
-      if let expName = expSpec["name"] as? String {
-        #expect(name == expName, "[\(caseName)] Event name mismatch")
-      }
-      if let expSource = expSpec["source_component_id"] as? String {
-        #expect(actualEvent.sourceComponentID == expSource, "[\(caseName)] source_component_id mismatch")
-      }
-      if let expCtx = expSpec["context"] as? [String: Any] {
-        for (key, val) in expCtx {
-          #expect(
-            context?[key] == ConformanceTestHelper.toJSONValue(val),
-            "[\(caseName)] Event context[\(key)] mismatch"
-          )
-        }
-      }
-      if expSpec.keys.contains("metadata") {
-        if expSpec["metadata"] is NSNull {
-          #expect(actualEvent.metadata == nil, "[\(caseName)] Expected nil event metadata")
-        } else {
-          let expectedMeta = try? MetadataValidator.validate(
-            ConformanceTestHelper.toJSONValue(expSpec["metadata"] as Any),
-            pathPrefix: "action.metadata"
-          )
-          #expect(
-            MetadataValidator.areEqual(actualEvent.metadata, expectedMeta),
-            "[\(caseName)] Event metadata mismatch"
-          )
-        }
-      } else {
-        #expect(actualEvent.metadata == nil, "[\(caseName)] Expected nil event metadata")
+      assertSingleEventMatches(actualEvent: actualEvent, expSpec: expSpec, caseName: caseName)
+    }
+  }
+
+  private func assertSingleEventMatches(
+    actualEvent: ResolvedAction,
+    expSpec: [String: Any],
+    caseName: String
+  ) {
+    guard case .event(let name, let context, _) = actualEvent.identity else {
+      Issue.record("[\(caseName)] Expected .event identity")
+      return
+    }
+    if let expName = expSpec["name"] as? String {
+      #expect(name == expName, "[\(caseName)] Event name mismatch")
+    }
+    if let expSource = expSpec["source_component_id"] as? String {
+      #expect(
+        actualEvent.sourceComponentID == expSource,
+        "[\(caseName)] source_component_id mismatch"
+      )
+    }
+    if let expCtx = expSpec["context"] as? [String: Any] {
+      for (key, val) in expCtx {
+        #expect(
+          context?[key] == ConformanceTestHelper.toJSONValue(val),
+          "[\(caseName)] Event context[\(key)] mismatch"
+        )
       }
     }
+    assertEventMetadata(actualEvent: actualEvent, expSpec: expSpec, caseName: caseName)
+  }
+
+  private func assertEventMetadata(
+    actualEvent: ResolvedAction,
+    expSpec: [String: Any],
+    caseName: String
+  ) {
+    guard expSpec.keys.contains("metadata"), !(expSpec["metadata"] is NSNull) else {
+      #expect(actualEvent.metadata == nil, "[\(caseName)] Expected nil event metadata")
+      return
+    }
+    let expectedMeta = try? MetadataValidator.validate(
+      ConformanceTestHelper.toJSONValue(expSpec["metadata"] as Any),
+      pathPrefix: "action.metadata"
+    )
+    #expect(
+      MetadataValidator.areEqual(actualEvent.metadata, expectedMeta),
+      "[\(caseName)] Event metadata mismatch"
+    )
   }
 
   private func assertExpectedFunctions(

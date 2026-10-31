@@ -54,7 +54,18 @@ jobs:
         with:
           persist-credentials: false
       - name: Run tests
+        env:
+          A2UI_CONFORMANCE_MANIFEST_DIR: ${{ runner.temp }}/a2ui-manifest
         run: swift test --enable-swift-testing
+      - name: Set up Python
+        uses: ./.github/actions/setup-python
+      - name: Check executed conformance cases
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness swift-core \
+            --corpus core \
+            --exclude core/message_processor_scaling.yaml="no Swift timing harness"
 
   ios-build:
     # `swift test` above builds for macOS only, so `#if os(iOS)` and UIKit code

@@ -38,48 +38,224 @@ private final class OutboundMessageBox: @unchecked Sendable {
 /// Runs the shared `conformance/core/rpc_functions.yaml` suite.
 @MainActor
 struct RPCConformanceTests {
+  private static let knownCaseKeys: Set<String> = [
+    "action",
+    "args",
+    "catalog",
+    "expect",
+    "expectError",
+  ]
+
+  private static let knownArgsKeys: Set<String> = [
+    "catalogId",
+    "catalogVersion",
+    "dataModel",
+    "functionMetadata",
+    "inboundResponse",
+    "message",
+    "outboundCall",
+    "secondOutboundCall",
+    "surfaceId",
+    "uiActionFallbackScenario",
+    "uiBindingScenario",
+    "userActivationPresent",
+  ]
+
+  private static let knownFunctionMetaKeys: Set<String> = [
+    "allowedCallers",
+    "parameters",
+    "requiresUserActivation",
+  ]
+
+  private static let knownOutboundCallKeys: Set<String> = [
+    "callFunction",
+    "functionCallId",
+    "surfaceId",
+    "timeoutMs",
+  ]
+
+  private static let knownInboundResponseKeys: Set<String> = [
+    "agentFunctionResponse",
+    "version",
+  ]
+
+  private static let knownUIBindingKeys: Set<String> = [
+    "catalogId",
+    "component",
+    "inboundResponseValue",
+    "surfaceId",
+  ]
+
+  private static let knownUIActionKeys: Set<String> = [
+    "actionPayload",
+    "catalogId",
+    "inboundResponseValue",
+    "surfaceId",
+  ]
+
+  private static let knownExpectKeys: Set<String> = [
+    "correlatedCallId",
+    "error",
+    "initialValue",
+    "outboundCall",
+    "resolvedValue",
+    "response",
+    "result",
+  ]
+
+  private static let knownExpectErrorKeys: Set<String> = [
+    "category",
+    "code",
+    "functionCallId",
+    "rendererError",
+  ]
+
   @Test func rpcFunctionsConformance() async throws {
-    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/rpc_functions.yaml")
-    let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
-    #expect(!testCases.isEmpty, "Should load test cases from rpc_functions.yaml")
+    let cases = ConformanceTestHelper.cases("core/rpc_functions.yaml")
+    #expect(!cases.isEmpty, "Should load test cases from rpc_functions.yaml")
 
+    for conformanceCase in cases {
+      try await ConformanceManifest.runAsync(conformanceCase) {
+        try await runSingleRPCCase(conformanceCase)
+      }
+    }
+  }
+
+  private func runSingleRPCCase(_ conformanceCase: ConformanceCase) async throws {
+    let rawDict = conformanceCase.rawDictionary
+    try validateRPCCaseKeys(rawDict, name: conformanceCase.name)
+    let action = rawDict["action"] as? String ?? ""
+    guard action == "handle_rpc" else {
+      throw UnknownConformanceKeyError(
+        "[\(conformanceCase.name)] Unknown rpc_functions.yaml action '\(action)'"
+      )
+    }
+    let testCase = try #require(
+      conformanceCase.parsedTestCase(),
+      "[\(conformanceCase.name)] Could not parse rpc_functions case"
+    )
     let rpcHandler = RPCHandler()
+    let catalogs = buildRPCCatalogs(for: testCase)
 
-    for testCase in testCases where testCase.action == "handle_rpc" {
-      let catalogs = buildRPCCatalogs(for: testCase)
+    if let messageJSON = testCase.args?["message"] {
+      try await runInboundMessageCase(
+        testCase: testCase,
+        messageJSON: messageJSON,
+        catalogs: catalogs,
+        rpcHandler: rpcHandler
+      )
+    }
 
-      if let messageJSON = testCase.args?["message"] {
-        try await runInboundMessageCase(
-          testCase: testCase,
-          messageJSON: messageJSON,
-          catalogs: catalogs,
-          rpcHandler: rpcHandler
-        )
+    if let outboundCall = testCase.args?["outboundCall"] {
+      try await runOutboundCallCase(
+        testCase: testCase,
+        outboundCall: outboundCall,
+        rpcHandler: rpcHandler
+      )
+    }
+
+    if let uiBinding = testCase.args?["uiBindingScenario"] {
+      try await runUIBindingScenario(
+        testCase: testCase,
+        scenario: uiBinding,
+        rpcHandler: rpcHandler
+      )
+    }
+
+    if let uiActionFallback = testCase.args?["uiActionFallbackScenario"] {
+      try await runUIActionFallbackScenario(
+        testCase: testCase,
+        scenario: uiActionFallback,
+        rpcHandler: rpcHandler
+      )
+    }
+  }
+
+  private func validateRPCCaseKeys(_ rawDict: [String: Any], name: String) throws {
+    try ConformanceTestHelper.assertKnownKeys(
+      rawDict,
+      Self.knownCaseKeys,
+      "rpc_functions.yaml case '\(name)'"
+    )
+    if let args = rawDict["args"] as? [String: Any] {
+      try validateRPCArgsKeys(args, name: name)
+    }
+    if let expect = rawDict["expect"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        expect,
+        Self.knownExpectKeys,
+        "rpc_functions.yaml expect in '\(name)'",
+        allowMetadata: false
+      )
+    }
+    if let expectError = rawDict["expectError"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        expectError,
+        Self.knownExpectErrorKeys,
+        "rpc_functions.yaml expectError in '\(name)'",
+        allowMetadata: false
+      )
+    }
+  }
+
+  private func validateRPCArgsKeys(_ args: [String: Any], name: String) throws {
+    try ConformanceTestHelper.assertKnownKeys(
+      args,
+      Self.knownArgsKeys,
+      "rpc_functions.yaml args in '\(name)'",
+      allowMetadata: false
+    )
+    if let fnMeta = args["functionMetadata"] as? [String: Any] {
+      for (fnName, rawMeta) in fnMeta {
+        if let metaDict = rawMeta as? [String: Any] {
+          try ConformanceTestHelper.assertKnownKeys(
+            metaDict,
+            Self.knownFunctionMetaKeys,
+            "rpc_functions.yaml functionMetadata.\(fnName) in '\(name)'",
+            allowMetadata: false
+          )
+        }
       }
-
-      if let outboundCall = testCase.args?["outboundCall"] {
-        try await runOutboundCallCase(
-          testCase: testCase,
-          outboundCall: outboundCall,
-          rpcHandler: rpcHandler
-        )
-      }
-
-      if let uiBinding = testCase.args?["uiBindingScenario"] {
-        try await runUIBindingScenario(
-          testCase: testCase,
-          scenario: uiBinding,
-          rpcHandler: rpcHandler
-        )
-      }
-
-      if let uiActionFallback = testCase.args?["uiActionFallbackScenario"] {
-        try await runUIActionFallbackScenario(
-          testCase: testCase,
-          scenario: uiActionFallback,
-          rpcHandler: rpcHandler
-        )
-      }
+    }
+    if let outbound = args["outboundCall"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        outbound,
+        Self.knownOutboundCallKeys,
+        "rpc_functions.yaml outboundCall in '\(name)'",
+        allowMetadata: false
+      )
+    }
+    if let secondOutbound = args["secondOutboundCall"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        secondOutbound,
+        Self.knownOutboundCallKeys,
+        "rpc_functions.yaml secondOutboundCall in '\(name)'",
+        allowMetadata: false
+      )
+    }
+    if let inbound = args["inboundResponse"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        inbound,
+        Self.knownInboundResponseKeys,
+        "rpc_functions.yaml inboundResponse in '\(name)'",
+        allowMetadata: false
+      )
+    }
+    if let uiBinding = args["uiBindingScenario"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        uiBinding,
+        Self.knownUIBindingKeys,
+        "rpc_functions.yaml uiBindingScenario in '\(name)'",
+        allowMetadata: false
+      )
+    }
+    if let uiAction = args["uiActionFallbackScenario"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        uiAction,
+        Self.knownUIActionKeys,
+        "rpc_functions.yaml uiActionFallbackScenario in '\(name)'",
+        allowMetadata: false
+      )
     }
   }
 
@@ -260,8 +436,12 @@ struct RPCConformanceTests {
       #expect(response.error?.code == expectedCode, "[\(testCase.name)] error.code mismatch")
       if let expectedMsg {
         #expect(
-          ConformanceTestHelper.messageMatches(response.error?.message ?? "", expected: expectedMsg),
-          "[\(testCase.name)] error.message mismatch: \(String(describing: response.error?.message))"
+          ConformanceTestHelper.messageMatches(
+            response.error?.message ?? "", expected: expectedMsg),
+          """
+          [\(testCase.name)] error.message mismatch: \
+          \(String(describing: response.error?.message))
+          """
         )
       }
     }
@@ -284,7 +464,8 @@ struct RPCConformanceTests {
     } catch {
       caughtError = error
     }
-    #expect(caughtError != nil, "[\(testCase.name)] Expected processor to throw on invalid RPC message")
+    #expect(
+      caughtError != nil, "[\(testCase.name)] Expected processor to throw on invalid RPC message")
 
     if let expectedRendererError = testCase.expectError?.rendererError {
       ConformanceTestHelper.assertRendererErrorMatches(
@@ -295,7 +476,8 @@ struct RPCConformanceTests {
     } else if let expectedErr = testCase.expect?["error"]?.objectValue,
       let msgSub = expectedErr["message"]?.stringValue
     {
-      let desc = caughtError.map { ($0 as? (any A2UIError))?.message ?? $0.localizedDescription } ?? ""
+      let desc =
+        caughtError.map { ($0 as? (any A2UIError))?.message ?? $0.localizedDescription } ?? ""
       #expect(
         ConformanceTestHelper.messageMatches(desc, expected: msgSub),
         "[\(testCase.name)] Expected error message containing '\(msgSub)', got '\(desc)'"
@@ -518,7 +700,8 @@ struct RPCConformanceTests {
       )
     )
     let resolved = try await callTask.value
-    #expect(resolved == testCase.expect?["resolvedValue"], "[\(testCase.name)] resolvedValue mismatch")
+    #expect(
+      resolved == testCase.expect?["resolvedValue"], "[\(testCase.name)] resolvedValue mismatch")
   }
 
   private func runUIActionFallbackScenario(
@@ -578,7 +761,8 @@ struct RPCConformanceTests {
   ) {
     guard let expectedCall = expectedOutbound?["callAgentFunction"] else { return }
     guard case .callAgentFunction(let actualCall) = captured else {
-      Issue.record("[\(testName)] Expected outbound callAgentFunction, got \(String(describing: captured))")
+      Issue.record(
+        "[\(testName)] Expected outbound callAgentFunction, got \(String(describing: captured))")
       return
     }
     if let expSurfaceID = expectedCall["surfaceId"]?.stringValue {
