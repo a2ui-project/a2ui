@@ -115,6 +115,17 @@ public struct Node: Identifiable, Equatable, Sendable {
   public var metadata: [String: JSONValue]? { box.metadata }
   public var extensions: [String: JSONValue]? { MetadataValidator.extensions(from: box.metadata) }
 
+  /// Fires before this node's resolved properties change in place.
+  ///
+  /// It fires only when the node's own non-node values change or a child is added, removed,
+  /// or replaced; a change inside a child fires on that child's publisher instead. A container
+  /// that reads child nodes directly, rather than rendering them through the adapter's node
+  /// view, can subscribe to each child's publisher (for example with `.onReceive`) to update
+  /// when that child changes. Because it fires before the new values are stored, read the child's
+  /// properties on the next render rather than inside the subscriber.
+  @MainActor
+  public var objectWillChange: ObservableObjectPublisher { box.objectWillChange }
+
   /// Creates a new resolved component node.
   public init(
     id: String,
