@@ -710,6 +710,33 @@
     format: "yyyy-MM-dd HH:mm"
   expect: "2026-09-04 23:30"
 
+- name: test_evaluate_function_format_date_quoted_literal
+  description: Verifies formatDate copies text in single quotes through as a literal, so letters inside it are not read as pattern tokens.
+  action: evaluate_function
+  function: formatDate
+  args:
+    value: "2025-12-15T12:00:00Z"
+    format: "EEEE, MMM d 'at' yyyy"
+  expect: "Monday, Dec 15 at 2025"
+
+- name: test_evaluate_function_format_date_escaped_apostrophe
+  description: Verifies formatDate renders two single quotes as one apostrophe, both inside and outside a quoted literal.
+  action: evaluate_function
+  function: formatDate
+  args:
+    value: "2025-12-15T12:00:00Z"
+    format: "d 'o''clock', MMM''yy"
+  expect: "15 o'clock, Dec'25"
+
+- name: test_evaluate_function_format_date_short_weekday
+  description: Verifies formatDate reads EEE and EE as the abbreviated weekday, the same as E.
+  action: evaluate_function
+  function: formatDate
+  args:
+    value: "2026-02-02T12:00:00Z"
+    format: "EEE, MMM d (EE, E)"
+  expect: "Mon, Feb 2 (Mon, Mon)"
+
 # --- FormatStringFunction (D18, D28) ---
 - name: test_evaluate_function_format_string_basic
   description: Verifies formatString evaluates static template string.

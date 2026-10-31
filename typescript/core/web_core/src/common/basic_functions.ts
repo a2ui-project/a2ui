@@ -311,7 +311,13 @@ export function getDateNames(locale: string): DateNames {
   return names;
 }
 
-export const DATE_TOKENS = /yyyy|yy|MMMM|MMM|MM|M|EEEE|E|dd|d|HH|H|hh|h|mm|ss|a/g;
+/**
+ * TR35 pattern tokens, plus quoted literals: `''` is an apostrophe, and text in
+ * single quotes (with `''` inside it standing for an apostrophe) is copied
+ * through. As in date-fns, an unclosed quote runs to the end of the pattern.
+ */
+export const DATE_TOKENS =
+  /''|'((?:''|[^'])+)(?:'|$)|yyyy|yy|MMMM|MMM|MM|M|EEEE|EEE|EE|E|dd|d|HH|H|hh|h|mm|ss|a/g;
 export const ISO_OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/;
 
 /**
@@ -525,8 +531,11 @@ export function executeFormatDate(
   const hours = shifted.getUTCHours();
   const hours12 = hours % 12 || 12;
 
-  return pattern.replace(DATE_TOKENS, (token: string) => {
+  return pattern.replace(DATE_TOKENS, (token: string, literal?: string) => {
+    if (literal !== undefined) return literal.replace(/''/g, "'");
     switch (token) {
+      case "''":
+        return "'";
       case 'yyyy':
         return String(shifted.getUTCFullYear());
       case 'yy':
@@ -541,6 +550,8 @@ export function executeFormatDate(
         return String(shifted.getUTCMonth() + 1);
       case 'EEEE':
         return names.weekdaysLong[weekdayIndex];
+      case 'EEE':
+      case 'EE':
       case 'E':
         return names.weekdaysShort[weekdayIndex];
       case 'dd':

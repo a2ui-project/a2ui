@@ -42,6 +42,11 @@
   `$id`, title, description or instructions, which describe the source; pass
   its own `instructions`. A name the source has no entry of throws
   `A2uiCatalogError` ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- `formatDate` copies text in single quotes through as a literal and renders
+  `''` as an apostrophe, so `"MMM d 'at' h:mm a"` gives `Feb 2 at 3:17 PM`
+  instead of `Feb 2 'PMt' 3:17 PM`, and reads `EEE` and `EE` as the
+  abbreviated weekday instead of repeating it
+  ([#2937](https://github.com/a2ui-project/a2ui/issues/2937), [#3787](https://github.com/a2ui-project/a2ui/pull/3787)).
 
 ## 0.4.0
 
