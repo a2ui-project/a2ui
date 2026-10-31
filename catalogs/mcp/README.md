@@ -35,7 +35,15 @@ For `updateDataModel`, keys starting with `/` are absolute paths, while relative
 
 ## v1 catalog (protocol v1.0)
 
-The v1 catalog, [v1/catalog.json](v1/catalog.json), targets A2UI protocol v1.0. Its catalog ID is `https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`. It declares `callMcpTool`, with argument and return types taken from the v1.0 `common_types.json`, and the `McpApp` component.
+The v1 catalog, [v1/catalog.json](v1/catalog.json), targets A2UI protocol v1.0. Its catalog ID is `https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`. It declares `callMcpTool` and `updateDataModel`, with argument and return types taken from the v1.0 `common_types.json`, and the `McpApp` component.
+
+### Data functions
+
+| Function          | Arguments | Returns                                                                     |
+| :---------------- | :-------- | :-------------------------------------------------------------------------- |
+| `updateDataModel` | `updates` | Nothing. Writes each key-value pair in `updates` to the surface data model. |
+
+The `updates` argument is a required `DynamicValue`, so it can be a literal object, a `@path` binding or a nested `@call`; a `null` or missing argument is rejected. Keys starting with `/` are absolute paths, while relative keys resolve against the calling data context (such as the current row scope inside a template list). `updateDataModel` does not evaluate `@path` or `@call` objects found inside the values it writes: a tool result is data, not an expression.
 
 ### McpApp component
 
