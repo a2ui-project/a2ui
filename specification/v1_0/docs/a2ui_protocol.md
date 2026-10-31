@@ -190,6 +190,8 @@ The `createSurface` message implicitly instantiates the canonical `Surface` cont
 
 v1.0 has no `theme` property. A `createSurface` that carries `theme` is invalid; a renderer that rejects it reports `code: "VALIDATION_FAILED"`, and a renderer that accepts it anyway MUST NOT expose a theme to adapters or components.
 
+When a single `createSurface` carries both `dataModel` and `components`, the renderer applies `dataModel` first, so components bind against the initial data on their first resolution. Separate messages keep arrival order (see [Envelope Dispatch Ordering](#envelope-dispatch-ordering)).
+
 **Example:**
 
 ```json
@@ -1592,9 +1594,9 @@ When a UI component binding or validation rule depends on a function that routes
 
 If a function call within a content pipeline fails (returns an `agentFunctionResponse` containing an `error` payload, throws a local execution error, times out, or triggers a transport error), the renderer applies the following recovery rules:
 
-- **Dynamic Value Binding Failure:** The property binding resolves to `null` (or a declared fallback value), and the renderer logs an evaluation error without crashing the surrounding component tree.
-- **Validation Rule Failure (`Checkable`):** The check rule evaluates as invalid, displaying the rule's specified error message to the user.
-- **Action Pipeline Failure:** Halts execution of any subsequent steps in the action execution pipeline and dispatches a local error boundary event or toast notification. Any side effects of previously executed steps are preserved.
+- **Dynamic Value Binding Failure:** The binding resolves to `null` (there is no declared fallback value in v1.0). The renderer reports an `error` with `code: "EXPRESSION_ERROR"`, including the call's `functionCallId` when a routed agent function failed or the `surfaceId` for a local evaluation failure. The component and its siblings stay mounted and keep resolving their other bindings.
+- **Validation Rule Failure (`Checkable`):** The check evaluates to `{"valid": false, "message": <CheckRule.message>, "severity": "error"}`, using the error's message when `CheckRule.message` is omitted.
+- **Action Pipeline Failure:** The renderer stops the remaining steps of that action, dispatches no further events from it, and reports an `error` (`code: "EXPRESSION_ERROR"` with the failed call's `functionCallId` when a routed agent function failed, or `code: "EXECUTION_ERROR"` with the `surfaceId` when a local renderer function ran and failed). Effects of steps that already ran are kept. The surface stays mounted. Whether the adapter also shows the failure to the user (inline message, toast) is the adapter's choice.
 
 ---
 

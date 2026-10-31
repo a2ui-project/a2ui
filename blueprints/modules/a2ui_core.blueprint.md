@@ -593,9 +593,9 @@ When a surface is created with `sendDataModel: true`, the renderer is responsibl
 
 ##### `createSurface` operation ordering
 
-A `createSurface` message may carry an initial data model and an initial component list at once. The processor MUST apply the data model before the components. Components are validated and bound against the data model, so applying them first reports spurious missing-binding warnings for data that is about to arrive in the same message.
+A `createSurface` message may carry an initial data model and an initial component list at once. The processor MUST apply the data model before the components (see [`createSurface`](../../specification/v1_0/docs/a2ui_protocol.md#createsurface)). Components are validated and bound against the data model, so applying them first reports spurious missing-binding warnings for data that is about to arrive in the same message.
 
-The initial data model is applied as one operation per top-level key, merging into the existing root, rather than as a single write to `/`. A single root write replaces the whole document and fires one cascade over every path, which changes both the resulting tree and the notification count that subscribers observe.
+The initial data model MUST be applied as one operation per top-level key, merging into the existing root, rather than as a single write to `/`. A single root write replaces the whole document and fires one cascade over every path, which changes both the resulting tree and the notification count that subscribers observe. This second rule is a core blueprint requirement verified by a notification-count unit test in each core SDK.
 
 #### [Capabilities Objects](../../docs/public/concepts/glossary.md#capabilities-object)
 
