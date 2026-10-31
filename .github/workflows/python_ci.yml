@@ -110,7 +110,15 @@ jobs:
         run: |
           uv run --all-packages mypy .
       - name: Run Unit Tests
+        env:
+          A2UI_CONFORMANCE_MANIFEST_DIR: ${{ runner.temp }}/a2ui-manifest
         run: uv run pytest
+      - name: Verify Core Conformance Manifest
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness python-core \
+            --corpus core
       - name: Set Up Dart
         uses: ./.github/actions/setup-dart
       - name: Run CLI Python Runtime Tests

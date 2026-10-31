@@ -16,12 +16,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import copy
 from dataclasses import dataclass
 import inspect
 import json
 from pathlib import Path
 from typing import Any, Callable
+
 import yaml
 
 from a2ui.core.catalog import Catalog, FunctionImplementation
@@ -34,6 +36,64 @@ from a2ui.core.resolution import (
     is_writable,
 )
 from a2ui.core.state import ComponentModel, SurfaceModel
+
+_CASE_KEYS = frozenset({
+    "name",
+    "description",
+    "features",
+    "action",
+    "fixture",
+    "expect",
+    "steps",
+})
+_FIXTURE_KEYS = frozenset({
+    "catalog",
+    "components",
+    "data",
+})
+_EXPECT_KEYS = frozenset({
+    "nodes",
+    "emissions",
+    "metadata_emissions",
+    "destroyed",
+    "same_nodes",
+    "replaced_nodes",
+    "data",
+    "events",
+    "functions",
+    "errors",
+})
+_NODE_FIELD_KEYS = frozenset({
+    "component_id",
+    "type",
+    "state",
+    "data_path",
+    "metadata",
+    "isValid",
+    "validationErrors",
+    "validationResults",
+    "props",
+})
+_STEP_KEYS_BY_OP: dict[str, frozenset[str]] = {
+    "set_data": frozenset({"op", "path", "value", "expect"}),
+    "update_components": frozenset({"op", "components", "expect"}),
+    "remove_component": frozenset({"op", "component_id", "expect"}),
+    "process_messages": frozenset({"op", "messages", "expect"}),
+    "write": frozenset({"op", "node", "property", "value", "expect"}),
+    "invoke": frozenset({"op", "node", "property", "metadata", "expect"}),
+    "dispose": frozenset({"op", "expect"}),
+}
+
+
+def _assert_known_keys(
+    obj: Mapping[str, Any],
+    allowed: frozenset[str],
+    where: str,
+    context: str,
+) -> None:
+    for key in obj:
+        if key not in allowed:
+            raise AssertionError(f"Unknown {where} '{key}' in {context}")
 
 
 @dataclass
@@ -110,6 +170,7 @@ def _check_nodes(
         expected_nodes.keys()
     ), f"{reason}: node paths {sorted(nodes.keys())} != {sorted(expected_nodes.keys())}"
     for path, fields in expected_nodes.items():
+        _assert_known_keys(fields, _NODE_FIELD_KEYS, f"node '{path}' key", reason)
         node = _required_node(nodes, path)
         actual = {
             "component_id": node.component_id,
@@ -291,6 +352,22 @@ def _check_errors(
             ), f"{reason}: error.{k} expected {v!r}, got {actual_err.get(k)!r}"
 
 
+def _check_node_identity(
+    before: dict[str, ComponentNode],
+    after: dict[str, ComponentNode],
+    expected: dict[str, Any],
+    reason: str,
+) -> None:
+    for path in expected.get("same_nodes", ()):
+        assert _required_node(after, path) is _required_node(
+            before, path
+        ), f"{reason}: {path} identity"
+    for path in expected.get("replaced_nodes", ()):
+        assert _required_node(after, path) is not _required_node(
+            before, path
+        ), f"{reason}: {path} replacement"
+
+
 def _check_step_state(
     resolver: NodeResolver,
     surface: SurfaceModel,
@@ -302,43 +379,36 @@ def _check_step_state(
     before: dict[str, ComponentNode],
     reason: str,
 ) -> None:
+    _assert_known_keys(expected, _EXPECT_KEYS, "expect key", reason)
     after = _mounted_nodes(resolver)
     _check_nodes(after, expected, reason)
     emissions, metadata_emissions, destroyed = _collect_watch_counts(
         watches, set(after.values()), reason
     )
-    assert emissions == (expected.get("emissions") or {}), (
-        f"{reason}: emissions expected {expected.get('emissions') or {}}, got"
-        f" {emissions}"
-    )
+    exp_emissions = expected.get("emissions") or {}
+    assert (
+        emissions == exp_emissions
+    ), f"{reason}: emissions expected {exp_emissions}, got {emissions}"
     if "metadata_emissions" in expected:
-        assert metadata_emissions == (expected.get("metadata_emissions") or {}), (
-            f"{reason}: metadata_emissions expected"
-            f" {expected.get('metadata_emissions') or {}}, got {metadata_emissions}"
-        )
-    assert destroyed == (expected.get("destroyed") or {}), (
-        f"{reason}: destroyed expected {expected.get('destroyed') or {}}, got"
-        f" {destroyed}"
-    )
-    for path in expected.get("same_nodes") or []:
-        assert _required_node(after, path) is _required_node(
-            before, path
-        ), f"{reason}: {path} identity"
-    for path in expected.get("replaced_nodes") or []:
-        assert _required_node(after, path) is not _required_node(
-            before, path
-        ), f"{reason}: {path} replacement"
+        exp_meta = expected.get("metadata_emissions") or {}
+        assert (
+            metadata_emissions == exp_meta
+        ), f"{reason}: metadata_emissions expected {exp_meta}, got {metadata_emissions}"
+    exp_destroyed = expected.get("destroyed") or {}
+    assert (
+        destroyed == exp_destroyed
+    ), f"{reason}: destroyed expected {exp_destroyed}, got {destroyed}"
+    _check_node_identity(before, after, expected, reason)
     for path, val in (expected.get("data") or {}).items():
         assert (
             _normalize(surface.data_model.get(path), path) == val
         ), f"{reason}: data {path}"
-    assert events == (
-        expected.get("events") or []
-    ), f"{reason}: events expected {expected.get('events') or []}, got {events}"
-    assert functions == (expected.get("functions") or []), (
-        f"{reason}: functions expected {expected.get('functions') or []}, got"
-        f" {functions}"
-    )
+    exp_events = expected.get("events") or []
+    assert events == exp_events, f"{reason}: events expected {exp_events}, got {events}"
+    exp_functions = expected.get("functions") or []
+    assert (
+        functions == exp_functions
+    ), f"{reason}: functions expected {exp_functions}, got {functions}"
     _check_errors(errors, expected, reason)
 
 
@@ -352,6 +422,10 @@ def _execute_step_op(
     reason: str,
 ) -> None:
     op = step["op"]
+    allowed_step_keys = _STEP_KEYS_BY_OP.get(op)
+    if allowed_step_keys is None:
+        raise AssertionError(f"Unknown node operation: {op}")
+    _assert_known_keys(step, allowed_step_keys, f"step ({op}) key", reason)
     if op == "set_data":
         surface.data_model.set(step["path"], step["value"])
     elif op == "update_components":
@@ -377,15 +451,16 @@ def _execute_step_op(
             asyncio.run(res)
     elif op == "dispose":
         resolver.dispose()
-    else:
-        raise AssertionError(f"Unknown node operation: {op}")
 
 
 def run_node_resolution_case(test_case: dict[str, Any], conformance_root: Path) -> None:
     """Executes a single resolve_nodes conformance test case."""
+    case_context = f"core/node_resolution.yaml#{test_case.get('name', '<unknown>')}"
+    _assert_known_keys(test_case, _CASE_KEYS, "case key", case_context)
     assert test_case.get("action") == "resolve_nodes"
     fixture_path = conformance_root / test_case["fixture"]
     fixture = yaml.safe_load(fixture_path.read_text(encoding="utf-8"))
+    _assert_known_keys(fixture, _FIXTURE_KEYS, "fixture key", case_context)
     functions: list[dict[str, Any]] = []
     events: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
