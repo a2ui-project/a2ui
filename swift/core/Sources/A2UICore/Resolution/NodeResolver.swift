@@ -688,6 +688,14 @@ public final class NodeResolver: Sendable {
     let type = component.type
     let effectiveCatalogID = component.catalogID ?? defaultCatalogID
     let targetCatalog = getCatalog(id: effectiveCatalogID)
+    if let targetCatalog, targetCatalog.components[type] == nil {
+      reportResolutionError(
+        code: "UNKNOWN_COMPONENT_TYPE",
+        message: "Component '\(definitionID)' has type '\(type)', which is not in catalog "
+          + "'\(targetCatalog.id)'.",
+        dedupeKey: "UNKNOWN_COMPONENT_TYPE:\(type)"
+      )
+    }
 
     var visited = visited
     visited.insert(nodeKey)
@@ -782,7 +790,17 @@ public final class NodeResolver: Sendable {
     currentNodeChildIdentities?.updateValue(childIdentity, forKey: childID)
 
     let childNodeKey = makeNodeKey(instanceID: childInstanceID, basePath: basePath)
-    guard !visited.contains(childNodeKey), let childIdentity else {
+    if visited.contains(childNodeKey) {
+      let dataPath = normalizePath(basePath ?? "/")
+      reportResolutionError(
+        code: "CYCLIC_REFERENCE",
+        message: "Component '\(childID)' at '\(dataPath)' is referenced by one of its own "
+          + "descendants; omitting the reference.",
+        dedupeKey: "CYCLIC_REFERENCE:\(childNodeKey)"
+      )
+      return nil
+    }
+    guard let childIdentity else {
       return nil
     }
 
@@ -1892,15 +1910,40 @@ extension NodeResolver: FunctionHandler {
         )
       )
     }
-    let dedupeKey =
-      "\(currentComponentID ?? ""):\(currentPropertyPath ?? ""):\(functionName):\(rendererError)"
+    report(
+      rendererError,
+      dedupeKey: "\(currentPropertyPath ?? ""):\(functionName):\(rendererError)"
+    )
+  }
+}
+
+// MARK: - Error Reporting
+
+extension NodeResolver {
+  /// Reports a `GenericError` for a problem in the component tree.
+  private func reportResolutionError(code: String, message: String, dedupeKey: String) {
+    let error = GenericError(
+      code: code,
+      surfaceID: surfaceID,
+      message: message,
+      version: effectiveProtocolVersion ?? .v09
+    )
+    report(.generic(error), dedupeKey: dedupeKey)
+  }
+
+  /// Reports an error to the action handler.
+  ///
+  /// While resolving the tree, an error is keyed to the node being resolved and reported once
+  /// until that node resolves without it, so re-renders don't repeat it.
+  private func report(_ error: RendererError, dedupeKey: String) {
     if isResolvingTree {
-      let isFirstInPass = currentPassExpressionErrors.insert(dedupeKey).inserted
-      guard isFirstInPass && !reportedExpressionErrors.contains(dedupeKey) else {
+      let key = "\(currentComponentID ?? ""):\(dedupeKey)"
+      let isFirstInPass = currentPassExpressionErrors.insert(key).inserted
+      guard isFirstInPass && !reportedExpressionErrors.contains(key) else {
         return
       }
     }
-    actionHandler?.handle(error: rendererError, from: surfaceID)
+    actionHandler?.handle(error: error, from: surfaceID)
   }
 
   /// Cancels model change subscriptions and clears cached resolution state.

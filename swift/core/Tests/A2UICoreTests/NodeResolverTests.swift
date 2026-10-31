@@ -190,6 +190,180 @@ struct NodeResolverTests {
     #expect(bNode.children(for: "children").isEmpty)
   }
 
+  @Test func cyclicReferenceIsReportedOnce() throws {
+    let catalog = try makeCatalog()
+    let components = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("a")])]
+      ),
+      "a": ComponentModel(
+        id: "a",
+        type: "Container",
+        properties: ["children": .array([.string("b")])]
+      ),
+      "b": ComponentModel(
+        id: "b",
+        type: "Container",
+        properties: [
+          "children": .array([.string("a")]),
+          "accessibility": .object(["label": .object(["path": .string("/label")])]),
+        ]
+      ),
+    ])
+    let dataModel = DataModel(initial: .object(["label": .string("One")]))
+    let handler = ExpressionErrorCaptureHandler()
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: components,
+      dataModel: dataModel,
+      actionHandler: handler
+    )
+
+    _ = resolver.resolveTree()
+    let errors = genericErrors(handler)
+    #expect(errors.map(\.code) == ["CYCLIC_REFERENCE"])
+    #expect(
+      errors.first?.message
+        == "Component 'a' at '/' is referenced by one of its own descendants; "
+        + "omitting the reference."
+    )
+    #expect(errors.first?.surfaceID == "s1")
+
+    // `b` resolves again for its new label and still hits the cycle, which stays reported once.
+    dataModel.set("/label", value: .string("Two"))
+    let bNode = try #require(
+      resolver.resolveTree()?.children(for: "children").first?.children(for: "children").first
+    )
+    #expect(bNode.id == "b")
+    #expect(bNode.explicitAccessibilityAttributes?.label == "Two")
+    #expect(handler.capturedErrors.count == 1)
+
+    // Re-rendering the root reuses `b`, so the cycle is not reported again.
+    components.addComponent(
+      ComponentModel(id: "t1", type: "Text", properties: ["text": .string("Hi")])
+    )
+    components.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("a"), .string("t1")])]
+      )
+    )
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 1)
+  }
+
+  @Test func unknownComponentTypeIsReportedOncePerComponent() throws {
+    let catalog = try makeCatalog()
+    let components = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("u1"), .string("u2")])]
+      ),
+      "u1": ComponentModel(id: "u1", type: "Widget", properties: [:]),
+      "u2": ComponentModel(
+        id: "u2",
+        type: "Widget",
+        properties: [
+          "accessibility": .object(["label": .object(["path": .string("/label")])])
+        ]
+      ),
+    ])
+    let dataModel = DataModel(initial: .object(["label": .string("One")]))
+    let handler = ExpressionErrorCaptureHandler()
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: components,
+      dataModel: dataModel,
+      actionHandler: handler
+    )
+
+    _ = resolver.resolveTree()
+    let errors = genericErrors(handler)
+    #expect(errors.map(\.code) == ["UNKNOWN_COMPONENT_TYPE", "UNKNOWN_COMPONENT_TYPE"])
+    #expect(
+      Set(errors.map(\.message)) == [
+        "Component 'u1' has type 'Widget', which is not in catalog 'test'.",
+        "Component 'u2' has type 'Widget', which is not in catalog 'test'.",
+      ]
+    )
+
+    // `u2` resolves again for its new label and stays reported once.
+    dataModel.set("/label", value: .string("Two"))
+    let u2Node = try #require(resolver.resolveTree()?.children(for: "children").last)
+    #expect(u2Node.explicitAccessibilityAttributes?.label == "Two")
+    #expect(handler.capturedErrors.count == 2)
+
+    // Re-rendering the root reuses `u1` and `u2`, so neither is reported again.
+    components.addComponent(
+      ComponentModel(id: "t1", type: "Text", properties: ["text": .string("Hi")])
+    )
+    components.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("u1"), .string("u2"), .string("t1")])]
+      )
+    )
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 2)
+
+    // Fixing `u1` and breaking it again reports it again.
+    components.addComponent(
+      ComponentModel(id: "u1", type: "Text", properties: ["text": .string("Fixed")])
+    )
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 2)
+    components.addComponent(ComponentModel(id: "u1", type: "Widget", properties: [:]))
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 3)
+  }
+
+  @Test func unknownComponentTypeIsReportedOncePerDataPath() throws {
+    let catalog = try makeCatalog()
+    let components = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: [
+          "children": .object([
+            "componentId": .string("item"),
+            "path": .string("/items"),
+          ])
+        ]
+      ),
+      "item": ComponentModel(id: "item", type: "Widget", properties: [:]),
+    ])
+    let dataModel = DataModel(
+      initial: .object(["items": .array([.string("a"), .string("b")])])
+    )
+    let handler = ExpressionErrorCaptureHandler()
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: components,
+      dataModel: dataModel,
+      actionHandler: handler
+    )
+
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 2)
+
+    // Only the new item is reported when the list grows.
+    dataModel.set("/items", value: .array([.string("a"), .string("b"), .string("c")]))
+    _ = resolver.resolveTree()
+    #expect(
+      genericErrors(handler).map(\.code) == Array(repeating: "UNKNOWN_COMPONENT_TYPE", count: 3))
+  }
+
   @Test func unknownComponentTypeResolvesWithFallbackSchema() throws {
     let catalog = try makeCatalog()
     let components: [String: ComponentModel] = [
@@ -1151,6 +1325,13 @@ struct NodeResolverTests {
     #expect(throws: A2UIValidationError.self) {
       try action(metadata: ["extensions": .object(["invalid-key": .integer(1)])])
     }
+  }
+}
+
+private func genericErrors(_ handler: ExpressionErrorCaptureHandler) -> [GenericError] {
+  handler.capturedErrors.compactMap { error in
+    guard case .generic(let genericError) = error else { return nil }
+    return genericError
   }
 }
 
