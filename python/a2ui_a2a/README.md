@@ -30,12 +30,35 @@ This installs `a2ui-agent-sdk` and `a2a-sdk` as dependencies.
   parses a whole response with a `Parser`, such as
   `A2uiRequestProcessor.parser`, and logs and drops one that fails. A canvas
   agent passes it the `RendererState` it keeps with `state=`.
+- RPC helpers (v1.0): `get_a2ui_messages` returns the A2UI messages in an
+  incoming A2A message's A2UI parts, such as a renderer's `callAgentFunction`
+  or `rendererFunctionResponse`, and `create_a2ui_parts` wraps the replies
+  that `RendererMessageRouter.dispatch` (from `a2ui.rpc`) returns as A2UI
+  parts.
 
 ```python
 from a2ui.a2a import create_a2ui_part, get_a2ui_agent_extension
 
 extension = get_a2ui_agent_extension(version="0.9")
 part = create_a2ui_part({"version": "v0.9", "deleteSurface": {"surfaceId": "main"}})
+```
+
+In an `AgentExecutor`, answer the renderer's RPC messages before running the
+agent's turn:
+
+```python
+from a2ui.a2a import create_a2ui_parts, get_a2ui_messages
+from a2ui.rpc import AgentFunctionRegistry, RendererMessageRouter
+
+router = RendererMessageRouter(agent_functions=AgentFunctionRegistry(catalogs))
+
+messages = get_a2ui_messages(context.message)
+if messages and len(messages) == len(context.message.parts) and all(
+    router.handles(message) for message in messages
+):
+    replies = [reply for message in messages for reply in await router.dispatch(message)]
+    parts = create_a2ui_parts(replies)
+    ...  # send `parts` to the client, and skip the agent's turn
 ```
 
 The specification of the extension is in
