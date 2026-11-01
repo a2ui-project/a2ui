@@ -31,6 +31,12 @@
   `live`, and `hidden`) now update `NodeView` semantics reactively
   ([#3583](https://github.com/a2ui-project/a2ui/pull/3583)).
 - `NodeView` subscribes to `node.metadata` so custom `ComponentImplementation` widgets rebuild when component extension metadata changes, and `ComponentProps.action(key)` returns a `NodeAction?` accepting optional `ActionDispatchOptions(metadata: ...)` ([#3469](https://github.com/a2ui-project/a2ui/issues/3469), [#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)).
+- `ComponentImplementation` takes `allowedParents` and `allowedChildren`, so a
+  custom Flutter component can declare where it may appear. The message
+  processor rejects a payload that breaks them with `UNALLOWED_PARENT` or
+  `UNALLOWED_CHILD`. The basic catalog components keep the constraints of
+  their catalog definition
+  ([#3533](https://github.com/a2ui-project/a2ui/issues/3533)).
 
 ## 0.0.1-wip003
 
