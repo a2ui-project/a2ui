@@ -16,11 +16,11 @@
 # Standalone, user-space installer for the A2UI CLI (a2ui).
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/public/install_cli.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/a2ui-project/a2ui/main/scripts/public/install_cli.sh | sh
 #
 # Options (via environment variables):
 #   A2UI_VERSION        Version to install (e.g., "0.1.0" or "cli-v0.1.0"). Defaults to latest release.
-#   A2UI_INSTALL_DIR    Target install directory. Defaults to $HOME/.local/bin.
+#   A2UI_INSTALL_DIR    Target install directory. Defaults to $XDG_BIN_HOME or $HOME/.local/bin.
 #   A2UI_REPO           GitHub repository (owner/repo). Defaults to "a2ui-project/a2ui".
 #   A2UI_SKIP_CHECKSUM  Set to "1" to bypass SHA-256 cryptographic verification.
 
@@ -34,7 +34,14 @@ INSTALL_DIR="${INSTALL_DIR%/}"
 # Determine OS
 OS="$(uname -s)"
 case "$OS" in
-  Linux*)  TARGET_OS="linux" ;;
+  Linux*)
+    TARGET_OS="linux"
+    if (command -v ldd >/dev/null 2>&1 && ldd --version 2>&1 | grep -qi musl) || [ -f /lib/ld-musl-x86_64.so.1 ] || [ -f /lib/ld-musl-aarch64.so.1 ]; then
+      echo "Error: musl-based Linux (e.g. Alpine) is not supported; the A2UI CLI binary requires glibc." >&2
+      echo "Install gcompat ('apk add gcompat') or run the CLI from source with the Dart SDK." >&2
+      exit 1
+    fi
+    ;;
   Darwin*) TARGET_OS="darwin" ;;
   *)
     echo "Error: Unsupported operating system '$OS'." >&2
@@ -62,7 +69,12 @@ if [ -z "$VERSION" ] || [ "$VERSION" = "latest" ]; then
   echo "Resolving latest A2UI CLI release from https://github.com/$REPO..."
   RELEASE_DATA="$(curl -sSfL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/releases?per_page=100" 2>/dev/null || true)"
   if [ -n "$RELEASE_DATA" ]; then
-    TAG="$(printf '%s\n' "$RELEASE_DATA" | grep -o '"tag_name": *"[^"]*"' | grep 'cli-v' | head -n 1 | sed 's/.*"cli-v/cli-v/' | sed 's/"//' || true)"
+    TAG="$(printf '%s\n' "$RELEASE_DATA" \
+      | grep -o -E '"(tag_name|prerelease)": *("[^"]*"|true|false)' \
+      | awk -F': *' '
+          $1 == "\"tag_name\"" { gsub(/"/, "", $2); tag = $2; next }
+          $1 == "\"prerelease\"" && $2 == "false" && tag ~ /^cli-v/ { print tag; exit }
+        ' || true)"
   else
     TAG=""
   fi
@@ -71,7 +83,7 @@ if [ -z "$VERSION" ] || [ "$VERSION" = "latest" ]; then
     if [ -z "$RELEASE_DATA" ]; then
       echo "Error: Could not query the GitHub releases API (possibly rate limited or network failure)." >&2
     else
-      echo "Error: No 'cli-v*' release found in repository '$REPO'." >&2
+      echo "Error: No eligible stable 'cli-v*' release found in repository '$REPO'." >&2
     fi
     echo "Please specify the version explicitly, e.g.:" >&2
     echo "  curl -sSL https://raw.githubusercontent.com/$REPO/main/scripts/public/install_cli.sh | A2UI_VERSION=0.1.0 sh" >&2
@@ -86,15 +98,30 @@ else
 fi
 
 RAW_VERSION="${TAG#cli-v}"
+# Validate version format
+case "$RAW_VERSION" in
+  [0-9]*.[0-9]*.[0-9]*) ;;
+  *)
+    echo "Error: Invalid version format '$RAW_VERSION'." >&2
+    exit 1
+    ;;
+esac
+
 ARCHIVE_NAME="a2ui-v${RAW_VERSION}-${TARGET}.tar.gz"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${ARCHIVE_NAME}"
 CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${TAG}/checksums.txt"
 
+TMP_TARGET=""
 TMP_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t 'a2ui-install')"
 cleanup() {
   rm -rf "$TMP_DIR"
+  if [ -n "$TMP_TARGET" ] && [ -f "$TMP_TARGET" ]; then
+    rm -f "$TMP_TARGET"
+  fi
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 echo "Downloading A2UI CLI ($TAG) for $TARGET..."
 if ! curl -sSfL "$DOWNLOAD_URL" -o "$TMP_DIR/$ARCHIVE_NAME"; then
@@ -113,16 +140,16 @@ else
     exit 1
   fi
 
-  EXPECTED_SHA="$(grep "[[:space:]*]${ARCHIVE_NAME}\$" "$TMP_DIR/checksums.txt" | awk '{print $1}' || true)"
+  EXPECTED_SHA="$(awk -v f="$ARCHIVE_NAME" '{ sub(/\r$/, ""); n = $2; sub(/^\*/, "", n); if (n == f) { print tolower($1); exit } }' "$TMP_DIR/checksums.txt")"
   if [ -z "$EXPECTED_SHA" ]; then
     echo "Error: $ARCHIVE_NAME not found in checksums.txt!" >&2
     exit 1
   fi
 
   if command -v sha256sum >/dev/null 2>&1; then
-    ACTUAL_SHA="$(sha256sum "$TMP_DIR/$ARCHIVE_NAME" | awk '{print $1}')"
+    ACTUAL_SHA="$(sha256sum "$TMP_DIR/$ARCHIVE_NAME" | awk '{print tolower($1)}')"
   elif command -v shasum >/dev/null 2>&1; then
-    ACTUAL_SHA="$(shasum -a 256 "$TMP_DIR/$ARCHIVE_NAME" | awk '{print $1}')"
+    ACTUAL_SHA="$(shasum -a 256 "$TMP_DIR/$ARCHIVE_NAME" | awk '{print tolower($1)}')"
   else
     echo "Error: Neither 'sha256sum' nor 'shasum' is installed; cannot verify download." >&2
     echo "Install sha256sum or shasum, or set A2UI_SKIP_CHECKSUM=1 to bypass." >&2
@@ -151,7 +178,9 @@ chmod 755 "$TMP_DIR/a2ui"
 # Atomically replace target binary
 TMP_TARGET="$INSTALL_DIR/.a2ui.tmp.$$"
 cp -f "$TMP_DIR/a2ui" "$TMP_TARGET"
+chmod 755 "$TMP_TARGET"
 mv -f "$TMP_TARGET" "$INSTALL_DIR/a2ui"
+TMP_TARGET=""
 
 echo "✓ Successfully installed A2UI CLI ($TAG) to $INSTALL_DIR/a2ui"
 

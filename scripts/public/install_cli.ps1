@@ -19,6 +19,7 @@
 
 & {
     $ErrorActionPreference = "Stop"
+    $ProgressPreference = "SilentlyContinue"
 
     # Ensure TLS 1.2 is enabled for older PowerShell environments without overwriting other protocols
     [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
@@ -76,7 +77,7 @@
         try {
             Invoke-WebRequest -Uri $DownloadUrl -OutFile $ZipPath -UseBasicParsing
         } catch {
-            throw "Failed to download release archive from $DownloadUrl: $($_.Exception.Message)"
+            throw "Failed to download release archive from ${DownloadUrl}: $($_.Exception.Message)"
         }
 
         if (-not $env:A2UI_SKIP_CHECKSUM -or $env:A2UI_SKIP_CHECKSUM -ne "1") {
@@ -85,7 +86,7 @@
             try {
                 Invoke-WebRequest -Uri $ChecksumsUrl -OutFile $ChecksumsPath -UseBasicParsing
             } catch {
-                throw "Failed to download checksums.txt from $ChecksumsUrl: $($_.Exception.Message). Set `$env:A2UI_SKIP_CHECKSUM = '1' to bypass."
+                throw "Failed to download checksums.txt from ${ChecksumsUrl}: $($_.Exception.Message). Set `$env:A2UI_SKIP_CHECKSUM = '1' to bypass."
             }
 
             $ChecksumContent = Get-Content $ChecksumsPath
@@ -112,18 +113,36 @@
             throw "Release archive did not contain 'a2ui.exe'."
         }
 
-        Copy-Item -Path $ExtractedExe -Destination (Join-Path $InstallDir "a2ui.exe") -Force
+        # Stage and atomically replace executable (avoids sharing violations if a2ui.exe is active)
+        $TargetExe = Join-Path $InstallDir "a2ui.exe"
+        $StagedExe = Join-Path $InstallDir "a2ui.exe.new"
+        $OldExe = Join-Path $InstallDir "a2ui.exe.old"
+        Copy-Item -Path $ExtractedExe -Destination $StagedExe -Force
+        Remove-Item -Path $OldExe -Force -ErrorAction SilentlyContinue
+        if (Test-Path $TargetExe) { Move-Item -Path $TargetExe -Destination $OldExe -Force }
+        Move-Item -Path $StagedExe -Destination $TargetExe -Force
+        Remove-Item -Path $OldExe -Force -ErrorAction SilentlyContinue
         Write-Host "[OK] Successfully installed A2UI CLI ($Tag) to $InstallDir\a2ui.exe"
 
-        # Verify and update User PATH
-        $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
-        $PathParts = if ($UserPath) { $UserPath -split ";" } else { @() }
-        if ($PathParts -notcontains $InstallDir) {
-            Write-Host "Adding $InstallDir to user PATH environment variable..."
-            $NewUserPath = if ($UserPath) { "$UserPath;$InstallDir" } else { $InstallDir }
-            [Environment]::SetEnvironmentVariable("Path", $NewUserPath, "User")
-            $env:Path = "$env:Path;$InstallDir"
-            Write-Host "[OK] Added $InstallDir to PATH."
+        # Verify and update User PATH without expanding REG_EXPAND_SZ entries
+        $EnvKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("Environment", $true)
+        try {
+            $UserPath = [string]$EnvKey.GetValue("Path", "", [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+            $Normalized = $InstallDir.TrimEnd("\/")
+            $AlreadyPresent = $UserPath -split ";" | Where-Object { $_ } |
+                Where-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd("\/") -eq $Normalized }
+            if (-not $AlreadyPresent) {
+                Write-Host "Adding $InstallDir to user PATH environment variable..."
+                $NewUserPath = (@($UserPath.TrimEnd(";"), $InstallDir) | Where-Object { $_ }) -join ";"
+                $EnvKey.SetValue("Path", $NewUserPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
+                # Broadcast environment update so newly spawned shells inherit PATH
+                [Environment]::SetEnvironmentVariable("A2UI_INSTALLER_REFRESH", "1", "User")
+                [Environment]::SetEnvironmentVariable("A2UI_INSTALLER_REFRESH", $null, "User")
+                $env:Path = "$env:Path;$InstallDir"
+                Write-Host "[OK] Added $InstallDir to PATH."
+            }
+        } finally {
+            if ($EnvKey) { $EnvKey.Dispose() }
         }
 
         Write-Host "`nGet started by opening a new terminal and running:"

@@ -97,7 +97,14 @@ chmod +x "$STUB_BIN/curl"
 
 # Test 1: Unsupported OS fails cleanly
 echo "Test 1: Unsupported OS fails cleanly"
-OUTPUT=$(PATH="$STUB_BIN:$PATH" MOCK_UNAME_S="Solaris" /bin/sh "$INSTALLER" 2>&1 || true)
+set +e
+OUTPUT=$(PATH="$STUB_BIN:$PATH" MOCK_UNAME_S="Solaris" /bin/sh "$INSTALLER" 2>&1)
+RC=$?
+set -e
+if [ "$RC" -eq 0 ]; then
+  echo "FAIL: Expected non-zero exit code for unsupported OS"
+  exit 1
+fi
 if [[ "$OUTPUT" != *"Unsupported operating system 'Solaris'"* ]]; then
   echo "FAIL: Expected unsupported OS error, got:"
   echo "$OUTPUT"
@@ -184,14 +191,22 @@ mkdir -p "$MOCK_INSTALL_DIR_3"
 
 echo "0000000000000000000000000000000000000000000000000000000000000000  $ARCHIVE_NAME" > "$MOCK_ASSETS_DIR/bad_checksums.txt"
 
+set +e
 MISMATCH_OUTPUT=$(
   PATH="$STUB_BIN:$PATH" \
   MOCK_ARCHIVE_FILE="$MOCK_ASSETS_DIR/$ARCHIVE_NAME" \
   MOCK_CHECKSUMS_FILE="$MOCK_ASSETS_DIR/bad_checksums.txt" \
   A2UI_VERSION="$VERSION" \
   A2UI_INSTALL_DIR="$MOCK_INSTALL_DIR_3" \
-  /bin/sh "$INSTALLER" 2>&1 || true
+  /bin/sh "$INSTALLER" 2>&1
 )
+RC_3=$?
+set -e
+
+if [ "$RC_3" -eq 0 ]; then
+  echo "FAIL: Expected non-zero exit code on checksum mismatch!"
+  exit 1
+fi
 
 if [ -f "$MOCK_INSTALL_DIR_3/a2ui" ]; then
   echo "FAIL: Binary should not be installed when checksum fails!"
@@ -212,14 +227,22 @@ mkdir -p "$MOCK_INSTALL_DIR_4"
 
 echo "1111111111111111111111111111111111111111111111111111111111111111  some-other-file.tar.gz" > "$MOCK_ASSETS_DIR/missing_entry_checksums.txt"
 
+set +e
 MISSING_ENTRY_OUTPUT=$(
   PATH="$STUB_BIN:$PATH" \
   MOCK_ARCHIVE_FILE="$MOCK_ASSETS_DIR/$ARCHIVE_NAME" \
   MOCK_CHECKSUMS_FILE="$MOCK_ASSETS_DIR/missing_entry_checksums.txt" \
   A2UI_VERSION="$VERSION" \
   A2UI_INSTALL_DIR="$MOCK_INSTALL_DIR_4" \
-  /bin/sh "$INSTALLER" 2>&1 || true
+  /bin/sh "$INSTALLER" 2>&1
 )
+RC_4=$?
+set -e
+
+if [ "$RC_4" -eq 0 ]; then
+  echo "FAIL: Expected non-zero exit code on missing archive entry in checksums.txt!"
+  exit 1
+fi
 
 if [ -f "$MOCK_INSTALL_DIR_4/a2ui" ]; then
   echo "FAIL: Binary should not be installed when archive is missing from checksums.txt!"
@@ -238,13 +261,21 @@ echo "Test 5: Missing checksums.txt halts installation"
 MOCK_INSTALL_DIR_5="$TEST_TMP/bin5"
 mkdir -p "$MOCK_INSTALL_DIR_5"
 
+set +e
 MISSING_CHECKSUMS_OUTPUT=$(
   PATH="$STUB_BIN:$PATH" \
   MOCK_ARCHIVE_FILE="$MOCK_ASSETS_DIR/$ARCHIVE_NAME" \
   A2UI_VERSION="$VERSION" \
   A2UI_INSTALL_DIR="$MOCK_INSTALL_DIR_5" \
-  /bin/sh "$INSTALLER" 2>&1 || true
+  /bin/sh "$INSTALLER" 2>&1
 )
+RC_5=$?
+set -e
+
+if [ "$RC_5" -eq 0 ]; then
+  echo "FAIL: Expected non-zero exit code when checksums.txt download fails!"
+  exit 1
+fi
 
 if [ -f "$MOCK_INSTALL_DIR_5/a2ui" ]; then
   echo "FAIL: Binary should not be installed when checksums.txt download fails!"
@@ -284,5 +315,44 @@ if [[ "$SKIP_OUTPUT" != *"skipping checksum verification"* ]]; then
   exit 1
 fi
 echo "✓ Test 6 passed"
+
+# Test 7: Default 'latest' release resolution via GitHub API (skipping non-CLI and pre-release tags)
+echo "Test 7: Default 'latest' release resolution via GitHub API"
+MOCK_INSTALL_DIR_7="$TEST_TMP/bin7"
+mkdir -p "$MOCK_INSTALL_DIR_7"
+cat <<EOF > "$MOCK_ASSETS_DIR/releases.json"
+[
+  { "tag_name": "a2ui-core-v0.4.0", "prerelease": false, "draft": false },
+  { "tag_name": "cli-v9.9.9-rc.1", "prerelease": true, "draft": false },
+  { "tag_name": "cli-v${VERSION}", "prerelease": false, "draft": false }
+]
+EOF
+
+LATEST_OUTPUT=$(
+  PATH="$STUB_BIN:$PATH" \
+  MOCK_RELEASES_API_FILE="$MOCK_ASSETS_DIR/releases.json" \
+  MOCK_ARCHIVE_FILE="$MOCK_ASSETS_DIR/$ARCHIVE_NAME" \
+  MOCK_CHECKSUMS_FILE="$MOCK_ASSETS_DIR/checksums.txt" \
+  A2UI_INSTALL_DIR="$MOCK_INSTALL_DIR_7" \
+  /bin/sh "$INSTALLER" 2>&1
+)
+
+if [ ! -x "$MOCK_INSTALL_DIR_7/a2ui" ]; then
+  echo "FAIL: a2ui was not installed when resolving latest release via API"
+  echo "$LATEST_OUTPUT"
+  exit 1
+fi
+
+if [[ "$LATEST_OUTPUT" != *"cli-v${VERSION}"* ]]; then
+  echo "FAIL: Expected latest release tag cli-v${VERSION} to be resolved, got:"
+  echo "$LATEST_OUTPUT"
+  exit 1
+fi
+
+if ls -A "$MOCK_INSTALL_DIR_7" | grep -q '^\.a2ui\.tmp'; then
+  echo "FAIL: Leftover temp file found in install directory!"
+  exit 1
+fi
+echo "✓ Test 7 passed"
 
 echo "=== All A2UI CLI Installer tests passed successfully! ==="

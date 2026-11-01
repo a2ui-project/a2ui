@@ -68,6 +68,17 @@ jobs:
       - name: Run CLI installer tests
         run: ./scripts/test_install_cli.sh
 
+      - name: Validate PowerShell installer syntax
+        run: |
+          pwsh -Command '
+            $tokens = $null; $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile("scripts/public/install_cli.ps1", [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_ }
+              exit 1
+            }
+          '
+
   format-check:
     runs-on: ubuntu-24.04 # setup-swift does not support Ubuntu 26.04 yet
     steps:
