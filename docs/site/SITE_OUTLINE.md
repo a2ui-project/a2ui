@@ -94,6 +94,7 @@
 - **Protocol Version Parity & Renaming Reference**:
     - Present message schemas with comparative **v1.0 (Candidate)** and **v0.9.1 (Current)** tabs.
     - For every message envelope or property that evolved or was renamed between v0.9.1 and v1.0, prominently mark the v0.9.1 name and historical context for easy reference.
+- **Schema Deep Links**: Every message description must include a direct link to the canonical schema JSON file and subschema definition where it is formally defined (e.g. [`specification/v1_0/json/agent_to_renderer.json`](../../specification/v1_0/json/agent_to_renderer.json) and [`specification/v0_9_1/json/server_to_client.json`](../../specification/v0_9_1/json/server_to_client.json)).
 - **Diagram Format**: Include a concrete, end-to-end Themed Mermaid sequence diagram demonstrating a real-world flight booking interaction (matching the overview example).
 
 ##### Page Content Outline
@@ -102,46 +103,48 @@
     - Explain why A2UI uses decoupled, asynchronous messages over standard transports (AG-UI, A2A, SSE, WebSockets, MCP).
     - Contrast layout hierarchy updates (`updateComponents`) with reactive state synchronization (`updateDataModel`).
     - **Top-Level Message Envelope Evolution**:
-        - **v1.0**: `agent_to_renderer.json` and `renderer_to_agent.json` (reflecting that agents can run on clients and renderers on servers).
-        - **v0.9.1 reference**: Previously titled `server_to_client.json` and `client_to_server.json`.
+        - **v1.0**: [`agent_to_renderer.json`](../../specification/v1_0/json/agent_to_renderer.json) and [`renderer_to_agent.json`](../../specification/v1_0/json/renderer_to_agent.json) (reflecting that agents can run on clients and renderers on servers).
+        - **v0.9.1 reference**: Previously titled [`server_to_client.json`](../../specification/v0_9_1/json/server_to_client.json) and [`client_to_server.json`](../../specification/v0_9_1/json/client_to_server.json).
 
 2. **Agent-to-Renderer Messages**:
-    - **`createSurface`**:
+    - **`createSurface`** (Schema: [`agent_to_renderer.json#/$defs/CreateSurfaceMessage`](../../specification/v1_0/json/agent_to_renderer.json)):
         - Allocates an isolated UI canvas (`surfaceId`), assigns the active `catalogId`, and configures `sendDataModel`.
-        - _v0.9.1 reference_: In v0.9.1, `theme` was configured on `createSurface` (removed in v1.0 to decouple layout from branding), and `catalogId` was required. In v1.0, `catalogId` is optional (acting as the default catalog for the surface), and initial `components` and `dataModel` can be passed inline to initialize surfaces in a single round-trip.
-    - **`updateComponents`**:
+        - _v0.9.1 reference_: Defined in [`server_to_client.json`](../../specification/v0_9_1/json/server_to_client.json). In v0.9.1, `theme` was configured on `createSurface` (removed in v1.0 to decouple layout from branding), and `catalogId` was required. In v1.0, `catalogId` is optional (acting as the default catalog for the surface), and initial `components` and `dataModel` can be passed inline to initialize surfaces in a single round-trip.
+    - **`updateComponents`** (Schema: [`agent_to_renderer.json#/$defs/UpdateComponentsMessage`](../../specification/v1_0/json/agent_to_renderer.json)):
         - Emits flat arrays of UI components (adjacency list linked by IDs, with `root`). Enables incremental streaming and targeted subtree replacement without resending the entire tree.
-    - **`updateDataModel`**:
+        - _v0.9.1 reference_: Defined in [`server_to_client.json`](../../specification/v0_9_1/json/server_to_client.json).
+    - **`updateDataModel`** (Schema: [`agent_to_renderer.json#/$defs/UpdateDataModelMessage`](../../specification/v1_0/json/agent_to_renderer.json)):
         - Streams reactive state updates to JSON Pointer paths (`/booking/...`).
-        - _v0.9.1 reference_: In v1.0, deleting a key requires explicitly setting `value: null`. In v0.9.1, deleting a key was performed by omitting the `value` property.
-    - **`deleteSurface`**:
+        - _v0.9.1 reference_: Defined in [`server_to_client.json`](../../specification/v0_9_1/json/server_to_client.json). In v1.0, deleting a key requires explicitly setting `value: null`. In v0.9.1, deleting a key was performed by omitting the `value` property.
+    - **`deleteSurface`** (Schema: [`agent_to_renderer.json#/$defs/DeleteSurfaceMessage`](../../specification/v1_0/json/agent_to_renderer.json)):
         - Explicitly destroys a surface and frees client resources and subscriptions.
-    - **`callRendererFunction` (v1.0)**:
+        - _v0.9.1 reference_: Defined in [`server_to_client.json`](../../specification/v0_9_1/json/server_to_client.json).
+    - **`callRendererFunction` (v1.0)** (Schema: [`agent_to_renderer.json#/$defs/CallRendererFunctionMessage`](../../specification/v1_0/json/agent_to_renderer.json)):
         - Agent-initiated RPC invoking a client-side catalog function.
-        - _v0.9.1 reference_: Previously named `callFunction` in v0.9.1 `server_to_client.json`. In v1.0, renamed to `callRendererFunction` to distinguish bidirectional RPC boundaries, and pairs with `rendererFunctionResponse`.
-    - **`agentFunctionResponse` (v1.0)**:
+        - _v0.9.1 reference_: Previously named `callFunction` in v0.9.1 [`server_to_client.json`](../../specification/v0_9_1/json/server_to_client.json). In v1.0, renamed to `callRendererFunction` to distinguish bidirectional RPC boundaries, and pairs with `rendererFunctionResponse`.
+    - **`agentFunctionResponse` (v1.0)** (Schema: [`agent_to_renderer.json#/$defs/AgentFunctionResponseMessage`](../../specification/v1_0/json/agent_to_renderer.json)):
         - Response payload sent by the agent answering a client-initiated RPC (`callAgentFunction`).
         - _v0.9.1 reference_: New in v1.0 (v0.9.1 lacked client-initiated RPC responses).
 
 3. **Renderer-to-Agent Messages**:
-    - **`action`**:
+    - **`action`** (Schema: [`renderer_to_agent.json#/$defs/ActionMessage`](../../specification/v1_0/json/renderer_to_agent.json)):
         - Emitted when a user interacts with a widget (e.g. clicks a button), delivering resolved JSON Pointer `context` and optional full `dataModel` state back to the agent.
-        - _v0.9.1 reference_: In v1.0, `action` added support for an optional `userMessage` (resolved from `Action.event.userMessage`) and `metadata.extensions`.
-    - **`callAgentFunction` (v1.0)**:
+        - _v0.9.1 reference_: Defined in [`client_to_server.json`](../../specification/v0_9_1/json/client_to_server.json). In v1.0, `action` added support for an optional `userMessage` (resolved from `Action.event.userMessage`) and `metadata.extensions`.
+    - **`callAgentFunction` (v1.0)** (Schema: [`renderer_to_agent.json#/$defs/CallAgentFunctionMessage`](../../specification/v1_0/json/renderer_to_agent.json)):
         - Client-initiated RPC requesting agent server execution of a remote catalog function.
         - _v0.9.1 reference_: New in v1.0 (allows client UI actions or validation rules to invoke agent endpoints without full turn resets).
-    - **`rendererFunctionResponse` (v1.0)**:
+    - **`rendererFunctionResponse` (v1.0)** (Schema: [`renderer_to_agent.json#/$defs/RendererFunctionResponseMessage`](../../specification/v1_0/json/renderer_to_agent.json)):
         - Client response payload returning the result (`value`) or error (`error`) of an agent-initiated RPC (`callRendererFunction`).
         - _v0.9.1 reference_: New in v1.0.
-    - **`error` & The Self-Correction Loop**:
+    - **`error` & The Self-Correction Loop** (Schema: [`renderer_to_agent.json#/$defs/ErrorMessage`](../../specification/v1_0/json/renderer_to_agent.json)):
         - Structured client-side validation or runtime errors (`VALIDATION_FAILED`, `UNALLOWED_PARENT`, `UNALLOWED_CHILD`, `INTEGRITY_ERROR`, `INVALID_FUNCTION_CALL`, `EXECUTION_ERROR`, `EXPRESSION_ERROR`, `UNKNOWN_FUNCTION`).
-        - _v0.9.1 reference_: In v1.0, `error` supports `functionCallId` for reporting RPC failures, mutually exclusive with `surfaceId`.
+        - _v0.9.1 reference_: Defined in [`client_to_server.json`](../../specification/v0_9_1/json/client_to_server.json). In v1.0, `error` supports `functionCallId` for reporting RPC failures, mutually exclusive with `surfaceId`.
         - Explains how both the Agent SDK (`validate_payload` / `RendererState`) and the Client Renderer feed errors back to the model for automatic self-correction before reaching the user.
 
 4. **The Flat Component Tree (Adjacency List) & ID Rules**:
     - Explain why A2UI uses a **flat array of component objects with ID references** (e.g. `children: ["btn_one", "btn_two"]`) rather than deeply nested JSON trees:
         - **Streaming-First**: Components can be emitted progressively one object at a time without balancing deep closing braces.
-        - **Out-of-Order Buffering**: There must be exactly one component with `id: "root"` per surface, but non-root components arriving before `root` (or child IDs not yet received) are buffered seamlessly with placeholders until resolved.
+        - **Single Root Requirement**: There must be exactly one component with `id: "root"` per surface, which serves as the root container of the rendered visual hierarchy.
         - **Targeted Subtree Updates**: Later `updateComponents` messages can replace or insert individual nodes by `id` without resending the rest of the tree (and may omit `root` if `root` was already established).
         - **Identifier Format**: In v1.0, component IDs must be valid UAX #31 identifiers (e.g. `btn_one`, `userCard`; hyphenated IDs like `btn-1` are invalid in v1.0, whereas v0.9.1 was more permissive).
 
@@ -795,7 +798,7 @@
 1. **The Latency Equation in Generative UI**:
     - Deconstruct Time-to-First-Meaningful-Render:
       $$\text{Latency} = \text{TTFT (Prefill + Thinking)} + (\text{Output Tokens} \times \text{Inter-Token Latency}) + \text{Network Transport} + \text{Client Render}$$
-    - Tip: Emit the `root` component early in `updateComponents` so the renderer can mount the surface tree immediately rather than buffering child components waiting for `root`.
+    - Tip: Emit the `root` component early in `updateComponents` so the renderer can mount the surface tree immediately.
 
 2. **Lever 1: Use Compact Inference Formats (Express)**:
     - Summarize how **Express** (`ExpressFormatFactory`, enabled by default in the Agent SDK) eliminates JSON syntax overhead to cut output tokens by ~70–80%, reducing total decode time. Cross-link to [Swappable Inference Formats](#swappable-inference-formats) for the canonical benchmark table and pipeline details.
