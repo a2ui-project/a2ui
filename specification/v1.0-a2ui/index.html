@@ -4536,12 +4536,16 @@ While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 
 <li><strong>Action Egress Scope</strong> (<code>action.metadata.extensions</code> in [<code>renderer_to_agent.json</code>]): Send client-side action attestations, audit signatures, or authorization tokens back to the agent when user actions are triggered.</li>
 </ul>
 <h4 id="sdk-accessor-pattern">SDK Accessor Pattern<a class="headerlink" href="#sdk-accessor-pattern" title="Permanent link">¶</a></h4>
-<p>Renderers and client SDKs expose surface and component metadata using uniform accessors and change notification callbacks:</p>
+<p>Renderers and client SDKs expose surface and component metadata through a uniform set of properties, mutators, and change notifications. Names follow each language's conventions (for example <code>setMetadata</code> in TypeScript and <code>set_metadata</code> in Python), but the shape is the same everywhere:</p>
 <ul>
-<li><code>getMetadata()</code>: Retrieves the metadata object containing extensions.</li>
-<li><code>setMetadata(metadata)</code>: Updates the metadata object and notifies listeners.</li>
-<li><code>onMetadataChanged(callback)</code>: Registers a callback that fires whenever metadata updates.</li>
+<li><code>metadata</code>: Read-only snapshot of the current metadata object containing <code>extensions</code>, exposed on the surface state model and on each component state model. <code>extensions</code> is a convenience view of <code>metadata.extensions</code>.</li>
+<li><code>setMetadata(metadata)</code>: Validates every <code>extensions</code> key against UAX #31, stores a defensive copy, and notifies listeners when the value changes. Setting a structurally equal value is a no-op.</li>
+<li><code>setExtension(key, value)</code> and <code>removeExtension(key)</code>: Set or delete a single extension key. Removing the last key clears <code>metadata</code> entirely.</li>
+<li><code>onMetadataChanged</code>: An event source that fires whenever metadata changes, either from an incoming <code>updateComponents</code> message or from a local mutation.</li>
+<li>Resolved component nodes expose instance metadata as a read-only reactive value (for example <code>ComponentNode.metadata</code>), separate from the schema-defined component properties, so a metadata-only update never re-renders views that read only properties. Catalog component definition metadata is available statically from the resolved component implementation (<code>node.impl.metadata</code>).</li>
+<li>Outbound action dispatch accepts an optional <code>metadata</code> argument so renderers can attach <code>action.metadata.extensions</code> to the emitted action message.</li>
 </ul>
+<p>An <code>updateComponents</code> message replaces a component definition in full, including its <code>metadata</code>. A component update that omits <code>metadata</code> clears any previously stored component metadata, and renderers notify metadata subscribers of that change.</p>
 </article>
 </div>
 <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
