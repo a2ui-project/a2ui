@@ -642,53 +642,6 @@
 
 ### Guides
 
-#### Architectural Options
-
-##### Authoring Guidance & Presentation Rules
-
-- **Tone & Style**: Pragmatic architectural guidance comparing trade-offs, following the `natural-writing` skill.
-- **Focus**: Help engineering teams make intentional architectural decisions before integrating A2UI.
-
-##### Page Content Outline
-
-1. **Catalog Architecture: Basic vs. Custom vs. Hybrid**:
-    - **Basic Catalog Out of the Box**:
-        - _Best for_: Rapid prototyping, general-purpose LLM interfaces, and projects that want off-the-shelf support across all official renderers with zero custom client component code.
-    - **Custom Domain Catalog**:
-        - _Best for_: Production applications with established design systems (e.g. internal UI libraries, Material Design, Tailwind, Cupertino).
-        - _Trade-off_: Requires registering custom UI component adapters on each client renderer you support.
-    - **Hybrid Composition**:
-        - _Best for_: Composing standard layout primitives (`Row`, `Column`, `Divider`) from the Basic Catalog while registering domain-specific card widgets (`FlightStatusCard`).
-    - **Client Components vs. Server Macros**:
-        - Summarize the deployment trade-off in one sentence (authoring native client components for agile web deployments vs. expanding composite components on the server to avoid mobile app store release cycles) and link to the canonical [Macros](#macros) concept page.
-
-2. **Transport & Streaming Protocol**:
-    - **AG-UI & A2A (Standardized Agent Protocols)**:
-        - The v1.0 protocol specification recognizes **AG-UI** and **A2A** as primary standard transport bindings for bidirectional agent-user communication.
-        - Cross-link to [How to Integrate with My Agent Server](#how-to-integrate-with-my-agent-server) for wiring A2UI into AG-UI / CopilotKit, ADK, and A2A.
-    - **Server-Sent Events (SSE) + HTTP POST**:
-        - Unidirectional streaming from agent to client over HTTP, paired with HTTP POST for outbound `action` events and RPC responses.
-        - Note HTTP/1.1 browser connection pool limits (6 concurrent connections per origin) vs. multiplexed HTTP/2.
-    - **WebSockets**:
-        - Full-duplex persistent connection for low-latency bidirectional RPCs (`callRendererFunction` / `callAgentFunction`) and high-frequency state updates.
-    - **Model Context Protocol (MCP)**:
-        - Serving A2UI surfaces from MCP tools (`ui://` resources) or embedding sandboxed MCP applications. Cross-link to the [MCP Guides](#a2ui-over-mcp-guidesa2ui-over-mcp).
-
-3. **Content Persistence & Session Replay**:
-    - **Persisting Wire Messages + Data Model Snapshots**:
-        - _Warning — The Wire-Only Replay Trap_: Because two-way data bindings (e.g. typing into a `TextField` or toggling a `CheckBox`) mutate the client `dataModel` locally without sending wire messages on every keystroke, replaying raw `agent_to_renderer` wire messages alone only restores what the agent originally sent—losing all user-entered form edits.
-        - _Recommended Pattern_: Persist a **per-surface `dataModel` snapshot** (matching `renderer_data_model.json`) alongside the message stream, filter out transient RPC requests (`callRendererFunction`) during replay, and render historical turn surfaces in read-only/disabled state when appropriate.
-    - **Persisting Rendered Snapshots**:
-        - Store the final evaluated component tree or static snapshot once a surface is no longer active to reduce memory overhead in long chat histories.
-
-4. **Surface Scoping & Lifecycle Models**:
-    - **Option A: Conversation Scoping (Single `MessageProcessor` per Conversation)**:
-        - A single `MessageProcessor` instance manages all surfaces across the conversation, using globally unique `surfaceId`s (e.g. `order_summary_turn_2`).
-        - _Key Capability_: Supports **retroactive in-place editing**—later turns can send `updateDataModel` or `updateComponents` targeting an earlier `surfaceId`.
-    - **Option B: Turn Scoping (Isolated `MessageProcessor` per Turn)**:
-        - Each chat turn instantiates its own isolated `MessageProcessor`, freezing older turns once completed.
-        - _Important ID Guidance_: Even when isolating `MessageProcessor` instances per turn, assign **turn-prefixed unique `surfaceId`s** (e.g. `turn_1_main`, `turn_2_main`) rather than reusing `"main"` everywhere. Reusing `"main"` across turns makes inbound `action` events and `sendDataModel` metadata maps ambiguous unless disambiguated by external transport metadata.
-
 #### How to Integrate with My Client
 
 ##### Authoring Guidance & Presentation Rules
@@ -833,6 +786,53 @@
 5. **Client-Server Schema Parity & Round-Trip Testing**:
     - Recommend adding a unit test asserting that client-registered component schemas match the canonical `catalog.json` ingested by the server.
     - > **[INTERNAL NOTE FOR DOC AUTHORS — Verify Before Publishing]**: Catalog round-tripping and JSON Schema normalization have historically been tricky across SDKs (see existing Dart tests in `dart/a2ui_core/test/catalog_json_test.dart`). Before publishing this recommendation to users, verify that round-trip schema parity tests work cleanly across Python, TypeScript, Dart, and Swift against the Basic Catalog.
+
+#### Architecting an A2UI Integration
+
+##### Authoring Guidance & Presentation Rules
+
+- **Tone & Style**: Pragmatic architectural guidance comparing trade-offs, following the `natural-writing` skill.
+- **Focus**: Help engineering teams make intentional architectural decisions across catalog strategy, network transport, state persistence, and surface scoping when designing a production A2UI integration.
+
+##### Page Content Outline
+
+1. **Catalog Architecture: Basic vs. Custom vs. Hybrid**:
+    - **Basic Catalog Out of the Box**:
+        - _Best for_: Rapid prototyping, general-purpose LLM interfaces, and projects that want off-the-shelf support across all official renderers with zero custom client component code.
+    - **Custom Domain Catalog**:
+        - _Best for_: Production applications with established design systems (e.g. internal UI libraries, Material Design, Tailwind, Cupertino).
+        - _Trade-off_: Requires registering custom UI component adapters on each client renderer you support.
+    - **Hybrid Composition**:
+        - _Best for_: Composing standard layout primitives (`Row`, `Column`, `Divider`) from the Basic Catalog while registering domain-specific card widgets (`FlightStatusCard`).
+    - **Client Components vs. Server Macros**:
+        - Summarize the deployment trade-off in one sentence (authoring native client components for agile web deployments vs. expanding composite components on the server to avoid mobile app store release cycles) and link to the canonical [Macros](#macros) concept page.
+
+2. **Transport & Streaming Protocol**:
+    - **AG-UI & A2A (Standardized Agent Protocols)**:
+        - The v1.0 protocol specification recognizes **AG-UI** and **A2A** as primary standard transport bindings for bidirectional agent-user communication.
+        - Cross-link to [How to Integrate with My Agent Server](#how-to-integrate-with-my-agent-server) for wiring A2UI into AG-UI / CopilotKit, ADK, and A2A.
+    - **Server-Sent Events (SSE) + HTTP POST**:
+        - Unidirectional streaming from agent to client over HTTP, paired with HTTP POST for outbound `action` events and RPC responses.
+        - Note HTTP/1.1 browser connection pool limits (6 concurrent connections per origin) vs. multiplexed HTTP/2.
+    - **WebSockets**:
+        - Full-duplex persistent connection for low-latency bidirectional RPCs (`callRendererFunction` / `callAgentFunction`) and high-frequency state updates.
+    - **Model Context Protocol (MCP)**:
+        - Serving A2UI surfaces from MCP tools (`ui://` resources) or embedding sandboxed MCP applications. Cross-link to the [MCP Guides](#a2ui-over-mcp-guidesa2ui-over-mcp).
+
+3. **Content Persistence & Session Replay**:
+    - **Persisting Wire Messages + Data Model Snapshots**:
+        - _Warning — The Wire-Only Replay Trap_: Because two-way data bindings (e.g. typing into a `TextField` or toggling a `CheckBox`) mutate the client `dataModel` locally without sending wire messages on every keystroke, replaying raw `agent_to_renderer` wire messages alone only restores what the agent originally sent—losing all user-entered form edits.
+        - _Recommended Pattern_: Persist a **per-surface `dataModel` snapshot** (matching `renderer_data_model.json`) alongside the message stream, filter out transient RPC requests (`callRendererFunction`) during replay, and render historical turn surfaces in read-only/disabled state when appropriate.
+    - **Persisting Rendered Snapshots**:
+        - Store the final evaluated component tree or static snapshot once a surface is no longer active to reduce memory overhead in long chat histories.
+
+4. **Surface Scoping & Lifecycle Models**:
+    - **Option A: Conversation Scoping (Single `MessageProcessor` per Conversation)**:
+        - A single `MessageProcessor` instance manages all surfaces across the conversation, using globally unique `surfaceId`s (e.g. `order_summary_turn_2`).
+        - _Key Capability_: Supports **retroactive in-place editing**—later turns can send `updateDataModel` or `updateComponents` targeting an earlier `surfaceId`.
+    - **Option B: Turn Scoping (Isolated `MessageProcessor` per Turn)**:
+        - Each chat turn instantiates its own isolated `MessageProcessor`, freezing older turns once completed.
+        - _Important ID Guidance_: Even when isolating `MessageProcessor` instances per turn, assign **turn-prefixed unique `surfaceId`s** (e.g. `turn_1_main`, `turn_2_main`) rather than reusing `"main"` everywhere. Reusing `"main"` across turns makes inbound `action` events and `sendDataModel` metadata maps ambiguous unless disambiguated by external transport metadata.
 
 #### How to Improve Latency
 
