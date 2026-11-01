@@ -55,26 +55,138 @@
 
 ##### Authoring Guidance & Presentation Rules
 
-- **Purpose**: Serves as the conceptual entry point for first-time readers, establishing the core mental model and vocabulary before diving into component catalogs, state binding, or wire messages.
-- **Diagram Format**: Use a bespoke Astro/Tailwind visual component (`<ArchitectureOverview />`) showing the end-to-end flow from Agent to Client Renderer.
+- **Purpose**: Serves as the conceptual entry point for first-time readers, establishing the core mental model and vocabulary before diving into wire messages, component catalogs, or state binding.
+- **Architectural Diagram Source of Truth**:
+    - The architectural visual diagram replicates **Slide 25** of the GenUI presentation: [GenUI.pptx Slide 25](https://docs.google.com/presentation/d/1UOPyN1jz7TqxQsrYugs0qkm4F9v4jmV4/edit?resourcekey=0-9BovZnkNLA3k39KuhaKLHg#slide=id.h16378dc14ad48b5a_2_49).
+    - **Instruction for Implementing Agent**: Rather than drawing a plain flowchart or Mermaid graph, implement a rich, bespoke Tailwind/Astro component (`<ArchitecturePipelineOverview />`) that faithfully replicates the layout and visual structure of Slide 25:
+        - Clearly demarcate the **SERVER · YOUR AGENT** boundary on the left and the **CLIENT · YOUR APP** boundary on the right.
+        - **Architectural Boundary Rule**: The `A2UI AGENT SDK` boundary strictly encapsulates the **Skill generator** and the **Compiler**. The `Agent (e.g. Gemini Interactions API / LLM runtime)` is user application code that consumes skills and produces model output into the compiler.
+        - Render interactive cards for **Component schemas (your catalog)**, **Domain skills (e.g. flights: search, fares, seats, book)**, the **A2UI Agent SDK** box, the **Agent** runtime, **A2UI Protocol JSON** (`updateComponents`), and **Data sent separately** (`updateDataModel`).
+        - Include an interactive phone mockup on the client side showing conversational input ("Berlin to San Francisco today, and two tickets back.") and the rendered native flight cards with a highlighted dashed outline labeled _"A2UI renderer draws this part"_.
 
 ##### Page Content Outline
 
 1. **The Core Mental Model**:
-    - Introduce the five foundational building blocks of A2UI:
-        - **Agent**: The server or local runtime (LLM, decision model, or deterministic tool) that generates UI declarations and responds to user interactions.
-        - **Renderer**: The native client framework adapter (Flutter, React, Angular, Lit, SwiftUI, Jetpack Compose) that mounts and renders native host widgets.
-        - **Surface**: An isolated UI canvas identified by a unique `surfaceId` (e.g. a card in a chat stream, a side panel, or a full-screen dashboard) holding a component tree and a reactive `dataModel`.
-        - **Catalog**: A versioned contract declaring the allowed UI components (`Button`, `Card`, `TextField`) and client-evaluable functions (`formatCurrency`, `required`) that an agent can use on a surface.
-        - **Transport**: The communication channel (AG-UI, A2A, SSE, WebSockets, or MCP) carrying messages between the Agent and the Renderer.
-2. **End-to-End Architecture Diagram (`<ArchitectureOverview />`)**:
-    - Visual 4-stage horizontal card layout:
-        1. **Agent SDK (`a2ui-agent-sdk` / `@a2ui/agent` / `a2ui_agent`)**: Reflects over the active `Catalog` to synthesize system prompts, parses LLM output in a swappable inference format (e.g. Express or Direct JSON), and validates output against the catalog schema.
-        2. **Wire Transport**: Streams validated A2UI JSON messages (`createSurface`, `updateComponents`, `updateDataModel`) over AG-UI, A2A, SSE, WebSockets, or MCP.
-        3. **Core State Engine (`@a2ui/web_core` / `a2ui_core` / `A2UICore`)**: `MessageProcessor` ingests messages, manages surface lifecycles, resolves JSON Pointer data bindings (`@path`), and evaluates local catalog functions (`@call`).
-        4. **Native Framework Adapter**: Renders stateful native widgets at 60fps and dispatches user `action` events back to the Agent.
+    - Introduce the foundational building blocks of A2UI:
+        - **Component Schemas (Your Catalog)**: Versioned JSON contracts declaring the allowed UI primitives (`Button`, `Card`, `TextField`) and local functions (`formatCurrency`) that an agent can invoke on a surface.
+        - **A2UI Agent SDK**: Server-side tooling providing the **Skill generator** (translates catalog schemas into modular A2UI skills/prompt instructions) and the **Compiler** (compiles model generation into validated A2UI protocol JSON).
+        - **Agent (Application Code / LLM Runtime)**: The user's application logic and model endpoint (e.g. Gemini Interactions API) that consumes both domain skills (flight search tools) and A2UI skills to interpret user intent and output UI layout and domain state.
+        - **A2UI Protocol & State Separation**: Declarative UI layout messages (`updateComponents`) and reactive state data (`updateDataModel`) streamed independently over the wire.
+        - **Client App & Native Renderer**: The native client framework adapter (Flutter, React, Angular, Lit, SwiftUI, Jetpack Compose) that maps declarative component JSON directly to native host widgets at 60fps.
+
+2. **System Flow & Architecture Walkthrough (`<ArchitecturePipelineOverview />`)**:
+    - Position the rich Tailwind visual component (replicating [GenUI.pptx Slide 25](https://docs.google.com/presentation/d/1UOPyN1jz7TqxQsrYugs0qkm4F9v4jmV4/edit?resourcekey=0-9BovZnkNLA3k39KuhaKLHg#slide=id.h16378dc14ad48b5a_2_49)) at the top of the section.
+    - Accompany with an end-to-end explanation of how the system works across the 5 stages:
+        1. **Catalog Definition (`Component schemas`)**: Specifying UI primitives, properties, child slots, and validation constraints in a versioned `catalog.json`.
+        2. **Skill Generation (`Skill generator`)**: The Agent SDK ingests the catalog and splits/compiles it into modular A2UI skills that teach the LLM how to invoke and compose those components.
+        3. **Agent Prompting & Reasoning (`Agent`)**: The LLM runtime is equipped with domain capabilities (e.g. flight search APIs) alongside generated A2UI skills. When a user asks "Berlin to San Francisco today...", the agent reasons and outputs UI layout declarations and domain state.
+        4. **Parsing & Compilation (`Compiler`)**: The model's generation (in Express DSL or Direct JSON) is parsed, compiled into canonical A2UI protocol JSON (`updateComponents`), validated against schemas and renderer state, and separated from dynamic data model updates (`updateDataModel`).
+        5. **Native Client Rendering (`Client · Your App`)**: The client application's A2UI renderer receives the messages over transport, maps components to native widgets, and renders interactive UI directly inside the app.
+
 3. **Capabilities & Catalog Negotiation**:
     - Explain how the client advertises which catalogs it can render via `a2uiRendererCapabilities` (`supportedCatalogIds`, `inlineCatalogs`), and how the agent negotiates the active catalog for a session or turn.
+
+#### Messages
+
+##### Authoring Guidance & Presentation Rules
+
+- **Purpose**: Gives developers a comprehensive, high-level overview of the bidirectional wire protocol—detailing every message type exchanged between Agent and Renderer before diving into catalog schemas, state binding, or execution paths.
+- **Protocol Version Parity & Renaming Reference**:
+    - Present message schemas with comparative **v1.0 (Candidate)** and **v0.9.1 (Current)** tabs.
+    - For every message envelope or property that evolved or was renamed between v0.9.1 and v1.0, prominently mark the v0.9.1 name and historical context for easy reference.
+- **Diagram Format**: Include a concrete, end-to-end Themed Mermaid sequence diagram demonstrating a real-world flight booking interaction (matching the overview example).
+
+##### Page Content Outline
+
+1. **Protocol Architecture & Bidirectional Message Loop**:
+    - Explain why A2UI uses decoupled, asynchronous messages over standard transports (AG-UI, A2A, SSE, WebSockets, MCP).
+    - Contrast layout hierarchy updates (`updateComponents`) with reactive state synchronization (`updateDataModel`).
+    - **Top-Level Message Envelope Evolution**:
+        - **v1.0**: `agent_to_renderer.json` and `renderer_to_agent.json` (reflecting that agents can run on clients and renderers on servers).
+        - **v0.9.1 reference**: Previously titled `server_to_client.json` and `client_to_server.json`.
+
+2. **Agent-to-Renderer Messages**:
+    - **`createSurface`**:
+        - Allocates an isolated UI canvas (`surfaceId`), assigns the active `catalogId`, and configures `sendDataModel`.
+        - _v0.9.1 reference_: In v0.9.1, `theme` was configured on `createSurface` (removed in v1.0 to decouple layout from branding), and `catalogId` was required. In v1.0, `catalogId` is optional (acting as the default catalog for the surface), and initial `components` and `dataModel` can be passed inline to initialize surfaces in a single round-trip.
+    - **`updateComponents`**:
+        - Emits flat arrays of UI components (adjacency list linked by IDs, with `root`). Enables incremental streaming and targeted subtree replacement without resending the entire tree.
+    - **`updateDataModel`**:
+        - Streams reactive state updates to JSON Pointer paths (`/booking/...`).
+        - _v0.9.1 reference_: In v1.0, deleting a key requires explicitly setting `value: null`. In v0.9.1, deleting a key was performed by omitting the `value` property.
+    - **`deleteSurface`**:
+        - Explicitly destroys a surface and frees client resources and subscriptions.
+    - **`callRendererFunction` (v1.0)**:
+        - Agent-initiated RPC invoking a client-side catalog function.
+        - _v0.9.1 reference_: Previously named `callFunction` in v0.9.1 `server_to_client.json`. In v1.0, renamed to `callRendererFunction` to distinguish bidirectional RPC boundaries, and pairs with `rendererFunctionResponse`.
+    - **`agentFunctionResponse` (v1.0)**:
+        - Response payload sent by the agent answering a client-initiated RPC (`callAgentFunction`).
+        - _v0.9.1 reference_: New in v1.0 (v0.9.1 lacked client-initiated RPC responses).
+
+3. **Renderer-to-Agent Messages**:
+    - **`action`**:
+        - Emitted when a user interacts with a widget (e.g. clicks a button), delivering resolved JSON Pointer `context` and optional full `dataModel` state back to the agent.
+        - _v0.9.1 reference_: In v1.0, `action` added support for an optional `userMessage` (resolved from `Action.event.userMessage`) and `metadata.extensions`.
+    - **`callAgentFunction` (v1.0)**:
+        - Client-initiated RPC requesting agent server execution of a remote catalog function.
+        - _v0.9.1 reference_: New in v1.0 (allows client UI actions or validation rules to invoke agent endpoints without full turn resets).
+    - **`rendererFunctionResponse` (v1.0)**:
+        - Client response payload returning the result (`value`) or error (`error`) of an agent-initiated RPC (`callRendererFunction`).
+        - _v0.9.1 reference_: New in v1.0.
+    - **`error` & The Self-Correction Loop**:
+        - Structured client-side validation or runtime errors (`VALIDATION_FAILED`, `UNALLOWED_PARENT`, `UNALLOWED_CHILD`, `INTEGRITY_ERROR`, `INVALID_FUNCTION_CALL`, `EXECUTION_ERROR`, `EXPRESSION_ERROR`, `UNKNOWN_FUNCTION`).
+        - _v0.9.1 reference_: In v1.0, `error` supports `functionCallId` for reporting RPC failures, mutually exclusive with `surfaceId`.
+        - Explains how both the Agent SDK (`validate_payload` / `RendererState`) and the Client Renderer feed errors back to the model for automatic self-correction before reaching the user.
+
+4. **The Flat Component Tree (Adjacency List) & ID Rules**:
+    - Explain why A2UI uses a **flat array of component objects with ID references** (e.g. `children: ["btn_one", "btn_two"]`) rather than deeply nested JSON trees:
+        - **Streaming-First**: Components can be emitted progressively one object at a time without balancing deep closing braces.
+        - **Out-of-Order Buffering**: There must be exactly one component with `id: "root"` per surface, but non-root components arriving before `root` (or child IDs not yet received) are buffered seamlessly with placeholders until resolved.
+        - **Targeted Subtree Updates**: Later `updateComponents` messages can replace or insert individual nodes by `id` without resending the rest of the tree (and may omit `root` if `root` was already established).
+        - **Identifier Format**: In v1.0, component IDs must be valid UAX #31 identifiers (e.g. `btn_one`, `userCard`; hyphenated IDs like `btn-1` are invalid in v1.0, whereas v0.9.1 was more permissive).
+
+5. **Example End-to-End Sequence Diagram (Flight Booking Scenario)**:
+    - Concrete sequence diagram illustrating the complete message lifecycle:
+
+    ```mermaid
+    sequenceDiagram
+        autonumber
+        actor User
+        participant Renderer
+        participant Agent
+
+        Note over User,Agent: 1. Turn Initiation & Surface Allocation
+        User->>Agent: "Berlin to San Francisco today, and two tickets back."
+        Agent->>Renderer: createSurface (surfaceId: "flight_search", catalogId: "https://example.com/catalogs/travel.json")
+
+        Note over User,Agent: 2. Layout & State Streaming
+        Agent->>Renderer: updateComponents (flat tree: root Column -> Flight Cards -> Select Buttons)
+        Agent->>Renderer: updateDataModel (flights: outbound list, fares, times, from="BER", to="SFO")
+        Note over Renderer: Surface rendered and bound to dataModel at 60fps
+
+        Note over User,Agent: 3. User Interaction & Action Handling
+        User->>Renderer: Clicks "Select" on United flight (€498)
+        Renderer->>Agent: action (event: "select_flight", context: { flightId: "UA120", fare: 498 })
+        Agent->>Renderer: updateDataModel (path: "/booking/selectedFlight", value: "UA120")
+
+        opt Client-Initiated Remote Function (v1.0)
+            Renderer->>Agent: callAgentFunction (surfaceId, functionCallId, callFunction: checkSeatAvailability)
+            Agent->>Renderer: agentFunctionResponse (functionCallId, value: { available: true, seatsLeft: 4 })
+        end
+
+        opt Agent-Initiated Client Function (v1.0)
+            Agent->>Renderer: callRendererFunction (surfaceId, functionCallId, callFunction: triggerHapticFeedback)
+            Renderer->>Agent: rendererFunctionResponse (functionCallId, value: true)
+        end
+
+        alt Validation Failure
+            Renderer->>Agent: error (code: "VALIDATION_FAILED", path: "/components/3", message: "...")
+        end
+
+        opt Teardown
+            Agent->>Renderer: deleteSurface (surfaceId: "flight_search")
+        end
+    ```
 
 #### Catalogs, Components and Functions
 
@@ -277,78 +389,6 @@
         }
         ```
     - **Step 4: Agent Response**: The agent processes the action and streams back `updateDataModel` or `updateComponents` messages.
-
-#### Messages and Lifecycle
-
-##### Authoring Guidance & Presentation Rules
-
-- **Nomenclature and Version Tabs**:
-    - Present comparative tabbed examples labeled **v1.0 (Candidate)** and **v0.9.1 (Current)** synced across the page.
-    - Include a concise **v0.9.1 $\rightarrow$ v1.0 Terminology & Wire Delta Table** (`server_to_client` $\rightarrow$ `agent_to_renderer`, `client_to_server` $\rightarrow$ `renderer_to_agent`, `path` $\rightarrow$ `@path`, `call` $\rightarrow$ `@call`, `theme` removed from `createSurface`, inline `components`/`dataModel` added to `createSurface`, `updateDataModel` key deletion via `value: null` in v1.0 vs. omitting `value` in v0.9.1, UAX #31 component IDs).
-- **Diagram Format**:
-    - Use **Themed Mermaid (`sequenceDiagram`)** for the temporal message exchange. _(Prerequisite: add `starlight-mermaid` to `docs/site/package.json` and `docs/site/astro.config.mjs`)._
-
-##### Page Content Outline
-
-1. **Lifecycle Overview & Sequence Diagram**:
-
-    ```mermaid
-    sequenceDiagram
-        autonumber
-        actor User
-        participant Renderer
-        participant Agent
-
-        Agent->>Renderer: createSurface (surfaceId, catalogId, sendDataModel)
-        Agent->>Renderer: updateComponents (flat component array with "root")
-        Agent->>Renderer: updateDataModel (initial state / streaming values)
-        Note over Renderer: Surface rendered and bound to dataModel
-        User->>Renderer: Interacts with UI (types, clicks button)
-        Renderer->>Agent: action (resolved context + optional dataModel metadata)
-        Agent->>Renderer: updateDataModel / updateComponents (reactive updates)
-        opt Renderer-Initiated RPC (v1.0)
-            Renderer->>Agent: callAgentFunction (surfaceId, functionCallId, callFunction)
-            Agent->>Renderer: agentFunctionResponse (functionCallId, value / error)
-        end
-        opt Agent-Initiated RPC (v1.0)
-            Agent->>Renderer: callRendererFunction (surfaceId, functionCallId, callFunction)
-            Renderer->>Agent: rendererFunctionResponse (functionCallId, value / error)
-        end
-        alt Validation or Execution Failure
-            Renderer->>Agent: error (code, path, message, surfaceId)
-        end
-        opt Tear Down
-            Agent->>Renderer: deleteSurface (surfaceId)
-        end
-    ```
-
-2. **The Flat Component Tree (Adjacency List) & ID Rules**:
-    - Explain why A2UI uses a **flat array of component objects with ID references** (e.g. `children: ["btn_one", "btn_two"]`) rather than deeply nested JSON trees:
-        - **Streaming-First**: Components can be emitted progressively one object at a time without balancing deep closing braces.
-        - **Out-of-Order Buffering**: There must be exactly one component with `id: "root"` per surface, but non-root components arriving before `root` (or child IDs not yet received) are buffered seamlessly with placeholders until resolved.
-        - **Targeted Subtree Updates**: Later `updateComponents` messages can replace or insert individual nodes by `id` without resending the rest of the tree (and may omit `root` if `root` was already established).
-        - **Identifier Format**: In v1.0, component IDs must be valid UAX #31 identifiers (e.g. `btn_one`, `userCard`; hyphenated IDs like `btn-1` are invalid in v1.0, whereas v0.9.1 was more permissive).
-
-3. **Agent-to-Renderer Messages**:
-    - `createSurface`:
-        - Allocates a surface identified by a globally unique `surfaceId` (creating an already-existing `surfaceId` without deleting it first raises `INTEGRITY_ERROR`).
-        - **Catalog Resolution Order**: In v1.0, `catalogId` resolution checks (1) component/function `catalogId`, (2) the surface's `catalogId` from `createSurface`, and (3) if neither is specified, raises a resolution error (there is **no** implicit fallback to renderer capabilities). In v0.9.1, `catalogId` is required on `createSurface`.
-        - Includes `sendDataModel` (boolean), optional `metadata`, and (in v1.0) optional inline `components` and `dataModel`.
-    - `updateComponents`:
-        - Adds or updates components by `id` within the surface's flat component map.
-    - `updateDataModel`:
-        - Upserts data at a JSON Pointer `path` (or root `/`). Deletes the target key by setting `value: null` in v1.0 (or omitting `value` in v0.9.1).
-    - `deleteSurface`:
-        - Tears down the surface and frees state and subscriptions.
-    - `callRendererFunction` & `agentFunctionResponse` _(v1.0)_:
-        - Bidirectional RPC envelopes correlated by `functionCallId`.
-
-4. **Renderer-to-Agent Messages & Self-Correction Loop**:
-    - `action`: User interaction event payload.
-    - `callAgentFunction` & `rendererFunctionResponse` _(v1.0)_: RPC request and response envelopes.
-    - `error` & **The Self-Correction Loop**:
-        - Document the standard error codes: `VALIDATION_FAILED`, `UNALLOWED_PARENT`, `UNALLOWED_CHILD`, `INTEGRITY_ERROR`, `INVALID_FUNCTION_CALL`, `EXECUTION_ERROR`, `EXPRESSION_ERROR`, and `UNKNOWN_FUNCTION`.
-        - Explain how both the Agent SDK (`validate_payload` / `RendererState`) and the Client Renderer validate messages and feed structured validation errors back to the LLM to automatically self-correct malformed UI outputs.
 
 #### Swappable Inference Formats
 
