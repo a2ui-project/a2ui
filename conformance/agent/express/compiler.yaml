@@ -2114,3 +2114,94 @@
           - id: "root"
             component: "Text"
             text: "Literal </a2ui> and <a2ui> tags"
+
+- name: test_compile_express_surface_extensions_variable_reference
+  description: A variable reference passed to surface(extensions=...) resolves to its map literal and populates createSurface.metadata.extensions.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    surface("main", extensions=ext)
+    ext = {surfaceTheme: "dark"}
+    root = Text("Hello")
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "conformance/simplified"
+        metadata:
+          extensions:
+            surfaceTheme: "dark"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+
+- name: test_compile_express_surface_extensions_on_update_scope_is_validation_error
+  description: Supplying extensions= on an update surface scope (update=true or without a root component) is rejected as a validation error rather than silently dropped.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    surface("main", update=true, extensions={surfaceTheme: "dark"})
+    c1 = Text("Hello")
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_empty_extensions_preserved
+  description: Supplying an empty map literal to extensions={} on surface() or a component preserves metadata.extensions as an empty object.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    surface("main", extensions={})
+    root = Text("Hello", extensions={})
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "main"
+        catalogId: "conformance/simplified"
+        metadata:
+          extensions: {}
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            metadata:
+              extensions: {}
+
+- name: test_compile_express_extensions_top_level_call_is_validation_error
+  description: Passing a function call at the top level of extensions= is rejected as a validation error rather than compiled into an @call object.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Text("Hello", extensions=openUrl("https://example.com"))
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_extensions_nested_component_call_is_validation_error
+  description: Passing an inline component call inside extensions= is rejected as a validation error rather than hoisting a synthetic component.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Text("Hello", extensions={nested: Text("World")})
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_extensions_nested_event_is_validation_error
+  description: Passing an Event(...) inside extensions= is rejected as a validation error rather than compiling an action event object into metadata.extensions.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Text("Hello", extensions={onTap: Event("tap")})
+  expect_error:
+    category: "ValidationError"

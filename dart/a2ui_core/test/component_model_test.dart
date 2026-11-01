@@ -46,16 +46,22 @@ void main() {
         'Text',
         {'text': 'a'},
         catalog: 'cat',
-        metadata: {'k': 'v'},
+        metadata: {
+          'extensions': {'k': 'v'},
+        },
       );
       expect(comp.catalog, 'cat');
-      expect(comp.metadata, {'k': 'v'});
+      expect(comp.metadata, {
+        'extensions': {'k': 'v'},
+      });
       expect(comp.properties, {'text': 'a'});
       expect(comp.toJson(), {
         'id': 'c1',
         'component': 'Text',
         'catalogId': 'cat',
-        'metadata': {'k': 'v'},
+        'metadata': {
+          'extensions': {'k': 'v'},
+        },
         'text': 'a',
       });
     });
@@ -68,6 +74,61 @@ void main() {
       });
 
       expect(comp.toJson(), {'text': 'hi', 'id': 'c1', 'component': 'Text'});
+    });
+
+    test('supports metadata accessors, events, and extension helpers',
+        () async {
+      final comp = ComponentModel('c1', 'Text', {'text': 'hi'});
+      final metadataChanges = <Map<String, Object?>?>[];
+      var updateCount = 0;
+      comp.onMetadataChanged.subscribe(metadataChanges.add);
+      comp.onUpdated.subscribe((_) => updateCount++);
+
+      expect(comp.metadata, isNull);
+      expect(comp.extensions, isNull);
+
+      comp.setExtension('theme_ext', {'mode': 'dark'});
+      await Future<void>.microtask(() {});
+      expect(comp.metadata, {
+        'extensions': {
+          'theme_ext': {'mode': 'dark'},
+        },
+      });
+      expect(comp.extensions, {
+        'theme_ext': {'mode': 'dark'},
+      });
+      expect(metadataChanges, hasLength(1));
+      expect(updateCount, 0);
+
+      // No-op on identical value
+      comp.setExtension('theme_ext', {'mode': 'dark'});
+      await Future<void>.microtask(() {});
+      expect(metadataChanges, hasLength(1));
+
+      // setExtension with null stores null
+      comp.setExtension('theme_ext', null);
+      await Future<void>.microtask(() {});
+      expect(comp.extensions, {'theme_ext': null});
+      expect(metadataChanges, hasLength(2));
+
+      // removeExtension deletes key and collapses empty metadata to null
+      comp.removeExtension('theme_ext');
+      await Future<void>.microtask(() {});
+      expect(comp.metadata, isNull);
+      expect(comp.extensions, isNull);
+      expect(metadataChanges, hasLength(3));
+      expect(metadataChanges.last, isNull);
+
+      // Empty metadata envelopes normalize to null via setter
+      comp.metadata = <String, Object?>{};
+      expect(comp.metadata, isNull);
+      comp.metadata = <String, Object?>{'extensions': <String, Object?>{}};
+      expect(comp.metadata, isNull);
+
+      expect(
+        () => comp.setExtension('bad-key', 1),
+        throwsA(isA<A2uiValidationError>()),
+      );
     });
   });
 

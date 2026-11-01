@@ -40,7 +40,7 @@ import {
   ComponentIdSchema,
   DynamicStringSchema,
 } from '../v0_9/schema/common-types.js';
-import {effect, getValue, peekValue, Signal} from '../reactivity/signals.js';
+import {effect, getValue, peekValue, setValue, Signal} from '../reactivity/signals.js';
 import {ComponentNode, NodeProps, PLACEHOLDER_TYPE, isComponentNode} from './component-node.js';
 import {NodeResolver} from './node-resolver.js';
 import {ResolvedBinding, isWritable} from './resolved-binding.js';
@@ -1368,6 +1368,52 @@ describe('NodeResolver on a surface without a default catalog', () => {
         surfaceId: 'no-default',
       },
     ]);
+    resolver.dispose();
+  });
+
+  it('tracks node.metadata independently of node.props and forwards action metadata', async () => {
+    const {catalog, surface, resolver} = setup();
+    const actions: Array<Record<string, unknown>> = [];
+    surface.onAction.subscribe(a => {
+      actions.push(a as unknown as Record<string, unknown>);
+    });
+
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'root',
+        'Button',
+        {label: 'Go', action: {event: {name: 'go_evt', context: {k: 'v'}}}},
+        catalog,
+        {extensions: {trace: {spanId: '1'}}},
+      ),
+    );
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.deepStrictEqual(peekValue(root.metadata), {extensions: {trace: {spanId: '1'}}});
+
+    // Attempting to write to read-only node.metadata throws TypeError
+    assert.throws(() => setValue(root.metadata as any, {extensions: {x: 1}}), TypeError);
+
+    const propsCounter = countEmissions(root.props);
+    const metaCounter = countEmissions(root.metadata);
+
+    const model = surface.componentsModel.get('root')!;
+    model.metadata = {extensions: {trace: {spanId: '2'}}};
+
+    assert.strictEqual(propsCounter.count, 0);
+    assert.strictEqual(metaCounter.count, 1);
+    assert.deepStrictEqual(peekValue(root.metadata), {extensions: {trace: {spanId: '2'}}});
+
+    const invokeAction = props(root).action as (opts?: {
+      metadata?: Record<string, unknown>;
+    }) => void;
+    await invokeAction({metadata: {extensions: {click_source: 'keyboard'}}});
+    assert.strictEqual(actions.length, 1);
+    assert.deepStrictEqual(actions[0].metadata, {extensions: {click_source: 'keyboard'}});
+
+    propsCounter.dispose();
+    metaCounter.dispose();
     resolver.dispose();
   });
 });

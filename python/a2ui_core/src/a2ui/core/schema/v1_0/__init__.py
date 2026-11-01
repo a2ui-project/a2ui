@@ -96,6 +96,7 @@ from .agent_capabilities import (
     A2uiAgentCapabilities,
 )
 from .renderer_to_agent import (
+    ActionMetadata,
     A2uiRendererAction,
     ActionPayload,
     A2uiRendererActionMessage,
@@ -183,6 +184,7 @@ __all__ = [
     "V10AgentCapabilities",
     "V1_0AgentCapabilities",
     "A2uiAgentCapabilities",
+    "ActionMetadata",
     "A2uiRendererAction",
     "ActionPayload",
     "A2uiRendererActionMessage",

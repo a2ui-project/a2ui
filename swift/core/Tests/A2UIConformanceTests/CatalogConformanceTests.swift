@@ -92,8 +92,19 @@ struct CatalogConformanceTests {
           "[\(caseName)] Expected message containing '\(expectedMessage)', got '\(error.message)'"
         )
       }
+    } catch let error as A2UIValidationError {
+      #expect(
+        expectError.category == nil || expectError.category == "ValidationError",
+        "[\(caseName)] Unexpected ValidationError for \(String(describing: expectError.category))"
+      )
+      if let expectedMessage = expectError.message, !expectedMessage.isEmpty {
+        #expect(
+          ConformanceTestHelper.messageMatches(error.message, expected: expectedMessage),
+          "[\(caseName)] Expected message containing '\(expectedMessage)', got '\(error.message)'"
+        )
+      }
     } catch {
-      Issue.record("[\(caseName)] Expected A2UICatalogError, got \(error)")
+      Issue.record("[\(caseName)] Expected A2UICatalogError or A2UIValidationError, got \(error)")
     }
   }
 
@@ -214,6 +225,9 @@ struct CatalogConformanceTests {
   private func validateV10ComponentIdentifiers(name: String, definition: JSONValue) throws {
     guard UnicodeIdentifierValidator.isValidIdentifier(name) else {
       throw A2UICatalogError("Invalid UAX #31 component identifier: '\(name)'")
+    }
+    if let rawMeta = definition["metadata"] {
+      _ = try MetadataValidator.validate(rawMeta, pathPrefix: "components.\(name).metadata")
     }
     guard let props = definition["properties"]?.objectValue else { return }
     for propName in props.keys where !UnicodeIdentifierValidator.isValidIdentifier(propName) {
@@ -401,10 +415,10 @@ struct CatalogConformanceTests {
     }
     let parents = schemaValue["allowedParents"]?.arrayValue?.compactMap(\.stringValue)
     let children = schemaValue["allowedChildren"]?.arrayValue?.compactMap(\.stringValue)
-    var meta: [String: JSONValue]?
-    if let desc = schemaValue["description"] {
-      meta = ["description": desc]
-    }
+    let meta = try? MetadataValidator.validate(
+      schemaValue["metadata"],
+      pathPrefix: "components.\(name).metadata"
+    )
     return AnyComponentAPI(
       name: name,
       schema: schema,
@@ -493,6 +507,9 @@ struct CatalogConformanceTests {
     if let rawComponents = expect["components"] {
       assertExpectedComponents(rawComponents, catalog: loaded.catalog, caseName: caseName)
     }
+    if let expCompMeta = expect["componentMetadata"] as? [String: Any] {
+      assertExpectedComponentMetadata(expCompMeta, catalog: loaded.catalog, caseName: caseName)
+    }
     if let rawFunctions = expect["functions"] {
       assertExpectedFunctions(rawFunctions, catalog: loaded.catalog, caseName: caseName)
     }
@@ -557,10 +574,38 @@ struct CatalogConformanceTests {
       #expect(comp.allowedChildren == expChildren, "[\(caseName)] \(comp.name) allowedChildren mismatch")
     }
     if let expDesc = spec["description"] as? String {
+      let actualDesc =
+        comp.schema.jsonValue["description"]?.stringValue
+        ?? comp.metadata?["description"]?.stringValue
       #expect(
-        comp.metadata?["description"]?.stringValue == expDesc,
+        actualDesc == expDesc,
         "[\(caseName)] \(comp.name) description mismatch"
       )
+    }
+  }
+
+  private func assertExpectedComponentMetadata(
+    _ expectedMetadata: [String: Any],
+    catalog: AnyCatalog,
+    caseName: String
+  ) {
+    for (compName, rawMeta) in expectedMetadata {
+      guard let comp = catalog.components[compName] else {
+        Issue.record("[\(caseName)] Missing component '\(compName)' for componentMetadata check")
+        continue
+      }
+      if rawMeta is NSNull {
+        #expect(comp.metadata == nil, "[\(caseName)] Expected nil metadata for '\(compName)'")
+      } else {
+        let expectedDict = try? MetadataValidator.validate(
+          ConformanceTestHelper.toJSONValue(rawMeta),
+          pathPrefix: "components.\(compName).metadata"
+        )
+        #expect(
+          MetadataValidator.areEqual(comp.metadata, expectedDict),
+          "[\(caseName)] componentMetadata mismatch for '\(compName)'"
+        )
+      }
     }
   }
 

@@ -1229,4 +1229,69 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       ]);
     });
   });
+
+  describe('v1.0 extensions= keyword argument on surface(...) and components', () => {
+    it('compiles extensions= on surface(...) and component calls into metadata.extensions', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
+      const messages = compiler.compile(
+        'surface("s1", extensions={agui: {sessionId: "abc"}})\n' +
+          'root = Text("Hello", extensions={trace: {spanId: "1"}})',
+      );
+      expect(messages).toEqual([
+        {
+          version: '1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+            metadata: {extensions: {agui: {sessionId: 'abc'}}},
+            components: [
+              {
+                id: 'root',
+                component: 'Text',
+                text: 'Hello',
+                metadata: {extensions: {trace: {spanId: '1'}}},
+              },
+            ],
+          },
+        },
+      ]);
+    });
+
+    it('rejects non-UAX 31 extension keys on surface(...) and component calls', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
+      expect(() =>
+        compiler.compile('surface("s1", extensions={"bad-key": 1})\nroot = Text("Hi")'),
+      ).toThrow(ExpressValidationError);
+      expect(() => compiler.compile('root = Text("Hi", extensions={"bad-key": 1})')).toThrow(
+        ExpressValidationError,
+      );
+    });
+
+    it('treats extensions= as a component property when declared in the component schema', () => {
+      const customExtCatalog = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/ext_prop',
+        protocolVersion: '1.0',
+        components: {
+          FilePicker: {
+            type: 'object',
+            properties: {
+              component: {const: 'FilePicker'},
+              extensions: {type: 'array', items: {type: 'string'}},
+            },
+            required: ['component', 'extensions'],
+          },
+        },
+      });
+      const compiler = new ExpressCompiler([customExtCatalog], '1.0');
+      const messages = compiler.compile('root = FilePicker(extensions=[".png", ".jpg"])');
+      expect(createSurfaceComponents(messages)).toEqual([
+        {
+          id: 'root',
+          component: 'FilePicker',
+          extensions: ['.png', '.jpg'],
+        },
+      ]);
+    });
+  });
 });

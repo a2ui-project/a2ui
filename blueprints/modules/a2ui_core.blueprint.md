@@ -287,6 +287,18 @@ interface ComponentApi {
   readonly name: string;
   /** The technical definition used for validation and generating renderer capabilities. */
   readonly schema: Schema;
+  /**
+   * Static 'ComponentDefinition.metadata' from the catalog document (v1.0+), with every
+   * 'extensions' key validated as a UAX #31 identifier at load. Round-trips through
+   * 'Catalog.fromJson' and 'Catalog.toJson'. The catalog document root carries no
+   * 'metadata'; only component definitions do.
+   */
+  readonly metadata?: A2uiMetadata;
+}
+
+/** Matches 'metadata' containers in the v1.0 wire schemas: '{ extensions?: Extensions }'. */
+interface A2uiMetadata {
+  readonly extensions?: Readonly<Record<string, unknown>>;
 }
 ```
 
@@ -1155,11 +1167,31 @@ interface A2uiRendererAction {
    * actions contributed by different catalogs on the same surface.
    */
   catalogId?: string;
+  /** Optional 'action.metadata' envelope ('{ extensions }') attached at dispatch time. */
+  metadata?: A2uiMetadata;
 }
 
 type ActionListener = (action: A2uiRendererAction) => void | Promise<void>;
 
-class SurfaceModel<T extends ComponentApi> {
+/**
+ * Shared metadata contract of SurfaceModel and ComponentModel. Every write validates
+ * 'extensions' keys as UAX #31 identifiers (A2uiValidationError otherwise), stores a
+ * defensive deep copy, and is a no-op when the new value is structurally equal to the
+ * stored one. Removing the last extension key clears 'metadata' to undefined.
+ */
+interface MetadataHolder {
+  /** Synchronous snapshot of the current metadata envelope; assigning validates and updates reactively. */
+  metadata: A2uiMetadata | undefined;
+  /** Convenience view of 'metadata.extensions'. */
+  readonly extensions: Readonly<Record<string, unknown>> | undefined;
+  /** Fires after a write changes the stored value, from the wire or from a local mutation. */
+  readonly onMetadataChanged: EventSource<A2uiMetadata | undefined>;
+  /** Sets one extension key. 'null' is a stored value, not a deletion. */
+  setExtension(key: string, value: unknown): void;
+  removeExtension(key: string): void;
+}
+
+class SurfaceModel<T extends ComponentApi> implements MetadataHolder {
   readonly id: string;
 ...
   /**
@@ -1195,13 +1227,28 @@ class SurfaceModel<T extends ComponentApi> {
   /** If true, the renderer should send the full data model with actions. */
   readonly sendDataModel: boolean;
 
+  /**
+   * 'createSurface.metadata' (v1.0+), mutable locally through the 'metadata'
+   * property setter and 'setExtension'/'removeExtension' methods. Also exposed
+   * as a read-only reactive signal because adapter views reach the surface
+   * through ambient context rather than through a node.
+   */
+  metadata: A2uiMetadata | undefined;
+  readonly metadataSignal: ReadonlySignal<A2uiMetadata | undefined>;
+
   readonly onAction: EventSource<A2uiRendererAction>;
   /**
    * Dispatches an action from this surface.
    * @param payload The raw action event from the component.
    * @param sourceComponentId The ID of the component that triggered the action.
+   * @param metadata Optional 'action.metadata' envelope; its 'extensions' keys are
+   *   validated as UAX #31 identifiers and the copy is attached to the emitted action.
    */
-  dispatchAction(payload: Record<string, any>, sourceComponentId: string): Promise<void>;
+  dispatchAction(
+    payload: Record<string, any>,
+    sourceComponentId: string,
+    metadata?: A2uiMetadata,
+  ): Promise<void>;
 }
 ```
 
@@ -1274,7 +1321,7 @@ class SurfaceComponentsModel {
   readonly onDeleted: EventSource<string>;
 }
 
-class ComponentModel {
+class ComponentModel implements MetadataHolder {
   readonly id: string;
   readonly type: string; // Component name (e.g. 'Button')
 
@@ -1293,9 +1340,25 @@ class ComponentModel {
   get properties(): Record<string, any>;
   set properties(newProps: Record<string, any>);
 
+  /**
+   * 'ComponentCommon.metadata' (v1.0+), kept apart from 'properties' so a schema
+   * property named 'metadata' never collides with the envelope. An
+   * 'updateComponents' entry replaces the definition in full: the processor
+   * assigns 'metadata' with the incoming value (undefined when omitted), so stale
+   * metadata never survives an update. The model exposes no public metadata
+   * signal; resolved nodes derive 'ComponentNode.metadata' from the model (see the
+   * node resolution feature blueprint), and 'onMetadataChanged' serves non-signal
+   * consumers. In languages where ComponentModel is a value type or property setters
+   * cannot throw (e.g. Swift), throwing mutators live on ComponentModel and
+   * SurfaceComponentsModel (e.g. 'setMetadata(metadata, forComponentId)').
+   */
+  metadata: A2uiMetadata | undefined;
+
   readonly onUpdated: EventSource<ComponentModel>;
 }
 ```
+
+The processor applies an `updateComponents` entry to an existing component inside one reactive batch, so property and metadata signal writes coalesce for signal consumers. `onUpdated` fires only when `properties` changed; a metadata-only update fires `onMetadataChanged` alone and never re-emits resolved `props`.
 
 ##### `DataModel`
 

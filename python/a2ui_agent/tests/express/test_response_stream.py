@@ -421,3 +421,55 @@ def test_express_stream_inline_counter_shift_invalidates_cached_inline_ids():
     parts2 = stream.feed('msg = "Resolved"\n</a2ui>')
     assert len(parts2) == 1
     assert stream.close() == []
+
+
+def test_express_stream_waits_for_deferred_surface_extensions_variable():
+    catalog = BasicCatalog(ProtocolVersion.V1_0)
+    parser = ExpressParser([catalog], surface_id="s1")
+    stream = parser.open_stream()
+
+    parts1 = stream.feed(
+        '<a2ui>\nsurface("s1", extensions=ext)\nroot = Text("Hello")\n'
+    )
+    assert parts1 == []
+
+    parts2 = stream.feed('ext = {surfaceTheme: "dark"}\n</a2ui>')
+    assert len(parts2) == 1
+    msgs = [m.model_dump(by_alias=True, exclude_none=True) for m in parts2[0].a2ui]
+    assert msgs == [{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": catalog.catalog_id,
+            "components": [{"id": "root", "component": "Text", "text": "Hello"}],
+            "metadata": {"extensions": {"surfaceTheme": "dark"}},
+        },
+    }]
+    assert stream.close() == []
+
+
+def test_express_stream_rejects_surface_extensions_on_non_creating_scope():
+    catalog = BasicCatalog(ProtocolVersion.V1_0)
+    state = RendererState([catalog])
+    parser = ExpressParser([catalog], surface_id="s1")
+    seed_stream = parser.open_stream(state=state)
+    seed_stream.feed('<a2ui>\nsurface("s1")\nroot = Text("Initial")\n</a2ui>')
+    assert seed_stream.close() == []
+
+    update_stream = parser.open_stream(state=state)
+    assert (
+        update_stream.feed(
+            '<a2ui>\nsurface("s1", extensions={surfaceTheme: "dark"})\n'
+            'c1 = Text("Updated")\n'
+        )
+        == []
+    )
+    with pytest.raises(A2uiCompilationError, match="surface-creating scope"):
+        update_stream.feed("</a2ui>")
+
+    data_only_stream = parser.open_stream()
+    with pytest.raises(A2uiCompilationError, match="surface-creating scope"):
+        data_only_stream.feed(
+            '<a2ui>\nsurface("s1", extensions={surfaceTheme: "dark"})\n'
+            '$/user = "Alice"\n</a2ui>'
+        )

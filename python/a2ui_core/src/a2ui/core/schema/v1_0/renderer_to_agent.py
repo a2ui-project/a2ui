@@ -20,6 +20,13 @@ from .common_types import StrictBaseModel, CallId, Extensions, FunctionCall, Fun
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
+class ActionMetadata(StrictBaseModel):
+    """Optional renderer-side metadata to send back to the agent with the action."""
+
+    model_config = ConfigDict(populate_by_name=True)
+    extensions: Extensions | None = Field(default=None)
+
+
 class A2uiRendererAction(StrictBaseModel):
     """Reports a user-initiated action from a component."""
 
@@ -35,17 +42,17 @@ class A2uiRendererAction(StrictBaseModel):
         default=None,
         alias="userMessage",
         description=(
-            "An optional human-readable string describing the action performed by"
-            " the user, taken from the component's action.event.userMessage"
-            " property after resolving bindings."
+            "An optional human-readable string describing the action performed by the"
+            " user, taken from the component's action.event.userMessage property after"
+            " resolving bindings."
         ),
     )
     surface_id: str = Field(
         ...,
         alias="surfaceId",
         description=(
-            "The id of the surface where the event originated. It must be"
-            " globally unique for the renderer's lifetime."
+            "The id of the surface where the event originated. It must be globally"
+            " unique for the renderer's lifetime."
         ),
     )
     source_component_id: str = Field(
@@ -63,7 +70,7 @@ class A2uiRendererAction(StrictBaseModel):
             " action.event.context, after resolving all data bindings."
         ),
     )
-    metadata: Extensions | None = Field(
+    metadata: ActionMetadata | None = Field(
         default=None,
         description=(
             "Optional renderer-side metadata to send back to the agent with the action."
@@ -84,16 +91,14 @@ class CallAgentFunction(StrictBaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
     surface_id: str = Field(
-        ...,
-        alias="surfaceId",
-        description="The surface ID where the call originated.",
+        ..., alias="surfaceId", description="The surface ID where the call originated."
     )
     function_call_id: str = Field(
         ...,
         alias="functionCallId",
         description=(
-            "Unique ID for this instance of the function call. The agent MUST"
-            " copy this ID into the return response."
+            "Unique ID for this instance of the function call. The agent MUST copy this"
+            " ID into the return response."
         ),
     )
     call_function: FunctionCall = Field(..., alias="callFunction")
@@ -120,8 +125,8 @@ class A2uiValidationError(StrictBaseModel):
         ...,
         alias="surfaceId",
         description=(
-            "The id of the surface where the error occurred. It must be globally"
-            " unique for the renderer's lifetime."
+            "The id of the surface where the error occurred. It must be globally unique"
+            " for the renderer's lifetime."
         ),
     )
     path: str = Field(
@@ -150,16 +155,16 @@ class A2uiGenericError(BaseModel):
         default=None,
         alias="surfaceId",
         description=(
-            "The id of the surface where the error occurred. It must be globally"
-            " unique for the renderer's lifetime."
+            "The id of the surface where the error occurred. It must be globally unique"
+            " for the renderer's lifetime."
         ),
     )
     function_call_id: str | None = Field(
         default=None,
         alias="functionCallId",
         description=(
-            "The unique ID of the function invocation, which must be identical to"
-            " the value specified in the function invocation."
+            "The unique ID of the function invocation, which must be identical to the"
+            " value specified in the function invocation."
         ),
     )
 
@@ -192,6 +197,5 @@ RendererToAgentMessageList = list[RendererToAgentMessage]
 
 class RendererToAgentMessageListWrapper(StrictBaseModel):
     messages: RendererToAgentMessageList = Field(
-        ...,
-        description="An object wrapping a list of A2UI Renderer-to-Agent messages.",
+        ..., description="An object wrapping a list of A2UI Renderer-to-Agent messages."
     )

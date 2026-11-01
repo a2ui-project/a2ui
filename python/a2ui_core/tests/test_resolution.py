@@ -57,6 +57,75 @@ def test_component_context_from_surface():
     surface.dispose()
 
 
+def test_component_context_dispatch_action_callback_signatures(monkeypatch):
+    import inspect
+
+    cat = BasicCatalog("0.9")
+    surface = SurfaceModel("s1", cat)
+    c1 = ComponentModel("c1", "Button", cat, {"label": "Click"})
+    surface.components_model.add_component(c1)
+    data_ctx = DataContext(surface=surface)
+    meta = {"extensions": {"trace_id": "abc"}}
+
+    recorded: list[tuple[str, Any, str, Any]] = []
+
+    def two_arg(act: dict[str, Any], cid: str) -> None:
+        recorded.append(("two_arg", act, cid, None))
+
+    def three_arg(
+        act: dict[str, Any], cid: str, metadata: dict[str, Any] | None = None
+    ) -> None:
+        recorded.append(("three_arg", act, cid, metadata))
+
+    def var_args(*args: Any) -> None:
+        recorded.append(("var_args", args[0], args[1], args[2]))
+
+    def kw_only(
+        act: dict[str, Any], cid: str, *, metadata: dict[str, Any] | None = None
+    ) -> None:
+        recorded.append(("kw_only", act, cid, metadata))
+
+    def var_kwargs(act: dict[str, Any], cid: str, **kwargs: Any) -> None:
+        recorded.append(("var_kwargs", act, cid, kwargs.get("metadata")))
+
+    for cb in (two_arg, three_arg, var_args, kw_only, var_kwargs):
+        ctx = ComponentContext(
+            c1, data_ctx, surface.components_model, dispatch_action_callback=cb
+        )
+        ctx.dispatch_action({"name": "tap"}, metadata=meta)
+
+    assert recorded == [
+        ("two_arg", {"name": "tap"}, "c1", None),
+        ("three_arg", {"name": "tap"}, "c1", meta),
+        ("var_args", {"name": "tap"}, "c1", meta),
+        ("kw_only", {"name": "tap"}, "c1", meta),
+        ("var_kwargs", {"name": "tap"}, "c1", meta),
+    ]
+
+    # Callables where inspect.signature raises ValueError or TypeError fall back to 2-arg call.
+    fallback_calls: list[tuple[dict[str, Any], str]] = []
+
+    def uninspectable(act: dict[str, Any], cid: str) -> None:
+        fallback_calls.append((act, cid))
+
+    for exc_cls in (ValueError, TypeError):
+        monkeypatch.setattr(
+            inspect,
+            "signature",
+            lambda _fn, _exc=exc_cls: (_ for _ in ()).throw(_exc("no signature")),
+        )
+        ctx = ComponentContext(
+            c1,
+            data_ctx,
+            surface.components_model,
+            dispatch_action_callback=uninspectable,
+        )
+        ctx.dispatch_action({"name": "tap"}, metadata=meta)
+
+    assert fallback_calls == [({"name": "tap"}, "c1"), ({"name": "tap"}, "c1")]
+    surface.dispose()
+
+
 def test_data_context_resolve_action():
     cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat)
@@ -359,11 +428,11 @@ def test_string_interpolation_complex_execution():
                 _format_string,
             )
 
-            self.functions["add"] = (
-                lambda args, context, abort_signal=None: args["a"] + args["b"]
+            self.functions["add"] = lambda args, context, abort_signal=None: (
+                args["a"] + args["b"]
             )
-            self.functions["formatString"] = (
-                lambda args, context, abort_signal=None: _format_string(args, context)
+            self.functions["formatString"] = lambda args, context, abort_signal=None: (
+                _format_string(args, context)
             )
 
     cat1 = MockCatalog()
@@ -385,15 +454,13 @@ def test_subscribe_dynamic_value_chained_functions():
 
         def __init__(self):
             super().__init__("string", "v0_9_1", [], [])
-            self.functions["trim"] = (
-                lambda args, context, abort_signal=None: args.get("value", "").strip()
+            self.functions["trim"] = lambda args, context, abort_signal=None: (
+                args.get("value", "").strip()
                 if isinstance(args.get("value", ""), str)
                 else args.get("value", "")
             )
-            self.functions["capitalize"] = (
-                lambda args, context, abort_signal=None: args.get(
-                    "value", ""
-                ).capitalize()
+            self.functions["capitalize"] = lambda args, context, abort_signal=None: (
+                args.get("value", "").capitalize()
                 if isinstance(args.get("value", ""), str)
                 else args.get("value", "")
             )

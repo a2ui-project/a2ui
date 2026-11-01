@@ -602,6 +602,7 @@ class SurfaceScope {
   readonly hasSurfaceDirective: boolean;
   readonly sendDataModel?: boolean;
   readonly update: boolean;
+  readonly rawExtensions?: ExpressValue;
   readonly rawSymbols: Record<string, unknown> = {};
   readonly dataPathAssignments: Record<string, unknown> = {};
 
@@ -610,11 +611,13 @@ class SurfaceScope {
     sendDataModel?: boolean,
     update = false,
     hasSurfaceDirective = false,
+    rawExtensions?: ExpressValue,
   ) {
     this.surfaceId = surfaceId;
     this.sendDataModel = sendDataModel;
     this.update = update;
     this.hasSurfaceDirective = hasSurfaceDirective;
+    this.rawExtensions = rawExtensions;
   }
 }
 
@@ -746,7 +749,7 @@ export class ExpressScopeSession {
       options.isFinal,
       options.cachePrefix ?? true,
     );
-    const units = this.compiler.buildUnits(statements, this.surfaceId);
+    const units = this.compiler.buildUnits(statements, this.surfaceId, targetMajorMinor);
     if (units.length === 0) {
       if (options.isFinal) {
         throw new ExpressUndefinedRootError('root');
@@ -900,9 +903,21 @@ export class ExpressScopeSession {
     );
     const compiledData = this.collectReadyData(scope, state, compIds, ctx, targetMajorMinor);
     const hasRoot = compiledComponents.some(c => c.id === 'root');
-    const needsCreate = !scope.update && !state.surfaceCreated && (!surfaceExists || hasRoot);
+    const needsCreate =
+      !scope.update &&
+      !state.surfaceCreated &&
+      (!surfaceExists || hasRoot || scope.rawExtensions !== undefined);
     if (needsCreate) {
-      return this.compileInitialCreate(scope, state, compiledComponents, compiledData, isFinal);
+      return this.compileInitialCreate(
+        scope,
+        state,
+        compiledComponents,
+        compiledData,
+        isFinal,
+        compIds,
+        ctx,
+        targetMajorMinor,
+      );
     }
     return this.compileIncrementalUpdates(
       scope,
@@ -921,11 +936,19 @@ export class ExpressScopeSession {
     compiledComponents: Record<string, unknown>[],
     compiledData: Map<string, unknown>,
     isFinal: boolean,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
   ): AgentToRendererMessage[] {
     const hasRoot = compiledComponents.some(c => c.id === 'root');
     if (!hasRoot) {
       if (!isFinal) {
         return [];
+      }
+      if (scope.rawExtensions !== undefined) {
+        throw new ExpressValidationError(
+          'surface() extensions require a surface-creating scope with a root component.',
+        );
       }
       if (compiledData.size > 0 && compiledComponents.length === 0) {
         return this.compileIncrementalUpdates(
@@ -940,6 +963,16 @@ export class ExpressScopeSession {
       }
       throw new ExpressUndefinedRootError('root');
     }
+    let metadata: Record<string, unknown> | undefined;
+    try {
+      metadata = this.compiler.compileSurfaceMetadata(scope, compIds, ctx, targetMajorMinor);
+    } catch (e) {
+      // Defer creation until the variables the extensions reference arrive.
+      if (e instanceof PendingVariableError && !isFinal) {
+        return [];
+      }
+      throw e;
+    }
     const dataModel: Record<string, unknown> = {};
     for (const [pathName, val] of compiledData.entries()) {
       setNestedPath(dataModel, pathName, val);
@@ -950,7 +983,13 @@ export class ExpressScopeSession {
     }
     state.surfaceCreated = true;
     this.hasEmitted = true;
-    return this.compiler.buildCreateMessages(scope, compiledComponents, dataModel, this.version);
+    return this.compiler.buildCreateMessages(
+      scope,
+      compiledComponents,
+      dataModel,
+      this.version,
+      metadata,
+    );
   }
 
   private compileIncrementalUpdates(
@@ -1315,11 +1354,15 @@ export class ExpressCompiler {
   /**
    * Parses and validates a `surface(...)` statement.
    */
-  private parseSurfaceCall(callVal: ExpressCallNode): {
+  private parseSurfaceCall(
+    callVal: ExpressCallNode,
+    targetMajorMinor: [number, number],
+  ): {
     surfaceId: string;
     catalogId: string;
     sendDataModel?: boolean;
     update: boolean;
+    rawExtensions?: ExpressValue;
   } {
     const args = callVal.args;
     const kwargs = callVal.kwargs;
@@ -1356,6 +1399,7 @@ export class ExpressCompiler {
 
     let sendDataModel: boolean | undefined;
     let update = false;
+    let rawExtensions: ExpressValue | undefined;
 
     for (const [k, val] of Object.entries(kwargs)) {
       if (k === 'catalogId') {
@@ -1375,9 +1419,20 @@ export class ExpressCompiler {
           throw new ExpressValidationError('The update argument to surface() must be a boolean.');
         }
         update = val;
+      } else if (k === 'extensions') {
+        if (targetMajorMinor[0] < 1) {
+          throw new ExpressValidationError(
+            'extensions on surface() is only supported in A2UI v1.0 or later.',
+          );
+        }
+        rawExtensions = val;
       } else {
         throw new ExpressValidationError(`Unknown keyword argument '${k}' in surface().`);
       }
+    }
+
+    if (update && rawExtensions !== undefined) {
+      throw new ExpressValidationError('surface() with update=true does not accept extensions.');
     }
 
     if (catalogId) {
@@ -1391,7 +1446,108 @@ export class ExpressCompiler {
       }
     }
 
-    return {surfaceId, catalogId, sendDataModel, update};
+    return {surfaceId, catalogId, sendDataModel, update, rawExtensions};
+  }
+
+  private resolveAstVar(
+    node: unknown,
+    rawSymbols: Record<string, unknown>,
+    ctx: CompileContext,
+    seen: Set<string>,
+  ): unknown {
+    let cur = node;
+    while (isExpressNode(cur, 'variable')) {
+      const refName = cur.name;
+      ctx.referencedVars.add(refName);
+      if (seen.has(refName)) {
+        throw new ExpressValidationError(
+          `Variable '${refName}' refers to itself through its own value.`,
+        );
+      }
+      if (!Object.hasOwn(rawSymbols, refName)) {
+        if (ctx.allowPending) {
+          throw new PendingVariableError(refName);
+        }
+        throw new ExpressValidationError(`Undefined variable '${refName}'.`);
+      }
+      seen.add(refName);
+      cur = rawSymbols[refName];
+    }
+    return cur;
+  }
+
+  private checkExtensionsAst(
+    node: unknown,
+    rawSymbols: Record<string, unknown>,
+    ctx: CompileContext,
+    subject: string,
+    seen: Set<string>,
+  ): void {
+    const resolved = this.resolveAstVar(node, rawSymbols, ctx, new Set(seen));
+    if (isExpressNode(resolved, 'map')) {
+      for (const v of Object.values(resolved.entries)) {
+        this.checkExtensionsAst(v, rawSymbols, ctx, subject, seen);
+      }
+    } else if (Array.isArray(resolved)) {
+      for (const item of resolved) {
+        this.checkExtensionsAst(item, rawSymbols, ctx, subject, seen);
+      }
+    } else if (isExpressNode(resolved, 'call')) {
+      const catId = resolved.kwargs.catalogId;
+      if (this.definesComponent(resolved.name, catId)) {
+        throw new ExpressValidationError(
+          `extensions on ${subject} cannot contain component '${resolved.name}'.`,
+        );
+      }
+      if (
+        catId === undefined &&
+        (resolved.name === 'Event' ||
+          resolved.name === '_template' ||
+          resolved.name === 'surface' ||
+          resolved.name === 'deleteSurface')
+      ) {
+        throw new ExpressValidationError(
+          `extensions on ${subject} cannot contain '${resolved.name}()'.`,
+        );
+      }
+      for (const arg of resolved.args) {
+        this.checkExtensionsAst(arg, rawSymbols, ctx, subject, seen);
+      }
+      for (const kwVal of Object.values(resolved.kwargs)) {
+        this.checkExtensionsAst(kwVal, rawSymbols, ctx, subject, seen);
+      }
+    }
+  }
+
+  /**
+   * Compiles and validates an `extensions=` keyword argument into a UAX #31-keyed map.
+   */
+  private compileExtensionsMap(
+    rawExt: ExpressValue,
+    rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+    subject: string,
+  ): Record<string, unknown> {
+    const top = this.resolveAstVar(rawExt, rawSymbols, ctx, new Set());
+    if (!isExpressNode(top, 'map')) {
+      throw new ExpressValidationError(`extensions on ${subject} must be a map.`);
+    }
+    this.checkExtensionsAst(top, rawSymbols, ctx, subject, new Set());
+    const compiled = this._compileValue(rawExt, rawSymbols, compIds, ctx, targetMajorMinor, false);
+    if (!compiled || typeof compiled !== 'object' || Array.isArray(compiled)) {
+      throw new ExpressValidationError(`extensions on ${subject} must be a map.`);
+    }
+    const record = compiled as Record<string, unknown>;
+    for (const extKey of Object.keys(record)) {
+      if (!isValidUax31Identifier(extKey)) {
+        throw new ExpressValidationError(
+          `Extension key '${extKey}' on ${subject} is not a valid UAX 31 identifier.`,
+        );
+      }
+    }
+    return record;
   }
 
   /**
@@ -1428,14 +1584,18 @@ export class ExpressCompiler {
   /**
    * Groups parsed AST statements into surface scopes, deletes, and standalone calls.
    */
-  buildUnits(statements: ExpressStatement[], surfaceId: string): CompilationUnit[] {
+  buildUnits(
+    statements: ExpressStatement[],
+    surfaceId: string,
+    targetMajorMinor: [number, number],
+  ): CompilationUnit[] {
     const units: CompilationUnit[] = [];
     let currentScope: SurfaceScope | null = null;
 
     for (const stmt of statements) {
       const [stmtType, ...stmtArgs] = stmt;
       if (stmtType === 'EXPR') {
-        currentScope = this.appendExprUnit(stmtArgs[0], currentScope, units);
+        currentScope = this.appendExprUnit(stmtArgs[0], currentScope, units, targetMajorMinor);
       } else if (stmtType === 'ASSIGN') {
         const [varName, parsedVal] = stmtArgs as [string, ExpressValue];
         if (currentScope === null) {
@@ -1452,17 +1612,19 @@ export class ExpressCompiler {
     parsedVal: unknown,
     currentScope: SurfaceScope | null,
     units: CompilationUnit[],
+    targetMajorMinor: [number, number],
   ): SurfaceScope | null {
     if (!isExpressNode(parsedVal, 'call')) {
       return currentScope;
     }
     if (parsedVal.name === 'surface') {
-      const parsed = this.parseSurfaceCall(parsedVal);
+      const parsed = this.parseSurfaceCall(parsedVal, targetMajorMinor);
       const nextScope = new SurfaceScope(
         parsed.surfaceId,
         parsed.sendDataModel,
         parsed.update,
         true,
+        parsed.rawExtensions,
       );
       units.push({kind: 'scope', scope: nextScope});
       return nextScope;
@@ -1573,6 +1735,30 @@ export class ExpressCompiler {
   }
 
   /**
+   * Compiles the `surface(extensions=...)` argument of `scope` into
+   * `createSurface.metadata`, or returns undefined when none was given.
+   */
+  compileSurfaceMetadata(
+    scope: SurfaceScope,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+  ): Record<string, unknown> | undefined {
+    if (scope.rawExtensions === undefined) {
+      return undefined;
+    }
+    const extensions = this.compileExtensionsMap(
+      scope.rawExtensions,
+      scope.rawSymbols,
+      compIds,
+      ctx,
+      targetMajorMinor,
+      `surface '${scope.surfaceId}'`,
+    );
+    return {extensions};
+  }
+
+  /**
    * Builds the `createSurface` message(s) for a surface creation scope.
    */
   buildCreateMessages(
@@ -1580,6 +1766,7 @@ export class ExpressCompiler {
     compiledComponents: Record<string, unknown>[],
     dataModel: Record<string, unknown>,
     targetVersion: string,
+    metadata?: Record<string, unknown>,
   ): AgentToRendererMessage[] {
     const scopeSurfId = scope.surfaceId;
     const catalogId = surfaceCatalogId(this.catalogs);
@@ -1597,6 +1784,9 @@ export class ExpressCompiler {
       createPayload.components = compiledComponents;
       if (Object.keys(dataModel).length > 0) {
         createPayload.dataModel = dataModel;
+      }
+      if (metadata !== undefined) {
+        createPayload.metadata = metadata;
       }
       return [
         asAgentToRendererMessage({
@@ -1689,7 +1879,7 @@ export class ExpressCompiler {
       targetMajorMinor[0] >= 1 ? {path: '@path', call: '@call'} : {path: 'path', call: 'call'};
     const ctx = new CompileContext(defaultKeys);
     const statements = this.parseStatements(dslText, isFinal);
-    const units = this.buildUnits(statements, surfaceId);
+    const units = this.buildUnits(statements, surfaceId, targetMajorMinor);
     if (units.length === 0) {
       throw new ExpressUndefinedRootError('root');
     }
@@ -1748,6 +1938,11 @@ export class ExpressCompiler {
     const hasRootComponent = compiledComponents.some(c => c.id === 'root');
 
     if (scope.update || !hasRootComponent) {
+      if (scope.rawExtensions !== undefined) {
+        throw new ExpressValidationError(
+          'surface() extensions require a surface-creating scope with a root component.',
+        );
+      }
       return this.compileUpdateScope(
         scope,
         compiledComponents,
@@ -1771,7 +1966,8 @@ export class ExpressCompiler {
       setNestedPath(dataModel, pathName, compiledVal);
     }
 
-    return this.buildCreateMessages(scope, compiledComponents, dataModel, targetVersion);
+    const metadata = this.compileSurfaceMetadata(scope, compIds, ctx, targetMajorMinor);
+    return this.buildCreateMessages(scope, compiledComponents, dataModel, targetVersion, metadata);
   }
 
   private compileUpdateScope(
@@ -1897,12 +2093,32 @@ export class ExpressCompiler {
 
     const compId = (explicitId as string | undefined) ?? compIds.get(varName) ?? varName;
     const properties = compHelper.getComponentProperties(compName);
+    const rawExtensions = !properties.includes('extensions') ? rawKwargs.extensions : undefined;
+    if (!properties.includes('extensions')) {
+      delete rawKwargs.extensions;
+    }
     const compDict: Record<string, unknown> = {
       id: compId,
       component: compName,
     };
     if (resolvedCatalogId !== undefined) {
       compDict.catalogId = resolvedCatalogId;
+    }
+    if (rawExtensions !== undefined) {
+      if (targetMajorMinor[0] < 1) {
+        throw new ExpressValidationError(
+          `extensions on component '${compName}' is only supported in A2UI v1.0 or later.`,
+        );
+      }
+      const compiledExt = this.compileExtensionsMap(
+        rawExtensions,
+        rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        `component '${compName}'`,
+      );
+      compDict.metadata = {extensions: compiledExt};
     }
 
     // Sanctioned departure §5.2 item 4: check-rule property

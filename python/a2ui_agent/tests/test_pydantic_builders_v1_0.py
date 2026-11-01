@@ -60,6 +60,7 @@ from a2ui.builder.v1_0 import (
     TextField,
     Video,
     flatten_component_tree,
+    set_surface_extensions,
 )
 from a2ui.core.schema.v1_0 import (
     ComponentCommonMetadata,
@@ -225,6 +226,51 @@ def test_v1_0_component_catalog_id_and_extensions() -> None:
 
     with pytest.raises(ValidationError, match="Unicode identifiers"):
         Text(text="Bad ext", extensions={"invalid-key!": 1})
+
+    # metadata property and fluent with_extension helper
+    fluent = Text(id="fluent_text", text="Fluent")
+    fluent.metadata = {"extensions": {"a": 1}}
+    fluent = fluent.with_extension("b", "two")
+    assert fluent.metadata == {"extensions": {"a": 1, "b": "two"}}
+    assert fluent.extensions == {"a": 1, "b": "two"}
+    flat_fluent = flatten_component_tree(fluent)
+    assert flat_fluent[0]["metadata"] == {"extensions": {"a": 1, "b": "two"}}
+
+    with pytest.raises(ValidationError):
+        fluent.with_extension("bad-key!", 2)
+
+    # set_surface_extensions on CreateSurfaceMessage and raw dicts
+    create_msg = CreateSurfaceMessage.model_validate({
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": (
+                "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            ),
+            "components": flat_fluent,
+        },
+    })
+    updated_msgs = set_surface_extensions(
+        [create_msg], surface_id="s1", extensions={"surfaceExt": {"theme": "dark"}}
+    )
+    assert updated_msgs[0].create_surface.metadata is not None
+    assert updated_msgs[0].create_surface.metadata.extensions == {
+        "surfaceExt": {"theme": "dark"}
+    }
+
+    raw_updated = set_surface_extensions(
+        [create_msg.model_dump(by_alias=True, exclude_none=True)],
+        surface_id="s1",
+        extensions={"surfaceExt": {"theme": "light"}},
+    )
+    assert raw_updated[0]["createSurface"]["metadata"] == {
+        "extensions": {"surfaceExt": {"theme": "light"}}
+    }
+
+    with pytest.raises(ValidationError):
+        set_surface_extensions(
+            [create_msg], surface_id="s1", extensions={"bad-key!": 1}
+        )
 
 
 def test_v1_0_components_specific_to_v1_0() -> None:

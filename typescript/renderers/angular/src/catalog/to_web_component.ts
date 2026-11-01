@@ -46,6 +46,7 @@ export function componentApiFields(api: ComponentApi): ComponentApi {
     schema: api.schema,
     allowedParents: api.allowedParents,
     allowedChildren: api.allowedChildren,
+    ...(api.metadata !== undefined ? {metadata: api.metadata} : {}),
   };
 }
 
