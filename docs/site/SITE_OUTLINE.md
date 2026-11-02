@@ -68,6 +68,7 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Guides**        | MCP Apps in A2UI Surfaces                        | **P1**   | `content/docs/guides/mcp-apps-in-a2ui.md`                                                        | `/guides/mcp-apps-in-a2ui/`                                                                     |
 | **Guides**        | A2UI Dynamic Rendering within MCP Applications   | **P1**   | `content/docs/guides/a2ui-in-mcp-apps.md`                                                        | `/guides/a2ui-in-mcp-apps/`                                                                     |
 | **Guides**        | Authoring Universal Web Components               | **P1**   | `content/docs/guides/authoring-universal-components.md`                                          | `/guides/authoring-universal-components/`                                                       |
+| **Guides**        | Iframe Catalog                                   | **P1**   | `content/docs/guides/iframe-catalog.mdx`                                                         | `/guides/iframe-catalog/`                                                                       |
 | **Guides**        | SDK Development                                  | **P2**   | `content/docs/guides/sdk-development.md`                                                         | `/guides/sdk-development/`                                                                      |
 | **Roadmap**       | Roadmap                                          | **P1**   | `content/docs/roadmap.md`                                                                        | `/roadmap/`                                                                                     |
 | **Ecosystem**     | Ecosystem Renderers & Tools                      | **P1**   | `content/docs/ecosystem/renderers.md`                                                            | `/ecosystem/renderers/`                                                                         |
@@ -390,6 +391,13 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 
 - Port [`docs/public/guides/authoring-universal-components.md`](../public/guides/authoring-universal-components.md) (`A2uiLitElement` from `@a2ui/web_core/v0_9/universal` or `@a2ui/lit/v0_9`, consumed across React, Angular, and Lit via `WebComponentImplementation`).
 
+<a id="iframe-catalog"></a>
+
+#### Iframe Catalog (`/guides/iframe-catalog/`) [P1]
+
+- **Sources**: [`catalogs/iframe/README.md`](../../catalogs/iframe/README.md), [`catalogs/iframe/web_app_frame_specification.md`](../../catalogs/iframe/web_app_frame_specification.md), [`catalogs/iframe/examples/`](../../catalogs/iframe/examples/), and [`typescript/catalogs/iframe/README.md`](../../typescript/catalogs/iframe/README.md).
+- **Content Outline**: Choosing between `WebAppFrameSrcdoc` and `WebAppFrameUrl`, peer-dependency installation (`@a2ui/catalog-iframe`, `@a2ui/web_core`, `lit`), serving `/a2ui-sandbox/` across Angular CLI / Vite / static servers and `configureSandbox`, double-iframe isolation, multi-catalog registration across Lit / React / Angular (`useUniversalComponents: true`), v1.0 tip calculator and order tracker examples, `a2ui_*` `MessagePort` handshake lifecycle, and troubleshooting.
+
 <a id="sdk-development"></a>
 
 #### SDK Development (`/guides/sdk-development/`) [P2]
@@ -462,7 +470,7 @@ Each version's **JSON Schemas Explorer** (`/specification/<ver>/schemas/`, imple
     - **v1.0**:
         - _Wire Messages_: `agent_to_renderer.json`, `renderer_to_agent.json`
         - _Common Types_: `common_types.json`
-        - _Catalogs & Data Model_: `catalog_definition.json`, `renderer_data_model.json`, `basic_catalog.json` (`catalogs/basic/v1/catalog.json`), `mcp_catalog.json` (`catalogs/mcp/v1/catalog.json`)
+        - _Catalogs & Data Model_: `catalog_definition.json`, `renderer_data_model.json`, `basic_catalog.json` (`catalogs/basic/v1/catalog.json`), `mcp_catalog.json` (`catalogs/mcp/v1/catalog.json`), `iframe_catalog.json` (`catalogs/iframe/catalog.json`)
         - _Capabilities_: `agent_capabilities.json`, `renderer_capabilities.json`
         - _Batching & Wrappers_: `agent_to_renderer_list.json`, `renderer_to_agent_list.json`, `agent_to_renderer_list_wrapper.json`, `renderer_to_agent_list_wrapper.json`
     - **v0.9.1**:
