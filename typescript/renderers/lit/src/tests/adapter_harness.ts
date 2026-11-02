@@ -382,6 +382,16 @@ export function findUnsupportedReason(
         return UNSUPPORTED[stepKey];
       }
     }
+    const assertions = step.assertions;
+    if (assertions && typeof assertions === 'object' && !Array.isArray(assertions)) {
+      for (const key of Object.keys(assertions as Record<string, unknown>)) {
+        const assertionKey = `${caseName}/${key}`;
+        if (Object.hasOwn(UNSUPPORTED, assertionKey)) {
+          matchedUnsupportedKeys.add(assertionKey);
+          return UNSUPPORTED[assertionKey];
+        }
+      }
+    }
   }
   return undefined;
 }

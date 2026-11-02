@@ -95,7 +95,7 @@ describe('@a2ui/react Accessibility Conformance (conformance/core/accessibility.
         if (skipReason) {
           record.status = 'skipped';
           record.reason = skipReason;
-          ctx.skip();
+          ctx.skip(skipReason);
           return;
         }
 
@@ -124,8 +124,10 @@ describe('@a2ui/react Accessibility Conformance (conformance/core/accessibility.
         }
         record.status = 'passed';
       } catch (err) {
-        record.status = 'failed';
-        record.reason = err instanceof Error ? err.message : String(err);
+        if ((record.status as string) !== 'skipped') {
+          record.status = 'failed';
+          record.reason = err instanceof Error ? err.message : String(err);
+        }
         throw err;
       } finally {
         rendered?.unmount();
@@ -155,7 +157,7 @@ describe('@a2ui/react Adapter Conformance (conformance/core/adapter_conformance.
         status: 'failed',
       };
       pendingManifestByTestName.set(testTitle, record);
-      const state = mountSurface(testCase);
+      let state: ReturnType<typeof mountSurface> | undefined;
       try {
         assertKnownAdapterCase(testCase);
         const skipReason = findUnsupportedReason(
@@ -165,20 +167,23 @@ describe('@a2ui/react Adapter Conformance (conformance/core/adapter_conformance.
         if (skipReason) {
           record.status = 'skipped';
           record.reason = skipReason;
-          ctx.skip();
+          ctx.skip(skipReason);
           return;
         }
 
+        state = mountSurface(testCase);
         for (const step of testCase.steps) {
           await runStep(state, step);
         }
         record.status = 'passed';
       } catch (err) {
-        record.status = 'failed';
-        record.reason = err instanceof Error ? err.message : String(err);
+        if ((record.status as string) !== 'skipped') {
+          record.status = 'failed';
+          record.reason = err instanceof Error ? err.message : String(err);
+        }
         throw err;
       } finally {
-        if (!state.unmounted) {
+        if (state && !state.unmounted) {
           state.rendered?.unmount();
         }
       }

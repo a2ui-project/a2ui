@@ -305,6 +305,15 @@ String? findUnsupportedReason(
         return unsupported[stepKey];
       }
     }
+    if (step['assertions'] case final Map<String, Object?> assertions) {
+      for (final String key in assertions.keys) {
+        final assertionKey = '$caseName/$key';
+        if (unsupported.containsKey(assertionKey)) {
+          _matchedUnsupportedKeys.add(assertionKey);
+          return unsupported[assertionKey];
+        }
+      }
+    }
   }
   return null;
 }

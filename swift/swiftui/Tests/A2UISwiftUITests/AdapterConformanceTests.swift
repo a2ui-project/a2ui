@@ -68,11 +68,26 @@ struct AdapterConformanceTests {
       let name = testCase["name"] as? String ?? "<unnamed>"
       do {
         try AdapterHarness.assertKnownAccessibilityCase(testCase)
+        let steps =
+          (testCase["steps"] as? [[String: Any]])
+          ?? [["assertions": testCase["assertions"] as Any]]
+        if let skipReason = AdapterHarness.findUnsupportedReason(name, steps: steps) {
+          writeManifestRecord(
+            AdapterManifestRecord(
+              suite: suite,
+              caseName: name,
+              status: "skipped",
+              reason: skipReason
+            )
+          )
+          continue
+        }
         checkedCount += try runAccessibilityCase(testCase, name: name)
         writeManifestRecord(
           AdapterManifestRecord(suite: suite, caseName: name, status: "passed")
         )
       } catch {
+        Issue.record(Comment(rawValue: "\(name): \(error)"))
         writeManifestRecord(
           AdapterManifestRecord(
             suite: suite,
@@ -81,10 +96,10 @@ struct AdapterConformanceTests {
             reason: String(describing: error)
           )
         )
-        throw error
       }
     }
     #expect(checkedCount > 0, "accessibility.yaml should verify at least one component")
+    AdapterHarness.finishSuite(suite)
   }
 
   @Test func adapterConformanceSuite() throws {
@@ -98,6 +113,7 @@ struct AdapterConformanceTests {
       do {
         try AdapterHarness.assertKnownAdapterCase(testCase)
       } catch {
+        Issue.record(Comment(rawValue: "\(name): \(error)"))
         writeManifestRecord(
           AdapterManifestRecord(
             suite: suite,
@@ -106,7 +122,20 @@ struct AdapterConformanceTests {
             reason: String(describing: error)
           )
         )
-        throw error
+        continue
+      }
+
+      let steps = (testCase["steps"] as? [[String: Any]]) ?? []
+      if let skipReason = AdapterHarness.findUnsupportedReason(name, steps: steps) {
+        writeManifestRecord(
+          AdapterManifestRecord(
+            suite: suite,
+            caseName: name,
+            status: "skipped",
+            reason: skipReason
+          )
+        )
+        continue
       }
 
       if let reason = Self.expectedAdapterFailures[name] {
@@ -129,6 +158,7 @@ struct AdapterConformanceTests {
             AdapterManifestRecord(suite: suite, caseName: name, status: "passed")
           )
         } catch {
+          Issue.record(Comment(rawValue: "\(name): \(error)"))
           writeManifestRecord(
             AdapterManifestRecord(
               suite: suite,
@@ -137,7 +167,6 @@ struct AdapterConformanceTests {
               reason: String(describing: error)
             )
           )
-          throw error
         }
       }
     }
@@ -149,6 +178,7 @@ struct AdapterConformanceTests {
       unusedExpectedFailures.isEmpty,
       "Unused expectedAdapterFailures entries: \(unusedExpectedFailures)"
     )
+    AdapterHarness.finishSuite(suite)
   }
 
   // MARK: - Accessibility Suite Runner

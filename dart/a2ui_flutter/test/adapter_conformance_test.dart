@@ -43,13 +43,17 @@ void main() {
           });
         });
         try {
-          final String? skipReason = findUnsupportedReason(
-            name,
-            (testCase['steps'] as List<Object?>?) ?? const [],
-          );
+          assertKnownAccessibilityCase(testCase);
+          final List<Object?> steps =
+              (testCase['steps'] as List<Object?>?) ??
+              <Object?>[
+                <String, Object?>{'assertions': testCase['assertions']},
+              ];
+          final String? skipReason = findUnsupportedReason(name, steps);
           if (skipReason != null) {
             status = 'skipped';
             reason = skipReason;
+            markTestSkipped(skipReason);
             return;
           }
           await runAccessibilityCase(tester, testCase);
@@ -80,6 +84,7 @@ void main() {
           });
         });
         try {
+          assertKnownAdapterCase(testCase);
           final String? skipReason = findUnsupportedReason(
             name,
             (testCase['steps'] as List<Object?>?) ?? const [],
@@ -87,6 +92,7 @@ void main() {
           if (skipReason != null) {
             status = 'skipped';
             reason = skipReason;
+            markTestSkipped(skipReason);
             return;
           }
           await runAdapterCase(tester, testCase);

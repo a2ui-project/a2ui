@@ -183,6 +183,16 @@ final class AdapterSession {
 enum AdapterHarness {
   private static let manifestLock = NSLock()
 
+  /// Reasoned skip entries keyed by `"<case>"` or `"<case>/<op|expectKey>"`.
+  static let unsupported: [String: String] = [:]
+
+  private static var matchedUnsupportedKeys: Set<String> = []
+  private static var completedSuites: Set<String> = []
+  private static let allAdapterSuites: Set<String> = [
+    "core/accessibility.yaml",
+    "core/adapter_conformance.yaml",
+  ]
+
   static let adapterCaseKnownKeys: Set<String> = [
     "name",
     "description",
@@ -449,6 +459,62 @@ enum AdapterHarness {
           where: "case(\(name)).steps[\(idx)].assertions"
         )
       }
+    }
+  }
+
+  /// Returns a skip reason if `caseName` or any step in `steps` matches `unsupported`.
+  static func findUnsupportedReason(
+    _ caseName: String,
+    steps: [[String: Any]] = []
+  ) -> String? {
+    if let reason = unsupported[caseName] {
+      matchedUnsupportedKeys.insert(caseName)
+      return reason
+    }
+    for step in steps {
+      if let op = step["op"] as? String {
+        let opKey = "\(caseName)/\(op)"
+        if let reason = unsupported[opKey] {
+          matchedUnsupportedKeys.insert(opKey)
+          return reason
+        }
+      }
+      for key in step.keys.sorted() {
+        let stepKey = "\(caseName)/\(key)"
+        if let reason = unsupported[stepKey] {
+          matchedUnsupportedKeys.insert(stepKey)
+          return reason
+        }
+      }
+      if let assertions = step["assertions"] as? [String: Any] {
+        for key in assertions.keys.sorted() {
+          let assertionKey = "\(caseName)/\(key)"
+          if let reason = unsupported[assertionKey] {
+            matchedUnsupportedKeys.insert(assertionKey)
+            return reason
+          }
+        }
+      }
+    }
+    return nil
+  }
+
+  /// Verifies that every entry in `unsupported` matched at least one executed case.
+  static func assertAllUnsupportedMatched() {
+    let unused = unsupported.keys
+      .filter { !matchedUnsupportedKeys.contains($0) }
+      .sorted()
+    #expect(
+      unused.isEmpty,
+      "Unused unsupported entries did not match any case: \(unused)"
+    )
+  }
+
+  /// Marks `suite` complete and checks `assertAllUnsupportedMatched()` once all suites finish.
+  static func finishSuite(_ suite: String) {
+    completedSuites.insert(suite)
+    if completedSuites.isSuperset(of: allAdapterSuites) {
+      assertAllUnsupportedMatched()
     }
   }
 

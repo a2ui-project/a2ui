@@ -37,25 +37,19 @@ const basicCatalogJson = JSON.parse(
 function ConformanceManifestReporter(baseReporterDecorator) {
   baseReporterDecorator(this);
   const manifestDir = process.env.A2UI_CONFORMANCE_MANIFEST_DIR;
-  const manifestPath = manifestDir ? path.join(manifestDir, 'angular-karma.jsonl') : null;
-  const recordedKeys = new Set();
+  const manifestPath = manifestDir ? path.join(manifestDir, `angular-${process.pid}.jsonl`) : null;
 
   function appendRecord(rec) {
     if (!manifestPath || !rec || !rec.suite || !rec.case) {
       return;
     }
-    const key = `${rec.suite}::${rec.case}`;
-    if (recordedKeys.has(key)) {
-      return;
-    }
-    recordedKeys.add(key);
-    fs.mkdirSync(manifestDir, {recursive: true});
+    fs.mkdirSync(manifestDir, { recursive: true });
     const entry = {
       harness: rec.harness || 'angular',
       suite: String(rec.suite).replace(/\\/g, '/'),
       case: rec.case,
       status: rec.status,
-      ...(rec.reason ? {reason: rec.reason} : {}),
+      ...(rec.reason ? { reason: rec.reason } : {}),
     };
     fs.appendFileSync(manifestPath, `${JSON.stringify(entry)}\n`, 'utf8');
   }
@@ -64,38 +58,6 @@ function ConformanceManifestReporter(baseReporterDecorator) {
     if (info && info.conformanceManifestRecord) {
       appendRecord(info.conformanceManifestRecord);
     }
-  };
-
-  this.onSpecComplete = function (_browser, result) {
-    if (!manifestPath || !result) {
-      return;
-    }
-    const suiteHeader = Array.isArray(result.suite) ? result.suite.join(' ') : '';
-    let suite = null;
-    if (suiteHeader.includes('conformance/core/accessibility.yaml')) {
-      suite = 'core/accessibility.yaml';
-    } else if (suiteHeader.includes('conformance/core/adapter_conformance.yaml')) {
-      suite = 'core/adapter_conformance.yaml';
-    }
-    if (!suite) {
-      return;
-    }
-    const desc = String(result.description || '');
-    const colonIdx = desc.indexOf(':');
-    const caseName = (colonIdx >= 0 ? desc.slice(0, colonIdx) : desc).trim();
-    const status = result.skipped ? 'skipped' : result.success ? 'passed' : 'failed';
-    const reason = result.skipped
-      ? result.pendingReason || 'skipped'
-      : !result.success && Array.isArray(result.log) && result.log.length > 0
-        ? String(result.log[0]).split('\n')[0]
-        : undefined;
-    appendRecord({
-      harness: 'angular',
-      suite,
-      case: caseName,
-      status,
-      reason,
-    });
   };
 }
 ConformanceManifestReporter.$inject = ['baseReporterDecorator'];
@@ -109,7 +71,7 @@ module.exports = function (config) {
       require('karma-chrome-launcher'),
       require('karma-jasmine-html-reporter'),
       require('karma-coverage'),
-      {'reporter:conformance-manifest': ['type', ConformanceManifestReporter]},
+      { 'reporter:conformance-manifest': ['type', ConformanceManifestReporter] },
     ],
     client: {
       jasmine: {
@@ -130,7 +92,7 @@ module.exports = function (config) {
     coverageReporter: {
       dir: require('path').join(__dirname, './coverage/lib'),
       subdir: '.',
-      reporters: [{type: 'html'}, {type: 'text-summary'}],
+      reporters: [{ type: 'html' }, { type: 'text-summary' }],
     },
     reporters: ['progress', 'kjhtml', 'conformance-manifest'],
     browsers: ['Chrome'],
