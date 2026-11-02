@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/decision/pattern_definition.json",
+  "title": "A2UI decision catalog pattern file",
+  "description": "How one component catalog draws the abstract layout patterns named by the decision archetype grammar.",
+  "type": "object",
+  "required": ["catalogIds", "version", "patterns"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"type": "string"},
+    "catalogIds": {
+      "type": "array",
+      "description": "Catalog ids (the `catalogId` of each catalog.json) this file applies to.",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "format": "uri", "minLength": 1}
+    },
+    "version": {"type": "string", "minLength": 1},
+    "patterns": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^[a-z_]+$"},
+      "additionalProperties": {"$ref": "#/$defs/pattern"}
+    }
+  },
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "pattern": {
+      "type": "object",
+      "required": ["slots"],
+      "additionalProperties": false,
+      "properties": {
+        "slots": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}
+        },
+        "knobs": {
+          "type": "object",
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          }
+        },
+        "root": {"type": "string", "minLength": 1},
+        "components": {"$ref": "#/$defs/componentList"},
+        "variants": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/variant"}
+        },
+        "fieldVariants": {
+          "type": "object",
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "additionalProperties": {"$ref": "#/$defs/fieldVariant"}
+        },
+        "note": {"type": "string"}
+      },
+      "oneOf": [{"required": ["root", "components"]}, {"required": ["variants"]}]
+    },
+    "variant": {
+      "type": "object",
+      "required": ["root", "components"],
+      "additionalProperties": false,
+      "properties": {
+        "when": {
+          "type": "object",
+          "description": "Knob name to the value or values that select this variant; a variant without `when` is the default.",
+          "additionalProperties": {
+            "oneOf": [{"type": "string"}, {"$ref": "#/$defs/stringList"}]
+          }
+        },
+        "root": {"type": "string", "minLength": 1},
+        "components": {"$ref": "#/$defs/componentList"},
+        "note": {"type": "string"}
+      }
+    },
+    "componentList": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/component"}
+    },
+    "component": {
+      "description": "A component template with an id, expanded once per block (or once per element inside `$repeat`).",
+      "allOf": [{"$ref": "#/$defs/templateObject"}],
+      "required": ["id", "component"]
+    },
+    "fieldVariant": {
+      "description": "An id-less component template selected by `$byInstance`; the expander assigns the id.",
+      "allOf": [{"$ref": "#/$defs/templateObject"}],
+      "required": ["component"]
+    },
+    "templateValue": {
+      "anyOf": [
+        {"type": ["string", "number", "boolean", "null"]},
+        {"type": "array", "items": {"$ref": "#/$defs/templateValue"}},
+        {"$ref": "#/$defs/templateObject"}
+      ]
+    },
+    "templateObject": {
+      "type": "object",
+      "description": "Any JSON object; keys starting with `$` are template directives with the value shapes below.",
+      "properties": {
+        "$slot": {"$ref": "#/$defs/slotDirective"},
+        "$text": {"$ref": "#/$defs/textDirective"},
+        "$default": {"$ref": "#/$defs/defaultDirective"},
+        "$if": {"$ref": "#/$defs/ifDirective"},
+        "$ifKnob": {"$ref": "#/$defs/ifKnobDirective"},
+        "$ifSelf": {"$ref": "#/$defs/ifSelfDirective"},
+        "$ifInstance": {"$ref": "#/$defs/ifInstanceDirective"},
+        "$byType": {"$ref": "#/$defs/byTypeDirective"},
+        "$byInstance": {"$ref": "#/$defs/byInstanceDirective"},
+        "$repeat": {"$ref": "#/$defs/repeatDirective"},
+        "$map": {"$ref": "#/$defs/mapDirective"},
+        "$event": {"$ref": "#/$defs/eventDirective"},
+        "$blocks": {"$ref": "#/$defs/blocksDirective"},
+        "$knobValue": {"$ref": "#/$defs/knobValueDirective"},
+        "$item": {"$ref": "#/$defs/itemDirective"}
+      },
+      "patternProperties": {
+        "^[^$]": {"$ref": "#/$defs/templateValue"}
+      },
+      "additionalProperties": false
+    },
+    "slotDirective": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Slot name (optionally `slot.field`); becomes a data binding to the bound pointer, or `$default` when unbound."
+    },
+    "textDirective": {
+      "type": "string",
+      "description": "Literal with `{slot}` placeholders; a bound slot becomes a formatString call, `{$index1}` is the 1-based element index."
+    },
+    "defaultDirective": {
+      "$ref": "#/$defs/templateValue",
+      "description": "Literal used when the `$slot` or `$knobValue` beside it resolves to nothing."
+    },
+    "ifDirective": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Slot name; the component is emitted only when that slot is bound."
+    },
+    "ifKnobDirective": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "Knob name to accepted values; the component is emitted only when every knob matches.",
+      "additionalProperties": {"$ref": "#/$defs/stringList"}
+    },
+    "ifSelfDirective": {
+      "type": "object",
+      "description": "Value (or child id) to use when the element's author is the `self` knob (`true`) or not (`false`).",
+      "additionalProperties": false,
+      "properties": {
+        "true": {"type": "string"},
+        "false": {"type": "string"}
+      }
+    },
+    "ifInstanceDirective": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "Instance answer name to required value; the enclosing property is emitted only when each holds.",
+      "additionalProperties": {"type": ["string", "boolean"]}
+    },
+    "byTypeDirective": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Slot name; the sibling key matching the slot's semantic type names the child id to emit."
+    },
+    "byInstanceDirective": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Instance answer name; selects a `fieldVariants` entry, or a sibling key matching the answer."
+    },
+    "repeatDirective": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Repeated slot name; `children` becomes a template child list bound to the slot's array (sibling `component` names the template)."
+    },
+    "mapDirective": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Knob or instance answer name; the sibling key matching its value is the literal to emit."
+    },
+    "eventDirective": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Event name, or a slot whose value is slugged into the event name; emits `{\"event\": {\"name\": ...}}` plus `context`."
+    },
+    "blocksDirective": {
+      "const": true,
+      "description": "Placeholder in the page pattern's children for the block roots in archetype order."
+    },
+    "knobValueDirective": {
+      "type": "string",
+      "minLength": 1,
+      "description": "`knob.property` lookup into the plan; `$default` applies when absent."
+    },
+    "itemDirective": {
+      "const": true,
+      "description": "Inside `$repeat`, the current element's pointer, bound as the event context."
+    }
+  }
+}
