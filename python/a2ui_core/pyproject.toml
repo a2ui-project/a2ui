@@ -53,7 +53,7 @@ build-backend = "hatchling.build"
 # computed from the tags, so a tagless release build cannot slip through.
 [tool.hatch.version]
 source = "vcs"
-fallback-version = "0.1.1"
+fallback-version = "0.5.0"
 
 [tool.hatch.version.raw-options]
 root = "../.."

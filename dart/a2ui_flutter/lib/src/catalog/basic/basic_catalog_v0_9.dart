@@ -172,11 +172,16 @@ abstract final class BasicComponents {
   static ComponentImplementation _implement(
     String name,
     ComponentWidgetBuilder builder,
-  ) => ComponentImplementation(
-    name: name,
-    schema: api.components[name]!.schema,
-    builder: (context, node, props, buildChild) => BasicTheme(
-      builder: (context) => builder(context, node, props, buildChild),
-    ),
-  );
+  ) {
+    final ComponentApi definition = api.components[name]!;
+    return ComponentImplementation(
+      name: name,
+      schema: definition.schema,
+      allowedParents: definition.allowedParents,
+      allowedChildren: definition.allowedChildren,
+      builder: (context, node, props, buildChild) => BasicTheme(
+        builder: (context) => builder(context, node, props, buildChild),
+      ),
+    );
+  }
 }
