@@ -37,19 +37,18 @@ extension BasicCatalog {
     }
 
     // URL parsers in browsers drop tabs and newlines anywhere in the string and read `\` as `/`,
-    // so check the scheme and the leading slashes on that normalized form.
-    let normalized = String(
-      trimmed.unicodeScalars
-        .filter { $0 != "\t" && $0 != "\n" && $0 != "\r" }
-        .map { $0 == "\\" ? "/" : Character($0) })
+    // so check the scheme and the leading slashes with those dropped. The scan is lazy and stops
+    // at the first character that decides it, because this runs on every render and an inline
+    // `data:` URL can be megabytes long.
+    let scalars = trimmed.unicodeScalars.lazy.filter { $0 != "\t" && $0 != "\n" && $0 != "\r" }
 
     guard let url = URL(string: trimmed) else {
       return nil
     }
 
-    guard let scheme = mediaURLScheme(of: normalized) else {
+    guard let scheme = mediaURLScheme(of: scalars) else {
       // A relative path must not reach another host.
-      guard !normalized.hasPrefix("//"), url.scheme == nil, url.host == nil else {
+      guard !hasDoubleSlashPrefix(scalars), url.scheme == nil, url.host == nil else {
         return nil
       }
       return url
@@ -61,8 +60,8 @@ extension BasicCatalog {
     case "http", "https":
       // Require the `scheme://` form as written, so `https:host` and `ht\ttps://host` are
       // rejected the same way the web renderers reject them.
-      let lowered = trimmed.lowercased()
-      guard lowered.hasPrefix("http://") || lowered.hasPrefix("https://"),
+      let prefix = trimmed.prefix(8).lowercased()
+      guard prefix.hasPrefix("http://") || prefix.hasPrefix("https://"),
         url.scheme?.lowercased() == scheme,
         let host = url.host, !host.isEmpty
       else {
@@ -74,20 +73,38 @@ extension BasicCatalog {
     }
   }
 
-  /// Returns the lowercased scheme of `urlString`, or `nil` if it has none (a relative URL).
-  private static func mediaURLScheme(of urlString: String) -> String? {
-    guard let colon = urlString.firstIndex(of: ":") else {
-      return nil
+  /// Returns the lowercased scheme that `scalars` start with, or `nil` if they have none (a
+  /// relative URL). Stops at the first `:` or at the first character a scheme can't contain.
+  private static func mediaURLScheme<S: Sequence>(of scalars: S) -> String?
+  where S.Element == Unicode.Scalar {
+    var candidate = String.UnicodeScalarView()
+    for scalar in scalars {
+      if scalar == ":" {
+        return candidate.isEmpty ? nil : String(candidate).lowercased()
+      }
+      let isSchemeCharacter =
+        candidate.isEmpty
+        ? isASCIILetter(scalar)
+        : isASCIILetter(scalar) || ("0"..."9").contains(scalar) || scalar == "+"
+          || scalar == "-" || scalar == "."
+      guard isSchemeCharacter else {
+        return nil
+      }
+      candidate.append(scalar)
     }
-    let candidate = urlString[..<colon]
-    guard let first = candidate.unicodeScalars.first, isASCIILetter(first),
-      candidate.unicodeScalars.allSatisfy({
-        isASCIILetter($0) || ("0"..."9").contains($0) || $0 == "+" || $0 == "-" || $0 == "."
-      })
-    else {
-      return nil
+    return nil
+  }
+
+  /// Returns whether `scalars` start with two slashes, reading `\` as `/` the way browsers do.
+  private static func hasDoubleSlashPrefix<S: Sequence>(_ scalars: S) -> Bool
+  where S.Element == Unicode.Scalar {
+    var iterator = scalars.makeIterator()
+    for _ in 0..<2 {
+      guard let scalar = iterator.next(), scalar == "/" || scalar == "\\" else {
+        return false
+      }
     }
-    return candidate.lowercased()
+    return true
   }
 
   private static func isASCIILetter(_ scalar: Unicode.Scalar) -> Bool {

@@ -58,8 +58,7 @@ public struct A2UIVideo: View {
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
           if isShowingPoster,
-            let posterStr = posterURLString,
-            let posterURL = BasicCatalog.sanitizeMediaURL(posterStr)
+            let posterURL = BasicCatalog.sanitizeMediaURL(posterURLString)
           {
             Button {
               isShowingPoster = false
