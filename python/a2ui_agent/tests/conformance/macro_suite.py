@@ -71,6 +71,16 @@ SUITE_PATH = os.path.join(CONFORMANCE_DIR, "macros.yaml")
 # conformance/agent/macros/macros.yaml expects it back unchanged.
 PROTOCOL_VERSION = to_version_number(ProtocolVersion.V0_9_1)
 
+_V1_0_BASIC_CID = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+_V0_9_BASIC_CID = "https://a2ui.org/specification/v0_9/standard_catalog.json"
+_FOO_CID = "https://example.com/catalogs/foo/v1/catalog.json"
+_BAR_CID = "https://example.com/catalogs/bar/v1/catalog.json"
+_BRAND_CID = "https://example.com/brand.json"
+_BRAND_SURFACE_CID = "https://example.com/brand_surface.json"
+_CAT_A_CID = "https://example.com/catalog_a.json"
+_CAT_B_CID = "https://example.com/catalog_b.json"
+_BAZ_MACROS_CID = "https://example.com/catalogs/baz_macros.json"
+
 
 # =============================================================================
 # Suite definition
@@ -111,6 +121,15 @@ class Case:
     envelope_version: Optional[str] = None
     passthrough_components: Optional[list[str]] = None
     macro_catalog_id: str | None = None
+    expander_scoped: bool = True
+    expander_catalog_id: str | None = None
+    macro_version: str | None = None
+    empty_macros: bool = False
+    to_catalog_version: str | None = None
+    base_catalogs: Optional[list[str]] = None
+    validation_catalogs: Optional[list[str]] = None
+    surface_catalogs: Optional[dict[str, Optional[str]]] = None
+    messages: Optional[list[dict[str, Any]]] = None
 
     @property
     def golden_path(self) -> str:
@@ -123,10 +142,20 @@ class Case:
             return json.load(f)
 
 
+def _load_raw_suite() -> dict[str, Any]:
+    with open(SUITE_PATH, "r", encoding="utf-8") as f:
+        data: dict[str, Any] = yaml.safe_load(f)
+        return data
+
+
+_RAW_SUITE = _load_raw_suite()
+CUSTOM_CATALOG_SCHEMAS: dict[str, dict[str, Any]] = _RAW_SUITE.get(
+    "custom_catalogs", {}
+)
+
+
 def load_cases() -> list[Case]:
     """Loads every case declared in the shared, language-agnostic macros suite."""
-    with open(SUITE_PATH, "r", encoding="utf-8") as f:
-        suite = yaml.safe_load(f)
     return [
         Case(
             id=raw["id"],
@@ -143,18 +172,96 @@ def load_cases() -> list[Case]:
             envelope_version=raw.get("envelope_version"),
             passthrough_components=raw.get("passthrough_components"),
             macro_catalog_id=raw.get("macro_catalog_id"),
+            expander_scoped=raw.get("expander_scoped", True),
+            expander_catalog_id=raw.get("expander_catalog_id"),
+            macro_version=raw.get("macro_version"),
+            empty_macros=raw.get("empty_macros", False),
+            to_catalog_version=raw.get("to_catalog_version"),
+            base_catalogs=raw.get("base_catalogs"),
+            validation_catalogs=raw.get("validation_catalogs"),
+            surface_catalogs=raw.get("surface_catalogs"),
+            messages=raw.get("messages"),
         )
-        for raw in suite["tests"]
+        for raw in _RAW_SUITE["tests"]
     ]
 
 
 # =============================================================================
-# Standard Macro Definitions
+# Custom Builder Nodes & Standard Macro Definitions
 # =============================================================================
 
 
+class FooPanelNode(builder_v1_0.ComponentBuilderNode):
+    component: Literal["FooPanel"] = "FooPanel"
+    children: builder_v1_0.ChildList
+    catalog_id: str = _FOO_CID
+
+
+class FooHeaderNode(builder_v1_0.ComponentBuilderNode):
+    component: Literal["FooHeader"] = "FooHeader"
+    title: builder_v1_0.DynamicString
+    catalog_id: str = _FOO_CID
+
+
+class BarBadgeNode(builder_v1_0.ComponentBuilderNode):
+    component: Literal["BarBadge"] = "BarBadge"
+    tag: str
+    catalog_id: str = _BAR_CID
+
+
+class BarButtonNode(builder_v1_0.ComponentBuilderNode):
+    component: Literal["BarButton"] = "BarButton"
+    label: builder_v1_0.DynamicString
+    action: builder_v1_0.Action
+    catalog_id: str = _BAR_CID
+
+
+class BrandBoxNode(builder_v1_0.ComponentBuilderNode):
+    component: Literal["BrandBox"] = "BrandBox"
+    child: builder_v1_0.Child
+
+
+class ChartNode(builder_v1_0.ComponentBuilderNode):
+    component: Literal["Chart"] = "Chart"
+    series: str
+
+
+class ChartCardNode(builder_v1_0.ComponentBuilderNode):
+    component: Literal["ChartCard"] = "ChartCard"
+    child: builder_v1_0.Child
+
+
+class InnerBadgeScopedNode(builder_v1_0.ComponentBuilderNode):
+    component: Literal["InnerBadgeScoped"] = "InnerBadgeScoped"
+    label: str
+
+
+class InnerBadgeInheritedNode(builder_v1_0.ComponentBuilderNode):
+    component: Literal["InnerBadgeInherited"] = "InnerBadgeInherited"
+    label: str
+
+
+class DeferredCycleV10Node(builder_v1_0.ComponentBuilderNode):
+    component: Literal["DeferredCycle"] = "DeferredCycle"
+    label: str
+
+
+class CycleANode(builder_v1_0.ComponentBuilderNode):
+    component: Literal["CycleA"] = "CycleA"
+    label: str
+
+
+class CycleBNode(builder_v1_0.ComponentBuilderNode):
+    component: Literal["CycleB"] = "CycleB"
+    label: str
+
+
+class FakeSurfaceNode(builder_v1_0.ComponentBuilderNode):
+    component: Literal["Surface"] = "Surface"
+
+
 def get_suite_macros() -> list[Any]:
-    """Builds and returns the suite's standard reference macros."""
+    """Builds and returns the suite's standard v0.9 reference macros."""
 
     @macro
     def StatusBadge(status: str, title: str) -> Card:
@@ -287,8 +394,179 @@ def get_scoped_suite_macros() -> dict[str, list[Any]]:
             )
         )
 
+    @macro
+    def UnannotatedBrandCard(title: str) -> builder_v1_0.Card:
+        """Brand card emitting unannotated Card, BrandBox, and Text nodes."""
+        return builder_v1_0.Card(
+            child=BrandBoxNode(child=builder_v1_0.Text(text=title, variant="body"))
+        )
+
+    @macro
+    def BrandBadge(label: str) -> builder_v1_0.Card:
+        """Brand badge emitting basic Card and Text with explicit catalogId."""
+        return builder_v1_0.Card(
+            catalog_id=_V1_0_BASIC_CID,
+            child=builder_v1_0.Text(
+                text=f"[Badge] {label}",
+                variant="body",
+                catalog_id=_V1_0_BASIC_CID,
+            ),
+        )
+
+    @macro
+    def InnerBadgeScoped(label: str) -> BrandBoxNode:
+        """Scoped inner badge emitting BrandBox and unannotated basic Text."""
+        return BrandBoxNode(
+            catalog_id=_BRAND_CID,
+            child=builder_v1_0.Text(text=f"Scoped Badge: {label}", variant="caption"),
+        )
+
+    @macro
+    def OuterPanelScoped(title: str) -> builder_v1_0.Card:
+        """Scoped outer panel emitting unannotated Text alongside deferred InnerBadgeScoped."""
+        return builder_v1_0.Card(
+            child=builder_v1_0.Column(
+                children=[
+                    builder_v1_0.Text(text=title, variant="body"),
+                    InnerBadgeScopedNode(label=title, catalog_id=_BRAND_CID),
+                ]
+            )
+        )
+
+    @macro(name="Chart")
+    def BrandChart(series: str) -> ChartCardNode:
+        """Brand Chart macro emitting ChartCard wrapping an unannotated Chart primitive."""
+        return ChartCardNode(child=ChartNode(series=f"[Brand] {series}"))
+
+    @macro(name="Text")
+    def BrandSurfaceText(
+        text: str, variant: builder_v1_0.TextVariant = "body"
+    ) -> builder_v1_0.Card:
+        """Brand surface Text macro emitting cross-catalog basic Card and Text around BrandBox."""
+        return builder_v1_0.Card(
+            catalog_id=_V1_0_BASIC_CID,
+            child=BrandBoxNode(
+                catalog_id=_BRAND_SURFACE_CID,
+                child=builder_v1_0.Text(
+                    text=f"[Brand] {text}",
+                    variant=variant,
+                    catalog_id=_V1_0_BASIC_CID,
+                ),
+            ),
+        )
+
+    @macro(name="BrandBadge")
+    def BrandSurfaceBadge(label: str) -> builder_v1_0.Card:
+        """Brand surface badge emitting cross-catalog basic Card and Text around BrandBox."""
+        return builder_v1_0.Card(
+            catalog_id=_V1_0_BASIC_CID,
+            child=BrandBoxNode(
+                catalog_id=_BRAND_SURFACE_CID,
+                child=builder_v1_0.Text(
+                    text=f"[Badge] {label}",
+                    variant="body",
+                    catalog_id=_V1_0_BASIC_CID,
+                ),
+            ),
+        )
+
+    @macro
+    def BazMacro(
+        headline: builder_v1_0.DynamicString,
+        badge_tag: str,
+        cta_label: str,
+        on_cta: builder_v1_0.Action,
+    ) -> FooPanelNode:
+        """Composite macro combining FooCatalog and BarCatalog primitives with explicit catalogIds."""
+        return FooPanelNode(
+            children=[
+                FooHeaderNode(title=headline),
+                BarBadgeNode(tag=badge_tag),
+                BarButtonNode(label=cta_label, action=on_cta),
+            ]
+        )
+
+    @macro
+    def ProductCard(name: str) -> builder_v1_0.Card:
+        """Macro sharing its name with ProductCard primitive in catalog_a.json."""
+        return builder_v1_0.Card(child=builder_v1_0.Text(text=f"Product: {name}"))
+
+    @macro(name="BrandBox")
+    def BrandBoxMacro(title: str) -> builder_v1_0.Card:
+        """Macro wrapping a same-named BrandBox primitive from catalog_a.json."""
+        return builder_v1_0.Card(
+            child=BrandBoxNode(
+                catalog_id=_CAT_A_CID,
+                child=builder_v1_0.Text(text=title),
+            )
+        )
+
+    @macro
+    def InnerBadgeInherited(label: str) -> BrandBoxNode:
+        """Deferred inner macro inheriting enclosing catalogId when surface catalog is registered."""
+        return BrandBoxNode(
+            catalog_id=_CAT_A_CID,
+            child=builder_v1_0.Text(
+                text=f"Inherited Badge: {label}", variant="caption"
+            ),
+        )
+
+    @macro
+    def OuterPanelInherited(title: str) -> builder_v1_0.Card:
+        """Outer macro emitting unannotated deferred InnerBadgeInherited node."""
+        return builder_v1_0.Card(
+            child=builder_v1_0.Column(
+                children=[
+                    builder_v1_0.Text(text=title, variant="body"),
+                    InnerBadgeInheritedNode(label=title),
+                ]
+            )
+        )
+
+    @macro
+    def DeferredCycle(label: str) -> builder_v1_0.Card:
+        """Deferred self-recursive macro node."""
+        return builder_v1_0.Card(child=DeferredCycleV10Node(label=label))
+
+    @macro
+    def CycleA(label: str) -> builder_v1_0.Card:
+        """Mutually recursive deferred macro A referencing CycleB."""
+        return builder_v1_0.Card(child=CycleBNode(label=label))
+
+    @macro
+    def CycleB(label: str) -> builder_v1_0.Card:
+        """Mutually recursive deferred macro B referencing CycleA."""
+        return builder_v1_0.Card(child=CycleANode(label=label))
+
+    @macro
+    def EmitsSurface() -> FakeSurfaceNode:
+        """Macro illegally emitting reserved Surface component in v1.0."""
+        return FakeSurfaceNode()
+
     return {
-        "https://example.com/brand.json": [BrandText],
+        _BRAND_CID: [
+            BrandText,
+            UnannotatedBrandCard,
+            BrandBadge,
+            InnerBadgeScoped,
+            OuterPanelScoped,
+            BrandChart,
+        ],
+        _BRAND_SURFACE_CID: [
+            BrandSurfaceText,
+            BrandSurfaceBadge,
+        ],
+        _BAZ_MACROS_CID: [BazMacro],
+        _CAT_B_CID: [
+            ProductCard,
+            BrandBoxMacro,
+            InnerBadgeInherited,
+            OuterPanelInherited,
+            DeferredCycle,
+            CycleA,
+            CycleB,
+            EmitsSurface,
+        ],
     }
 
 
@@ -450,6 +728,48 @@ def get_v1_0_suite_macros() -> list[Any]:
             )
         )
 
+    @macro
+    def AnnotatedBadge(status: str, title: str) -> builder_v1_0.Card:
+        """Status badge whose root Card defines default accessibility and metadata extensions."""
+        return builder_v1_0.Card(
+            child=builder_v1_0.Row(
+                children=[
+                    builder_v1_0.Text(text=status.upper(), variant="caption"),
+                    builder_v1_0.Text(text=title, variant="body"),
+                ]
+            ),
+            accessibility=builder_v1_0.AccessibilityAttributes(
+                description="Default badge description"
+            ),
+            extensions={"macroMeta": {"source": "AnnotatedBadge"}},
+        )
+
+    @macro
+    def DeclaredA11yCard(
+        title: str,
+        accessibility: builder_v1_0.AccessibilityAttributes | None = None,
+    ) -> builder_v1_0.Card:
+        """Card declaring accessibility as an explicit macro parameter."""
+        return builder_v1_0.Card(
+            child=builder_v1_0.Text(text=title),
+            accessibility=builder_v1_0.AccessibilityAttributes(label="Internal"),
+        )
+
+    @macro
+    def WeightedCard(label: str, weight: float | None = None) -> builder_v1_0.Card:
+        """Card declaring weight as an explicit macro parameter."""
+        return builder_v1_0.Card(
+            child=builder_v1_0.Text(text=label),
+            weight=weight,
+        )
+
+    @macro
+    def PositiveCountCard(count: int) -> builder_v1_0.Card:
+        """Card raising ValidationError when count is negative."""
+        if count < 0:
+            raise A2uiValidationError("count must be non-negative")
+        return builder_v1_0.Card(child=builder_v1_0.Text(text=f"Count: {count}"))
+
     return [
         StatusBadge,
         SlotContainer,
@@ -462,6 +782,10 @@ def get_v1_0_suite_macros() -> list[Any]:
         ComplexCard,
         PayloadButton,
         DynamicFormCard,
+        AnnotatedBadge,
+        DeclaredA11yCard,
+        WeightedCard,
+        PositiveCountCard,
     ]
 
 
@@ -469,119 +793,11 @@ SUITE_MACROS_V1_0 = get_v1_0_suite_macros()
 
 
 # =============================================================================
-# Execution
-# =============================================================================
-
-
-def _case_catalog_version(case: Case) -> str:
-    """Returns the catalog protocol version string for ``case``."""
-    return (
-        "1.0"
-        if case.envelope_version and to_version_number(case.envelope_version) == "1.0"
-        else PROTOCOL_VERSION
-    )
-
-
-def run_case(case: Case) -> Any:
-    """Runs a conformance case through MacroExpander."""
-    if case.action == "transform_catalog" and case.colliding_macro:
-        cat_version = _case_catalog_version(case)
-        if cat_version == "1.0":
-
-            @macro(name=case.colliding_macro)
-            def CollidingMacroV10() -> builder_v1_0.Card:
-                return builder_v1_0.Card(child=builder_v1_0.Text(text="colliding"))
-
-            expander = MacroExpander([CollidingMacroV10])
-        else:
-
-            @macro(name=case.colliding_macro)
-            def CollidingMacro() -> Card:
-                return Card(child=Text(text="colliding"))
-
-            expander = MacroExpander([CollidingMacro])
-        expander.transform_to_inference_catalog(basic_catalog_schema(cat_version))
-        return []
-
-    if case.action == "transform_to_inference_catalog":
-        cat_version = _case_catalog_version(case)
-        macros_list = SUITE_MACROS_V1_0 if cat_version == "1.0" else SUITE_MACROS
-        expander = MacroExpander(
-            macros_list, passthrough_components=case.passthrough_components
-        )
-        return expander.transform_to_inference_catalog(
-            basic_catalog_schema(cat_version)
-        )
-
-    if case.action == "transform_to_inference":
-        raw_components = case.input if isinstance(case.input, list) else [case.input]
-        msg = {
-            "version": "v0.9",
-            "updateComponents": {
-                "surfaceId": case.surface_id,
-                "components": raw_components,
-            },
-        }
-        typed_msg = _message_adapter.validate_python(msg)
-        expander = MacroExpander(SUITE_MACROS)
-        lowered = expander.transform_to_inference([typed_msg])
-        return [m.model_dump(by_alias=True, exclude_none=True) for m in lowered]
-
-    version_str = case.envelope_version or "v0.9"
-    raw_components = case.input if isinstance(case.input, list) else [case.input]
-
-    if case.catalog_id:
-        raw_msgs = [
-            {
-                "version": version_str,
-                "createSurface": {
-                    "surfaceId": case.surface_id,
-                    "catalogId": case.catalog_id,
-                },
-            },
-            {
-                "version": version_str,
-                "updateComponents": {
-                    "surfaceId": case.surface_id,
-                    "components": raw_components,
-                },
-            },
-        ]
-    else:
-        raw_msgs = [{
-            "version": version_str,
-            "updateComponents": {
-                "surfaceId": case.surface_id,
-                "components": raw_components,
-            },
-        }]
-
-    try:
-        typed_raw_msgs = [_message_adapter.validate_python(m) for m in raw_msgs]
-    except Exception as e:
-        raise A2uiValidationError(f"Invalid message envelope: {e}") from e
-
-    if case.macro_catalog_id:
-        scoped_macros = SCOPED_SUITE_MACROS.get(case.macro_catalog_id)
-        if scoped_macros is None:
-            raise KeyError(
-                f"No scoped macros registered for catalog_id={case.macro_catalog_id!r}."
-            )
-        expander = MacroExpander(scoped_macros, catalog_id=case.macro_catalog_id)
-    else:
-        macros_list = (
-            SUITE_MACROS_V1_0 if _case_catalog_version(case) == "1.0" else SUITE_MACROS
-        )
-        expander = MacroExpander(macros_list)
-    expanded_msgs = expander.transform_to_transport(typed_raw_msgs)
-    return [m.model_dump(by_alias=True, exclude_none=True) for m in expanded_msgs]
-
-
-# =============================================================================
-# Validation
+# Catalog Resolution & Execution
 # =============================================================================
 
 _catalogs_by_version: dict[str, CatalogApi] = {}
+_custom_catalogs_by_id: dict[str, CatalogApi] = {}
 
 
 def basic_catalog_schema(version: str = PROTOCOL_VERSION) -> CatalogApi:
@@ -598,16 +814,194 @@ def basic_catalog_schema(version: str = PROTOCOL_VERSION) -> CatalogApi:
     return _catalogs_by_version[version]
 
 
+def resolve_catalog(catalog_id: str, default_version: str) -> CatalogApi:
+    """Resolves a catalog ID from ``custom_catalogs`` or the bundled basic catalog."""
+    if catalog_id in CUSTOM_CATALOG_SCHEMAS:
+        if catalog_id not in _custom_catalogs_by_id:
+            schema = copy.deepcopy(CUSTOM_CATALOG_SCHEMAS[catalog_id])
+            version = str(schema.get("protocolVersion", default_version))
+            _custom_catalogs_by_id[catalog_id] = Catalog.from_json(
+                catalog_schema=schema,
+                protocol_version=version,
+                catalog_id=catalog_id,
+            )
+        return _custom_catalogs_by_id[catalog_id]
+
+    if catalog_id == _V1_0_BASIC_CID:
+        return basic_catalog_schema("1.0")
+    if catalog_id == _V0_9_BASIC_CID:
+        return basic_catalog_schema(PROTOCOL_VERSION)
+
+    base = basic_catalog_schema(default_version)
+    if catalog_id == getattr(base, "catalog_id", None):
+        return base
+    alias_cat = copy.copy(base)
+    alias_cat.catalog_id = catalog_id
+    return alias_cat
+
+
+def _case_catalog_version(case: Case) -> str:
+    """Returns the catalog protocol version string for ``case``."""
+    return (
+        "1.0"
+        if case.envelope_version and to_version_number(case.envelope_version) == "1.0"
+        else PROTOCOL_VERSION
+    )
+
+
+def _case_macro_version(case: Case) -> str:
+    """Returns the macro builder version string for ``case``."""
+    raw = case.macro_version or case.envelope_version
+    return "1.0" if raw and to_version_number(raw) == "1.0" else PROTOCOL_VERSION
+
+
+def _select_macros(case: Case) -> list[Any]:
+    """Returns the macro functions to register on ``MacroExpander`` for ``case``."""
+    if case.empty_macros:
+        return []
+
+    if case.colliding_macro:
+        if _case_macro_version(case) == "1.0":
+
+            @macro(name=case.colliding_macro)
+            def CollidingMacroV10() -> builder_v1_0.Card:
+                return builder_v1_0.Card(child=builder_v1_0.Text(text="colliding"))
+
+            return [CollidingMacroV10]
+
+        @macro(name=case.colliding_macro)
+        def CollidingMacro() -> Card:
+            return Card(child=Text(text="colliding"))
+
+        return [CollidingMacro]
+
+    if case.macro_catalog_id:
+        scoped_macros = SCOPED_SUITE_MACROS.get(case.macro_catalog_id)
+        if scoped_macros is None:
+            raise KeyError(
+                f"No scoped macros registered for catalog_id={case.macro_catalog_id!r}."
+            )
+        return scoped_macros
+
+    return SUITE_MACROS_V1_0 if _case_macro_version(case) == "1.0" else SUITE_MACROS
+
+
+def _build_expander(case: Case) -> MacroExpander:
+    """Constructs a configured ``MacroExpander`` for ``case``."""
+    macros_list = _select_macros(case)
+    exp_cid = case.expander_catalog_id or (
+        case.macro_catalog_id if case.expander_scoped else None
+    )
+    default_ver = _case_catalog_version(case)
+    base_cats = (
+        [resolve_catalog(cid, default_ver) for cid in case.base_catalogs]
+        if case.base_catalogs
+        else None
+    )
+    return MacroExpander(
+        macros_list,
+        passthrough_components=case.passthrough_components,
+        catalog_id=exp_cid,
+        base_catalogs=base_cats,
+    )
+
+
+def run_case(case: Case) -> Any:
+    """Runs a conformance case through MacroExpander."""
+    if case.action == "to_catalog":
+        expander = _build_expander(case)
+        return expander.to_catalog(protocol_version=case.to_catalog_version)
+
+    if case.action == "transform_catalog":
+        expander = _build_expander(case)
+        expander.transform_to_inference_catalog(
+            basic_catalog_schema(_case_catalog_version(case))
+        )
+        return []
+
+    if case.action == "transform_to_inference_catalog":
+        expander = _build_expander(case)
+        return expander.transform_to_inference_catalog(
+            basic_catalog_schema(_case_catalog_version(case))
+        )
+
+    if case.action == "transform_to_inference":
+        raw_components = case.input if isinstance(case.input, list) else [case.input]
+        msg = {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": case.surface_id,
+                "components": raw_components,
+            },
+        }
+        typed_msg = _message_adapter.validate_python(msg)
+        expander = MacroExpander(SUITE_MACROS)
+        lowered = expander.transform_to_inference([typed_msg])
+        return [m.model_dump(by_alias=True, exclude_none=True) for m in lowered]
+
+    if case.messages is not None:
+        raw_msgs = copy.deepcopy(case.messages)
+    else:
+        version_str = case.envelope_version or "v0.9"
+        raw_components = case.input if isinstance(case.input, list) else [case.input]
+
+        if case.catalog_id:
+            raw_msgs = [
+                {
+                    "version": version_str,
+                    "createSurface": {
+                        "surfaceId": case.surface_id,
+                        "catalogId": case.catalog_id,
+                    },
+                },
+                {
+                    "version": version_str,
+                    "updateComponents": {
+                        "surfaceId": case.surface_id,
+                        "components": raw_components,
+                    },
+                },
+            ]
+        else:
+            raw_msgs = [{
+                "version": version_str,
+                "updateComponents": {
+                    "surfaceId": case.surface_id,
+                    "components": raw_components,
+                },
+            }]
+
+    try:
+        typed_raw_msgs = [_message_adapter.validate_python(m) for m in raw_msgs]
+    except Exception as e:
+        raise A2uiValidationError(f"Invalid message envelope: {e}") from e
+
+    expander = _build_expander(case)
+    expanded_msgs = expander.transform_to_transport(
+        typed_raw_msgs,
+        surface_catalogs=case.surface_catalogs,
+    )
+    return [m.model_dump(by_alias=True, exclude_none=True) for m in expanded_msgs]
+
+
+# =============================================================================
+# Validation
+# =============================================================================
+
+
 def validate_payload(payload: list[dict[str, Any]], case: Case) -> None:
-    """Validates ``payload`` against the bundled basic catalog schema and topology rules."""
+    """Validates ``payload`` against the active catalogs and topology rules."""
     config = case.validation.to_config()
     has_create = any(isinstance(m, dict) and "createSurface" in m for m in payload)
     version = _case_catalog_version(case)
-    catalogs = [basic_catalog_schema(version)]
-    if case.catalog_id and case.catalog_id != getattr(catalogs[0], "catalog_id", None):
-        alias_cat = copy.copy(catalogs[0])
-        alias_cat.catalog_id = case.catalog_id
-        catalogs.append(alias_cat)
+    if case.validation_catalogs:
+        catalogs = [resolve_catalog(cid, version) for cid in case.validation_catalogs]
+    else:
+        catalogs = [basic_catalog_schema(version)]
+        if case.catalog_id and case.catalog_id != getattr(
+            catalogs[0], "catalog_id", None
+        ):
+            catalogs.append(resolve_catalog(case.catalog_id, version))
 
     processor = MessageProcessor(
         catalogs,

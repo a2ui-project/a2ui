@@ -1,0 +1,86 @@
+[
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "conformance",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "1.0",
+    "updateComponents": {
+      "surfaceId": "conformance",
+      "components": [
+        {
+          "component": "Row",
+          "id": "root",
+          "children": ["ann_badge", "decl_a11y", "weighted_card"]
+        },
+        {
+          "component": "Text",
+          "id": "ann_badge__text_1",
+          "text": "OK",
+          "variant": "caption"
+        },
+        {
+          "component": "Text",
+          "id": "ann_badge__text_2",
+          "text": "Primary",
+          "variant": "body"
+        },
+        {
+          "component": "Row",
+          "id": "ann_badge__row_1",
+          "children": ["ann_badge__text_1", "ann_badge__text_2"],
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Card",
+          "id": "ann_badge",
+          "accessibility": {
+            "description": "Default badge description",
+            "label": "Server status badge"
+          },
+          "metadata": {
+            "extensions": {
+              "macroMeta": {
+                "source": "AnnotatedBadge"
+              },
+              "telemetry": {
+                "traceId": "t1"
+              }
+            }
+          },
+          "child": "ann_badge__row_1"
+        },
+        {
+          "component": "Text",
+          "id": "decl_a11y__text_1",
+          "text": "Explicit Param",
+          "variant": "body"
+        },
+        {
+          "component": "Card",
+          "id": "decl_a11y",
+          "accessibility": {
+            "label": "Internal"
+          },
+          "child": "decl_a11y__text_1"
+        },
+        {
+          "component": "Text",
+          "id": "weighted_card__text_1",
+          "text": "Weighted",
+          "variant": "body"
+        },
+        {
+          "component": "Card",
+          "id": "weighted_card",
+          "child": "weighted_card__text_1",
+          "weight": 2.0
+        }
+      ]
+    }
+  }
+]
