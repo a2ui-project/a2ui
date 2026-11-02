@@ -165,41 +165,6 @@ const Map<String, Set<String>> _knownKeys = {
   },
 };
 
-const String _regexGuardReason =
-    'A2UI regex subset and static safety guard not yet implemented in Dart.';
-
-const Map<String, String> _expectedFailures = {
-  'test_evaluate_function_regex_v10_astral_dot_matches_single_code_point':
-      _regexGuardReason,
-  'test_evaluate_function_regex_v10_braced_unicode_escape': _regexGuardReason,
-  'test_evaluate_function_regex_v10_rejects_backreference': _regexGuardReason,
-  'test_evaluate_function_regex_v10_rejects_lookbehind': _regexGuardReason,
-  'test_evaluate_function_regex_v10_rejects_named_group': _regexGuardReason,
-  'test_evaluate_function_regex_v10_rejects_inline_flag': _regexGuardReason,
-  'test_evaluate_function_regex_v10_rejects_unicode_property':
-      _regexGuardReason,
-  'test_evaluate_function_regex_v10_rejects_nested_quantifier_plus':
-      _regexGuardReason,
-  'test_evaluate_function_regex_v10_rejects_nested_quantifier_bounded_outer':
-      _regexGuardReason,
-  'test_evaluate_function_regex_v10_rejects_overlapping_alternation_prefix':
-      _regexGuardReason,
-  'test_evaluate_function_regex_v10_rejects_overlapping_alternation_class':
-      _regexGuardReason,
-  'test_evaluate_function_regex_v10_rejects_adjacent_overlap_direct':
-      _regexGuardReason,
-  'test_evaluate_function_regex_v10_rejects_adjacent_overlap_across_nullable':
-      _regexGuardReason,
-  'test_evaluate_function_regex_v10_rejects_257_code_point_pattern':
-      _regexGuardReason,
-  'test_evaluate_function_regex_v10_'
-      'value_exceeding_4096_code_points_returns_invalid': _regexGuardReason,
-  'test_evaluate_function_regex_v09_rejects_nested_quantifier':
-      _regexGuardReason,
-  'test_evaluate_function_regex_v09_'
-      'value_exceeding_4096_code_points_returns_false': _regexGuardReason,
-};
-
 void main() {
   // The suite's `validate` cases render basic-catalog components on a
   // surface, so `message_processor_conformance_test.dart` runs them.
@@ -214,7 +179,6 @@ void main() {
       cases,
       _runFunctionCase,
       suite: 'core/functions.yaml',
-      expectedFailures: _expectedFailures,
     );
   });
 }

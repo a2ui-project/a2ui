@@ -25,6 +25,7 @@ import '../expressions/expression_parser.dart';
 import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
+import '../primitives/regex_subset.dart';
 import '../resolution/data_context.dart';
 
 /// Opens [url] on behalf of the basic catalog's `openUrl` function.
@@ -159,20 +160,17 @@ ValidationResult validateRequired(Object? value) {
 
 /// Checks that [value], as text, contains a match for [pattern].
 ///
-/// Throws [A2uiExpressionError] when [pattern] is not a valid expression.
+/// Throws [A2uiExpressionError] when [pattern] violates the portable regex
+/// subset or static safety guard. Values longer than [maxRegexValueCodePoints]
+/// code points fail validation without evaluating the pattern.
 ValidationResult validateRegex(Object? value, Object? pattern) {
   final String source = coerceToString(pattern);
-  final RegExp regex;
-  try {
-    regex = RegExp(source);
-  } on FormatException catch (e) {
-    throw A2uiExpressionError(
-      'Invalid regex pattern: $source',
-      expression: 'regex',
-      details: e.message,
-    );
+  final RegExp regex = compileGuarded(source);
+  final String text = coerceToString(value);
+  if (text.runes.length > maxRegexValueCodePoints) {
+    return _invalid('Value does not match required pattern.');
   }
-  return regex.hasMatch(coerceToString(value))
+  return regex.hasMatch(text)
       ? _valid
       : _invalid('Value does not match required pattern.');
 }
