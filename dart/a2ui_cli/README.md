@@ -56,5 +56,5 @@ By default, an interactive component passes when any declared property other tha
 
 ### Options
 
-- `--strict`: Requires the text-bearing label property to be listed in `required` on the component.
+- `--strict`: Requires the text-bearing label property (and any nested item label property) to be listed in `required`.
 - `--ignore <Component>`: Acknowledges a finding for `<Component>` (may be passed multiple times). Acknowledged components are printed as `ignored: <Component>` and do not cause a non-zero exit code. If an `--ignore` entry has no matching finding, `a2ui lint` emits a warning so allowlists do not go stale.

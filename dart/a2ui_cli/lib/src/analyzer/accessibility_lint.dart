@@ -50,7 +50,7 @@ final class LabelLintFinding {
 /// than `'value'` is a string [PrimitiveType], a [DynamicType] over a string,
 /// a [ComponentRefType], or a [ListType] of [ObjectModelType] whose model
 /// declares such a property. When [strict] is `true`, that text-bearing
-/// property must also be required on the component.
+/// property (and any nested item label property) must also be required.
 ///
 /// Returns findings sorted deterministically by component name.
 List<LabelLintFinding> lintAccessibilityLabels(
@@ -72,7 +72,7 @@ List<LabelLintFinding> lintAccessibilityLabels(
           !component.requiredProperties.contains(prop.name)) {
         return false;
       }
-      return _isTextBearingType(prop.type, catalog);
+      return _isTextBearingType(prop.type, catalog, strict: strict);
     });
 
     if (!hasLabel) {
@@ -96,24 +96,31 @@ String? _interactivityReason(AnalysedComponentApi component) {
 
 bool _isTextBearingType(
   TypeDescriptor type,
-  AnalysedCatalog catalog, [
+  AnalysedCatalog catalog, {
+  required bool strict,
   Set<String>? visitedModels,
-]) {
+}) {
   return switch (type) {
     PrimitiveType(primitive: PrimitiveKind.string) => true,
     DynamicType(inner: PrimitiveType(primitive: PrimitiveKind.string)) => true,
     ComponentRefType() => true,
     ListType(elementType: ObjectModelType(:final name)) =>
-      _modelHasTextBearingProperty(name, catalog, visitedModels),
+      _modelHasTextBearingProperty(
+        name,
+        catalog,
+        strict: strict,
+        visitedModels: visitedModels,
+      ),
     _ => false,
   };
 }
 
 bool _modelHasTextBearingProperty(
   String modelName,
-  AnalysedCatalog catalog,
+  AnalysedCatalog catalog, {
+  required bool strict,
   Set<String>? visitedModels,
-) {
+}) {
   if (visitedModels != null && visitedModels.contains(modelName)) {
     return false;
   }
@@ -124,6 +131,12 @@ bool _modelHasTextBearingProperty(
   return model.properties.values.any(
     (PropertyDescriptor prop) =>
         prop.name != 'value' &&
-        _isTextBearingType(prop.type, catalog, nextVisited),
+        (!strict || prop.isRequired) &&
+        _isTextBearingType(
+          prop.type,
+          catalog,
+          strict: strict,
+          visitedModels: nextVisited,
+        ),
   );
 }

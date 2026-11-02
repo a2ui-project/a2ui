@@ -212,6 +212,55 @@ void main() {
       },
     );
 
+    test(
+      'reports under strict when an array of objects has only an optional label',
+      () {
+        final AnalysedCatalog analysed = _analyzeSingleComponent(
+          'OptionalItemPicker',
+          {
+            'type': 'object',
+            'allOf': [
+              {r'$ref': r'common_types.json#/$defs/Checkable'},
+              {
+                'type': 'object',
+                'properties': {
+                  'component': {'const': 'OptionalItemPicker'},
+                  'options': {
+                    'type': 'array',
+                    'items': {
+                      'type': 'object',
+                      'properties': {
+                        'label': {
+                          r'$ref': r'common_types.json#/$defs/DynamicString',
+                        },
+                        'value': {'type': 'string'},
+                      },
+                      'required': ['value'],
+                    },
+                  },
+                  'value': {
+                    r'$ref': r'common_types.json#/$defs/DynamicStringList',
+                  },
+                },
+                'required': ['component', 'options', 'value'],
+              },
+            ],
+          },
+        );
+
+        expect(lintAccessibilityLabels(analysed), isEmpty);
+        expect(
+          lintAccessibilityLabels(analysed, strict: true),
+          equals([
+            const LabelLintFinding(
+              component: 'OptionalItemPicker',
+              reason: 'input',
+            ),
+          ]),
+        );
+      },
+    );
+
     test('evaluates the a11y_labels.json fixture across all branches', () {
       final catalogJson =
           jsonDecode(File(fixturePath).readAsStringSync())
@@ -346,5 +395,57 @@ void main() {
         );
       },
     );
+
+    test('displays lint command help with lint --help', () async {
+      final ({int exitCode, String stdout, String stderr}) result =
+          await _captureCli(['lint', '--help']);
+
+      expect(result.exitCode, equals(0));
+      expect(result.stdout, contains('--catalog'));
+      expect(result.stdout, contains('--strict'));
+      expect(result.stdout, contains('--ignore'));
+    });
+
+    test('exits 1 when catalog file does not exist', () async {
+      final ({int exitCode, String stdout, String stderr}) result =
+          await _captureCli(['lint', '--catalog', '/nonexistent/catalog.json']);
+
+      expect(result.exitCode, equals(1));
+      expect(result.stderr, contains('Error: Catalog file not found at:'));
+    });
+
+    test('exits 1 on malformed JSON or invalid catalog schema', () async {
+      final Directory tmpDir = Directory.systemTemp.createTempSync(
+        'lint-test-bad-',
+      );
+      try {
+        final badJsonFile = File(p.join(tmpDir.path, 'malformed.json'))
+          ..writeAsStringSync('{not valid json');
+        final ({int exitCode, String stdout, String stderr}) badJsonResult =
+            await _captureCli(['lint', '--catalog', badJsonFile.path]);
+        expect(badJsonResult.exitCode, equals(1));
+        expect(
+          badJsonResult.stderr,
+          contains('Error reading or parsing catalog JSON:'),
+        );
+
+        final badCatalogFile = File(p.join(tmpDir.path, 'bad_catalog.json'))
+          ..writeAsStringSync(
+            jsonEncode(<String, Object?>{
+              'catalogId': 'bad_catalog',
+              'protocolVersion': '1.0',
+              'components': <String, Object?>{
+                'Surface': {'type': 'object'},
+              },
+            }),
+          );
+        final ({int exitCode, String stdout, String stderr}) badCatalogResult =
+            await _captureCli(['lint', '--catalog', badCatalogFile.path]);
+        expect(badCatalogResult.exitCode, equals(1));
+        expect(badCatalogResult.stderr, contains('Error analyzing catalog:'));
+      } finally {
+        tmpDir.deleteSync(recursive: true);
+      }
+    });
   });
 }

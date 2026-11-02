@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Added `a2ui lint`, which warns when a catalog component that accepts an action or user input declares no text-bearing label property (or no required one under `--strict`).
+- Added `a2ui lint` (`LintCommand`, `lintAccessibilityLabels`, and `LabelLintFinding`), which warns when a catalog component that accepts an action or user input declares no text-bearing label property (or no required one under `--strict`) ([#3831](https://github.com/a2ui-project/a2ui/pull/3831)).
 
 ## 0.1.0
 

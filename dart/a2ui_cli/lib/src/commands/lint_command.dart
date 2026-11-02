@@ -66,9 +66,7 @@ class LintCommand extends Command<int> {
   Future<int> run() async {
     final catalogArg = argResults!['catalog'] as String;
     final strict = argResults!['strict'] as bool;
-    final List<String> ignoredNames =
-        (argResults!['ignore'] as List<String>).toSet().toList()..sort();
-    final Set<String> ignoredSet = ignoredNames.toSet();
+    final ignoredSet = <String>{...(argResults!['ignore'] as List<String>)};
 
     final String catalogPath = p.canonicalize(catalogArg);
     final catalogFile = io.File(catalogPath);
@@ -96,15 +94,13 @@ class LintCommand extends Command<int> {
       return 1;
     }
 
-    final List<LabelLintFinding> findings = lintAccessibilityLabels(
-      analysed,
-      strict: strict,
-    );
-
     final matchedIgnores = <String>{};
     var unignoredCount = 0;
 
-    for (final finding in findings) {
+    for (final LabelLintFinding finding in lintAccessibilityLabels(
+      analysed,
+      strict: strict,
+    )) {
       if (ignoredSet.contains(finding.component)) {
         matchedIgnores.add(finding.component);
         outSink.writeln('ignored: ${finding.component}');
@@ -117,7 +113,7 @@ class LintCommand extends Command<int> {
       }
     }
 
-    for (final ignoredName in ignoredNames) {
+    for (final String ignoredName in ignoredSet.toList()..sort()) {
       if (!matchedIgnores.contains(ignoredName)) {
         errSink.writeln(
           'warning: $ignoredName: listed in --ignore but has no finding',
