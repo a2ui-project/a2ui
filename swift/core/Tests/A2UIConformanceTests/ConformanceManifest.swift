@@ -127,6 +127,7 @@ public enum ConformanceManifest {
   }
 
   /// Executes an asynchronous `body` for `testCase` and records the outcome in the manifest.
+  @MainActor
   public static func runAsync(
     _ testCase: ConformanceCase,
     skippedReason: String? = nil,

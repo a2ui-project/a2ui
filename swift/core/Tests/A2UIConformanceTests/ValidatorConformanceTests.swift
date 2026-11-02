@@ -97,7 +97,7 @@ struct ValidatorConformanceTests {
     )
     guard testCase.action == "validate" else {
       throw UnknownConformanceKeyError(
-        "[\(conformanceCase.name)] Unknown validator action '\(testCase.action)'"
+        "[\(conformanceCase.name)] Unknown validator action '\(testCase.action ?? "")'"
       )
     }
     let targetVersion = resolveTargetVersion(for: testCase, versionPrefix: versionPrefix)

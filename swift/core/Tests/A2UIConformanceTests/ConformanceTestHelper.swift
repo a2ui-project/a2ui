@@ -1306,6 +1306,8 @@ extension ConformanceTestHelper {
       return str
     case .boolean(let bool):
       return bool
+    case .integer(let int):
+      return int
     case .number(let double):
       if let exactInt = Int(exactly: double) {
         return exactInt
