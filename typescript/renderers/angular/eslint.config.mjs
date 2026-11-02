@@ -15,6 +15,29 @@
  */
 
 import preset from '../../../eslint.preset.mjs';
+import {BOUNDARY_ALLOWLIST, BOUNDARY_RESTRICTED} from './eslint.boundary.mjs';
+
+const boundaryPaths = BOUNDARY_RESTRICTED.from.map(name => ({
+  name,
+  importNames: BOUNDARY_RESTRICTED.names,
+  message:
+    'Adapter views must read ComponentNode.props instead of importing ComponentContext, GenericBinder, or DataContext.',
+}));
+const rootSelfImportPath = {
+  name: '@a2ui/angular',
+  message: 'Use relative imports within root @a2ui/angular instead of self-importing the package.',
+};
+const v09SelfImportPattern = {
+  group: [
+    '@a2ui/angular/v0_8',
+    '@a2ui/angular/v0_8/*',
+    '@a2ui/angular/v0_9',
+    '@a2ui/angular/v0_9/*',
+    '!@a2ui/angular/v0_9/testing',
+  ],
+  message:
+    'Use relative imports within @a2ui/angular/v0_9 instead of self-importing the entry point.',
+};
 
 export default [
   ...preset,
@@ -23,17 +46,28 @@ export default [
   },
   {
     files: ['src/core/**/*.ts', 'src/catalog/**/*.ts', 'src/*.ts'],
+    ignores: ['**/*.spec.ts', ...BOUNDARY_ALLOWLIST],
     rules: {
       'no-restricted-imports': [
         'error',
         {
-          paths: [
-            {
-              name: '@a2ui/angular',
-              message:
-                'Use relative imports within root @a2ui/angular instead of self-importing the package.',
-            },
-          ],
+          paths: [rootSelfImportPath, ...boundaryPaths],
+        },
+      ],
+    },
+  },
+  {
+    files: [
+      'src/core/**/*.spec.ts',
+      'src/catalog/**/*.spec.ts',
+      'src/*.spec.ts',
+      ...BOUNDARY_ALLOWLIST.filter(f => !f.startsWith('src/v0_9/')),
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [rootSelfImportPath],
         },
       ],
     },
@@ -64,24 +98,25 @@ export default [
   },
   {
     files: ['src/v0_9/**/*.ts'],
+    ignores: ['src/v0_9/testing/**', '**/*.spec.ts', ...BOUNDARY_ALLOWLIST],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: boundaryPaths,
+          patterns: [v09SelfImportPattern],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/v0_9/**/*.spec.ts', ...BOUNDARY_ALLOWLIST.filter(f => f.startsWith('src/v0_9/'))],
     ignores: ['src/v0_9/testing/**'],
     rules: {
       'no-restricted-imports': [
         'error',
         {
-          patterns: [
-            {
-              group: [
-                '@a2ui/angular/v0_8',
-                '@a2ui/angular/v0_8/*',
-                '@a2ui/angular/v0_9',
-                '@a2ui/angular/v0_9/*',
-                '!@a2ui/angular/v0_9/testing',
-              ],
-              message:
-                'Use relative imports within @a2ui/angular/v0_9 instead of self-importing the entry point.',
-            },
-          ],
+          patterns: [v09SelfImportPattern],
         },
       ],
     },
