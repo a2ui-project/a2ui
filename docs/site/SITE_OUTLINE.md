@@ -182,12 +182,25 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 
 #### Actions and Functions
 
-- **Sources**: [`specification/v1_0/docs/a2ui_protocol.md`](../../specification/v1_0/docs/a2ui_protocol.md), [`specification/v1_0/docs/a2ui_custom_functions.md`](../../specification/v1_0/docs/a2ui_custom_functions.md), `agent_to_renderer.json`, and `renderer_to_agent.json`.
+- **Sources**: [`specification/v1_0/docs/a2ui_protocol.md`](../../specification/v1_0/docs/a2ui_protocol.md), [`specification/v1_0/docs/a2ui_custom_functions.md`](../../specification/v1_0/docs/a2ui_custom_functions.md), `common_types.json`, `agent_to_renderer.json`, and `renderer_to_agent.json`.
 - **Content Outline**:
-    1. **The Four Execution Paths**: Present a 4-row comparison table (columns: _Execution Path_, _Trigger_, _Executor_, _Wire Messages_, _Catalog & Security Rules_) covering: (1) User Action Event (`action.event`), (2) Local Client Function (`action.functionCall` or property `@call`), (3) Renderer-to-Agent RPC (`callAgentFunction` $\rightarrow$ `agentFunctionResponse`), and (4) Agent-to-Renderer RPC (`callRendererFunction` $\rightarrow$ `rendererFunctionResponse`, noting `requiresUserActivation: true` functions cannot be invoked remotely by the agent).
-        - **Protocol Trap Callout**: Highlight implicit fallback routing (`a2ui_protocol.md` `§callAgentFunction`): if a component calls a function name not registered in the client renderer's local table, the renderer dispatches it over the network as `callAgentFunction`, so a typo in a local function name triggers a network round-trip ending in `UNKNOWN_FUNCTION`.
-    2. **Actions with Context & Dynamic `userMessage`**: Tabbed `v1.0` / `v0.9.1` JSON example showing `action.event` with resolved `context` pointers and v1.0 `DynamicString` `userMessage`.
-    3. **Action Lifecycle**: Walk through declaration (including form `checks` gating button state), user trigger & local pointer evaluation, outbound `action` message, and incremental agent response.
+    1. **Disambiguating `Action`s, Events, and Functions**:
+        - Define a component **`Action`** (`/specification/v1.0/schemas/#common_types.json/$defs/Action`) as an interaction handler slot on a widget (such as `Button.action`) that is a `oneOf` union: on user interaction, it either dispatches an **Event** (`action.event`) or invokes a **Function** (`action.functionCall`).
+        - Contrast their roles: **Events** notify the agent of high-level user intent to advance a conversational turn or workflow, whereas **Functions** are typed catalog operations that compute values, validate inputs, or run discrete side effects across multiple places in the protocol.
+    2. **Events (`action.event` $\rightarrow$ `action` Wire Message)**:
+        - Triggered exclusively by user interaction on a component `Action` configured with `event` (gated by component `checks` when present) and handled by the agent.
+        - Show (in `v1.0` and `v0.9.1` tabs) how the renderer evaluates dynamic bindings in `event.context` and `event.userMessage` (`DynamicString`, new in v1.0) against the local `dataModel`, sends the `action` renderer-to-agent message (plus `a2uiRendererDataModel` / `a2uiClientDataModel` transport metadata when `sendDataModel: true`), and receives incremental `updateDataModel` or `updateComponents` updates from the agent.
+    3. **Functions (`@call` in v1.0 / `call` in v0.9.1)**:
+        - **Where Functions Execute (2 Kinds)**:
+            1. _Renderer-Side Functions_: Registered and executed locally on the client with zero network round-trip (e.g. `formatString`, `formatCurrency`, `required`, `regex`, `openUrl`). Supported in both `v0.9.1` and `v1.0`.
+            2. _Agent-Side Functions (New in v1.0)_: Executed remotely on the agent via `callAgentFunction` $\rightarrow$ `agentFunctionResponse` (`value` / `error`), with async pending and error-recovery handling on the renderer (`v0.9.1` supported local renderer functions only).
+            - _Implicit Fallback Routing Callout_ (`a2ui_protocol.md` `§callAgentFunction`): Any `FunctionCall` name not registered in the renderer's local table automatically routes over the network as `callAgentFunction`, so a typo in a local function name triggers a network call that fails with `UNKNOWN_FUNCTION`.
+        - **How Functions Are Triggered (4 Contexts)**:
+            1. _From Component `Action`s (`action.functionCall`)_: Triggered by a user gesture (e.g. clicking a button that calls `openUrl`).
+            2. _From Dynamic Value Bindings (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`)_: Evaluated reactively to compute component properties whenever bound `dataModel` paths change.
+            3. _From Validation Rules (`Checkable` `checks`)_: Evaluated in `checks[].condition` (returning a boolean or `ValidationResult`) to validate inputs and gate controls.
+            4. _From Explicit Agent-to-Renderer Messages (`callRendererFunction` — New in v1.0)_: Sent directly by the agent mid-session to invoke a renderer-side function (e.g. querying device state) and receive `rendererFunctionResponse`.
+        - **Caller & Gesture Constraints (`v1.0`)**: Summarize how `allowedCallers` (`rendererOnly` | `agentOnly` | `rendererOrAgent`) and `requiresUserActivation: true` govern which trigger contexts are permitted, linking to [`/concepts/security/`](#security-and-trust-boundaries).
 
 #### Agent SDKs
 
