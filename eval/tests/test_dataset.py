@@ -423,3 +423,66 @@ def test_stage2_assertions_from_mapping() -> None:
     assert parsed.catalog_ids == ("basic",)
     assert parsed.required_bindings == ()
     assert not parsed.is_empty
+
+
+def test_decision_v1_0_dataset_is_default_for_decision_and_opt_in_for_others(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_dataset(
+        tmp_path,
+        "core_v1_0.yaml",
+        """
+- name: corePrompt
+  description: Core v1.0 prompt.
+  catalog: "catalogs/basic/v1/catalog.json"
+  messages:
+    - role: user
+      content: "Show core card"
+""",
+    )
+    _write_dataset(
+        tmp_path,
+        "decision_v1_0.yaml",
+        """
+- name: decisionPrompt
+  description: Decision v1.0 prompt.
+  catalog: "catalogs/basic/v1/catalog.json"
+  messages:
+    - role: user
+      content: "Show host health"
+""",
+    )
+    monkeypatch.setattr("a2ui_eval.dataset.DATASETS_DIR", tmp_path / "sub")
+
+    decision_default = load_a2ui_dataset(version="1.0", format_name="decision")
+    express_default = load_a2ui_dataset(version="1.0", format_name="express")
+    express_explicit = load_a2ui_dataset(
+        dataset="decision_v1_0", version="1.0", format_name="express"
+    )
+
+    assert len(decision_default) == 1
+    assert all(
+        sample.metadata["dataset"] == "decision_v1_0"
+        for sample in decision_default
+        if sample.metadata
+    )
+    assert len(express_default) == 1
+    assert all(
+        sample.metadata["dataset"] != "decision_v1_0"
+        for sample in express_default
+        if sample.metadata
+    )
+    assert len(express_explicit) == 1
+    assert [
+        sample.metadata["name"] for sample in express_explicit if sample.metadata
+    ] == ["decisionPrompt"]
+
+    real_decision_file = GIT_ROOT / "eval" / "datasets" / "decision_v1_0.yaml"
+    if real_decision_file.is_file() and real_decision_file.read_text(
+        encoding="utf-8"
+    ).lstrip().startswith("-"):
+        real_ds = load_a2ui_dataset(
+            file_path=real_decision_file, version="1.0", format_name="decision"
+        )
+        assert len(real_ds) == 16

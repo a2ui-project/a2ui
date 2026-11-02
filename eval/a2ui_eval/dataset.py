@@ -42,6 +42,7 @@ from datasets.defaults import (
 
 SCHEMA_PATH = GIT_ROOT / "eval" / "datasets" / "dataset_schema.json"
 DATASETS_DIR = GIT_ROOT / "eval" / "datasets"
+OPT_IN_DATASETS: frozenset[str] = frozenset({"decision_v1_0"})
 
 
 def _version_to_dir_name(version: str) -> str:
@@ -246,6 +247,9 @@ def load_a2ui_dataset(
             target_files.append(yaml_file)
 
     is_json = format_name is None or format_name == "direct_json"
+    default_datasets = (
+        OPT_IN_DATASETS if (format_name == "decision" and not file_path) else None
+    )
     samples: list[Sample] = []
 
     for target_file in target_files:
@@ -257,7 +261,13 @@ def load_a2ui_dataset(
 
         for item in data:
             item_dataset = item.get("dataset") or inferred_dataset
-            if filter_names and item_dataset not in filter_names:
+            if filter_names:
+                if item_dataset not in filter_names:
+                    continue
+            elif default_datasets is not None:
+                if item_dataset not in default_datasets:
+                    continue
+            elif not file_path and item_dataset in OPT_IN_DATASETS:
                 continue
 
             # Skip datasets specifically targeted at another protocol version if version is set

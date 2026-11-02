@@ -13,15 +13,16 @@
 # limitations under the License.
 
 import time
-from inspect_ai.solver import Solver, solver, TaskState, Generate
+from inspect_ai.model import CachePolicy
 from inspect_ai.model._model import sample_model_usage
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 from pathlib import Path
 
 GIT_ROOT = (Path(__file__).resolve().parent / "../../..").resolve()
 
 
 @solver
-def measured_generate() -> Solver:
+def measured_generate(cache: bool | CachePolicy = False) -> Solver:
     """Solver that wraps generate() and records the duration in metadata."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -36,7 +37,7 @@ def measured_generate() -> Solver:
         before_output = usage_before.output_tokens if usage_before else 0
         before_reasoning = usage_before.reasoning_tokens or 0 if usage_before else 0
 
-        state = await generate(state)
+        state = await generate(state, cache=cache)
 
         usage_after = sample_model_usage().get(str(state.model))
         after_input = usage_after.input_tokens if usage_after else 0
