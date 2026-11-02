@@ -14,7 +14,7 @@ This URI is the canonical way to communicate protocol versioning between rendere
 
 ## Agent Card
 
-Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the renderer whether to send `message.metadata["a2uiRendererCapabilities"]`. The `params` object defines the agent's specific UI support and MUST validate against [`agent_capabilities.json#/properties/1.0`](../../../json/agent_capabilities.json). Because `agent_capabilities.json` keys capabilities by version so one object can describe several versions, while A2A gives each version its own extension URI, `params` carries only the inner `1.0` object and never the `{"1.0": {...}}` wrapper.
+Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the `AgentCapabilities.extensions` list. This advertisement is optional, but it informs the renderer whether to send `message.metadata["a2uiRendererCapabilities"]`. The `params` object defines the agent's specific UI support and MUST validate against [`agent_capabilities.json#/properties/1.0`](../../../json/agent_capabilities.json). The schema keys capabilities by version so a single object can describe multiple versions. Because A2A gives each version its own extension URI, `params` carries only the inner `1.0` object and never the `{"1.0": {...}}` wrapper.
 
 Example AgentCard payload:
 
