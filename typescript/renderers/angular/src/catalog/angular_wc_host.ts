@@ -145,15 +145,35 @@ export class AngularWcHost extends HTMLElement {
       const nextProps = getValue(node.props);
       if (nextProps === lastProps) return;
       lastProps = nextProps;
-      if (this.ngZone) {
-        this.ngZone.run(() => {
+      const notify = () => {
+        if (this.hasSameBoundKeys(nextProps, node.context?.componentModel.properties)) {
+          this.componentRef?.changeDetectorRef.detectChanges();
+        } else {
           this.updateContext();
-        });
+        }
+      };
+      if (this.ngZone) {
+        this.ngZone.run(notify);
       } else {
-        this.updateContext();
+        notify();
       }
     });
     this.contextSubscription = {unsubscribe: stop};
+  }
+
+  private hasSameBoundKeys(
+    nextProps: Record<string, unknown>,
+    rawProps?: Record<string, unknown>,
+  ): boolean {
+    if (!this.boundProps) return false;
+    const boundKeys = Object.keys(this.boundProps);
+    const nextKeys = Object.keys(nextProps);
+    if (boundKeys.length !== nextKeys.length) return false;
+    return nextKeys.every(
+      key =>
+        Object.prototype.hasOwnProperty.call(this.boundProps, key) &&
+        (!rawProps || this.boundProps![key].raw === rawProps[key]),
+    );
   }
 
   private subscribeToContext(ctx: ComponentContext) {

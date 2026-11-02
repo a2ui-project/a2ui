@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ const PACKAGES = [
 ];
 
 function importsRestrictedSymbol(source, restricted) {
+  const cleanSource = source.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
   const escapedFrom = restricted.from
     .map(mod => mod.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
     .join('|');
@@ -56,7 +57,7 @@ function importsRestrictedSymbol(source, restricted) {
     `import\\s+(?:type\\s+)?\\{([^}]+)\\}\\s+from\\s+['"](?:${escapedFrom})['"]`,
     'g',
   );
-  for (const match of source.matchAll(importRegex)) {
+  for (const match of cleanSource.matchAll(importRegex)) {
     const specifiers = match[1]
       .split(',')
       .map(s =>

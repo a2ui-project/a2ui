@@ -330,7 +330,13 @@ export class ComponentHostComponent {
       const nextProps = getValue(node.props);
       if (nextProps === lastProps) return;
       lastProps = nextProps;
-      this.ngZone.run(() => this.updateProps());
+      this.ngZone.run(() => {
+        if (this.hasSameBoundKeys(nextProps, node.context?.componentModel.properties)) {
+          this.cdr.markForCheck();
+        } else {
+          this.updateProps();
+        }
+      });
     });
     let lastMeta = getValue(node.metadata);
     this.stopMetadata = webCoreEffect(() => {
@@ -354,6 +360,21 @@ export class ComponentHostComponent {
     this.currentBoundProps = nextProps;
     this.props.set(nextProps);
     this.cdr.markForCheck();
+  }
+
+  private hasSameBoundKeys(
+    nextProps: Record<string, unknown>,
+    rawProps?: Record<string, unknown>,
+  ): boolean {
+    if (!this.currentBoundProps) return false;
+    const boundKeys = Object.keys(this.currentBoundProps);
+    const nextKeys = Object.keys(nextProps);
+    if (boundKeys.length !== nextKeys.length) return false;
+    return nextKeys.every(
+      key =>
+        Object.prototype.hasOwnProperty.call(this.currentBoundProps, key) &&
+        (!rawProps || this.currentBoundProps![key].raw === rawProps[key]),
+    );
   }
 
   private setupWebComponent(implementation: WebComponentImplementation, node: AngularNode): void {

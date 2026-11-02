@@ -17,9 +17,9 @@ local_development:
 
 The Angular-native adapter (`@a2ui/angular`) rendering visual components and universal W3C Custom Elements dynamically.
 
-- **Native Signal Reactivity (`initializeAngularReactivity`, `ComponentBinder`)**: Plugs Angular's `signal`, `computed`, and `effect` primitives into `@a2ui/web_core` via `setSignalImplementation`, and binds resolved `ComponentNode.props` (`binder.bindNode(node)`) into `BoundProperty<T>` signals (`binder.bind(context)` is retained as a `@deprecated` compatibility path for `FA:82`).
+- **Native Signal Reactivity (`initializeAngularReactivity`, `ComponentBinder`)**: Plugs Angular's `signal`, `computed`, and `effect` primitives into `@a2ui/web_core` via `setSignalImplementation`, and binds resolved `ComponentNode.props` (`binder.bindNode(node)`) into `BoundProperty<T>` signals (`binder.bind(context)` is retained as a `@deprecated` compatibility path per [framework_adapters.blueprint.md](../../../../modules/framework_adapters.blueprint.md)).
 - **Surface & Host Resolution (`SurfaceComponent`, `ComponentHostComponent`)**: `SurfaceComponent` mounts a root `ComponentHostComponent`, which resolves `ComponentNode` instances through a per-surface `NodeResolver` and mounts either native Angular components (`NgComponentOutlet`) or universal Custom Elements.
-- **Universal Custom Elements (`AngularWcHost`, `toWebComponent`)**: Wraps Angular catalog components into W3C Custom Elements (`AngularWcHost`) that accept `el.node` (`el.context` is `@deprecated` and retained for `FA:82`) so Angular components and Lit Web Components can be hosted interchangeably.
+- **Universal Custom Elements (`AngularWcHost`, `toWebComponent`)**: Wraps Angular catalog components into W3C Custom Elements (`AngularWcHost`) that accept `el.node` (`el.context` is `@deprecated` and retained per [framework_adapters.blueprint.md](../../../../modules/framework_adapters.blueprint.md)) so Angular components and Lit Web Components can be hosted interchangeably.
 
 ## **Local Technical Decisions & Overrides**
 
