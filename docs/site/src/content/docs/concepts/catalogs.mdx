@@ -6,9 +6,11 @@ description: 'Understand how A2UI catalogs define the contract between agents an
 import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 import CatalogAnatomy from '../../../components/docs/CatalogAnatomy.astro';
 
-In A2UI, an agent never sends arbitrary HTML, CSS, or executable scripts across the wire. Instead, the agent and the client application agree on a **Catalog**: a versioned JSON Schema document that declares the UI components the agent can instantiate, the functions it can invoke, and the design rules it should follow.
+A2UI catalogs define the contract between agents and client renderers, establishing the component schemas, function execution boundaries, and layout rules that govern generated user interfaces. An agent never sends arbitrary HTML, CSS, or executable scripts across the wire; instead, both endpoints agree on a versioned catalog schema before rendering begins.
 
 When an agent streams a surface, every component node and function call in the payload is validated against the active catalog before the client renderer mounts a single native widget.
+
+The following diagram illustrates how a catalog serves as the shared contract between the agent runtime and the client renderer. The top handshake bar shows the client advertising its supported catalogs and the agent selecting an active catalog when creating a surface. Below the handshake, the catalog contract divides into two primary registries: components on the left (defining component schemas, dynamic property types, child slots, and hierarchy rules) and functions on the right (defining typed function signatures, argument schemas, execution boundaries via `allowedCallers`, and physical user activation requirements).
 
 <CatalogAnatomy />
 
@@ -16,7 +18,7 @@ When an agent streams a surface, every component node and function call in the p
 
 ## Conceptual Foundations
 
-### 1. Catalogs
+### Catalogs
 
 A **Catalog** is a formal contract identified by a globally unique `catalogId` (conventionally a URI such as `https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json` or `https://example.com/catalogs/travel/v1/catalog.json`).
 
@@ -27,7 +29,7 @@ A single catalog document serves both sides of the runtime:
 
 ---
 
-### 2. Components
+### Components
 
 A **Component** definition in a catalog describes the shape and constraints of a single UI building block. Under the `components` map of a catalog JSON document, each entry is a JSON Schema object that defines:
 
@@ -72,7 +74,7 @@ Here is how a custom `FlightStatusCard` component is declared inside a catalog s
 
 ---
 
-### 3. Functions & Execution Boundaries
+### Functions and Execution Boundaries
 
 Catalog **Functions** provide typed, deterministic logic for formatting values, validating user input, computing boolean conditions, or triggering side effects.
 
@@ -101,9 +103,9 @@ Functions registered in a catalog declare who has permission to execute them via
 
 ## Working with Catalogs Across SDKs
 
-### Agent Side: Loading, Deriving, and Pruning Catalogs
+### Agent Side: Loading and Deriving Catalogs
 
-On the agent server, you load a catalog from a JSON file (or construct one in code) and pass it to `CatalogConfig`. You can also derive a specialized catalog using `Catalog.derive(...)` or restrict which components and functions the LLM sees for a specific task using `ComponentPruningTransformer` and `FunctionPruningTransformer`.
+On the agent server, you load a catalog from a JSON file (or construct one in code) and pass it to `CatalogConfig`. You can also derive a specialized catalog using `Catalog.derive(...)` with custom instructions for specific agent workflows.
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -113,7 +115,6 @@ import {readFileSync} from 'node:fs';
 import {
   A2uiGenerator,
   CatalogConfig,
-  ComponentPruningTransformer,
   ExpressFormatFactory,
 } from '@a2ui/agent';
 import {Catalog} from '@a2ui/web_core';
@@ -130,12 +131,10 @@ const checkoutCatalog = travelCatalog.derive({
   instructions: 'Always display FlightStatusCard above the confirmation Button.',
 });
 
-// 3. Configure the Agent Generator with optional pruning transformers
+// 3. Configure the Agent Generator with registered catalogs
 const generator = new A2uiGenerator(
   [
-    new CatalogConfig(travelCatalog, [
-      new ComponentPruningTransformer(['Column', 'Text', 'FlightStatusCard', 'Button']),
-    ]),
+    new CatalogConfig(travelCatalog),
     new CatalogConfig(checkoutCatalog),
   ],
   undefined,
@@ -150,7 +149,6 @@ const generator = new A2uiGenerator(
 import json
 from pathlib import Path
 
-from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core import Catalog
 from a2ui.inference_formats import ExpressFormatFactory
 from a2ui.processor import A2uiGenerator, CatalogConfig
@@ -159,17 +157,10 @@ from a2ui.processor import A2uiGenerator, CatalogConfig
 raw_catalog = json.loads(Path("./catalogs/travel.json").read_text(encoding="utf-8"))
 travel_catalog = Catalog.from_json(raw_catalog)
 
-# 2. Configure the Agent Generator with optional pruning transformers
+# 2. Configure the Agent Generator with the catalog
 generator = A2uiGenerator(
     catalogs=[
-        CatalogConfig(
-            catalog=travel_catalog,
-            transformers=[
-                ComponentPruningTransformer(
-                    allowed_components=["Column", "Row", "Text", "FlightStatusCard", "Button"]
-                )
-            ],
-        ),
+        CatalogConfig(catalog=travel_catalog),
     ],
     inference_format_factory=ExpressFormatFactory(),
 )
@@ -200,15 +191,10 @@ void main() {
     instructions: 'Always display FlightStatusCard above the confirmation Button.',
   );
 
-  // 3. Configure the Agent Generator with optional pruning transformers
+  // 3. Configure the Agent Generator with registered catalogs
   final generator = A2uiGenerator(
     catalogs: [
-      CatalogConfig(
-        travelCatalog,
-        transformers: [
-          ComponentPruningTransformer(const ['Column', 'Text', 'FlightStatusCard', 'Button']),
-        ],
-      ),
+      CatalogConfig(travelCatalog),
       CatalogConfig(checkoutCatalog),
     ],
     inferenceFormatFactory: const ExpressFormatFactory(),
@@ -417,124 +403,4 @@ A2UI provides an official **Basic Catalog** ([`catalogs/basic/v1/catalog.json`](
 - **Interactive Inputs**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`
 - **Formatting, Validation & Logic Functions**: `formatString`, `formatNumber`, `formatCurrency`, `formatDate`, `pluralize`, `required`, `regex`, `length`, `numeric`, `email`, `openUrl`, `and`, `or`, `not`
 
-The Basic Catalog is a styleable reference catalog for common layouts and input controls. Teams can use its schema directly for general user journeys, or map its components to internal design system components on client renderers.
-
----
-
-## Capability Negotiation & Catalog Resolution
-
-At the start of a session or turn, the client advertises the catalogs it can render inside `a2uiRendererCapabilities`:
-
-```json
-{
-  "a2uiRendererCapabilities": {
-    "1.0": {
-      "supportedCatalogIds": [
-        "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-        "https://example.com/catalogs/travel/v1/catalog.json"
-      ]
-    }
-  }
-}
-```
-
-When the agent creates a surface or renders a component, the client resolves the target catalog using a strict **three-step resolution order**:
-
-1. **Component or Function Override (`catalogId`)**: In v1.0, an individual component object or `@call` expression can specify its own `catalogId` property to pull a component or function from a secondary catalog on the same surface.
-2. **Surface Default (`createSurface.catalogId`)**: If the component or function omits `catalogId`, it inherits the `catalogId` declared on the enclosing `createSurface` message.
-3. **Resolution Error**: If neither the component/function nor `createSurface` specifies a `catalogId` (or if the requested `catalogId` is not registered on the renderer), the processor raises a catalog resolution error. It never guesses or falls back to an arbitrary entry in `supportedCatalogIds`.
-
-<Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
-
-```json
-[
-  {
-    "version": "1.0",
-    "createSurface": {
-      "surfaceId": "itinerary_panel",
-      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-      "components": [
-        {
-          "id": "root",
-          "component": "Column",
-          "children": ["header_text", "flight_card"]
-        },
-        {
-          "id": "header_text",
-          "component": "Text",
-          "text": "Upcoming Trip to Tokyo"
-        },
-        {
-          "id": "flight_card",
-          "component": "FlightStatusCard",
-          "catalogId": "https://example.com/catalogs/travel/v1/catalog.json",
-          "flightNumber": "NH 105",
-          "fareAmount": {
-            "@path": "/trip/fare"
-          }
-        }
-      ],
-      "dataModel": {
-        "trip": {
-          "fare": 1240.5
-        }
-      }
-    }
-  }
-]
-```
-
-  </TabItem>
-  <TabItem label="v0.9.1 (Current)">
-
-```json
-[
-  {
-    "version": "v0.9",
-    "createSurface": {
-      "surfaceId": "itinerary_panel",
-      "catalogId": "https://example.com/catalogs/travel/v1/catalog.json"
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateComponents": {
-      "surfaceId": "itinerary_panel",
-      "components": [
-        {
-          "id": "root",
-          "component": "Column",
-          "children": ["header_text", "flight_card"]
-        },
-        {
-          "id": "header_text",
-          "component": "Text",
-          "text": "Upcoming Trip to Tokyo"
-        },
-        {
-          "id": "flight_card",
-          "component": "FlightStatusCard",
-          "flightNumber": "NH 105",
-          "fareAmount": {
-            "path": "/trip/fare"
-          }
-        }
-      ]
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "itinerary_panel",
-      "path": "/trip",
-      "value": {
-        "fare": 1240.5
-      }
-    }
-  }
-]
-```
-
-  </TabItem>
-</Tabs>
+The Basic Catalog is an optional, styleable reference catalog designed for common application flows. Teams can use its schema directly, replace it with domain-specific catalogs, reimplement its component contracts using their own design system, or mix components from different catalogs on the same surface by specifying `catalogId` on individual components.
