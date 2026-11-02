@@ -352,26 +352,25 @@ final class HostedViewDriver {
       let objectID = ObjectIdentifier(element)
       guard visited.insert(objectID).inserted else { return nil }
 
-      if let axElement = element as? any NSAccessibilityElementProtocol,
+      if let axElement = element as? any NSAccessibilityProtocol,
         matchesIdentifier(axElement.accessibilityIdentifier(), componentID: componentID)
       {
         return element
       }
-      if let nsObject = element as? NSObject,
-        matchesIdentifier(nsObject.accessibilityIdentifier(), componentID: componentID)
+      if let axElement = element as? any NSAccessibilityElementProtocol,
+        let identifier = axElement.accessibilityIdentifier?(),
+        matchesIdentifier(identifier, componentID: componentID)
       {
         return element
       }
 
       let children: [Any]
-      if let axElement = element as? any NSAccessibilityElementProtocol,
+      if let axElement = element as? any NSAccessibilityProtocol,
         let axChildren = axElement.accessibilityChildren()
       {
         children = axChildren
-      } else if let nsObject = element as? NSObject,
-        let axChildren = nsObject.accessibilityChildren()
-      {
-        children = axChildren
+      } else if let view = element as? NSView {
+        children = view.subviews
       } else {
         children = []
       }
@@ -425,13 +424,8 @@ final class HostedViewDriver {
 
   private func nativeAccessibilityLabel(from element: AnyObject?) -> String? {
     #if canImport(AppKit)
-      if let axElement = element as? any NSAccessibilityElementProtocol,
+      if let axElement = element as? any NSAccessibilityProtocol,
         let label = axElement.accessibilityLabel(), !label.isEmpty
-      {
-        return label
-      }
-      if let nsObject = element as? NSObject,
-        let label = nsObject.accessibilityLabel(), !label.isEmpty
       {
         return label
       }
@@ -447,13 +441,8 @@ final class HostedViewDriver {
 
   private func nativeAccessibilityHelp(from element: AnyObject?) -> String? {
     #if canImport(AppKit)
-      if let axElement = element as? any NSAccessibilityElementProtocol,
+      if let axElement = element as? any NSAccessibilityProtocol,
         let help = axElement.accessibilityHelp(), !help.isEmpty
-      {
-        return help
-      }
-      if let nsObject = element as? NSObject,
-        let help = nsObject.accessibilityHelp(), !help.isEmpty
       {
         return help
       }
