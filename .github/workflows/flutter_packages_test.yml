@@ -131,7 +131,7 @@ jobs:
       - name: Run tests
         working-directory: ${{ matrix.package.path }}
         env:
-          A2UI_CONFORMANCE_MANIFEST_DIR: ${{ matrix.package.path == 'dart/a2ui_core' && format('{0}/a2ui-manifest', runner.temp) || '' }}
+          A2UI_CONFORMANCE_MANIFEST_DIR: ${{ (matrix.package.path == 'dart/a2ui_core' || matrix.package.path == 'dart/a2ui_flutter') && format('{0}/a2ui-manifest', runner.temp) || '' }}
         run: |
           if [ -d "test" ]; then
             flutter test --test-randomize-ordering-seed=random
@@ -149,6 +149,16 @@ jobs:
             --harness dart-core \
             --corpus core \
             --exclude "core/message_processor_scaling.yaml=performance: runs with -P performance"
+      - name: Set up Python for adapter conformance manifest check
+        if: matrix.package.path == 'dart/a2ui_flutter'
+        uses: ./.github/actions/setup-python
+      - name: Check executed adapter conformance cases
+        if: matrix.package.path == 'dart/a2ui_flutter'
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness flutter \
+            --corpus adapter
 
   # The e2e_test packages are excluded from the matrix above because their
   # tests call a live Gemini model, which needs credentials and quota that are

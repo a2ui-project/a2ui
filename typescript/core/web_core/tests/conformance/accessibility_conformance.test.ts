@@ -17,11 +17,11 @@
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {describe, it, before, after, afterEach} from 'node:test';
+import {after, afterEach, before, describe, it} from 'node:test';
 
 import * as yaml from 'js-yaml';
 
-import {setupTestDom, teardownTestDom, asyncUpdate} from '../../src/test/dom-setup.js';
+import {asyncUpdate, setupTestDom, teardownTestDom} from '../../src/test/dom-setup.js';
 import {render} from 'lit';
 
 import {basicCatalog} from '../../src/catalogs/basic/v1/index.js';
@@ -58,6 +58,7 @@ interface AccessibilityAssertions {
 }
 
 interface AccessibilityStep {
+  description?: string;
   messages: ProcessableMessage[];
   assertions: AccessibilityAssertions;
 }
@@ -65,8 +66,11 @@ interface AccessibilityStep {
 interface AccessibilityTestCase {
   name: string;
   description?: string;
+  features?: string[];
   protocolVersion: string;
   action: string;
+  catalogPath?: string;
+  surface?: Record<string, unknown>;
   messages?: ProcessableMessage[];
   assertions?: AccessibilityAssertions;
   steps?: AccessibilityStep[];
@@ -77,6 +81,131 @@ interface MountedHarness {
   surface: SurfaceModel<WebComponentImplementation>;
   resolver: NodeResolver<WebComponentImplementation>;
   dispose: () => void;
+}
+
+interface ManifestRecord {
+  harness: string;
+  suite: string;
+  case: string;
+  status: 'passed' | 'failed' | 'skipped' | 'xfailed';
+  reason?: string;
+}
+
+/**
+ * Reasoned skip entries keyed by `"<case>"` or `"<case>/<expectKey>"`.
+ * Every entry in this map must match at least one case during the run.
+ */
+const UNSUPPORTED: Record<string, string> = {};
+
+const matchedUnsupportedKeys = new Set<string>();
+
+const KNOWN_KEYS = {
+  accessibilityCase: new Set([
+    'name',
+    'description',
+    'features',
+    'action',
+    'protocolVersion',
+    'catalogPath',
+    'surface',
+    'messages',
+    'assertions',
+    'steps',
+  ]),
+  accessibilityStep: new Set(['description', 'messages', 'assertions']),
+  accessibilityAssertions: new Set(['accessibilityTree', 'axeCore']),
+  accessibilityNode: new Set(['label', 'description', 'live', 'hidden', 'role', 'checked']),
+} as const;
+
+function assertKnownKeys(obj: unknown, allowed: ReadonlySet<string>, where: string): void {
+  if (obj === undefined || obj === null) {
+    return;
+  }
+  assert.ok(typeof obj === 'object' && !Array.isArray(obj), `${where}: expected object`);
+  const unknown = Object.keys(obj as Record<string, unknown>).filter(key => !allowed.has(key));
+  assert.deepEqual(
+    unknown,
+    [],
+    `${where}: unknown keys: ${unknown.map(k => `${where}.${k}`).join(', ')}`,
+  );
+}
+
+function assertKnownAccessibilityAssertions(
+  assertions: AccessibilityAssertions | undefined,
+  where: string,
+): void {
+  if (!assertions) {
+    return;
+  }
+  assertKnownKeys(assertions, KNOWN_KEYS.accessibilityAssertions, where);
+  for (const [compId, node] of Object.entries(assertions.accessibilityTree ?? {})) {
+    assertKnownKeys(node, KNOWN_KEYS.accessibilityNode, `${where}.accessibilityTree.${compId}`);
+  }
+}
+
+function assertKnownAccessibilityCase(testCase: AccessibilityTestCase): void {
+  assertKnownKeys(testCase, KNOWN_KEYS.accessibilityCase, `case(${testCase.name})`);
+  assert.equal(
+    testCase.action,
+    'accessibility_check',
+    `case(${testCase.name}): unsupported action "${testCase.action}"`,
+  );
+  assertKnownAccessibilityAssertions(testCase.assertions, `case(${testCase.name}).assertions`);
+  for (const [idx, step] of (testCase.steps ?? []).entries()) {
+    assertKnownKeys(step, KNOWN_KEYS.accessibilityStep, `case(${testCase.name}).steps[${idx}]`);
+    assertKnownAccessibilityAssertions(
+      step.assertions,
+      `case(${testCase.name}).steps[${idx}].assertions`,
+    );
+  }
+}
+
+function findUnsupportedReason(
+  caseName: string,
+  steps: AccessibilityStep[] = [],
+): string | undefined {
+  if (Object.hasOwn(UNSUPPORTED, caseName)) {
+    matchedUnsupportedKeys.add(caseName);
+    return UNSUPPORTED[caseName];
+  }
+  for (const step of steps) {
+    for (const key of Object.keys(step.assertions ?? {})) {
+      const stepKey = `${caseName}/${key}`;
+      if (Object.hasOwn(UNSUPPORTED, stepKey)) {
+        matchedUnsupportedKeys.add(stepKey);
+        return UNSUPPORTED[stepKey];
+      }
+    }
+  }
+  return undefined;
+}
+
+function assertAllUnsupportedMatched(): void {
+  const unused = Object.keys(UNSUPPORTED).filter(key => !matchedUnsupportedKeys.has(key));
+  assert.deepEqual(
+    unused,
+    [],
+    `Unused UNSUPPORTED entries did not match any executed case: ${unused.join(', ')}`,
+  );
+}
+
+function writeManifestRecord(rec: ManifestRecord): void {
+  const manifestDir = process.env.A2UI_CONFORMANCE_MANIFEST_DIR;
+  if (!manifestDir) {
+    return;
+  }
+  fs.mkdirSync(manifestDir, {recursive: true});
+  const filePath = path.join(manifestDir, `${rec.harness}-${process.pid}.jsonl`);
+  const payload: Record<string, string> = {
+    harness: rec.harness,
+    suite: rec.suite.replaceAll('\\', '/'),
+    case: rec.case,
+    status: rec.status,
+  };
+  if (rec.reason) {
+    payload.reason = rec.reason;
+  }
+  fs.appendFileSync(filePath, `${JSON.stringify(payload)}\n`, 'utf8');
 }
 
 function registerBasicCatalogElements(): void {
@@ -284,6 +413,7 @@ describe('Web Universal Custom Elements Accessibility Conformance', () => {
   const testCases = yaml.load(fs.readFileSync(yamlPath, 'utf8')) as AccessibilityTestCase[];
 
   let activeHarness: MountedHarness | undefined;
+  let pendingManifest: ManifestRecord | undefined;
 
   before(() => {
     setupTestDom();
@@ -293,30 +423,57 @@ describe('Web Universal Custom Elements Accessibility Conformance', () => {
   afterEach(() => {
     activeHarness?.dispose();
     activeHarness = undefined;
+    if (pendingManifest) {
+      writeManifestRecord(pendingManifest);
+      pendingManifest = undefined;
+    }
   });
 
   after(() => {
+    assertAllUnsupportedMatched();
     teardownTestDom();
   });
 
   for (const testCase of testCases) {
-    it(`${testCase.name}: ${testCase.description ?? ''}`, async () => {
-      const processor = new MessageProcessor<WebComponentImplementation>([basicCatalog]);
-      const steps: AccessibilityStep[] = testCase.steps ?? [
-        {
-          messages: testCase.messages ?? [],
-          assertions: testCase.assertions ?? {},
-        },
-      ];
-
-      for (const step of steps) {
-        processor.processMessages(step.messages);
-        if (!activeHarness) {
-          const surface = processor.model.getSurface('a11y_surface');
-          assert.ok(surface, 'Surface "a11y_surface" was not created');
-          activeHarness = mountResolvedSurface(surface);
+    it(`${testCase.name}: ${testCase.description ?? ''}`, async t => {
+      pendingManifest = {
+        harness: 'web_core_universal',
+        suite: 'core/accessibility.yaml',
+        case: testCase.name,
+        status: 'failed',
+      };
+      try {
+        assertKnownAccessibilityCase(testCase);
+        const steps: AccessibilityStep[] = testCase.steps ?? [
+          {
+            messages: testCase.messages ?? [],
+            assertions: testCase.assertions ?? {},
+          },
+        ];
+        const skipReason = findUnsupportedReason(testCase.name, steps);
+        if (skipReason) {
+          pendingManifest.status = 'skipped';
+          pendingManifest.reason = skipReason;
+          t.skip(skipReason);
+          return;
         }
-        await verifyAssertions(activeHarness.container, step.assertions);
+
+        const processor = new MessageProcessor<WebComponentImplementation>([basicCatalog]);
+
+        for (const step of steps) {
+          processor.processMessages(step.messages);
+          if (!activeHarness) {
+            const surface = processor.model.getSurface('a11y_surface');
+            assert.ok(surface, 'Surface "a11y_surface" was not created');
+            activeHarness = mountResolvedSurface(surface);
+          }
+          await verifyAssertions(activeHarness.container, step.assertions);
+        }
+        pendingManifest.status = 'passed';
+      } catch (err) {
+        pendingManifest.status = 'failed';
+        pendingManifest.reason = err instanceof Error ? err.message : String(err);
+        throw err;
       }
     });
   }
