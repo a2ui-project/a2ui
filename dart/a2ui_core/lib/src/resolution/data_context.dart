@@ -665,6 +665,10 @@ class DataContext {
       } on A2uiCatalogResolutionError catch (error) {
         final String? catalogId = _routableCatalogId(error, name);
         if (catalogId == null) rethrow;
+        if (!_isPlainJson(args)) {
+          if (_agentCallerOrNull == null) rethrow;
+          _checkJsonArguments(call.call, args);
+        }
         final String key = _agentCallKey(call.call, catalogId, args);
         final _AgentCall? existing = _agentCalls.lookup(call, catalogId, args);
         if (existing != null) {
@@ -856,6 +860,8 @@ class DataContext {
   /// [catalogId] is the catalog the call resolved to: the outbound call names
   /// it, and calls that resolve to the same catalog share one entry whether
   /// or not they named it.
+  ///
+  /// [args] must be plain JSON (see [_checkJsonArguments]).
   _AgentCall _agentCall(
     FunctionCall call,
     String catalogId,
@@ -886,7 +892,9 @@ class DataContext {
       (value) {
         batch(() {
           entry.pending = false;
-          entry.value.value = value;
+          // Frozen, so no reader of a shared answer can change it for the
+          // others.
+          entry.value.value = _frozen(value);
           entry.version.value++;
           _agentCalls.version.value++;
         });
@@ -928,19 +936,59 @@ class DataContext {
     return value;
   }
 
+  /// The key that calls to [name] in [catalogId] with [args] share, built
+  /// from the arguments with map keys sorted at every depth. Only called
+  /// with arguments [_checkJsonArguments] accepts, so every value has one
+  /// JSON form.
   static String _agentCallKey(
     String name,
     String? catalogId,
     Map<String, dynamic> args,
   ) =>
-      jsonEncode(
-        <String, Object?>{
-          'name': name,
-          'catalogId': catalogId,
-          'args': _canonicalize(args),
-        },
-        toEncodable: (Object? value) => value.toString(),
-      );
+      jsonEncode(<String, Object?>{
+        'name': name,
+        'catalogId': catalogId,
+        'args': _canonicalize(args),
+      });
+
+  /// Throws an [A2uiExpressionError] when [args] of a call to [name] that is
+  /// about to go to the agent hold a value with no faithful JSON form, such
+  /// as a non-finite number or an arbitrary object. Such a call fails
+  /// locally rather than being sent with altered data.
+  static void _checkJsonArguments(String name, Map<String, dynamic> args) {
+    if (_isPlainJson(args)) return;
+    throw A2uiExpressionError(
+      "Arguments to '$name' are not valid JSON, so the call cannot be sent "
+      'to the agent.',
+      expression: name,
+    );
+  }
+
+  /// Whether [value] is plain JSON: null, a bool, a string, a finite number,
+  /// a [ValidationResult] (sent as its JSON object), or a list or
+  /// string-keyed map of plain JSON.
+  static bool _isPlainJson(Object? value) => switch (value) {
+        null || bool() || String() || int() || ValidationResult() => true,
+        final double number => number.isFinite,
+        final List<Object?> list => list.every(_isPlainJson),
+        final Map<Object?, Object?> map => map.entries.every(
+            (entry) => entry.key is String && _isPlainJson(entry.value),
+          ),
+        _ => false,
+      };
+
+  /// [value] with every map and list in it, at any depth, made unmodifiable.
+  static Object? _frozen(Object? value) => switch (value) {
+        final List<Object?> list =>
+          List<Object?>.unmodifiable(list.map(_frozen)),
+        final Map<String, Object?> map => Map<String, Object?>.unmodifiable(
+            map.map((key, item) => MapEntry(key, _frozen(item))),
+          ),
+        final Map<Object?, Object?> map => Map<Object?, Object?>.unmodifiable(
+            map.map((key, item) => MapEntry(key, _frozen(item))),
+          ),
+        _ => value,
+      };
 
   /// Whether evaluating [value] now would read an agent call that is still
   /// awaiting its response.
@@ -1101,6 +1149,7 @@ class DataContext {
         agentCatalogId = _routableCatalogId(error, call.call);
         agentCaller = agentCatalogId == null ? null : _agentCallerOrNull;
         if (agentCaller == null) rethrow;
+        _checkJsonArguments(call.call, args);
       }
     } catch (error) {
       if (_onError == null) rethrow;
@@ -1533,6 +1582,7 @@ class _AgentCallCache {
 
   /// Whether the last attempt of [call] with [args] failed.
   bool hasFailed(FunctionCall call, Map<String, dynamic> args) =>
+      DataContext._isPlainJson(args) &&
       failed.contains(
         DataContext._agentCallKey(
           call.call,
@@ -1564,6 +1614,7 @@ class _AgentCallCache {
     if (call.catalogId == null && resolvedCatalogId != null) {
       defaultCatalogId ??= resolvedCatalogId;
     }
+    if (!DataContext._isPlainJson(args)) return null;
     return entries[DataContext._agentCallKey(
       call.call,
       resolvedCatalogId ?? call.catalogId ?? defaultCatalogId,
@@ -1609,7 +1660,17 @@ DataContext createSurfaceDataContext(
       invokerForCatalog: (catalogId) =>
           surface.resolveCatalog(catalogId).invoke,
       isUserActivated: false,
-      callAgentFunction: surface.callAgentFunction,
+      callAgentFunction: switch (surface.callAgentFunction) {
+        null => null,
+        final AgentFunctionCaller caller => (call) => surface.isDisposed
+            ? Future<Object?>.error(
+                A2uiRpcError(
+                  "Surface '${surface.id}' has been disposed.",
+                  RpcErrorCode.cancelled,
+                ),
+              )
+            : caller(call),
+      },
       agentCalls: _surfaceAgentCalls[surface] ??=
           _AgentCallCache(defaultCatalogId: surface.defaultCatalog?.id),
       parent: parentDataContext,

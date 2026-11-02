@@ -4,7 +4,8 @@
 
 - (v1_0) Agent function fallback routing follows the v1.0 specification
   ([#3415](https://github.com/a2ui-project/a2ui/issues/3415),
-  [#3536](https://github.com/a2ui-project/a2ui/issues/3536)):
+  [#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3739](https://github.com/a2ui-project/a2ui/pull/3739)):
   - A function call whose catalog cannot be resolved (an unknown
     `catalogId`, or no default catalog on the surface) is reported as a
     `CATALOG_ERROR` and is no longer sent to the agent. Only a call to a
@@ -36,8 +37,13 @@
     action that calls no function is still dispatched synchronously.
   - `deleteSurface` cancels the surface's pending agent calls (the new
     `RpcHandler.cancelSurfaceCalls`), and a call that would start after the
-    surface is deleted is not sent. A cancelled call is not reported as an
-    error.
+    surface is deleted or disposed (the new `SurfaceModel.isDisposed`) is
+    not sent. A cancelled call is not reported as an error.
+  - A call whose resolved arguments have no JSON form, such as a
+    non-finite number, is not sent: it fails locally with an
+    `EXPRESSION_ERROR`.
+  - A shared agent answer is stored as unmodifiable maps and lists, so one
+    reader cannot change it for the others.
   - `MessageProcessor.dispose()` disposes its surfaces before the RPC layer,
     so the calls it cancels are not reported as errors.
 - A function call naming a `catalogId` on a `DataContext` created without

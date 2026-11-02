@@ -136,6 +136,11 @@ class SurfaceModel<T extends ComponentApi> {
   final _onWarning = EventNotifier<A2uiWarning>();
   bool _disposed = false;
 
+  /// Whether [dispose] has been called. A disposed surface sends no agent
+  /// calls: each fails with an `A2uiRpcError` whose code is
+  /// [RpcErrorCode.cancelled], which is not reported.
+  bool get isDisposed => _disposed;
+
   /// Fires whenever an action is dispatched from this surface.
   EventSource<A2uiRendererAction> get onAction => _onAction;
 

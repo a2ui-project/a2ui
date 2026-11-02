@@ -24,8 +24,12 @@ import 'support/test_catalog.dart';
 
 /// A catalog function whose behavior and metadata the test chooses.
 class _Fn extends FunctionImplementation {
-  _Fn(String name, this.body, {super.requiresUserActivation})
-      : super(name: name, argumentSchema: Schema.object());
+  _Fn(
+    String name,
+    this.body, {
+    super.requiresUserActivation,
+    super.allowedCallers,
+  }) : super(name: name, argumentSchema: Schema.object());
 
   final Object? Function(Map<String, dynamic> args) body;
 
@@ -41,6 +45,9 @@ class _Fn extends FunctionImplementation {
 /// One agent call the fake transport received, with its completer.
 typedef _AgentCall = ({FunctionCall call, Completer<Object?> completer});
 
+/// Read by the `live` catalog function, which returns it.
+final Signal<Object?> _live = signal<Object?>('a');
+
 Catalog<ComponentApi, FunctionImplementation> _catalog({
   String? protocolVersion = '1.0',
 }) =>
@@ -53,6 +60,13 @@ Catalog<ComponentApi, FunctionImplementation> _catalog({
       functions: [
         _Fn('upper', (args) => (args['value'] as String).toUpperCase()),
         _Fn('gated', (_) => 'opened', requiresUserActivation: true),
+        _Fn('nan', (_) => double.nan),
+        _Fn('live', (_) => _live),
+        _Fn(
+          'agentSide',
+          (_) => 'ran',
+          allowedCallers: AllowedCallers.agentOnly,
+        ),
       ],
     );
 
@@ -965,6 +979,155 @@ void main() {
       await expectLater(pending, throwsA(isA<A2uiRpcError>()));
     });
 
+    test('a call whose arguments are not valid JSON fails without sending',
+        () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final Map<String, Object?> call = {
+        '@call': 'remote',
+        'args': {
+          'v': {'@call': 'nan', 'args': <String, Object?>{}},
+        },
+      };
+      final ReadonlySignal<Object?> value = context.resolveSignal(call);
+      final void Function() unsub = value.subscribe((_) {});
+      addTearDown(unsub);
+      expect(value.value, isNull);
+      expect(context.resolveDynamicValue(call), isNull);
+      await expectLater(context.evaluateFunctionCall(call), completion(isNull));
+      expect(context.isPendingAgentCall(call), isFalse);
+      expect(agentCalls, isEmpty);
+      await _flush();
+      expect(clientErrors, hasLength(3));
+      expect(clientErrors.map((e) => e.code), everyElement('EXPRESSION_ERROR'));
+      expect(
+        clientErrors.map((e) => e.message),
+        everyElement(contains("Arguments to 'remote' are not valid JSON")),
+      );
+
+      // A null argument, such as a binding to a missing path, is valid JSON.
+      context.resolveDynamicValue({
+        '@call': 'remote',
+        'args': {
+          'v': {'@path': '/missing'},
+        },
+      });
+      expect(agentCalls.single.call.args, {'v': null});
+    });
+
+    test('a shared answer cannot be changed by a reader', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final Map<String, Object?> call = {
+        '@call': 'remote',
+        'args': <String, Object?>{},
+      };
+      context.resolveDynamicValue(call);
+      agentCalls.single.completer.complete({
+        'items': [1],
+      });
+      await _flush();
+      final answer = context.resolveDynamicValue(call)! as Map<String, dynamic>;
+      expect(() => answer['items'] = <Object?>[], throwsUnsupportedError);
+      expect(
+        () => (answer['items'] as List<Object?>).add(2),
+        throwsUnsupportedError,
+      );
+      expect(context.resolveDynamicValue(call), {
+        'items': [1],
+      });
+      expect(agentCalls, hasLength(1));
+    });
+
+    test('a disposed surface sends no agent call and reports nothing',
+        () async {
+      final surface = SurfaceModel<ComponentApi>(
+        'disposed',
+        defaultCatalog: _catalog(),
+        protocolVersion: '1.0',
+        callAgentFunction: callAgent,
+      );
+      final errors = <A2uiExpressionError>[];
+      final DataContext context = ComponentContext(
+        surface,
+        ComponentModel('root', 'Text', {}),
+        onError: errors.add,
+      ).dataContext;
+      surface.dispose();
+      expect(surface.isDisposed, isTrue);
+
+      expect(
+        context.resolveDynamicValue(
+          {'@call': 'remote', 'args': <String, Object?>{}},
+        ),
+        isNull,
+      );
+      await expectLater(
+        context.evaluateFunctionCall(
+          {'@call': 'remoteAction', 'args': <String, Object?>{}},
+        ),
+        throwsA(isA<A2uiRpcError>()
+            .having((e) => e.rpcCode, 'rpcCode', RpcErrorCode.cancelled)),
+      );
+      await _flush();
+      expect(agentCalls, isEmpty);
+      expect(errors, isEmpty);
+    });
+
+    test('an agentOnly function is refused and not sent', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      expect(
+        context.resolveDynamicValue(
+          {'@call': 'agentSide', 'args': <String, Object?>{}},
+        ),
+        isNull,
+      );
+      await expectLater(
+        context.evaluateFunctionCall(
+          {'@call': 'agentSide', 'args': <String, Object?>{}},
+        ),
+        completion(isNull),
+      );
+      await _flush();
+      expect(agentCalls, isEmpty);
+      expect(clientErrors, hasLength(2));
+      expect(clientErrors.map((e) => e.code), everyElement('EXPRESSION_ERROR'));
+      expect(clientErrors.first.message, contains('agentOnly'));
+    });
+
+    test('a signal a local function returns streams once its args settle',
+        () async {
+      _live.value = 'a';
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final ReadonlySignal<Object?> value = context.resolveSignal({
+        '@call': 'live',
+        'args': {
+          'seed': {'@call': 'remote', 'args': <String, Object?>{}},
+        },
+      });
+      final seen = <Object?>[];
+      final void Function() unsub = value.subscribe(seen.add);
+      addTearDown(unsub);
+      expect(value.value, isNull);
+
+      agentCalls.single.completer.complete(1);
+      await _flush();
+      expect(value.value, 'a');
+      _live.value = 'b';
+      expect(value.value, 'b');
+      expect(seen, [null, 'a', 'b']);
+    });
+
     test('nested bindings in an action resolve synchronously', () {
       final SurfaceModel<ComponentApi> surface = makeSurface();
       surface.dataModel.set('/x', 'v');
@@ -1165,6 +1328,44 @@ void main() {
       await done;
       await _flush();
       expect(clientErrors, isEmpty);
+    });
+
+    test('an event action resolves its context with user activation', () async {
+      final actions = <A2uiRendererAction>[];
+      surface.onAction.subscribe(actions.add);
+      await invokeAction({
+        'event': {
+          'name': 'open',
+          'context': {
+            'result': {'@call': 'gated', 'args': <String, Object?>{}},
+          },
+        },
+      });
+      expect(clientErrors, isEmpty);
+      expect(actions.single.context, {'result': 'opened'});
+
+      // Resolved without a user activation, the same action is refused.
+      final DataContext passive = ComponentContext(
+        surface,
+        ComponentModel('root', 'Text', {}),
+      ).dataContext;
+      var failed = false;
+      final Object? resolved = await passive.resolveActionAsync(
+        {
+          'event': {
+            'name': 'open',
+            'context': {
+              'result': {'@call': 'gated', 'args': <String, Object?>{}},
+            },
+          },
+        },
+        onExpressionFailed: () => failed = true,
+      );
+      expect(resolved, isNull);
+      expect(failed, isTrue);
+      await _flush();
+      expect(clientErrors.single.message, contains('requires user activation'));
+      expect(agentCalls, isEmpty);
     });
 
     test('a functionCall action runs with user activation', () async {
