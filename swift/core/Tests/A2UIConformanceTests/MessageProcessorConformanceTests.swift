@@ -567,6 +567,22 @@ struct MessageProcessorConformanceTests {
         "[\(name)] DataModel mismatch on surface '\(surfaceID)'"
       )
     }
+    if expectedSurfaceDict.keys.contains("metadata") {
+      let expectedSurfaceMeta =
+        expectedSurfaceDict["metadata"].map { ConformanceTestHelper.toJSONValue($0) } ?? .null
+      if expectedSurfaceMeta == .null {
+        #expect(
+          surface.metadata == nil,
+          "[\(name)] Expected nil surface metadata on surface '\(surfaceID)'"
+        )
+      } else {
+        let expectedMetaDict = try? MetadataValidator.validate(expectedSurfaceMeta)
+        #expect(
+          MetadataValidator.areEqual(surface.metadata, expectedMetaDict),
+          "[\(name)] Surface metadata mismatch on surface '\(surfaceID)'"
+        )
+      }
+    }
     if let expectedTheme = expectedSurfaceDict["theme"] {
       let actualThemeValue: JSONValue =
         surface.theme.map { dict in
@@ -651,8 +667,23 @@ struct MessageProcessorConformanceTests {
         "[\(name)] Component '\(id)' catalogId mismatch"
       )
     }
+    if compObj.keys.contains("metadata") {
+      let expectedMeta = compObj["metadata"].map { ConformanceTestHelper.toJSONValue($0) } ?? .null
+      if expectedMeta == .null {
+        #expect(
+          actualComp.metadata == nil,
+          "[\(name)] Expected nil component '\(id)' metadata on surface '\(surfaceID)'"
+        )
+      } else {
+        let expectedMetaDict = try? MetadataValidator.validate(expectedMeta)
+        #expect(
+          MetadataValidator.areEqual(actualComp.metadata, expectedMetaDict),
+          "[\(name)] Component '\(id)' metadata mismatch on surface '\(surfaceID)'"
+        )
+      }
+    }
     for (propKey, propVal) in compObj
-    where propKey != "id" && propKey != "component" && propKey != "catalogId" {
+    where propKey != "id" && propKey != "component" && propKey != "catalogId" && propKey != "metadata" {
       #expect(
         actualComp.properties[propKey] == ConformanceTestHelper.toJSONValue(propVal),
         "[\(name)] Component '\(id)' property '\(propKey)' mismatch"

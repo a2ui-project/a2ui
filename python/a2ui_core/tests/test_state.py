@@ -993,3 +993,190 @@ def test_composition_constraints_surface_and_multiple_parents():
                 },
             }])
         assert any(d.code == "UNALLOWED_PARENT" for d in exc_info.value.details)
+
+
+def test_component_model_and_surface_model_metadata_api():
+    from a2ui.core.resolution import ComponentContext, GenericBinder
+
+    v10_cat = BasicCatalog("1.0")
+    comp = ComponentModel(
+        "c1",
+        "Text",
+        v10_cat,
+        {"text": "Hello"},
+        metadata={"extensions": {"a": 1}},
+    )
+    assert comp.metadata == {"extensions": {"a": 1}}
+    assert comp.extensions == {"a": 1}
+    assert "metadata" not in comp.properties
+    assert comp.component_tree == {
+        "id": "c1",
+        "component": "Text",
+        "text": "Hello",
+        "metadata": {"extensions": {"a": 1}},
+    }
+
+    # Defensive copy check
+    mutated = comp.metadata
+    assert mutated is not None
+    mutated["extensions"]["a"] = 999
+    assert comp.extensions == {"a": 1}
+
+    comp_events: list[Any] = []
+    comp.on_metadata_changed.subscribe(lambda m: comp_events.append(m))
+
+    # Identical update does not emit
+    comp.metadata = {"extensions": {"a": 1}}
+    assert comp_events == []
+
+    # set_extension with explicit None value keeps the key
+    comp.set_extension("b", None)
+    assert comp.metadata == {"extensions": {"a": 1, "b": None}}
+    assert len(comp_events) == 1
+
+    # remove_extension removes keys and clears metadata when last key is removed
+    comp.remove_extension("a")
+    assert comp.metadata == {"extensions": {"b": None}}
+    comp.remove_extension("b")
+    assert comp.metadata is None
+    assert comp.extensions is None
+    assert comp_events[-1] is None
+
+    # Invalid UAX 31 extension key raises A2uiValidationError
+    with pytest.raises(A2uiValidationError, match="invalid_identifier|UAX"):
+        comp.set_extension("bad-key!", 1)
+
+    surface = SurfaceModel(
+        "s1",
+        v10_cat,
+        metadata={"extensions": {"surfaceTheme": "dark"}},
+    )
+    assert surface.metadata == {"extensions": {"surfaceTheme": "dark"}}
+    assert surface.extensions == {"surfaceTheme": "dark"}
+
+    surf_events: list[Any] = []
+    surface.on_metadata_changed.subscribe(lambda m: surf_events.append(m))
+    surface.set_extension("mode", "compact")
+    assert surface.extensions == {"surfaceTheme": "dark", "mode": "compact"}
+    assert len(surf_events) == 1
+
+    surface.remove_extension("surfaceTheme")
+    surface.remove_extension("mode")
+    assert surface.metadata is None
+    assert surf_events[-1] is None
+
+    # ComponentContext and GenericBinder expose metadata; binder.subscribe only fires on props changes
+    surface.components_model.add_component(comp)
+    ctx = ComponentContext.from_surface(surface, "c1")
+    binder = GenericBinder(ctx)
+    assert ctx.metadata is None
+    assert binder.metadata is None
+
+    binder_updates: list[Any] = []
+    binder.subscribe(lambda props: binder_updates.append((props, binder.metadata)))
+    initial_binder_updates = len(binder_updates)
+    comp.set_extension("badge", "new")
+    assert ctx.metadata == {"extensions": {"badge": "new"}}
+    assert binder.metadata == {"extensions": {"badge": "new"}}
+    assert len(binder_updates) == initial_binder_updates
+    binder.dispose()
+
+    # Boolean vs integer type distinction in metadata and properties equality
+    comp_bool_events: list[Any] = []
+    comp.on_metadata_changed.subscribe(lambda m: comp_bool_events.append(m))
+    comp.set_extension("flag", 1)
+    assert len(comp_bool_events) == 1
+    comp.set_extension("flag", True)
+    assert len(comp_bool_events) == 2
+    assert comp.extensions["flag"] is True
+    assert type(comp.extensions["flag"]) is bool
+
+    prop_bool_events: list[Any] = []
+    comp.apply_update({"count": 1}, comp.metadata)
+    comp.on_updated.subscribe(lambda c: prop_bool_events.append(c.properties))
+    comp.apply_update({"count": True}, comp.metadata)
+    assert len(prop_bool_events) == 1
+    assert comp.properties["count"] is True
+    assert type(comp.properties["count"]) is bool
+
+    # dispatch_action merges call-site metadata over payload metadata
+    dispatched: list[dict[str, Any]] = []
+    surface.on_action.subscribe(lambda act: dispatched.append(act))
+    surface.dispatch_action(
+        {
+            "event": {"name": "click"},
+            "metadata": {"extensions": {"fromPayload": 1, "shared": "payload"}},
+        },
+        "c1",
+        metadata={"extensions": {"fromCall": 2, "shared": "call"}},
+    )
+    assert dispatched[-1]["metadata"] == {
+        "extensions": {"fromPayload": 1, "fromCall": 2, "shared": "call"}
+    }
+
+    # Empty action metadata envelopes normalize and omit "metadata" from action_event
+    surface.dispatch_action(
+        {"event": {"name": "click"}, "metadata": {"extensions": {}}},
+        "c1",
+        metadata={},
+    )
+    assert "metadata" not in dispatched[-1]
+
+    # M2: {"extensions": None} raises A2uiValidationError and empty dicts normalize to None
+    with pytest.raises(A2uiValidationError, match="dictionary"):
+        comp.metadata = {"extensions": None}
+    comp.metadata = {}
+    assert comp.metadata is None
+    comp.metadata = {"extensions": {}}
+    assert comp.metadata is None
+
+    # M3: ComponentContext.dispatch_action does not double-invoke dispatch callbacks raising TypeError
+    invocations = 0
+
+    def failing_dispatch(action_payload, source_id, metadata=None):
+        nonlocal invocations
+        invocations += 1
+        raise TypeError("listener internal type error")
+
+    custom_ctx = ComponentContext(
+        comp,
+        ctx.data_context,
+        surface.components_model,
+        dispatch_action_callback=failing_dispatch,
+    )
+    with pytest.raises(TypeError, match="listener internal type error"):
+        custom_ctx.dispatch_action(
+            {"event": {"name": "click"}}, metadata={"extensions": {"k": 1}}
+        )
+    assert invocations == 1
+
+    # H5: apply_update updates both properties and metadata before emitting, and coalesces GenericBinder
+    binder2 = GenericBinder(ctx)
+    observed_states: list[tuple[Any, Any]] = []
+    comp.on_updated.subscribe(
+        lambda _: observed_states.append(("updated", comp.properties, comp.metadata))
+    )
+    comp.on_metadata_changed.subscribe(
+        lambda m: observed_states.append(("metadata", comp.properties, m))
+    )
+    binder2_emissions: list[tuple[Any, Any]] = []
+    binder2.subscribe(lambda p: binder2_emissions.append((p, binder2.metadata)))
+    observed_states.clear()
+    binder2_emissions.clear()
+
+    comp.apply_update({"text": "Updated"}, {"extensions": {"atomic": True}})
+    assert len(observed_states) == 2
+    assert observed_states[0] == (
+        "updated",
+        {"text": "Updated"},
+        {"extensions": {"atomic": True}},
+    )
+    assert observed_states[1] == (
+        "metadata",
+        {"text": "Updated"},
+        {"extensions": {"atomic": True}},
+    )
+    assert len(binder2_emissions) == 1
+    assert binder2_emissions[0][0]["text"] == "Updated"
+    assert binder2_emissions[0][1] == {"extensions": {"atomic": True}}
+    binder2.dispose()

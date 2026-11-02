@@ -8,6 +8,7 @@
   now `'1.0'`), while accepting `'v1.0'` in `A2uiProtocolVersion.tryParseSemVer`
   and `Catalog.fromJson` ([#3097](https://github.com/a2ui-project/a2ui/issues/3097),
   [#3726](https://github.com/a2ui-project/a2ui/pull/3726)).
+- Added extension metadata APIs across `SurfaceModel` (`metadata`, `extensions`, `metadataSignal`, `onMetadataChanged`, `setExtension`, `removeExtension`), `ComponentModel` (`metadata`, `extensions`, `onMetadataChanged`, `setExtension`, `removeExtension`), `ComponentNode` (`metadata: ReadonlySignal<A2uiMetadata?>`), `ComponentApi` (`metadata` parsed and serialized by `Catalog.fromJson()` / `Catalog.toJson()`), and `SurfaceModel.dispatchAction(..., {A2uiMetadata? metadata})` / `NodeAction([ActionDispatchOptions? options])` ([#3103](https://github.com/a2ui-project/a2ui/issues/3103), [#3468](https://github.com/a2ui-project/a2ui/issues/3468), [#3469](https://github.com/a2ui-project/a2ui/issues/3469), [#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)).
 - (v1_0) Factored `weight` in the v1.0 basic catalog into `#/$defs/Weight`.
   Component schemas in `BasicCatalog.v1_0`, `Catalog.fromJson` (for leaf
   catalog `$defs`), and `Catalog.resolvedComponentSchemas` inline catalog-local
@@ -41,6 +42,13 @@
   `$id`, title, description or instructions, which describe the source; pass
   its own `instructions`. A name the source has no entry of throws
   `A2uiCatalogError` ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Fixed: `PayloadValidator` checks the string formats `json_schema_builder`
+  validates (`date`, `time`, `date-time`, `email`, `ipv4`, `ipv6`). A catalog
+  property that declares one of these formats is now enforced; previously the
+  format was ignored. A literal `min` or `max` on the basic catalog's
+  `DateTimeInput` now validates; previously it matched all three branches of
+  the `oneOf` that tells them apart and was always rejected
+  ([#3123](https://github.com/a2ui-project/a2ui/issues/3123)).
 
 ## 0.4.0
 

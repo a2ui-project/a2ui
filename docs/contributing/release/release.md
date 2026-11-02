@@ -121,6 +121,9 @@ A checkout without tags falls back to the version pinned as `fallback-version`
 in `pyproject.toml`, which keeps shallow CI clones working. The release workflow
 reads the version back out of every built artifact and fails if it does not
 match the version it planned, so a release cannot go out on a fallback version.
+When widening a dependency pin for a minor or major release (e.g. `a2ui-core>=0.5.0`),
+also update the `fallback-version` in that dependency's `pyproject.toml` so
+tagless checkouts can satisfy the new constraint during builds.
 
 #### Things that will stop a release
 

@@ -715,6 +715,7 @@ class MessageProcessor:
             theme=theme,
             send_data_model=send_data_model,
             protocol_version=surface_proto_ver,
+            metadata=op.metadata,
         )
         if op.root:
             new_surface.root_id = op.root
@@ -863,13 +864,17 @@ class MessageProcessor:
                     surface_id=surface_id,
                 )
 
+            raw_metadata = comp_dict.get("metadata") if surface_at_least_v10 else None
             properties = {
                 k: v
                 for k, v in comp_dict.items()
                 if k not in ("id", "component", "catalogId")
+                and not (surface_at_least_v10 and k == "metadata")
             }
 
-            new_comp = ComponentModel(c_id, c_type, comp_catalog, properties)
+            new_comp = ComponentModel(
+                c_id, c_type, comp_catalog, properties, metadata=raw_metadata
+            )
             new_component_models.append(new_comp)
 
         # Catalog resolution errors are raised at once. Argument errors from
@@ -909,7 +914,7 @@ class MessageProcessor:
                 ):
                     surface.components_model.replace_component(new_comp)
                 else:
-                    existing.properties = new_comp.properties
+                    existing.apply_update(new_comp.properties, new_comp.metadata)
             else:
                 surface.components_model.add_component(new_comp)
         surface.components_model.components_update_applied(new_component_models)

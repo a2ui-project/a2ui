@@ -311,6 +311,7 @@ function serializeComponentModel(
   name: string,
   comp: ComponentApi,
   localDefs: ReadonlySet<string>,
+  isAtLeastV10: boolean,
   commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
 ): JsonObject {
   const json = zodToUnbundledJson(comp.schema, localDefs, commonTypesUri);
@@ -323,17 +324,32 @@ function serializeComponentModel(
     ? (json.required as string[]).filter(r => r !== 'component' && r !== 'id')
     : [];
   const extra = json.unevaluatedProperties ?? json.additionalProperties;
+  // From v1.0 the protocol's Component envelope combines the entry with
+  // ComponentCommon in a sibling `allOf` branch under an outer
+  // `unevaluatedProperties: false` (and forbids wrapping ComponentCommon
+  // inside individual component entries), so emitting `false` or a catchall
+  // subschema on the entry itself would apply to ComponentCommon fields.
+  const closure = isAtLeastV10
+    ? extra === true
+      ? true
+      : undefined
+    : typeof extra === 'boolean' || isObject(extra)
+      ? extra
+      : false;
   const result: JsonObject = {
     type: 'object',
     properties: {component: {const: name}, ...props},
     required: ['component', ...required],
-    unevaluatedProperties: typeof extra === 'boolean' || isObject(extra) ? extra : false,
+    ...(closure !== undefined ? {unevaluatedProperties: closure} : {}),
   };
   if (comp.allowedParents && comp.allowedParents.length > 0) {
     result.allowedParents = [...comp.allowedParents];
   }
   if (comp.allowedChildren && comp.allowedChildren.length > 0) {
     result.allowedChildren = [...comp.allowedChildren];
+  }
+  if (comp.metadata !== undefined) {
+    result.metadata = deepCopyJson(comp.metadata);
   }
   return result;
 }
@@ -484,6 +500,9 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
       comp.allowedParents,
       comp.allowedChildren,
     );
+    if (comp.metadata !== undefined) {
+      schema['metadata'] = deepCopyJson(comp.metadata);
+    }
     shapedComponents.set(name, deepFreeze(schema));
     for (const [defName, defModel] of catalogDefs) computedDefs.set(defName, defModel);
   }
@@ -589,7 +608,7 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
       const definition = model.components.get(name);
       components[name] = definition
         ? deepCopyJson(definition)
-        : serializeComponentModel(name, comp, localDefs, commonTypesUri);
+        : serializeComponentModel(name, comp, localDefs, isAtLeastV10, commonTypesUri);
     }
     doc.components = components;
   }

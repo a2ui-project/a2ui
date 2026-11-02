@@ -24,6 +24,7 @@ import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {DataModel} from '../state/data-model.js';
 import {Subscription} from '../common/events.js';
+import {A2uiMetadata, validateMetadata} from '../common/metadata.js';
 import {batchWrite} from '../reactivity/signals.js';
 
 import {
@@ -1113,6 +1114,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     const targetCatalog = this.resolveComponentCatalog(comp, surface);
+    if ('metadata' in comp && comp['metadata'] !== undefined) {
+      validateMetadata(comp['metadata']);
+    }
 
     // A partial update names no component type; the existing model supplies it.
     const existing = surface.componentsModel.get(id);
@@ -1381,8 +1385,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         );
         surface.componentsModel.addComponent(newComponent);
       } else {
-        existing.metadata = metadata;
-        existing.properties = properties;
+        batchWrite(() => {
+          existing.applyUpdate(properties, metadata);
+        });
       }
     } else {
       if (typeof component !== 'string' || !component) {
@@ -1520,9 +1525,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 }
 
-function extractComponentMetadata(rawMetadata: unknown): Record<string, unknown> | undefined {
+function extractComponentMetadata(rawMetadata: unknown): A2uiMetadata | undefined {
   if (rawMetadata && typeof rawMetadata === 'object' && !Array.isArray(rawMetadata)) {
-    return rawMetadata as Record<string, unknown>;
+    return rawMetadata as A2uiMetadata;
   }
   return undefined;
 }

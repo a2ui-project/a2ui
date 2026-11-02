@@ -19,6 +19,7 @@ import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import yaml from 'js-yaml';
 import {Catalog, ComponentApi, createFunctionImplementation} from '../../src/catalog/types.js';
+import {A2uiMetadata, ActionDispatchOptions, jsonValueEquals} from '../../src/common/metadata.js';
 import {MessageProcessor} from '../../src/processing/message-processor.js';
 import {
   ComponentNode,
@@ -27,7 +28,7 @@ import {
 } from '../../src/resolution/component-node.js';
 import {NodeResolver} from '../../src/resolution/node-resolver.js';
 import {ResolvedBinding, isWritable} from '../../src/resolution/resolved-binding.js';
-import {effect, getValue, peekValue} from '../../src/reactivity/signals.js';
+import {batchWrite, effect, getValue, peekValue} from '../../src/reactivity/signals.js';
 import {ComponentModel} from '../../src/state/component-model.js';
 import {SurfaceModel, A2uiErrorPayload} from '../../src/state/surface-model.js';
 
@@ -46,10 +47,12 @@ interface NodeExpectation {
   validationErrors?: string[];
   validationResults?: Array<Record<string, unknown>>;
   props?: Record<string, unknown>;
+  metadata?: Record<string, unknown> | null;
 }
 interface Expectation {
   nodes: Record<string, NodeExpectation>;
   emissions?: Record<string, number>;
+  metadata_emissions?: Record<string, number>;
   same_nodes?: string[];
   replaced_nodes?: string[];
   destroyed?: Record<string, number>;
@@ -63,7 +66,7 @@ type Operation =
   | {op: 'update_components'; components: Component[]}
   | {op: 'remove_component'; component_id: string}
   | {op: 'write'; node: string; property: string; value: unknown}
-  | {op: 'invoke'; node: string; property: string}
+  | {op: 'invoke'; node: string; property: string; metadata?: Record<string, unknown>}
   | {op: 'process_messages'; messages: unknown[]}
   | {op: 'dispose'};
 export interface ConformanceCase {
@@ -76,6 +79,7 @@ export interface ConformanceCase {
 interface Watch {
   path: string;
   emissions: number;
+  metadataEmissions: number;
   destroyed: number;
   lastProps?: unknown;
   stop(): void;
@@ -186,6 +190,13 @@ function checkNodes(
       assert.ok(key in props, `${reason}: ${path}.${key} is absent`);
       assert.deepEqual(normalize(props[key], `${path}/${key}`), value, `${reason}: ${path}.${key}`);
     }
+    if ('metadata' in fields) {
+      assert.deepEqual(
+        peekValue(node.metadata) ?? null,
+        fields.metadata,
+        `${reason}: ${path}.metadata`,
+      );
+    }
   }
 }
 
@@ -194,13 +205,26 @@ function updateComponents(
   catalog: Catalog<ComponentApi>,
   components: Component[],
 ): void {
-  for (const {id, component, ...properties} of components) {
+  for (const {id, component, metadata, ...properties} of components) {
     const existing = surface.componentsModel.get(id);
     if (existing) {
       assert.equal(existing.type, component, `update_components cannot change ${id}'s type`);
-      existing.properties = properties;
+      batchWrite(() => {
+        existing.metadata = metadata as A2uiMetadata | undefined;
+        if (!jsonValueEquals(existing.properties, properties)) {
+          existing.properties = properties;
+        }
+      });
     } else {
-      surface.componentsModel.addComponent(new ComponentModel(id, component, properties, catalog));
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          id,
+          component,
+          properties,
+          catalog,
+          metadata as A2uiMetadata | undefined,
+        ),
+      );
     }
   }
 }
@@ -276,7 +300,9 @@ async function executeNodeResolutionStep(
     case 'invoke': {
       const action = peekValue(requiredNode(before, step.node).props)[step.property];
       assert.equal(typeof action, 'function', `${reason}: not an action`);
-      await (action as () => unknown)();
+      await (action as (options?: ActionDispatchOptions) => unknown)(
+        step.metadata ? {metadata: step.metadata as A2uiMetadata} : undefined,
+      );
       break;
     }
     case 'process_messages':
@@ -331,6 +357,7 @@ export async function runNodeResolutionCase(
       name: action.name,
       source_component_id: action.sourceComponentId,
       context: normalize(action.context, ''),
+      ...(action.metadata !== undefined ? {metadata: action.metadata} : {}),
     });
   });
   const stopErrors = surface.onError.subscribe(err => {
@@ -347,6 +374,7 @@ export async function runNodeResolutionCase(
       const watch: Watch = {
         path,
         emissions: 0,
+        metadataEmissions: 0,
         destroyed: 0,
         stop: () => {},
       };
@@ -355,11 +383,16 @@ export async function runNodeResolutionCase(
         watch.emissions++;
         watch.lastProps = normalize(props, watch.path);
       });
+      const stopMetadata = effect(() => {
+        getValue(node.metadata);
+        watch.metadataEmissions++;
+      });
       const stopDestroyed = node.onDestroyed.subscribe(() => {
         watch.destroyed++;
       });
       watch.stop = () => {
         stopProps();
+        stopMetadata();
         stopDestroyed.unsubscribe();
       };
       watches.set(node, watch);
@@ -371,6 +404,7 @@ export async function runNodeResolutionCase(
     checkNodes(after, expected, reason, surface);
     const surviving = new Set(after.values());
     const emissions: Record<string, number> = {};
+    const metadataEmissions: Record<string, number> = {};
     const destroyed: Record<string, number> = {};
     for (const [node, watch] of watches) {
       // Removal may update a binding before teardown; only surviving nodes have
@@ -383,12 +417,23 @@ export async function runNodeResolutionCase(
           `${reason}: ${watch.path} last emission`,
         );
       }
+      if (watch.metadataEmissions && surviving.has(node)) {
+        metadataEmissions[watch.path] =
+          (metadataEmissions[watch.path] ?? 0) + watch.metadataEmissions;
+      }
       if (watch.destroyed) {
         destroyed[watch.path] = (destroyed[watch.path] ?? 0) + watch.destroyed;
         assert.equal(node.disposed, true, `${reason}: ${watch.path} destruction without disposal`);
       }
     }
     assert.deepEqual(emissions, expected.emissions ?? {}, `${reason}: emissions`);
+    if (expected.metadata_emissions !== undefined) {
+      assert.deepEqual(
+        metadataEmissions,
+        expected.metadata_emissions,
+        `${reason}: metadata_emissions`,
+      );
+    }
     assert.deepEqual(destroyed, expected.destroyed ?? {}, `${reason}: destroyed`);
     for (const path of expected.same_nodes ?? []) {
       assert.equal(
@@ -425,6 +470,7 @@ export async function runNodeResolutionCase(
       watchNodes(before);
       for (const watch of watches.values()) {
         watch.emissions = 0;
+        watch.metadataEmissions = 0;
         watch.destroyed = 0;
         watch.lastProps = undefined;
       }

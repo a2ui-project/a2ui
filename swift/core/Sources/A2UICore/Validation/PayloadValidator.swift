@@ -251,6 +251,9 @@ public final class PayloadValidator: Sendable {
     }
 
     if enforceIdentifiers {
+      if let rawMeta = component["metadata"] {
+        _ = try MetadataValidator.validate(rawMeta, pathPrefix: "metadata")
+      }
       let declaredKeys =
         declaredEnvelopeKeys[type] ?? Self.envelopeKeysDeclared(in: componentAPI.schema.jsonValue)
       for key in Self.envelopeKeys where !declaredKeys.contains(key) {
