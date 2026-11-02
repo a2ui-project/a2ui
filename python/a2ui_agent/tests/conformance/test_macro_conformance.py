@@ -80,6 +80,16 @@ def test_expect_assertion(case: Case) -> None:
             if isinstance(msg, dict) and "updateComponents" in msg
             for comp in msg["updateComponents"].get("components", [])
         ]
+        if "create_surface_catalog_id" in expect:
+            create_msgs = [
+                msg["createSurface"]
+                for msg in result
+                if isinstance(msg, dict) and "createSurface" in msg
+            ]
+            assert len(create_msgs) == 1
+            assert (
+                create_msgs[0].get("catalogId") == expect["create_surface_catalog_id"]
+            )
         if "components" in expect:
             assert all_comps == expect["components"]
         if "component_types" in expect:
@@ -87,6 +97,7 @@ def test_expect_assertion(case: Case) -> None:
         if "absent_property_on_all_components" in expect:
             prop = expect["absent_property_on_all_components"]
             assert all(prop not in c for c in all_comps)
+        validate_payload(result, case)
         return
 
     catalog_json = result.to_json()

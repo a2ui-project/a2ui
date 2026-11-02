@@ -64,7 +64,7 @@
           "component": "Card",
           "id": "decl_a11y",
           "accessibility": {
-            "label": "Internal"
+            "label": "Custom: Passed as param"
           },
           "child": "decl_a11y__text_1"
         },

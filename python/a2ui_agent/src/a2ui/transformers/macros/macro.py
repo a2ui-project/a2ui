@@ -33,6 +33,9 @@ from typing import (
 )
 import unicodedata
 
+from pydantic import BaseModel
+from pydantic.fields import FieldInfo
+
 from a2ui.builder import v0_9 as builder_v0_9
 from a2ui.builder import v1_0 as builder_v1_0
 from a2ui.builder.core import (
@@ -130,6 +133,28 @@ def _unwrap_annotated(t: Any) -> Any:
     return t
 
 
+def _extract_annotated_description(t: Any) -> str | None:
+    """Extracts a parameter description from ``Annotated[T, Field(description=...)]`` or ``Annotated[T, "..."]``."""
+    while get_origin(t) is Annotated:
+        args = get_args(t)
+        if not args:
+            break
+        for meta in args[1:]:
+            if isinstance(meta, FieldInfo) and meta.description:
+                return meta.description
+            if isinstance(meta, str) and meta:
+                return meta
+        t = args[0]
+    return None
+
+
+def _is_expr_type(t: Any) -> bool:
+    """Returns True if ``t`` is a DataBinding or FunctionCall model class."""
+    t = _unwrap_annotated(t)
+    expr_types = _DATA_BINDING_TYPES + _FUNCTION_CALL_TYPES
+    return t in expr_types or (isinstance(t, type) and issubclass(t, expr_types))
+
+
 def _is_type_from(t: Any, target_types: tuple[type, ...]) -> bool:
     """Returns True if ``t`` or any of its union branches is in or subclasses ``target_types``."""
     t = _unwrap_annotated(t)
@@ -184,17 +209,55 @@ def _type_version_family(t: Any) -> MacroVersionFamily | None:
         and t not in (ComponentBuilderNode, ComponentRef)
     ) or issubclass(t, _V0_9_MODEL_TYPES):
         return "0.9"
+    if issubclass(t, BaseModel):
+        mod = getattr(t, "__module__", "") or ""
+        if mod.startswith((
+            "a2ui.builder.v1_0",
+            "a2ui.core.schema.v1_0",
+            "a2ui.core.basic_catalog.v1_0",
+        )):
+            return "1.0"
+        if mod.startswith((
+            "a2ui.builder.v0_9",
+            "a2ui.core.schema.v0_9",
+            "a2ui.core.basic_catalog.v0_9",
+        )):
+            return "0.9"
     return None
 
 
-def _collect_annotation_versions(t: Any, out: set[MacroVersionFamily]) -> None:
+def _collect_annotation_versions(
+    t: Any,
+    out: set[MacroVersionFamily],
+    seen: set[int] | None = None,
+) -> None:
     """Collects all A2UI protocol families referenced by ``t`` and its nested type arguments."""
+    if seen is None:
+        seen = set()
     t = _unwrap_annotated(t)
+    obj_id = id(t)
+    if obj_id in seen:
+        return
+    seen.add(obj_id)
     fam = _type_version_family(t)
     if fam is not None:
         out.add(fam)
     for arg in get_args(t):
-        _collect_annotation_versions(arg, out)
+        _collect_annotation_versions(arg, out, seen)
+    if (
+        fam is None
+        and isinstance(t, type)
+        and issubclass(t, BaseModel)
+        and not issubclass(t, ComponentBuilderNode)
+    ):
+        try:
+            field_hints = get_type_hints(t, include_extras=True)
+        except Exception:
+            field_hints = {}
+        for f_name, f_info in t.model_fields.items():
+            _collect_annotation_versions(
+                field_hints.get(f_name, f_info.annotation), out, seen
+            )
 
 
 def _detect_macro_version(
@@ -351,10 +414,14 @@ def _map_type_hint_to_schema(
     t: Any,
     param_desc: str | None = None,
     ref_prefix: str = DEFAULT_COMMON_REF_PREFIX,
+    *,
+    use_v1_0: bool = False,
+    _seen: frozenset[type] = frozenset(),
 ) -> dict[str, Any]:
     """Maps a Python type hint to a canonical A2UI JSON schema property."""
     schema: dict[str, Any]
     t = _unwrap_annotated(t)
+    child_ref_name = "Child" if use_v1_0 else "ComponentId"
 
     if t in _DYNAMIC_VALUE_ALIASES:
         schema = {"$ref": f"{ref_prefix}DynamicValue"}
@@ -385,68 +452,98 @@ def _map_type_hint_to_schema(
     origin = get_origin(t)
     args = get_args(t)
 
-    # Handle Optional[T] / Union[T, None] / Dynamic Unions
+    # Handle Optional[T] / Union[T, None] / Dynamic & Composite Unions
     if origin in (Union, types.UnionType):
         non_none_args = [_unwrap_annotated(a) for a in args if a is not type(None)]
         if len(non_none_args) == 1:
             return _map_type_hint_to_schema(
-                non_none_args[0], param_desc, ref_prefix=ref_prefix
+                non_none_args[0],
+                param_desc,
+                ref_prefix=ref_prefix,
+                use_v1_0=use_v1_0,
+                _seen=_seen,
             )
 
-        has_binding = any(
-            a in _DATA_BINDING_TYPES
-            or (isinstance(a, type) and issubclass(a, _DATA_BINDING_TYPES))
-            for a in non_none_args
-        )
-        has_func = any(
-            a in _FUNCTION_CALL_TYPES
-            or (isinstance(a, type) and issubclass(a, _FUNCTION_CALL_TYPES))
-            for a in non_none_args
-        )
-        types_set = set(non_none_args)
-        expr_types = set(_DATA_BINDING_TYPES) | set(_FUNCTION_CALL_TYPES)
+        expr_args = [a for a in non_none_args if _is_expr_type(a)]
+        val_args = [a for a in non_none_args if not _is_expr_type(a)]
+        val_set = set(val_args)
 
-        if has_binding or has_func:
-            if str in types_set and len(types_set - (expr_types | {str})) == 0:
+        if expr_args and val_args:
+            if val_set == {str}:
                 schema = {"$ref": f"{ref_prefix}DynamicString"}
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
-            elif (int in types_set or float in types_set) and len(
-                types_set - (expr_types | {int, float})
-            ) == 0:
+            if val_set <= {int, float}:
                 schema = {"$ref": f"{ref_prefix}DynamicNumber"}
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
-            elif bool in types_set and len(types_set - (expr_types | {bool})) == 0:
+            if val_set == {bool}:
                 schema = {"$ref": f"{ref_prefix}DynamicBoolean"}
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
-            elif any(_is_child_list_slot_type(a) for a in types_set):
-                schema = {"$ref": f"{ref_prefix}ChildList"}
-                if param_desc:
-                    schema["description"] = param_desc
-                return schema
-            elif any(
-                get_origin(a) in (list, Sequence, AbcSequence, tuple, set)
-                for a in types_set
-            ) and not any(a in (int, float, bool) for a in types_set):
-                schema = {"$ref": f"{ref_prefix}DynamicStringList"}
-                if param_desc:
-                    schema["description"] = param_desc
-                return schema
-            elif any(_is_single_child_slot_type(a) for a in types_set):
-                schema = {"$ref": f"{ref_prefix}ComponentId"}
-                if param_desc:
-                    schema["description"] = param_desc
-                return schema
-            else:
+            if {str, int, float, bool} <= val_set:
                 schema = {"$ref": f"{ref_prefix}DynamicValue"}
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
+            if all(
+                _is_child_list_slot_type(a) or _is_single_child_slot_type(a)
+                for a in val_args
+            ) and any(_is_child_list_slot_type(a) for a in val_args):
+                schema = {"$ref": f"{ref_prefix}ChildList"}
+                if param_desc:
+                    schema["description"] = param_desc
+                return schema
+            if len(val_args) == 1 and get_origin(val_args[0]) in (
+                list,
+                Sequence,
+                AbcSequence,
+                tuple,
+                set,
+            ):
+                seq_elem_args = get_args(val_args[0])
+                if not seq_elem_args or _unwrap_annotated(seq_elem_args[0]) is str:
+                    schema = {"$ref": f"{ref_prefix}DynamicStringList"}
+                    if param_desc:
+                        schema["description"] = param_desc
+                    return schema
+            if all(_is_single_child_slot_type(a) for a in val_args):
+                schema = {"$ref": f"{ref_prefix}{child_ref_name}"}
+                if param_desc:
+                    schema["description"] = param_desc
+                return schema
+
+        if all(
+            _is_child_list_slot_type(a) or _is_single_child_slot_type(a)
+            for a in non_none_args
+        ) and any(_is_child_list_slot_type(a) for a in non_none_args):
+            schema = {"$ref": f"{ref_prefix}ChildList"}
+            if param_desc:
+                schema["description"] = param_desc
+            return schema
+
+        if all(_is_single_child_slot_type(a) for a in non_none_args):
+            schema = {"$ref": f"{ref_prefix}{child_ref_name}"}
+            if param_desc:
+                schema["description"] = param_desc
+            return schema
+
+        branch_schemas = [
+            _map_type_hint_to_schema(
+                branch,
+                ref_prefix=ref_prefix,
+                use_v1_0=use_v1_0,
+                _seen=_seen,
+            )
+            for branch in non_none_args
+        ]
+        schema = {"oneOf": branch_schemas}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
 
     # Literal strings or numbers
     if origin is Literal:
@@ -513,13 +610,49 @@ def _map_type_hint_to_schema(
 
     # Single Child Slots
     if _is_single_child_slot_type(t):
-        schema = {
-            "$ref": f"{ref_prefix}ComponentId",
-            "description": (
-                param_desc or "ID of the child component to place in this slot."
-            ),
-        }
+        schema = {"$ref": f"{ref_prefix}{child_ref_name}"}
+        if param_desc:
+            schema["description"] = param_desc
         return schema
+
+    # Catalog item & structured Pydantic sub-models (e.g. TabItem, ChoicePickerOption, IconNameSvgPath, ActionEvent)
+    if isinstance(t, type) and issubclass(t, BaseModel):
+        if t in _seen:
+            schema = {"type": "object"}
+            if param_desc:
+                schema["description"] = param_desc
+            return schema
+        try:
+            model_hints = get_type_hints(t, include_extras=True)
+        except Exception:
+            model_hints = {}
+        sub_props: dict[str, Any] = {}
+        sub_req: list[str] = []
+        next_seen = _seen | {t}
+        for f_name, f_info in t.model_fields.items():
+            prop_name = f_info.serialization_alias or f_info.alias or f_name
+            f_hint = model_hints.get(f_name, f_info.annotation)
+            f_desc = f_info.description or _extract_annotated_description(f_hint)
+            sub_props[prop_name] = _map_type_hint_to_schema(
+                f_hint,
+                f_desc,
+                ref_prefix=ref_prefix,
+                use_v1_0=use_v1_0,
+                _seen=next_seen,
+            )
+            if f_info.is_required():
+                sub_req.append(prop_name)
+        model_schema: dict[str, Any] = {
+            "type": "object",
+            "properties": sub_props,
+        }
+        if sub_req:
+            model_schema["required"] = sub_req
+        if t.model_config.get("extra") == "forbid":
+            model_schema["additionalProperties"] = False
+        if param_desc:
+            model_schema["description"] = param_desc
+        return model_schema
 
     # Primitives
     if t is str:
@@ -546,7 +679,12 @@ def _map_type_hint_to_schema(
     # Arrays
     if origin in (list, Sequence, AbcSequence, tuple, set):
         item_schema = (
-            _map_type_hint_to_schema(args[0], ref_prefix=ref_prefix)
+            _map_type_hint_to_schema(
+                args[0],
+                ref_prefix=ref_prefix,
+                use_v1_0=use_v1_0,
+                _seen=_seen,
+            )
             if args
             else {"type": "string"}
         )
@@ -563,6 +701,18 @@ def _map_type_hint_to_schema(
 
     if t is dict or origin is dict or (isinstance(t, type) and issubclass(t, dict)):
         schema = {"type": "object"}
+        if (
+            origin is dict
+            and len(args) == 2
+            and _unwrap_annotated(args[0]) is str
+            and _unwrap_annotated(args[1]) is not Any
+        ):
+            schema["additionalProperties"] = _map_type_hint_to_schema(
+                args[1],
+                ref_prefix=ref_prefix,
+                use_v1_0=use_v1_0,
+                _seen=_seen,
+            )
         if param_desc:
             schema["description"] = param_desc
         return schema
@@ -614,8 +764,10 @@ class _MacroMetadata:
         ref_prefix: str = DEFAULT_COMMON_REF_PREFIX,
         *,
         include_component_const: bool = False,
+        use_v1_0: bool | None = None,
     ) -> dict[str, Any]:
         """Generates a JSON Schema component definition for this macro."""
+        effective_v1_0 = self.is_v1_0 if use_v1_0 is None else use_v1_0
         props: dict[str, Any] = {}
         required: list[str] = []
         if include_component_const:
@@ -624,7 +776,10 @@ class _MacroMetadata:
 
         for p_name, param in self.parameters.items():
             prop_schema = _map_type_hint_to_schema(
-                param.type_hint, param.description, ref_prefix=ref_prefix
+                param.type_hint,
+                param.description,
+                ref_prefix=ref_prefix,
+                use_v1_0=effective_v1_0,
             )
             props[p_name] = prop_schema
             if param.required:
@@ -727,7 +882,7 @@ def macro(
             param_desc = (
                 param_docs.get(p_name)
                 or param_docs.get(p_name.lower())
-                or p_name.replace("_", " ").capitalize()
+                or _extract_annotated_description(type_hint)
             )
             params[p_name] = _MacroParameter(
                 name=p_name,

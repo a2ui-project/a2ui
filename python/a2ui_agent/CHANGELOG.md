@@ -41,20 +41,10 @@
   `generate_base_rules()` with `schema_to_prompt()` (such as
   `SendA2uiToClientToolset` users) should use `DEFAULT_WORKFLOW_RULES` instead.
   [#3559](https://github.com/a2ui-project/a2ui/pull/3559)
-- Add A2UI Protocol v1.0 support to `@macro` and `MacroExpander`: schema
-  synthesis (including v1.0 discriminator `component` const properties) and
-  runtime argument coercion now support `a2ui.builder.v1_0` models and wire
-  directives (`@path`, `@call`, `Action` with `userMessage`, `CheckRule`,
-  `DynamicChildList`, `AccessibilityAttributes`). `@macro` detects the target
-  protocol family from `ComponentBuilderNode` subclasses (including custom
-  catalog builder subclasses) and protocol models, `MacroExpander` accepts an
-  optional `protocol_version` while rejecting mixed v0.9/v1.0 macros, catalogs,
-  or builder subtrees, v1.0 macros validate UAX #31 identifier names and reject
-  the reserved `'Surface'` component name, and custom
-  `a2ui.builder.v1_0.ComponentBuilderNode` subclasses preserve the `catalogId`
-  wire alias when setting a class-level default `catalog_id`
-  ([#3776](https://github.com/a2ui-project/a2ui/issues/3776),
-  [#3778](https://github.com/a2ui-project/a2ui/pull/3778)).
+- Add A2UI Protocol v1.0 support to `@macro` and `MacroExpander`:
+  - Synthesize v1.0 schemas (`component` const discriminators, `Child` slot `$ref`s, `Annotated` field descriptions, `oneOf` unions, and nested Pydantic sub-models such as `TabItem`, `ChoicePickerOption`, `IconNameSvgPath`, and `ActionEvent`) and coerce v1.0 wire directives (`@path`, `@call`, `Action` with `userMessage`, `CheckRule`, `DynamicChildList`, `AccessibilityAttributes`, and nested sub-models).
+  - Add `MacroExpander.transform_catalogs(catalogs)`, `protocol_version`, and `on_error="passthrough" | "raise"`, enforce single-version invariants and UAX #31 / reserved `'Surface'` macro name checks, and close `transform_to_transport` over registered `base_catalogs` by rewriting pure macro-sidecar `createSurface.catalogId` defaults and stamping unique owning `catalogId`s onto unannotated lowered primitives.
+  - Export `Extensions` from `a2ui.builder.v1_0` and support `class MyCatalogNode(ComponentBuilderNode, catalog_id=...)` alongside field-default `catalog_id` overrides while preserving wire aliases ([#3776](https://github.com/a2ui-project/a2ui/issues/3776), [#3778](https://github.com/a2ui-project/a2ui/pull/3778)).
 - The Direct JSON prompt rule says the JSON part is a JSON array of A2UI messages, each following the schema, instead of "a single, raw JSON object (usually a list of A2UI messages)" that "MUST validate" against it. [#3721](https://github.com/a2ui-project/a2ui/pull/3721)
 - `open_stream` takes `after_rejected_block="continue"` to read past a
   rejected block. The stream then returns an `ErrorPart` in its place, skips

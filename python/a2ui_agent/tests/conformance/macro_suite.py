@@ -94,6 +94,7 @@ class ValidationProfile:
     allow_missing_root: bool = False
     allow_orphan_components: bool = False
     allow_dangling_references: bool = False
+    skip_renderer_validation: bool = False
 
     def to_config(self) -> ValidationConfig:
         return ValidationConfig(
@@ -130,6 +131,7 @@ class Case:
     validation_catalogs: Optional[list[str]] = None
     surface_catalogs: Optional[dict[str, Optional[str]]] = None
     messages: Optional[list[dict[str, Any]]] = None
+    on_error: Literal["passthrough", "raise"] = "passthrough"
 
     @property
     def golden_path(self) -> str:
@@ -181,6 +183,7 @@ def load_cases() -> list[Case]:
             validation_catalogs=raw.get("validation_catalogs"),
             surface_catalogs=raw.get("surface_catalogs"),
             messages=raw.get("messages"),
+            on_error=raw.get("on_error", "passthrough"),
         )
         for raw in _RAW_SUITE["tests"]
     ]
@@ -191,29 +194,33 @@ def load_cases() -> list[Case]:
 # =============================================================================
 
 
-class FooPanelNode(builder_v1_0.ComponentBuilderNode):
+class FooCatalogNode(builder_v1_0.ComponentBuilderNode, catalog_id=_FOO_CID):
+    pass
+
+
+class BarCatalogNode(builder_v1_0.ComponentBuilderNode, catalog_id=_BAR_CID):
+    pass
+
+
+class FooPanelNode(FooCatalogNode):
     component: Literal["FooPanel"] = "FooPanel"
     children: builder_v1_0.ChildList
-    catalog_id: str = _FOO_CID
 
 
-class FooHeaderNode(builder_v1_0.ComponentBuilderNode):
+class FooHeaderNode(FooCatalogNode):
     component: Literal["FooHeader"] = "FooHeader"
     title: builder_v1_0.DynamicString
-    catalog_id: str = _FOO_CID
 
 
-class BarBadgeNode(builder_v1_0.ComponentBuilderNode):
+class BarBadgeNode(BarCatalogNode):
     component: Literal["BarBadge"] = "BarBadge"
     tag: str
-    catalog_id: str = _BAR_CID
 
 
-class BarButtonNode(builder_v1_0.ComponentBuilderNode):
+class BarButtonNode(BarCatalogNode):
     component: Literal["BarButton"] = "BarButton"
     label: builder_v1_0.DynamicString
     action: builder_v1_0.Action
-    catalog_id: str = _BAR_CID
 
 
 class BrandBoxNode(builder_v1_0.ComponentBuilderNode):
@@ -323,7 +330,7 @@ def get_suite_macros() -> list[Any]:
                 children=[
                     Text(text=name, variant="h2"),
                     Text(text=f"Port: {port}", variant="body"),
-                    Text(text=f"Active: {active}", variant="body"),
+                    Text(text=f"Active: {str(active).lower()}", variant="body"),
                 ]
             )
         )
@@ -642,7 +649,9 @@ def get_v1_0_suite_macros() -> list[Any]:
                 children=[
                     builder_v1_0.Text(text=name, variant="body"),
                     builder_v1_0.Text(text=f"Port: {port}", variant="body"),
-                    builder_v1_0.Text(text=f"Active: {active}", variant="body"),
+                    builder_v1_0.Text(
+                        text=f"Active: {str(active).lower()}", variant="body"
+                    ),
                 ]
             )
         )
@@ -750,9 +759,14 @@ def get_v1_0_suite_macros() -> list[Any]:
         accessibility: builder_v1_0.AccessibilityAttributes | None = None,
     ) -> builder_v1_0.Card:
         """Card declaring accessibility as an explicit macro parameter."""
+        a11y_label = (
+            f"Custom: {accessibility.label}"
+            if accessibility is not None and isinstance(accessibility.label, str)
+            else "Internal"
+        )
         return builder_v1_0.Card(
             child=builder_v1_0.Text(text=title),
-            accessibility=builder_v1_0.AccessibilityAttributes(label="Internal"),
+            accessibility=builder_v1_0.AccessibilityAttributes(label=a11y_label),
         )
 
     @macro
@@ -903,6 +917,7 @@ def _build_expander(case: Case) -> MacroExpander:
         passthrough_components=case.passthrough_components,
         catalog_id=exp_cid,
         base_catalogs=base_cats,
+        on_error=case.on_error,
     )
 
 
@@ -991,6 +1006,8 @@ def run_case(case: Case) -> Any:
 
 def validate_payload(payload: list[dict[str, Any]], case: Case) -> None:
     """Validates ``payload`` against the active catalogs and topology rules."""
+    if case.validation.skip_renderer_validation:
+        return
     config = case.validation.to_config()
     has_create = any(isinstance(m, dict) and "createSurface" in m for m in payload)
     version = _case_catalog_version(case)
@@ -1008,10 +1025,17 @@ def validate_payload(payload: list[dict[str, Any]], case: Case) -> None:
         options=MessageProcessorOptions(validation_config=config),
     )
     if not has_create:
+        default_cat: CatalogApi | None = catalogs[0]
+        if (
+            case.surface_catalogs is not None
+            and case.surface_id in case.surface_catalogs
+        ):
+            seeded_cid = case.surface_catalogs[case.surface_id]
+            default_cat = resolve_catalog(seeded_cid, version) if seeded_cid else None
         processor.model.add_surface(
             SurfaceModel(
                 surface_id=case.surface_id,
-                default_catalog=catalogs[0],
+                default_catalog=default_cat,
             )
         )
     processor.process_messages(payload)

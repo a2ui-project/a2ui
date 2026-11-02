@@ -19,10 +19,18 @@ from __future__ import annotations
 from collections.abc import Sequence as AbcSequence
 from enum import Enum
 import types
-from typing import Any, Literal, Sequence, Union, get_args, get_origin
+from typing import (
+    Any,
+    Literal,
+    Sequence,
+    Union,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 import unicodedata
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, ValidationError
 
 from a2ui.builder import v0_9 as builder_v0_9
 from a2ui.builder import v1_0 as builder_v1_0
@@ -41,13 +49,22 @@ from a2ui.transformers.macros.macro import (
     _FUNCTION_CALL_TYPES,
     _MacroMetadata,
     _MacroProtocolError,
-    _V0_9_MODEL_TYPES,
-    _V1_0_MODEL_TYPES,
     _is_single_child_slot_type,
     _is_type_from,
     _normalize_version_family,
+    _type_version_family,
     _unwrap_annotated,
     _validate_v1_0_macro_name,
+)
+
+_DEDICATED_MODEL_TYPES: tuple[type, ...] = (
+    *_DATA_BINDING_TYPES,
+    *_FUNCTION_CALL_TYPES,
+    *_ACTION_TYPES,
+    *_DYNAMIC_CHILD_LIST_TYPES,
+    *_CHECK_RULE_TYPES,
+    *_ACCESSIBILITY_TYPES,
+    ComponentBuilderNode,
 )
 
 
@@ -167,6 +184,272 @@ def _coerce_action(
     return builder_v0_9.Action.model_validate(value)
 
 
+def _sequence_element_type(t: Any) -> Any | None:
+    """Extracts the element type ``E`` from ``Sequence[E]`` / ``list[E]`` (or an Optional/Union containing one)."""
+    t = _unwrap_annotated(t)
+    origin = get_origin(t)
+    args = get_args(t)
+    if origin in (Union, types.UnionType):
+        for branch in args:
+            if branch is type(None):
+                continue
+            elem = _sequence_element_type(branch)
+            if elem is not None:
+                return elem
+        return None
+    if (
+        origin in (list, Sequence, AbcSequence, tuple, set)
+        or (
+            isinstance(origin, type)
+            and issubclass(origin, (list, tuple, set, AbcSequence))
+        )
+    ) and args:
+        return args[0]
+    return None
+
+
+def _structured_model_branches(t: Any) -> list[type[BaseModel]]:
+    """Returns non-dedicated Pydantic ``BaseModel`` branches (such as ``TabItem`` or ``IconNameSvgPath``)."""
+    t = _unwrap_annotated(t)
+    origin = get_origin(t)
+    if origin in (Union, types.UnionType):
+        out: list[type[BaseModel]] = []
+        for branch in get_args(t):
+            if branch is not type(None):
+                out.extend(_structured_model_branches(branch))
+        return out
+    if (
+        isinstance(t, type)
+        and issubclass(t, BaseModel)
+        and not issubclass(t, _DEDICATED_MODEL_TYPES)
+    ):
+        return [t]
+    return []
+
+
+def _union_permits_arbitrary_dict(t: Any) -> bool:
+    """Returns True if ``t`` or any of its union branches admits a plain ``dict`` / ``LiteralObject``."""
+    t = _unwrap_annotated(t)
+    if t is Any or t is object:
+        return True
+    origin = get_origin(t)
+    if origin in (Union, types.UnionType):
+        return any(
+            _union_permits_arbitrary_dict(b) for b in get_args(t) if b is not type(None)
+        )
+    return t is dict or origin is dict or (isinstance(t, type) and issubclass(t, dict))
+
+
+def _coerce_base_model(
+    value: dict[str, Any],
+    model_cls: type[BaseModel],
+    *,
+    use_v1_0: bool,
+    param_name: str,
+    macro_name: str,
+) -> BaseModel:
+    """Coerces nested wire fields (such as ``Child`` IDs or ``@path`` bindings) before validating ``model_cls``."""
+    try:
+        hints = get_type_hints(model_cls, include_extras=True)
+    except Exception:
+        hints = {}
+
+    key_to_field_type: dict[str, Any] = {}
+    for f_name, f_info in model_cls.model_fields.items():
+        f_type = hints.get(f_name, f_info.annotation)
+        key_to_field_type[f_name] = f_type
+        if isinstance(f_info.alias, str):
+            key_to_field_type[f_info.alias] = f_type
+        if isinstance(f_info.serialization_alias, str):
+            key_to_field_type[f_info.serialization_alias] = f_type
+        val_alias = f_info.validation_alias
+        if isinstance(val_alias, str):
+            key_to_field_type[val_alias] = f_type
+        elif isinstance(val_alias, AliasChoices):
+            for choice in val_alias.choices:
+                if isinstance(choice, str):
+                    key_to_field_type[choice] = f_type
+
+    coerced_payload: dict[str, Any] = {}
+    for k, v in value.items():
+        if k in key_to_field_type:
+            coerced_payload[k] = _coerce_value(
+                v,
+                key_to_field_type[k],
+                use_v1_0=use_v1_0,
+                param_name=f"{param_name}.{k}",
+                macro_name=macro_name,
+            )
+        else:
+            coerced_payload[k] = v
+    return model_cls.model_validate(coerced_payload)
+
+
+def _coerce_value(
+    p_val: Any,
+    t: Any,
+    *,
+    use_v1_0: bool,
+    param_name: str,
+    macro_name: str,
+) -> Any:
+    """Recursively coerces an incoming JSON wire argument to the builder AST type declared by ``t``."""
+    raw_t = _unwrap_annotated(t)
+    is_any = raw_t is Any
+    binding_key = "@path" if use_v1_0 else "path"
+    call_key = "@call" if use_v1_0 else "call"
+    expected_dcl_keys = {"path", "componentId"} if use_v1_0 else {"path", "template"}
+
+    # 1. Coerce single child slot from string ID to ComponentRef
+    if isinstance(p_val, str) and _is_single_child_slot_type(raw_t):
+        return ComponentRef(id=p_val)
+
+    # 2. Coerce child slot list from sequence of IDs to ComponentRefs
+    if isinstance(p_val, (list, tuple)) and _is_component_sequence_type(raw_t):
+        return [ComponentRef(id=x) if isinstance(x, str) else x for x in p_val]
+
+    # 3. Coerce DynamicChildList dictionary: {"path": "/...", "componentId": "..."}
+    if (
+        isinstance(p_val, dict)
+        and not _is_dict_only_type(raw_t)
+        and not isinstance(p_val, _DYNAMIC_CHILD_LIST_TYPES)
+        and (
+            (
+                _is_type_from(raw_t, _DYNAMIC_CHILD_LIST_TYPES)
+                and ("componentId" in p_val or "template" in p_val)
+            )
+            or (
+                is_any
+                and set(p_val.keys()) == expected_dcl_keys
+                and all(isinstance(v, str) and bool(v) for v in p_val.values())
+            )
+        )
+    ):
+        dcl_cls = (
+            builder_v1_0.DynamicChildList if use_v1_0 else builder_v0_9.DynamicChildList
+        )
+        dcl_payload = dict(p_val)
+        tmpl_key = "componentId" if "componentId" in dcl_payload else "template"
+        tmpl = dcl_payload.get(tmpl_key)
+        if isinstance(tmpl, str):
+            dcl_payload[tmpl_key] = ComponentRef(id=tmpl)
+        return dcl_cls.model_validate(dcl_payload)
+
+    # 4. Coerce DataBinding dictionary: {"@path": "/..."} (v1.0) or {"path": "/..."} (v0.9)
+    if (
+        isinstance(p_val, dict)
+        and set(p_val.keys()) == {binding_key}
+        and isinstance(p_val[binding_key], str)
+        and not isinstance(p_val, _DATA_BINDING_TYPES)
+        and (_is_type_from(raw_t, _DATA_BINDING_TYPES) or is_any)
+        and not _is_dict_only_type(raw_t)
+    ):
+        path_val = p_val[binding_key]
+        if use_v1_0:
+            return builder_v1_0.DataBinding.model_validate({"path": path_val})
+        return builder_v0_9.DataBinding(path=path_val)
+
+    # 5. Coerce Action shorthands.
+    #
+    # Action itself deliberately has no string shorthand: a before-validator
+    # accepting one would be invisible to a type checker. Inference output is
+    # not type-checked, though, so the shorthands an LLM naturally emits are
+    # mapped here instead.
+    if isinstance(p_val, str) and _is_type_from(raw_t, _ACTION_TYPES):
+        if use_v1_0:
+            return builder_v1_0.Action(event=builder_v1_0.ActionEvent(name=p_val))
+        return builder_v0_9.Action(event=builder_v0_9.ActionEvent(name=p_val))
+    if (
+        isinstance(p_val, dict)
+        and _is_type_from(raw_t, _ACTION_TYPES)
+        and not isinstance(p_val, _ACTION_TYPES)
+    ):
+        return _coerce_action(p_val, use_v1_0=use_v1_0)
+
+    # 6. Coerce FunctionCall dictionary: {"@call": "...", ...} (v1.0) or {"call": "...", ...} (v0.9)
+    if (
+        isinstance(p_val, dict)
+        and call_key in p_val
+        and not isinstance(p_val, _FUNCTION_CALL_TYPES)
+        and (_is_type_from(raw_t, _FUNCTION_CALL_TYPES) or is_any)
+        and not _is_dict_only_type(raw_t)
+    ):
+        if use_v1_0:
+            return builder_v1_0.FunctionCall.model_validate(p_val)
+        return builder_v0_9.FunctionCall.model_validate(p_val)
+
+    # 7. Coerce CheckRule or Sequence[CheckRule]
+    if (
+        isinstance(p_val, dict)
+        and _is_type_from(raw_t, _CHECK_RULE_TYPES)
+        and not isinstance(p_val, _CHECK_RULE_TYPES)
+    ):
+        cr_cls = builder_v1_0.CheckRule if use_v1_0 else builder_v0_9.CheckRule
+        return cr_cls.model_validate(p_val)
+    if isinstance(p_val, (list, tuple)) and _is_check_rule_sequence_type(raw_t):
+        cr_cls = builder_v1_0.CheckRule if use_v1_0 else builder_v0_9.CheckRule
+        return [
+            cr_cls.model_validate(x)
+            if isinstance(x, dict) and not isinstance(x, _CHECK_RULE_TYPES)
+            else x
+            for x in p_val
+        ]
+
+    # 8. Coerce AccessibilityAttributes
+    if (
+        isinstance(p_val, dict)
+        and _is_type_from(raw_t, _ACCESSIBILITY_TYPES)
+        and not isinstance(p_val, _ACCESSIBILITY_TYPES)
+    ):
+        a11y_cls = (
+            builder_v1_0.AccessibilityAttributes
+            if use_v1_0
+            else builder_v0_9.AccessibilityAttributes
+        )
+        return a11y_cls.model_validate(p_val)
+
+    # 9. Coerce structured Pydantic sub-models (e.g. TabItem, ChoicePickerOption, IconNameSvgPath, ActionEvent)
+    if isinstance(p_val, dict):
+        model_branches = _structured_model_branches(raw_t)
+        if model_branches and not isinstance(p_val, tuple(model_branches)):
+            last_err: ValidationError | None = None
+            for branch_cls in model_branches:
+                try:
+                    return _coerce_base_model(
+                        p_val,
+                        branch_cls,
+                        use_v1_0=use_v1_0,
+                        param_name=param_name,
+                        macro_name=macro_name,
+                    )
+                except ValidationError as err:
+                    last_err = err
+            if last_err is not None and not _union_permits_arbitrary_dict(raw_t):
+                raise last_err
+
+    # 10. Recursively coerce typed sequences (e.g. Sequence[TabItem], Sequence[ChoicePickerOption])
+    if isinstance(p_val, (list, tuple)):
+        elem_t = _sequence_element_type(raw_t)
+        if elem_t is not None and _unwrap_annotated(elem_t) is not Any:
+            return [
+                _coerce_value(
+                    item,
+                    elem_t,
+                    use_v1_0=use_v1_0,
+                    param_name=f"{param_name}[{idx}]",
+                    macro_name=macro_name,
+                )
+                for idx, item in enumerate(p_val)
+            ]
+
+    if isinstance(p_val, dict) and _rejects_dict_value(raw_t):
+        raise TypeError(
+            f"Parameter '{param_name}' of macro '{macro_name}' expects {t}, got dict."
+        )
+
+    return p_val
+
+
 def _collect_node_versions(
     obj: Any,
     out: set[MacroVersionFamily],
@@ -191,10 +474,9 @@ def _collect_node_versions(
             for val in extra.values():
                 _collect_node_versions(val, out, seen)
     elif isinstance(obj, BaseModel):
-        if isinstance(obj, _V1_0_MODEL_TYPES):
-            out.add("1.0")
-        elif isinstance(obj, _V0_9_MODEL_TYPES):
-            out.add("0.9")
+        fam = _type_version_family(type(obj))
+        if fam is not None:
+            out.add(fam)
         for val in obj.__dict__.values():
             _collect_node_versions(val, out, seen)
     elif isinstance(obj, dict):
@@ -265,165 +547,47 @@ class _MacroProcessor:
             )
         effective_family: MacroVersionFamily | None = meta.target_version or env_family
         use_v1_0 = effective_family == "1.0"
-        binding_key = "@path" if use_v1_0 else "path"
-        call_key = "@call" if use_v1_0 else "call"
 
         # Coerce parameters from incoming JSON values to rich builder AST types
         coerced_args: dict[str, Any] = {}
         for p_name, p_val in args.items():
             if p_name in meta.parameters:
                 p_meta = meta.parameters[p_name]
-                t = p_meta.type_hint
-                is_any = _unwrap_annotated(t) is Any
-
-                # 1. Coerce single child slot from string ID to ComponentRef
-                if isinstance(p_val, str) and _is_single_child_slot_type(t):
-                    coerced_args[p_name] = ComponentRef(id=p_val)
-
-                # 2. Coerce child slot list from sequence of IDs to ComponentRefs
-                elif isinstance(p_val, (list, tuple)) and _is_component_sequence_type(
-                    t
-                ):
-                    coerced_args[p_name] = [
-                        ComponentRef(id=x) if isinstance(x, str) else x for x in p_val
-                    ]
-
-                # 3. Coerce DynamicChildList dictionary: {"path": "/...", "componentId": "..."}
-                elif (
-                    isinstance(p_val, dict)
-                    and (_is_type_from(t, _DYNAMIC_CHILD_LIST_TYPES) or is_any)
-                    and not _is_dict_only_type(t)
-                    and ("componentId" in p_val or "template" in p_val)
-                    and not isinstance(p_val, _DYNAMIC_CHILD_LIST_TYPES)
-                ):
-                    dcl_cls = (
-                        builder_v1_0.DynamicChildList
-                        if use_v1_0
-                        else builder_v0_9.DynamicChildList
-                    )
-                    dcl_payload = dict(p_val)
-                    tmpl_key = (
-                        "componentId" if "componentId" in dcl_payload else "template"
-                    )
-                    tmpl = dcl_payload.get(tmpl_key)
-                    if isinstance(tmpl, str):
-                        dcl_payload[tmpl_key] = ComponentRef(id=tmpl)
-                    coerced_args[p_name] = dcl_cls.model_validate(dcl_payload)
-
-                # 4. Coerce DataBinding dictionary: {"@path": "/..."} (v1.0) or {"path": "/..."} (v0.9)
-                elif (
-                    isinstance(p_val, dict)
-                    and set(p_val.keys()) == {binding_key}
-                    and isinstance(p_val[binding_key], str)
-                    and not isinstance(p_val, _DATA_BINDING_TYPES)
-                    and (_is_type_from(t, _DATA_BINDING_TYPES) or is_any)
-                    and not _is_dict_only_type(t)
-                ):
-                    path_val = p_val[binding_key]
-                    if use_v1_0:
-                        coerced_args[p_name] = builder_v1_0.DataBinding.model_validate(
-                            {"path": path_val}
-                        )
-                    else:
-                        coerced_args[p_name] = builder_v0_9.DataBinding(path=path_val)
-
-                # 5. Coerce Action shorthands.
-                #
-                # Action itself deliberately has no string shorthand: a
-                # before-validator accepting one would be invisible to a type
-                # checker. Inference output is not type-checked, though, so the
-                # shorthands an LLM naturally emits are mapped here instead.
-                elif isinstance(p_val, str) and _is_type_from(t, _ACTION_TYPES):
-                    if use_v1_0:
-                        coerced_args[p_name] = builder_v1_0.Action(
-                            event=builder_v1_0.ActionEvent(name=p_val)
-                        )
-                    else:
-                        coerced_args[p_name] = builder_v0_9.Action(
-                            event=builder_v0_9.ActionEvent(name=p_val)
-                        )
-                elif (
-                    isinstance(p_val, dict)
-                    and _is_type_from(t, _ACTION_TYPES)
-                    and not isinstance(p_val, _ACTION_TYPES)
-                ):
-                    coerced_args[p_name] = _coerce_action(p_val, use_v1_0=use_v1_0)
-
-                # 6. Coerce FunctionCall dictionary: {"@call": "...", ...} (v1.0) or {"call": "...", ...} (v0.9)
-                elif (
-                    isinstance(p_val, dict)
-                    and call_key in p_val
-                    and not isinstance(p_val, _FUNCTION_CALL_TYPES)
-                    and (_is_type_from(t, _FUNCTION_CALL_TYPES) or is_any)
-                    and not _is_dict_only_type(t)
-                ):
-                    if use_v1_0:
-                        coerced_args[p_name] = builder_v1_0.FunctionCall.model_validate(
-                            p_val
-                        )
-                    else:
-                        coerced_args[p_name] = builder_v0_9.FunctionCall.model_validate(
-                            p_val
-                        )
-
-                # 7. Coerce CheckRule or Sequence[CheckRule]
-                elif (
-                    isinstance(p_val, dict)
-                    and _is_type_from(t, _CHECK_RULE_TYPES)
-                    and not isinstance(p_val, _CHECK_RULE_TYPES)
-                ):
-                    cr_cls = (
-                        builder_v1_0.CheckRule if use_v1_0 else builder_v0_9.CheckRule
-                    )
-                    coerced_args[p_name] = cr_cls.model_validate(p_val)
-                elif isinstance(p_val, (list, tuple)) and _is_check_rule_sequence_type(
-                    t
-                ):
-                    cr_cls = (
-                        builder_v1_0.CheckRule if use_v1_0 else builder_v0_9.CheckRule
-                    )
-                    coerced_args[p_name] = [
-                        cr_cls.model_validate(x)
-                        if isinstance(x, dict) and not isinstance(x, _CHECK_RULE_TYPES)
-                        else x
-                        for x in p_val
-                    ]
-
-                # 8. Coerce AccessibilityAttributes
-                elif (
-                    isinstance(p_val, dict)
-                    and _is_type_from(t, _ACCESSIBILITY_TYPES)
-                    and not isinstance(p_val, _ACCESSIBILITY_TYPES)
-                ):
-                    a11y_cls = (
-                        builder_v1_0.AccessibilityAttributes
-                        if use_v1_0
-                        else builder_v0_9.AccessibilityAttributes
-                    )
-                    coerced_args[p_name] = a11y_cls.model_validate(p_val)
-
-                elif isinstance(p_val, dict) and _rejects_dict_value(t):
-                    raise TypeError(
-                        f"Parameter '{p_name}' of macro '{macro_name}' expects {t},"
-                        " got dict."
-                    )
-
-                else:
-                    coerced_args[p_name] = p_val
+                coerced_args[p_name] = _coerce_value(
+                    p_val,
+                    p_meta.type_hint,
+                    use_v1_0=use_v1_0,
+                    param_name=p_name,
+                    macro_name=macro_name,
+                )
             else:
                 coerced_args[p_name] = p_val
 
         # Execute macro layout function
         result = meta.func(**coerced_args)
 
-        if not isinstance(result, (ComponentBuilderNode, Sequence)):
+        if isinstance(result, (str, bytes)):
             raise TypeError(
-                f"Macro '{macro_name}' must return a ComponentBuilderNode or"
-                f" Sequence of nodes, got {type(result)}."
+                f"Macro '{macro_name}' must return a ComponentBuilderNode, got"
+                f" {type(result).__name__}."
+            )
+        if isinstance(result, AbcSequence):
+            if len(result) != 1 or not isinstance(result[0], ComponentBuilderNode):
+                raise TypeError(
+                    f"Macro '{macro_name}' must return a single root"
+                    f" ComponentBuilderNode, got sequence of length {len(result)}."
+                )
+            root_node: ComponentBuilderNode = result[0]
+        elif isinstance(result, ComponentBuilderNode):
+            root_node = result
+        else:
+            raise TypeError(
+                f"Macro '{macro_name}' must return a ComponentBuilderNode, got"
+                f" {type(result).__name__}."
             )
 
         node_versions: set[MacroVersionFamily] = set()
-        _collect_node_versions(result, node_versions, set())
+        _collect_node_versions(root_node, node_versions, set())
         if len(node_versions) > 1:
             raise _MacroProtocolError(
                 f"Macro '{macro_name}' returned mixed A2UI v0.9 and v1.0 builder nodes."
@@ -440,7 +604,7 @@ class _MacroProcessor:
             )
 
         # Flatten into primitive components with ID namespacing and root stitching
-        flattened = flatten_component_tree(result, root_id=root_id)
+        flattened = flatten_component_tree(root_node, root_id=root_id)
         if use_v1_0 or "1.0" in node_versions:
             _validate_v1_0_macro_name(macro_name)
             for comp in flattened:

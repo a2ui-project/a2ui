@@ -13,16 +13,20 @@
 # limitations under the License.
 
 suite: "a2ui_macros_conformance"
-version: "v0.9"
 
-# Macro definitions specifying the signature and the declarative builder AST
-# returned by each macro. Runners can inspect these templates to synthesize or
-# verify language-specific fluent builder macro implementations.
+# Protocol-agnostic macro conformance suite covering A2UI v0.9/v0.9.1 and v1.0.
+# Individual cases declare envelope_version (defaulting to "v0.9") and optional
+# macro_version / to_catalog_version overrides.
+#
+# Macro definitions specify the signature and declarative builder AST returned
+# by each macro. Runners can inspect these templates to synthesize or verify
+# language-specific fluent builder macro implementations.
 #
 # Sentinels:
 #   {$param: "name"}        - Injects parameter value (slot, string, binding, action).
 #   {$spreadParam: "name"}  - Spreads a list parameter into children.
-#   ${name}                 - String interpolation for primitive arguments.
+#   ${name}                 - String interpolation for primitive arguments
+#                             (booleans format lowercase as "true" / "false").
 
 custom_catalogs:
   "https://example.com/catalogs/foo/v1/catalog.json":
@@ -243,8 +247,8 @@ macros:
     parameters:
       status: {type: "string"}
       title: {type: "string"}
-    # Native builder:
-    #   Card(child=Row(children=[Text(text=status.upper(), variant="caption"), Text(text=title, variant="h3")]))
+    # Imperative transform: status is uppercased (status.upper()).
+    # Variant note: v0.9 uses variant="h3" for title; v1.0 uses variant="body".
     template:
       component: "Card"
       child:
@@ -332,8 +336,8 @@ macros:
       name: {type: "string"}
       port: {type: "integer"}
       active: {type: "boolean"}
-    # Native builder:
-    #   Card(child=Column(children=[Text(text=name, variant="h2"), Text(text=f"Port: {port}", variant="body"), Text(text=f"Active: {active}", variant="body")]))
+    # Imperative transform: boolean active interpolates lowercase ("true" / "false");
+    # v0.9 uses variant="h2" for name while v1.0 uses variant="body".
     template:
       component: "Card"
       child:
@@ -475,6 +479,7 @@ macros:
     parameters:
       status: {type: "string"}
       title: {type: "string"}
+    # Imperative transform: status is uppercased (status.upper()).
     template:
       component: "Card"
       accessibility:
@@ -499,10 +504,14 @@ macros:
     parameters:
       title: {type: "string"}
       accessibility: {type: "accessibility", required: false}
+    # Imperative transform: sets root accessibility.label to "Custom: ${accessibility.label}"
+    # when accessibility.label is provided, or "Internal" otherwise (verifying that a
+    # declared accessibility parameter is coerced and passed to the macro rather than merged
+    # by _apply_envelope_fields).
     template:
       component: "Card"
       accessibility:
-        label: "Internal"
+        label: "Custom: ${accessibility.label}"
       child:
         component: "Text"
         text: {$param: "title"}
@@ -525,6 +534,7 @@ macros:
     description: "Card raising ValidationError when count is negative"
     parameters:
       count: {type: "integer"}
+    # Imperative guard: raises ValidationError when count < 0.
     template:
       component: "Card"
       child:
@@ -1178,7 +1188,7 @@ tests:
           on_click: {$ref: "common_types.json#/$defs/Action"}
           checks: {type: "array", items: {$ref: "common_types.json#/$defs/CheckRule"}}
           accessibility: {$ref: "common_types.json#/$defs/AccessibilityAttributes"}
-          footer: {$ref: "common_types.json#/$defs/ComponentId"}
+          footer: {$ref: "common_types.json#/$defs/Child"}
           items: {$ref: "common_types.json#/$defs/ChildList"}
           theme: {type: "string", enum: ["primary", "secondary"]}
 
@@ -1311,8 +1321,7 @@ tests:
               traceId: "t1"
       - component: "DeclaredA11yCard"
         id: "decl_a11y"
-        parameters:
-          title: "Explicit Param"
+        title: "Explicit Param"
         accessibility:
           label: "Passed as param"
       - component: "WeightedCard"
@@ -1357,6 +1366,8 @@ tests:
     description: "transform_to_transport retains unexpanded components when a macro receives undeclared non-envelope properties, binding dicts for primitive parameters, or raises runtime validation errors, while expanding valid siblings"
     surface_id: "conformance"
     envelope_version: "1.0"
+    validation:
+      skip_renderer_validation: true
     input:
       - component: "StatusBadge"
         id: "bad_weight"
@@ -1410,6 +1421,18 @@ tests:
         - id: "ok_badge"
           component: "Card"
           child: "ok_badge__row_1"
+
+  - id: "33b_error_on_error_raise_surfaces_validation_error"
+    description: "MacroExpander with on_error='raise' raises ValidationError when a macro fails coercion or raises a runtime validation error"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    on_error: "raise"
+    input:
+      component: "PositiveCountCard"
+      id: "root"
+      count: -1
+    expect_error:
+      category: "ValidationError"
 
   - id: "34_v1_0_multi_catalog_foo_bar_baz_and_defaultless_surface"
     description: "v1.0 macro combining primitives from FooCatalog and BarCatalog emits explicit catalogIds on both a defaultless surface and a third-catalog default surface"
@@ -1474,11 +1497,15 @@ tests:
               cta_label: "Promote"
               on_cta: "promote_clicked"
 
-  - id: "35_v1_0_no_auto_stamping_on_unannotated_nodes"
-    description: "Unannotated builder nodes emitted by a macro are never auto-stamped with any catalogId even when base_catalogs are registered"
+  - id: "35_v1_0_auto_stamping_from_base_catalogs_on_defaultless_surface"
+    description: "Unannotated builder nodes emitted by a macro on a defaultless v1.0 surface are stamped with their unique owning catalogId from base_catalogs"
+    golden: "35_v1_0_auto_stamping_from_base_catalogs_on_defaultless_surface.json"
     envelope_version: "1.0"
     macro_catalog_id: "https://example.com/brand.json"
     base_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - "https://example.com/brand.json"
+    validation_catalogs:
       - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
       - "https://example.com/brand.json"
     messages:
@@ -1492,9 +1519,30 @@ tests:
             - id: "root"
               component: "UnannotatedBrandCard"
               catalogId: "https://example.com/brand.json"
-              title: "No auto stamping"
-    expect:
-      absent_property_on_all_components: "catalogId"
+              title: "Auto stamped"
+
+  - id: "35b_error_ambiguous_primitive_on_defaultless_surface"
+    description: "Expanding an unannotated primitive defined in multiple registered base_catalogs on a defaultless v1.0 surface raises CatalogError"
+    envelope_version: "1.0"
+    macro_catalog_id: "https://example.com/brand.json"
+    base_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - "https://example.com/brand.json"
+      - "https://example.com/brand_surface.json"
+    messages:
+      - version: "1.0"
+        createSurface:
+          surfaceId: "s_none"
+      - version: "1.0"
+        updateComponents:
+          surfaceId: "s_none"
+          components:
+            - id: "root"
+              component: "UnannotatedBrandCard"
+              catalogId: "https://example.com/brand.json"
+              title: "Ambiguous BrandBox"
+    expect_error:
+      category: "CatalogError"
 
   - id: "36_surface_lifecycle_delete_recreate_and_null_catalog_id"
     description: "MacroExpander updates surface default catalog across deleteSurface and createSurface and treats explicit null catalogId identically to unset catalogId"
@@ -1566,6 +1614,9 @@ tests:
     base_catalogs:
       - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
       - "https://example.com/brand_surface.json"
+    validation_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      - "https://example.com/brand_surface.json"
     surface_catalogs:
       main: "https://example.com/brand_surface.json"
     input:
@@ -1588,6 +1639,8 @@ tests:
     base_catalogs:
       - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
       - "https://example.com/brand_surface.json"
+    validation_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
     surface_catalogs:
       main: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
     input:
@@ -1604,6 +1657,8 @@ tests:
     surface_id: "untracked_surface"
     envelope_version: "1.0"
     macro_catalog_id: "https://example.com/brand.json"
+    validation:
+      skip_renderer_validation: true
     input:
       - id: "plain_text"
         component: "Text"
@@ -1636,6 +1691,8 @@ tests:
     catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
     base_catalogs:
       - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    validation_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
     input:
       id: "root"
       component: "Text"
@@ -1647,16 +1704,21 @@ tests:
       absent_property_on_all_components: "catalogId"
 
   - id: "37e_standalone_macro_catalog_surface_default"
-    description: "A surface whose default catalogId is the standalone macro catalog expands nested macros without requiring explicit catalogId on each invocation"
+    description: "A surface whose default catalogId is the standalone macro catalog expands nested macros and rewrites createSurface.catalogId to the registered transport catalog"
     surface_id: "s_macros"
     envelope_version: "1.0"
     catalog_id: "https://a2ui.org/catalogs/macros"
+    base_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    validation_catalogs:
+      - "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
     input:
       id: "root"
       component: "NestedMacroCard"
       title: "Cluster"
       status: "ok"
     expect:
+      create_surface_catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
       component_types:
         - "Text"
         - "Text"

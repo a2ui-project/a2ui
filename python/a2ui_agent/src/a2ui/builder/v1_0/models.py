@@ -15,7 +15,7 @@
 """Protocol v1.0 data models, bindings, actions, and type aliases for A2UI builders.
 
 Re-exports ``AccessibilityAttributes``, ``ActionEvent``, ``CheckRule``,
-``DataBinding``, and ``FunctionCall`` from ``a2ui.core.schema.v1_0``.
+``DataBinding``, ``Extensions``, and ``FunctionCall`` from ``a2ui.core.schema.v1_0``.
 Defines ``ComponentBuilderNode``, ``Action``, and ``DynamicChildList`` locally
 for ergonomic authoring.
 """
@@ -23,12 +23,14 @@ for ergonomic authoring.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Self, TypeAlias
+import copy
+from typing import Any, ClassVar, Self, TypeAlias
 
 from pydantic import (
     AliasChoices,
     AliasPath,
     Field,
+    PydanticUndefinedAnnotation,
     StrictBool,
     StrictFloat,
     StrictInt,
@@ -44,7 +46,7 @@ from a2ui.core.schema.v1_0 import (
     ComponentCommonMetadata,
     CreateSurfaceMetadata,
     DataBinding as DataBinding,
-    Extensions,
+    Extensions as Extensions,
     FunctionCall as FunctionCall,
     LiteralObject,
 )
@@ -52,9 +54,17 @@ from ..core.base_model import BuilderBaseModel
 from ..core.base_node import ComponentBuilderNode as CoreComponentBuilderNode
 from ..core.child import Child
 
+_UNSET_CATALOG_ID: Any = object()
+
 
 class ComponentBuilderNode(CoreComponentBuilderNode):
-    """Base class for A2UI Protocol v1.0 component builders with envelope attributes."""
+    """Base class for A2UI Protocol v1.0 component builders with envelope attributes.
+
+    Custom catalog builders may bind a default ``catalogId`` once on a shared
+    base class via ``class FooCatalogNode(ComponentBuilderNode, catalog_id=FOO_CID): ...``.
+    """
+
+    _default_catalog_id: ClassVar[str | None] = None
 
     catalog_id: str | None = Field(default=None, alias="catalogId")
     accessibility: AccessibilityAttributes | None = None
@@ -66,15 +76,60 @@ class ComponentBuilderNode(CoreComponentBuilderNode):
         ),
     )
 
+    def __init_subclass__(
+        cls,
+        *,
+        catalog_id: str | None = _UNSET_CATALOG_ID,
+        **kwargs: Any,
+    ) -> None:
+        super().__init_subclass__(**kwargs)
+        if catalog_id is not _UNSET_CATALOG_ID:
+            cls._default_catalog_id = catalog_id
+
     @classmethod
-    def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
+    def __pydantic_init_subclass__(
+        cls,
+        *,
+        catalog_id: str | None = _UNSET_CATALOG_ID,
+        **kwargs: Any,
+    ) -> None:
         super().__pydantic_init_subclass__(**kwargs)
+        if catalog_id is not _UNSET_CATALOG_ID:
+            cls._default_catalog_id = catalog_id
+
         cat_field = cls.model_fields.get("catalog_id")
-        if cat_field is not None and cat_field.alias is None:
-            cat_field.alias = "catalogId"
-            cat_field.validation_alias = "catalogId"
-            cat_field.serialization_alias = "catalogId"
-            cls.model_rebuild(force=True, raise_errors=False)
+        if cat_field is None:
+            return
+
+        new_field = copy.copy(cat_field)
+        needs_rebuild = False
+
+        inherited_cid = cls._default_catalog_id
+        defines_own_field = (
+            "catalog_id" in cls.__dict__ or "catalog_id" in cls.__annotations__
+        )
+        if not defines_own_field and new_field.default != inherited_cid:
+            new_field.default = inherited_cid
+            needs_rebuild = True
+
+        if new_field.alias is None:
+            if (
+                new_field.validation_alias is None
+                and new_field.serialization_alias is None
+            ):
+                new_field.alias = "catalogId"
+            if new_field.validation_alias is None:
+                new_field.validation_alias = "catalogId"
+            if new_field.serialization_alias is None:
+                new_field.serialization_alias = "catalogId"
+            needs_rebuild = True
+
+        if needs_rebuild:
+            cls.model_fields["catalog_id"] = new_field
+            try:
+                cls.model_rebuild(force=True, raise_errors=True)
+            except PydanticUndefinedAnnotation:
+                cls.model_rebuild(force=True, raise_errors=False)
 
     @field_serializer("extensions")
     def _serialize_extensions(
@@ -226,6 +281,7 @@ __all__ = [
     "DynamicString",
     "DynamicStringList",
     "DynamicValue",
+    "Extensions",
     "FunctionCall",
     "set_surface_extensions",
 ]

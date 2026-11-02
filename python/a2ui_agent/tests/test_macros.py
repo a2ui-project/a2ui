@@ -21,8 +21,9 @@ scoping, and error semantics are covered by ``conformance/agent/macros/macros.ya
 import copy
 from enum import Enum
 import logging
-from typing import Any, Literal, Optional, Sequence
+from typing import Annotated, Any, Literal, Optional, Sequence
 
+from pydantic import Field
 import pytest
 
 from a2ui.builder import v1_0 as builder_v1_0
@@ -37,6 +38,7 @@ from a2ui.builder.v0_9 import (
 )
 from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core import (
+    A2uiCatalogError,
     A2uiRecursionError,
     A2uiValidationError,
     Catalog,
@@ -180,8 +182,10 @@ def test_python_enum_any_dict_and_custom_ref_prefix_schema():
         arbitrary_data: Any,
         metadata: dict[str, Any],
         raw_dict: dict,
+        annotated_field: Annotated[str, Field(description="Field description")],
+        annotated_str: Annotated[int, "Inline string description"],
     ) -> Card:
-        """Macro testing Python Enum, Any, dict, and custom ref_prefix."""
+        """Macro testing Python Enum, Any, dict, Annotated, and custom ref_prefix."""
         return Card(child=Text(text="flexible"))
 
     meta = FlexibleMacro.__a2ui_macro__
@@ -191,11 +195,18 @@ def test_python_enum_any_dict_and_custom_ref_prefix_schema():
     assert props["theme_enum"] == {
         "type": "string",
         "enum": ["light", "dark"],
-        "description": "Theme enum",
     }
-    assert props["arbitrary_data"] == {"description": "Arbitrary data"}
-    assert props["metadata"] == {"type": "object", "description": "Metadata"}
-    assert props["raw_dict"] == {"type": "object", "description": "Raw dict"}
+    assert props["arbitrary_data"] == {}
+    assert props["metadata"] == {"type": "object"}
+    assert props["raw_dict"] == {"type": "object"}
+    assert props["annotated_field"] == {
+        "type": "string",
+        "description": "Field description",
+    }
+    assert props["annotated_str"] == {
+        "type": "integer",
+        "description": "Inline string description",
+    }
 
     custom_prefix = "https://a2ui.org/specification/v0_9/common_types.json#/$defs/"
     custom_schema = meta.to_json_schema(ref_prefix=custom_prefix)
@@ -244,13 +255,12 @@ def test_v1_0_canonical_protocol_types_and_pep604_unions_schema():
     assert props["checks"] == {
         "type": "array",
         "items": {"$ref": "common_types.json#/$defs/CheckRule"},
-        "description": "Checks",
     }
     assert (
         props["accessibility"]["$ref"]
         == "common_types.json#/$defs/AccessibilityAttributes"
     )
-    assert props["footer"]["$ref"] == "common_types.json#/$defs/ComponentId"
+    assert props["footer"]["$ref"] == "common_types.json#/$defs/Child"
     assert props["items"]["$ref"] == "common_types.json#/$defs/ChildList"
     assert props["fn_call"]["$ref"] == "common_types.json#/$defs/FunctionCall"
     assert props["binding"]["$ref"] == "common_types.json#/$defs/DataBinding"
@@ -517,9 +527,9 @@ def test_scoped_logging_surface_catalogs_immutability_and_lru_eviction(caplog):
     )
     assert scoped_expander._surface_catalogs == {}
 
-    # Exceeding _MAX_TRACKED_SURFACES (256) evicts oldest entry and logs debug
+    # Exceeding _MAX_TRACKED_SURFACES (256) evicts oldest entry and logs warning
     caplog.clear()
-    with caplog.at_level(logging.DEBUG):
+    with caplog.at_level(logging.WARNING):
         scoped_expander.transform_to_transport([
             CreateSurfaceMessageV10(
                 version="1.0",
@@ -532,7 +542,9 @@ def test_scoped_logging_surface_catalogs_immutability_and_lru_eviction(caplog):
     assert "surf_0" not in scoped_expander._surface_catalogs
     assert "surf_256" in scoped_expander._surface_catalogs
     assert any(
-        "Evicted oldest tracked surface 'surf_0'" in r.message for r in caplog.records
+        r.levelno == logging.WARNING
+        and "Evicted oldest tracked surface 'surf_0'" in r.message
+        for r in caplog.records
     )
 
 
@@ -1021,3 +1033,413 @@ def test_v1_0_mixable_catalogs_foo_bar_baz_macro_with_express():
     mp.process_messages(
         [m.model_dump(by_alias=True, exclude_none=True) for m in lowered]
     )
+
+
+def test_v1_0_transform_catalogs_and_sidecar_basic_catalog_end_to_end():
+    """Verifies sidecar macros mixing BasicCatalog('1.0') and custom catalogs lower cleanly for MessageProcessor."""
+    basic_cat = BasicCatalog("1.0")
+    foo_cid = "https://example.com/catalogs/foo/v1/catalog.json"
+    common_ref = "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/"
+
+    foo_catalog = Catalog.from_json(
+        catalog_schema={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "protocolVersion": "1.0",
+            "catalogId": foo_cid,
+            "components": {
+                "FooBanner": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "FooBanner"},
+                        "id": {"type": "string"},
+                        "headline": {"$ref": f"{common_ref}DynamicString"},
+                    },
+                    "required": ["component", "id", "headline"],
+                },
+            },
+            "$defs": {
+                "anyComponent": {
+                    "oneOf": [{"$ref": "#/components/FooBanner"}],
+                    "discriminator": {"propertyName": "component"},
+                },
+                "anyFunction": {"not": {}},
+            },
+        },
+        protocol_version="1.0",
+        catalog_id=foo_cid,
+    )
+
+    class FooCatalogNode(builder_v1_0.ComponentBuilderNode, catalog_id=foo_cid):
+        pass
+
+    class FooBanner(FooCatalogNode):
+        component: Literal["FooBanner"] = "FooBanner"
+        headline: builder_v1_0.DynamicString
+
+    @macro
+    def ProductCard(
+        title: builder_v1_0.DynamicString,
+        price: str,
+        on_buy: builder_v1_0.Action,
+    ) -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            child=builder_v1_0.Column(
+                children=[
+                    FooBanner(headline=title),
+                    builder_v1_0.Text(text=price, variant="caption"),
+                    builder_v1_0.Button(
+                        child=builder_v1_0.Text(text="Buy"),
+                        action=on_buy,
+                        variant="primary",
+                    ),
+                ]
+            )
+        )
+
+    # 1. Recommended transform_catalogs([basic_cat, foo_catalog]) setup
+    expander = MacroExpander([ProductCard])
+    inf_catalogs = expander.transform_catalogs([basic_cat, foo_catalog])
+    assert len(inf_catalogs) == 3
+    fmt = ExpressFormat(catalogs=inf_catalogs, surface_id="shop")
+
+    llm_output = (
+        "<a2ui>\n"
+        'surface("shop")\n'
+        "item_card = ProductCard(\n"
+        "  title=$/product/name,\n"
+        '  price="$49",\n'
+        '  on_buy={event: {name: "buy_clicked", userMessage: "Buy item"}}\n'
+        ")\n"
+        "root = Column([item_card])\n"
+        "</a2ui>"
+    )
+    parts = fmt.create_parser().parse_response(llm_output)
+    lowered = expander.transform_to_transport(parts[0].a2ui)
+
+    mp = MessageProcessor(
+        [basic_cat, foo_catalog],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+    mp.process_messages(
+        [m.model_dump(by_alias=True, exclude_none=True) for m in lowered]
+    )
+
+    # 2. Pure basic-catalog + sidecar macro catalog setup ([basic_cat, expander.to_catalog()])
+    @macro
+    def SimpleNotice(msg: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(child=builder_v1_0.Text(text=msg))
+
+    basic_expander = MacroExpander([SimpleNotice], base_catalogs=[basic_cat])
+    sidecar_fmt = ExpressFormat(
+        catalogs=[basic_cat, basic_expander.to_catalog()],
+        surface_id="notice_surf",
+    )
+    sidecar_parts = sidecar_fmt.create_parser().parse_response(
+        '<a2ui>\nroot = SimpleNotice(msg="Ready")\n</a2ui>'
+    )
+    sidecar_lowered = basic_expander.transform_to_transport(sidecar_parts[0].a2ui)
+    mp_basic = MessageProcessor(
+        [basic_cat],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+    mp_basic.process_messages(
+        [m.model_dump(by_alias=True, exclude_none=True) for m in sidecar_lowered]
+    )
+
+
+def test_v1_0_catalog_submodels_and_noncanonical_unions_with_express():
+    """Verifies TabItem, ChoicePickerOption, IconNameSvgPath, ActionEvent, and unions synthesize schemas and coerce nested wire payloads."""
+
+    @macro
+    def TabbedSelector(
+        tabs: Sequence[builder_v1_0.TabItem],
+        options: Sequence[builder_v1_0.ChoicePickerOption],
+        icon: builder_v1_0.IconName | builder_v1_0.IconNameSvgPath,
+        evt: builder_v1_0.ActionEvent,
+        size: Literal["sm", "lg"] | builder_v1_0.DataBinding,
+        counts: Sequence[int] | builder_v1_0.DataBinding,
+    ) -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            child=builder_v1_0.Column(
+                children=[
+                    builder_v1_0.Icon(name=icon),
+                    builder_v1_0.Tabs(tabs=tabs),
+                    builder_v1_0.ChoicePicker(
+                        options=options,
+                        value=["opt_a"],
+                    ),
+                    builder_v1_0.Button(
+                        child=builder_v1_0.Text(text=f"Run ({size}, {counts})"),
+                        action=builder_v1_0.Action(event=evt),
+                    ),
+                ]
+            )
+        )
+
+    basic_cat = BasicCatalog("1.0")
+    expander = MacroExpander([TabbedSelector])
+    inf_catalogs = expander.transform_catalogs([basic_cat])
+    macro_schema = inf_catalogs[-1].to_json()["components"]["TabbedSelector"]
+    props = macro_schema["properties"]
+
+    # Sub-model schemas and non-canonical union oneOf schemas
+    assert props["tabs"]["type"] == "array"
+    assert props["tabs"]["items"]["properties"]["child"] == {
+        "$ref": "common_types.json#/$defs/Child"
+    }
+    assert props["options"]["type"] == "array"
+    assert props["options"]["items"]["properties"]["label"] == {
+        "$ref": "common_types.json#/$defs/DynamicString"
+    }
+    assert "oneOf" in props["icon"]
+    assert "oneOf" in props["size"]
+    assert "oneOf" in props["counts"]
+    assert props["counts"]["oneOf"][0] == {
+        "type": "array",
+        "items": {"type": "integer"},
+    }
+
+    fmt = ExpressFormat(catalogs=inf_catalogs, surface_id="submodels")
+    llm_output = (
+        '<a2ui>\ntab_body = Text("Overview tab content")\nroot = TabbedSelector(\n '
+        ' tabs=[{title: "Overview", child: tab_body}],\n  options=[{label:'
+        ' "Option A", value: "opt_a"}],\n  icon={svgPath: "M10 20v-6h4v6h5v-8h3L12'
+        ' 3 2 12h3v8z"},\n  evt={name: "confirm", userMessage: "Confirm'
+        ' selection"},\n  size=$/ui/size,\n  counts=[1, 2, 3]\n)\n</a2ui>'
+    )
+    parts = fmt.create_parser().parse_response(llm_output)
+    lowered = expander.transform_to_transport(parts[0].a2ui)
+
+    mp = MessageProcessor(
+        [basic_cat],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+    mp.process_messages(
+        [m.model_dump(by_alias=True, exclude_none=True) for m in lowered]
+    )
+
+    # Also verify Direct JSON / wire coercion of nested @path bindings inside sub-models
+    direct_lowered = expander.transform_to_transport([
+        CreateSurfaceMessageV10(
+            version="1.0",
+            createSurface=CreateSurfaceV10(
+                surfaceId="submodels_json",
+                catalogId=basic_cat.catalog_id,
+                components=[
+                    {
+                        "id": "tab_body",
+                        "component": "Text",
+                        "text": "Overview tab content",
+                    },
+                    {
+                        "id": "root",
+                        "component": "TabbedSelector",
+                        "catalogId": expander.macro_catalog_id,
+                        "tabs": [{
+                            "title": {"@path": "/tabs/firstTitle"},
+                            "child": "tab_body",
+                        }],
+                        "options": [
+                            {"label": {"@path": "/opts/aLabel"}, "value": "opt_a"}
+                        ],
+                        "icon": {"svgPath": "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"},
+                        "evt": {
+                            "name": "confirm",
+                            "userMessage": "Confirm selection",
+                            "context": {"tab": {"@path": "/tabs/active"}},
+                        },
+                        "size": {"@path": "/ui/size"},
+                        "counts": {"@path": "/ui/counts"},
+                    },
+                ],
+            ),
+        )
+    ])
+    mp_json = MessageProcessor(
+        [basic_cat],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+    mp_json.process_messages(
+        [m.model_dump(by_alias=True, exclude_none=True) for m in direct_lowered]
+    )
+
+
+def test_macro_edge_cases_parameters_name_any_dict_and_single_root():
+    """Covers declared 'parameters' arg, Any dict preservation, sibling macro non-hijacking, on_error, anyComponent boundaries, and single-root checks."""
+
+    # 1. Macro declaring a parameter literally named 'parameters' (c021)
+    @macro
+    def QueryCard(parameters: dict[str, Any]) -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            child=builder_v1_0.Text(text=f"limit={parameters['limit']}")
+        )
+
+    q_out = MacroExpander([QueryCard]).processor.expand(
+        "QueryCard",
+        {"parameters": {"limit": 25}},
+        instance_id="q1",
+    )
+    assert q_out[0]["text"] == "limit=25"
+
+    # 2. Untyped / Any dict with 'template' or extra keys stays a plain dict (c022)
+    @macro
+    def PayloadEcho(config: Any) -> builder_v1_0.Card:
+        assert isinstance(config, dict)
+        return builder_v1_0.Card(
+            child=builder_v1_0.Text(text=config.get("template", "other"))
+        )
+
+    echo_exp = MacroExpander([PayloadEcho])
+    assert (
+        echo_exp.processor.expand(
+            "PayloadEcho",
+            {"config": {"template": "welcome", "subject": "Hi"}},
+            instance_id="e1",
+        )[0]["text"]
+        == "welcome"
+    )
+    assert (
+        echo_exp.processor.expand(
+            "PayloadEcho",
+            {"config": {"path": "/items", "componentId": "row", "extra": True}},
+            instance_id="e2",
+        )[0]["text"]
+        == "other"
+    )
+
+    # 3. Sibling macro named 'Text' does not hijack builder_v1_0.Text on a defaultless surface (c023)
+    basic_cat = BasicCatalog("1.0")
+    brand_cid = "https://example.com/brand_macros.json"
+
+    @macro(name="Text")
+    def BrandText(text: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(child=builder_v1_0.Text(text=f"[Brand] {text}"))
+
+    @macro
+    def BannerMacro(headline: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(child=builder_v1_0.Text(text=headline))
+
+    scoped = MacroExpander(
+        [BrandText, BannerMacro],
+        catalog_id=brand_cid,
+        base_catalogs=[basic_cat],
+    )
+    lowered_defaultless = scoped.transform_to_transport([
+        CreateSurfaceMessageV10(
+            version="1.0",
+            createSurface=CreateSurfaceV10(surfaceId="s_def"),
+        ),
+        UpdateComponentsMessageV10(
+            version="1.0",
+            updateComponents=UpdateComponentsV10(
+                surfaceId="s_def",
+                components=[{
+                    "id": "root",
+                    "component": "BannerMacro",
+                    "catalogId": brand_cid,
+                    "headline": "Plain text inside BannerMacro",
+                }],
+            ),
+        ),
+    ])
+    lowered_comps = lowered_defaultless[1].update_components.components
+    assert [c["component"] for c in lowered_comps] == ["Text", "Card"]
+    assert lowered_comps[0]["text"] == "Plain text inside BannerMacro"
+
+    # 4. on_error validation and raise policy (c025)
+    with pytest.raises(ValueError, match="Invalid on_error"):
+        MacroExpander([BannerMacro], on_error="ignore")  # type: ignore[arg-type]
+
+    @macro
+    def BrokenMultiRoot(label: str):
+        return [builder_v1_0.Text(text=label), builder_v1_0.Text(text="two")]
+
+    strict_exp = MacroExpander([BrokenMultiRoot], on_error="raise")
+    with pytest.raises(A2uiValidationError, match="single root ComponentBuilderNode"):
+        strict_exp.transform_to_transport([
+            UpdateComponentsMessageV10(
+                version="1.0",
+                updateComponents=UpdateComponentsV10(
+                    surfaceId="s1",
+                    components=[{
+                        "id": "root",
+                        "component": "BrokenMultiRoot",
+                        "label": "bad",
+                    }],
+                ),
+            )
+        ])
+
+    @macro
+    def BrokenStrReturn(label: str):
+        return label
+
+    with pytest.raises(TypeError, match="must return a ComponentBuilderNode"):
+        MacroExpander([BrokenStrReturn], protocol_version="1.0").processor.expand(
+            "BrokenStrReturn", {"label": "oops"}, instance_id="r1"
+        )
+
+    # 5. $defs.anyComponent empty-catalog and full-pruning boundary cases (c026)
+    empty_v10_cat = Catalog.from_json(
+        catalog_schema={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "protocolVersion": "1.0",
+            "catalogId": "https://example.com/empty.json",
+            "components": {},
+            "$defs": {
+                "anyComponent": {"not": {}},
+                "anyFunction": {"not": {}},
+            },
+        },
+        protocol_version="1.0",
+        catalog_id="https://example.com/empty.json",
+    )
+    aug_from_empty = MacroExpander([BannerMacro]).transform_to_inference_catalog(
+        empty_v10_cat
+    )
+    assert aug_from_empty.to_json()["$defs"]["anyComponent"] == {
+        "oneOf": [{"$ref": "#/components/BannerMacro"}],
+        "discriminator": {"propertyName": "component"},
+    }
+
+    pruned_to_empty = MacroExpander(
+        [], passthrough_components=[], protocol_version="1.0"
+    ).transform_to_inference_catalog(basic_cat)
+    assert pruned_to_empty.to_json()["$defs"]["anyComponent"] == {"not": {}}
+
+    # 6. Order-independence of to_catalog() after transform_to_inference_catalog (c019)
+    @macro
+    def VersionNeutralMacro(content):
+        return builder_v1_0.Card(child=builder_v1_0.Text(text=content))
+
+    neutral_exp = MacroExpander([VersionNeutralMacro])
+    assert neutral_exp.to_catalog().protocol_version == "0.9.1"
+    _ = neutral_exp.transform_to_inference_catalog(basic_cat)
+    assert neutral_exp.to_catalog().protocol_version == "0.9.1"
+
+    # Unregistered primitive on defaultless surface with base_catalogs raises A2uiCatalogError
+    class UnknownWidget(builder_v1_0.ComponentBuilderNode):
+        component: Literal["UnknownWidget"] = "UnknownWidget"
+
+    @macro
+    def EmitsUnknown() -> UnknownWidget:
+        return UnknownWidget()
+
+    with pytest.raises(
+        A2uiCatalogError, match="not found in any registered base catalog"
+    ):
+        MacroExpander(
+            [EmitsUnknown], base_catalogs=[basic_cat]
+        ).transform_to_transport([
+            CreateSurfaceMessageV10(
+                version="1.0",
+                createSurface=CreateSurfaceV10(surfaceId="s_unk"),
+            ),
+            UpdateComponentsMessageV10(
+                version="1.0",
+                updateComponents=UpdateComponentsV10(
+                    surfaceId="s_unk",
+                    components=[{"id": "root", "component": "EmitsUnknown"}],
+                ),
+            ),
+        ])
