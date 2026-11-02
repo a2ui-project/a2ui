@@ -3,7 +3,7 @@ title: 'Overview: How A2UI Works'
 description: 'Core architecture, mental model, and end-to-end pipeline of the Agent-to-User Interface protocol.'
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import {Tabs, TabItem} from '@astrojs/starlight/components';
 import ArchitecturePipelineOverview from '../../../components/docs/overview/ArchitecturePipelineOverview.astro';
 
 A2UI enables AI agents to stream native, interactive user interfaces to client applications through structured protocol messages. This overview explains the end-to-end architecture, core mental model, and message lifecycle connecting agent runtimes with client renderers. Instead of streaming raw HTML strings, unstyled webviews, or static Markdown prose, an A2UI agent streams structured JSON messages that construct native UI components and update local reactive state.
@@ -118,7 +118,7 @@ Before invoking the model, the A2UI Agent SDK reads the catalog and generates na
 
 The user provides a prompt in the client application:
 
-> *"Berlin to San Francisco today, and two tickets back on Oct 19."*
+> _"Berlin to San Francisco today, and two tickets back on Oct 19."_
 
 The host agent application receives this prompt and begins reasoning:
 
@@ -184,8 +184,8 @@ Layout tree message referencing the candidate schema permalink [`updateComponent
           "flightNumber": "LH 454",
           "origin": "BER",
           "destination": "SFO",
-          "price": { "@path": "/outbound/price" },
-          "passengers": { "@path": "/outbound/pax" }
+          "price": {"@path": "/outbound/price"},
+          "passengers": {"@path": "/outbound/pax"}
         }
       },
       {
@@ -199,8 +199,8 @@ Layout tree message referencing the candidate schema permalink [`updateComponent
           "event": {
             "name": "confirm_booking",
             "context": {
-              "outboundPax": { "@path": "/outbound/pax" },
-              "returnPax": { "@path": "/return/pax" }
+              "outboundPax": {"@path": "/outbound/pax"},
+              "returnPax": {"@path": "/return/pax"}
             }
           }
         }
@@ -260,8 +260,8 @@ Layout tree message referencing the active schema permalink [`updateComponents`]
           "flightNumber": "LH 454",
           "origin": "BER",
           "destination": "SFO",
-          "price": { "path": "/outbound/price" },
-          "passengers": { "path": "/outbound/pax" }
+          "price": {"path": "/outbound/price"},
+          "passengers": {"path": "/outbound/pax"}
         }
       },
       {
@@ -275,8 +275,8 @@ Layout tree message referencing the active schema permalink [`updateComponents`]
           "event": {
             "name": "confirm_booking",
             "context": {
-              "outboundPax": { "path": "/outbound/pax" },
-              "returnPax": { "path": "/return/pax" }
+              "outboundPax": {"path": "/outbound/pax"},
+              "returnPax": {"path": "/return/pax"}
             }
           }
         }
@@ -322,7 +322,7 @@ The client application receives the messages over its transport channel (e.g. AG
    - The stepper directly increments `/outbound/pax` in the local data model.
    - Any widget referencing `/outbound/pax` or computed total recalculates instantly at 60 FPS.
    - No network traffic is sent to the server for intermediate UI state changes.
-5. **Action submission**: When the user taps *"Confirm Booking & Proceed"*, the renderer evaluates the `action.event.context` paths against the current data model values and dispatches an `action` message back to the agent:
+5. **Action submission**: When the user taps _"Confirm Booking & Proceed"_, the renderer evaluates the `action.event.context` paths against the current data model values and dispatches an `action` message back to the agent:
 
 ```json
 {
@@ -352,6 +352,7 @@ The client renderer advertises its supported catalogs and protocol versions in t
 - In **v0.9.1 (Active)**, the metadata key is [`a2uiClientCapabilities`](/specification/v0.9.1/schemas/#client_capabilities.json).
 
 Depending on the underlying transport:
+
 - In **A2A (Agent-to-Agent)**: The renderer attaches capabilities to the `metadata` property of each turn message.
 - In **MCP (Model Context Protocol)**: Capabilities are passed during session initialization.
 - In **Custom HTTP / WebSocket transports**: Capabilities are transmitted in handshake headers or initial connection payloads.
@@ -401,10 +402,10 @@ Client capability advertisement using [`client_capabilities.json`](/specificatio
 
 ### Key Capability Fields
 
-| Field | Type | Description |
-| :--- | :--- | :--- |
+| Field                 | Type       | Description                                                                                                                                                                |
+| :-------------------- | :--------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `supportedCatalogIds` | `string[]` | Array of canonical catalog URIs that the client renderer has registered locally. The renderer can mix components from multiple supported catalogs within a single surface. |
-| `inlineCatalogs` | `object[]` | Optional array of complete catalog definitions transmitted directly in the message. Provided only if the agent declares `acceptsInlineCatalogs: true` in its capabilities. |
+| `inlineCatalogs`      | `object[]` | Optional array of complete catalog definitions transmitted directly in the message. Provided only if the agent declares `acceptsInlineCatalogs: true` in its capabilities. |
 
 ### Catalog Resolution Order
 
