@@ -283,6 +283,31 @@ public final class MessageProcessor: ObservableObject {
       catalogDictionary["theme"] = processedTheme["properties"] ?? processedTheme
     }
 
+    if version.isAtLeastV10 {
+      var defs: OrderedDictionary<String, JSONValue> = [:]
+      if !componentsDictionary.isEmpty {
+        let componentRefs: [JSONValue] = componentsDictionary.keys.map {
+          .object(["$ref": .string("#/components/\($0)")])
+        }
+        defs["anyComponent"] = .object([
+          "oneOf": .array(componentRefs),
+          "discriminator": .object(["propertyName": .string("component")]),
+        ])
+      }
+      if !catalog.functions.isEmpty {
+        let functionRefs: [JSONValue] = catalog.functions.keys.sorted().compactMap { key in
+          guard let name = catalog.functions[key]?.api.name else { return nil }
+          return .object(["$ref": .string("#/functions/\(name)")])
+        }
+        defs["anyFunction"] = .object([
+          "oneOf": .array(functionRefs)
+        ])
+      }
+      if !defs.isEmpty {
+        catalogDictionary["$defs"] = .object(defs)
+      }
+    }
+
     return .object(catalogDictionary)
   }
 
@@ -315,12 +340,18 @@ public final class MessageProcessor: ObservableObject {
     ]
     var required: [JSONValue] = [.string("component")]
 
-    if let originalProperties = processedSchema["properties"]?.objectValue {
+    let propsSource =
+      processedSchema["properties"]?.objectValue
+      ?? processedSchema["allOf"]?.arrayValue?.compactMap { $0["properties"]?.objectValue }.first
+    if let originalProperties = propsSource {
       for (key, value) in originalProperties {
         properties[key] = value
       }
     }
-    if let originalRequired = processedSchema["required"]?.arrayValue {
+    let reqSource =
+      processedSchema["required"]?.arrayValue
+      ?? processedSchema["allOf"]?.arrayValue?.compactMap { $0["required"]?.arrayValue }.first
+    if let originalRequired = reqSource {
       for requiredProperty in originalRequired where !required.contains(requiredProperty) {
         required.append(requiredProperty)
       }

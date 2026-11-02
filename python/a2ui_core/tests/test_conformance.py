@@ -315,8 +315,13 @@ def _build_inline_catalog(
     c_theme = spec.get("theme")
     c_funcs = spec.get("functions")
     if c_comps or c_theme or c_funcs:
-        c_schema: dict[str, Any] = {"catalogId": c_id}
-        if forbid_unlisted_functions and not c_funcs:
+        c_schema: dict[str, Any] = {}
+        if "$schema" in spec:
+            c_schema["$schema"] = spec["$schema"]
+        if "protocolVersion" in spec:
+            c_schema["protocolVersion"] = spec["protocolVersion"]
+        c_schema["catalogId"] = c_id
+        if forbid_unlisted_functions and not c_funcs and "$defs" not in spec:
             c_schema["$defs"] = {"anyFunction": {"not": {}}}
         if c_comps:
             c_schema["components"] = c_comps
@@ -324,6 +329,8 @@ def _build_inline_catalog(
             c_schema["theme"] = c_theme
         if c_funcs:
             c_schema["functions"] = c_funcs
+        if "$defs" in spec:
+            c_schema["$defs"] = spec["$defs"]
         return Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
     is_cap = action in ("get_client_capabilities", "get_renderer_capabilities")
     default_comps = [] if is_cap else list(basic_catalog.components.values())
