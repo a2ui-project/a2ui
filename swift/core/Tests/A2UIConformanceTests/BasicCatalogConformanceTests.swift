@@ -38,34 +38,7 @@ private final class ConformanceMockFunctionHandler: FunctionHandler {
 
 @MainActor
 struct BasicCatalogConformanceTests {
-  private static let regexKnownIssueReason =
-    "A2UI regex subset and static safety guard not yet implemented in Swift"
-
-  static let knownEvaluateFunctionIssues: [String: String] = [
-    "test_evaluate_function_regex_v10_digit_class_ascii_only": regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_word_class_ascii_only": regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_word_boundary_ascii_only": regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_rejects_backreference": regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_rejects_lookbehind": regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_rejects_named_group": regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_rejects_inline_flag": regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_rejects_unicode_property": regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_rejects_nested_quantifier_plus": regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_rejects_nested_quantifier_bounded_outer":
-      regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_rejects_overlapping_alternation_prefix":
-      regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_rejects_overlapping_alternation_class": regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_rejects_adjacent_overlap_direct": regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_rejects_adjacent_overlap_across_nullable":
-      regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_rejects_257_code_point_pattern": regexKnownIssueReason,
-    "test_evaluate_function_regex_v10_value_exceeding_4096_code_points_returns_invalid":
-      regexKnownIssueReason,
-    "test_evaluate_function_regex_v09_rejects_nested_quantifier": regexKnownIssueReason,
-    "test_evaluate_function_regex_v09_value_exceeding_4096_code_points_returns_false":
-      regexKnownIssueReason,
-  ]
+  static let knownEvaluateFunctionIssues: [String: String] = [:]
 
   private static let knownEvaluateFunctionCaseKeys: Set<String> = [
     "action",

@@ -47,17 +47,12 @@ public final class RegexFunction: FunctionImplementation, Sendable {
       return returnValidationResult ? .object(["valid": .boolean(false)]) : .boolean(false)
     }
 
-    let isMatch: Bool
-    do {
-      let regex = try Regex(pattern)
-      let firstMatch = try regex.firstMatch(in: value)
-      isMatch = firstMatch != nil
-    } catch {
-      throw FunctionError.executionFailed(
-        name: "regex",
-        message: "Invalid regular expression pattern '\(pattern)': \(error)"
-      )
+    let regex = try RegexSubset.compileGuarded(pattern)
+    guard value.unicodeScalars.count <= RegexSubset.maxValueCodePoints else {
+      return returnValidationResult ? .object(["valid": .boolean(false)]) : .boolean(false)
     }
+    let nsRange = NSRange(value.startIndex..<value.endIndex, in: value)
+    let isMatch = regex.firstMatch(in: value, options: [], range: nsRange) != nil
 
     if returnValidationResult {
       return .object(["valid": .boolean(isMatch)])
