@@ -12,16 +12,20 @@
       "surfaceId": "conformance",
       "components": [
         {
+          "component": "Column",
+          "id": "root",
+          "children": ["btn_basic", "btn_standalone"]
+        },
+        {
           "component": "Text",
-          "id": "root__text_1",
+          "id": "btn_basic__text_1",
           "text": "Submit",
-          "variant": "body",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+          "variant": "body"
         },
         {
           "component": "Button",
-          "id": "root",
-          "child": "root__text_1",
+          "id": "btn_basic",
+          "child": "btn_basic__text_1",
           "variant": "primary",
           "action": {
             "event": {
@@ -40,6 +44,26 @@
             }
           },
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        },
+        {
+          "component": "Text",
+          "id": "btn_standalone__text_1",
+          "text": "Cancel",
+          "variant": "body"
+        },
+        {
+          "component": "Button",
+          "id": "btn_standalone",
+          "child": "btn_standalone__text_1",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "cancel_form"
+            }
+          },
+          "accessibility": {
+            "label": "Cancel form button"
+          }
         }
       ]
     }

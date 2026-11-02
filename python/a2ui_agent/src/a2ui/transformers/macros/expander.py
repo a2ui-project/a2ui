@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 _V1_0_BASIC_CATALOG_ID = (
     "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
 )
+_DEFAULT_MACRO_CATALOG_ID = "https://a2ui.org/catalogs/macros"
 _MAX_TRACKED_SURFACES = 256
 
 _BASIC_PRIMITIVE_NAMES: frozenset[str] = frozenset(
@@ -51,34 +52,29 @@ _COMPONENT_ENVELOPE_KEYS: frozenset[str] = frozenset({
     "catalogId",
     "accessibility",
     "metadata",
-    "weight",
 })
 
 
-def _apply_envelope_fields(
-    comp: dict[str, Any],
-    declared_params: Mapping[str, Any],
+def _find_root_component(
     expanded_macro: list[dict[str, Any]],
     instance_id: str | None,
-    catalog_base_components: dict[str, set[str]],
-    *,
-    macro_catalog_id: str | None = None,
-    surface_catalog_id: str | None = None,
-    protocol_version: str | None = None,
-) -> None:
-    """Propagates component envelope fields from a macro instance onto its expanded output."""
-    if not expanded_macro:
-        return
-
-    root_comp: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Returns the root component of an expanded macro component list."""
     if instance_id is not None:
         for item in reversed(expanded_macro):
             if item.get("id") == instance_id:
-                root_comp = item
-                break
-    if root_comp is None:
-        root_comp = expanded_macro[-1]
+                return item
+    return expanded_macro[-1]
 
+
+def _merge_root_envelope_fields(
+    comp: dict[str, Any],
+    *,
+    declared_params: Mapping[str, Any],
+    root_comp: dict[str, Any],
+    protocol_version: str | None,
+) -> None:
+    """Merges undeclared envelope fields onto the expanded root component."""
     if comp.get("accessibility") is not None and "accessibility" not in declared_params:
         a11y_copy = copy.deepcopy(comp["accessibility"])
         if isinstance(root_comp.get("accessibility"), dict) and isinstance(
@@ -90,6 +86,9 @@ def _apply_envelope_fields(
             }
         else:
             root_comp["accessibility"] = a11y_copy
+
+    if protocol_version != "1.0":
+        return
 
     if comp.get("metadata") is not None and "metadata" not in declared_params:
         meta_copy = copy.deepcopy(comp["metadata"])
@@ -106,32 +105,60 @@ def _apply_envelope_fields(
         else:
             root_comp["metadata"] = meta_copy
 
-    if comp.get("weight") is not None and "weight" not in declared_params:
-        root_comp["weight"] = comp["weight"]
 
-    if comp.get("catalogId") is not None and "catalogId" not in declared_params:
-        explicit_cid = comp["catalogId"]
-        if isinstance(explicit_cid, str) and explicit_cid:
-            if explicit_cid in catalog_base_components:
-                base_comps = catalog_base_components[explicit_cid]
+def _stamp_catalog_ids(
+    comp: dict[str, Any],
+    *,
+    declared_params: Mapping[str, Any],
+    expanded_macro: list[dict[str, Any]],
+    root_comp: dict[str, Any],
+    catalog_base_components: Mapping[str, set[str]],
+    effective_catalog_id: str | None,
+    surface_catalog_id: str | None,
+    surface_known: bool,
+    protocol_version: str | None,
+) -> None:
+    """Stamps target v1.0 catalog IDs onto expanded primitive components."""
+    if protocol_version != "1.0":
+        return
+
+    if "catalogId" not in declared_params:
+        raw_explicit = comp.get("catalogId")
+        explicit_cid = (
+            raw_explicit if isinstance(raw_explicit, str) and raw_explicit else None
+        )
+        target_cid = explicit_cid or effective_catalog_id
+        if target_cid is not None and target_cid in catalog_base_components:
+            base_comps = catalog_base_components[target_cid]
+            if not (surface_known and surface_catalog_id == target_cid):
                 for item in expanded_macro:
                     if "catalogId" not in item and item.get("component") in base_comps:
-                        item["catalogId"] = explicit_cid
-            elif macro_catalog_id is None and not catalog_base_components:
-                for item in expanded_macro:
-                    if "catalogId" not in item:
-                        item["catalogId"] = explicit_cid
+                        item["catalogId"] = target_cid
+            elif (
+                explicit_cid is not None
+                and "catalogId" not in root_comp
+                and root_comp.get("component") in base_comps
+            ):
+                root_comp["catalogId"] = explicit_cid
+        elif (
+            explicit_cid == _V1_0_BASIC_CATALOG_ID
+            and "catalogId" not in root_comp
+            and root_comp.get("component") in _BASIC_PRIMITIVE_NAMES
+        ):
+            root_comp["catalogId"] = explicit_cid
 
-    if (
-        protocol_version == "1.0"
-        and surface_catalog_id is not None
-        and surface_catalog_id != _V1_0_BASIC_CATALOG_ID
-        and (
-            surface_catalog_id == macro_catalog_id
-            or surface_catalog_id in catalog_base_components
-        )
+    effective_non_basic = (
+        effective_catalog_id is not None
+        and effective_catalog_id != _V1_0_BASIC_CATALOG_ID
+    )
+    if (surface_known and surface_catalog_id != _V1_0_BASIC_CATALOG_ID) or (
+        not surface_known and effective_non_basic
     ):
-        surface_base_comps = catalog_base_components.get(surface_catalog_id, set())
+        surface_base_comps = (
+            catalog_base_components.get(surface_catalog_id, set())
+            if surface_catalog_id is not None
+            else set()
+        )
         for item in expanded_macro:
             comp_type = item.get("component")
             if (
@@ -143,14 +170,54 @@ def _apply_envelope_fields(
                 item["catalogId"] = _V1_0_BASIC_CATALOG_ID
 
 
+def _apply_envelope_fields(
+    comp: dict[str, Any],
+    *,
+    declared_params: Mapping[str, Any],
+    expanded_macro: list[dict[str, Any]],
+    instance_id: str | None,
+    catalog_base_components: Mapping[str, set[str]],
+    effective_catalog_id: str | None = None,
+    surface_catalog_id: str | None = None,
+    surface_known: bool = False,
+    protocol_version: str | None = None,
+) -> None:
+    """Propagates component envelope fields from a macro instance onto its expanded output."""
+    if not expanded_macro:
+        return
+
+    root_comp = _find_root_component(expanded_macro, instance_id)
+    _merge_root_envelope_fields(
+        comp,
+        declared_params=declared_params,
+        root_comp=root_comp,
+        protocol_version=protocol_version,
+    )
+    _stamp_catalog_ids(
+        comp,
+        declared_params=declared_params,
+        expanded_macro=expanded_macro,
+        root_comp=root_comp,
+        catalog_base_components=catalog_base_components,
+        effective_catalog_id=effective_catalog_id,
+        surface_catalog_id=surface_catalog_id,
+        surface_known=surface_known,
+        protocol_version=protocol_version,
+    )
+
+
 class MacroExpander:
     """Expands composite macro components into standard A2UI primitive component subtrees.
 
     Acts as a catalog and message transformer:
     1. transform_to_inference_catalog: Augments a base catalog with synthesized
-       macro component schemas so LLMs can author high-level components.
+       macro component schemas so LLMs can author high-level components (and
+       registers the base catalog's primitive names for mixed-catalog lowering).
     2. transform_to_transport: Rewrites outbound messages by expanding macro
        components into flat primitive ASTs understood by downstream renderers.
+       By default, each instance tracks ``createSurface``/``deleteSurface``
+       default catalogs across calls and should be scoped to a single renderer
+       session (or pass ``surface_catalogs`` per call for stateless sharing).
     3. transform_to_inference: Passes transport messages through untouched (safe identity pass-through).
     """
 
@@ -160,6 +227,7 @@ class MacroExpander:
         *,
         passthrough_components: Sequence[str] | None = None,
         catalog_id: str | None = None,
+        base_catalogs: Sequence[CatalogApi] | None = None,
     ):
         """Initializes the macro expander.
 
@@ -171,8 +239,16 @@ class MacroExpander:
                 components are retained from the source catalog alongside the macros.
                 Passing an empty sequence ([]) retains zero source catalog components,
                 exposing exclusively the macros.
-            catalog_id: Optional catalog identifier scoping macro expansion to components
-                resolved to this catalog on mixed-catalog surfaces.
+            catalog_id: Optional catalog ID the macros belong to. When set, a macro
+                component expands only if its explicit ``catalogId``, or the default
+                ``catalogId`` of its surface as seen in ``createSurface`` (or passed via
+                ``surface_catalogs``), equals ``catalog_id``. Reuse one ``MacroExpander``
+                instance per renderer session or supply ``surface_catalogs`` on
+                ``transform_to_transport``. Also used as the catalog ID of ``to_catalog()``.
+            base_catalogs: Optional sequence of base catalogs whose primitive component
+                names are pre-registered via ``register_catalog`` so ``transform_to_transport``
+                can disambiguate mixed-catalog components without calling
+                ``transform_to_inference_catalog`` first.
         """
         self.macros: list[_MacroMetadata] = []
         if macros:
@@ -195,10 +271,25 @@ class MacroExpander:
         self._catalog_base_components: dict[str, set[str]] = {}
         if catalog_id is not None:
             self._catalog_base_components[catalog_id] = set()
-        self._surface_catalogs: OrderedDict[str, str] = OrderedDict()
+        if base_catalogs:
+            for catalog in base_catalogs:
+                self.register_catalog(catalog)
+        self._surface_catalogs: OrderedDict[str, str | None] = OrderedDict()
+
+    def register_catalog(self, catalog: CatalogApi) -> None:
+        """Registers a base catalog's primitive component names for mixed-catalog lowering."""
+        if not catalog.catalog_id:
+            return
+        schema = catalog.to_json()
+        comps_map = schema.get(CATALOG_COMPONENTS_KEY, {})
+        if isinstance(comps_map, Mapping):
+            self._catalog_base_components[catalog.catalog_id] = set(comps_map.keys())
 
     def transform_to_inference_catalog(self, base_catalog: CatalogApi) -> CatalogApi:
         """Derives an authoring/inference catalog by augmenting the base catalog with macro schemas.
+
+        Also registers ``base_catalog`` via ``register_catalog`` so subsequent
+        ``transform_to_transport`` calls recognize its primitive components.
 
         Args:
             base_catalog: The base client catalog.
@@ -211,7 +302,6 @@ class MacroExpander:
         """
         schema_copy: dict[str, Any] = base_catalog.to_json()
         comps_map: dict[str, Any] = dict(schema_copy.get(CATALOG_COMPONENTS_KEY, {}))
-        base_components = set(comps_map.keys())
         defs_map = schema_copy.get("$defs")
         any_comp: Any = (
             defs_map.get("anyComponent") if isinstance(defs_map, dict) else None
@@ -253,10 +343,7 @@ class MacroExpander:
             if any_comp_refs is not None and ref_entry not in any_comp_refs:
                 any_comp_refs.append(ref_entry)
 
-        if base_catalog.catalog_id and (
-            self.catalog_id is None or base_catalog.catalog_id == self.catalog_id
-        ):
-            self._catalog_base_components[base_catalog.catalog_id] = base_components
+        self.register_catalog(base_catalog)
 
         schema_copy[CATALOG_COMPONENTS_KEY] = comps_map
         return Catalog.from_json(
@@ -273,7 +360,7 @@ class MacroExpander:
         """
         # catalog_definition.json writes the version without the leading "v".
         version = to_version_number(ProtocolVersion.V0_9_1)
-        catalog_id = self.catalog_id or "https://a2ui.org/catalogs/macros"
+        catalog_id = self.catalog_id or _DEFAULT_MACRO_CATALOG_ID
 
         components = {m.name: m.to_json_schema() for m in self.macros}
         any_comp_refs = [
@@ -301,18 +388,32 @@ class MacroExpander:
         )
 
     def transform_to_transport(
-        self, messages: Sequence[AgentToRendererMessage]
+        self,
+        messages: Sequence[AgentToRendererMessage],
+        *,
+        surface_catalogs: Mapping[str, str | None] | None = None,
     ) -> list[AgentToRendererMessage]:
         """Lowers outbound inference messages by expanding macro components into primitive subtrees.
 
         Args:
             messages: Sequence of strongly-typed AgentToRendererMessage envelopes.
+            surface_catalogs: Optional per-call mapping from ``surfaceId`` to its default
+                ``catalogId`` (or ``None`` for a v1.0 surface created with no default
+                catalog). When provided, surface lifecycle updates in ``messages`` apply
+                only to a local copy rather than mutating instance state, allowing a
+                single ``MacroExpander`` to be shared safely across sessions.
 
         Returns:
             List containing the lowered messages with expanded primitive components.
         """
         if not self.macros:
             return list(messages)
+
+        active_surfaces: OrderedDict[str, str | None] = (
+            OrderedDict(surface_catalogs)
+            if surface_catalogs is not None
+            else self._surface_catalogs
+        )
 
         result: list[AgentToRendererMessage] = []
         for msg in messages:
@@ -326,7 +427,7 @@ class MacroExpander:
             ):
                 del_sid = msg_dict["deleteSurface"].get("surfaceId")
                 if isinstance(del_sid, str):
-                    self._surface_catalogs.pop(del_sid, None)
+                    active_surfaces.pop(del_sid, None)
 
             for envelope_key in (
                 "surfaceUpdate",
@@ -340,24 +441,34 @@ class MacroExpander:
                     surface_id = body.get("surfaceId")
                     if envelope_key == "createSurface" and isinstance(surface_id, str):
                         cid = body.get("catalogId")
-                        if isinstance(cid, str) and cid:
-                            self._surface_catalogs[surface_id] = cid
-                            self._surface_catalogs.move_to_end(surface_id)
-                            if len(self._surface_catalogs) > _MAX_TRACKED_SURFACES:
-                                self._surface_catalogs.popitem(last=False)
-                        else:
-                            self._surface_catalogs.pop(surface_id, None)
+                        active_surfaces[surface_id] = (
+                            cid if isinstance(cid, str) and cid else None
+                        )
+                        active_surfaces.move_to_end(surface_id)
+                        if len(active_surfaces) > _MAX_TRACKED_SURFACES:
+                            evicted_sid, _ = active_surfaces.popitem(last=False)
+                            logger.debug(
+                                "Evicted oldest tracked surface %r from MacroExpander"
+                                " (limit=%d)",
+                                evicted_sid,
+                                _MAX_TRACKED_SURFACES,
+                            )
 
-                    surface_catalog_id = (
-                        self._surface_catalogs.get(surface_id)
-                        if isinstance(surface_id, str)
-                        else None
-                    )
+                    if isinstance(surface_id, str) and surface_id in active_surfaces:
+                        surface_known = True
+                        surface_catalog_id = active_surfaces[surface_id]
+                    else:
+                        surface_known = False
+                        surface_catalog_id = None
                     comps = body.get("components")
                     if comps and isinstance(comps, list):
                         body["components"] = self._expand_component_list(
                             comps,
+                            surface_id=surface_id
+                            if isinstance(surface_id, str)
+                            else None,
                             surface_catalog_id=surface_catalog_id,
+                            surface_known=surface_known,
                             protocol_version=protocol_version,
                         )
                         msg_dict[envelope_key] = body
@@ -379,9 +490,12 @@ class MacroExpander:
         *,
         depth: int = 0,
         max_depth: int = 16,
+        surface_id: str | None = None,
         surface_catalog_id: str | None = None,
+        surface_known: bool = False,
         protocol_version: str | None = None,
         active_macros: frozenset[str] = frozenset(),
+        enclosing_catalog_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Expands macro components in a flat component list."""
         if depth > max_depth:
@@ -402,34 +516,93 @@ class MacroExpander:
                 continue
 
             meta = self.processor.get_macro(c_name)
-            if (
-                meta is not None
-                and c_name in active_macros
-                and c_name in _BASIC_PRIMITIVE_NAMES
-            ):
-                meta = None
+            effective_catalog_id: str | None = None
+            raw_cid = comp.get("catalogId")
 
             if meta is not None:
-                if "catalogId" in comp:
-                    raw_cid = comp["catalogId"]
+                if raw_cid is not None:
                     if not isinstance(raw_cid, str) or not raw_cid:
+                        logger.warning(
+                            "Skipping macro %r on component %r: invalid catalogId %r",
+                            c_name,
+                            c_id,
+                            raw_cid,
+                        )
                         meta = None
-                    effective_catalog_id: str | None = (
-                        raw_cid if isinstance(raw_cid, str) else None
+                    else:
+                        effective_catalog_id = raw_cid
+                elif (
+                    depth > 0
+                    and enclosing_catalog_id is not None
+                    and c_name not in _BASIC_PRIMITIVE_NAMES
+                    and c_name
+                    not in self._catalog_base_components.get(
+                        surface_catalog_id or "", set()
                     )
+                    and c_name
+                    not in self._catalog_base_components.get(
+                        enclosing_catalog_id, set()
+                    )
+                ):
+                    effective_catalog_id = enclosing_catalog_id
                 else:
                     effective_catalog_id = surface_catalog_id
 
-                if meta is not None:
-                    if self.catalog_id is not None:
-                        if effective_catalog_id != self.catalog_id:
+            if meta is not None and c_name in active_macros:
+                is_base_primitive = (
+                    c_name in _BASIC_PRIMITIVE_NAMES
+                    or (
+                        effective_catalog_id is not None
+                        and c_name
+                        in self._catalog_base_components.get(
+                            effective_catalog_id, set()
+                        )
+                    )
+                    or (
+                        effective_catalog_id is None
+                        and any(
+                            c_name in comps
+                            for comps in self._catalog_base_components.values()
+                        )
+                    )
+                )
+                if is_base_primitive:
+                    meta = None
+
+            if meta is not None:
+                if self.catalog_id is not None:
+                    if effective_catalog_id != self.catalog_id:
+                        if raw_cid is None and not surface_known and depth == 0:
+                            log_fn = (
+                                logger.debug
+                                if c_name in _BASIC_PRIMITIVE_NAMES
+                                else logger.warning
+                            )
+                            log_fn(
+                                "Skipping scoped macro %r on component %r: surface"
+                                " %r has no known catalogId (expected %r)",
+                                c_name,
+                                c_id,
+                                surface_id,
+                                self.catalog_id,
+                            )
+                        meta = None
+                elif self._catalog_base_components:
+                    if effective_catalog_id is not None:
+                        if (
+                            effective_catalog_id not in self._catalog_base_components
+                            and effective_catalog_id != _DEFAULT_MACRO_CATALOG_ID
+                        ):
                             meta = None
-                    elif (
-                        self._catalog_base_components
-                        and c_name in _BASIC_PRIMITIVE_NAMES
-                    ):
-                        if effective_catalog_id not in self._catalog_base_components:
+                        elif c_name in self._catalog_base_components.get(
+                            effective_catalog_id, set()
+                        ) and (
+                            self.passthrough_components is None
+                            or c_name in self.passthrough_components
+                        ):
                             meta = None
+                    elif c_name in _BASIC_PRIMITIVE_NAMES:
+                        meta = None
 
             if meta is not None:
                 if isinstance(comp.get("parameters"), dict):
@@ -437,7 +610,7 @@ class MacroExpander:
                     for env_key in _COMPONENT_ENVELOPE_KEYS:
                         if (
                             env_key in meta.parameters
-                            and env_key in comp
+                            and comp.get(env_key) is not None
                             and env_key not in params
                         ):
                             params[env_key] = comp[env_key]
@@ -454,12 +627,13 @@ class MacroExpander:
                     )
                     _apply_envelope_fields(
                         comp,
-                        meta.parameters,
-                        expanded_macro,
-                        c_id,
-                        self._catalog_base_components,
-                        macro_catalog_id=self.catalog_id,
+                        declared_params=meta.parameters,
+                        expanded_macro=expanded_macro,
+                        instance_id=c_id,
+                        catalog_base_components=self._catalog_base_components,
+                        effective_catalog_id=effective_catalog_id,
                         surface_catalog_id=surface_catalog_id,
+                        surface_known=surface_known,
                         protocol_version=protocol_version,
                     )
                     expanded.extend(
@@ -467,9 +641,13 @@ class MacroExpander:
                             expanded_macro,
                             depth=depth + 1,
                             max_depth=max_depth,
+                            surface_id=surface_id,
                             surface_catalog_id=surface_catalog_id,
+                            surface_known=surface_known,
                             protocol_version=protocol_version,
                             active_macros=active_macros | {c_name},
+                            enclosing_catalog_id=effective_catalog_id
+                            or self.catalog_id,
                         )
                     )
                 except (A2uiRecursionError, RecursionError):

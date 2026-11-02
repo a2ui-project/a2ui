@@ -41,12 +41,6 @@
   `generate_base_rules()` with `schema_to_prompt()` (such as
   `SendA2uiToClientToolset` users) should use `DEFAULT_WORKFLOW_RULES` instead.
   [#3559](https://github.com/a2ui-project/a2ui/pull/3559)
-- `MacroExpander` now accepts an optional `catalog_id` to scope macro expansion
-  on mixed-catalog surfaces, and `MacroExpander.transform_to_transport`
-  preserves component envelope fields (`accessibility`, `catalogId`, `metadata`,
-  `weight`) on expanded components instead of passing them as unexpected macro
-  arguments ([#3626](https://github.com/a2ui-project/a2ui/issues/3626),
-  [#3777](https://github.com/a2ui-project/a2ui/pull/3777)).
 - The Direct JSON prompt rule says the JSON part is a JSON array of A2UI messages, each following the schema, instead of "a single, raw JSON object (usually a list of A2UI messages)" that "MUST validate" against it. [#3721](https://github.com/a2ui-project/a2ui/pull/3721)
 - `open_stream` takes `after_rejected_block="continue"` to read past a
   rejected block. The stream then returns an `ErrorPart` in its place, skips
@@ -89,6 +83,16 @@
   standalone.
   [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
+- `MacroExpander.transform_to_transport` no longer passes component envelope
+  fields (`accessibility`, `catalogId`, `metadata`) to macro functions unless
+  declared, merging `accessibility` and `metadata` onto the expanded root
+  component and resolving target `catalogId` values on v1.0 surfaces.
+  `MacroExpander` also accepts optional `catalog_id` and `base_catalogs`
+  parameters (plus `register_catalog`) and tracks surface default catalogs
+  across `createSurface`/`deleteSurface` (or an explicit `surface_catalogs`
+  mapping) to scope macro expansion on mixed-catalog surfaces
+  ([#3626](https://github.com/a2ui-project/a2ui/issues/3626),
+  [#3777](https://github.com/a2ui-project/a2ui/pull/3777)).
 - The Express compiler accepts `userMessage=` and `context=` keyword arguments on `Event(...)`, compiling `userMessage` to the v1.0 `event.userMessage` field, and raises `ExpressValidationError` for `userMessage` before v1.0 and for any keyword `Event` does not define, where it used to drop them. A function call in an action slot nested inside a list item or object property (such as `items: [{label, action: openUrl(...)}]`) is now compiled as a `functionCall` action. `ExpressDecompiler` writes `userMessage=` back, and `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in rule 8 for v1.0+ catalogs ([#3598](https://github.com/a2ui-project/a2ui/issues/3598), [#3690](https://github.com/a2ui-project/a2ui/issues/3690), [#3867](https://github.com/a2ui-project/a2ui/pull/3867)).
 - The Express compiler keeps a map literal as written, quoted keys or not, when
   one of its keys shares a name with an Express construct (`variable`, `path`,
