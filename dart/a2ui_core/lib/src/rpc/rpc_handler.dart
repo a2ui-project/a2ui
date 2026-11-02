@@ -501,8 +501,7 @@ class RpcHandler {
         _settle(
           functionCallId,
           error: A2uiRpcError(
-            "Call '$functionCallId' was cancelled because surface "
-            "'$surfaceId' was deleted.",
+            "Pending calls for surface '$surfaceId' were cancelled.",
             RpcErrorCode.cancelled,
             functionCallId: functionCallId,
           ),

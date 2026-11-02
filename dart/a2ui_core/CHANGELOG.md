@@ -20,10 +20,26 @@
     local `EXPRESSION_ERROR` instead of failing with `NO_LISTENER`.
   - A function call whose argument reads an agent call that is still pending
     waits for it to settle instead of running with a null argument. This
-    applies to local functions and to agent calls, so an outer agent call is
-    sent only once its agent arguments have settled. If an argument's agent
-    call fails, the enclosing call does not run, and the failure is reported
-    once.
+    applies to local functions and to agent calls (in bindings, check rules,
+    and action calls), so an outer call runs only once its agent arguments
+    have settled. If an argument's agent call fails, the enclosing call does
+    not run, and the failure is reported once.
+  - **Breaking:** An agent error or timeout (`A2uiRpcError`) in a dynamic
+    value, a `checks` rule or a `functionCall` action is reported on
+    `SurfaceModel.onError` as `EXPRESSION_ERROR` instead of
+    `EXECUTION_ERROR`, as the other SDKs report it. The error still names the
+    `functionCallId`, and carries the agent's message.
+  - An `event` action whose `context` or `userMessage` calls a function is
+    dispatched once those calls settle, through the new
+    `DataContext.resolveActionAsync`. The calls run one after another; if one
+    fails, the later ones are not made and the action is not dispatched. An
+    action that calls no function is still dispatched synchronously.
+  - `deleteSurface` cancels the surface's pending agent calls (the new
+    `RpcHandler.cancelSurfaceCalls`), and a call that would start after the
+    surface is deleted is not sent. A cancelled call is not reported as an
+    error.
+  - `MessageProcessor.dispose()` disposes its surfaces before the RPC layer,
+    so the calls it cancels are not reported as errors.
 - A function call naming a `catalogId` on a `DataContext` created without
   `invokerForCatalog` is now reported as a `CATALOG_ERROR` rather than an
   `EXPRESSION_ERROR`.
@@ -68,13 +84,6 @@
   `$id`, title, description or instructions, which describe the source; pass
   its own `instructions`. A name the source has no entry of throws
   `A2uiCatalogError` ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
-- Fixed: `PayloadValidator` checks the string formats `json_schema_builder`
-  validates (`date`, `time`, `date-time`, `email`, `ipv4`, `ipv6`). A catalog
-  property that declares one of these formats is now enforced; previously the
-  format was ignored. A literal `min` or `max` on the basic catalog's
-  `DateTimeInput` now validates; previously it matched all three branches of
-  the `oneOf` that tells them apart and was always rejected
-  ([#3123](https://github.com/a2ui-project/a2ui/issues/3123)).
 
 ## 0.4.0
 

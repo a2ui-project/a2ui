@@ -976,7 +976,8 @@ class MessageProcessor<T extends ComponentApi> {
       validatorFor(catalog).validateTheme(operation.theme);
     }
 
-    final surface = SurfaceModel<T>(
+    late final SurfaceModel<T> surface;
+    surface = SurfaceModel<T>(
       operation.surfaceId,
       defaultCatalog: catalog,
       availableCatalogs: [
@@ -993,10 +994,22 @@ class MessageProcessor<T extends ComponentApi> {
       rootId: _config?.rootId ?? 'root',
       metadata: operation.metadata,
       // Only a v1.0 surface routes calls to the agent, and only when this
-      // processor can send it messages.
+      // processor can send it messages. Once the surface is deleted, a call
+      // that was waiting on a local argument is cancelled instead of sent.
       callAgentFunction: _outboundListener != null &&
               operation.version.isAtLeast(A2uiProtocolVersion.v1_0)
-          ? (call) => rpc.callAgentFunction(operation.surfaceId, call)
+          ? (call) {
+              if (!identical(model.getSurface(operation.surfaceId), surface)) {
+                return Future<Object?>.error(
+                  A2uiRpcError(
+                    "Surface '${operation.surfaceId}' was deleted before "
+                    "agent function '${call.call}' could be sent.",
+                    RpcErrorCode.cancelled,
+                  ),
+                );
+              }
+              return rpc.callAgentFunction(operation.surfaceId, call);
+            }
           : null,
     );
 

@@ -238,6 +238,30 @@ void main() {
     expect(errors, isEmpty);
   });
 
+  test('a deleted surface no longer sends agent calls', () async {
+    Map<String, Object?> create() => {
+          'version': '1.0',
+          'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
+        };
+    processor.processMessages(create());
+    final AgentFunctionCaller caller =
+        processor.model.getSurface('one')!.callAgentFunction!;
+    processor.processMessages({
+      'version': '1.0',
+      'deleteSurface': {'surfaceId': 'one'},
+    });
+    // A new surface with the same id does not revive the old caller.
+    processor.processMessages(create());
+
+    await expectLater(
+      caller(FunctionCall(call: 'remote', args: {})),
+      throwsA(isA<A2uiRpcError>()
+          .having((e) => e.rpcCode, 'rpcCode', RpcErrorCode.cancelled)),
+    );
+    expect(sent.whereType<CallAgentFunctionMessage>(), isEmpty);
+    expect(processor.rpc.pendingCallCount, 0);
+  });
+
   test('a surface created by the processor falls back to the agent', () async {
     processor.processMessages({
       'version': '1.0',
