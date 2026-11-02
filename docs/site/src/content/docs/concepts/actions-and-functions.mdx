@@ -3,7 +3,7 @@ title: 'Actions and Functions'
 description: 'Understand the distinct roles of component Actions, agent Events, and typed Functions across local and remote execution contexts in A2UI.'
 ---
 
-import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+import {Tabs, TabItem, Aside} from '@astrojs/starlight/components';
 import DiagramCard from '../../../components/docs/common/DiagramCard.astro';
 
 A2UI separates interactive user behavior into component Actions, agent Events, and typed Functions across local and remote execution contexts. This division ensures a clean boundary between conversational turn advancement, reactive data computation, and client system operations.
@@ -75,6 +75,7 @@ The following diagram illustrates how component action slots branch into either 
         <div><strong>Execution:</strong> Local (0ms) or Remote RPC</div>
       </div>
     </div>
+
   </div>
 </DiagramCard>
 
@@ -95,11 +96,11 @@ An `Action` represents a strict `oneOf` union:
         "event": {
           "type": "object",
           "properties": {
-            "name": { "type": "string" },
-            "userMessage": { "$ref": "#/$defs/DynamicString" },
+            "name": {"type": "string"},
+            "userMessage": {"$ref": "#/$defs/DynamicString"},
             "context": {
               "type": "object",
-              "additionalProperties": { "$ref": "#/$defs/DynamicValue" }
+              "additionalProperties": {"$ref": "#/$defs/DynamicValue"}
             }
           },
           "required": ["name"]
@@ -111,7 +112,7 @@ An `Action` represents a strict `oneOf` union:
       "type": "object",
       "description": "Executes a renderer or agent-side function.",
       "properties": {
-        "functionCall": { "$ref": "#/$defs/FunctionCall" }
+        "functionCall": {"$ref": "#/$defs/FunctionCall"}
       },
       "required": ["functionCall"]
     }
@@ -128,14 +129,14 @@ When authoring a component, you choose whether user interaction notifies the age
 
 The following comparison clarifies how Events and Functions operate across different stages of the application lifecycle:
 
-| Dimension | Event (`action.event`) | Function (`@call` / `call`) |
-| :--- | :--- | :--- |
-| **Primary Role** | Notifies the agent of user intent to advance a conversational turn. | Computes values, validates inputs, or performs discrete operations. |
-| **Invocation Contexts** | Triggered exclusively from a component `Action` slot via user gesture. | Triggered in 4 contexts: Actions, dynamic bindings, validation checks, or agent RPC. |
-| **Network Cost** | Always travels over the network as an `action` message. | Runs locally with 0ms latency when registered on the client, or via `callAgentFunction` RPC. |
-| **State Resolution** | Evaluates bound `context` and `userMessage` expressions at moment of dispatch. | Evaluates dynamically whenever input dependencies or bound data paths update. |
-| **Output / Return** | Returns no direct value to the component; prompts the agent to stream updates. | Returns a typed value (e.g., `string`, `boolean`, `number`) or executes a `void` side effect. |
-| **Validation Gating** | Gated by component `checks`; dispatch halts if validation rules fail. | Evaluates as the validation rule itself (`checks[].condition`). |
+| Dimension               | Event (`action.event`)                                                         | Function (`@call` / `call`)                                                                   |
+| :---------------------- | :----------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------- |
+| **Primary Role**        | Notifies the agent of user intent to advance a conversational turn.            | Computes values, validates inputs, or performs discrete operations.                           |
+| **Invocation Contexts** | Triggered exclusively from a component `Action` slot via user gesture.         | Triggered in 4 contexts: Actions, dynamic bindings, validation checks, or agent RPC.          |
+| **Network Cost**        | Always travels over the network as an `action` message.                        | Runs locally with 0ms latency when registered on the client, or via `callAgentFunction` RPC.  |
+| **State Resolution**    | Evaluates bound `context` and `userMessage` expressions at moment of dispatch. | Evaluates dynamically whenever input dependencies or bound data paths update.                 |
+| **Output / Return**     | Returns no direct value to the component; prompts the agent to stream updates. | Returns a typed value (e.g., `string`, `boolean`, `number`) or executes a `void` side effect. |
+| **Validation Gating**   | Gated by component `checks`; dispatch halts if validation rules fail.          | Evaluates as the validation rule itself (`checks[].condition`).                               |
 
 ---
 
@@ -234,6 +235,7 @@ The following example shows a confirmation button defined within a surface, foll
       }
     }
     ```
+
   </TabItem>
   <TabItem label="v0.9.1 (Active)">
     ```json
@@ -271,13 +273,17 @@ The following example shows a confirmation button defined within a surface, foll
       }
     }
     ```
+
   </TabItem>
 </Tabs>
 
 <Aside type="note" title="Protocol Version Differences">
-  - **Dynamic User Message**: In v1.0, `action.event.userMessage` provides an interpolated `DynamicString` that renders directly into the outbound wire message. In v0.9.1, `userMessage` does not exist; all context is passed via the `context` dictionary.
-  - **Path Syntax**: Dynamic data paths use `@path` in v1.0 and `path` in v0.9.1.
-  - **Transport Keys**: In v1.0, wire messages use `"version": "1.0"` with transport metadata `a2uiRendererDataModel`. In v0.9.1, payloads use `"version": "v0.9"` (or `"v0.9.1"`) with `a2uiClientDataModel`.
+  - **Dynamic User Message**: In v1.0, `action.event.userMessage` provides an interpolated
+  `DynamicString` that renders directly into the outbound wire message. In v0.9.1, `userMessage`
+  does not exist; all context is passed via the `context` dictionary. - **Path Syntax**: Dynamic
+  data paths use `@path` in v1.0 and `path` in v0.9.1. - **Transport Keys**: In v1.0, wire messages
+  use `"version": "1.0"` with transport metadata `a2uiRendererDataModel`. In v0.9.1, payloads use
+  `"version": "v0.9"` (or `"v0.9.1"`) with `a2uiClientDataModel`.
 </Aside>
 
 ---
@@ -369,6 +375,7 @@ When an agent-side function is invoked:
       }
     }
     ```
+
   </TabItem>
   <TabItem label="v0.9.1 (Active)">
     ```json
@@ -383,9 +390,10 @@ When an agent-side function is invoked:
 <Aside type="caution" title="Implicit Fallback Routing & Developer Trap">
   In v1.0, the protocol specifies **implicit fallback routing** for functions:
 
-  When evaluating any `FunctionCall`, the renderer checks its local catalog table first. If the function name is **not registered locally**, the renderer assumes it is an agent-side function and automatically emits a `callAgentFunction` message across the network.
+When evaluating any `FunctionCall`, the renderer checks its local catalog table first. If the function name is **not registered locally**, the renderer assumes it is an agent-side function and automatically emits a `callAgentFunction` message across the network.
 
-  **The Pitfall**: If a developer misspells a local function name (for example, writing `@call: "formatCurrncy"` instead of `"formatCurrency"`), the renderer will not fail immediately with a local error. Instead, it dispatches an unexpected network RPC to the agent, which responds with `code: "UNKNOWN_FUNCTION"` after network round-trip latency. Always verify function names against the catalog schema.
+**The Pitfall**: If a developer misspells a local function name (for example, writing `@call: "formatCurrncy"` instead of `"formatCurrency"`), the renderer will not fail immediately with a local error. Instead, it dispatches an unexpected network RPC to the agent, which responds with `code: "UNKNOWN_FUNCTION"` after network round-trip latency. Always verify function names against the catalog schema.
+
 </Aside>
 
 ---
@@ -449,7 +457,7 @@ Functions can be bound directly to component properties (`DynamicString`, `Dynam
   "text": {
     "@call": "formatCurrency",
     "args": {
-      "value": { "@path": "/order/subtotal" },
+      "value": {"@path": "/order/subtotal"},
       "currency": "USD"
     }
   }
@@ -464,19 +472,19 @@ Any component implementing `Checkable` (such as `TextField`, `CheckBox`, or `But
 {
   "id": "user_email_input",
   "component": "TextField",
-  "value": { "@path": "/formData/email" },
+  "value": {"@path": "/formData/email"},
   "checks": [
     {
       "condition": {
         "@call": "required",
-        "args": { "value": { "@path": "/formData/email" } }
+        "args": {"value": {"@path": "/formData/email"}}
       },
       "message": "Email address is required."
     },
     {
       "condition": {
         "@call": "email",
-        "args": { "value": { "@path": "/formData/email" } }
+        "args": {"value": {"@path": "/formData/email"}}
       },
       "message": "Please enter a valid email address."
     }
@@ -534,6 +542,7 @@ The matching message exchange over the wire:
       }
     }
     ```
+
   </TabItem>
   <TabItem label="v0.9.1 (Active)">
     ```json
@@ -554,7 +563,7 @@ Because functions can trigger external side effects or access client capabilitie
 
 The `allowedCallers` property specifies which roles are authorized to invoke a function:
 
-- `"rendererOnly"` *(default)*: The function can only be invoked by the client renderer (from component actions, property bindings, or validation checks). If an agent attempts to invoke this function via `callRendererFunction`, the renderer rejects the call with an `INVALID_FUNCTION_CALL` error.
+- `"rendererOnly"` _(default)_: The function can only be invoked by the client renderer (from component actions, property bindings, or validation checks). If an agent attempts to invoke this function via `callRendererFunction`, the renderer rejects the call with an `INVALID_FUNCTION_CALL` error.
 - `"agentOnly"`: The function can only be invoked by the agent via `callRendererFunction`. Components cannot call it in UI bindings.
 - `"rendererOrAgent"`: Both UI component bindings and agent messages are permitted to invoke the function (e.g., `getScreenResolution`).
 
@@ -570,13 +579,13 @@ The `requiresUserActivation` boolean property specifies whether the function req
 {
   "if": {
     "properties": {
-      "requiresUserActivation": { "const": true }
+      "requiresUserActivation": {"const": true}
     },
     "required": ["requiresUserActivation"]
   },
   "then": {
     "properties": {
-      "allowedCallers": { "enum": ["rendererOnly"] }
+      "allowedCallers": {"enum": ["rendererOnly"]}
     }
   }
 }
