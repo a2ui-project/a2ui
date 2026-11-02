@@ -4,9 +4,9 @@ description: 'How component actions send events to the agent or call functions, 
 ---
 
 import {Tabs, TabItem, Aside} from '@astrojs/starlight/components';
-import ActionFunctionBranches from '../../../components/docs/actions/ActionFunctionBranches.astro';
+import ActionFunctionBranches from '@components/docs/actions/ActionFunctionBranches.astro';
 
-An action decides what happens when a user interacts with a component, and a function is a typed operation, defined in a [catalog](/concepts/catalogs/), that computes a value, validates input, or performs a client side effect. An action either sends an event to the agent or calls a function. Functions are also used outside actions: to compute component properties, to validate input, and (in v1.0) when the agent asks the renderer to run one.
+An action decides what happens when a user interacts with a component, and a function is a typed operation, defined in a [catalog](../catalogs/), that computes a value, validates input, or performs a client side effect. An action either sends an event to the agent or calls a function. Functions are also used outside actions: to compute component properties, to validate input, and (in v1.0) when the agent asks the renderer to run one.
 
 ## Actions, events, and functions
 
@@ -58,7 +58,7 @@ When the renderer sends an event:
 
 A `Button` can declare validation `checks`. If any check fails, the renderer disables the button, so the event cannot be sent until the data is valid. See [Validation checks](#validation-checks).
 
-If the surface was created with `sendDataModel: true`, the transport also attaches the full surface data model to each outbound message, under `a2uiRendererDataModel` in v1.0 or `a2uiClientDataModel` in v0.9.1. For details, see [Data Model and Data Binding](/concepts/data-binding/).
+If the surface was created with `sendDataModel: true`, the transport also attaches the full surface data model to each outbound message, under `a2uiRendererDataModel` in v1.0 or `a2uiClientDataModel` in v0.9.1. For details, see [Data Model and Data Binding](../data-binding/).
 
 The following example shows a confirmation button and the `action` message the renderer sends when the user clicks it.
 
@@ -159,7 +159,7 @@ The renderer decides where to run a call by looking up the function name in its 
 
 #### Renderer functions
 
-Renderer functions are implemented by the renderer and registered with the catalog. The [Basic Catalog](/concepts/catalogs/) defines these functions in both v1.0 and v0.9.1:
+Renderer functions are implemented by the renderer and registered with the catalog. The [Basic Catalog](../catalogs/) defines these functions in both v1.0 and v0.9.1:
 
 1. Formatting: `formatString`, `formatNumber`, `formatCurrency`, `formatDate`, `pluralize`.
 2. Validation: `required`, `regex`, `length`, `numeric`, `email`.
@@ -456,13 +456,13 @@ The catalog schema requires every function with `requiresUserActivation: true` t
 }
 ```
 
-An agent message arrives over the network and cannot carry a user gesture, so this rule keeps the agent from triggering gesture-only operations. For more on trust between agents and renderers, see [Security and Trust Boundaries](/concepts/security/).
+An agent message arrives over the network and cannot carry a user gesture, so this rule keeps the agent from triggering gesture-only operations. For more on trust between agents and renderers, see [Security and Trust Boundaries](../security/).
 
 ---
 
 ## Related topics
 
-- [Messages](/concepts/messages/): the full message reference for `action`, `callAgentFunction`, and `callRendererFunction`.
-- [Data Model and Data Binding](/concepts/data-binding/): how `@path` bindings and `${...}` string interpolation resolve.
-- [Catalogs, Components and Functions](/concepts/catalogs/): how to declare functions in a catalog.
-- [Security and Trust Boundaries](/concepts/security/): security guidance for the boundary between agent and renderer.
+- [Messages](../messages/): the full message reference for `action`, `callAgentFunction`, and `callRendererFunction`.
+- [Data Model and Data Binding](../data-binding/): how `@path` bindings and `${...}` string interpolation resolve.
+- [Catalogs, Components and Functions](../catalogs/): how to declare functions in a catalog.
+- [Security and Trust Boundaries](../security/): security guidance for the boundary between agent and renderer.
