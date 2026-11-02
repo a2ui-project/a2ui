@@ -6,7 +6,7 @@ description: 'Core architecture, mental model, and end-to-end pipeline of the Ag
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import ArchitecturePipelineOverview from '../../../components/docs/overview/ArchitecturePipelineOverview.astro';
 
-A2UI (Agent-to-User Interface) is an open protocol and SDK suite that enables AI agents to generate native, interactive, and stateful user interfaces across mobile and web platforms. Instead of streaming raw HTML strings, unstyled webviews, or static Markdown prose, an A2UI agent streams structured JSON messages that construct native UI components and update local reactive state.
+A2UI enables AI agents to stream native, interactive user interfaces to client applications through structured protocol messages. This overview explains the end-to-end architecture, core mental model, and message lifecycle connecting agent runtimes with client renderers. Instead of streaming raw HTML strings, unstyled webviews, or static Markdown prose, an A2UI agent streams structured JSON messages that construct native UI components and update local reactive state.
 
 The core design principle of A2UI is the **separation of layout and state**. The agent defines the component hierarchy once or when structure changes, while data values update independently through JSON Pointers. This allows client controls to update locally at 60 FPS, allows backends to inject deterministic data without regenerating UI trees, and reduces token consumption during model generation.
 
@@ -14,17 +14,17 @@ The core design principle of A2UI is the **separation of layout and state**. The
 
 ## Architecture & Pipeline Overview
 
-The following diagram illustrates the complete end-to-end pipeline, from component schemas and model reasoning on the server to native rendering on the client:
+The following diagram illustrates the complete end-to-end pipeline connecting agent servers and client applications. On the server side, component catalog schemas and domain skills feed into the A2UI Agent SDK's skill generator, which supplies system prompts and grammar rules to the agent application code. When the LLM outputs UI descriptions, the SDK's streaming compiler and validator parses and verifies the payload before transmission. Across an asynchronous transport (such as WebSockets, Server-Sent Events, or MCP), the server transmits decoupled `updateComponents` layout messages and `updateDataModel` state messages. On the client side, the host application shell embeds the A2UI Renderer SDK (Flutter, Web, SwiftUI, or Jetpack Compose), which constructs native widgets on an active surface while dispatching user `action` events back to the agent.
 
 <ArchitecturePipelineOverview />
 
 ---
 
-## 1. Core Mental Model
+## Core Mental Model
 
 The A2UI architecture divides responsibilities across five distinct layers:
 
-### 1. Component Schemas (`catalog.json`)
+### Component Schemas (`catalog.json`)
 
 A component catalog is a JSON Schema file that defines the contract between the agent and the client application. It declares:
 
@@ -37,7 +37,7 @@ Catalogs can be standardized—such as the official `@a2ui/basic-catalog`—or c
 
 Learn more in [Catalogs, Components, and Functions](/concepts/catalogs/).
 
-### 2. A2UI Agent SDK
+### A2UI Agent SDK
 
 The [A2UI Agent SDK](/concepts/agent-sdks/) is a server-side library available for **TypeScript**, **Python**, and **Dart**. The Agent SDK strictly encloses two core facilities:
 
@@ -48,7 +48,7 @@ The Agent SDK handles syntax translation and schema validation so the model runt
 
 Learn more in [Agent SDKs](/concepts/agent-sdks/) and [Inference Formats](/concepts/inference-formats/).
 
-### 3. Agent Application Runtime (User Code)
+### Agent Application Runtime (User Code)
 
 The agent application code sits **outside** the A2UI Agent SDK boundary. It represents the developer's core orchestration logic and LLM runtime:
 
@@ -56,7 +56,7 @@ The agent application code sits **outside** the A2UI Agent SDK boundary. It repr
 - **Domain skills & APIs**: The agent application integrates domain tools—such as flight search databases, authentication services, or reservation systems—alongside the generated A2UI catalog skills.
 - **Execution loop**: When a user submits an intent, the agent invokes domain tools to retrieve business data, reasons over the result, and feeds the desired UI layout and data into the A2UI compiler.
 
-### 4. Decoupled Layout (`updateComponents`) vs. State (`updateDataModel`)
+### Decoupled Layout (`updateComponents`) vs. State (`updateDataModel`)
 
 A2UI messages separate the visual component tree from the data values bound to those components:
 
@@ -71,7 +71,7 @@ This separation provides three operational advantages:
 
 Learn more in [Messages](/concepts/messages/) and [Data Binding](/concepts/data-binding/).
 
-### 5. Client Application & Renderer SDK
+### Client Application and Renderer SDK
 
 The client application embeds an [A2UI Renderer SDK](/concepts/renderer-sdks/), available for **Flutter**, **Web** (Lit, React, Angular), **SwiftUI**, and **Jetpack Compose**:
 
@@ -84,7 +84,7 @@ Learn more in [Renderer SDKs](/concepts/renderer-sdks/) and [Actions and Functio
 
 ---
 
-## 2. End-to-End Architecture Walkthrough
+## End-to-End Architecture Walkthrough
 
 The A2UI pipeline executes across five distinct stages during a conversational interaction:
 
@@ -340,7 +340,7 @@ The client application receives the messages over its transport channel (e.g. AG
 
 ---
 
-## 3. Capabilities & Catalog Negotiation
+## Capabilities and Catalog Negotiation
 
 Before an agent begins generating UI for a client, the two parties negotiate capabilities. This handshake guarantees that the agent only emits components and protocol versions that the client renderer can display.
 
