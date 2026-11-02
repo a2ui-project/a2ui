@@ -16,160 +16,152 @@
  */
 ---
 
-<div class="db-root not-content">
-  <!-- Top Lifecycle Banner -->
+<div
+  class="db-root not-content"
+  data-diagram
+  data-diagram-title="data-binding-anatomy"
+>
   <div class="db-banner">
     <div class="db-banner__left">
-      <span class="db-badge db-badge--teal">REACTIVE STATE ARCHITECTURE</span>
-      <span class="db-banner__title">Surface DataModel &amp; Live Binding Graph</span>
+      <span class="db-badge">REACTIVE DATA BINDING</span>
+      <span class="db-banner__title">
+        Surface Data Model &amp; Bound UI Components
+      </span>
     </div>
     <div class="db-banner__pills">
-      <span class="db-pill db-pill--amber">
-        <span class="db-dot db-dot--amber" aria-hidden="true"></span>
-        2-Way Input (<code>@path</code>)
-      </span>
-      <span class="db-pill db-pill--teal">
-        <span class="db-dot db-dot--teal" aria-hidden="true"></span>
-        1-Way Computed (<code>@call</code>)
-      </span>
+      <span class="db-pill db-pill--teal">1-Way Read (<code>@path</code>)</span>
+      <span class="db-pill db-pill--amber"
+        >2-Way Input (<code>@path</code>)</span
+      >
     </div>
   </div>
 
-  <!-- Main 2-Column Visual Map -->
   <div class="db-stage">
-    <!-- Left Column: Compact DataModel State Tree (Narrower) -->
-    <div class="db-col db-col--state">
-      <div class="db-col__header">
-        <div class="db-col__title-wrap">
-          <span class="db-step">1</span>
-          <div>
-            <div class="db-col__title">Surface <code>DataModel</code></div>
-            <div class="db-col__sub"><code>surfaceId: "checkout"</code></div>
-          </div>
+    <!-- Left Column: Data Model + Component Bindings (Diagram Side) -->
+    <div class="db-diagram-col">
+      <div class="db-card">
+        <div class="db-card__header">
+          <span class="db-card__title">1. Surface Data Model</span>
+          <code class="db-card__tag">surfaceId: "booking"</code>
         </div>
-        <code class="db-wire-tag">updateDataModel</code>
+        <div class="db-json-box">
+          <div class="db-json-line">&#123;</div>
+          <div class="db-json-line db-indent-1">
+            <span class="db-k">"reservation"</span>: &#123;
+          </div>
+          <div class="db-json-line db-indent-2">
+            <span class="db-k">"destination"</span>:
+            <span class="db-v-str">"Kyoto, Japan"</span>,
+          </div>
+          <div class="db-json-line db-indent-2">
+            <span class="db-k">"guestEmail"</span>:
+            <span class="db-v-amber">"alex@example.com"</span>
+          </div>
+          <div class="db-json-line db-indent-1">&#125;</div>
+          <div class="db-json-line">&#125;</div>
+        </div>
       </div>
 
-      <div class="db-json">
-        <!-- Group 1: 2-Way Input State -->
-        <div class="db-json__group db-json__group--amber">
-          <div class="db-json__group-head">
-            <span class="db-json__key">"/reservation/*"</span>
-            <span class="db-tag db-tag--amber">2-Way State</span>
-          </div>
-          <div class="db-json__row">
-            <code class="db-pointer">/reservation/email</code>
-            <span class="db-val db-val--str">"alex@example.com"</span>
-          </div>
-          <div class="db-json__row">
-            <code class="db-pointer">/reservation/guests</code>
-            <span class="db-val db-val--num">3</span>
-          </div>
+      <div class="db-card">
+        <div class="db-card__header">
+          <span class="db-card__title">2. Component Bindings</span>
+          <code class="db-card__tag">updateComponents</code>
         </div>
+        <div class="db-bindings-list">
+          <div class="db-binding-item db-binding-item--teal">
+            <div class="db-binding-item__top">
+              <code>Text#destinationText</code>
+              <span class="db-mini-badge db-mini-badge--teal">Display</span>
+            </div>
+            <code class="db-binding-expr"
+              >text: &#123;"@path": "/reservation/destination"&#125;</code
+            >
+          </div>
 
-        <!-- Group 2: Agent Streamed Invoice -->
-        <div class="db-json__group db-json__group--teal">
-          <div class="db-json__group-head">
-            <span class="db-json__key">"/invoice/*"</span>
-            <span class="db-tag db-tag--teal">Streamed</span>
+          <div class="db-binding-item db-binding-item--amber">
+            <div class="db-binding-item__top">
+              <code>TextField#emailInput</code>
+              <span class="db-mini-badge db-mini-badge--amber"
+                >2-Way Input</span
+              >
+            </div>
+            <code class="db-binding-expr"
+              >value: &#123;"@path": "/reservation/guestEmail"&#125;</code
+            >
           </div>
-          <div class="db-json__row">
-            <code class="db-pointer">/invoice/total</code>
-            <span class="db-val db-val--num">285.00</span>
-          </div>
-          <div class="db-json__row">
-            <code class="db-pointer">/invoice/currency</code>
-            <span class="db-val db-val--str">"USD"</span>
+
+          <div class="db-binding-item db-binding-item--blue">
+            <div class="db-binding-item__top">
+              <code>Button#submitButton</code>
+              <span class="db-mini-badge db-mini-badge--blue"
+                >Event Context</span
+              >
+            </div>
+            <code class="db-binding-expr"
+              >context.email: &#123;"@path":
+              "/reservation/guestEmail"&#125;</code
+            >
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Right Column: Live Rendered Surface (Wider, Clean 3-Widget Layout) -->
-    <div class="db-col db-col--ui">
-      <div class="db-col__header">
-        <div class="db-col__title-wrap">
-          <span class="db-step">2</span>
-          <div>
-            <div class="db-col__title">Rendered Native Surface</div>
-            <div class="db-col__sub">Live widgets reacting to DataModel pointers &amp; functions</div>
+    <!-- Right Column: Rendered UI inside a Phone / Window Outline -->
+    <div class="db-ui-col">
+      <div class="db-ui-caption">Rendered Surface UI</div>
+      <div class="db-phone-frame">
+        <!-- Window / Phone Top Chrome -->
+        <div class="db-phone-chrome">
+          <div class="db-window-dots" aria-hidden="true">
+            <span class="db-wdot db-wdot--red"></span>
+            <span class="db-wdot db-wdot--yellow"></span>
+            <span class="db-wdot db-wdot--green"></span>
           </div>
+          <div class="db-phone-notch">Reservation App</div>
+          <div class="db-phone-status">9:41</div>
         </div>
-        <code class="db-wire-tag">updateComponents</code>
-      </div>
 
-      <div class="db-surface-preview">
-        <!-- Widget 1: Two-way Input -->
-        <div class="db-widget db-widget--amber">
-          <div class="db-widget__meta">
-            <code>TextField#emailInput</code>
-            <span class="db-bind-pill db-bind-pill--amber">&harr; <code>&#123;"@path": "/reservation/email"&#125;</code></span>
+        <!-- Distinct Light App Canvas -->
+        <div class="db-phone-screen">
+          <!-- Bound Text Component -->
+          <div class="db-ui-header-block">
+            <div class="db-ui-eyebrow">Destination</div>
+            <div class="db-ui-heading-row">
+              <span class="db-ui-heading">Kyoto, Japan</span>
+              <span class="db-ui-ptr db-ui-ptr--teal"
+                >&larr; /reservation/destination</span
+              >
+            </div>
           </div>
-          <div class="db-input-mock">
-            <span class="db-input-mock__label">Guest Email (typing mutates local DataModel immediately)</span>
-            <div class="db-input-mock__box">
+
+          <!-- Bound TextField Component -->
+          <div class="db-ui-field-block">
+            <div class="db-ui-field-label-row">
+              <label class="db-ui-label">Guest Email</label>
+              <span class="db-ui-ptr db-ui-ptr--amber"
+                >&harr; /reservation/guestEmail</span
+              >
+            </div>
+            <div class="db-ui-input">
               <span>alex@example.com</span>
-              <span class="db-cursor"></span>
+              <span class="db-ui-caret" aria-hidden="true"></span>
+            </div>
+          </div>
+
+          <!-- Bound Button Component -->
+          <div class="db-ui-action-block">
+            <div class="db-ui-button">Confirm Reservation</div>
+            <div class="db-ui-action-hint">
+              Sends <code>submit_reservation</code> with resolved
+              <code>email</code>
             </div>
           </div>
         </div>
 
-        <!-- Widget 2: Control-to-Control Slider + Live Text -->
-        <div class="db-widget db-widget--amber">
-          <div class="db-widget__meta">
-            <code>Slider#guestSlider</code> + <code>Text#guestBadge</code>
-            <span class="db-bind-pill db-bind-pill--amber">&harr; <code>&#123;"@path": "/reservation/guests"&#125;</code></span>
-          </div>
-          <div class="db-slider-mock">
-            <div class="db-slider-mock__row">
-              <span class="db-slider-mock__label">Party Size (synced locally across controls)</span>
-              <strong>3 guests</strong>
-            </div>
-            <div class="db-slider-mock__track">
-              <div class="db-slider-mock__fill"></div>
-              <div class="db-slider-mock__thumb"></div>
-            </div>
-          </div>
+        <!-- Phone Home Bar -->
+        <div class="db-phone-footer" aria-hidden="true">
+          <div class="db-home-indicator"></div>
         </div>
-
-        <!-- Widget 3: Reactive Formatted Text -->
-        <div class="db-widget db-widget--teal">
-          <div class="db-widget__meta">
-            <code>Text#totalBanner</code>
-            <span class="db-bind-pill db-bind-pill--teal">&larr; <code>@call: formatCurrency(/invoice/total)</code></span>
-          </div>
-          <div class="db-total-mock">
-            <span>Total Due (recomputed automatically on price changes)</span>
-            <strong>$285.00</strong>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Bottom Sync Strip: Returning State to the Agent -->
-  <div class="db-sync-strip">
-    <div class="db-sync-strip__head">
-      <span class="db-step">3</span>
-      <div>
-        <div class="db-sync-strip__title">State Synchronization Back to Agent (On-Demand)</div>
-        <div class="db-sync-strip__sub">Keystrokes remain local. State returns to the agent only upon user interaction:</div>
-      </div>
-    </div>
-    <div class="db-sync-strip__cards">
-      <div class="db-sync-card">
-        <div class="db-sync-card__top">
-          <code>action.event.context</code>
-          <span class="db-tag db-tag--teal">Targeted Slice</span>
-        </div>
-        <p>The interactive component snapshots only the declared JSON Pointer paths and sends them in the <code>action</code> payload.</p>
-      </div>
-      <div class="db-sync-card">
-        <div class="db-sync-card__top">
-          <code>createSurface.sendDataModel: true</code>
-          <span class="db-tag db-tag--blue">Full Snapshot</span>
-        </div>
-        <p>Automatically attaches the entire surface <code>dataModel</code> to outbound message metadata for the owning agent.</p>
       </div>
     </div>
   </div>
@@ -183,20 +175,17 @@
     border-radius: 12px;
     background: linear-gradient(180deg, #0c1322 0%, #090d16 100%);
     border: 1px solid #1e293b;
-    box-shadow:
-      0 10px 28px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
     overflow: hidden;
   }
 
   :root[data-theme='light'] .db-root {
     color: #0f172a;
-    background: #ffffff;
+    background: #f8fafc;
     border-color: #cbd5e1;
-    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
   }
 
-  /* Banner */
   .db-banner {
     display: flex;
     flex-wrap: wrap;
@@ -204,13 +193,13 @@
     justify-content: space-between;
     gap: 0.65rem;
     padding: 0.75rem 1.15rem;
-    background: rgba(15, 23, 42, 0.8);
+    background: rgba(15, 23, 42, 0.85);
     border-bottom: 1px solid #1e293b;
   }
 
   :root[data-theme='light'] .db-banner {
-    background: #f8fafc;
-    border-bottom-color: #e2e8f0;
+    background: #f1f5f9;
+    border-bottom-color: #cbd5e1;
   }
 
   .db-banner__left {
@@ -227,16 +216,12 @@
     letter-spacing: 0.06em;
     padding: 0.18rem 0.5rem;
     border-radius: 4px;
-    text-transform: uppercase;
-  }
-
-  .db-badge--teal {
     background: rgba(20, 184, 166, 0.16);
     color: #2dd4bf;
     border: 1px solid rgba(20, 184, 166, 0.35);
   }
 
-  :root[data-theme='light'] .db-badge--teal {
+  :root[data-theme='light'] .db-badge {
     background: #ccfbf1;
     color: #0f766e;
     border-color: #5eead4;
@@ -260,12 +245,9 @@
   }
 
   .db-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
     font-size: 0.68rem;
     font-weight: 600;
-    padding: 0.15rem 0.48rem;
+    padding: 0.15rem 0.5rem;
     border-radius: 999px;
   }
 
@@ -274,8 +256,20 @@
     font-size: 0.66rem;
   }
 
+  .db-pill--teal {
+    background: rgba(20, 184, 166, 0.12);
+    color: #5eead4;
+    border: 1px solid rgba(20, 184, 166, 0.28);
+  }
+
+  :root[data-theme='light'] .db-pill--teal {
+    background: #ccfbf1;
+    color: #0f766e;
+    border-color: #99f6e4;
+  }
+
   .db-pill--amber {
-    background: rgba(245, 158, 11, 0.1);
+    background: rgba(245, 158, 11, 0.12);
     color: #fbbf24;
     border: 1px solid rgba(245, 158, 11, 0.28);
   }
@@ -286,650 +280,468 @@
     border-color: #fcd34d;
   }
 
-  .db-pill--teal {
-    background: rgba(20, 184, 166, 0.1);
-    color: #5eead4;
+  /* 2-Column Layout */
+  .db-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 1.1rem;
+    padding: 1.1rem 1.15rem;
+    align-items: center;
+  }
+
+  .db-diagram-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .db-card {
+    padding: 0.75rem 0.85rem;
+    border-radius: 9px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  :root[data-theme='light'] .db-card {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .db-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.45);
+  }
+
+  :root[data-theme='light'] .db-card__header {
+    border-bottom-color: #e2e8f0;
+  }
+
+  .db-card__title {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #f8fafc;
+  }
+
+  :root[data-theme='light'] .db-card__title {
+    color: #0f172a;
+  }
+
+  .db-card__tag {
+    font-family: var(--sl-font-mono);
+    font-size: 0.66rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background: rgba(20, 184, 166, 0.12);
+    color: #2dd4bf;
     border: 1px solid rgba(20, 184, 166, 0.25);
   }
 
-  :root[data-theme='light'] .db-pill--teal {
+  :root[data-theme='light'] .db-card__tag {
     background: #f0fdfa;
     color: #0f766e;
     border-color: #99f6e4;
   }
 
-  .db-pill--purple {
-    background: rgba(168, 85, 247, 0.12);
-    color: #c084fc;
-    border: 1px solid rgba(168, 85, 247, 0.28);
-  }
-
-  :root[data-theme='light'] .db-pill--purple {
-    background: #f3e8ff;
-    color: #6b21a8;
-    border-color: #d8b4fe;
-  }
-
-  .db-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-  }
-
-  .db-dot--amber {
-    background: #f59e0b;
-  }
-
-  .db-dot--teal {
-    background: #14b8a6;
-  }
-
-  .db-dot--purple {
-    background: #a855f7;
-  }
-
-  /* 2-Column Stage: 38% Left (State), 62% Right (UI) */
-  .db-stage {
-    display: grid;
-    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
-    gap: 0.95rem;
-    padding: 0.95rem 1.15rem;
-    align-items: stretch;
-  }
-
-  .db-col {
-    display: flex;
-    flex-direction: column;
-    gap: 0.65rem;
-    padding: 0.85rem;
-    border-radius: 9px;
-    background: rgba(15, 23, 42, 0.55);
+  .db-json-box {
+    font-family: var(--sl-font-mono);
+    font-size: 0.7rem;
+    line-height: 1.45;
+    padding: 0.5rem 0.65rem;
+    border-radius: 6px;
+    background: rgba(2, 6, 23, 0.65);
     border: 1px solid #1e293b;
-    min-width: 0;
   }
 
-  :root[data-theme='light'] .db-col {
+  :root[data-theme='light'] .db-json-box {
     background: #f8fafc;
     border-color: #e2e8f0;
   }
 
-  .db-col__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.45rem;
-    padding-bottom: 0.45rem;
-    border-bottom: 1px solid rgba(51, 65, 85, 0.45);
+  .db-indent-1 {
+    padding-left: 0.85rem;
   }
 
-  :root[data-theme='light'] .db-col__header {
-    border-bottom-color: #cbd5e1;
+  .db-indent-2 {
+    padding-left: 1.7rem;
   }
 
-  .db-col__title-wrap {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .db-step {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.3rem;
-    height: 1.3rem;
-    border-radius: 50%;
-    font-family: var(--sl-font-mono);
-    font-size: 0.72rem;
-    font-weight: 700;
-    background: #14b8a6;
-    color: #042f2e;
-    flex-shrink: 0;
-  }
-
-  :root[data-theme='light'] .db-step {
-    background: #0d9488;
-    color: #ffffff;
-  }
-
-  .db-col__title {
-    font-weight: 700;
-    font-size: 0.85rem;
-    line-height: 1.2;
-  }
-
-  .db-col__title code {
-    font-family: var(--sl-font-mono);
-    font-size: 0.78rem;
-    color: #2dd4bf;
-  }
-
-  :root[data-theme='light'] .db-col__title code {
-    color: #0f766e;
-  }
-
-  .db-col__sub {
-    font-size: 0.68rem;
+  .db-k {
     color: #94a3b8;
   }
 
-  .db-col__sub code {
-    font-family: var(--sl-font-mono);
-    font-size: 0.66rem;
-    color: #cbd5e1;
+  :root[data-theme='light'] .db-k {
+    color: #475569;
   }
 
-  :root[data-theme='light'] .db-col__sub {
-    color: #64748b;
-  }
-
-  :root[data-theme='light'] .db-col__sub code {
-    color: #334155;
-  }
-
-  .db-wire-tag {
-    font-family: var(--sl-font-mono);
-    font-size: 0.67rem;
-    padding: 0.12rem 0.42rem;
-    border-radius: 4px;
-    background: rgba(20, 184, 166, 0.12);
+  .db-v-str {
     color: #2dd4bf;
-    border: 1px solid rgba(20, 184, 166, 0.28);
-    white-space: nowrap;
+    font-weight: 600;
   }
 
-  :root[data-theme='light'] .db-wire-tag {
-    background: #ccfbf1;
+  :root[data-theme='light'] .db-v-str {
     color: #0f766e;
-    border-color: #99f6e4;
   }
 
-  /* Left Column: Compact JSON State */
-  .db-json {
-    font-family: var(--sl-font-mono);
-    font-size: 0.72rem;
+  .db-v-amber {
+    color: #fbbf24;
+    font-weight: 600;
+  }
+
+  :root[data-theme='light'] .db-v-amber {
+    color: #b45309;
+  }
+
+  .db-bindings-list {
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
-    flex: 1;
+    gap: 0.4rem;
   }
 
-  .db-json__group {
-    padding: 0.5rem 0.65rem;
-    border-radius: 7px;
-    background: rgba(2, 6, 23, 0.6);
+  .db-binding-item {
+    padding: 0.42rem 0.6rem;
+    border-radius: 6px;
+    background: rgba(2, 6, 23, 0.55);
     border: 1px solid #1e293b;
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
+    gap: 0.18rem;
   }
 
-  :root[data-theme='light'] .db-json__group {
-    background: #ffffff;
-    border-color: #cbd5e1;
+  :root[data-theme='light'] .db-binding-item {
+    background: #f8fafc;
+    border-color: #e2e8f0;
   }
 
-  .db-json__group--amber {
-    border-left: 3px solid #f59e0b;
-  }
-
-  .db-json__group--teal {
+  .db-binding-item--teal {
     border-left: 3px solid #14b8a6;
   }
 
-  .db-json__group--purple {
-    border-left: 3px solid #a855f7;
+  .db-binding-item--amber {
+    border-left: 3px solid #f59e0b;
   }
 
-  .db-json__group-head {
+  .db-binding-item--blue {
+    border-left: 3px solid #38bdf8;
+  }
+
+  .db-binding-item__top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.35rem;
-    padding-bottom: 0.2rem;
-    border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+    gap: 0.4rem;
+    flex-wrap: wrap;
   }
 
-  :root[data-theme='light'] .db-json__group-head {
-    border-bottom-color: #f1f5f9;
-  }
-
-  .db-json__key {
+  .db-binding-item__top code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.7rem;
     font-weight: 700;
     color: #f8fafc;
-    font-size: 0.72rem;
   }
 
-  :root[data-theme='light'] .db-json__key {
+  :root[data-theme='light'] .db-binding-item__top code {
     color: #0f172a;
   }
 
-  .db-tag {
-    font-family: var(--sl-font);
-    font-size: 0.62rem;
+  .db-mini-badge {
+    font-size: 0.6rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    padding: 0.08rem 0.36rem;
+    padding: 0.06rem 0.35rem;
     border-radius: 3px;
-    white-space: nowrap;
   }
 
-  .db-tag--amber {
-    background: rgba(245, 158, 11, 0.16);
-    color: #fbbf24;
-  }
-
-  :root[data-theme='light'] .db-tag--amber {
-    background: #fef3c7;
-    color: #92400e;
-  }
-
-  .db-tag--teal {
+  .db-mini-badge--teal {
     background: rgba(20, 184, 166, 0.16);
     color: #2dd4bf;
   }
 
-  :root[data-theme='light'] .db-tag--teal {
+  :root[data-theme='light'] .db-mini-badge--teal {
     background: #ccfbf1;
     color: #0f766e;
   }
 
-  .db-tag--purple {
-    background: rgba(168, 85, 247, 0.16);
-    color: #c084fc;
-  }
-
-  :root[data-theme='light'] .db-tag--purple {
-    background: #f3e8ff;
-    color: #6b21a8;
-  }
-
-  .db-tag--blue {
-    background: rgba(56, 189, 248, 0.16);
-    color: #38bdf8;
-  }
-
-  :root[data-theme='light'] .db-tag--blue {
-    background: #e0f2fe;
-    color: #0369a1;
-  }
-
-  .db-json__row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.4rem;
-  }
-
-  .db-pointer {
-    font-size: 0.69rem;
-    color: #94a3b8;
-    white-space: nowrap;
-  }
-
-  :root[data-theme='light'] .db-pointer {
-    color: #475569;
-  }
-
-  .db-val--str {
-    color: #34d399;
-    white-space: nowrap;
-  }
-
-  :root[data-theme='light'] .db-val--str {
-    color: #047857;
-  }
-
-  .db-val--num {
-    color: #fbbf24;
-    font-weight: 700;
-    white-space: nowrap;
-  }
-
-  :root[data-theme='light'] .db-val--num {
-    color: #b45309;
-  }
-
-  .db-val--obj {
-    font-size: 0.65rem;
-    color: #cbd5e1;
-    white-space: nowrap;
-  }
-
-  :root[data-theme='light'] .db-val--obj {
-    color: #334155;
-  }
-
-  /* Right Column: Rendered Native Surface (Wider) */
-  .db-surface-preview {
-    display: flex;
-    flex-direction: column;
-    gap: 0.55rem;
-    flex: 1;
-  }
-
-  .db-widget {
-    padding: 0.6rem 0.75rem;
-    border-radius: 8px;
-    background: rgba(2, 6, 23, 0.6);
-    border: 1px solid #1e293b;
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-  }
-
-  :root[data-theme='light'] .db-widget {
-    background: #ffffff;
-    border-color: #cbd5e1;
-  }
-
-  .db-widget--amber {
-    border-left: 3px solid #f59e0b;
-  }
-
-  .db-widget--teal {
-    border-left: 3px solid #14b8a6;
-  }
-
-  .db-widget__meta {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.4rem;
-    font-size: 0.71rem;
-    flex-wrap: wrap;
-  }
-
-  .db-widget__meta > code {
-    font-family: var(--sl-font-mono);
-    font-weight: 700;
-    color: #f8fafc;
-  }
-
-  :root[data-theme='light'] .db-widget__meta > code {
-    color: #0f172a;
-  }
-
-  .db-bind-pill {
-    font-family: var(--sl-font-mono);
-    font-size: 0.66rem;
-    padding: 0.08rem 0.4rem;
-    border-radius: 4px;
-    white-space: nowrap;
-  }
-
-  .db-bind-pill--amber {
-    background: rgba(245, 158, 11, 0.12);
+  .db-mini-badge--amber {
+    background: rgba(245, 158, 11, 0.16);
     color: #fbbf24;
   }
 
-  :root[data-theme='light'] .db-bind-pill--amber {
+  :root[data-theme='light'] .db-mini-badge--amber {
     background: #fef3c7;
     color: #92400e;
   }
 
-  .db-bind-pill--teal {
-    background: rgba(20, 184, 166, 0.12);
-    color: #2dd4bf;
+  .db-mini-badge--blue {
+    background: rgba(56, 189, 248, 0.16);
+    color: #38bdf8;
   }
 
-  :root[data-theme='light'] .db-bind-pill--teal {
-    background: #ccfbf1;
-    color: #0f766e;
+  :root[data-theme='light'] .db-mini-badge--blue {
+    background: #e0f2fe;
+    color: #0369a1;
   }
 
-  /* Mock UI Controls */
-  .db-input-mock {
+  .db-binding-expr {
+    font-family: var(--sl-font-mono);
+    font-size: 0.61rem;
+    color: #cbd5e1;
+    word-break: break-word;
+  }
+
+  :root[data-theme='light'] .db-binding-expr {
+    color: #334155;
+  }
+
+  /* Right Column: Phone / App Window Frame (Visually Distinct UI) */
+  .db-ui-col {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
   }
 
-  .db-input-mock__label {
-    font-size: 0.68rem;
+  .db-ui-caption {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: #94a3b8;
   }
 
-  :root[data-theme='light'] .db-input-mock__label {
+  :root[data-theme='light'] .db-ui-caption {
+    color: #475569;
+  }
+
+  .db-phone-frame {
+    width: 100%;
+    max-width: 340px;
+    border-radius: 22px;
+    padding: 0.45rem;
+    background: linear-gradient(145deg, #334155 0%, #1e293b 100%);
+    border: 2px solid #475569;
+    box-shadow:
+      0 14px 32px rgba(0, 0, 0, 0.45),
+      inset 0 1px 1px rgba(255, 255, 255, 0.15);
+    display: flex;
+    flex-direction: column;
+  }
+
+  :root[data-theme='light'] .db-phone-frame {
+    background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+    border-color: #334155;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+  }
+
+  .db-phone-chrome {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.35rem 0.65rem 0.45rem;
+    color: #cbd5e1;
+    font-size: 0.65rem;
+    font-weight: 600;
+  }
+
+  .db-window-dots {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .db-wdot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+
+  .db-wdot--red {
+    background: #fb7185;
+  }
+
+  .db-wdot--yellow {
+    background: #fbbf24;
+  }
+
+  .db-wdot--green {
+    background: #34d399;
+  }
+
+  .db-phone-notch {
+    font-size: 0.64rem;
+    font-weight: 700;
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    background: #090d16;
+    color: #94a3b8;
+  }
+
+  .db-phone-status {
+    font-family: var(--sl-font-mono);
+    font-size: 0.64rem;
+    color: #94a3b8;
+  }
+
+  /* Crisp Light App Screen Inside the Phone Frame */
+  .db-phone-screen {
+    background: #ffffff;
+    color: #0f172a;
+    border-radius: 14px;
+    padding: 0.9rem 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+  }
+
+  .db-ui-header-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .db-ui-eyebrow {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
     color: #64748b;
   }
 
-  .db-input-mock__box {
+  .db-ui-heading-row {
     display: flex;
     align-items: center;
-    padding: 0.3rem 0.5rem;
-    border-radius: 5px;
-    background: #0f172a;
-    border: 1px solid #334155;
-    font-family: var(--sl-font-mono);
-    font-size: 0.73rem;
-    color: #f8fafc;
+    justify-content: space-between;
+    gap: 0.35rem;
+    flex-wrap: wrap;
   }
 
-  :root[data-theme='light'] .db-input-mock__box {
-    background: #f8fafc;
-    border-color: #cbd5e1;
+  .db-ui-heading {
+    font-size: 1rem;
+    font-weight: 800;
     color: #0f172a;
   }
 
-  .db-cursor {
-    display: inline-block;
-    width: 2px;
-    height: 0.82rem;
-    background: #f59e0b;
-    margin-left: 2px;
+  .db-ui-ptr {
+    font-family: var(--sl-font-mono);
+    font-size: 0.58rem;
+    font-weight: 700;
+    padding: 0.08rem 0.35rem;
+    border-radius: 4px;
   }
 
-  .db-slider-mock {
+  .db-ui-ptr--teal {
+    background: #ccfbf1;
+    color: #0f766e;
+    border: 1px solid #99f6e4;
+  }
+
+  .db-ui-ptr--amber {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+  }
+
+  .db-ui-field-block {
     display: flex;
     flex-direction: column;
     gap: 0.28rem;
   }
 
-  .db-slider-mock__row {
+  .db-ui-field-label-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 0.71rem;
-  }
-
-  .db-slider-mock__label {
-    color: #94a3b8;
-  }
-
-  :root[data-theme='light'] .db-slider-mock__label {
-    color: #64748b;
-  }
-
-  .db-slider-mock__row strong {
-    color: #fbbf24;
-    font-family: var(--sl-font-mono);
-  }
-
-  :root[data-theme='light'] .db-slider-mock__row strong {
-    color: #b45309;
-  }
-
-  .db-slider-mock__track {
-    position: relative;
-    height: 6px;
-    border-radius: 999px;
-    background: #1e293b;
-  }
-
-  :root[data-theme='light'] .db-slider-mock__track {
-    background: #e2e8f0;
-  }
-
-  .db-slider-mock__fill {
-    width: 29%;
-    height: 100%;
-    border-radius: 999px;
-    background: #f59e0b;
-  }
-
-  .db-slider-mock__thumb {
-    position: absolute;
-    top: -3px;
-    left: calc(29% - 6px);
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #fbbf24;
-    border: 2px solid #090d16;
-  }
-
-  .db-total-mock {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.35rem 0.55rem;
-    border-radius: 5px;
-    background: rgba(20, 184, 166, 0.1);
-    border: 1px solid rgba(20, 184, 166, 0.25);
-    font-size: 0.71rem;
-    color: #cbd5e1;
-  }
-
-  .db-total-mock strong {
-    font-family: var(--sl-font-mono);
-    font-size: 0.86rem;
-    color: #2dd4bf;
-  }
-
-  :root[data-theme='light'] .db-total-mock {
-    background: #f0fdfa;
-    border-color: #99f6e4;
-    color: #334155;
-  }
-
-  :root[data-theme='light'] .db-total-mock strong {
-    color: #0f766e;
-  }
-
-  /* Bottom Sync Strip */
-  .db-sync-strip {
-    padding: 0.8rem 1.15rem;
-    background: rgba(15, 23, 42, 0.8);
-    border-top: 1px solid #1e293b;
-    display: flex;
-    flex-direction: column;
-    gap: 0.65rem;
-  }
-
-  :root[data-theme='light'] .db-sync-strip {
-    background: #f8fafc;
-    border-top-color: #e2e8f0;
-  }
-
-  .db-sync-strip__head {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-  }
-
-  .db-sync-strip__title {
-    font-weight: 700;
-    font-size: 0.84rem;
-    color: #f8fafc;
-  }
-
-  :root[data-theme='light'] .db-sync-strip__title {
-    color: #0f172a;
-  }
-
-  .db-sync-strip__sub {
-    font-size: 0.72rem;
-    color: #94a3b8;
-  }
-
-  :root[data-theme='light'] .db-sync-strip__sub {
-    color: #475569;
-  }
-
-  .db-sync-strip__cards {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.65rem;
-  }
-
-  .db-sync-card {
-    padding: 0.55rem 0.75rem;
-    border-radius: 7px;
-    background: rgba(2, 6, 23, 0.55);
-    border: 1px solid #1e293b;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  :root[data-theme='light'] .db-sync-card {
-    background: #ffffff;
-    border-color: #cbd5e1;
-  }
-
-  .db-sync-card__top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.4rem;
+    gap: 0.35rem;
     flex-wrap: wrap;
   }
 
-  .db-sync-card__top code {
-    font-family: var(--sl-font-mono);
-    font-size: 0.74rem;
+  .db-ui-label {
+    font-size: 0.7rem;
     font-weight: 700;
-    color: #f8fafc;
+    color: #334155;
   }
 
-  :root[data-theme='light'] .db-sync-card__top code {
-    color: #0f172a;
-  }
-
-  .db-sync-card p {
-    margin: 0;
-    font-size: 0.71rem;
-    color: #94a3b8;
-    line-height: 1.38;
-  }
-
-  .db-sync-card p code {
+  .db-ui-input {
+    display: flex;
+    align-items: center;
+    padding: 0.42rem 0.55rem;
+    border-radius: 7px;
+    background: #f8fafc;
+    border: 1.5px solid #f59e0b;
     font-family: var(--sl-font-mono);
-    font-size: 0.68rem;
-    color: #2dd4bf;
+    font-size: 0.72rem;
+    color: #0f172a;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.14);
   }
 
-  :root[data-theme='light'] .db-sync-card p {
-    color: #475569;
+  .db-ui-caret {
+    display: inline-block;
+    width: 2px;
+    height: 0.85rem;
+    background: #d97706;
+    margin-left: 2px;
   }
 
-  :root[data-theme='light'] .db-sync-card p code {
+  .db-ui-action-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding-top: 0.15rem;
+  }
+
+  .db-ui-button {
+    text-align: center;
+    padding: 0.48rem 0.75rem;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #0d9488 0%, #0f766e 100%);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.76rem;
+    box-shadow: 0 2px 6px rgba(13, 148, 136, 0.3);
+  }
+
+  .db-ui-action-hint {
+    text-align: center;
+    font-size: 0.62rem;
+    color: #64748b;
+  }
+
+  .db-ui-action-hint code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.6rem;
     color: #0f766e;
+  }
+
+  .db-phone-footer {
+    display: flex;
+    justify-content: center;
+    padding: 0.35rem 0 0.15rem;
+  }
+
+  .db-home-indicator {
+    width: 72px;
+    height: 4px;
+    border-radius: 999px;
+    background: #64748b;
   }
 
   @media (max-width: 900px) {
     .db-stage {
       grid-template-columns: 1fr;
-    }
-
-    .db-sync-strip__cards {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .db-json__row {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.15rem;
-    }
-
-    .db-widget__meta {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.25rem;
     }
   }
 </style>
