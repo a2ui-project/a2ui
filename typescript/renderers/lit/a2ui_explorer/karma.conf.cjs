@@ -24,9 +24,11 @@ module.exports = function (config) {
     files: [
       {pattern: 'tests/**/*.test.ts', watched: true},
       {pattern: 'public/a2ui-sandbox/**', included: false, served: true, watched: false},
+      {pattern: 'public/a2ui-fixtures/**', included: false, served: true, watched: false},
     ],
     proxies: {
       '/a2ui-sandbox/': '/base/public/a2ui-sandbox/',
+      '/a2ui-fixtures/': '/base/public/a2ui-fixtures/',
     },
     preprocessors: {
       'tests/**/*.test.ts': ['esbuild'],

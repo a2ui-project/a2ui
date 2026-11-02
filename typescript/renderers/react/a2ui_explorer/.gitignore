@@ -1,4 +1,5 @@
 node_modules
 dist
 public/a2ui-sandbox
+public/a2ui-fixtures
 src/generated/

@@ -1,4 +1,5 @@
 .angular
 .npm-cache
 a2ui_explorer/public/a2ui-sandbox
+a2ui_explorer/public/a2ui-fixtures
 a2ui_explorer/src/app/generated
