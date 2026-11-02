@@ -61,7 +61,10 @@ const refFieldsCache = new WeakMap<z.ZodTypeAny, RefFields>();
  * @param schema Component Zod schema to inspect.
  * @returns Map of child-referencing property names to their reference kinds.
  */
-export function extractRefFields(schema: z.ZodTypeAny): RefFields {
+export function extractRefFields(schema: z.ZodTypeAny | undefined): RefFields {
+  if (!schema) {
+    return EMPTY_REF_FIELDS;
+  }
   const cached = refFieldsCache.get(schema);
   if (cached) {
     return cached;

@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Guard optional `onUpdated` and `onMetadataChanged` subscriptions and fall back to `surface.defaultCatalog ?? surface.catalog` when reporting unresolved component types in `ComponentHostComponent`, allowing unit tests with partial `SurfaceModel` and `ComponentModel` stand-ins to mount without throwing. [#3829](https://github.com/a2ui-project/a2ui/pull/3829)
+
 ## 0.14.0
 
 - Add `metadata` (`input<A2uiMetadata | undefined>()`) and `extensions` (`computed<Extensions | undefined>()`) signals on `CatalogComponent` and `CatalogComponentInstance`, bound reactively from `ComponentNode.metadata` in `ComponentHostComponent` and `ComponentBinder.bindNode`. [#3469](https://github.com/a2ui-project/a2ui/issues/3469), [#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)
