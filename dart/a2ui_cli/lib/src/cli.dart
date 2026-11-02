@@ -18,6 +18,7 @@ import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
 import 'commands/codegen_command.dart';
+import 'commands/lint_command.dart';
 
 const String _defaultPackageVersion = '0.1.0';
 
@@ -46,6 +47,7 @@ class A2uiCommandRunner extends CommandRunner<int> {
       help: 'Output the current version.',
     );
     addCommand(CodegenCommand(outSink: this.outSink, errSink: this.errSink));
+    addCommand(LintCommand(outSink: this.outSink, errSink: this.errSink));
   }
 
   @override

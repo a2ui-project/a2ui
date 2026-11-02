@@ -1,5 +1,9 @@
 # [a2ui_cli](https://pub.dev/packages/a2ui_cli) Changelog
 
+## Unreleased
+
+- Added `a2ui lint`, which warns when a catalog component that accepts an action or user input declares no text-bearing label property (or no required one under `--strict`).
+
 ## 0.1.0
 
 - Initial release of the A2UI CLI developer tool and typesafe component generator.

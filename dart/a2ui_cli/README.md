@@ -34,3 +34,27 @@ dart run dart/a2ui_cli/bin/a2ui.dart codegen \
   --catalog catalogs/basic/v1/catalog.json \
   --out python/a2ui_agent/src/a2ui/builder/v1_0/catalogs/basic.py
 ```
+
+## Linting Catalog Accessibility Labels
+
+Use `a2ui lint` to check that interactive components in a catalog declare a text-bearing label property:
+
+```bash
+dart run dart/a2ui_cli/bin/a2ui.dart lint \
+  --catalog catalogs/basic/v1/catalog.json
+```
+
+### Heuristic
+
+A component is treated as interactive when any of its declared properties references `common_types.json#/$defs/Action` (reported as `accepts action`) or when the component includes `common_types.json#/$defs/Checkable` (reported as `accepts input`).
+
+By default, an interactive component passes when any declared property other than `value` is:
+
+- A string or `DynamicString` property
+- A single child component reference (`Child` or `ComponentId`)
+- An array of objects whose item schema declares such a property
+
+### Options
+
+- `--strict`: Requires the text-bearing label property to be listed in `required` on the component.
+- `--ignore <Component>`: Acknowledges a finding for `<Component>` (may be passed multiple times). Acknowledged components are printed as `ignored: <Component>` and do not cause a non-zero exit code. If an `--ignore` entry has no matching finding, `a2ui lint` emits a warning so allowlists do not go stale.

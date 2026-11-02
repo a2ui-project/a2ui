@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/catalogs/test/a11y_labels.json",
+  "protocolVersion": "1.0",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/test/a11y_labels.json",
+  "components": {
+    "StaticBanner": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "StaticBanner"
+        },
+        "count": {
+          "type": "number"
+        }
+      },
+      "required": ["component"]
+    },
+    "IconAction": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "IconAction"
+        },
+        "icon": {
+          "type": "string",
+          "enum": ["add", "close"]
+        },
+        "action": {
+          "$ref": "common_types.json#/$defs/Action"
+        }
+      },
+      "required": ["component", "action"]
+    },
+    "OptionalLabelInput": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/Checkable"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "OptionalLabelInput"
+            },
+            "label": {
+              "$ref": "common_types.json#/$defs/DynamicString"
+            },
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicNumber"
+            }
+          },
+          "required": ["component", "value"]
+        }
+      ]
+    },
+    "RequiredLabelInput": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/Checkable"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "RequiredLabelInput"
+            },
+            "label": {
+              "type": "string"
+            },
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component", "label", "value"]
+        }
+      ]
+    },
+    "ChildButton": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "ChildButton"
+        },
+        "child": {
+          "$ref": "common_types.json#/$defs/Child"
+        },
+        "action": {
+          "$ref": "common_types.json#/$defs/Action"
+        }
+      },
+      "required": ["component", "child", "action"]
+    },
+    "ValueOnlyField": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/Checkable"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "ValueOnlyField"
+            },
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["component", "value"]
+        }
+      ]
+    },
+    "OptionGroup": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/Checkable"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "OptionGroup"
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "$ref": "common_types.json#/$defs/DynamicString"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": ["label", "value"],
+                "additionalProperties": false
+              }
+            },
+            "value": {
+              "$ref": "common_types.json#/$defs/DynamicStringList"
+            }
+          },
+          "required": ["component", "options", "value"]
+        }
+      ]
+    }
+  }
+}

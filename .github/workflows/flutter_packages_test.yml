@@ -128,6 +128,10 @@ jobs:
         if: matrix.package.path == 'dart/a2ui_agent'
         working-directory: ${{ matrix.package.path }}
         run: dart run tool/generate_express_parser.dart --check
+      - name: Lint basic catalog accessibility labels
+        if: matrix.package.path == 'dart/a2ui_cli'
+        working-directory: dart/a2ui_cli
+        run: dart run bin/a2ui.dart lint --catalog ../../catalogs/basic/v1/catalog.json
       - name: Run tests
         working-directory: ${{ matrix.package.path }}
         run: |
