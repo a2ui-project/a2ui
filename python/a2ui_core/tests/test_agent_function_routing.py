@@ -1366,6 +1366,10 @@ async def test_non_string_user_message_is_invalid_whether_sync_or_async() -> Non
     await _flush()
     assert dispatched == []
     assert [e["code"] for e in h.errors] == ["INVALID_ACTION", "INVALID_ACTION"]
+    assert all(
+        e["message"] == "Action event 'userMessage' must resolve to a string."
+        for e in h.errors
+    )
 
     # A literal passed straight to dispatch_action is ignored.
     h.surface.dispatch_action({"event": {"name": "go", "userMessage": 5}}, "btn1")
@@ -1420,3 +1424,26 @@ def test_coroutine_caller_works_without_a_running_loop() -> None:
     )
     assert not future.done(), "the coroutine runs when its loop runs"
     assert future.get_loop().run_until_complete(future) == 3
+
+
+@pytest.mark.asyncio
+async def test_user_message_resolving_to_none_is_absent() -> None:
+    h = _Harness()
+    dispatched: list[dict[str, Any]] = []
+    h.surface.on_action.subscribe(dispatched.append)
+
+    with pytest.warns(UserWarning):
+        resolved = h.ctx.resolve_action(
+            {"event": {"name": "go", "userMessage": {"@path": "/missing"}}}
+        )
+    h.surface.dispatch_action(resolved, "btn1")
+    resolved = h.ctx.resolve_action(
+        {"event": {"name": "go", "userMessage": {"@call": "fetchMessage", "args": {}}}}
+    )
+    h.surface.dispatch_action(resolved, "btn1")
+    h.respond(0, value=None)
+    await _flush()
+
+    assert len(dispatched) == 2
+    assert all("userMessage" not in action for action in dispatched)
+    assert h.errors == []

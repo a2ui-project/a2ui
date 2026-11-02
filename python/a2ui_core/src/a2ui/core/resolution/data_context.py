@@ -754,7 +754,7 @@ class DataContext:
                 resolved_um, (str, _PendingResult)
             ):
                 self._emit_invalid_action_error(
-                    "Action event 'userMessage' must be a string."
+                    "Action event 'userMessage' must resolve to a string."
                 )
                 return None
             evt["userMessage"] = resolved_um

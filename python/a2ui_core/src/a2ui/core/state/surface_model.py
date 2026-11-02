@@ -524,7 +524,9 @@ class SurfaceModel:
                 ):
                     self.dispatch_error({
                         "code": "INVALID_ACTION",
-                        "message": "Action event 'userMessage' must be a string.",
+                        "message": (
+                            "Action event 'userMessage' must resolve to a string."
+                        ),
                     })
                     return
 
