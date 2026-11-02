@@ -41,26 +41,25 @@ _COMPONENT_ENVELOPE_KEYS: frozenset[str] = frozenset({
 })
 
 
-def _find_root_component(
-    expanded_macro: list[dict[str, Any]],
-    instance_id: str | None,
-) -> dict[str, Any]:
-    """Returns the root component of an expanded macro component list."""
-    if instance_id is not None:
-        for item in reversed(expanded_macro):
-            if item.get("id") == instance_id:
-                return item
-    return expanded_macro[-1]
-
-
-def _merge_root_envelope_fields(
+def _apply_envelope_fields(
     comp: dict[str, Any],
     *,
     declared_params: Mapping[str, Any],
-    root_comp: dict[str, Any],
-    protocol_version: str | None,
+    expanded_macro: list[dict[str, Any]],
+    instance_id: str | None,
+    protocol_version: str | None = None,
 ) -> None:
-    """Merges undeclared envelope fields onto the expanded root component."""
+    """Propagates undeclared root envelope fields from a macro instance onto its expanded root."""
+    if not expanded_macro:
+        return
+
+    root_comp = expanded_macro[-1]
+    if instance_id is not None:
+        for item in reversed(expanded_macro):
+            if item.get("id") == instance_id:
+                root_comp = item
+                break
+
     if comp.get("accessibility") is not None and "accessibility" not in declared_params:
         a11y_copy = copy.deepcopy(comp["accessibility"])
         if isinstance(root_comp.get("accessibility"), dict) and isinstance(
@@ -73,7 +72,7 @@ def _merge_root_envelope_fields(
         else:
             root_comp["accessibility"] = a11y_copy
 
-    if protocol_version != "1.0":
+    if protocol_version != to_version_number(ProtocolVersion.V1_0):
         return
 
     if comp.get("metadata") is not None and "metadata" not in declared_params:
@@ -90,27 +89,6 @@ def _merge_root_envelope_fields(
             root_comp["metadata"] = merged_meta
         else:
             root_comp["metadata"] = meta_copy
-
-
-def _apply_envelope_fields(
-    comp: dict[str, Any],
-    *,
-    declared_params: Mapping[str, Any],
-    expanded_macro: list[dict[str, Any]],
-    instance_id: str | None,
-    protocol_version: str | None = None,
-) -> None:
-    """Propagates undeclared root envelope fields from a macro instance onto its expanded root."""
-    if not expanded_macro:
-        return
-
-    root_comp = _find_root_component(expanded_macro, instance_id)
-    _merge_root_envelope_fields(
-        comp,
-        declared_params=declared_params,
-        root_comp=root_comp,
-        protocol_version=protocol_version,
-    )
 
 
 class MacroExpander:
@@ -403,17 +381,18 @@ class MacroExpander:
         """Returns whether an unannotated nested component inherits ``enclosing_catalog_id``."""
         if depth == 0 or enclosing_catalog_id is None:
             return False
+        if (
+            surface_catalog_id is not None
+            and surface_catalog_id != enclosing_catalog_id
+            and surface_catalog_id != _DEFAULT_MACRO_CATALOG_ID
+            and surface_catalog_id not in self._catalog_base_components
+        ):
+            return False
         if c_name in self._catalog_base_components.get(surface_catalog_id or "", set()):
             return False
         if c_name in self._catalog_base_components.get(enclosing_catalog_id, set()):
             return False
         if c_name in active_macros:
-            if (
-                surface_catalog_id is not None
-                and surface_catalog_id != enclosing_catalog_id
-                and surface_catalog_id not in self._catalog_base_components
-            ):
-                return False
             if surface_catalog_id is None and any(
                 c_name in comps for comps in self._catalog_base_components.values()
             ):

@@ -948,7 +948,7 @@ def test_macro_non_basic_catalog_id_and_to_catalog_default_id():
         catalog_id=basic_cid,
     )
 
-    # 1. Unscoped expander with non-basic explicit catalogId on a basic surface (c001)
+    # 1. Unscoped expander with non-basic explicit catalogId on a basic surface
     expander = MacroExpander([StatusBadge])
     macro_cat = expander.to_catalog()
     assert macro_cat.catalog_id == "https://a2ui.org/catalogs/macros"
@@ -1073,7 +1073,7 @@ def test_macro_non_basic_catalog_id_and_to_catalog_default_id():
     )
 
     # 3. Basic-primitive-named macro tagged with default macro catalogId expands even
-    #    after base catalog registration (c010)
+    #    after base catalog registration
     @macro(name="Text")
     def MacroText(text: str) -> builder_v1_0.Card:
         return builder_v1_0.Card(child=builder_v1_0.Text(text=f"[Macro] {text}"))
@@ -1296,7 +1296,7 @@ def test_macro_mixable_catalogs_scoping_and_same_named_primitive(caplog):
 
     # 3. Scoped MacroExpander(catalog_id=...) ignores unannotated components when
     #    surface_catalog_id is None, even after transform_to_inference_catalog on basic_cat_v10,
-    #    and logs a warning on empty/invalid catalogId (c012, c013)
+    #    and logs a warning on empty/invalid catalogId
     @macro
     def BrandBadge(label: str) -> builder_v1_0.Card:
         return builder_v1_0.Card(
@@ -1368,7 +1368,7 @@ def test_macro_mixable_catalogs_scoping_and_same_named_primitive(caplog):
     assert any("plain_text" in m and "untracked_surface" in m for m in debug_msgs)
     assert any("b_untracked" in m and "untracked_surface" in m for m in debug_msgs)
 
-    # 4. Raw "catalogId": None is treated identically to unset catalogId (c012)
+    # 4. Raw "catalogId": None is treated identically to unset catalogId
     null_cid_msgs = [
         CreateSurfaceMessageV10(
             version="1.0",
@@ -1707,7 +1707,9 @@ def test_macro_nested_deferred_component_expansion():
     assert any(c.get("text") == "Badge: Prod" for c in comps)
 
     # Verify nested deferred macro expansion under catalog_id scoping on a basic surface,
-    # including a deferred inner macro that emits a custom primitive BrandBox (c004)
+    # including a deferred inner macro that emits a custom primitive BrandBox, and verify
+    # that an unannotated primitive emitted by a scoped macro is not hijacked by a sibling
+    # same-name macro when the surface catalog is unregistered
     basic_cid = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
     brand_cid = "https://example.com/brand.json"
 
@@ -1718,6 +1720,15 @@ def test_macro_nested_deferred_component_expansion():
     class InnerBadgeV10Node(builder_v1_0.ComponentBuilderNode):
         component: Literal["InnerBadgeV10"] = "InnerBadgeV10"
         label: str
+
+    @macro(name="Text")
+    def BrandText(text: str, variant: str = "body") -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            child=builder_v1_0.Text(
+                text=f"[Brand] {text}",
+                variant=variant,  # type: ignore[arg-type]
+            )
+        )
 
     @macro
     def InnerBadgeV10(label: str) -> BrandBox:
@@ -1732,7 +1743,7 @@ def test_macro_nested_deferred_component_expansion():
             child=builder_v1_0.Column(
                 children=[
                     builder_v1_0.Text(text=title, variant="body"),
-                    InnerBadgeV10Node(label=title),
+                    InnerBadgeV10Node(label=title, catalog_id=brand_cid),
                 ]
             )
         )
@@ -1765,7 +1776,7 @@ def test_macro_nested_deferred_component_expansion():
     )
 
     scoped_nested = MacroExpander(
-        [InnerBadgeV10, OuterPanelV10],
+        [BrandText, InnerBadgeV10, OuterPanelV10],
         catalog_id=brand_cid,
         base_catalogs=[brand_base],
     )
@@ -1819,7 +1830,7 @@ def test_macro_custom_catalog_collision_and_same_name_wrapper(caplog):
     cat_a_cid = "https://example.com/catalog_a.json"
     cat_b_cid = "https://example.com/catalog_b.json"
 
-    # 1. Custom catalog A has primitive ProductCard; custom catalog B has macro ProductCard (c005)
+    # 1. Custom catalog A has primitive ProductCard; custom catalog B has macro ProductCard
     @macro
     def ProductCard(name: str) -> builder_v1_0.Card:
         return builder_v1_0.Card(child=builder_v1_0.Text(text=f"Product: {name}"))
@@ -1897,7 +1908,7 @@ def test_macro_custom_catalog_collision_and_same_name_wrapper(caplog):
     assert by_id["p_cat_b"]["component"] == "Card"
     assert by_id["p_cat_b__text_1"]["text"] == "Product: Widget"
 
-    # 2. Same-name custom primitive wrapper passes through without re-entry or error logs (c005)
+    # 2. Same-name custom primitive wrapper passes through without re-entry or error logs
     class BrandBoxNode(builder_v1_0.ComponentBuilderNode):
         component: Literal["BrandBox"] = "BrandBox"
         child: builder_v1_0.Child
@@ -1980,7 +1991,7 @@ def test_macro_custom_catalog_collision_and_same_name_wrapper(caplog):
         [m.model_dump(by_alias=True, exclude_none=True) for m in lowered_wrapper]
     )
 
-    # 3. Genuine deferred self-recursion still raises A2uiRecursionError (c005)
+    # 3. Genuine deferred self-recursion still raises A2uiRecursionError
     class DeferredCycleNode(ComponentBuilderNode):
         component: Literal["DeferredCycle"] = "DeferredCycle"
         label: str
