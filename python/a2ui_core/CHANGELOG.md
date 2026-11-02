@@ -76,7 +76,7 @@
   function's arguments are validated once they resolve and sent with the
   schema's defaults. A call is not sent, and reports `EXPRESSION_ERROR`, when
   its function is `agentOnly`, needs user activation the evaluation lacks, has
-  arguments with no JSON form, or is read where the answer can't be awaited (a one-shot `resolve_dynamic_value` read, a `formatString` template part, or an argument of an agent's `callRendererFunction`), which instead returns the answer the surface already holds for the same call, if any. While the answer is
+  arguments with no JSON form, or is read where the answer can't be awaited (a one-shot `resolve_dynamic_value` read or a `formatString` template part), which instead returns the answer the surface already holds for the same call, if any. An argument of an agent's `callRendererFunction` never uses the agent: an unimplemented function there fails with `EXECUTION_ERROR`. While the answer is
   pending the value is `None` (a signal with `peek=False`), and a pending
   check rule doesn't fail. Event action values resolve in order, and the first
   failure stops the action. Identical binding calls share one request and a

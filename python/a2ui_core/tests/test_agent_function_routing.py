@@ -1871,3 +1871,38 @@ async def test_nested_argument_error_without_message_has_a_fallback() -> None:
     assert replies[0]["error"]["message"] == (
         "An argument of the function call could not be resolved."
     )
+
+
+@pytest.mark.asyncio
+async def test_call_renderer_function_argument_ignores_cached_answer() -> None:
+    seen: list[tuple[bool, bool]] = []
+    probe = _probe(seen)
+    probe.allowed_callers = "rendererOrAgent"
+    h = _Harness(extra_functions=[probe])
+    _read(h.ctx, {"@call": "fetchFxRate", "args": {}})
+    h.respond(0, value=1.08)
+    await _flush()
+    assert h.ctx.resolve_dynamic_value({"@call": "fetchFxRate", "args": {}}) == 1.08
+
+    responses = h.proc.process_messages([{
+        "version": "1.0",
+        "callRendererFunction": {
+            "functionCallId": "r1",
+            "surfaceId": "s1",
+            "callFunction": {
+                "call": "probe",
+                "catalogId": FIN_CATALOG_ID,
+                "args": {"value": {"@call": "fetchFxRate", "args": {}}},
+            },
+        },
+    }])
+    await _flush()
+    replies = [
+        m["rendererFunctionResponse"]
+        for m in [*h.outbound, *(responses or [])]
+        if isinstance(m, dict) and "rendererFunctionResponse" in m
+    ]
+    assert replies[0]["error"]["code"] == "EXECUTION_ERROR"
+    assert "fetchFxRate" in replies[0]["error"]["message"]
+    assert seen == [], "the function doesn't run with the cached answer"
+    assert len([m for m in h.outbound if "callAgentFunction" in m]) == 1

@@ -431,6 +431,8 @@ class DataContext:
         self._is_action_execution = False
         # The agent calls of the subscription being evaluated, if any.
         self._agent_calls: _AgentCallMemory | None = None
+        # Set while resolving an agent's callRendererFunction arguments.
+        self._agent_disabled = False
 
     @property
     def is_user_activated(self) -> bool:
@@ -578,6 +580,23 @@ class DataContext:
         None until the result arrives. A call that fails evaluates to None.
         """
         return self._resolve_value(value, peek, abort_signal, keep_failed=False)
+
+    def resolve_without_agent(self, value: Any) -> Any:
+        """Resolves `value` like `resolve_dynamic_value`, never using the agent.
+
+        A function the renderer does not implement fails as it did before
+        fallback routing existed: nothing is sent, and the surface's cached
+        agent answers are not read either. `RpcHandler` resolves the
+        arguments of an agent's `callRendererFunction` this way.
+
+        Internal: not part of the package's public API.
+        """
+        previous = self._agent_disabled
+        self._agent_disabled = True
+        try:
+            return self.resolve_dynamic_value(value)
+        finally:
+            self._agent_disabled = previous
 
     def _resolve_value(
         self,
@@ -1215,6 +1234,10 @@ class DataContext:
                     raise A2uiExpressionError(
                         f"Function '{name}' cannot be called by renderer"
                         " (allowedCallers is agentOnly)."
+                    )
+                if self._agent_disabled and self._routes_to_agent(fn):
+                    raise A2uiExpressionError(
+                        f"Function '{name}' is not implemented by the renderer."
                     )
                 if self._routes_to_agent(fn):
                     # A read that can't wait sends nothing; it gets the answer

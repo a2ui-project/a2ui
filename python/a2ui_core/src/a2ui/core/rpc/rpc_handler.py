@@ -385,9 +385,12 @@ class RpcHandler:
 
         resolved_args = args
         try:
-            resolved_args = {
-                k: context.resolve_dynamic_value(v) for k, v in args.items()
-            }
+            # An agent's arguments never route back to the agent, nor read
+            # its cached answers: an unimplemented function fails here.
+            resolve = getattr(
+                context, "resolve_without_agent", context.resolve_dynamic_value
+            )
+            resolved_args = {k: resolve(v) for k, v in args.items()}
         except Exception as e:
             expression_error = str(e) or _UNRESOLVED_ARGUMENT_MESSAGE
         finally:
