@@ -14,6 +14,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+const mermaid = `
+flowchart TD
+  Renderer["Renderer"] -- "supportedCatalogIds" --> Agent["Agent"]
+  Agent -- "createSurface.catalogId" --> Renderer
+  subgraph Catalog["Catalog (https://example.com/catalogs/travel/v1/catalog.json)"]
+    Components["components: FlightStatusCard, Column, Text, Button, TextField"]
+    Functions["functions: formatCurrency (rendererOnly), holdSeat (agentOnly)"]
+    Instructions["instructions: Markdown guidance added to LLM system prompt"]
+  end
+  Agent --> Catalog
+  Renderer --> Catalog
+`;
 ---
 
 <div class="ca-root not-content">
@@ -146,6 +159,14 @@
       <code class="ca-instructions__quote">"Place FlightStatusCard inside a Column. Format fares with formatCurrency."</code>
     </div>
   </div>
+
+  <!-- Agent & Accessibility View: Machine-readable spec hidden from human UI -->
+  <script
+    type="text/vnd.mermaid"
+    data-agent-diagram="spec"
+    style="display: none;"
+    set:html={mermaid.trim()}
+  />
 </div>
 
 <style>
