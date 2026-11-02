@@ -123,6 +123,8 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 
 > **[TODO]**: Approach and structure to be decided later (e.g. interactive 5-minute sandbox, starter repository template, or CLI walkthrough).
 
+> **[DECISION]**: The quickstart links the coding-agent playbook `starter_app.md`, published unrendered at `/starter_app.md` (staged by `scripts/prepare-spec-assets.mjs` from `docs/agent-setup/starter_app.md`).
+
 ### Concepts
 
 <a id="overview-how-a2ui-works"></a>

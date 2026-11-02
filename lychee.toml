@@ -71,6 +71,10 @@ exclude = [
   "arize\\.com/llm-evaluation",
   # Unpublished workspace packages (404 until first pub.dev release)
   "pub\\.dev/packages/a2ui_cli",
+  # Agent playbook staged by the Astro site build (404 until the first deploy that includes it)
+  "a2ui\\.org/starter_app\\.md",
+  # Private repository until launch, so its links 404 for the checker
+  "github\\.com/a2ui-project/labs",
 ]
 
 # Don't descend into dependency or build-output directories.

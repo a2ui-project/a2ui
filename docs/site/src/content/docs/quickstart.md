@@ -107,3 +107,11 @@ In the app, try these prompts:
   }
 }
 ```
+
+## Set up the full starter app with a coding agent
+
+The starter app goes beyond this demo: an existing open-source app converted into a generative UI app built on A2UI and the Gemini API. To set it up, paste this prompt into your coding agent:
+
+```text
+Read https://a2ui.org/starter_app.md and set up the A2UI starter app.
+```

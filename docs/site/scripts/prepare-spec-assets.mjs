@@ -41,13 +41,19 @@ fs.rmSync(path.join(siteRoot, '.astro'), {recursive: true, force: true});
 // 1. Ensure public/ exists
 fs.mkdirSync(publicDir, {recursive: true});
 
-// 2. Copy static assets from docs/public/assets, CNAME, and llms.txt
+// 2. Copy static assets from docs/public/assets, CNAME, llms.txt, and starter_app.md
 copyRecursive(path.join(repoRoot, 'docs/public/assets'), path.join(publicDir, 'assets'));
 if (fs.existsSync(path.join(repoRoot, 'docs/public/CNAME'))) {
   fs.copyFileSync(path.join(repoRoot, 'docs/public/CNAME'), path.join(publicDir, 'CNAME'));
 }
 if (fs.existsSync(path.join(repoRoot, 'docs/public/llms.txt'))) {
   fs.copyFileSync(path.join(repoRoot, 'docs/public/llms.txt'), path.join(publicDir, 'llms.txt'));
+}
+if (fs.existsSync(path.join(repoRoot, 'docs/agent-setup/starter_app.md'))) {
+  fs.copyFileSync(
+    path.join(repoRoot, 'docs/agent-setup/starter_app.md'),
+    path.join(publicDir, 'starter_app.md'),
+  );
 }
 fs.writeFileSync(path.join(publicDir, '.nojekyll'), '');
 
@@ -98,5 +104,5 @@ for (const version of specVersions) {
 }
 
 console.log(
-  '[prepare-spec-assets] Staged assets, CNAME, llms.txt, and specification JSON schemas into public/.',
+  '[prepare-spec-assets] Staged assets, CNAME, llms.txt, starter_app.md, and specification JSON schemas into public/.',
 );
