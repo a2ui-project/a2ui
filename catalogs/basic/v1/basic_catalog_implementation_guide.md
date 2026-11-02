@@ -242,8 +242,9 @@ Because `formatString` contains dynamic expressions embedded _within_ a string l
   1. Pattern length exceeds 256 code points.
   2. A quantifier whose upper bound is above 1 (`?` and `{0,1}` have upper bound 1) applies to a subexpression containing an unbounded quantifier (`*`, `+`, `{n,}`).
   3. An unbounded quantifier applies to an alternation where two branches can start with the same character (after unwrapping groups).
-  4. Two unbounded-quantified atoms with overlapping character sets are adjacent in one concatenation, with only zero-width assertions or items that can match the empty string between them.
+  4. Two unbounded-quantified atoms with overlapping character sets are adjacent in one concatenation, with only zero-width assertions or items that can match the empty string between them (a group whose only content is one quantified atom counts as that atom).
 - **Value length cap:** If `args.value` exceeds 4,096 code points, return `{"valid": false}` (or `false` in v0.9) without evaluating the pattern or reporting an error.
+- **Return value:** Otherwise, test `args.value` against the compiled pattern and return `{"valid": true}` if it matches or `{"valid": false}` if it does not (or `true` / `false` in v0.9).
 
 ### `length`
 
