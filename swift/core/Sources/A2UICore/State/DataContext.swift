@@ -25,6 +25,7 @@ public final class DataContext {
   public let dataModel: DataModel
   public let protocolVersion: A2UIProtocolVersion?
   public let index: Int?
+  public let userActivation: Bool
 
   /// A reference to the function handler to evaluate dynamic function calls.
   public weak var functionHandler: FunctionHandler?
@@ -34,13 +35,31 @@ public final class DataContext {
     path: String,
     functionHandler: FunctionHandler,
     protocolVersion: A2UIProtocolVersion? = nil,
-    index: Int? = nil
+    index: Int? = nil,
+    userActivation: Bool = true
   ) {
     self.dataModel = dataModel
     self.path = path
     self.functionHandler = functionHandler
     self.protocolVersion = protocolVersion
     self.index = index
+    self.userActivation = userActivation
+  }
+
+  private init(
+    dataModel: DataModel,
+    path: String,
+    optionalFunctionHandler: FunctionHandler?,
+    protocolVersion: A2UIProtocolVersion?,
+    index: Int?,
+    userActivation: Bool
+  ) {
+    self.dataModel = dataModel
+    self.path = path
+    self.functionHandler = optionalFunctionHandler
+    self.protocolVersion = protocolVersion
+    self.index = index
+    self.userActivation = userActivation
   }
 
   public var atLeastV10: Bool {
@@ -81,7 +100,8 @@ public final class DataContext {
       path: absPath,
       functionHandler: handler,
       protocolVersion: protocolVersion,
-      index: index ?? self.index
+      index: index ?? self.index,
+      userActivation: userActivation
     )
   }
 
@@ -93,7 +113,17 @@ public final class DataContext {
   ///
   /// Recursively evaluates data bindings (`path` / `@path`), function calls
   /// (`call` / `@call`), arrays, and nested plain objects.
-  public func resolveDynamicValue(_ value: JSONValue) -> JSONValue {
+  public func resolveDynamicValue(_ value: JSONValue, userActivation: Bool? = nil) -> JSONValue {
+    if let userActivation, userActivation != self.userActivation {
+      return DataContext(
+        dataModel: dataModel,
+        path: path,
+        optionalFunctionHandler: functionHandler,
+        protocolVersion: protocolVersion,
+        index: index,
+        userActivation: userActivation
+      ).resolveDynamicValue(value)
+    }
     switch value {
     case .array(let arr):
       return .array(arr.map { resolveDynamicValue($0) })
@@ -156,6 +186,14 @@ public final class DataContext {
     if atLeastV10 && function.api.allowedCallers == .agentOnly {
       functionHandler?.handleFunctionError(
         FunctionError.callerDisallowed(name: callName, caller: "renderer"),
+        functionName: callName
+      )
+      return .null
+    }
+
+    if function.api.requiresUserActivation && !userActivation {
+      functionHandler?.handleFunctionError(
+        FunctionError.userActivationRequired(name: callName),
         functionName: callName
       )
       return .null

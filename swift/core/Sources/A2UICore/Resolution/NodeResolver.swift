@@ -1193,7 +1193,8 @@ public final class NodeResolver: Sendable {
   private func evaluateDynamicValue(
     _ value: JSONValue,
     basePath: String?,
-    index: Int? = nil
+    index: Int? = nil,
+    userActivation: Bool = true
   ) -> JSONValue {
     let currentData = dataModel.data
     let previousReadHook = dataModel.onReadPath
@@ -1210,9 +1211,10 @@ public final class NodeResolver: Sendable {
       path: basePath ?? "",
       functionHandler: self,
       protocolVersion: effectiveProtocolVersion,
-      index: index
+      index: index,
+      userActivation: userActivation
     )
-    return context.resolveDynamicValue(value)
+    return context.resolveDynamicValue(value, userActivation: userActivation)
   }
 
   private func coerceToString(_ value: JSONValue?) -> String? {
@@ -1658,12 +1660,17 @@ public final class NodeResolver: Sendable {
       identity: unresolvedIdentity,
       sourceComponentID: componentID,
       dataContextPath: basePath,
-      trigger: { [weak self] in
+      triggerWithUserActivation: { [weak self] userActivation, _ in
         guard let self else { return }
         guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
           return
         }
-        _ = self.evaluateDynamicValue(functionCallValue, basePath: basePath, index: index)
+        _ = self.evaluateDynamicValue(
+          functionCallValue,
+          basePath: basePath,
+          index: index,
+          userActivation: userActivation
+        )
       }
     )
   }
