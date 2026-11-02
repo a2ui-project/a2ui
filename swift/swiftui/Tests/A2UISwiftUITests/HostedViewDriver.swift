@@ -120,6 +120,7 @@ final class HostedViewDriver {
   #endif
 
   let surface: Surface
+  private var isTornDown = false
 
   #if canImport(AppKit)
     private let hostingView: NSHostingView<AnyView>
@@ -191,9 +192,13 @@ final class HostedViewDriver {
 
   /// Detaches the hosted SwiftUI hierarchy from its platform window and flushes teardown.
   func tearDown() {
+    guard !isTornDown else { return }
+    isTornDown = true
     #if canImport(AppKit)
       hostingView.rootView = AnyView(EmptyView())
       window.contentView = nil
+      window.orderOut(nil)
+      window.close()
     #elseif canImport(UIKit)
       hostingController.rootView = AnyView(EmptyView())
       window.rootViewController = nil

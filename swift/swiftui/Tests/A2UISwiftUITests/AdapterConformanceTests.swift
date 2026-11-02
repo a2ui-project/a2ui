@@ -164,6 +164,14 @@ struct AdapterConformanceTests {
     let suite = AdapterCase.suite
     let name = c.name
     let testCase = c.makeSpec()
+    let knownCaseNames = Set(AdapterCase.all.map(\.name))
+    let unusedExpectedFailures = Self.expectedAdapterFailures.keys
+      .filter { !knownCaseNames.contains($0) }
+      .sorted()
+    #expect(
+      unusedExpectedFailures.isEmpty,
+      "Unused expectedAdapterFailures entries: \(unusedExpectedFailures)"
+    )
     defer {
       AdapterHarness.recordCaseCompleted(
         suite: suite,
