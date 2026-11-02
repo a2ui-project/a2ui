@@ -287,4 +287,43 @@ describe('Video Component', () => {
       );
     }
   });
+
+  it('places aria-label and aria-description onto inner video element', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'video_a11y',
+              component: 'Video',
+              url: 'https://example.com/tour.mp4',
+              accessibility: {
+                label: 'Restaurant virtual tour',
+                description: '2 minute walkthrough with captions',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-video') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'video_a11y');
+    });
+
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    assert.strictEqual(el.hasAttribute('aria-description'), false);
+    const video = el.querySelector('video');
+    assert.strictEqual(video?.getAttribute('aria-label'), 'Restaurant virtual tour');
+    assert.strictEqual(
+      video?.getAttribute('aria-description'),
+      '2 minute walkthrough with captions',
+    );
+  });
 });
