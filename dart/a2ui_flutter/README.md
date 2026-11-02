@@ -1,43 +1,140 @@
 # A2UI Flutter
 
-Flutter renderer for [A2UI](https://a2ui.org/) protocol v1.0 and v0.9. It
-renders the surfaces of an `a2ui_core` `MessageProcessor` as widget trees,
-following the
-[framework adapter blueprint](../../blueprints/modules/a2ui_framework_adapter.blueprint.md).
+`a2ui_flutter` renders [A2UI](https://a2ui.org/) surfaces as Flutter widgets.
+In A2UI, an AI agent describes a user interface as JSON messages, and the app
+renders it with its own components. This package supports protocol v1.0 and
+v0.9 and includes the basic catalog of components.
 
-The basic catalog is included. A custom component pairs a schema with a
-widget builder, and goes in a catalog of the app's own.
+To learn about A2UI, see [a2ui.org](https://a2ui.org/):
 
-## Installation
+- [What is A2UI?](https://a2ui.org/introduction/what-is-a2ui/)
+- [Core concepts](https://a2ui.org/concepts/overview/), such as surfaces,
+  components, data binding and actions
+- [Transports](https://a2ui.org/concepts/transports/), which carry messages
+  between the agent and the app
+- [Agent development](https://a2ui.org/guides/agent-development/)
+- [Defining your own catalog](https://a2ui.org/guides/defining-your-own-catalog/)
+- [The v1.0 specification](https://a2ui.org/specification/v1.0-a2ui/)
 
-`a2ui_flutter` is not published yet, and it needs the node layer of
-`a2ui_core`, which no release on pub.dev has. Depend on both from git at the
-same commit, and keep the override:
+## Replacing genui
 
-```yaml
-dependencies:
-  a2ui_core: ^0.4.0
-  a2ui_flutter:
-    git:
-      url: https://github.com/a2ui-project/a2ui.git
-      path: dart/a2ui_flutter
-      ref: <commit>
-  json_schema_builder: ^0.1.7 # for custom component schemas
+`a2ui_flutter`, [`a2ui_core`](https://pub.dev/packages/a2ui_core) and
+[`a2ui_agent`](https://pub.dev/packages/a2ui_agent) replace the
+[`genui`](https://pub.dev/packages/genui) package. Their API is different
+from that of `genui`.
 
-dependency_overrides:
-  a2ui_core:
-    git:
-      url: https://github.com/a2ui-project/a2ui.git
-      path: dart/a2ui_core
-      ref: <commit>
+| Package        | What it does                                                                                        |
+| -------------- | --------------------------------------------------------------------------------------------------- |
+| `a2ui_core`    | Processes A2UI messages and holds the state of each surface.                                        |
+| `a2ui_flutter` | Renders surfaces as Flutter widgets.                                                                |
+| `a2ui_agent`   | Prompts a model to write A2UI and parses its reply, for an app or Dart server that calls the model. |
+
+## Getting Started
+
+### Install
+
+```bash
+flutter pub add a2ui_flutter a2ui_core
 ```
 
-## Quick Start
+### Render a surface
 
-The app owns a `MessageProcessor`, feeds it the agent's messages, and renders
-each surface the processor creates in an `A2uiSurface`. Actions and errors
-on a surface go back to the agent, and so do the function calls and answers
-the processor makes.
+A `MessageProcessor` from `a2ui_core` applies the agent's messages, and
+creates a surface for each `createSurface` message. An `A2uiSurface` renders
+one surface. This app renders a surface from two messages written by hand:
+
+```dart
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
+import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MaterialApp(home: HelloA2ui()));
+
+class HelloA2ui extends StatefulWidget {
+  const HelloA2ui({super.key});
+
+  @override
+  State<HelloA2ui> createState() => _HelloA2uiState();
+}
+
+class _HelloA2uiState extends State<HelloA2ui> {
+  final processor = MessageProcessor<ComponentImplementation>(
+    catalogs: [basicCatalog()],
+  );
+  SurfaceModel<ComponentImplementation>? surface;
+
+  @override
+  void initState() {
+    super.initState();
+    processor.model.onSurfaceCreated.subscribe(
+      (created) => setState(() => surface = created),
+    );
+    processor.model.onAction.subscribe(
+      (action) => debugPrint('Action: ${action.name}'),
+    );
+
+    // In an app, these messages come from an agent.
+    processor.processMessages([
+      {
+        'version': '1.0',
+        'createSurface': {
+          'surfaceId': 'hello',
+          'catalogId': BasicCatalog.v1_0Id,
+        },
+      },
+      {
+        'version': '1.0',
+        'updateComponents': {
+          'surfaceId': 'hello',
+          'components': [
+            {
+              'id': 'root',
+              'component': 'Column',
+              'children': ['greeting', 'button'],
+            },
+            {'id': 'greeting', 'component': 'Text', 'text': 'Hello, A2UI!'},
+            {
+              'id': 'button',
+              'component': 'Button',
+              'child': 'label',
+              'action': {
+                'event': {'name': 'greet'},
+              },
+            },
+            {'id': 'label', 'component': 'Text', 'text': 'Say hi'},
+          ],
+        },
+      },
+    ]);
+  }
+
+  @override
+  void dispose() {
+    processor.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final SurfaceModel<ComponentImplementation>? surface = this.surface;
+    return Scaffold(
+      body: surface == null ? null : A2uiSurface(surface: surface),
+    );
+  }
+}
+```
+
+Pressing the button prints its action. The basic components are Material
+widgets, so render surfaces under a `MaterialApp` and inside a `Material`,
+such as a `Scaffold` body.
+
+### Connect an agent
+
+In an app, the agent's messages arrive through a transport, and the
+surfaces' actions and errors go back to the agent. So do the function calls
+and answers the processor makes. In this sketch, `send` is the app's
+transport:
 
 ```dart
 late final MessageProcessor<ComponentImplementation> processor;
@@ -95,8 +192,6 @@ ValueListenableBuilder(
 processor.dispose();
 ```
 
-- The basic components are Material widgets. Render surfaces under a
-  `MaterialApp` and inside a `Material`, such as a `Scaffold` body.
 - Advertise the catalogs by sending
   `processor.getRendererCapabilities(CapabilitiesOptions(versions: [A2uiProtocolVersion.v1_0])).toJson()`
   as `a2uiRendererCapabilities` in the transport metadata.
@@ -109,6 +204,23 @@ processor.dispose();
 - Error listeners may call `setState` directly.
 - On macOS, network images and media need the
   `com.apple.security.network.client` entitlement.
+
+### Prompt a model from the app
+
+An app that calls a model itself, with no agent in between, prompts it with
+`a2ui_agent`:
+
+```bash
+flutter pub add a2ui_agent
+```
+
+`A2uiGenerator` writes the part of the system prompt that teaches the model
+A2UI and the app's catalogs. A `ResponseStream` parses the model's reply into
+messages for the processor as the reply streams in. The [example](example)
+app does this with Gemini, in
+[lib/chat_session.dart](example/lib/chat_session.dart).
+
+## Rendering Markdown
 
 Models often write Markdown in Text. To render it, wrap the surface in an
 `A2uiMarkdown` with a Markdown package's widget, such as `MarkdownBody` from
