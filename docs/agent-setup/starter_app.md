@@ -57,14 +57,14 @@ The full A2UI documentation index is at https://a2ui.org/llms.txt.
    folder name. To reuse it, run `cd a2ui-labs/typescript-starter` and go to
    Step 6. Do not delete the folder.
 5. Tell the user this plan and wait for a yes:
-   - Check the toolchain (Node, git, Python, Yarn through Corepack).
-   - Clone the A2UI labs repository into `a2ui-labs`.
-   - Install dependencies. This downloads about 400 MB, uses about 1.7 GB of
-     disk, and takes from 20 seconds (warm cache) to several minutes.
-   - Seed a demo budget with sample transactions.
-   - Optionally, store a Gemini API key in `a2ui/agent/.env`.
-   - Start the app on ports 3001, 5007 and 8484, and prove that one generated UI
-     flow works.
+    - Check the toolchain (Node, git, Python, Yarn through Corepack).
+    - Clone the A2UI labs repository into `a2ui-labs`.
+    - Install dependencies. This downloads about 400 MB, uses about 1.7 GB of
+      disk, and takes from 20 seconds (warm cache) to several minutes.
+    - Seed a demo budget with sample transactions.
+    - Optionally, store a Gemini API key in `a2ui/agent/.env`.
+    - Start the app on ports 3001, 5007 and 8484, and prove that one generated UI
+      flow works.
 
 ## Step 1: Check the toolchain
 
@@ -422,11 +422,11 @@ Then show it in the browser:
 3. If a "Welcome to Actual!" tour message shows, close it.
 4. Click "Assistant" in the sidebar.
 5. The page shows "Ask about your budget" and these 5 suggested prompts:
-   - Can I afford Japan in March?
-   - Where did my money go last month?
-   - Find subscriptions I forgot
-   - Move $200 from dining to savings
-   - Monthly check-in
+    - Can I afford Japan in March?
+    - Where did my money go last month?
+    - Find subscriptions I forgot
+    - Move $200 from dining to savings
+    - Monthly check-in
 6. Click "Where did my money go last month?".
 
 Verify: within a few seconds, a card titled "Where your money went in September
