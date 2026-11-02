@@ -7,9 +7,11 @@ import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 import DataBindingAnatomy from '../../../components/docs/DataBindingAnatomy.astro';
 import CollectionScopeDiagram from '../../../components/docs/CollectionScopeDiagram.astro';
 
-In A2UI, the component hierarchy of a surface is decoupled from its runtime state. Every surface owns an isolated, reactive JSON object tree called the **`DataModel`**.
+A2UI decouples surface UI components from runtime state through reactive, JSON-Pointer-based data binding. Every surface maintains an isolated JSON data model, allowing dynamic property bindings, reactive formatting expressions, dynamic collection templates, and on-demand synchronization back to the agent.
 
-Components bind their properties to locations inside the `DataModel` using [RFC 6901 JSON Pointers](https://datatracker.ietf.org/doc/html/rfc6901) (such as `/reservation/guestEmail` or `/invoice/total`). When either the agent or the user mutates a path in the `DataModel`, only the specific widgets subscribed to that path re-render.
+Components bind their properties to locations inside the data model using [RFC 6901 JSON Pointers](https://datatracker.ietf.org/doc/html/rfc6901) (such as `/reservation/guestEmail` or `/invoice/total`). When either the agent or the user mutates a path in the data model, only the specific widgets subscribed to that path re-render.
+
+The following diagram illustrates how surface state maps to rendered UI components. The left panel shows the surface data model as a reactive JSON object with user profile, booking, and preferences keys. The right panel shows how individual components subscribe to paths within that object: text displays bind to `/booking/destination`, input fields bind two-way to `/user/email`, and dynamic formatters compute reactive labels using path references.
 
 <DataBindingAnatomy />
 
@@ -94,7 +96,7 @@ Component properties typed as dynamic values ([`DynamicString`](/specification/v
 2. A reactive [`DataBinding`](/specification/v1.0/schemas/#common_types.json/$defs/DataBinding) pointing to a path in the `DataModel` (`{"@path": "/path"}` in v1.0, `{"path": "/path"}` in v0.9.1).
 3. A catalog function call (`{"@call": "fnName", "args": {...}}` in v1.0, `{"call": "fnName", "args": {...}}` in v0.9.1).
 
-### Pattern 1: Two-way input binding and action context
+### Two-way input binding and action context
 
 Interactive input components bind their `value` property to a `DataModel` path. As the user enters text in a `TextField` or toggles a `CheckBox`, the renderer mutates that path in the local `DataModel` immediately.
 
@@ -183,7 +185,7 @@ When the user triggers an action (such as clicking a submit `Button`), the butto
 
 ---
 
-### Pattern 2: Reactive formatting and string interpolation (`@call` and `formatString`)
+### Reactive formatting and string interpolation (`@call` and `formatString`)
 
 Component properties can bind to local catalog functions whose arguments reference `DataModel` pointers. When an underlying path in the `DataModel` changes, the Core SDK re-evaluates the function and updates the bound widget property.
 
@@ -252,7 +254,7 @@ For combining text with dynamic paths or nested function calls, use the Basic Ca
 
 ---
 
-### Pattern 3: Local control-to-control synchronization
+### Local control-to-control synchronization
 
 Because the `DataModel` is backed by reactive state signals on the client, two or more components bound to the same JSON Pointer stay synchronized locally without network round-trips.
 
@@ -331,7 +333,7 @@ For example, binding both a `Slider` and a `Text` display to `/reservation/guest
 
 ---
 
-### Pattern 4: Collection scopes and dynamic list templates (`ChildList` and `@index`)
+### Collection scopes and dynamic list templates (`ChildList` and `@index`)
 
 Container components whose children property uses [`ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList) (`List`, `Row`, `Column`) can either list static child component IDs (`["item1", "item2"]`) or bind to an array in the `DataModel` using a template object:
 
@@ -354,6 +356,8 @@ When a container uses a template object, the Core SDK establishes a scoped `Data
 1. **Relative JSON Pointers**: Paths without a leading slash (such as `{"@path": "title"}` or `{"@path": "price"}`) resolve relative to the current array item (for example, `/addons/0/title`).
 2. **Absolute JSON Pointers**: Paths with a leading slash (such as `{"@path": "/invoice/currency"}`) resolve from the root of the surface `DataModel`.
 3. **Current element index (`@index`)**: In v1.0, calling the built-in system function `{"@call": "@index"}` returns the zero-based integer index of the current template instance. It resolves to the innermost enclosing template scope and accepts an optional `offset` parameter (`{"@call": "@index", "args": {"offset": 1}}`) for one-based numbering.
+
+The following diagram illustrates how collection scoping works in a dynamic template. A single `addonRow` component template is instantiated for each element in the `/addons` collection array. For index 0, relative pointers like `title` resolve to `/addons/0/title` and `@index` evaluates to `0`, while absolute pointers like `/invoice/currency` resolve to the root data model. For index 1, the identical template instantiates against `/addons/1/title` with `@index` evaluating to `1`.
 
 <CollectionScopeDiagram />
 
