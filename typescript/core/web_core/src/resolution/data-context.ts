@@ -1165,10 +1165,15 @@ export class DataContext {
         delete resolvedEvent.context;
       }
       if (hasUserMessage) {
-        if (typeof resolvedUserMessage !== 'string') {
+        // A `userMessage` that resolves to nothing, such as a binding to a
+        // missing path, is absent; any other non-string is invalid.
+        if (resolvedUserMessage === undefined || resolvedUserMessage === null) {
+          delete resolvedEvent.userMessage;
+        } else if (typeof resolvedUserMessage !== 'string') {
           return this.handleInvalidAction("Action event 'userMessage' must resolve to a string.");
+        } else {
+          resolvedEvent.userMessage = resolvedUserMessage;
         }
-        resolvedEvent.userMessage = resolvedUserMessage;
       }
       return resolvedEvent;
     };
@@ -1248,6 +1253,10 @@ export class DataContext {
    * For event actions, resolves each value in the context map, then
    * `userMessage`, in order and one at a time (see the protocol's event
    * actions). For function call actions, evaluates the function call.
+   *
+   * A `userMessage` that resolves to `null` or `undefined` is left out of the
+   * resolved event; one that resolves to any other non-string is reported as
+   * an `INVALID_ACTION`, and the action resolves to `undefined`.
    *
    * `options.userActivation` applies to both kinds: a function that requires
    * user activation runs, or is sent to the agent, only when the action is

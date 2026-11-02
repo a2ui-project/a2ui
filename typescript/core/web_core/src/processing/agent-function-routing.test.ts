@@ -788,6 +788,35 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     assert.strictEqual(await failed, undefined);
   });
 
+  it('treats a userMessage that resolves to nothing as absent, and any other non-string as invalid', async () => {
+    assert.deepStrictEqual(
+      ctx.resolveAction({event: {name: 'go', userMessage: {'@path': '/missing'}}}),
+      {event: {name: 'go'}},
+    );
+    const pendingNull = ctx.resolveAction({
+      event: {name: 'go', userMessage: {'@call': 'fetchMessage', 'args': {}}},
+    });
+    await flush();
+    respond(0, {value: null});
+    assert.deepStrictEqual(await pendingNull, {event: {name: 'go'}});
+    assert.strictEqual(errors.length, 0);
+
+    assert.strictEqual(ctx.resolveAction({event: {name: 'go', userMessage: 42}}), undefined);
+    const pendingNumber = ctx.resolveAction({
+      event: {name: 'go', userMessage: {'@call': 'fetchMessage2', 'args': {}}},
+    });
+    await flush();
+    respond(1, {value: 42});
+    assert.strictEqual(await pendingNumber, undefined);
+    assert.deepStrictEqual(
+      errors.map(e => [e.code, e.message]),
+      [
+        ['INVALID_ACTION', "Action event 'userMessage' must resolve to a string."],
+        ['INVALID_ACTION', "Action event 'userMessage' must resolve to a string."],
+      ],
+    );
+  });
+
   it('does not send a sibling agent call when another argument fails first', async () => {
     assert.strictEqual(
       ctx.resolveDynamicValue({
