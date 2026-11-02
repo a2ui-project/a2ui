@@ -722,6 +722,29 @@ def test_create_decision_backend_auto_inference_and_http(
     assert b_vercel.model == "jev"
 
 
+def test_decision_synthesizer_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from a2ui.core import Catalog
+    from a2ui.inference_formats.decision import DecisionSynthesizer
+
+    monkeypatch.setenv("A2UI_DECISION_BACKEND", "mock")
+    cat = Catalog.from_json({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "https://example.com/cat",
+        "protocolVersion": "1.0",
+        "components": {
+            "Card": {
+                "type": "object",
+                "properties": {"component": {"const": "Card"}},
+                "required": ["component"],
+            }
+        },
+    })
+    synth = DecisionSynthesizer.from_env([cat])
+    assert isinstance(synth.backend, DeterministicMockBackend)
+
+
 @pytest.mark.asyncio
 async def test_non_finite_weights_adc_lock_and_off_thread_ensure_loaded(
     monkeypatch: pytest.MonkeyPatch,

@@ -77,6 +77,12 @@ core-metadata-version = "2.4"
 [tool.hatch.build.targets.sdist]
 core-metadata-version = "2.4"
 
+[tool.hatch.build.targets.sdist.force-include]
+"../../catalogs/decision/v1/archetypes.json" = "src/a2ui/inference_formats/decision/assets/archetypes.json"
+"../../catalogs/decision/v1/archetype_definition.json" = "src/a2ui/inference_formats/decision/assets/archetype_definition.json"
+"../../catalogs/decision/v1/pattern_definition.json" = "src/a2ui/inference_formats/decision/assets/pattern_definition.json"
+"../../catalogs/basic/v1/patterns.json" = "src/a2ui/inference_formats/decision/assets/patterns/basic_v1_0.json"
+
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
 default = true

@@ -16,17 +16,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
 import pytest
 
 from a2ui.inference_formats.decision import (
     LabeledDecisionExample,
+    SurfaceTemplate,
     SynthesisConfig,
     SynthesisOutput,
     SynthesisStage,
     SynthesizerLike,
+    TemplateRegistry,
     calibrate_thresholds,
     compute_bayes_optimal_threshold,
 )
@@ -48,9 +50,11 @@ class _FakeSynthesizer:
         *,
         surface_id: str | None = None,
         mutable_paths: Collection[str] = (),
+        layout: Sequence[str] | None = None,
+        variety_seed: int | None = None,
         config: SynthesisConfig | None = None,
     ) -> SynthesisOutput:
-        del payload, surface_id
+        del payload, surface_id, layout, variety_seed
         self.calls.append((intent, tuple(mutable_paths)))
         self.seen_configs.append(config)
         return self._scripted[intent]
@@ -326,21 +330,68 @@ async def test_calibrate_thresholds_restores_config_and_matches_template_root() 
 
 @pytest.mark.asyncio
 async def test_calibrate_thresholds_stage2_shadowing_and_threshold_1_0_clamp() -> None:
-    """Verifies M7: threshold=1.0 clamps recommended_mutable_threshold >= recommended_template_threshold."""
-    scripted = {
-        "show_host": SynthesisOutput(
-            stage=SynthesisStage.ARCHETYPE,
-            messages=[],
-            confidence=0.85,
-            entropy=0.1,
-            component_tree_spec={"root_component": "Column"},
+    """Verifies M7: low-confidence wrong template does not shadow Stage 2, and 1.0 threshold clamps cleanly."""
+    from a2ui.core.basic_catalog import BasicCatalog
+    from a2ui.inference_formats.decision import DecisionSynthesizer
+    from .layout_fixtures import HOST, ScriptedAnswers
+
+    cat = BasicCatalog("v1.0")
+    registry = TemplateRegistry()
+    registry.register(
+        SurfaceTemplate(
+            template_id="low_conf_tpl",
+            description="Unrelated template",
+            surface_id="s1",
+            catalog_id=cat.catalog_id,
+            protocol_version="v1.0",
+            components=(
+                {
+                    "id": "root",
+                    "component": "Text",
+                    "text": {"@path": "/host"},
+                },
+            ),
+            required_pointers=("/host",),
         )
-    }
-    synth = _FakeSynthesizer(scripted)
+    )
+    registry.register(
+        SurfaceTemplate(
+            template_id="other_tpl",
+            description="Second unrelated template",
+            surface_id="s1",
+            catalog_id=cat.catalog_id,
+            protocol_version="v1.0",
+            components=(
+                {
+                    "id": "root",
+                    "component": "Text",
+                    "text": {"@path": "/host"},
+                },
+            ),
+            required_pointers=("/host",),
+        )
+    )
+    sa = ScriptedAnswers(
+        answers={
+            "template_select": ("low_conf_tpl", 0.60),
+            "family": ("monitor", 0.90),
+            "stakes": 1.0,
+            "urgency": 1.4,
+            "archetype:monitor": ("dashboard", 0.85),
+            "gate:banner": 0.80,
+            "gate:headline": 0.90,
+            "gate:facts": 0.80,
+            "anatomy:headline.deltas": 0.85,
+            "salience:/cpu": 2.8,
+            "salience:/status": 2.1,
+            "salience:/uptimeHours": 1.2,
+        }
+    )
+    synth = DecisionSynthesizer([cat], sa.backend(), registry=registry)
     dataset = [
         LabeledDecisionExample(
-            intent="show_host",
-            payload={"host": "db-01"},
+            intent=HOST.intent,
+            payload=HOST.payload,
             expected_root_component="Column",
         )
     ]

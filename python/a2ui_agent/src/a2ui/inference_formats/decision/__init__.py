@@ -16,6 +16,13 @@
 
 from __future__ import annotations
 
+from .archetypes import (
+    ArchetypeGrammar,
+    BlockSpec,
+    GrammarError,
+    LayoutArchetype,
+    SlotSpec,
+)
 from .backends import (
     DecisionBackend,
     DeterministicMockBackend,
@@ -34,6 +41,10 @@ from .calibration import (
     compute_bayes_optimal_threshold,
 )
 from .catalog_graph import CatalogDecisionGraph
+from .decision_block import DecisionBlock, decision_block_from_messages
+from .format import DecisionFormat, DecisionFormatFactory
+from .layout_lint import LintCode, LintFinding, LintSeverity, lint_components
+from .layout_planner import LayoutPlanner
 from .models import (
     MAX_BRIEF_SECTIONS,
     AuthoredCopy,
@@ -71,42 +82,92 @@ from .models import (
     VarietyMode,
     coerce_decision_payload,
 )
+from .parser import DecisionParser
+from .patterns import (
+    CatalogPattern,
+    MergedPatternLibrary,
+    PatternError,
+    PatternExpander,
+    PatternLibrary,
+    PatternRef,
+    ResolvedPattern,
+    eligible_archetypes,
+    resolve_fallback_pattern,
+    shape_signature,
+)
 from .payload_inspector import (
     PointerSummary,
     inspect_payload_pointers,
 )
+from .prompt_generator import DecisionPromptGenerator, decision_rules
 from .semantic_types import classify_scalar, humanize_key
+from .synthesizer import DecisionSynthesizer, FallbackCallback
 from .template_registry import SurfaceTemplate, TemplateRegistry
+from .tool import DecisionRenderTool
+
+
+def __getattr__(name: str) -> object:
+    # `DECISION_RULES` renders the bundled grammar's roles into the prompt
+    # contract; resolve it lazily so importing the package stays cheap.
+    if name == "DECISION_RULES":
+        from . import prompt_generator
+
+        return prompt_generator.DECISION_RULES
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
+    "DECISION_RULES",
     "MAX_BRIEF_SECTIONS",
+    "ArchetypeGrammar",
     "AuthoredCopy",
     "BatchingDecisionBackend",
     "BlockBindings",
+    "BlockSpec",
     "BriefSection",
     "CalibrationPoint",
     "CalibrationResult",
     "CatalogDecisionGraph",
+    "CatalogPattern",
     "ComponentNodeSpec",
     "ComponentSlot",
     "DecisionAnswer",
     "DecisionBackend",
     "DecisionBackendType",
     "DecisionBatch",
+    "DecisionBlock",
     "DecisionDistribution",
+    "DecisionFormat",
+    "DecisionFormatFactory",
+    "DecisionParser",
+    "DecisionPromptGenerator",
     "DecisionQuery",
     "DecisionQuestion",
     "DecisionRecord",
+    "DecisionRenderTool",
+    "DecisionSynthesizer",
     "DecisionTask",
     "DecisionWireFormat",
     "DeterministicMockBackend",
+    "FallbackCallback",
     "FallbackSource",
+    "GrammarError",
     "JevHttpBackend",
     "LabeledDecisionExample",
+    "LayoutArchetype",
     "LayoutBrief",
     "LayoutPlan",
+    "LayoutPlanner",
+    "LintCode",
+    "LintFinding",
+    "LintSeverity",
+    "MergedPatternLibrary",
     "PageBindings",
     "PatternCapabilities",
+    "PatternError",
+    "PatternExpander",
+    "PatternLibrary",
+    "PatternRef",
     "PlanOutcome",
     "PlanReason",
     "PlannedBlock",
@@ -114,9 +175,11 @@ __all__ = [
     "PredictOnlyBackend",
     "QuestionKind",
     "Requirement",
+    "ResolvedPattern",
     "SemanticType",
     "SlotBinding",
     "SlotKind",
+    "SlotSpec",
     "StepZeroLogprobBackend",
     "SurfaceTemplate",
     "SynthesisConfig",
@@ -131,7 +194,13 @@ __all__ = [
     "coerce_decision_payload",
     "compute_bayes_optimal_threshold",
     "create_decision_backend",
+    "decision_block_from_messages",
+    "decision_rules",
+    "eligible_archetypes",
     "ensure_batch_backend",
     "humanize_key",
     "inspect_payload_pointers",
+    "lint_components",
+    "resolve_fallback_pattern",
+    "shape_signature",
 ]
