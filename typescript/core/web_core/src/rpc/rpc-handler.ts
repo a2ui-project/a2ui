@@ -228,7 +228,8 @@ export class RpcHandler {
       const errorResponse = this.createResponseError(
         functionCallId,
         RpcErrorCode.EXECUTION_ERROR,
-        this.extractErrorMessage(failedArg.error) || 'An error occurred during function execution.',
+        (failedArg.error === undefined ? '' : this.extractErrorMessage(failedArg.error)) ||
+          'An argument of the function call could not be resolved.',
         version,
       );
       await this.emitOutboundResponse(errorResponse);
@@ -547,7 +548,17 @@ export class RpcHandler {
     });
     try {
       for (const [key, val] of Object.entries(args)) {
-        resolvedArgs[key] = resolveArgumentValue(context, val, 1, isUserActivated);
+        // The agent is waiting for this response, so a nested call the
+        // renderer does not implement fails here instead of being sent back
+        // to the agent. Keys stay own properties, `"__proto__"` included.
+        Object.defineProperty(resolvedArgs, key, {
+          value: resolveArgumentValue(context, val, 1, isUserActivated, {
+            allowAgentRouting: false,
+          }),
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
       }
     } catch (err: unknown) {
       expressionError =

@@ -1121,8 +1121,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
   private processDeleteSurfaceOp(op: InternalDeleteSurfaceOp): void {
     if (!op.surfaceId) return;
+    // Deleting the surface cancels its pending calls through the
+    // `onSurfaceDeleted` subscription set up in the constructor.
     this.model.deleteSurface(op.surfaceId);
-    this.rpc.cancelSurfaceCalls(op.surfaceId);
   }
 
   private validateComponentProperties(

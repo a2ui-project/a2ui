@@ -326,7 +326,10 @@ describe('SurfaceModel', () => {
       };
       const controller = new AbortController();
       controller.abort();
-      assert.strictEqual(await surface.callAgentFunction(call, controller.signal), undefined);
+      assert.strictEqual(
+        await surface.callAgentFunction(call, {abortSignal: controller.signal}),
+        undefined,
+      );
 
       const beforeDispose = surface.callAgentFunction(call);
       surface.dispose();

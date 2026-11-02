@@ -359,6 +359,15 @@ function abortOnFailedArgument(args: unknown, controller: AbortController): void
 }
 
 /**
+ * Whether an error is the cancellation of a pending agent call (an
+ * `A2uiRpcError` with code `CANCELLED`), which is never reported or
+ * remembered as a failure.
+ */
+function isCancellation(e: unknown): boolean {
+  return e instanceof A2uiRpcError && e.code === RpcErrorCode.CANCELLED;
+}
+
+/**
  * Sets `key` as an own enumerable property of `target`, so that a key such as
  * `"__proto__"` stays an ordinary property.
  */
@@ -391,6 +400,8 @@ export class DataContext {
   private _isUserActivated = false;
   private _isPassiveEvaluation = false;
   private _isActionExecution = false;
+  /** Whether calls the renderer does not implement must fail instead of going to the agent. */
+  private _noAgentRouting = false;
 
   readonly surface?: SurfaceModel<any>;
 
@@ -1186,13 +1197,25 @@ export class DataContext {
       for (let index = start; index < entryCount; index++) {
         const contextEntry = contextEntries?.[index];
         const entryController = new AbortController();
-        const value = scope.resolveValue(
-          contextEntry ? contextEntry[1] : ev.userMessage,
-          0,
-          userActivated,
-          true,
-          entryController.signal,
-        );
+        let value: unknown;
+        try {
+          value = scope.resolveValue(
+            contextEntry ? contextEntry[1] : ev.userMessage,
+            0,
+            userActivated,
+            true,
+            entryController.signal,
+          );
+        } catch (e: unknown) {
+          // A malformed value, such as an unrecognized `@` key, is reported
+          // the same way whether it comes first or after a pending entry.
+          entryController.abort();
+          return this.handleInvalidAction(
+            `Action event ${contextEntry ? `context entry '${contextEntry[0]}'` : "'userMessage'"} is invalid: ${
+              (e as {message?: string} | undefined)?.message ?? String(e)
+            }`,
+          );
+        }
         const store = (settled: unknown): boolean => {
           if (findFailedArgument(settled)) {
             entryController.abort();
@@ -1385,12 +1408,27 @@ export class DataContext {
    * @param flags The flags to add to those of this context.
    * @returns The view.
    */
-  private withFlags(flags: {userActivated?: boolean; passive?: boolean; action?: boolean}): this {
+  private withFlags(flags: {
+    userActivated?: boolean;
+    passive?: boolean;
+    action?: boolean;
+    noAgentRouting?: boolean;
+  }): this {
     const view = Object.create(this) as this;
     view._isUserActivated = this._isUserActivated || Boolean(flags.userActivated);
     view._isPassiveEvaluation = this._isPassiveEvaluation || Boolean(flags.passive);
     view._isActionExecution = this._isActionExecution || Boolean(flags.action);
+    view._noAgentRouting = this._noAgentRouting || Boolean(flags.noAgentRouting);
     return view;
+  }
+
+  /**
+   * Whether a call the renderer does not implement may be sent to the agent.
+   * It may not in an evaluation that cannot wait for the answer, such as the
+   * arguments of an agent's `callRendererFunction`.
+   */
+  private get allowsAgentRouting(): boolean {
+    return !this._noAgentRouting && (this.parent?.allowsAgentRouting ?? true);
   }
 
   /**
@@ -1470,7 +1508,8 @@ export class DataContext {
       },
       (e: unknown) => {
         if (!abortSignal?.aborted) {
-          handlers?.onFailure?.();
+          // A cancelled call is not a failure: re-evaluating it sends it again.
+          if (!isCancellation(e)) handlers?.onFailure?.();
           this.dispatchExpressionError(e, name);
         }
         const failed = this.failedArgument(e);
@@ -1517,7 +1556,8 @@ export class DataContext {
       },
       (e: unknown) => {
         if (abortSignal?.aborted || this.surface?.disposed) return;
-        onFailure?.();
+        // A cancelled call is not a failure: re-evaluating it sends it again.
+        if (!isCancellation(e)) onFailure?.();
         this.dispatchExpressionError(e, name);
         setValue(sig, undefined);
       },
@@ -1558,7 +1598,7 @@ export class DataContext {
    */
   private dispatchExpressionError(e: unknown, name: string): void {
     if (!this.surface || this.surface.disposed) return;
-    if (e instanceof A2uiRpcError && e.code === RpcErrorCode.CANCELLED) return;
+    if (isCancellation(e)) return;
     if (
       e instanceof z.ZodError ||
       (typeof e === 'object' && e !== null && (e as {name?: string}).name === 'ZodError')

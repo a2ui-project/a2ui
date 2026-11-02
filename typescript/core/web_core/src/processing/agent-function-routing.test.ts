@@ -20,6 +20,7 @@ import {z} from 'zod';
 
 import {Catalog, createFunctionImplementation, FunctionApi} from '../catalog/types.js';
 import {getValue, peekValue, setValue, signal} from '../reactivity/signals.js';
+import {FormatStringImplementation} from '../catalogs/basic/v1/index.js';
 import {A2uiRpcError, RpcErrorCode} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
 import {MessageProcessor} from './message-processor.js';
@@ -30,7 +31,12 @@ const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 const FIN_CATALOG_ID = 'https://example.com/fin/v1/catalog.json';
 
 const upper = createFunctionImplementation(
-  {name: 'upper', returnType: 'string', schema: z.object({'value': z.string()})},
+  {
+    name: 'upper',
+    returnType: 'string',
+    schema: z.object({'value': z.string()}),
+    allowedCallers: 'rendererOrAgent',
+  },
   args => args.value.toUpperCase(),
 );
 
@@ -104,6 +110,17 @@ const slowToken = createFunctionImplementation(
   () => new Promise<string>(resolve => setTimeout(() => resolve('tok'), 5)) as unknown as string,
 );
 
+/** Accepts only `b`, so any other argument key is reported, not dropped. */
+const strictEcho = createFunctionImplementation(
+  {
+    name: 'strictEcho',
+    returnType: 'number',
+    schema: z.object({'b': z.number()}).strict(),
+    allowedCallers: 'rendererOrAgent',
+  },
+  args => args.b,
+);
+
 describe('Fallback routing of unimplemented functions to the agent (v1.0)', () => {
   let outbound: any[];
   let errors: Array<{code: string; message: string; expression?: string}>;
@@ -139,6 +156,8 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
         confirmPayment,
         liveValue,
         slowToken,
+        strictEcho,
+        FormatStringImplementation,
       ],
     );
     proc = new MessageProcessor([catalog], undefined, {
@@ -306,7 +325,7 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     assert.strictEqual(errors[0].expression, 'fetchFxRate');
   });
 
-  it('cancels pre-microtask and in-flight agent calls when the surface is deleted or processor is disposed', async () => {
+  it('cancels pre-microtask and in-flight agent calls when the surface is deleted', async () => {
     ctx.resolveDynamicValue({'@call': 'preMicrotaskCall', 'args': {}});
     proc.processMessages({
       version: '1.0',
@@ -1097,5 +1116,253 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
       'the new caller answers instead of the old cache',
     );
     assert.strictEqual(sent.length, 1);
+  });
+  // Round 2.
+  /** Sends an agent-initiated `callRendererFunction` and returns the response. */
+  const callRenderer = async (callFunction: Record<string, unknown>) => {
+    const before = outbound.length;
+    proc.processMessages({
+      version: '1.0',
+      callRendererFunction: {
+        functionCallId: `rpc-${before}`,
+        surfaceId: 's1',
+        callFunction: {catalogId: FIN_CATALOG_ID, ...callFunction},
+      },
+    } as any);
+    await flush();
+    await flush();
+    return outbound.slice(before);
+  };
+
+  it('sends a cancelled call again when its binding re-evaluates with equal arguments (V1)', async () => {
+    const surface = proc.model.getSurface('s1')!;
+    surface.dataModel.set('/user', {id: 1});
+    const sub = ctx.subscribeDynamicValue(
+      {'@call': 'fetchProfile', 'args': {'user': {'@path': '/user'}}},
+      () => {},
+    );
+    await flush();
+    assert.strictEqual(outbound.length, 1);
+    proc.rpc.cancelSurfaceCalls('s1');
+    await flush();
+    assert.strictEqual(errors.length, 0, 'a cancellation is silent');
+
+    surface.dataModel.set('/user', {id: 1});
+    await flush();
+    assert.strictEqual(outbound.length, 2, 'a cancellation is not remembered as a failure');
+    respond(1, {value: 'profile'});
+    await flush();
+    assert.strictEqual(sub.value, 'profile');
+    sub.unsubscribe();
+  });
+
+  it('disposes surfaces and the RPC handler silently when the processor is disposed mid-call (V4)', async () => {
+    setUp({defaultTimeoutMs: 30});
+    const surface = proc.model.getSurface('s1')!;
+    const processorErrors: unknown[] = [];
+    proc.model.onError.subscribe(e => {
+      processorErrors.push(e);
+    });
+    const sub = ctx.subscribeDynamicValue({'@call': 'fetchFxRate', 'args': {}}, () => {});
+    await flush();
+    assert.strictEqual(outbound.length, 1);
+    let pendingRejection: unknown;
+    proc.rpc
+      .callAgentFunction('s1', {'@call': 'other', 'catalogId': FIN_CATALOG_ID, 'args': {}})
+      .catch(e => {
+        pendingRejection = e;
+      });
+
+    proc.dispose();
+    await new Promise(resolve => setTimeout(resolve, 50));
+    assert.strictEqual(surface.disposed, true);
+    assert.ok(pendingRejection instanceof A2uiRpcError, 'no call is left pending');
+    await assert.rejects(
+      proc.rpc.callAgentFunction('s1', {'@call': 'x', 'catalogId': FIN_CATALOG_ID, 'args': {}}),
+      (e: unknown) => e instanceof A2uiRpcError && e.code === RpcErrorCode.DISPOSED,
+    );
+    assert.strictEqual(outbound.length, 2, 'nothing more is sent after disposal');
+    assert.deepStrictEqual(errors, []);
+    assert.deepStrictEqual(processorErrors, []);
+    sub.unsubscribe();
+  });
+
+  it('cancels a deleted surface pending calls exactly once (V5)', async () => {
+    let cancellations = 0;
+    const cancel = proc.rpc.cancelSurfaceCalls.bind(proc.rpc);
+    proc.rpc.cancelSurfaceCalls = (surfaceId: string) => {
+      cancellations++;
+      cancel(surfaceId);
+    };
+    const pending = proc.rpc.callAgentFunction('s1', {
+      '@call': 'other',
+      'catalogId': FIN_CATALOG_ID,
+      'args': {},
+    });
+    proc.processMessages({version: '1.0', deleteSurface: {surfaceId: 's1'}} as any);
+    await assert.rejects(
+      pending,
+      (e: unknown) => e instanceof A2uiRpcError && e.code === RpcErrorCode.CANCELLED,
+    );
+    assert.strictEqual(cancellations, 1);
+  });
+
+  it('re-evaluates only the binding whose call settled, without resend loops past the cache size (V8)', async () => {
+    const subs = Array.from({length: 300}, (_, i) =>
+      ctx.subscribeDynamicValue({'@call': 'fetchItem', 'args': {'i': i}}, () => {}),
+    );
+    await flush();
+    assert.strictEqual(outbound.length, 300);
+    for (let i = 0; i < 300; i++) respond(i, {value: i});
+    await flush();
+    await flush();
+    assert.strictEqual(outbound.length, 300, 'no binding re-sends after the cache evicts');
+    assert.deepStrictEqual(
+      subs.map(sub => sub.value),
+      Array.from({length: 300}, (_, i) => i),
+    );
+    for (const sub of subs) sub.unsubscribe();
+  });
+
+  it('reports a local function that throws in an event action context as an EXECUTION_ERROR (V9)', () => {
+    assert.strictEqual(
+      ctx.resolveAction({
+        event: {name: 'go', context: {'x': {'@call': 'explode', 'args': {'value': 'a'}}}},
+      }),
+      undefined,
+    );
+    assert.deepStrictEqual(
+      errors.map(e => e.code),
+      ['EXECUTION_ERROR'],
+    );
+  });
+
+  it('does not route a nested call in the arguments of an agent callRendererFunction (V3)', async () => {
+    const responses = await callRenderer({
+      '@call': 'upper',
+      'args': {'value': {'@call': 'fetchGreeting', 'args': {}}},
+    });
+    assert.ok(
+      responses.every(m => !m.callAgentFunction),
+      'no callAgentFunction is sent while the agent waits for this response',
+    );
+    const response = responses.find(m => m.rendererFunctionResponse)!.rendererFunctionResponse;
+    assert.strictEqual(response.error.code, 'EXECUTION_ERROR');
+    assert.match(response.error.message, /Function not found/);
+  });
+
+  it('waits for an agent call inside a formatString template (V3)', async () => {
+    const template = {'@call': 'formatString', 'args': {'value': 'Hi ${fetchName()}!'}};
+    const sub = ctx.subscribeDynamicValue(template, () => {});
+    await flush();
+    assert.strictEqual(outbound.length, 1);
+    assert.strictEqual(sub.value, undefined, 'the formatted value is pending, not partial');
+    respond(0, {value: 'Ann'});
+    await flush();
+    assert.strictEqual(sub.value, 'Hi Ann!');
+    sub.unsubscribe();
+
+    const resolved = ctx.resolveAction({event: {name: 'greet', context: {'msg': template}}});
+    await flush();
+    assert.strictEqual(outbound.length, 2, 'an action sends its own call');
+    respond(1, {value: 'Bo'});
+    assert.deepStrictEqual(await resolved, {event: {name: 'greet', context: {'msg': 'Hi Bo!'}}});
+
+    const failed = ctx.resolveAction({event: {name: 'greet', context: {'msg': template}}});
+    await flush();
+    respond(2, {error: {code: 'EXECUTION_ERROR', message: 'no name'}});
+    assert.strictEqual(await failed, undefined, 'a failed part fails the template');
+    assert.strictEqual(errors.length, 1);
+  });
+
+  it('sends schema defaults from a document catalog as a local implementation receives them (V11)', async () => {
+    const docCatalog = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/doc.json',
+        functions: {
+          quoteDoc: {
+            properties: {
+              '@call': {const: 'quoteDoc'},
+              args: {
+                type: 'object',
+                properties: {
+                  symbol: {type: 'string'},
+                  options: {
+                    type: 'object',
+                    properties: {currency: {type: 'string', default: 'USD'}},
+                    default: {},
+                  },
+                },
+                required: ['symbol'],
+              },
+            },
+          },
+        },
+      },
+      '1.0',
+    );
+    const fn = docCatalog.functions.get('quoteDoc')!;
+    const localArgs = fn.schema.parse({symbol: 'GOOG'});
+    proc = new MessageProcessor([docCatalog as any], undefined, {
+      outboundListener: msg => {
+        outbound.push(msg);
+      },
+    });
+    proc.processMessages({
+      version: '1.0',
+      createSurface: {surfaceId: 's1', catalogId: 'https://example.com/doc.json'},
+    } as any);
+    new DataContext(proc.model.getSurface('s1')!, '/').resolveDynamicValue({
+      '@call': 'quoteDoc',
+      'args': {'symbol': 'GOOG'},
+    });
+    await flush();
+    assert.deepStrictEqual(outbound[0].callAgentFunction.callFunction.args, localArgs);
+    assert.deepStrictEqual(localArgs, {symbol: 'GOOG', options: {currency: 'USD'}});
+  });
+
+  it('reports a malformed event context value as INVALID_ACTION, first or after a pending entry (V12)', async () => {
+    const bad = {'@unknown': 1};
+    assert.strictEqual(ctx.resolveAction({event: {name: 'go', context: {'bad': bad}}}), undefined);
+    const later = ctx.resolveAction({
+      event: {name: 'go', context: {'first': {'@call': 'fetchA', 'args': {}}, 'bad': bad}},
+    });
+    await flush();
+    respond(0, {value: 1});
+    assert.strictEqual(await later, undefined);
+    assert.strictEqual(errors.length, 2);
+    for (const error of errors) {
+      assert.strictEqual(error.code, 'INVALID_ACTION');
+      assert.strictEqual((error as {surfaceId?: string}).surfaceId, 's1');
+      assert.match(error.message, /context entry 'bad' is invalid/);
+    }
+  });
+
+  it('gives the agent a descriptive message when a nested argument fails without one (V13)', async () => {
+    const responses = await callRenderer({
+      '@call': 'upper',
+      'args': {'value': {'@call': 'fetchGreeting', 'catalogId': 'https://example.com/none.json'}},
+    });
+    const response = responses.find(m => m.rendererFunctionResponse)!.rendererFunctionResponse;
+    assert.strictEqual(response.error.code, 'EXECUTION_ERROR');
+    assert.notStrictEqual(response.error.message, 'undefined');
+    assert.match(response.error.message, /could not be resolved/);
+  });
+
+  it('keeps an agent-supplied "__proto__" argument an ordinary key (V14)', async () => {
+    const ok = await callRenderer({'@call': 'strictEcho', 'args': {'b': 2}});
+    assert.strictEqual(ok.find(m => m.rendererFunctionResponse)!.rendererFunctionResponse.value, 2);
+
+    const responses = await callRenderer({
+      '@call': 'strictEcho',
+      'args': JSON.parse('{"__proto__": {"b": 3}, "b": 2}'),
+    });
+    const response = responses.find(m => m.rendererFunctionResponse)!.rendererFunctionResponse;
+    assert.strictEqual(
+      response.error?.code,
+      'INVALID_FUNCTION_CALL',
+      'the "__proto__" key reaches validation as an own key instead of being dropped',
+    );
+    assert.match(response.error.message, /__proto__/);
   });
 });

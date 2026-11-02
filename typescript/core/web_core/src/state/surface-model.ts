@@ -123,6 +123,21 @@ export interface AgentFunctionCall {
   args: Record<string, unknown>;
 }
 
+/** Options of {@link SurfaceModel.callAgentFunction}. */
+export interface AgentFunctionCallOptions {
+  /**
+   * Cancels this caller's interest before the request leaves on the next
+   * microtask. A signal that is already aborted sends nothing, and the call
+   * resolves to `undefined`.
+   */
+  abortSignal?: AbortSignal;
+  /**
+   * Sends the call without sharing an identical in-flight call or reading or
+   * writing the settled-answer cache, as imperative action calls do.
+   */
+  bypassCache?: boolean;
+}
+
 /**
  * Sends a function call to the agent and resolves with the agent's result.
  *
@@ -410,10 +425,8 @@ export class SurfaceModel<
    * property is omitted.
    *
    * @param call The call to send, naming the catalog it resolved to.
-   * @param abortSignal Optional signal cancelling this caller's interest before
-   *   the request leaves on the next microtask. A signal that is already
-   *   aborted sends nothing and resolves to `undefined`.
-   * @param options Optional settings (`bypassCache` for imperative action calls).
+   * @param options Optional settings: an `abortSignal`, and `bypassCache` for
+   *   imperative action calls.
    * @returns A promise resolving to the agent's result.
    * @throws {A2uiRpcError} Through the returned promise, with code
    *   `CANCELLED`, if the surface is disposed, or is disposed or given another
@@ -421,11 +434,8 @@ export class SurfaceModel<
    * @throws {A2uiExpressionError} Through the returned promise, if no
    *   {@link agentFunctionCaller} is set or the arguments are not valid JSON.
    */
-  callAgentFunction(
-    call: AgentFunctionCall,
-    abortSignal?: AbortSignal,
-    options?: {bypassCache?: boolean},
-  ): Promise<unknown> {
+  callAgentFunction(call: AgentFunctionCall, options?: AgentFunctionCallOptions): Promise<unknown> {
+    const abortSignal = options?.abortSignal;
     if (this.isDisposed) {
       return Promise.reject(
         new A2uiRpcError(`Surface '${this.id}' has been disposed.`, RpcErrorCode.CANCELLED),

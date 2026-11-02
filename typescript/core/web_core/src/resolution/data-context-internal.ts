@@ -32,6 +32,8 @@ import type {DataContext} from './data-context.js';
  * @param value The DynamicValue to resolve.
  * @param depth The current recursion depth.
  * @param userActivated Whether the evaluation was initiated by an active user action.
+ * @param options `allowAgentRouting: false` makes a call the renderer does not
+ *   implement fail instead of going to the agent.
  * @returns The resolved value.
  */
 export function resolveArgumentValue(
@@ -39,8 +41,23 @@ export function resolveArgumentValue(
   value: unknown,
   depth: number,
   userActivated: boolean,
+  options?: {allowAgentRouting?: boolean},
 ): unknown {
-  return ctx['resolveValue'](value, depth, userActivated, true);
+  const scope =
+    options?.allowAgentRouting === false ? ctx['withFlags']({noAgentRouting: true}) : ctx;
+  return scope['resolveValue'](value, depth, userActivated, true);
+}
+
+/**
+ * Whether a call the renderer does not implement may be sent to the agent
+ * from this context. It may not where the result cannot wait for the answer,
+ * such as the arguments of an agent's `callRendererFunction`.
+ *
+ * @param ctx The context the call is evaluated in.
+ * @returns Whether the call may be routed.
+ */
+export function allowsAgentRouting(ctx: DataContext): boolean {
+  return ctx['allowsAgentRouting'];
 }
 
 /**
