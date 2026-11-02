@@ -35,7 +35,7 @@ const { title, mermaid } = Astro.props;
     type="text/vnd.mermaid"
     data-agent-diagram="spec"
     style="display: none;"
-    set:html={mermaid.trim()}
+    set:html={mermaid.trim().replace(/<\//g, '<\\/')}
   />
 </div>
 
