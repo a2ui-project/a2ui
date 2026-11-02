@@ -55,6 +55,6 @@ describe('v1.0 Example: Flight Status', () => {
       iconInnerEl?.classList?.contains('material-symbols-outlined') ||
         iconInnerEl?.classList?.contains('a2ui-icon'),
     ).toBeTrue();
-    expect((iconInnerEl.textContent || '').trim()).toBe('send');
+    expect((iconInnerEl?.textContent || '').trim()).toBe('send');
   });
 });

@@ -60,10 +60,10 @@ describe('v1.0 Example: Contact Card', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const callBtn = buttons.find(b => b.textContent.includes('Call'))!;
+    const callBtn = buttons.find(b => b.textContent?.includes('Call'));
     expect(callBtn).withContext('Should find Call button').toBeTruthy();
 
-    callBtn.click();
+    callBtn?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();
@@ -76,10 +76,10 @@ describe('v1.0 Example: Contact Card', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const messageBtn = buttons.find(b => b.textContent.includes('Message'))!;
+    const messageBtn = buttons.find(b => b.textContent?.includes('Message'));
     expect(messageBtn).withContext('Should find Message button').toBeTruthy();
 
-    messageBtn.click();
+    messageBtn?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();

@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import {Injectable, signal} from '@angular/core';
-import {A2uiRendererService} from '@a2ui/angular/v0_9';
-import {compareSemVer} from '@a2ui/web_core';
-import {A2uiClientAction, A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
-import {ActionDispatcher} from './action-dispatcher.service';
-import {AgentStubService} from './agent-stub.service';
-import {handleMcpToolAction} from './mcp';
+import { Injectable, signal } from '@angular/core';
+import { A2uiRendererService } from '@a2ui/angular/v0_9';
+import { compareSemVer } from '@a2ui/web_core';
+import { A2uiClientAction, A2uiMessage, CreateSurfaceMessage } from '@a2ui/web_core/v0_9';
+import { ActionDispatcher } from './action-dispatcher.service';
+import { AgentStubService } from './agent-stub.service';
+import { handleMcpToolAction } from './mcp';
 
 /**
  * Context for the 'update_property' event.
@@ -49,12 +49,12 @@ interface SubmitFormContext {
 })
 export class AgentStubV09Service extends AgentStubService {
   override dataModel = signal<Record<string, unknown>>({});
-  override surfaceId = signal<string>('demo-surface', {equal: () => false});
-  override eventsLog = signal<Array<{timestamp: Date; action: A2uiClientAction}>>([]);
+  override surfaceId = signal<string>('demo-surface', { equal: () => false });
+  override eventsLog = signal<Array<{ timestamp: Date; action: A2uiClientAction }>>([]);
   override currentCreateSurfaceMessage = signal<CreateSurfaceMessage | null>(null);
-  private actionSub?: {unsubscribe: () => void};
-  private dataModelSub?: {unsubscribe: () => void};
-  private errorSub?: {unsubscribe: () => void};
+  private actionSub?: { unsubscribe: () => void };
+  private dataModelSub?: { unsubscribe: () => void };
+  private errorSub?: { unsubscribe: () => void };
   private activeProtocolVersion: 'v0.9' | '1.0' = 'v0.9';
   private activeSurfaceId = 'demo-surface';
 
@@ -67,9 +67,9 @@ export class AgentStubV09Service extends AgentStubService {
 
   private handleAction(action: A2uiClientAction) {
     setTimeout(() => {
-      const {name, context} = action;
+      const { name, context } = action;
       if (name === 'update_property' && context) {
-        const {path, value, surfaceId} = context as unknown as UpdatePropertyContext;
+        const { path, value, surfaceId } = context as unknown as UpdatePropertyContext;
         this.rendererService.processMessages([
           {
             version: this.activeProtocolVersion,
@@ -110,9 +110,9 @@ export class AgentStubV09Service extends AgentStubService {
 
   private ensureActionSubscription() {
     this.actionSub?.unsubscribe();
-    this.actionSub = this.actionDispatcher.actions.subscribe(action => {
+    this.actionSub = this.actionDispatcher.actions.subscribe((action) => {
       this.handleAction(action);
-      this.eventsLog.update(log => [{timestamp: new Date(), action}, ...log]);
+      this.eventsLog.update((log) => [{ timestamp: new Date(), action }, ...log]);
     });
   }
 
@@ -121,7 +121,7 @@ export class AgentStubV09Service extends AgentStubService {
     this.errorSub?.unsubscribe();
     const surface = this.rendererService.surfaceGroup?.getSurface(surfaceId);
     if (surface?.dataModel) {
-      this.dataModelSub = surface.dataModel.subscribe('/', data => {
+      this.dataModelSub = surface.dataModel.subscribe('/', (data) => {
         this.dataModel.set(data as Record<string, unknown>);
       });
       this.dataModel.set(surface.dataModel.get('/'));
@@ -129,7 +129,7 @@ export class AgentStubV09Service extends AgentStubService {
       this.dataModel.set({});
     }
     if (surface?.onError) {
-      this.errorSub = surface.onError.subscribe((err: {message?: string; code?: string}) => {
+      this.errorSub = surface.onError.subscribe((err: { message?: string; code?: string }) => {
         const errorAction: A2uiClientAction = {
           name: 'Error',
           surfaceId,
@@ -140,14 +140,14 @@ export class AgentStubV09Service extends AgentStubService {
             message: err.message ?? String(err),
           },
         };
-        this.eventsLog.update(log => [{timestamp: new Date(), action: errorAction}, ...log]);
+        this.eventsLog.update((log) => [{ timestamp: new Date(), action: errorAction }, ...log]);
       });
     }
   }
 
   override initializeDemo(initialMessages: A2uiMessage[]) {
     const clonedMessages = JSON.parse(JSON.stringify(initialMessages)) as A2uiMessage[];
-    const firstMsgVersion = (clonedMessages[0] as {version?: string} | undefined)?.version;
+    const firstMsgVersion = (clonedMessages[0] as { version?: string } | undefined)?.version;
     this.activeProtocolVersion =
       firstMsgVersion && compareSemVer(firstMsgVersion, '1.0') >= 0 ? '1.0' : 'v0.9';
 
@@ -172,7 +172,7 @@ export class AgentStubV09Service extends AgentStubService {
 
   override resetSurface(messages: A2uiMessage[]) {
     const clonedMessages = JSON.parse(JSON.stringify(messages)) as A2uiMessage[];
-    const firstMsgVersion = (clonedMessages[0] as {version?: string} | undefined)?.version;
+    const firstMsgVersion = (clonedMessages[0] as { version?: string } | undefined)?.version;
     this.activeProtocolVersion =
       firstMsgVersion && compareSemVer(firstMsgVersion, '1.0') >= 0 ? '1.0' : 'v0.9';
     this.deleteExistingSurfaces(clonedMessages);
@@ -188,7 +188,7 @@ export class AgentStubV09Service extends AgentStubService {
   override processIncrementalMessages(messagesToProcess: A2uiMessage[]) {
     if (messagesToProcess.length === 0) return;
     const clonedMessages = JSON.parse(JSON.stringify(messagesToProcess)) as A2uiMessage[];
-    const firstMsgVersion = (clonedMessages[0] as {version?: string} | undefined)?.version;
+    const firstMsgVersion = (clonedMessages[0] as { version?: string } | undefined)?.version;
     if (firstMsgVersion && compareSemVer(firstMsgVersion, '1.0') >= 0) {
       this.activeProtocolVersion = '1.0';
     } else if (firstMsgVersion === 'v0.9') {
@@ -223,7 +223,7 @@ export class AgentStubV09Service extends AgentStubService {
           this.rendererService.processMessages([
             {
               version: this.activeProtocolVersion,
-              deleteSurface: {surfaceId},
+              deleteSurface: { surfaceId },
             },
           ]);
         }

@@ -50,10 +50,10 @@ describe('v1.0 Example: Software Purchase', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const confirmBtn = buttons.find(b => b.textContent.includes('Confirm Purchase'))!;
+    const confirmBtn = buttons.find(b => b.textContent?.includes('Confirm Purchase'));
     expect(confirmBtn).withContext('Should find Confirm Purchase button').toBeTruthy();
 
-    confirmBtn.click();
+    confirmBtn?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();
@@ -66,10 +66,10 @@ describe('v1.0 Example: Software Purchase', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const cancelBtn = buttons.find(b => b.textContent.includes('Cancel'))!;
+    const cancelBtn = buttons.find(b => b.textContent?.includes('Cancel'));
     expect(cancelBtn).withContext('Should find Cancel button').toBeTruthy();
 
-    cancelBtn.click();
+    cancelBtn?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();

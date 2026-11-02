@@ -48,10 +48,10 @@ describe('v1.0 Example: Account Balance', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const transferBtn = buttons.find(b => b.textContent.includes('Transfer'))!;
+    const transferBtn = buttons.find(b => b.textContent?.includes('Transfer'));
     expect(transferBtn).withContext('Should find Transfer button').toBeTruthy();
 
-    transferBtn.click();
+    transferBtn?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();
@@ -64,10 +64,10 @@ describe('v1.0 Example: Account Balance', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const payBtn = buttons.find(b => b.textContent.includes('Pay Bill'))!;
+    const payBtn = buttons.find(b => b.textContent?.includes('Pay Bill'));
     expect(payBtn).withContext('Should find Pay Bill button').toBeTruthy();
 
-    payBtn.click();
+    payBtn?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();

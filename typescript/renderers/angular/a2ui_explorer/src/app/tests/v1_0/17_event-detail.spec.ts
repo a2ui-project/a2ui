@@ -60,10 +60,10 @@ describe('v1.0 Example: Event Detail', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const acceptBtn = buttons.find(b => b.textContent.includes('Accept'))!;
+    const acceptBtn = buttons.find(b => b.textContent?.includes('Accept'));
     expect(acceptBtn).withContext('Should find Accept button').toBeTruthy();
 
-    acceptBtn.click();
+    acceptBtn?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();
@@ -76,10 +76,10 @@ describe('v1.0 Example: Event Detail', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const declineBtn = buttons.find(b => b.textContent.includes('Decline'))!;
+    const declineBtn = buttons.find(b => b.textContent?.includes('Decline'));
     expect(declineBtn).withContext('Should find Decline button').toBeTruthy();
 
-    declineBtn.click();
+    declineBtn?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();

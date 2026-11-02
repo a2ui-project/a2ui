@@ -155,7 +155,7 @@ describe('v1.0 Example: Live Invitation Builder', () => {
     const chips = Array.from(surface.querySelectorAll('.a2ui-chip')) as HTMLElement[];
     expect(chips.length).toBeGreaterThanOrEqual(3);
 
-    const ballroomChip = chips.find(el => el.textContent.trim() === 'Grand Ballroom');
+    const ballroomChip = chips.find(el => el.textContent?.trim() === 'Grand Ballroom');
     expect(ballroomChip).toBeTruthy();
 
     await act(async () => {
@@ -170,7 +170,7 @@ describe('v1.0 Example: Live Invitation Builder', () => {
     });
     expect(ballroomUpdated).withContext('Location should update to ballroom').toBeTrue();
 
-    const terraceChip = chips.find(el => el.textContent.trim() === 'Sunset Terrace');
+    const terraceChip = chips.find(el => el.textContent?.trim() === 'Sunset Terrace');
     expect(terraceChip).toBeTruthy();
 
     await act(async () => {

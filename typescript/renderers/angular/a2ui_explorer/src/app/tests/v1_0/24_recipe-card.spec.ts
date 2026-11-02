@@ -47,10 +47,10 @@ describe('v1.0 Example: Recipe Card', () => {
 
   it('should switch to Ingredients tab', async () => {
     const tabs = [...fixture.nativeElement.querySelectorAll('.a2ui-tab-button')] as HTMLElement[];
-    const tab = tabs.find(t => t.textContent.includes('Ingredients'))!;
+    const tab = tabs.find(t => t.textContent?.includes('Ingredients'));
     expect(tab).withContext('Should find Ingredients tab').toBeTruthy();
 
-    tab.click();
+    tab?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();
@@ -62,10 +62,10 @@ describe('v1.0 Example: Recipe Card', () => {
 
   it('should switch to Instructions tab', async () => {
     const tabs = [...fixture.nativeElement.querySelectorAll('.a2ui-tab-button')] as HTMLElement[];
-    const tab = tabs.find(t => t.textContent.includes('Instructions'))!;
+    const tab = tabs.find(t => t.textContent?.includes('Instructions'));
     expect(tab).withContext('Should find Instructions tab').toBeTruthy();
 
-    tab.click();
+    tab?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();

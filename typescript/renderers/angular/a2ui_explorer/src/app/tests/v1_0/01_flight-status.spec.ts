@@ -44,6 +44,6 @@ describe('v1.0 Example: Flight Status', () => {
   it('should render icon', async () => {
     const iconInnerEl = fixture.nativeElement.querySelector('.a2ui-icon');
     expect(iconInnerEl).toBeTruthy();
-    expect(iconInnerEl.textContent.trim()).toBe('send');
+    expect(iconInnerEl?.textContent?.trim()).toBe('send');
   });
 });

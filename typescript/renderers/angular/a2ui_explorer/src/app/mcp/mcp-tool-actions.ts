@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {type A2uiRendererService} from '@a2ui/angular/v0_9';
-import {type A2uiClientAction} from '@a2ui/web_core/v0_9';
-import {MockMcpServer} from './mock-mcp-server';
+import { type A2uiRendererService } from '@a2ui/angular/v0_9';
+import { type A2uiClientAction } from '@a2ui/web_core/v0_9';
+import { MockMcpServer } from './mock-mcp-server';
 
 /** Shared client-side mock MCP server instance with simulated network latency. */
 export const mockMcpServer = new MockMcpServer();

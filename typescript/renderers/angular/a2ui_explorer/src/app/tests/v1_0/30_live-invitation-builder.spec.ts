@@ -29,8 +29,8 @@ describe('v1.0 Example: Live Invitation Builder', () => {
 
   function getLivePreview() {
     const allElements = [...fixture.nativeElement.querySelectorAll('*')] as HTMLElement[];
-    const celebratingEl = allElements.find(el => el.textContent.trim() === 'Celebrating')!;
-    const livePreview = celebratingEl.parentElement!.parentElement!.parentElement!;
+    const celebratingEl = allElements.find(el => el.textContent?.trim() === 'Celebrating');
+    const livePreview = celebratingEl?.parentElement?.parentElement?.parentElement;
     expect(livePreview).withContext('Should Live Preview card content wrapper').toBeTruthy();
     return livePreview;
   }
@@ -47,8 +47,8 @@ describe('v1.0 Example: Live Invitation Builder', () => {
 
     const livePreview = getLivePreview();
 
-    expect(livePreview.textContent).toContain('Celebrating');
-    expect(livePreview.textContent).toContain('Location:');
+    expect(livePreview?.textContent).toContain('Celebrating');
+    expect(livePreview?.textContent).toContain('Location:');
   });
 
   it('should render date', async () => {
@@ -96,7 +96,7 @@ describe('v1.0 Example: Live Invitation Builder', () => {
 
     const livePreview = getLivePreview();
 
-    expect(livePreview.textContent).toContain('Awesome Party');
+    expect(livePreview?.textContent).toContain('Awesome Party');
   });
 
   it('should update preview when changing Guest of Honor input', async () => {
@@ -118,7 +118,7 @@ describe('v1.0 Example: Live Invitation Builder', () => {
 
     const livePreview = getLivePreview();
 
-    expect(livePreview.textContent).toContain('John Doe');
+    expect(livePreview?.textContent).toContain('John Doe');
   });
 
   it('should update preview when changing location', async () => {
@@ -128,28 +128,28 @@ describe('v1.0 Example: Live Invitation Builder', () => {
     const chips = [...fixture.nativeElement.querySelectorAll('.a2ui-chip')] as HTMLElement[];
     expect(chips.length).toBeGreaterThanOrEqual(3);
 
-    const ballroomChip = chips.find(el => el.textContent.trim() === 'Grand Ballroom');
+    const ballroomChip = chips.find(el => el.textContent?.trim() === 'Grand Ballroom');
     expect(ballroomChip).toBeTruthy();
 
-    ballroomChip!.click();
+    ballroomChip?.click();
     fixture.detectChanges();
 
     // Wait for the async template rendering to propagate to the DOM
     const ballroomUpdated = await waitForCondition(() => {
       fixture.detectChanges();
-      return getLivePreview().textContent.includes('Location: ballroom');
+      return Boolean(getLivePreview()?.textContent?.includes('Location: ballroom'));
     });
     expect(ballroomUpdated).withContext('Location should update to ballroom').toBeTrue();
 
-    const terraceChip = chips.find(el => el.textContent.trim() === 'Sunset Terrace');
+    const terraceChip = chips.find(el => el.textContent?.trim() === 'Sunset Terrace');
     expect(terraceChip).toBeTruthy();
 
-    terraceChip!.click();
+    terraceChip?.click();
     fixture.detectChanges();
 
     const terraceUpdated = await waitForCondition(() => {
       fixture.detectChanges();
-      return getLivePreview().textContent.includes('Location: terrace');
+      return Boolean(getLivePreview()?.textContent?.includes('Location: terrace'));
     });
     expect(terraceUpdated).withContext('Location should update back to terrace').toBeTrue();
   });

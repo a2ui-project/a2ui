@@ -51,10 +51,10 @@ describe('v1.0 Example: Coffee Order', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const purchaseBtn = buttons.find(b => b.textContent.includes('Purchase'))!;
+    const purchaseBtn = buttons.find(b => b.textContent?.includes('Purchase'));
     expect(purchaseBtn).withContext('Should find Purchase button').toBeTruthy();
 
-    purchaseBtn.click();
+    purchaseBtn?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();
@@ -67,10 +67,10 @@ describe('v1.0 Example: Coffee Order', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const addToCartBtn = buttons.find(b => b.textContent.includes('Add to cart'))!;
+    const addToCartBtn = buttons.find(b => b.textContent?.includes('Add to cart'));
     expect(addToCartBtn).withContext('Should find Add to cart button').toBeTruthy();
 
-    addToCartBtn.click();
+    addToCartBtn?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();

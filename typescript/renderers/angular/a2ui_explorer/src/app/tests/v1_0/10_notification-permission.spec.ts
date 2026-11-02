@@ -50,10 +50,10 @@ describe('v1.0 Example: Notification Permission', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const yesBtn = buttons.find(b => b.textContent.includes('Yes'))!;
+    const yesBtn = buttons.find(b => b.textContent?.includes('Yes'));
     expect(yesBtn).withContext('Should find Yes button').toBeTruthy();
 
-    yesBtn.click();
+    yesBtn?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();
@@ -66,10 +66,10 @@ describe('v1.0 Example: Notification Permission', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const noBtn = buttons.find(b => b.textContent.includes('No'))!;
+    const noBtn = buttons.find(b => b.textContent?.includes('No'));
     expect(noBtn).withContext('Should find No button').toBeTruthy();
 
-    noBtn.click();
+    noBtn?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();

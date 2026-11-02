@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {ComponentFixture} from '@angular/core/testing';
-import {DemoComponent} from '../../demo.component';
-import {getCanvas, loadExample, wait} from '../utils';
+import { ComponentFixture } from '@angular/core/testing';
+import { DemoComponent } from '../../demo.component';
+import { getCanvas, loadExample, wait } from '../utils';
 
 describe('Example: Contact Card', () => {
   let fixture: ComponentFixture<DemoComponent>;
@@ -24,7 +24,7 @@ describe('Example: Contact Card', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample({name: 'Contact Card'});
+    fixture = await loadExample({ name: 'Contact Card' });
     component = fixture.componentInstance;
     textContent = getCanvas().textContent;
   });
@@ -60,7 +60,7 @@ describe('Example: Contact Card', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const callBtn = buttons.find(b => b.textContent.includes('Call'))!;
+    const callBtn = buttons.find((b) => b.textContent.includes('Call'))!;
     expect(callBtn).withContext('Should find Call button').toBeTruthy();
 
     callBtn.click();
@@ -76,7 +76,7 @@ describe('Example: Contact Card', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const messageBtn = buttons.find(b => b.textContent.includes('Message'))!;
+    const messageBtn = buttons.find((b) => b.textContent.includes('Message'))!;
     expect(messageBtn).withContext('Should find Message button').toBeTruthy();
 
     messageBtn.click();

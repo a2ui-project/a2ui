@@ -50,10 +50,10 @@ describe('v1.0 Example: Email Compose', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const sendBtn = buttons.find(b => b.textContent.includes('Send'))!;
+    const sendBtn = buttons.find(b => b.textContent?.includes('Send'));
     expect(sendBtn).withContext('Should find Send button').toBeTruthy();
 
-    sendBtn.click();
+    sendBtn?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();
@@ -66,10 +66,10 @@ describe('v1.0 Example: Email Compose', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const discardBtn = buttons.find(b => b.textContent.includes('Discard'))!;
+    const discardBtn = buttons.find(b => b.textContent?.includes('Discard'));
     expect(discardBtn).withContext('Should find Discard button').toBeTruthy();
 
-    discardBtn.click();
+    discardBtn?.click();
     fixture.detectChanges();
     await wait(50);
     fixture.detectChanges();

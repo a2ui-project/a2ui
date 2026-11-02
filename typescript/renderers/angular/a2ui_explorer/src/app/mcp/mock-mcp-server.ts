@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 /** Default simulated network latency (in milliseconds) for MCP server operations. */
 export const DEFAULT_MCP_NETWORK_LATENCY_MS = 120;
@@ -50,7 +50,7 @@ export function simulateMcpNetworkDelay(latencyMs = DEFAULT_MCP_NETWORK_LATENCY_
   if (latencyMs <= 0) {
     return Promise.resolve();
   }
-  return new Promise(resolve => setTimeout(resolve, latencyMs));
+  return new Promise((resolve) => setTimeout(resolve, latencyMs));
 }
 
 /**
@@ -99,14 +99,14 @@ export class MockMcpServer {
         const pitch = Number(args['pitch'] ?? 0.42);
         const zoom = Number(args['zoom'] ?? 4.4);
         const telemetry = `${geometry} (yaw=${yaw.toFixed(2)}, pitch=${pitch.toFixed(2)}, zoom=${zoom.toFixed(1)})`;
-        const structuredContent = {geometry, yaw, pitch, zoom, telemetry};
+        const structuredContent = { geometry, yaw, pitch, zoom, telemetry };
         return {
           targetDataPath: descriptor.targetDataPath,
           dataModelValue: telemetry,
           result: {
-            content: [{type: 'text', text: telemetry}],
+            content: [{ type: 'text', text: telemetry }],
             structuredContent,
-            _meta: {ui: {resourceUri: descriptor.resourceUri}},
+            _meta: { ui: { resourceUri: descriptor.resourceUri } },
           },
         };
       }
