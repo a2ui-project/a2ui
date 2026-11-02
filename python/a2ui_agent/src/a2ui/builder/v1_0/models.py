@@ -66,6 +66,16 @@ class ComponentBuilderNode(CoreComponentBuilderNode):
         ),
     )
 
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
+        super().__pydantic_init_subclass__(**kwargs)
+        cat_field = cls.model_fields.get("catalog_id")
+        if cat_field is not None and cat_field.alias is None:
+            cat_field.alias = "catalogId"
+            cat_field.validation_alias = "catalogId"
+            cat_field.serialization_alias = "catalogId"
+            cls.model_rebuild(force=True, raise_errors=False)
+
     @field_serializer("extensions")
     def _serialize_extensions(
         self, value: dict[str, Any] | None

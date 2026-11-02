@@ -295,28 +295,223 @@ def get_scoped_suite_macros() -> dict[str, list[Any]]:
 SCOPED_SUITE_MACROS = get_scoped_suite_macros()
 
 
+def get_v1_0_suite_macros() -> list[Any]:
+    """Builds and returns the suite's reference macros authored with ``a2ui.builder.v1_0``."""
+
+    @macro
+    def StatusBadge(status: str, title: str) -> builder_v1_0.Card:
+        """Status badge with uppercase status and title."""
+        return builder_v1_0.Card(
+            child=builder_v1_0.Row(
+                children=[
+                    builder_v1_0.Text(text=status.upper(), variant="caption"),
+                    builder_v1_0.Text(text=title, variant="body"),
+                ]
+            )
+        )
+
+    @macro
+    def SlotContainer(
+        title: str, content: builder_v1_0.ComponentBuilderNode
+    ) -> builder_v1_0.Card:
+        """Container accepting an external child slot."""
+        return builder_v1_0.Card(
+            child=builder_v1_0.Column(
+                children=[
+                    builder_v1_0.Text(text=title, variant="body"),
+                    content,
+                ]
+            )
+        )
+
+    @macro
+    def MultiSlotContainer(
+        header: str, items: Sequence[builder_v1_0.ComponentBuilderNode]
+    ) -> builder_v1_0.Card:
+        """Container accepting a list of child slots."""
+        children: list[builder_v1_0.ComponentBuilderNode] = [
+            builder_v1_0.Text(text=header, variant="body")
+        ]
+        children.extend(items)
+        return builder_v1_0.Card(child=builder_v1_0.Column(children=children))
+
+    @macro
+    def ActionButton(label: str, action: builder_v1_0.Action) -> builder_v1_0.Button:
+        """Button with coerced action."""
+        return builder_v1_0.Button(
+            child=builder_v1_0.Text(text=label),
+            action=action,
+            variant="primary",
+        )
+
+    @macro
+    def BoundMetric(label: str, value: builder_v1_0.DynamicString) -> builder_v1_0.Card:
+        """Metric card displaying a dynamic value."""
+        return builder_v1_0.Card(
+            child=builder_v1_0.Column(
+                children=[
+                    builder_v1_0.Text(text=label, variant="caption"),
+                    builder_v1_0.Text(text=value, variant="body"),
+                ]
+            )
+        )
+
+    @macro
+    def ConfigCard(name: str, port: int, active: bool) -> builder_v1_0.Card:
+        """Configuration card displaying primitives and metadata."""
+        return builder_v1_0.Card(
+            child=builder_v1_0.Column(
+                children=[
+                    builder_v1_0.Text(text=name, variant="body"),
+                    builder_v1_0.Text(text=f"Port: {port}", variant="body"),
+                    builder_v1_0.Text(text=f"Active: {active}", variant="body"),
+                ]
+            )
+        )
+
+    @macro
+    def NestedMacroCard(title: str, status: str) -> builder_v1_0.Card:
+        """Macro composing another macro."""
+        return builder_v1_0.Card(
+            child=builder_v1_0.Column(
+                children=[
+                    builder_v1_0.Text(text=title, variant="body"),
+                    StatusBadge(status=status, title=f"{title} Status"),
+                ]
+            )
+        )
+
+    @macro
+    def RecursiveCard(title: str) -> builder_v1_0.Card:
+        """Macro composing itself recursively."""
+        return builder_v1_0.Card(child=RecursiveCard(title=title))
+
+    @macro
+    def ComplexCard(
+        title: str,
+        dynamic_title: builder_v1_0.DynamicString,
+        metric: builder_v1_0.DynamicNumber,
+        is_active: builder_v1_0.DynamicBoolean,
+        tags: builder_v1_0.DynamicStringList,
+        anything: builder_v1_0.DynamicValue,
+        on_click: builder_v1_0.Action,
+        checks: Sequence[builder_v1_0.CheckRule],
+        accessibility: builder_v1_0.AccessibilityAttributes,
+        footer: builder_v1_0.ComponentRef,
+        items: Sequence[builder_v1_0.ComponentBuilderNode],
+        theme: Literal["primary", "secondary"],
+    ) -> builder_v1_0.Card:
+        """Card testing protocol common types in macro parameter schemas."""
+        return builder_v1_0.Card(child=builder_v1_0.Text(text=title))
+
+    @macro
+    def PayloadButton(
+        label: str,
+        event_name: str,
+        payload: builder_v1_0.DynamicValue,
+        extra: builder_v1_0.DynamicValue,
+    ) -> builder_v1_0.Button:
+        """Button sending dynamic payload values inside an Action event context."""
+        return builder_v1_0.Button(
+            child=builder_v1_0.Text(text=label),
+            variant="primary",
+            action=builder_v1_0.Action(
+                event=builder_v1_0.ActionEvent(
+                    name=event_name,
+                    context={"payload": payload, "extra": extra},
+                )
+            ),
+        )
+
+    @macro
+    def DynamicFormCard(
+        label: str,
+        placeholder: builder_v1_0.DynamicString,
+        items: builder_v1_0.ChildList,
+        checks: Sequence[builder_v1_0.CheckRule],
+        on_submit: builder_v1_0.Action,
+    ) -> builder_v1_0.Card:
+        """Form card with dynamic child list, check rules, and submit action."""
+        return builder_v1_0.Card(
+            child=builder_v1_0.Column(
+                children=[
+                    builder_v1_0.TextField(
+                        label=label,
+                        placeholder=placeholder,
+                        checks=list(checks),
+                    ),
+                    builder_v1_0.List(children=items),
+                    builder_v1_0.Button(
+                        child=builder_v1_0.Text(text="Submit"),
+                        variant="primary",
+                        action=on_submit,
+                    ),
+                ]
+            )
+        )
+
+    return [
+        StatusBadge,
+        SlotContainer,
+        MultiSlotContainer,
+        ActionButton,
+        BoundMetric,
+        ConfigCard,
+        NestedMacroCard,
+        RecursiveCard,
+        ComplexCard,
+        PayloadButton,
+        DynamicFormCard,
+    ]
+
+
+SUITE_MACROS_V1_0 = get_v1_0_suite_macros()
+
+
 # =============================================================================
 # Execution
 # =============================================================================
 
 
+def _case_catalog_version(case: Case) -> str:
+    """Returns the catalog protocol version string for ``case``."""
+    return (
+        "1.0"
+        if case.envelope_version and to_version_number(case.envelope_version) == "1.0"
+        else PROTOCOL_VERSION
+    )
+
+
 def run_case(case: Case) -> Any:
     """Runs a conformance case through MacroExpander."""
     if case.action == "transform_catalog" and case.colliding_macro:
+        cat_version = _case_catalog_version(case)
+        if cat_version == "1.0":
 
-        @macro(name=case.colliding_macro)
-        def CollidingMacro() -> Card:
-            return Card(child=Text(text="colliding"))
+            @macro(name=case.colliding_macro)
+            def CollidingMacroV10() -> builder_v1_0.Card:
+                return builder_v1_0.Card(child=builder_v1_0.Text(text="colliding"))
 
-        expander = MacroExpander([CollidingMacro])
-        expander.transform_to_inference_catalog(basic_catalog_schema())
+            expander = MacroExpander([CollidingMacroV10])
+        else:
+
+            @macro(name=case.colliding_macro)
+            def CollidingMacro() -> Card:
+                return Card(child=Text(text="colliding"))
+
+            expander = MacroExpander([CollidingMacro])
+        expander.transform_to_inference_catalog(basic_catalog_schema(cat_version))
         return []
 
     if case.action == "transform_to_inference_catalog":
+        cat_version = _case_catalog_version(case)
+        macros_list = SUITE_MACROS_V1_0 if cat_version == "1.0" else SUITE_MACROS
         expander = MacroExpander(
-            SUITE_MACROS, passthrough_components=case.passthrough_components
+            macros_list, passthrough_components=case.passthrough_components
         )
-        return expander.transform_to_inference_catalog(basic_catalog_schema())
+        return expander.transform_to_inference_catalog(
+            basic_catalog_schema(cat_version)
+        )
 
     if case.action == "transform_to_inference":
         raw_components = case.input if isinstance(case.input, list) else [case.input]
@@ -374,7 +569,10 @@ def run_case(case: Case) -> Any:
             )
         expander = MacroExpander(scoped_macros, catalog_id=case.macro_catalog_id)
     else:
-        expander = MacroExpander(SUITE_MACROS)
+        macros_list = (
+            SUITE_MACROS_V1_0 if _case_catalog_version(case) == "1.0" else SUITE_MACROS
+        )
+        expander = MacroExpander(macros_list)
     expanded_msgs = expander.transform_to_transport(typed_raw_msgs)
     return [m.model_dump(by_alias=True, exclude_none=True) for m in expanded_msgs]
 
@@ -404,11 +602,7 @@ def validate_payload(payload: list[dict[str, Any]], case: Case) -> None:
     """Validates ``payload`` against the bundled basic catalog schema and topology rules."""
     config = case.validation.to_config()
     has_create = any(isinstance(m, dict) and "createSurface" in m for m in payload)
-    version = (
-        "1.0"
-        if case.envelope_version and to_version_number(case.envelope_version) == "1.0"
-        else PROTOCOL_VERSION
-    )
+    version = _case_catalog_version(case)
     catalogs = [basic_catalog_schema(version)]
     if case.catalog_id and case.catalog_id != getattr(catalogs[0], "catalog_id", None):
         alias_cat = copy.copy(catalogs[0])

@@ -1,37 +1,28 @@
-# A2UI Macros (`MacroExpander`)
+# A2UI macros (`MacroExpander`)
 
-Macros allow developers to expose high-level, domain-specific composite UI components to Large Language Models while compiling them into standard A2UI primitive components on the server.
+Macros let developers expose high-level, domain-specific UI components to language models while lowering them to standard A2UI primitive components on the server before sending messages to the renderer.
 
-Rather than being tied to a specific syntax or inference format, macros operate as an **asymmetric catalog and message transformer** via `MacroExpander`.
+Rather than binding to one syntax or inference format, macros work as a catalog and message transformer through `MacroExpander`.
 
----
+## Overview
 
-## 1. Overview
+When models author raw A2UI component trees directly, recurring UI patterns can take many lines of nested components, bindings, and actions. With `@macro`, a Python function defines a reusable composite component once:
 
-When models generate raw A2UI component trees, complex or recurring UI patterns require verbose syntax. For example, rendering a product card with images, badges, pricing, and buy buttons requires authoring dozens of lines of nested JSON or DSL tokens.
+1. At prompt time, `MacroExpander` exposes JSON Schema definitions for registered macros so any inference format (`ExpressFormat`, `DirectJsonFormat`, `ElementalFormat`) can include them in prompts and validate model output.
+2. At transport time, `MacroExpander.transform_to_transport` expands macro invocations in outbound messages (`createSurface`, `updateComponents`, `surfaceUpdate`) into flat primitive component lists. The client renderer only needs to know the underlying primitive catalogs.
 
-Macros solve this by allowing agents to output concise, high-level tags:
+## Defining macros with `@macro`
 
-```xml
-<ProductCard productId="sku_482" title="Trail Runner Shoes" price="$120" onBuy="checkout" />
-```
-
-Before transmitting messages to the client renderer, `MacroExpander` expands `<ProductCard ...>` into standard A2UI primitives (`Card`, `Column`, `Row`, `Text`, `Button`, `Action`) using a Python function registered with the `@macro` decorator. The client renderer receives standard protocol messages without needing custom client-side widget code.
-
----
-
-## 2. Defining Macros with `@macro`
-
-The `@macro` decorator inspects a Python function's type annotations and docstring to synthesize a catalog component JSON schema and an execution wrapper.
+The `@macro` decorator inspects a function's type annotations and docstring to synthesize a catalog component schema and coerce incoming wire arguments into typed builder objects.
 
 ```python
+from a2ui.builder.v1_0 import Action, Button, Card, Column, DynamicString, Text
 from a2ui.transformers.macros import macro
-from a2ui.builder.v0_9 import Action
-from a2ui.builder.v0_9.catalogs.basic import Button, Card, Column, Text
+
 
 @macro
-def product_card(
-    title: str,
+def ProductCard(
+    title: DynamicString,
     price: str,
     on_buy: Action,
     in_stock: bool = True,
@@ -47,8 +38,8 @@ def product_card(
     return Card(
         child=Column(
             children=[
-                Text(text=title, variant="h3"),
-                Text(text=price, variant="body"),
+                Text(text=title, variant="body"),
+                Text(text=price, variant="caption"),
                 Button(
                     child=Text(text="Buy Now" if in_stock else "Out of Stock"),
                     action=on_buy,
@@ -59,98 +50,152 @@ def product_card(
     )
 ```
 
-### Parameter Type Mapping
+Both `a2ui.builder.v1_0` and `a2ui.builder.v0_9` are supported. Each macro and `MacroExpander` targets a single protocol family (`1.0` or `0.9`); mixing v0.9 and v1.0 types, catalogs, or returned builder nodes raises `A2uiValidationError`. In v1.0, macro names must be valid UAX #31 identifiers and cannot use the reserved name `Surface`.
 
-The decorator maps Python type hints to canonical A2UI JSON schema definitions:
+### Parameter type mapping
 
-- **Primitives**: `str`, `int`, `float`, and `bool` map to standard JSON schema types.
-- **Enums**: `Enum` subclasses or `Literal["a", "b"]` map to enum string schemas.
-- **Slots (Single Child)**: Parameters typed as `ComponentBuilderNode`, `Child`, or concrete component classes (like `Text`) map to `#/$defs/ComponentId`. When the model passes a component ID, `MacroProcessor` coerces the input into a `ComponentRef(id=...)`.
-- **Slot Lists (Children)**: Parameters typed as `Sequence[ComponentBuilderNode]` or `ChildList` map to `#/$defs/ChildList`. Incoming ID arrays are coerced to lists of `ComponentRef`.
-- **Actions**: Parameters typed as `Action` map to `#/$defs/Action`. In Python, build one as `Action(event=ActionEvent(name="name", context=...))`; `MacroProcessor` coerces standard shorthands emitted by models (`"name"`, `{"event": "name"}`, `{"name": ..., "context": ...}`).
-- **Data Bindings**: Values passed as `{"path": "/..."}` are coerced into `DataBinding` objects.
+`@macro` maps Python type annotations to A2UI JSON Schema definitions and coerces incoming model arguments before calling the Python function:
 
-### Docstring Contract
+| Python annotation                                                                                      | Synthesized JSON Schema                            | Runtime coercion                                                                                                                                                                                |
+| :----------------------------------------------------------------------------------------------------- | :------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `str`, `int`, `float`, `bool`                                                                          | `string`, `integer`, `number`, `boolean`           | Passed through as primitives (dict bindings rejected).                                                                                                                                          |
+| `Literal[...]` or `Enum`                                                                               | `enum` schema                                      | Passed through.                                                                                                                                                                                 |
+| `Child`, `ComponentBuilderNode`, or component subclass                                                 | `common_types.json#/$defs/ComponentId`             | Component ID string coerced to `ComponentRef(id=...)`.                                                                                                                                          |
+| `ChildList`, `DynamicChildList`, or `Sequence[Child]`                                                  | `common_types.json#/$defs/ChildList`               | ID lists coerced to `list[ComponentRef]`; `{"path": ..., "componentId": ...}` coerced to `DynamicChildList` when typed as `ChildList` or `DynamicChildList`.                                    |
+| `Action`                                                                                               | `common_types.json#/$defs/Action`                  | Coerces `"event_name"`, `{"event": "name", ...}`, `{"name": ..., "userMessage": ..., "context": ...}`, `{"@call": ...}` (v1.0) / `{"call": ...}` (v0.9), and full `Action` dicts into `Action`. |
+| `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`, `DataBinding`, `FunctionCall` | Corresponding `common_types.json#/$defs/...` ref   | Coerces `{"@path": "/..."}` and `{"@call": "...", "args": ...}` in v1.0 (`{"path": "/..."}` and `{"call": "...", "args": ...}` in v0.9) into `DataBinding` and `FunctionCall`.                  |
+| `DynamicValue`                                                                                         | `common_types.json#/$defs/DynamicValue`            | Coerces `@path` / `@call` in v1.0 (`path` / `call` in v0.9); in v1.0, plain `{"path": ...}` and `{"call": ...}` maps remain untouched as `LiteralObject` values.                                |
+| `CheckRule` or `Sequence[CheckRule]`                                                                   | `common_types.json#/$defs/CheckRule` (or array)    | Coerced to `CheckRule` instances.                                                                                                                                                               |
+| `AccessibilityAttributes`                                                                              | `common_types.json#/$defs/AccessibilityAttributes` | Coerced to `AccessibilityAttributes` when declared on the macro signature; otherwise merged onto the expanded root component.                                                                   |
 
-`@macro` supports both Google-style (`Args:`) and Sphinx-style (`:param name: description`) docstrings:
+### Docstring parsing
 
-- The top-level summary becomes the `description` of the generated component in the catalog schema.
-- Per-parameter descriptions are parsed and assigned as `description` attributes on each property schema.
-- Plain docstrings without structured sections are also supported gracefully without errors.
+`@macro` reads both Google-style (`Args:`) and Sphinx-style (`:param name: description`) docstrings. The summary paragraph becomes the component's `description`, and per-parameter descriptions populate each property's `description` in the generated schema.
 
----
+## Integrating with inference formats
 
-## 3. The `MacroExpander` Transformer Interface
+### Mixable catalogs in v1.0 (sidecar macro catalog)
 
-`MacroExpander` implements the three canonical transformer methods:
+In A2UI v1.0, a surface can mix components from multiple catalogs by tagging each component with its `catalogId`. The recommended setup exports the macros as a standalone sidecar catalog with `expander.to_catalog()` and passes it alongside your primitive catalogs to the inference format.
 
-1. **`transform_to_inference_catalog(base_catalog: Catalog) -> Catalog`**:
-   Derives an authoring catalog by augmenting the base catalog with the synthesized macro component schemas. Fails fast with `A2uiCatalogError` if any macro name collides with an existing primitive in the base catalog.
-2. **`transform_to_transport(messages: Sequence[AgentToRendererMessage]) -> list[AgentToRendererMessage]`**:
-   Lowers outbound envelopes (`createSurface`, `updateComponents`, `surfaceUpdate`) emitted by the LLM by recursively expanding all macro components into primitive subtrees.
-3. **`transform_to_inference(messages: Sequence[AgentToRendererMessage]) -> list[AgentToRendererMessage]`**:
-   Safe identity pass-through (`return list(messages)`) for replaying traces or inspecting state without unexpansion.
+Inside a macro that emits components from multiple catalogs, set `catalog_id` on each custom `ComponentBuilderNode` subclass (or per node instance) so every expanded primitive carries its own explicit `catalogId` on the wire:
 
----
+```python
+from typing import Literal
 
-## 4. Manual Wiring (Current Usage Pattern)
+from a2ui.builder.v1_0 import Action, ChildList, ComponentBuilderNode, DynamicString
+from a2ui.inference_formats.express import ExpressFormat
+from a2ui.parser import A2uiPart
+from a2ui.transformers.macros import MacroExpander, macro
 
-Until the full `TransformerPipeline` and `CatalogConfig` abstractions land in the shared core SDK, developers wire `MacroExpander` manually in two simple steps:
+FOO_CID = "https://example.com/catalogs/foo/v1/catalog.json"
+BAR_CID = "https://example.com/catalogs/bar/v1/catalog.json"
+
+
+class FooPanel(ComponentBuilderNode):
+    component: Literal["FooPanel"] = "FooPanel"
+    catalog_id: str | None = FOO_CID
+    children: ChildList
+
+
+class FooHeader(ComponentBuilderNode):
+    component: Literal["FooHeader"] = "FooHeader"
+    catalog_id: str | None = FOO_CID
+    title: DynamicString
+
+
+class BarAction(ComponentBuilderNode):
+    component: Literal["BarAction"] = "BarAction"
+    catalog_id: str | None = BAR_CID
+    label: str
+    action: Action
+
+
+@macro
+def BazMacro(
+    title: DynamicString,
+    cta_label: str,
+    on_cta: Action,
+) -> FooPanel:
+    """Combines FooCatalog layout and header with a BarCatalog action."""
+    return FooPanel(
+        children=[
+            FooHeader(title=title),
+            BarAction(label=cta_label, action=on_cta),
+        ]
+    )
+
+
+# 1. Register base catalogs on the expander and export the macro sidecar catalog
+expander = MacroExpander([BazMacro], base_catalogs=[foo_catalog, bar_catalog])
+macro_catalog = expander.to_catalog()
+
+# 2. Pass the primitive catalogs plus the macro sidecar catalog to the format
+fmt = ExpressFormat(
+    catalogs=[foo_catalog, bar_catalog, macro_catalog],
+    surface_id="main",
+)
+system_prompt = fmt.prompt_generator.generate()
+
+# 3. Parse and validate model output against all three catalogs
+parts = fmt.create_parser().parse_response(llm_output)
+
+# 4. Lower macro components into FooCatalog and BarCatalog primitives for the renderer
+transport_messages = [
+    msg
+    for part in parts
+    if isinstance(part, A2uiPart)
+    for msg in expander.transform_to_transport(part.a2ui)
+]
+```
+
+When `fmt` receives multiple v1.0 catalogs, unique component names (`FooHeader`, `BarBadge`, `BazMacro`) resolve to their owning `catalogId` automatically without requiring `catalogId=` at every call site in the DSL. After `transform_to_transport`, `BazMacro` is replaced by `FooHeader`, `BarAction`, and `FooPanel` carrying `FOO_CID` and `BAR_CID`, so the client renderer only needs `foo_catalog` and `bar_catalog`.
+
+### Single-catalog surfaces (`transform_to_inference_catalog`)
+
+When a surface uses a single base catalog (including v0.9 surfaces, where every surface binds one `catalogId`), augment that catalog in place with `transform_to_inference_catalog`:
 
 ```python
 from a2ui.inference_formats.express import ExpressFormat
-from a2ui.transformers.macros import MacroExpander, macro
+from a2ui.parser import A2uiPart
+from a2ui.transformers.macros import MacroExpander
 
-# 1. Initialize the expander with your macros
-expander = MacroExpander([product_card])
-
-# 2. Derive the authoring/inference catalog from your base catalog
+expander = MacroExpander([ProductCard])
 inference_catalog = expander.transform_to_inference_catalog(base_catalog)
 
-# 3. Configure any standard inference format with the inference catalog
-# (ExpressFormat, DirectJsonFormat, ElementalFormat, etc.)
-format_strategy = ExpressFormat([inference_catalog], surface_id="main")
-system_prompt = format_strategy.prompt_generator.generate()
+fmt = ExpressFormat([inference_catalog], surface_id="main")
+system_prompt = fmt.prompt_generator.generate()
 
-# 4. Invoke your LLM with system_prompt...
-# When the model outputs Express DSL, compile it with the format's parser. It
-# returns typed AgentToRendererMessage models. `compile` only translates the
-# notation; use `parse_response` to also check the messages against the
-# catalogs and a renderer state:
-typed_messages = format_strategy.create_parser().compile(llm_output)
-
-# 5. Lower the typed messages to transport primitives using the expander:
-transport_messages = expander.transform_to_transport(typed_messages)
-
-# 6. Deliver transport_messages (containing primitive Card, Column, Text) to the client renderer!
+parts = fmt.create_parser().parse_response(llm_output)
+transport_messages = [
+    msg
+    for part in parts
+    if isinstance(part, A2uiPart)
+    for msg in expander.transform_to_transport(part.a2ui)
+]
 ```
 
-### Filtering Base Primitives (`passthrough_components`)
+`MacroExpander.transform_to_inference_catalog` also satisfies the `CatalogTransformer` protocol used by `CatalogConfig(catalog=base_catalog, transformers=[expander])` for prompt and catalog negotiation; call `expander.transform_to_transport(...)` on parsed `A2uiPart.a2ui` messages before sending them over the transport.
 
-By default, all components from the base catalog pass through to the inference catalog alongside the macros. To restrict which base components the model is allowed to use, specify `passthrough_components`:
+### Filtering base primitives (`passthrough_components`)
+
+When augmenting a catalog via `transform_to_inference_catalog`, all base catalog components remain available by default. Pass `passthrough_components` to restrict which base primitives stay in the inference catalog alongside your macros:
 
 ```python
-# Expose macros + Button to the model (all other base primitives are pruned from prompt):
-expander = MacroExpander([product_card], passthrough_components=["Button"])
+# Expose macros plus Button only:
+expander = MacroExpander([ProductCard], passthrough_components=["Button"])
 
-# Pure Macro Mode: expose ONLY the macros with zero base primitives:
-expander = MacroExpander([product_card], passthrough_components=[])
+# Expose only the macros with zero base primitives:
+expander = MacroExpander([ProductCard], passthrough_components=[])
 ```
 
----
+### Sharing a `MacroExpander` across sessions (`surface_catalogs`)
 
-## 5. Future State: `CatalogConfig` & `TransformerPipeline`
-
-In the upcoming agent SDK modernization (tracked in RFC issue), manual wiring will be replaced by a declarative pipeline:
+By default, a `MacroExpander` instance records `createSurface` and `deleteSurface` messages so subsequent `updateComponents` calls on the same surface know its default `catalogId`. Keep one `MacroExpander` per session, or pass `surface_catalogs` on each `transform_to_transport` call to avoid mutating instance state:
 
 ```python
-catalog_config = CatalogConfig(
-    catalog=base_catalog,
-    transformer=TransformerPipeline([
-        MacroExpander([product_card]),
-        ComponentPruningTransformer(allowed_components=["product_card", "Button"]),
-    ]),
+transport_messages = expander.transform_to_transport(
+    messages,
+    surface_catalogs={"main": None},  # None indicates a defaultless v1.0 surface
 )
 ```
-
-The request processor will automatically handle catalog synthesis ahead of prompt generation and message lowering during response parsing.

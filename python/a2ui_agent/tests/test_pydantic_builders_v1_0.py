@@ -16,8 +16,10 @@
 
 from __future__ import annotations
 
-import pytest
+from typing import Literal
+
 from pydantic import BaseModel, ValidationError
+import pytest
 
 from a2ui.builder.v1_0 import (
     OPEN_ENUM_CONTEXT,
@@ -544,3 +546,28 @@ def test_v1_0_open_enum_validation() -> None:
     assert called_text.text == FunctionCall(
         call="formatString", args={"value": "Hi ${/x}"}
     )
+
+
+def test_v1_0_custom_subclass_default_catalog_id_preserves_wire_alias() -> None:
+    """Verifies class-level default catalog_id on custom subclasses still serializes as catalogId."""
+    custom_cid = "https://example.com/catalogs/custom/v1/catalog.json"
+
+    class CustomBadge(ComponentBuilderNode):
+        component: Literal["CustomBadge"] = "CustomBadge"
+        catalog_id: str | None = custom_cid
+        label: str
+
+    flat = flatten_component_tree(CustomBadge(id="b1", label="NEW"))
+    assert flat == [{
+        "component": "CustomBadge",
+        "id": "b1",
+        "catalogId": custom_cid,
+        "label": "NEW",
+    }]
+    parsed = CustomBadge.model_validate({
+        "component": "CustomBadge",
+        "id": "b2",
+        "catalogId": "https://example.com/other.json",
+        "label": "ALT",
+    })
+    assert parsed.catalog_id == "https://example.com/other.json"

@@ -12,40 +12,249 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections.abc
-from collections.abc import Iterable as AbcIterable, Sequence as AbcSequence
+from __future__ import annotations
+
+from collections.abc import Callable, Sequence as AbcSequence
+from dataclasses import dataclass, field
 from enum import Enum
 import inspect
-from dataclasses import dataclass
+import logging
+import types
 from typing import (
+    Annotated,
     Any,
-    Callable,
     Literal,
-    Optional,
     Sequence,
+    TypeAlias,
     Union,
     get_args,
     get_origin,
     get_type_hints,
 )
+import unicodedata
 
+from a2ui.builder import v0_9 as builder_v0_9
+from a2ui.builder import v1_0 as builder_v1_0
 from a2ui.builder.core import (
     ComponentBuilderNode,
     ComponentRef,
 )
-from a2ui.builder.v0_9 import (
-    AccessibilityAttributes,
-    Action,
-    CheckRule,
-    DataBinding,
-    DynamicBoolean,
-    DynamicChildList,
-    DynamicNumber,
-    DynamicString,
-    DynamicStringList,
-    DynamicValue,
-    FunctionCall,
+from a2ui.core import (
+    A2uiValidationError,
+    is_valid_uax31_identifier,
+    to_protocol_version,
 )
+from a2ui.core.schema import ProtocolVersion
+
+logger = logging.getLogger(__name__)
+
+MacroVersionFamily: TypeAlias = Literal["0.9", "1.0"]
+
+
+class _MacroProtocolError(A2uiValidationError):
+    """Protocol-level macro violation that propagates rather than falling back."""
+
+
+_DATA_BINDING_TYPES: tuple[type, ...] = (
+    builder_v0_9.DataBinding,
+    builder_v1_0.DataBinding,
+)
+_FUNCTION_CALL_TYPES: tuple[type, ...] = (
+    builder_v0_9.FunctionCall,
+    builder_v1_0.FunctionCall,
+)
+_ACTION_TYPES: tuple[type, ...] = (
+    builder_v0_9.Action,
+    builder_v1_0.Action,
+)
+_CHECK_RULE_TYPES: tuple[type, ...] = (
+    builder_v0_9.CheckRule,
+    builder_v1_0.CheckRule,
+)
+_ACCESSIBILITY_TYPES: tuple[type, ...] = (
+    builder_v0_9.AccessibilityAttributes,
+    builder_v1_0.AccessibilityAttributes,
+)
+_DYNAMIC_CHILD_LIST_TYPES: tuple[type, ...] = (
+    builder_v0_9.DynamicChildList,
+    builder_v1_0.DynamicChildList,
+)
+_DYNAMIC_VALUE_ALIASES: tuple[Any, ...] = (
+    builder_v0_9.DynamicValue,
+    builder_v1_0.DynamicValue,
+)
+_DYNAMIC_STRING_LIST_ALIASES: tuple[Any, ...] = (
+    builder_v0_9.DynamicStringList,
+    builder_v1_0.DynamicStringList,
+)
+_DYNAMIC_STRING_ALIASES: tuple[Any, ...] = (
+    builder_v0_9.DynamicString,
+    builder_v1_0.DynamicString,
+)
+_DYNAMIC_NUMBER_ALIASES: tuple[Any, ...] = (
+    builder_v0_9.DynamicNumber,
+    builder_v1_0.DynamicNumber,
+)
+_DYNAMIC_BOOLEAN_ALIASES: tuple[Any, ...] = (
+    builder_v0_9.DynamicBoolean,
+    builder_v1_0.DynamicBoolean,
+)
+
+_V1_0_MODEL_TYPES: tuple[type, ...] = (
+    builder_v1_0.AccessibilityAttributes,
+    builder_v1_0.Action,
+    builder_v1_0.ActionEvent,
+    builder_v1_0.CheckRule,
+    builder_v1_0.DataBinding,
+    builder_v1_0.DynamicChildList,
+    builder_v1_0.FunctionCall,
+)
+_V0_9_MODEL_TYPES: tuple[type, ...] = (
+    builder_v0_9.AccessibilityAttributes,
+    builder_v0_9.Action,
+    builder_v0_9.ActionEvent,
+    builder_v0_9.CheckRule,
+    builder_v0_9.DataBinding,
+    builder_v0_9.DynamicChildList,
+    builder_v0_9.FunctionCall,
+)
+
+
+def _unwrap_annotated(t: Any) -> Any:
+    """Strips typing.Annotated wrappers (such as Pydantic StrictStr/StrictInt) to the underlying type."""
+    while get_origin(t) is Annotated:
+        args = get_args(t)
+        if not args:
+            break
+        t = args[0]
+    return t
+
+
+def _is_type_from(t: Any, target_types: tuple[type, ...]) -> bool:
+    """Returns True if ``t`` or any of its union branches is in or subclasses ``target_types``."""
+    t = _unwrap_annotated(t)
+    origin = get_origin(t)
+    if origin in (Union, types.UnionType):
+        non_none = [a for a in get_args(t) if a is not type(None)]
+        return any(_is_type_from(a, target_types) for a in non_none)
+    if t in target_types:
+        return True
+    return isinstance(t, type) and issubclass(t, target_types)
+
+
+def _normalize_version_family(
+    version: str | ProtocolVersion,
+) -> MacroVersionFamily:
+    """Normalizes a protocol version string or enum into its macro builder family."""
+    try:
+        pv = to_protocol_version(version)
+    except ValueError as err:
+        raise _MacroProtocolError(
+            f"Unsupported macro protocol version: {version!r}."
+        ) from err
+    if pv in (ProtocolVersion.V0_9, ProtocolVersion.V0_9_1):
+        return "0.9"
+    if pv == ProtocolVersion.V1_0:
+        return "1.0"
+    raise _MacroProtocolError(f"Unsupported macro protocol version: {version!r}.")
+
+
+def _validate_v1_0_macro_name(name: str) -> None:
+    """Validates a macro component name against A2UI v1.0 identifier and reservation rules."""
+    if unicodedata.normalize("NFKC", name) == "Surface":
+        raise _MacroProtocolError(
+            "Macro name 'Surface' is reserved and cannot be used as a component name."
+        )
+    if not is_valid_uax31_identifier(name):
+        raise _MacroProtocolError(
+            f"Macro name '{name}' must be a valid Unicode identifier."
+        )
+
+
+def _type_version_family(t: Any) -> MacroVersionFamily | None:
+    """Returns the A2UI builder protocol family for a type object, if any."""
+    if not isinstance(t, type):
+        return None
+    if issubclass(t, builder_v1_0.ComponentBuilderNode) or issubclass(
+        t, _V1_0_MODEL_TYPES
+    ):
+        return "1.0"
+    if (
+        issubclass(t, ComponentBuilderNode)
+        and t not in (ComponentBuilderNode, ComponentRef)
+    ) or issubclass(t, _V0_9_MODEL_TYPES):
+        return "0.9"
+    return None
+
+
+def _collect_annotation_versions(t: Any, out: set[MacroVersionFamily]) -> None:
+    """Collects all A2UI protocol families referenced by ``t`` and its nested type arguments."""
+    t = _unwrap_annotated(t)
+    fam = _type_version_family(t)
+    if fam is not None:
+        out.add(fam)
+    for arg in get_args(t):
+        _collect_annotation_versions(arg, out)
+
+
+def _detect_macro_version(
+    parameters: dict[str, _MacroParameter],
+    return_type: Any,
+    macro_name: str,
+) -> MacroVersionFamily | None:
+    """Determines the protocol family referenced in a macro's type annotations."""
+    versions: set[MacroVersionFamily] = set()
+    _collect_annotation_versions(return_type, versions)
+    for p in parameters.values():
+        _collect_annotation_versions(p.type_hint, versions)
+
+    if len(versions) > 1:
+        raise _MacroProtocolError(
+            f"Macro '{macro_name}' mixes A2UI v0.9 and v1.0 protocol types."
+        )
+    return next(iter(versions), None)
+
+
+def _is_single_child_slot_type(t: Any) -> bool:
+    """Returns True if ``t`` represents a single child component slot (ComponentBuilderNode, ComponentRef, or Child)."""
+    t = _unwrap_annotated(t)
+    if t in (ComponentBuilderNode, ComponentRef) or (
+        isinstance(t, type) and issubclass(t, ComponentBuilderNode)
+    ):
+        return True
+    origin = get_origin(t)
+    if origin in (Union, types.UnionType):
+        non_none = [a for a in get_args(t) if a is not type(None)]
+        return bool(non_none) and all(_is_single_child_slot_type(a) for a in non_none)
+    return False
+
+
+def _is_child_list_slot_type(t: Any) -> bool:
+    """Returns True if ``t`` represents a child list slot (Sequence[Child], DynamicChildList, or ChildList)."""
+    t = _unwrap_annotated(t)
+    if t in _DYNAMIC_CHILD_LIST_TYPES or (
+        isinstance(t, type) and issubclass(t, _DYNAMIC_CHILD_LIST_TYPES)
+    ):
+        return True
+    origin = get_origin(t)
+    args = get_args(t)
+    if (
+        origin in (list, Sequence, AbcSequence, tuple, set)
+        and args
+        and _is_single_child_slot_type(args[0])
+    ):
+        return True
+    if origin in (Union, types.UnionType):
+        non_none = [a for a in args if a is not type(None)]
+        return (
+            bool(non_none)
+            and all(
+                _is_child_list_slot_type(a) or _is_single_child_slot_type(a)
+                for a in non_none
+            )
+            and any(_is_child_list_slot_type(a) for a in non_none)
+        )
+    return False
 
 
 def _to_pascal_case(s: str) -> str:
@@ -58,8 +267,8 @@ def _to_pascal_case(s: str) -> str:
 
 
 def _parse_docstring(
-    doc: Optional[str],
-) -> tuple[Optional[str], dict[str, str]]:
+    doc: str | None,
+) -> tuple[str | None, dict[str, str]]:
     """Extracts top description and per-argument descriptions from Google/Sphinx style docstrings."""
     if not doc:
         return None, {}
@@ -71,7 +280,7 @@ def _parse_docstring(
     param_descriptions: dict[str, str] = {}
 
     in_args = False
-    current_param: Optional[str] = None
+    current_param: str | None = None
     current_desc: list[str] = []
 
     for line in lines:
@@ -140,33 +349,34 @@ DEFAULT_COMMON_REF_PREFIX: str = "common_types.json#/$defs/"
 
 def _map_type_hint_to_schema(
     t: Any,
-    param_desc: Optional[str] = None,
+    param_desc: str | None = None,
     ref_prefix: str = DEFAULT_COMMON_REF_PREFIX,
 ) -> dict[str, Any]:
     """Maps a Python type hint to a canonical A2UI JSON schema property."""
     schema: dict[str, Any]
+    t = _unwrap_annotated(t)
 
-    if t == DynamicValue:
+    if t in _DYNAMIC_VALUE_ALIASES:
         schema = {"$ref": f"{ref_prefix}DynamicValue"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t == DynamicStringList:
+    if t in _DYNAMIC_STRING_LIST_ALIASES:
         schema = {"$ref": f"{ref_prefix}DynamicStringList"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t == DynamicString:
+    if t in _DYNAMIC_STRING_ALIASES:
         schema = {"$ref": f"{ref_prefix}DynamicString"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t == DynamicNumber:
+    if t in _DYNAMIC_NUMBER_ALIASES:
         schema = {"$ref": f"{ref_prefix}DynamicNumber"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t == DynamicBoolean:
+    if t in _DYNAMIC_BOOLEAN_ALIASES:
         schema = {"$ref": f"{ref_prefix}DynamicBoolean"}
         if param_desc:
             schema["description"] = param_desc
@@ -176,23 +386,25 @@ def _map_type_hint_to_schema(
     args = get_args(t)
 
     # Handle Optional[T] / Union[T, None] / Dynamic Unions
-    if origin is Union:
-        non_none_args = [a for a in args if a is not type(None)]
+    if origin in (Union, types.UnionType):
+        non_none_args = [_unwrap_annotated(a) for a in args if a is not type(None)]
         if len(non_none_args) == 1:
             return _map_type_hint_to_schema(
                 non_none_args[0], param_desc, ref_prefix=ref_prefix
             )
 
         has_binding = any(
-            a is DataBinding or (isinstance(a, type) and issubclass(a, DataBinding))
+            a in _DATA_BINDING_TYPES
+            or (isinstance(a, type) and issubclass(a, _DATA_BINDING_TYPES))
             for a in non_none_args
         )
         has_func = any(
-            a is FunctionCall or (isinstance(a, type) and issubclass(a, FunctionCall))
+            a in _FUNCTION_CALL_TYPES
+            or (isinstance(a, type) and issubclass(a, _FUNCTION_CALL_TYPES))
             for a in non_none_args
         )
         types_set = set(non_none_args)
-        expr_types = {DataBinding, FunctionCall}
+        expr_types = set(_DATA_BINDING_TYPES) | set(_FUNCTION_CALL_TYPES)
 
         if has_binding or has_func:
             if str in types_set and len(types_set - (expr_types | {str})) == 0:
@@ -212,21 +424,7 @@ def _map_type_hint_to_schema(
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
-            elif any(
-                (
-                    get_origin(a) in (list, Sequence, AbcSequence, tuple, set)
-                    and get_args(a)
-                    and (
-                        get_args(a)[0] in (ComponentBuilderNode, ComponentRef)
-                        or (
-                            isinstance(get_args(a)[0], type)
-                            and issubclass(get_args(a)[0], ComponentBuilderNode)
-                        )
-                    )
-                )
-                or a is DynamicChildList
-                for a in types_set
-            ):
+            elif any(_is_child_list_slot_type(a) for a in types_set):
                 schema = {"$ref": f"{ref_prefix}ChildList"}
                 if param_desc:
                     schema["description"] = param_desc
@@ -239,44 +437,16 @@ def _map_type_hint_to_schema(
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
-            elif any(
-                a in (ComponentBuilderNode, ComponentRef)
-                or (isinstance(a, type) and issubclass(a, ComponentBuilderNode))
-                for a in types_set
-            ):
-                if any(
-                    get_origin(a) in (list, Sequence, AbcSequence, tuple, set)
-                    or a is DynamicChildList
-                    for a in types_set
-                ):
-                    schema = {"$ref": f"{ref_prefix}ChildList"}
-                    if param_desc:
-                        schema["description"] = param_desc
-                    return schema
-                else:
-                    schema = {"$ref": f"{ref_prefix}ComponentId"}
-                    if param_desc:
-                        schema["description"] = param_desc
-                    return schema
+            elif any(_is_single_child_slot_type(a) for a in types_set):
+                schema = {"$ref": f"{ref_prefix}ComponentId"}
+                if param_desc:
+                    schema["description"] = param_desc
+                return schema
             else:
                 schema = {"$ref": f"{ref_prefix}DynamicValue"}
                 if param_desc:
                     schema["description"] = param_desc
                 return schema
-
-        if any(
-            a in (ComponentBuilderNode, ComponentRef)
-            or (isinstance(a, type) and issubclass(a, ComponentBuilderNode))
-            for a in types_set
-        ) and any(
-            get_origin(a) in (list, Sequence, AbcSequence, tuple, set)
-            or a is DynamicChildList
-            for a in types_set
-        ):
-            schema = {"$ref": f"{ref_prefix}ChildList"}
-            if param_desc:
-                schema["description"] = param_desc
-            return schema
 
     # Literal strings or numbers
     if origin is Literal:
@@ -302,61 +472,53 @@ def _map_type_hint_to_schema(
         return enum_schema
 
     # Direct Protocol References
-    if t is DataBinding:
+    if t in _DATA_BINDING_TYPES or (
+        isinstance(t, type) and issubclass(t, _DATA_BINDING_TYPES)
+    ):
         schema = {"$ref": f"{ref_prefix}DataBinding"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t is Action:
+    if t in _ACTION_TYPES or (isinstance(t, type) and issubclass(t, _ACTION_TYPES)):
         schema = {"$ref": f"{ref_prefix}Action"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t is CheckRule:
+    if t in _CHECK_RULE_TYPES or (
+        isinstance(t, type) and issubclass(t, _CHECK_RULE_TYPES)
+    ):
         schema = {"$ref": f"{ref_prefix}CheckRule"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t is AccessibilityAttributes:
+    if t in _ACCESSIBILITY_TYPES or (
+        isinstance(t, type) and issubclass(t, _ACCESSIBILITY_TYPES)
+    ):
         schema = {"$ref": f"{ref_prefix}AccessibilityAttributes"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t is FunctionCall:
+    if t in _FUNCTION_CALL_TYPES or (
+        isinstance(t, type) and issubclass(t, _FUNCTION_CALL_TYPES)
+    ):
         schema = {"$ref": f"{ref_prefix}FunctionCall"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t is DynamicChildList:
+    if _is_child_list_slot_type(t):
         schema = {"$ref": f"{ref_prefix}ChildList"}
         if param_desc:
             schema["description"] = param_desc
         return schema
 
     # Single Child Slots
-    if t in (ComponentBuilderNode, ComponentRef) or (
-        isinstance(t, type) and issubclass(t, ComponentBuilderNode)
-    ):
+    if _is_single_child_slot_type(t):
         schema = {
             "$ref": f"{ref_prefix}ComponentId",
             "description": (
                 param_desc or "ID of the child component to place in this slot."
             ),
         }
-        return schema
-
-    # Child List Slots
-    if (
-        origin in (list, Sequence, AbcSequence, tuple, set)
-        and args
-        and (
-            args[0] in (ComponentBuilderNode, ComponentRef)
-            or (isinstance(args[0], type) and issubclass(args[0], ComponentBuilderNode))
-        )
-    ):
-        schema = {"$ref": f"{ref_prefix}ChildList"}
-        if param_desc:
-            schema["description"] = param_desc
         return schema
 
     # Primitives
@@ -419,7 +581,7 @@ class _MacroParameter:
     type_hint: Any
     required: bool
     default: Any = inspect.Parameter.empty
-    description: Optional[str] = None
+    description: str | None = None
 
 
 @dataclass
@@ -427,17 +589,38 @@ class _MacroMetadata:
     """Metadata for an A2UI macro."""
 
     name: str
-    description: Optional[str]
+    description: str | None
     func: Callable[..., Any]
     parameters: dict[str, _MacroParameter]
     return_type: Any
+    target_version: MacroVersionFamily | None = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.target_version = _detect_macro_version(
+            self.parameters,
+            self.return_type,
+            self.name,
+        )
+        if self.target_version == "1.0":
+            _validate_v1_0_macro_name(self.name)
+
+    @property
+    def is_v1_0(self) -> bool:
+        """Returns True if this macro explicitly targets A2UI Protocol v1.0."""
+        return self.target_version == "1.0"
 
     def to_json_schema(
-        self, ref_prefix: str = DEFAULT_COMMON_REF_PREFIX
+        self,
+        ref_prefix: str = DEFAULT_COMMON_REF_PREFIX,
+        *,
+        include_component_const: bool = False,
     ) -> dict[str, Any]:
-        """Generates a JSON Schema tool definition for this macro."""
+        """Generates a JSON Schema component definition for this macro."""
         props: dict[str, Any] = {}
         required: list[str] = []
+        if include_component_const:
+            props["component"] = {"const": self.name}
+            required.append("component")
 
         for p_name, param in self.parameters.items():
             prop_schema = _map_type_hint_to_schema(
@@ -459,8 +642,8 @@ class _MacroMetadata:
 
 
 def macro(
-    name: Optional[Union[str, Callable[..., Any]]] = None,
-    description: Optional[str] = None,
+    name: str | Callable[..., Any] | None = None,
+    description: str | None = None,
 ) -> Any:
     """Decorator to define an A2UI macro.
 
@@ -480,7 +663,7 @@ def macro(
     """
 
     def _decorate(
-        func: Callable[..., Any], explicit_name: Optional[str] = None
+        func: Callable[..., Any], explicit_name: str | None = None
     ) -> Callable[..., Any]:
         macro_name = explicit_name or _to_pascal_case(func.__name__)
         raw_doc = inspect.getdoc(func)
@@ -491,7 +674,46 @@ def macro(
         try:
             hints = get_type_hints(func, include_extras=True)
         except Exception:
-            hints = {}
+            frame = inspect.currentframe()
+            f = frame.f_back if frame is not None else None
+            try:
+                localns: dict[str, Any] = {}
+                scope_dicts: list[dict[str, Any]] = []
+                qualname = getattr(func, "__qualname__", "")
+                enclosing_names = {
+                    seg for seg in qualname.split(".")[:-1] if seg != "<locals>"
+                }
+                func_filename = getattr(
+                    getattr(func, "__code__", None), "co_filename", None
+                )
+                while f is not None and enclosing_names:
+                    if (
+                        f.f_code.co_filename == func_filename
+                        and f.f_code.co_name in enclosing_names
+                    ):
+                        scope_dicts.append(f.f_locals)
+                    f = f.f_back
+                for scope_dict in reversed(scope_dicts):
+                    localns.update(scope_dict)
+                if func.__closure__ and func.__code__.co_freevars:
+                    for var_name, cell in zip(
+                        func.__code__.co_freevars, func.__closure__
+                    ):
+                        try:
+                            localns[var_name] = cell.cell_contents
+                        except ValueError:
+                            pass
+                hints = get_type_hints(func, localns=localns, include_extras=True)
+            except Exception as err:
+                logger.warning(
+                    "Could not resolve type annotations for macro %r: %s",
+                    macro_name,
+                    err,
+                )
+                hints = {}
+            finally:
+                del f
+                del frame
 
         params: dict[str, _MacroParameter] = {}
         for p_name, param in sig.parameters.items():

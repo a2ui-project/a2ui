@@ -20,12 +20,23 @@ from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 import copy
 import logging
-from typing import Any, get_args
+from typing import Any
 
 from a2ui.constants import CATALOG_COMPONENTS_KEY
-from a2ui.core import A2uiCatalogError, A2uiRecursionError, Catalog, CatalogApi
+from a2ui.core import (
+    A2uiCatalogError,
+    A2uiRecursionError,
+    Catalog,
+    CatalogApi,
+)
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
-from a2ui.transformers.macros.macro import _MacroMetadata
+from a2ui.transformers.macros.macro import (
+    MacroVersionFamily,
+    _MacroMetadata,
+    _MacroProtocolError,
+    _normalize_version_family,
+    _validate_v1_0_macro_name,
+)
 from a2ui.transformers.macros.processor import _MacroProcessor
 from a2ui.utils import to_version_number
 
@@ -39,24 +50,6 @@ _COMPONENT_ENVELOPE_KEYS: frozenset[str] = frozenset({
     "accessibility",
     "metadata",
 })
-
-
-def _annotation_targets_v1_0(t: Any, seen: set[int] | None = None) -> bool:
-    """Returns whether ``t`` or any of its nested type arguments comes from an A2UI v1.0 module."""
-    if seen is None:
-        seen = set()
-    obj_id = id(t)
-    if obj_id in seen:
-        return False
-    seen.add(obj_id)
-    mod = getattr(t, "__module__", "") or ""
-    if mod.startswith((
-        "a2ui.builder.v1_0",
-        "a2ui.core.schema.v1_0",
-        "a2ui.core.basic_catalog.v1_0",
-    )):
-        return True
-    return any(_annotation_targets_v1_0(arg, seen) for arg in get_args(t))
 
 
 def _apply_envelope_fields(
@@ -131,6 +124,7 @@ class MacroExpander:
         passthrough_components: Sequence[str] | None = None,
         catalog_id: str | None = None,
         base_catalogs: Sequence[CatalogApi] | None = None,
+        protocol_version: str | ProtocolVersion | None = None,
     ):
         """Initializes the macro expander.
 
@@ -152,6 +146,8 @@ class MacroExpander:
                 names are pre-registered via ``register_catalog`` so ``transform_to_transport``
                 can disambiguate mixed-catalog components without calling
                 ``transform_to_inference_catalog`` first.
+            protocol_version: Optional protocol version (e.g. ``"1.0"`` or ``"0.9.1"``)
+                constraining this expander to a single A2UI protocol family.
         """
         self.macros: list[_MacroMetadata] = []
         if macros:
@@ -165,13 +161,37 @@ class MacroExpander:
                         f"Callable '{m.__name__}' is not decorated with @macro."
                     )
 
+        explicit_version_str = (
+            to_version_number(protocol_version)
+            if protocol_version is not None
+            else None
+        )
+        detected_families: set[MacroVersionFamily] = {
+            m.target_version for m in self.macros if m.target_version is not None
+        }
+        if explicit_version_str is not None:
+            detected_families.add(_normalize_version_family(explicit_version_str))
+        if len(detected_families) > 1:
+            raise _MacroProtocolError(
+                "MacroExpander cannot mix A2UI v0.9 and v1.0 macros or protocol"
+                " versions."
+            )
+        self._target_family: MacroVersionFamily | None = next(
+            iter(detected_families), None
+        )
+        self._explicit_protocol_version: str | None = explicit_version_str
+        if self._target_family == "1.0":
+            for m in self.macros:
+                _validate_v1_0_macro_name(m.name)
+
         macro_map = {m.name: m for m in self.macros}
-        self.processor = _MacroProcessor(macro_map)
+        self.processor = _MacroProcessor(
+            macro_map, default_version_family=self._target_family
+        )
         self.passthrough_components: set[str] | None = (
             set(passthrough_components) if passthrough_components is not None else None
         )
         self.catalog_id: str | None = catalog_id
-        self._registered_protocol_version: str | None = None
         self._catalog_base_components: dict[str, set[str]] = {}
         if catalog_id is not None:
             self._catalog_base_components[catalog_id] = set()
@@ -182,10 +202,19 @@ class MacroExpander:
 
     def register_catalog(self, catalog: CatalogApi) -> None:
         """Registers a base catalog's primitive component names for mixed-catalog scoping."""
-        if catalog.protocol_version and self._registered_protocol_version is None:
-            self._registered_protocol_version = to_version_number(
-                catalog.protocol_version
-            )
+        if catalog.protocol_version:
+            cat_family = _normalize_version_family(catalog.protocol_version)
+            if self._target_family is not None and self._target_family != cat_family:
+                raise _MacroProtocolError(
+                    f"Cannot register v{catalog.protocol_version} catalog with"
+                    f" v{self._target_family} MacroExpander."
+                )
+            if self._target_family is None:
+                if cat_family == "1.0":
+                    for m in self.macros:
+                        _validate_v1_0_macro_name(m.name)
+                self._target_family = cat_family
+                self.processor.default_version_family = cat_family
         if not catalog.catalog_id:
             return
         schema = catalog.to_json()
@@ -207,7 +236,27 @@ class MacroExpander:
 
         Raises:
             A2uiCatalogError: If a macro component collides with an existing component in the base catalog.
+            A2uiValidationError: If macro protocol versions or v1.0 component names are invalid.
         """
+        base_family = (
+            _normalize_version_family(base_catalog.protocol_version)
+            if base_catalog.protocol_version
+            else None
+        )
+        if (
+            self._target_family is not None
+            and base_family is not None
+            and self._target_family != base_family
+        ):
+            raise _MacroProtocolError(
+                f"Cannot augment v{base_catalog.protocol_version} catalog with"
+                f" v{self._target_family} macros."
+            )
+        is_v1_0 = base_family == "1.0"
+        if is_v1_0:
+            for m in self.macros:
+                _validate_v1_0_macro_name(m.name)
+
         schema_copy: dict[str, Any] = base_catalog.to_json()
         comps_map: dict[str, Any] = dict(schema_copy.get(CATALOG_COMPONENTS_KEY, {}))
         defs_map = schema_copy.get("$defs")
@@ -238,7 +287,10 @@ class MacroExpander:
                     )
                 ]
 
-        macro_components = {m.name: m.to_json_schema() for m in self.macros}
+        macro_components = {
+            m.name: m.to_json_schema(include_component_const=is_v1_0)
+            for m in self.macros
+        }
 
         for name, comp_schema in macro_components.items():
             if name in comps_map:
@@ -260,48 +312,51 @@ class MacroExpander:
             catalog_id=base_catalog.catalog_id,
         )
 
-    def to_catalog(self) -> CatalogApi:
+    def to_catalog(
+        self,
+        protocol_version: str | ProtocolVersion | None = None,
+    ) -> CatalogApi:
         """Exports a standalone Catalog containing exclusively the macro component schemas.
 
-        Infers the catalog's protocol version from any registered base catalog or
-        v1.0 macro annotations, defaulting to ``0.9.1`` otherwise.
+        Args:
+            protocol_version: Optional protocol version for the exported catalog.
+                If omitted, uses the expander's configured version or infers
+                ``"1.0"`` when registered macros target ``a2ui.builder.v1_0``,
+                defaulting to ``"0.9.1"`` otherwise.
 
         Returns:
             A Catalog instance ready to be used by inference formats and prompt generators.
         """
         # catalog_definition.json writes the version without the leading "v".
-        if self._registered_protocol_version is not None:
-            version = self._registered_protocol_version
-        elif any(
-            _annotation_targets_v1_0(m.return_type)
-            or any(_annotation_targets_v1_0(p.type_hint) for p in m.parameters.values())
-            for m in self.macros
-        ):
+        if protocol_version is not None:
+            version = to_version_number(protocol_version)
+            requested_family = _normalize_version_family(version)
+            if (
+                self._target_family is not None
+                and self._target_family != requested_family
+            ):
+                raise _MacroProtocolError(
+                    f"Cannot export v{self._target_family} macros as a v{version}"
+                    " catalog."
+                )
+        elif self._explicit_protocol_version is not None:
+            version = self._explicit_protocol_version
+        elif self._target_family == "1.0":
             version = to_version_number(ProtocolVersion.V1_0)
         else:
             version = to_version_number(ProtocolVersion.V0_9_1)
 
-        is_v1_0 = version == to_version_number(ProtocolVersion.V1_0)
+        is_v1_0 = _normalize_version_family(version) == "1.0"
+        if is_v1_0:
+            for m in self.macros:
+                _validate_v1_0_macro_name(m.name)
+
         catalog_id = self.catalog_id or _DEFAULT_MACRO_CATALOG_ID
 
-        components: dict[str, Any] = {}
-        for m in self.macros:
-            comp_schema = m.to_json_schema()
-            if is_v1_0:
-                props = dict(comp_schema.get("properties", {}))
-                props.setdefault("component", {"const": m.name})
-                props.setdefault("id", {"type": "string"})
-                req = list(comp_schema.get("required", []))
-                for req_key in ("component", "id"):
-                    if req_key not in req:
-                        req.insert(0, req_key)
-                comp_schema = {
-                    **comp_schema,
-                    "properties": props,
-                    "required": req,
-                }
-            components[m.name] = comp_schema
-
+        components = {
+            m.name: m.to_json_schema(include_component_const=is_v1_0)
+            for m in self.macros
+        }
         any_comp_refs = [
             {"$ref": f"#/{CATALOG_COMPONENTS_KEY}/{m.name}"} for m in self.macros
         ]
@@ -320,9 +375,9 @@ class MacroExpander:
             }
         else:
             defs = {
-                "anyComponent": {
-                    "oneOf": any_comp_refs,
-                }
+                "anyComponent": (
+                    {"oneOf": any_comp_refs} if any_comp_refs else {"not": {}}
+                )
             }
 
         schema: dict[str, Any] = {
@@ -360,7 +415,7 @@ class MacroExpander:
         Returns:
             List containing the lowered messages with expanded primitive components.
         """
-        if not self.macros:
+        if not self.macros and self._target_family is None:
             return list(messages)
 
         active_surfaces: OrderedDict[str, str | None] = (
@@ -376,6 +431,19 @@ class MacroExpander:
             protocol_version = (
                 to_version_number(raw_version) if isinstance(raw_version, str) else None
             )
+            if protocol_version is not None:
+                msg_family = _normalize_version_family(protocol_version)
+                if (
+                    self._target_family is not None
+                    and self._target_family != msg_family
+                ):
+                    raise _MacroProtocolError(
+                        f"Cannot lower v{protocol_version} message envelope with"
+                        f" v{self._target_family} MacroExpander."
+                    )
+            if not self.macros:
+                result.append(msg)
+                continue
             if "deleteSurface" in msg_dict and isinstance(
                 msg_dict["deleteSurface"], dict
             ):
@@ -595,7 +663,10 @@ class MacroExpander:
                     }
                 try:
                     expanded_macro = self.processor.expand(
-                        c_name, params, instance_id=c_id
+                        c_name,
+                        params,
+                        instance_id=c_id,
+                        protocol_version=protocol_version,
                     )
                     _apply_envelope_fields(
                         comp,
@@ -623,6 +694,8 @@ class MacroExpander:
                         "Macro expansion exceeded maximum recursion depth of"
                         f" {max_depth}."
                     )
+                except _MacroProtocolError:
+                    raise
                 except Exception as e:
                     logger.error(
                         "Failed to expand macro %r: %s", c_name, e, exc_info=True

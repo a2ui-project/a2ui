@@ -208,6 +208,54 @@ macros:
         text: "[Brand] ${text}"
         variant: {$param: "variant"}
 
+  - name: "PayloadButton"
+    protocol_version: "1.0"
+    description: "Button sending dynamic payload values inside an Action event context"
+    parameters:
+      label: {type: "string"}
+      event_name: {type: "string"}
+      payload: {type: "dynamic_value"}
+      extra: {type: "dynamic_value"}
+    template:
+      component: "Button"
+      variant: "primary"
+      child:
+        component: "Text"
+        text: {$param: "label"}
+      action:
+        event:
+          name: {$param: "event_name"}
+          context:
+            payload: {$param: "payload"}
+            extra: {$param: "extra"}
+
+  - name: "DynamicFormCard"
+    protocol_version: "1.0"
+    description: "Form card with dynamic child list, check rules, and submit action"
+    parameters:
+      label: {type: "string"}
+      placeholder: {type: "dynamic_string"}
+      items: {type: "child_list"}
+      checks: {type: "check_rule_list"}
+      on_submit: {type: "action"}
+    template:
+      component: "Card"
+      child:
+        component: "Column"
+        children:
+          - component: "TextField"
+            label: {$param: "label"}
+            placeholder: {$param: "placeholder"}
+            checks: {$param: "checks"}
+          - component: "List"
+            children: {$param: "items"}
+          - component: "Button"
+            variant: "primary"
+            child:
+              component: "Text"
+              text: "Submit"
+            action: {$param: "on_submit"}
+
 tests:
   - id: "01_status_badge_expansion"
     description: "Macro expanding to Card, Row, and Text components with root stitching and namespacing"
@@ -535,3 +583,147 @@ tests:
         id: "basic_text"
         text: "Plain Body"
         variant: "body"
+
+  - id: "21_v1_0_data_binding_and_function_call_coercion"
+    description: "v1.0 macro coerces @path data bindings and @call function calls into DynamicString slots"
+    golden: "21_v1_0_data_binding_and_function_call_coercion.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      - component: "Column"
+        id: "root"
+        children:
+          - "metric_path"
+          - "metric_call"
+      - component: "BoundMetric"
+        id: "metric_path"
+        label: "CPU Usage"
+        value:
+          "@path": "/system/cpu"
+      - component: "BoundMetric"
+        id: "metric_call"
+        label: "Formatted CPU"
+        value:
+          "@call": "formatString"
+          args:
+            value: "CPU: ${/system/cpu}%"
+
+  - id: "22_v1_0_action_user_message_coercion"
+    description: "v1.0 Action parameter coerces bare event body with userMessage and context"
+    golden: "22_v1_0_action_user_message_coercion.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      component: "ActionButton"
+      id: "root"
+      label: "Ask Assistant"
+      action:
+        name: "submit_prompt"
+        userMessage: "Please summarize the report"
+        context:
+          reportId:
+            "@path": "/report/id"
+
+  - id: "23_v1_0_synthetic_catalog_generation"
+    description: "Deriving a v1.0 inference catalog from v1_0 builder macro annotations synthesizes valid schemas and preserves protocol version 1.0"
+    action: "transform_to_inference_catalog"
+    envelope_version: "1.0"
+    expect:
+      protocol_version: "1.0"
+      augmented_components:
+        - "StatusBadge"
+        - "SlotContainer"
+        - "MultiSlotContainer"
+        - "ActionButton"
+        - "BoundMetric"
+        - "ConfigCard"
+        - "NestedMacroCard"
+        - "ComplexCard"
+        - "PayloadButton"
+        - "DynamicFormCard"
+      any_component_references:
+        - "#/components/StatusBadge"
+        - "#/components/SlotContainer"
+        - "#/components/MultiSlotContainer"
+        - "#/components/ActionButton"
+        - "#/components/BoundMetric"
+        - "#/components/ConfigCard"
+        - "#/components/NestedMacroCard"
+        - "#/components/ComplexCard"
+        - "#/components/PayloadButton"
+        - "#/components/DynamicFormCard"
+      component_properties:
+        ComplexCard:
+          component: {const: "ComplexCard"}
+          title: {type: "string"}
+          dynamic_title: {$ref: "common_types.json#/$defs/DynamicString"}
+          metric: {$ref: "common_types.json#/$defs/DynamicNumber"}
+          is_active: {$ref: "common_types.json#/$defs/DynamicBoolean"}
+          tags: {$ref: "common_types.json#/$defs/DynamicStringList"}
+          anything: {$ref: "common_types.json#/$defs/DynamicValue"}
+          on_click: {$ref: "common_types.json#/$defs/Action"}
+          checks: {type: "array", items: {$ref: "common_types.json#/$defs/CheckRule"}}
+          accessibility: {$ref: "common_types.json#/$defs/AccessibilityAttributes"}
+          footer: {$ref: "common_types.json#/$defs/ComponentId"}
+          items: {$ref: "common_types.json#/$defs/ChildList"}
+          theme: {type: "string", enum: ["primary", "secondary"]}
+
+  - id: "24_error_reserved_surface_macro_name"
+    description: "Transforming a v1.0 catalog with a macro named Surface raises ValidationError because Surface is reserved"
+    action: "transform_catalog"
+    envelope_version: "1.0"
+    colliding_macro: "Surface"
+    expect_error:
+      category: "ValidationError"
+
+  - id: "25_v1_0_literal_object_preservation"
+    description: "v1.0 DynamicValue parameters preserve plain path and call dictionaries as LiteralObject values without coercing them to DataBinding or FunctionCall"
+    golden: "25_v1_0_literal_object_preservation.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      component: "PayloadButton"
+      id: "root"
+      label: "Run Command"
+      event_name: "execute_command"
+      payload:
+        path: "/usr/bin"
+      extra:
+        call: "1-800-555-0199"
+        ext: "123"
+
+  - id: "26_v1_0_dynamic_child_list_and_checks"
+    description: "v1.0 macro coerces DynamicChildList templates, CheckRule arrays, and abbreviated event action shorthands with userMessage and context"
+    golden: "26_v1_0_dynamic_child_list_and_checks.json"
+    surface_id: "conformance"
+    envelope_version: "1.0"
+    catalog_id: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    input:
+      - component: "DynamicFormCard"
+        id: "root"
+        label: "Work Email"
+        placeholder:
+          "@path": "/form/emailPlaceholder"
+        items:
+          path: "/form/items"
+          componentId: "item_tmpl"
+        checks:
+          - condition:
+              "@call": "required"
+              args:
+                value:
+                  "@path": "/form/email"
+            message: "Email is required"
+        on_submit:
+          event: "submit_form"
+          userMessage: "Submit registration"
+          context:
+            email:
+              "@path": "/form/email"
+      - component: "Text"
+        id: "item_tmpl"
+        text:
+          "@path": "/itemLabel"

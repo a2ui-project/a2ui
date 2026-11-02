@@ -39,3 +39,9 @@ Each case is checked twice:
 - **`09`–`18`**: Error handling, parameter coercion, schema synthesis, `passthrough_components`, and `transform_to_inference` identity cases (see `macros.yaml`).
 - **`19_envelope_attributes_preservation`**: Macro invocations with component envelope attributes (`catalogId`, `accessibility`, `metadata`) expand cleanly, merging `accessibility` and `metadata` onto the expanded root without copying macro `catalogId` onto emitted primitives.
 - **`20_mixable_catalogs_resolution`**: Mixable catalogs resolve macros by effective `catalogId` without colliding with identically named primitives from other catalogs.
+- **`21_v1_0_data_binding_and_function_call_coercion`**: v1.0 macro coerces `@path` data bindings and `@call` function calls into `DynamicString` slots.
+- **`22_v1_0_action_user_message_coercion`**: v1.0 `Action` parameter coerces a bare event body with `userMessage` and `context`.
+- **`23_v1_0_synthetic_catalog_generation`**: Deriving a v1.0 inference catalog from `a2ui.builder.v1_0` macro annotations synthesizes valid schemas and preserves protocol version `1.0`.
+- **`24_error_reserved_surface_macro_name`**: Transforming a v1.0 catalog with a macro named `Surface` raises `ValidationError` because `Surface` is reserved in v1.0.
+- **`25_v1_0_literal_object_preservation`**: v1.0 `DynamicValue` parameters preserve plain `{"path": ...}` and `{"call": ...}` dictionaries as `LiteralObject` values without coercing them to `DataBinding` or `FunctionCall`.
+- **`26_v1_0_dynamic_child_list_and_checks`**: v1.0 macro coerces `DynamicChildList` templates, `CheckRule` arrays, and abbreviated `event` action shorthands preserving `userMessage` and `context`.
