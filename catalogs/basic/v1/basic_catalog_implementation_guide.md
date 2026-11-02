@@ -63,6 +63,17 @@ An audio player.
 
 **Rendering Guidelines:** Render using a native audio player component with user controls enabled. Like video, its container should span the full width of its parent. Scrubbing (seeking) should be supported if provided by the native control.
 
+### Media URLs (`Image`, `Video`, `AudioPlayer`)
+
+**Security Constraints & Implementation Requirements (Mandatory):**
+`Image.url`, `Video.url`, `Video.posterUrl` and `AudioPlayer.url` come from the agent. To keep them from running script (`javascript:` in a web renderer) or reading local and app-private resources (`file:`, `content:`, `blob:`, `ftp:`), every renderer validates them the same way, so a surface loads the same media on every platform:
+
+1. **Trim First:** Remove leading and trailing whitespace and control characters before validating. An empty result is rejected.
+2. **Enforce Scheme Allowlist:** Accept only `http:`, `https:` and `data:` URLs, and relative paths. Reject any other scheme by rendering nothing (or the platform's empty placeholder) for that media, rather than raising an error.
+3. **Require `scheme://` for HTTP:** Accept an `http:` or `https:` URL only when it is written with `//` and a non-empty host (`https://host/...`). Reject forms such as `https:host`, which browsers resolve against the page.
+4. **Keep Relative Paths on the Same Host:** Reject a relative path that starts with two slashes (`//host`), counting `\` as `/`, because it points at another host. Check the scheme and the leading slashes after dropping tab, newline and carriage-return characters, as browser URL parsers do, so `ht\ttps://host` and `/\t/host` are rejected too.
+5. **Validate Cheaply:** Validation can run on every render, and a `data:` URL can be megabytes long, so inspect only the scheme prefix and the first characters instead of copying the whole string.
+
 ### Row
 
 A horizontal layout container.
