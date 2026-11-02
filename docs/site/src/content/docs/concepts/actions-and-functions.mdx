@@ -1,205 +1,71 @@
 ---
 title: 'Actions and Functions'
-description: 'Understand the distinct roles of component Actions, agent Events, and typed Functions across local and remote execution contexts in A2UI.'
+description: 'How component actions send events to the agent or call functions, and where else A2UI functions run: property bindings, validation checks, and agent requests.'
 ---
 
 import {Tabs, TabItem, Aside} from '@astrojs/starlight/components';
-import DiagramCard from '../../../components/docs/common/DiagramCard.astro';
+import ActionFunctionBranches from '../../../components/docs/actions/ActionFunctionBranches.astro';
 
-A2UI separates interactive user behavior into component Actions, agent Events, and typed Functions across local and remote execution contexts. This division ensures a clean boundary between conversational turn advancement, reactive data computation, and client system operations.
+An action decides what happens when a user interacts with a component, and a function is a typed operation, defined in a [catalog](/concepts/catalogs/), that computes a value, validates input, or performs a client side effect. An action either sends an event to the agent or calls a function. Functions are also used outside actions: to compute component properties, to validate input, and (in v1.0) when the agent asks the renderer to run one.
 
-A2UI organizes interaction across three distinct constructs:
+## Actions, events, and functions
 
-- **Actions**: Interaction slots attached to UI components (such as a button click or form submission).
-- **Events**: High-level semantic notifications dispatched across the network to advance agent turns.
-- **Functions**: Typed, catalog-registered operations that execute locally on the client or remotely on the agent via bidirectional RPC.
+The diagram below starts with a user gesture on a component's `action` property, such as a click on a `Button`. The action has exactly one of two branches. The event branch (`action.event`) resolves its `context` and `userMessage` values from the data model, sends an `action` message to the agent, and the agent responds by streaming UI updates. The function branch (`action.functionCall`) looks up the function name in the renderer's catalog: a registered function runs on the renderer, and in v1.0 an unregistered name is sent to the agent as a `callAgentFunction` request. The lower row shows the three places where functions run without a user gesture: property bindings, validation checks, and `callRendererFunction` requests from the agent.
 
----
+<ActionFunctionBranches />
 
-## Disambiguating Actions, Events, and Functions
+The three terms have distinct meanings:
 
-Because conversational interfaces blend client UI with remote agent reasoning, interaction handlers can be easily conflated. In A2UI, the specification defines an explicit relationship between component slots, agent notifications, and executable operations.
+1. An **action** is a property on an interactive component, such as `Button.action`. It is configuration, not a message. Its schema is [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action).
+2. An **event** is what an action sends to the agent when it uses the `event` branch. It arrives as an `action` message and lets the agent take its next turn.
+3. A **function** is a named, typed operation with an `args` object. Components call functions from actions, property bindings, and validation checks.
 
-The following diagram illustrates how component action slots branch into either agent events or executable function calls. When an action defines an event (`action.event`), the renderer evaluates contextual values and dispatches an `action` message across the network to advance the agent's turn. When an action defines a function call (`action.functionCall`), the renderer checks its local catalog registry: registered functions execute locally with zero network latency, while unregistered functions fall back to a remote `callAgentFunction` RPC to the agent.
+| Aspect       | Event (`action.event`)               | Function (`@call` in v1.0, `call` in v0.9.1)                    |
+| :----------- | :----------------------------------- | :-------------------------------------------------------------- |
+| Purpose      | Tells the agent what the user did    | Computes a value, validates input, or performs a side effect    |
+| Triggered by | A user gesture on a component action | Actions, property bindings, validation checks, or the agent     |
+| Runs on      | The agent, after an `action` message | The renderer, or the agent through `callAgentFunction` (v1.0)   |
+| Result       | The agent streams UI updates         | A typed return value, or nothing for side effects such as links |
 
-<DiagramCard
-  title="Action, Event, and Function Taxonomy"
-  mermaid={`flowchart TD
-    Component["Component (e.g. Button)"] -->|defines| ActionSlot["Action Slot"]
-    ActionSlot -->|oneOf union| EventBranch["Event (action.event)"]
-    ActionSlot -->|oneOf union| FunctionBranch["FunctionCall (action.functionCall)"]
-    EventBranch -->|gated by checks| EventEval["Evaluate context & userMessage"]
-    EventEval -->|dispatches| ActionMsg["action Wire Message"]
-    ActionMsg -->|advances turn| AgentServer["Agent Server"]
-    FunctionBranch -->|registry lookup| LocalCheck{"Registered in local catalog?"}
-    LocalCheck -->|Yes| LocalExec["Local Renderer Execution (0ms)"]
-    LocalCheck -->|No: Fallback Routing| RemoteRPC["callAgentFunction RPC"]
-    RemoteRPC -->|executes remotely| AgentServer`}
->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="p-4 rounded-lg border bg-background/50">
-      <div class="text-xs font-mono font-semibold uppercase tracking-wider text-primary mb-1">Component Slot</div>
-      <div class="text-base font-bold text-foreground mb-2">Action</div>
-      <p class="text-xs text-muted-foreground leading-relaxed mb-3">
-        The declarative property on interactive components (<code class="text-xs">Button.action</code>) that serves as the entry point for user gestures.
-      </p>
-      <div class="text-xs font-medium text-foreground/80 space-y-1">
-        <div><strong>Schema:</strong> <code class="text-xs">oneOf [event, functionCall]</code></div>
-        <div><strong>Trigger:</strong> Direct user interaction</div>
-        <div><strong>Execution:</strong> Delegates to chosen branch</div>
-      </div>
-    </div>
-
-    <div class="p-4 rounded-lg border bg-background/50">
-      <div class="text-xs font-mono font-semibold uppercase tracking-wider text-emerald-500 mb-1">Network Intent</div>
-      <div class="text-base font-bold text-foreground mb-2">Event</div>
-      <p class="text-xs text-muted-foreground leading-relaxed mb-3">
-        An outbound notification transmitted to the agent to signal user decisions and advance conversational turns.
-      </p>
-      <div class="text-xs font-medium text-foreground/80 space-y-1">
-        <div><strong>Wire Message:</strong> <code class="text-xs">action</code></div>
-        <div><strong>Scope:</strong> High-level turn progression</div>
-        <div><strong>Result:</strong> Incremental UI updates</div>
-      </div>
-    </div>
-
-    <div class="p-4 rounded-lg border bg-background/50">
-      <div class="text-xs font-mono font-semibold uppercase tracking-wider text-sky-500 mb-1">Executable Logic</div>
-      <div class="text-base font-bold text-foreground mb-2">Function</div>
-      <p class="text-xs text-muted-foreground leading-relaxed mb-3">
-        A typed, catalog-registered operation computing values, validating inputs, or executing discrete side effects.
-      </p>
-      <div class="text-xs font-medium text-foreground/80 space-y-1">
-        <div><strong>Invocation:</strong> <code class="text-xs">@call</code> / <code class="text-xs">call</code></div>
-        <div><strong>Scope:</strong> UI bindings, checks, actions, RPC</div>
-        <div><strong>Execution:</strong> Local (0ms) or Remote RPC</div>
-      </div>
-    </div>
-
-  </div>
-</DiagramCard>
-
-### The Component `Action` Contract
-
-In the A2UI specification, an **`Action`** is not a message or an executable function. It is a configuration object attached to interactive components defined in [`common_types.json#/$defs/Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action).
-
-An `Action` represents a strict `oneOf` union:
-
-```json
-{
-  "description": "Defines an interaction handler that can either trigger an agent-side event or execute a local renderer-side function.",
-  "oneOf": [
-    {
-      "type": "object",
-      "description": "Triggers an agent-side event.",
-      "properties": {
-        "event": {
-          "type": "object",
-          "properties": {
-            "name": {"type": "string"},
-            "userMessage": {"$ref": "#/$defs/DynamicString"},
-            "context": {
-              "type": "object",
-              "additionalProperties": {"$ref": "#/$defs/DynamicValue"}
-            }
-          },
-          "required": ["name"]
-        }
-      },
-      "required": ["event"]
-    },
-    {
-      "type": "object",
-      "description": "Executes a renderer or agent-side function.",
-      "properties": {
-        "functionCall": {"$ref": "#/$defs/FunctionCall"}
-      },
-      "required": ["functionCall"]
-    }
-  ]
-}
-```
-
-When authoring a component, you choose whether user interaction notifies the agent (`action.event`) or runs an operational function (`action.functionCall`):
-
-- **Use `action.event`** when the user makes a choice that requires agent reasoning, workflow progression, or server-side orchestration (for example, clicking "Book Flight", "Generate Report", or "Confirm Order").
-- **Use `action.functionCall`** when the user triggers a targeted client side effect or deterministic operation that does not require an LLM turn (for example, clicking a button that calls `openUrl` or triggering a client-side clipboard copy).
-
-### Contrasting Roles: Events vs. Functions
-
-The following comparison clarifies how Events and Functions operate across different stages of the application lifecycle:
-
-| Dimension               | Event (`action.event`)                                                         | Function (`@call` / `call`)                                                                   |
-| :---------------------- | :----------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------- |
-| **Primary Role**        | Notifies the agent of user intent to advance a conversational turn.            | Computes values, validates inputs, or performs discrete operations.                           |
-| **Invocation Contexts** | Triggered exclusively from a component `Action` slot via user gesture.         | Triggered in 4 contexts: Actions, dynamic bindings, validation checks, or agent RPC.          |
-| **Network Cost**        | Always travels over the network as an `action` message.                        | Runs locally with 0ms latency when registered on the client, or via `callAgentFunction` RPC.  |
-| **State Resolution**    | Evaluates bound `context` and `userMessage` expressions at moment of dispatch. | Evaluates dynamically whenever input dependencies or bound data paths update.                 |
-| **Output / Return**     | Returns no direct value to the component; prompts the agent to stream updates. | Returns a typed value (e.g., `string`, `boolean`, `number`) or executes a `void` side effect. |
-| **Validation Gating**   | Gated by component `checks`; dispatch halts if validation rules fail.          | Evaluates as the validation rule itself (`checks[].condition`).                               |
+Use `action.event` when the interaction needs the agent to decide what happens next, for example "Book flight" or "Confirm order". Use `action.functionCall` when the renderer can handle the interaction without an agent turn, for example opening a help link with `openUrl`.
 
 ---
 
-## Events (`action.event` $\rightarrow$ `action` Wire Message)
+## Events
 
-An event is the mechanism by which user interactions on the client travel back to the agent. It translates interactive gestures into structured conversational context.
+An event carries a user interaction back to the agent as an `action` message.
 
-The following sequence diagram details the event dispatch lifecycle when a user clicks an interactive component. The renderer first evaluates local validation checks; if validation fails, error messages are displayed and network dispatch is blocked. When validation passes, the renderer resolves bound data pointers for `context` and `userMessage` against the local data model, packages them into an `action` wire message, and transmits it to the agent server. The agent then processes the turn and streams incremental updates back to the client.
+The following sequence diagram shows what happens when a user clicks a button whose action uses the event branch. The renderer resolves any data bindings in the event's `context` and `userMessage` against the surface data model, sends the resulting `action` message to the agent, and the agent processes the turn and streams `updateDataModel` or `updateComponents` messages back. The renderer then re-renders the surface.
 
 ```mermaid
 sequenceDiagram
-    autonumber
     actor User
-    participant Renderer as Client Renderer
-    participant DataModel as Local DataModel
-    participant Agent as Agent Server
+    participant Renderer
+    participant Agent
 
-    User->>Renderer: Clicks Button (action.event)
-    critical Interaction Gating
-        Renderer->>Renderer: Evaluate component checks
-    end
-    alt Validation fails
-        Renderer-->>User: Display error messages (dispatch blocked)
-    else Validation passes
-        Renderer->>DataModel: Resolve bindings in context & userMessage
-        DataModel-->>Renderer: Resolved literal values
-        Renderer->>Agent: action wire message (+ transport metadata)
-        Agent->>Agent: Process turn & run tool / LLM logic
-        Agent-->>Renderer: Stream incremental updates (updateDataModel, updateComponents)
-        Renderer-->>User: Re-render updated interface
-    end
+    User->>Renderer: Click Button (action.event)
+    Renderer->>Renderer: Resolve context and userMessage bindings
+    Renderer->>Agent: action message
+    Agent-->>Renderer: updateDataModel / updateComponents
+    Renderer-->>User: Updated surface
 ```
 
-### Event Dispatch Lifecycle
+When the renderer sends an event:
 
-When a user triggers an interaction on a component configured with `action.event`, the renderer executes the following sequence:
+1. It resolves each value in `event.context`. Data bindings such as `{"@path": "/selection/seat"}` (v1.0) or `{"path": "/selection/seat"}` (v0.9.1) are replaced with their current values, and literal values are sent unchanged.
+2. In v1.0, it also resolves `event.userMessage`, a `DynamicString` that gives the agent a human-readable description of what the user did, such as `"Confirmed flight reservation for ${/passenger/fullName}"`.
+3. It sends an [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message with the event name, the surface and component IDs, a timestamp, and the resolved values.
 
-1. **Check Validation (`checks` Gating)**:
-   If the component implements `Checkable` (such as a form submission `Button`), the renderer evaluates all rules in `checks`. If any check condition evaluates to false or returns a failing `ValidationResult`, the dispatch is immediately aborted, error messages are rendered on the associated controls, and no network message is sent.
+A `Button` can declare validation `checks`. If any check fails, the renderer disables the button, so the event cannot be sent until the data is valid. See [Validation checks](#validation-checks).
 
-2. **Context Resolution**:
-   The renderer inspects the `event.context` map. Any values defined as dynamic path bindings (such as `{"@path": "/formData/email"}` in v1.0 or `{"path": "/formData/email"}` in v0.9.1) are resolved against the active surface data model. Static values (such as fixed IDs or categories) are preserved as literals.
+If the surface was created with `sendDataModel: true`, the transport also attaches the full surface data model to each outbound message, under `a2uiRendererDataModel` in v1.0 or `a2uiClientDataModel` in v0.9.1. For details, see [Data Model and Data Binding](/concepts/data-binding/).
 
-3. **User Message Interpolation (v1.0)**:
-   In v1.0, `event.userMessage` accepts a `DynamicString`. The renderer interpolates any dynamic string templates (for example, `"Submitting order ${/order/id} for ${/order/total}"`) using current data model state. This string provides human-readable context directly to the agent's conversational turn.
-
-4. **Wire Message Transmission**:
-   The renderer constructs and dispatches an [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message to the agent over the transport layer.
-
-5. **Transport Metadata Synchronization (`sendDataModel`)**:
-   If the surface was created with `sendDataModel: true`, the client transport layer automatically attaches the full surface data model to the outbound transport metadata (`a2uiRendererDataModel` in v1.0 or `a2uiClientDataModel` in v0.9.1). This ensures the agent has access to all client-side state without requiring manual inclusion of every field in `event.context`. For details, see [Data Model and Data Binding](/concepts/data-binding/).
-
-6. **Agent Turn Processing**:
-   The agent processes the action, invokes external tools or models as needed, and replies with incremental UI updates (such as `updateDataModel`, `updateComponents`, or surface replacements).
-
-### Component Definition and Resulting Wire Message
-
-The following example shows a confirmation button defined within a surface, followed by the outbound `action` wire message emitted when the user clicks the button.
+The following example shows a confirmation button and the `action` message the renderer sends when the user clicks it.
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
     ```json
-    // 1. Component definition inside surface components list:
+    // Button component:
     {
       "id": "confirm_button",
       "component": "Button",
@@ -211,14 +77,13 @@ The following example shows a confirmation button defined within a surface, foll
           "userMessage": "Confirmed flight reservation for ${/passenger/fullName}",
           "context": {
             "flightNumber": "UA-402",
-            "seat": { "@path": "/selection/seatNumber" },
-            "mealPreference": { "@path": "/selection/meal" }
+            "seat": { "@path": "/selection/seatNumber" }
           }
         }
       }
     }
 
-    // 2. Outbound renderer_to_agent wire message emitted on click:
+    // action message sent on click:
     {
       "version": "1.0",
       "action": {
@@ -229,8 +94,7 @@ The following example shows a confirmation button defined within a surface, foll
         "userMessage": "Confirmed flight reservation for Alex Rivera",
         "context": {
           "flightNumber": "UA-402",
-          "seat": "14B",
-          "mealPreference": "Vegetarian"
+          "seat": "14B"
         }
       }
     }
@@ -239,7 +103,7 @@ The following example shows a confirmation button defined within a surface, foll
   </TabItem>
   <TabItem label="v0.9.1 (Active)">
     ```json
-    // 1. Component definition inside surface components list:
+    // Button component:
     {
       "id": "confirm_button",
       "component": "Button",
@@ -250,14 +114,13 @@ The following example shows a confirmation button defined within a surface, foll
           "name": "confirmReservation",
           "context": {
             "flightNumber": "UA-402",
-            "seat": { "path": "/selection/seatNumber" },
-            "mealPreference": { "path": "/selection/meal" }
+            "seat": { "path": "/selection/seatNumber" }
           }
         }
       }
     }
 
-    // 2. Outbound client_to_server wire message emitted on click:
+    // action message sent on click:
     {
       "version": "v0.9",
       "action": {
@@ -267,8 +130,7 @@ The following example shows a confirmation button defined within a surface, foll
         "timestamp": "2026-11-02T03:45:00Z",
         "context": {
           "flightNumber": "UA-402",
-          "seat": "14B",
-          "mealPreference": "Vegetarian"
+          "seat": "14B"
         }
       }
     }
@@ -277,65 +139,50 @@ The following example shows a confirmation button defined within a surface, foll
   </TabItem>
 </Tabs>
 
-<Aside type="note" title="Protocol Version Differences">
-  - **Dynamic User Message**: In v1.0, `action.event.userMessage` provides an interpolated
-  `DynamicString` that renders directly into the outbound wire message. In v0.9.1, `userMessage`
-  does not exist; all context is passed via the `context` dictionary. - **Path Syntax**: Dynamic
-  data paths use `@path` in v1.0 and `path` in v0.9.1. - **Transport Keys**: In v1.0, wire messages
-  use `"version": "1.0"` with transport metadata `a2uiRendererDataModel`. In v0.9.1, payloads use
-  `"version": "v0.9"` (or `"v0.9.1"`) with `a2uiClientDataModel`.
+<Aside type="note" title="Version differences">
+
+v1.0 uses `@path` for data bindings and adds `userMessage` to events. v0.9.1 uses `path` and has no `userMessage`, so put everything the agent needs in `context`.
+
 </Aside>
 
 ---
 
-## Functions (`@call` in v1.0 / `call` in v0.9.1)
+## Functions
 
-Functions are typed, catalog-registered operations. Unlike events, functions are not tied to a single wire message or conversational turn. They execute across multiple contexts within the protocol to compute values, enforce validation, or run client side effects.
+Functions are typed operations declared in a catalog. Each call names the function and passes an `args` object. In v1.0 the name goes in `@call` and data bindings use `@path`; in v0.9.1 the same call uses `call` and `path`.
 
-### Execution Locations: Renderer vs. Agent
+### Where functions run
 
-A2UI distinguishes between two execution locations for functions:
+A function runs either on the renderer or, in v1.0, on the agent.
 
-The following flowchart shows how function execution routes based on catalog registration. When a component evaluates a function call (`@call`), the client checks whether the function is registered in the local catalog. If registered, it executes immediately on the client renderer with zero network latency. If not registered, the client falls back to dispatching a `callAgentFunction` message to the agent server, awaiting an `agentFunctionResponse` before resolving the pending UI state.
+The renderer decides where to run a call by looking up the function name in its local catalog. If the name is registered, the renderer runs the function itself, with no network request. In v1.0, if the name is not registered, the renderer sends a `callAgentFunction` message to the agent and waits for an `agentFunctionResponse`. The diagram in [Actions, events, and functions](#actions-events-and-functions) shows this lookup on the function branch.
 
-```mermaid
-flowchart TD
-    Invoke["Function Invocation (@call)"] --> RegistryCheck{"Registered in local client catalog?"}
-    RegistryCheck -->|Yes| LocalExec["Local Renderer Function<br/>• Synchronous / 0ms latency<br/>• Evaluates on client<br/>• e.g., formatCurrency, regex"]
-    RegistryCheck -->|No: Fallback Routing| RemoteRPC["Remote Agent Function<br/>• callAgentFunction message<br/>• Dispatched over network<br/>• e.g., verifyInventory, checkAccount"]
-    RemoteRPC --> AgentProcess["Agent executes server-side function"]
-    AgentProcess --> AgentReply["agentFunctionResponse (value or error)"]
-    AgentReply --> ClientResolve["Client resolves pending state"]
-```
+#### Renderer functions
 
-#### Renderer-Side Functions (Local Execution)
+Renderer functions are implemented by the renderer and registered with the catalog. The [Basic Catalog](/concepts/catalogs/) defines these functions in both v1.0 and v0.9.1:
 
-Renderer-side functions are registered directly within the client runtime (via framework adapters such as Flutter, React, Lit, or SwiftUI). When evaluated, they execute immediately in memory on the client device without a network round-trip.
+1. Formatting: `formatString`, `formatNumber`, `formatCurrency`, `formatDate`, `pluralize`.
+2. Validation: `required`, `regex`, `length`, `numeric`, `email`.
+3. Logic: `and`, `or`, `not`.
+4. Side effects: `openUrl`.
 
-The [Basic Catalog](/concepts/catalogs/) includes a standard library of built-in renderer functions:
+Catalogs are domain-specific, so your own catalog can define different functions.
 
-- **Formatting**: `formatString`, `formatNumber`, `formatCurrency`, `formatDate`, `pluralize`
-- **Validation**: `required`, `regex`, `length`, `numeric`, `email`
-- **Logic**: `and`, `or`, `not`
-- **Client Side Effects**: `openUrl`
+#### Agent functions (v1.0)
 
-Local functions provide immediate feedback for text interpolation, form validation, and numeric transformations while keeping UI rendering responsive.
+In v1.0, a function can run on the agent. This lets a component use server-side logic, such as checking inventory, without starting a new agent turn.
 
-#### Agent-Side Functions (Remote RPC — New in v1.0)
+When the renderer calls an agent function:
 
-In v1.0, functions can execute remotely on the agent server via bidirectional RPC. This capability allows components to invoke server-side operations (such as validating an address against an internal database or checking real-time inventory) without triggering a full conversational turn.
-
-When an agent-side function is invoked:
-
-1. The renderer dispatches a [`callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction) wire message containing a unique `functionCallId`, the target `surfaceId`, and the `callFunction` payload.
-2. The renderer places the affected component into an asynchronous pending state (for example, displaying a subtle inline loader while preserving current inputs).
-3. The agent executes the server logic and streams back an [`agentFunctionResponse`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/AgentFunctionResponseMessage) containing the matching `functionCallId` and either a `value` or structured `error`.
-4. The renderer resolves the pending state, updating bound properties or surfacing error messages.
+1. It sends a [`callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction) message with a unique `functionCallId`, the `surfaceId`, and the `callFunction` payload.
+2. It shows a pending state for the affected binding while it waits, such as a loading indicator or the previous value.
+3. The agent replies with an [`agentFunctionResponse`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/AgentFunctionResponseMessage) that has the same `functionCallId` and either a `value` or an `error`.
+4. The renderer applies the value, or handles the error. A failed property binding resolves to `null`, and a failed validation check is treated as invalid.
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
     ```json
-    // 1. Renderer dispatches callAgentFunction:
+    // Renderer sends callAgentFunction:
     {
       "version": "1.0",
       "callAgentFunction": {
@@ -351,7 +198,7 @@ When an agent-side function is invoked:
       }
     }
 
-    // 2. Agent returns agentFunctionResponse (Success):
+    // Agent replies with a value:
     {
       "version": "1.0",
       "agentFunctionResponse": {
@@ -363,7 +210,7 @@ When an agent-side function is invoked:
       }
     }
 
-    // Alternative: Agent returns agentFunctionResponse (Error):
+    // Or with an error:
     {
       "version": "1.0",
       "agentFunctionResponse": {
@@ -378,149 +225,178 @@ When an agent-side function is invoked:
 
   </TabItem>
   <TabItem label="v0.9.1 (Active)">
-    ```json
-    // In v0.9.1, functions execute exclusively on the local client.
-    // Remote agent RPCs via callAgentFunction are not supported in v0.9.1.
-    // All remote operations must be initiated as actions (action.event)
-    // that advance conversational turns.
-    ```
+    v0.9.1 has no agent functions and no `callAgentFunction` message. Every function runs on the renderer. To run logic on the agent, send an event with `action.event` and let the agent respond in its next turn.
   </TabItem>
 </Tabs>
 
-<Aside type="caution" title="Implicit Fallback Routing & Developer Trap">
-  In v1.0, the protocol specifies **implicit fallback routing** for functions:
+<Aside type="caution" title="Misspelled function names become network calls">
 
-When evaluating any `FunctionCall`, the renderer checks its local catalog table first. If the function name is **not registered locally**, the renderer assumes it is an agent-side function and automatically emits a `callAgentFunction` message across the network.
-
-**The Pitfall**: If a developer misspells a local function name (for example, writing `@call: "formatCurrncy"` instead of `"formatCurrency"`), the renderer will not fail immediately with a local error. Instead, it dispatches an unexpected network RPC to the agent, which responds with `code: "UNKNOWN_FUNCTION"` after network round-trip latency. Always verify function names against the catalog schema.
+In v1.0, any function name that is not registered on the renderer is sent to the agent. If you misspell a renderer function, for example `"@call": "formatCurrncy"` instead of `"formatCurrency"`, the renderer does not report a local error. It sends a `callAgentFunction` message, and the agent replies with an `UNKNOWN_FUNCTION` error. Check function names against your catalog.
 
 </Aside>
 
----
+### Where functions are called
 
-### Trigger Contexts
+Functions are called from four places. Only the first one involves a user gesture:
 
-Functions operate across four distinct contexts in A2UI:
+1. A component action, through `action.functionCall`.
+2. A property binding, where a component property such as `Text.text` is computed by a function call.
+3. A validation check, in a component's `checks` list.
+4. A `callRendererFunction` message from the agent (v1.0).
 
-The following diagram summarizes the four contexts where functions are triggered in A2UI: component actions (triggered by user gestures via `action.functionCall`), dynamic value bindings (reactively evaluating property values like `formatCurrency`), validation rules (evaluating input checks prior to action dispatch), and explicit agent-to-renderer messages (agent-initiated device queries via `callRendererFunction`).
+#### Component actions
 
-```mermaid
-mindmap
-  root((Functions in A2UI))
-    Component Actions
-      User gesture trigger
-      action.functionCall
-      Side effects e.g. openUrl
-    Dynamic Value Bindings
-      Reactive data transformations
-      DynamicString, DynamicNumber, DynamicBoolean
-      e.g. formatCurrency, formatString
-    Validation Rules
-      Input field gating
-      Checkable checks condition
-      e.g. required, regex, length
-    Agent-to-Renderer Messages
-      Agent-initiated RPC
-      callRendererFunction
-      Query device state or hardware
-```
-
-#### Component Actions (`action.functionCall`)
-
-A component's interaction slot can execute a function directly upon a user gesture instead of dispatching an agent event.
-
-```json
-{
-  "id": "help_link",
-  "component": "Button",
-  "child": "help_text",
-  "variant": "borderless",
-  "action": {
-    "functionCall": {
-      "@call": "openUrl",
-      "args": {
-        "url": "https://support.example.com/billing"
-      }
-    }
-  }
-}
-```
-
-#### Dynamic Value Bindings (`DynamicValue`)
-
-Functions can be bound directly to component properties (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`). Whenever the underlying data model values mutate, the renderer re-evaluates the function reactively:
-
-```json
-{
-  "id": "order_total_text",
-  "component": "Text",
-  "text": {
-    "@call": "formatCurrency",
-    "args": {
-      "value": {"@path": "/order/subtotal"},
-      "currency": "USD"
-    }
-  }
-}
-```
-
-#### Validation Rules (`Checkable` `checks`)
-
-Any component implementing `Checkable` (such as `TextField`, `CheckBox`, or `Button`) can declare validation rules in its `checks` array. Each rule defines a `condition` function that must return a boolean or structured `ValidationResult`:
-
-```json
-{
-  "id": "user_email_input",
-  "component": "TextField",
-  "value": {"@path": "/formData/email"},
-  "checks": [
-    {
-      "condition": {
-        "@call": "required",
-        "args": {"value": {"@path": "/formData/email"}}
-      },
-      "message": "Email address is required."
-    },
-    {
-      "condition": {
-        "@call": "email",
-        "args": {"value": {"@path": "/formData/email"}}
-      },
-      "message": "Please enter a valid email address."
-    }
-  ]
-}
-```
-
-#### Agent-to-Renderer Messages (`callRendererFunction` — New in v1.0)
-
-In v1.0, the agent can initiate a function call on the client mid-session by sending a [`callRendererFunction`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CallRendererFunctionMessage) message. This enables the agent to query client-side state (such as screen dimensions or timezone) or request local operations.
-
-The following sequence diagram shows an agent-initiated function execution. The agent sends a `callRendererFunction` message specifying the target function and arguments. The renderer verifies caller permissions via `allowedCallers`, runs the function locally, and returns the computed result in a `rendererFunctionResponse` message.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Agent as Agent Server
-    participant Renderer as Client Renderer
-
-    Agent->>Renderer: callRendererFunction (getScreenResolution)
-    Renderer->>Renderer: Check allowedCallers & execute locally
-    Renderer-->>Agent: rendererFunctionResponse (width, height)
-```
-
-The matching message exchange over the wire:
+A component's action can call a function directly instead of sending an event. This example opens a help page when the user clicks the button.
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
     ```json
-    // 1. Agent sends callRendererFunction to query client hardware:
+    {
+      "id": "help_link",
+      "component": "Button",
+      "child": "help_text",
+      "variant": "borderless",
+      "action": {
+        "functionCall": {
+          "@call": "openUrl",
+          "args": {
+            "url": "https://support.example.com/billing"
+          }
+        }
+      }
+    }
+    ```
+  </TabItem>
+  <TabItem label="v0.9.1 (Active)">
+    ```json
+    {
+      "id": "help_link",
+      "component": "Button",
+      "child": "help_text",
+      "variant": "borderless",
+      "action": {
+        "functionCall": {
+          "call": "openUrl",
+          "args": {
+            "url": "https://support.example.com/billing"
+          }
+        }
+      }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+#### Property bindings
+
+Properties typed as `DynamicString`, `DynamicNumber`, `DynamicBoolean`, or `DynamicStringList` accept a function call in place of a literal value. The renderer calls the function again whenever a bound data path changes. This `Text` component shows the order subtotal as a formatted currency string.
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+    ```json
+    {
+      "id": "order_total_text",
+      "component": "Text",
+      "text": {
+        "@call": "formatCurrency",
+        "args": {
+          "value": { "@path": "/order/subtotal" },
+          "currency": "USD"
+        }
+      }
+    }
+    ```
+  </TabItem>
+  <TabItem label="v0.9.1 (Active)">
+    ```json
+    {
+      "id": "order_total_text",
+      "component": "Text",
+      "text": {
+        "call": "formatCurrency",
+        "args": {
+          "value": { "path": "/order/subtotal" },
+          "currency": "USD"
+        }
+      }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+#### Validation checks
+
+Components that accept `checks`, such as `TextField`, `CheckBox`, and `Button`, list validation rules in that array. Each rule has a `condition`, usually a function call, and a `message` to show when the condition fails. In v1.0 a condition returns a boolean or a `ValidationResult` object, and `message` is optional. In v0.9.1 a condition returns a boolean, and `message` is required.
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+    ```json
+    {
+      "id": "user_email_input",
+      "component": "TextField",
+      "label": "Email",
+      "value": { "@path": "/formData/email" },
+      "checks": [
+        {
+          "condition": {
+            "@call": "required",
+            "args": { "value": { "@path": "/formData/email" } }
+          },
+          "message": "Email address is required."
+        },
+        {
+          "condition": {
+            "@call": "email",
+            "args": { "value": { "@path": "/formData/email" } }
+          },
+          "message": "Enter a valid email address."
+        }
+      ]
+    }
+    ```
+  </TabItem>
+  <TabItem label="v0.9.1 (Active)">
+    ```json
+    {
+      "id": "user_email_input",
+      "component": "TextField",
+      "label": "Email",
+      "value": { "path": "/formData/email" },
+      "checks": [
+        {
+          "condition": {
+            "call": "required",
+            "args": { "value": { "path": "/formData/email" } }
+          },
+          "message": "Email address is required."
+        },
+        {
+          "condition": {
+            "call": "email",
+            "args": { "value": { "path": "/formData/email" } }
+          },
+          "message": "Enter a valid email address."
+        }
+      ]
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+#### Agent requests (v1.0)
+
+In v1.0, the agent can ask the renderer to run a function by sending a [`callRendererFunction`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CallRendererFunctionMessage) message. The agent uses this to read client state, such as the screen size, or to run a local operation. The `callFunction` payload must include a `catalogId`. The renderer always answers with a `rendererFunctionResponse` that carries the same `functionCallId` and either a `value` or an `error`.
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+    ```json
+    // Agent sends callRendererFunction:
     {
       "version": "1.0",
       "callRendererFunction": {
         "functionCallId": "hw_screen_001",
         "callFunction": {
-          "catalogId": "https://example.com/catalogs/hardware.json",
+          "catalogId": "https://example.com/catalogs/device.json",
           "@call": "getScreenResolution",
           "args": {
             "screenIndex": 0
@@ -529,15 +405,14 @@ The matching message exchange over the wire:
       }
     }
 
-    // 2. Renderer replies with rendererFunctionResponse:
+    // Renderer replies with rendererFunctionResponse:
     {
       "version": "1.0",
       "rendererFunctionResponse": {
         "functionCallId": "hw_screen_001",
         "value": {
           "width": 1920,
-          "height": 1080,
-          "pixelRatio": 2.0
+          "height": 1080
         }
       }
     }
@@ -545,37 +420,27 @@ The matching message exchange over the wire:
 
   </TabItem>
   <TabItem label="v0.9.1 (Active)">
-    ```json
-    // In v0.9.1, the agent cannot initiate function calls on the client.
-    // Client capabilities and display metrics are exchanged during initial
-    // session setup via transport metadata (a2uiClientCapabilities).
-    ```
+    v0.9.1 has no `callRendererFunction` message, so the agent cannot ask the renderer to run a function. The client describes itself once, in the `a2uiClientCapabilities` transport metadata.
   </TabItem>
 </Tabs>
 
 ---
 
-### Caller and Gesture Security Constraints (v1.0)
+## Who can call a function (v1.0)
 
-Because functions can trigger external side effects or access client capabilities, the v1.0 catalog schema ([`catalog_definition.json`](/specification/v1.0/schemas/#catalog_definition.json/properties/functions)) enforces strict caller and user-activation constraints.
+Some functions open URLs or read client state, so a v1.0 [catalog definition](/specification/v1.0/schemas/#catalog_definition.json) declares who may call each function and whether it needs a user gesture.
 
-#### `allowedCallers`
+`allowedCallers` takes one of three values:
 
-The `allowedCallers` property specifies which roles are authorized to invoke a function:
+1. `"rendererOnly"` (the default): only the renderer can call the function, from actions, property bindings, or validation checks. If the agent sends a `callRendererFunction` for it, the renderer rejects the call with an `INVALID_FUNCTION_CALL` error.
+2. `"agentOnly"`: only the agent can call the function, through `callRendererFunction`. Components cannot bind to it.
+3. `"rendererOrAgent"`: both the renderer and the agent can call the function, for example `getScreenResolution`.
 
-- `"rendererOnly"` _(default)_: The function can only be invoked by the client renderer (from component actions, property bindings, or validation checks). If an agent attempts to invoke this function via `callRendererFunction`, the renderer rejects the call with an `INVALID_FUNCTION_CALL` error.
-- `"agentOnly"`: The function can only be invoked by the agent via `callRendererFunction`. Components cannot call it in UI bindings.
-- `"rendererOrAgent"`: Both UI component bindings and agent messages are permitted to invoke the function (e.g., `getScreenResolution`).
+`requiresUserActivation: true` marks a function that must run in response to a user gesture, such as a tap or click. Browsers and mobile platforms require this for operations like opening a URL with `openUrl`. The renderer runs such a function only from a component action. In a property binding or a validation check, the renderer blocks the call and reports an `EXPRESSION_ERROR`.
 
-#### `requiresUserActivation`
-
-The `requiresUserActivation` boolean property specifies whether the function requires a direct user gesture (such as a tap or click) to execute:
-
-- **Browser & OS Security**: Operations such as opening URLs (`openUrl`), accessing the clipboard, or launching external intents require active user activation in modern browsers and mobile platforms.
-- **Strict Invariant**: The A2UI catalog schema enforces that if `requiresUserActivation` is `true`, `allowedCallers` **must** be set to `"rendererOnly"`:
+The catalog schema requires every function with `requiresUserActivation: true` to set `allowedCallers` to `"rendererOnly"`:
 
 ```json
-// In catalog_definition.json:
 {
   "if": {
     "properties": {
@@ -591,15 +456,13 @@ The `requiresUserActivation` boolean property specifies whether the function req
 }
 ```
 
-Because an agent operates remotely over the network, it cannot produce a trusted user gesture context. Enforcing `rendererOnly` guarantees that untrusted or remote agent messages can never trigger user-activated capabilities without direct user interaction.
-
-For more details on trust domains and runtime isolation, consult [Security and Trust Boundaries](/concepts/security/).
+An agent message arrives over the network and cannot carry a user gesture, so this rule keeps the agent from triggering gesture-only operations. For more on trust between agents and renderers, see [Security and Trust Boundaries](/concepts/security/).
 
 ---
 
-## Related Topics
+## Related topics
 
-- **[Messages](/concepts/messages/)**: Complete envelope reference for `action`, `callAgentFunction`, and `callRendererFunction`.
-- **[Data Model and Data Binding](/concepts/data-binding/)**: Learn how relative pointers and dynamic string interpolation resolve at runtime.
-- **[Catalogs, Components and Functions](/concepts/catalogs/)**: How to register custom functions and define catalog schemas.
-- **[Security and Trust Boundaries](/concepts/security/)**: Comprehensive security guidelines for client-agent boundaries.
+- [Messages](/concepts/messages/): the full message reference for `action`, `callAgentFunction`, and `callRendererFunction`.
+- [Data Model and Data Binding](/concepts/data-binding/): how `@path` bindings and `${...}` string interpolation resolve.
+- [Catalogs, Components and Functions](/concepts/catalogs/): how to declare functions in a catalog.
+- [Security and Trust Boundaries](/concepts/security/): security guidance for the boundary between agent and renderer.
