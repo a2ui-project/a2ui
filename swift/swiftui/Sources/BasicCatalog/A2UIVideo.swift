@@ -48,7 +48,7 @@ public final class A2UIVideoPlayerModel: ObservableObject {
     {
       return
     }
-    player?.pause()
+    cleanup()
     player = AVPlayer(url: url)
   }
 

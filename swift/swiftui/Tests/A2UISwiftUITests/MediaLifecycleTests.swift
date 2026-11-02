@@ -82,11 +82,12 @@ struct MediaLifecycleTests {
     model.load(url: firstURL)
     #expect(model.player === firstPlayer)
 
-    // Loading a new URL replaces the player instance.
+    // Loading a new URL replaces the player instance and cleans up the old one.
     let secondURL = try #require(URL(string: "https://example.com/two.mp4"))
     model.load(url: secondURL)
     let secondPlayer = try #require(model.player)
     #expect(secondPlayer !== firstPlayer)
+    #expect(firstPlayer.currentItem == nil)
 
     // Cleanup pauses, clears currentItem, and releases the player reference.
     model.cleanup()
