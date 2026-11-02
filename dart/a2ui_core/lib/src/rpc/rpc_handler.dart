@@ -383,7 +383,7 @@ class RpcHandler {
           error is A2uiError ? error.message : error.toString();
       throw A2uiRpcError(
         errorMessage.isEmpty
-            ? 'An error occurred during function execution.'
+            ? 'An argument of the function call could not be resolved.'
             : errorMessage,
         RpcErrorCode.executionError,
         cause: error,

@@ -29,7 +29,8 @@ class _Fn extends FunctionImplementation {
     this.body, {
     super.requiresUserActivation,
     super.allowedCallers,
-  }) : super(name: name, argumentSchema: Schema.object());
+    Schema? argumentSchema,
+  }) : super(name: name, argumentSchema: argumentSchema ?? Schema.object());
 
   final Object? Function(Map<String, dynamic> args) body;
 
@@ -66,6 +67,14 @@ Catalog<ComponentApi, FunctionImplementation> _catalog({
         _Fn('nan', (_) => double.nan),
         _Fn('count', (args) => ++_countRuns),
         _Fn('boom', (_) => throw StateError('boom failed')),
+        _Fn(
+          'typed',
+          (args) => args['n'],
+          argumentSchema: Schema.object(
+            properties: {'n': Schema.integer()},
+            required: ['n'],
+          ),
+        ),
         _Fn('live', (_) => _live),
         _Fn(
           'agentSide',
@@ -1641,11 +1650,92 @@ void main() {
       agentCalls.single.completer.complete('ok');
       await later;
       await _flush();
+      await invokeAction({
+        'event': {
+          'name': 'go',
+          'context': {
+            'nested': {
+              'inner': {'@bad': 1},
+            },
+          },
+          'userMessage': {'@bad': 1},
+        },
+      });
+      await invokeAction({
+        'event': {
+          'name': 'go',
+          'context': <String, Object?>{},
+          'userMessage': {'@bad': 1},
+        },
+      });
+      await _flush();
       expect(actions, isEmpty);
-      expect(clientErrors, hasLength(2));
+      expect(clientErrors, hasLength(4));
       expect(clientErrors.map((e) => e.code), everyElement('EXPRESSION_ERROR'));
       expect(clientErrors.map((e) => e.surfaceId), everyElement('surf'));
       expect(clientErrors[0].message, clientErrors[1].message);
+      expect(
+        clientErrors[0].message,
+        startsWith("Action event context entry 'bad' is invalid: "),
+      );
+      expect(
+        clientErrors[2].message,
+        startsWith("Action event context entry 'nested' is invalid: "),
+      );
+      expect(
+        clientErrors[3].message,
+        startsWith('Action event userMessage is invalid: '),
+      );
+    });
+
+    test('a call refused before it runs in an action is an EXPRESSION_ERROR',
+        () async {
+      final actions = <A2uiRendererAction>[];
+      surface.onAction.subscribe(actions.add);
+      await invokeAction({
+        'event': {
+          'name': 'go',
+          'context': {
+            'v': {'@call': 'agentSide', 'args': <String, Object?>{}},
+          },
+        },
+      });
+      await invokeAction({
+        'functionCall': {
+          '@call': 'typed',
+          'args': {'n': 'not a number'},
+        },
+      });
+      await invokeAction({
+        'event': {
+          'name': 'go',
+          'userMessage': {
+            '@call': 'typed',
+            'args': {'n': 'not a number'},
+          },
+        },
+      });
+      // A passive resolution refuses a function that needs user activation.
+      final DataContext passive = ComponentContext(
+        surface,
+        ComponentModel('root', 'Text', {}),
+      ).dataContext;
+      expect(
+        await passive.resolveActionAsync({
+          'event': {
+            'name': 'go',
+            'context': {
+              'v': {'@call': 'gated', 'args': <String, Object?>{}},
+            },
+          },
+        }),
+        isNull,
+      );
+      await _flush();
+      expect(actions, isEmpty);
+      expect(clientErrors, hasLength(4));
+      expect(clientErrors.map((e) => e.code), everyElement('EXPRESSION_ERROR'));
+      expect(agentCalls, isEmpty);
     });
 
     test('a functionCall action runs with user activation', () async {

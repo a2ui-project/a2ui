@@ -1146,14 +1146,24 @@ class DataContext {
     final call = FunctionCall.fromJson(_asStringKeyedMap(functionCall));
     final List<MapEntry<String, dynamic>> argEntries =
         call.args.entries.toList();
-    final FutureOr<List<Object?>> pendingArgs = _resolveActionValuesTogether(
-      [for (final MapEntry<String, dynamic> entry in argEntries) entry.value],
-      depth + 1,
-      keepFailed: atLeastV10,
-      group: group,
-    );
-    final List<Object?> argValues =
-        pendingArgs is Future<List<Object?>> ? await pendingArgs : pendingArgs;
+    final List<Object?> argValues;
+    try {
+      final FutureOr<List<Object?>> pendingArgs = _resolveActionValuesTogether(
+        [for (final MapEntry<String, dynamic> entry in argEntries) entry.value],
+        depth + 1,
+        keepFailed: atLeastV10,
+        group: group,
+      );
+      argValues = pendingArgs is Future<List<Object?>>
+          ? await pendingArgs
+          : pendingArgs;
+    } catch (error) {
+      // With a reporter, nested calls report their own failures, so what
+      // arrives here is a malformed argument, such as an unknown directive.
+      if (_onError == null) rethrow;
+      _report(error, call.call);
+      return failed;
+    }
     // A failed argument, or a failed sibling of this call, stops it.
     if (atLeastV10 &&
         (argValues.any(_containsFailedArg) || (group?.aborted ?? false))) {
@@ -1304,29 +1314,6 @@ class DataContext {
     return value;
   }
 
-  /// [_resolveActionValue], with a synchronous failure, such as a malformed
-  /// directive, reported like a failed call instead of thrown, so it is
-  /// handled the same whether or not a pending value came before it.
-  Object? _resolveActionValueReporting(
-    Object? value,
-    int depth, {
-    required bool keepFailed,
-    _ActionGroup? group,
-  }) {
-    try {
-      return _resolveActionValue(
-        value,
-        depth,
-        keepFailed: keepFailed,
-        group: group,
-      );
-    } catch (error) {
-      if (_onError == null) rethrow;
-      _report(error, 'action');
-      return keepFailed ? _failedArg : null;
-    }
-  }
-
   /// Evaluates the function call [value] inside an action. Without
   /// [keepFailed], as before v1.0, a failed call resolves to null.
   Future<Object?> _resolveActionCall(
@@ -1395,12 +1382,23 @@ class DataContext {
 
     for (var i = 0; i < values.length; i++) {
       if (keepFailed && siblings.aborted) break;
-      final Object? value = _resolveActionValueReporting(
-        values[i],
-        depth,
-        keepFailed: keepFailed,
-        group: siblings,
-      );
+      final Object? value;
+      try {
+        value = _resolveActionValue(
+          values[i],
+          depth,
+          keepFailed: keepFailed,
+          group: siblings,
+        );
+      } catch (error, stackTrace) {
+        // A malformed value: stop the group, and fail only once the values
+        // already started have settled, so none is left unhandled.
+        siblings.abort();
+        if (pending.isEmpty) rethrow;
+        return Future.wait<void>(pending).then<List<Object?>>(
+          (_) => Error.throwWithStackTrace(error, stackTrace),
+        );
+      }
       if (value is Future) {
         final index = i;
         pending.add(
@@ -1420,8 +1418,7 @@ class DataContext {
     return Future.wait<void>(pending).then((_) => results);
   }
 
-  /// Resolves [values], the entries of an event action, in order with
-  /// [_resolveActionValueReporting].
+  /// Resolves [values], the entries of an event action, in order.
   ///
   /// Returns a list, not a `Future`, when no value calls a function.
   /// Otherwise each value is evaluated only after the one before it has
@@ -1429,10 +1426,15 @@ class DataContext {
   /// surfaces through the returned `Future`. With [keepFailed], resolution
   /// stops at the first value that failed: the list then ends with it, and
   /// the values after it, which may call the agent, are never evaluated.
+  ///
+  /// A malformed value is reported as `EXPRESSION_ERROR`, with a message
+  /// starting with its entry's label from [labels], and counts as failed;
+  /// without a reporter it is thrown.
   FutureOr<List<Object?>> _resolveActionValuesInOrder(
     List<Object?> values,
     int depth, {
     required bool keepFailed,
+    required List<String> labels,
   }) {
     final resolved = <Object?>[];
     bool add(Object? value) {
@@ -1440,21 +1442,47 @@ class DataContext {
       return keepFailed && _containsFailedArg(value);
     }
 
-    for (var i = 0; i < values.length; i++) {
-      final Object? value = _resolveActionValueReporting(
-        values[i],
-        depth,
-        keepFailed: keepFailed,
+    Object? invalid(int index, Object error, StackTrace stackTrace) {
+      final ExpressionErrorReporter? onError = _onError;
+      if (onError == null) Error.throwWithStackTrace(error, stackTrace);
+      onError(
+        A2uiExpressionError(
+          '${labels[index]} is invalid: '
+          '${error is A2uiError ? error.message : error}',
+          cause: error,
+        ),
       );
+      return keepFailed ? _failedArg : null;
+    }
+
+    Object? resolveAt(int index) {
+      final Object? value;
+      try {
+        value = _resolveActionValue(
+          values[index],
+          depth,
+          keepFailed: keepFailed,
+        );
+      } catch (error, stackTrace) {
+        return invalid(index, error, stackTrace);
+      }
+      if (value is! Future) return value;
+      // With a reporter, calls report their own failures, so an error that
+      // arrives here is a malformed value nested in the entry.
+      return value.then<Object?>(
+        (Object? settled) => settled,
+        onError: (Object error, StackTrace stackTrace) =>
+            invalid(index, error, stackTrace),
+      );
+    }
+
+    for (var i = 0; i < values.length; i++) {
+      final Object? value = resolveAt(i);
       if (value is Future) {
         return () async {
           if (add(await value)) return resolved;
           for (int j = i + 1; j < values.length; j++) {
-            final Object? next = _resolveActionValueReporting(
-              values[j],
-              depth,
-              keepFailed: keepFailed,
-            );
+            final Object? next = resolveAt(j);
             if (add(next is Future ? await next : next)) break;
           }
           return resolved;
@@ -1603,6 +1631,11 @@ class DataContext {
       ],
       0,
       keepFailed: atLeastV10,
+      labels: [
+        for (final String key in contextKeys)
+          "Action event context entry '$key'",
+        if (hasUserMessage) 'Action event userMessage',
+      ],
     );
     return values is Future<List<Object?>>
         ? values.then(finish)
