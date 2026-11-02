@@ -6,19 +6,21 @@ description: 'Understand the distinct roles of component Actions, agent Events, 
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 import DiagramCard from '../../../components/docs/common/DiagramCard.astro';
 
-Interactive generative interfaces require a clean division between user intent that advances a multi-turn conversation and client operations that compute values, validate input, or invoke system services.
+A2UI separates interactive user behavior into component Actions, agent Events, and typed Functions across local and remote execution contexts. This division ensures a clean boundary between conversational turn advancement, reactive data computation, and client system operations.
 
-A2UI cleanly separates these concerns through three distinct constructs:
+A2UI organizes interaction across three distinct constructs:
 
-1. **Actions**: Interaction slots attached to UI components (such as a button click or form submission).
-2. **Events**: High-level semantic notifications dispatched across the network to advance agent turns.
-3. **Functions**: Typed, catalog-registered operations that execute locally on the client or remotely on the agent via bidirectional RPC.
+- **Actions**: Interaction slots attached to UI components (such as a button click or form submission).
+- **Events**: High-level semantic notifications dispatched across the network to advance agent turns.
+- **Functions**: Typed, catalog-registered operations that execute locally on the client or remotely on the agent via bidirectional RPC.
 
 ---
 
-## Part 1. Disambiguating Actions, Events, and Functions
+## Disambiguating Actions, Events, and Functions
 
 Because conversational interfaces blend client UI with remote agent reasoning, interaction handlers can be easily conflated. In A2UI, the specification defines an explicit relationship between component slots, agent notifications, and executable operations.
+
+The following diagram illustrates how component action slots branch into either agent events or executable function calls. When an action defines an event (`action.event`), the renderer evaluates contextual values and dispatches an `action` message across the network to advance the agent's turn. When an action defines a function call (`action.functionCall`), the renderer checks its local catalog registry: registered functions execute locally with zero network latency, while unregistered functions fall back to a remote `callAgentFunction` RPC to the agent.
 
 <DiagramCard
   title="Action, Event, and Function Taxonomy"
@@ -137,9 +139,11 @@ The following comparison clarifies how Events and Functions operate across diffe
 
 ---
 
-## Part 2. Events (`action.event` $\rightarrow$ `action` Wire Message)
+## Events (`action.event` $\rightarrow$ `action` Wire Message)
 
 An event is the mechanism by which user interactions on the client travel back to the agent. It translates interactive gestures into structured conversational context.
+
+The following sequence diagram details the event dispatch lifecycle when a user clicks an interactive component. The renderer first evaluates local validation checks; if validation fails, error messages are displayed and network dispatch is blocked. When validation passes, the renderer resolves bound data pointers for `context` and `userMessage` against the local data model, packages them into an `action` wire message, and transmits it to the agent server. The agent then processes the turn and streams incremental updates back to the client.
 
 ```mermaid
 sequenceDiagram
@@ -278,25 +282,27 @@ The following example shows a confirmation button defined within a surface, foll
 
 ---
 
-## Part 3. Functions (`@call` in v1.0 / `call` in v0.9.1)
+## Functions (`@call` in v1.0 / `call` in v0.9.1)
 
 Functions are typed, catalog-registered operations. Unlike events, functions are not tied to a single wire message or conversational turn. They execute across multiple contexts within the protocol to compute values, enforce validation, or run client side effects.
 
-### Where Functions Execute (2 Kinds)
+### Execution Locations: Renderer vs. Agent
 
 A2UI distinguishes between two execution locations for functions:
+
+The following flowchart shows how function execution routes based on catalog registration. When a component evaluates a function call (`@call`), the client checks whether the function is registered in the local catalog. If registered, it executes immediately on the client renderer with zero network latency. If not registered, the client falls back to dispatching a `callAgentFunction` message to the agent server, awaiting an `agentFunctionResponse` before resolving the pending UI state.
 
 ```mermaid
 flowchart TD
     Invoke["Function Invocation (@call)"] --> RegistryCheck{"Registered in local client catalog?"}
-    RegistryCheck -->|Yes| LocalExec["1. Local Renderer Function<br/>• Synchronous / 0ms latency<br/>• Evaluates on client<br/>• e.g., formatCurrency, regex"]
-    RegistryCheck -->|No: Fallback Routing| RemoteRPC["2. Remote Agent Function<br/>• callAgentFunction message<br/>• Dispatched over network<br/>• e.g., verifyInventory, checkAccount"]
+    RegistryCheck -->|Yes| LocalExec["Local Renderer Function<br/>• Synchronous / 0ms latency<br/>• Evaluates on client<br/>• e.g., formatCurrency, regex"]
+    RegistryCheck -->|No: Fallback Routing| RemoteRPC["Remote Agent Function<br/>• callAgentFunction message<br/>• Dispatched over network<br/>• e.g., verifyInventory, checkAccount"]
     RemoteRPC --> AgentProcess["Agent executes server-side function"]
     AgentProcess --> AgentReply["agentFunctionResponse (value or error)"]
     AgentReply --> ClientResolve["Client resolves pending state"]
 ```
 
-#### 1. Renderer-Side Functions (Local 0ms Execution)
+#### Renderer-Side Functions (Local Execution)
 
 Renderer-side functions are registered directly within the client runtime (via framework adapters such as Flutter, React, Lit, or SwiftUI). When evaluated, they execute immediately in memory on the client device without a network round-trip.
 
@@ -309,7 +315,7 @@ The [Basic Catalog](/concepts/catalogs/) includes a standard library of built-in
 
 Local functions provide immediate feedback for text interpolation, form validation, and numeric transformations while keeping UI rendering responsive.
 
-#### 2. Agent-Side Functions (Remote RPC — New in v1.0)
+#### Agent-Side Functions (Remote RPC — New in v1.0)
 
 In v1.0, functions can execute remotely on the agent server via bidirectional RPC. This capability allows components to invoke server-side operations (such as validating an address against an internal database or checking real-time inventory) without triggering a full conversational turn.
 
@@ -384,32 +390,34 @@ When an agent-side function is invoked:
 
 ---
 
-### How Functions Are Triggered (4 Contexts)
+### Trigger Contexts
 
 Functions operate across four distinct contexts in A2UI:
+
+The following diagram summarizes the four contexts where functions are triggered in A2UI: component actions (triggered by user gestures via `action.functionCall`), dynamic value bindings (reactively evaluating property values like `formatCurrency`), validation rules (evaluating input checks prior to action dispatch), and explicit agent-to-renderer messages (agent-initiated device queries via `callRendererFunction`).
 
 ```mermaid
 mindmap
   root((Functions in A2UI))
-    1. Component Actions
+    Component Actions
       User gesture trigger
       action.functionCall
       Side effects e.g. openUrl
-    2. Dynamic Value Bindings
+    Dynamic Value Bindings
       Reactive data transformations
       DynamicString, DynamicNumber, DynamicBoolean
       e.g. formatCurrency, formatString
-    3. Validation Rules
+    Validation Rules
       Input field gating
       Checkable checks condition
       e.g. required, regex, length
-    4. Agent-to-Renderer Messages
+    Agent-to-Renderer Messages
       Agent-initiated RPC
       callRendererFunction
       Query device state or hardware
 ```
 
-#### 1. From Component Actions (`action.functionCall`)
+#### Component Actions (`action.functionCall`)
 
 A component's interaction slot can execute a function directly upon a user gesture instead of dispatching an agent event.
 
@@ -430,7 +438,7 @@ A component's interaction slot can execute a function directly upon a user gestu
 }
 ```
 
-#### 2. From Dynamic Value Bindings (`DynamicValue`)
+#### Dynamic Value Bindings (`DynamicValue`)
 
 Functions can be bound directly to component properties (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`). Whenever the underlying data model values mutate, the renderer re-evaluates the function reactively:
 
@@ -448,7 +456,7 @@ Functions can be bound directly to component properties (`DynamicString`, `Dynam
 }
 ```
 
-#### 3. From Validation Rules (`Checkable` `checks`)
+#### Validation Rules (`Checkable` `checks`)
 
 Any component implementing `Checkable` (such as `TextField`, `CheckBox`, or `Button`) can declare validation rules in its `checks` array. Each rule defines a `condition` function that must return a boolean or structured `ValidationResult`:
 
@@ -476,9 +484,11 @@ Any component implementing `Checkable` (such as `TextField`, `CheckBox`, or `But
 }
 ```
 
-#### 4. From Explicit Agent-to-Renderer Messages (`callRendererFunction` — New in v1.0)
+#### Agent-to-Renderer Messages (`callRendererFunction` — New in v1.0)
 
 In v1.0, the agent can initiate a function call on the client mid-session by sending a [`callRendererFunction`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CallRendererFunctionMessage) message. This enables the agent to query client-side state (such as screen dimensions or timezone) or request local operations.
+
+The following sequence diagram shows an agent-initiated function execution. The agent sends a `callRendererFunction` message specifying the target function and arguments. The renderer verifies caller permissions via `allowedCallers`, runs the function locally, and returns the computed result in a `rendererFunctionResponse` message.
 
 ```mermaid
 sequenceDiagram
