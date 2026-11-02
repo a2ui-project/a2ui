@@ -20,8 +20,6 @@ import {fileURLToPath} from 'url';
 
 import {loadAll} from 'js-yaml';
 
-import {recordCase} from './manifest.js';
-
 // Using __dirname isn't directly available in ESM unless constructed
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -121,22 +119,19 @@ const SUPPORTED_FORMATS = new Set(['direct_json', 'express']);
  */
 const UNIMPLEMENTED_ACTIONS = new Map<string, string>([]);
 
-function skipVerdict(testCase: TestCase, reason: string) {
-  if ('sourceFile' in testCase && typeof testCase.sourceFile === 'string') {
-    recordCase(testCase.sourceFile, testCase.name, 'skipped', reason);
-  }
+function skipVerdict(reason: string) {
   return {runnable: false, reason};
 }
 
 export function classify(testCase: TestCase) {
   const superseded = SUPERSEDED.get(testCase.name) ?? SUPERSEDED_ACTIONS.get(testCase.action);
   if (superseded) {
-    return skipVerdict(testCase, superseded);
+    return skipVerdict(superseded);
   }
 
   const unimplemented = UNIMPLEMENTED_ACTIONS.get(testCase.action);
   if (unimplemented) {
-    return skipVerdict(testCase, unimplemented);
+    return skipVerdict(unimplemented);
   }
 
   let version = 'unversioned';
@@ -158,10 +153,10 @@ export function classify(testCase: TestCase) {
   }
 
   if (version !== 'unversioned' && !SUPPORTED_PROTOCOL_VERSIONS.has(version)) {
-    return skipVerdict(testCase, `Unsupported protocol version: ${version}`);
+    return skipVerdict(`Unsupported protocol version: ${version}`);
   }
   if (!SUPPORTED_FORMATS.has(format)) {
-    return skipVerdict(testCase, `Unsupported format: ${format}`);
+    return skipVerdict(`Unsupported format: ${format}`);
   }
 
   return {runnable: true, reason: ''};

@@ -162,6 +162,10 @@ def _run_try_activate_extension(test_case: dict[str, Any]) -> None:
 
     result_version = try_activate_a2ui_extension(context, card)
     assert (result_version is not None) == expect
+    if expect:
+        context.add_activated_extension.assert_called_once()
+    else:
+        context.add_activated_extension.assert_not_called()
 
 
 def _run_get_extension(test_case: dict[str, Any]) -> None:

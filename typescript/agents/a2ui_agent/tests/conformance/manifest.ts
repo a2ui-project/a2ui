@@ -33,8 +33,6 @@ export function setActiveCase(current: ActiveCase | undefined): void {
   activeCase = current;
 }
 
-const recordedSkipped = new Set<string>();
-
 /**
  * Appends one executed-case manifest entry for the TypeScript agent harness when
  * `A2UI_CONFORMANCE_MANIFEST_DIR` is set.
@@ -48,13 +46,6 @@ export function recordCase(
   const manifestDir = process.env['A2UI_CONFORMANCE_MANIFEST_DIR'];
   if (!manifestDir) {
     return;
-  }
-  if (status === 'skipped') {
-    const key = `${suite}::${testCase}`;
-    if (recordedSkipped.has(key)) {
-      return;
-    }
-    recordedSkipped.add(key);
   }
   mkdirSync(manifestDir, {recursive: true});
   const record: Record<string, string> = {

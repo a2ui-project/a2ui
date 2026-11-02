@@ -401,3 +401,6 @@ Inspect these existing implementations for concrete code examples:
    3. Angular (Karma and Jasmine browser runner): [typescript/renderers/angular/src/adapter_conformance.spec.ts](../typescript/renderers/angular/src/adapter_conformance.spec.ts) and [typescript/renderers/angular/karma.conf.js](../typescript/renderers/angular/karma.conf.js)
    4. Flutter (`flutter_test` widget and `SemanticsNode` tree checks): [dart/a2ui_flutter/test/adapter_conformance_test.dart](../dart/a2ui_flutter/test/adapter_conformance_test.dart)
    5. SwiftUI (`Testing` on `Surface`, `SurfaceViewModel`, and `A2UIAccessibilityModifier`): [swift/swiftui/Tests/A2UISwiftUITests/AdapterConformanceTests.swift](../swift/swiftui/Tests/A2UISwiftUITests/AdapterConformanceTests.swift)
+6. Extension harnesses (`conformance/extensions/`):
+   1. Python A2A (`a2a_integration.yaml`): [python/a2ui_a2a/tests/conformance/test_a2a_integration.py](../python/a2ui_a2a/tests/conformance/test_a2a_integration.py) and [python/a2ui_a2a/tests/conftest.py](../python/a2ui_a2a/tests/conftest.py)
+   2. Python ADK (`adk_extensions.yaml`): [python/a2ui_adk/tests/conformance/test_adk_extensions.py](../python/a2ui_adk/tests/conformance/test_adk_extensions.py) and [python/a2ui_adk/tests/conftest.py](../python/a2ui_adk/tests/conftest.py)
