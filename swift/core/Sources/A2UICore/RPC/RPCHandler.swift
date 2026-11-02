@@ -153,7 +153,8 @@ public final class RPCHandler {
       path: dataContext?.path ?? "",
       functionHandler: argHandler,
       protocolVersion: dataContext?.protocolVersion ?? message.version,
-      index: dataContext?.index
+      index: dataContext?.index,
+      userActivation: userActivationPresent
     )
     let effectiveContext =
       dataContext
@@ -161,7 +162,8 @@ public final class RPCHandler {
         dataModel: argResolutionContext.dataModel,
         path: "",
         functionHandler: argHandler,
-        protocolVersion: message.version
+        protocolVersion: message.version,
+        userActivation: userActivationPresent
       )
 
     var resolvedArgs: [String: JSONValue] = [:]
