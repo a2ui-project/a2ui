@@ -1,79 +1,16 @@
 ---
 title: 'Messages'
-description: 'Asynchronous bidirectional message types, protocol envelopes, flat component trees, and lifecycle sequences in A2UI.'
+description: 'Asynchronous bidirectional message types, protocol envelopes, and lifecycle sequences in A2UI.'
 ---
 
 import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 
-A2UI coordinates agent runtimes and client renderers through an asynchronous, bidirectional JSON messaging protocol. This page covers top-level message envelopes, agent-to-renderer and renderer-to-agent message payloads, flat component array rules, and full interaction lifecycles. Rather than transferring opaque HTML, images, or executable code, both endpoints exchange structured JSON message envelopes.
+A2UI agents and client renderers communicate by exchanging asynchronous, bidirectional JSON messages that define surface layouts, update reactive data models, and handle user actions and function calls. Rather than transferring opaque HTML, images, or executable code, both endpoints exchange independent JSON message objects that can run over different transports (such as Agent-to-Agent (A2A), Model Context Protocol (MCP), AG-UI, WebSockets, or Server-Sent Events).
 
 These messages govern two concerns:
 
 1. **Layout**: The component hierarchy and visual structure of a surface, streamed by the agent and assembled by the client renderer.
 2. **State**: The reactive JSON data model bound to component properties, updated independently by the agent or modified locally by user interactions.
-
-This separation keeps token consumption low, enables incremental rendering while an agent generates responses, and allows client applications to render native UI components across Web, Flutter, SwiftUI, and Jetpack Compose.
-
----
-
-## Protocol architecture and envelope rename
-
-A2UI messages travel across standard transport mechanisms without assuming HTTP request-response symmetry. Depending on the hosting environment, A2UI runs over:
-
-- **Agent-to-Agent (A2A)**: Asynchronous task messages between autonomous agents.
-- **Model Context Protocol (MCP)**: Tool calls and resource notifications in MCP clients and servers.
-- **Agent-GUI (AG-UI)**: Direct streaming connections between agent backends and web or native client applications.
-- **WebSocket and Server-Sent Events (SSE)**: Duplex sockets or SSE streams paired with upstream HTTP POST requests.
-
-Every message payload is an independent JSON object on the wire.
-
-### Separation of layout and state
-
-A core design principle of A2UI is the strict separation of layout structure from surface data:
-
-- **Layout messages** ([`updateComponents`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateComponentsMessage)) describe the component tree using a flat list of component definitions. The agent emits layout once, or sends targeted structural updates when the UI topology changes.
-- **State messages** ([`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage)) mutate a reactive JSON data model scoped to the surface using [RFC 6901 JSON Pointers](https://datatracker.ietf.org/doc/html/rfc6901).
-
-When dynamic values change—such as a live flight price, a countdown timer, or a selected dropdown index—the agent sends an `updateDataModel` message targeting only that JSON path. The client updates its reactive signals, triggering re-renders only on the specific widgets bound to that path. The agent never re-transmits the surrounding component tree just to refresh data.
-
-### Top-level envelope rename in v1.0
-
-The protocol envelope schemas were renamed between v0.9.1 and v1.0 to reflect agentic architectures:
-
-- In **v0.9.1**, envelopes were named `server_to_client.json` and `client_to_server.json`.
-- In **v1.0**, envelopes are named `agent_to_renderer.json` and `renderer_to_agent.json`.
-
-This rename decouples the protocol roles from physical hosting infrastructure. An agent may run on a remote server, locally on a user's machine, or inside an embedded agent runtime. Similarly, a renderer may run inside a web browser, a mobile operating system, a terminal, or an automated testing harness.
-
-The top-level envelope requires a `"version"` property:
-
-- In **v1.0**, the version value is strictly `"1.0"` (without a `"v"` prefix).
-- In **v0.9.1**, the version value is `"v0.9"` or `"v0.9.1"`.
-
-<Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
-```json
-{
-  "version": "1.0",
-  "createSurface": {
-    "surfaceId": "flight_booking",
-    "catalogId": "travel:flights"
-  }
-}
-```
-  </TabItem>
-  <TabItem label="v0.9.1 (Active)">
-```json
-{
-  "version": "v0.9",
-  "createSurface": {
-    "surfaceId": "flight_booking",
-    "catalogId": "travel:flights"
-  }
-}
-```
-  </TabItem>
-</Tabs>
 
 ---
 
@@ -81,11 +18,9 @@ The top-level envelope requires a `"version"` property:
 
 Messages sent from the agent to the renderer are governed by [`agent_to_renderer.json`](/specification/v1.0/schemas/#agent_to_renderer.json) in v1.0 and [`server_to_client.json`](/specification/v0.9.1/schemas/#server_to_client.json) in v0.9.1.
 
-The top-level object is a discriminated union containing the `"version"` field and exactly one message payload key.
-
 ### `createSurface`
 
-The `createSurface` message allocates a new UI surface identified by a unique `surfaceId`. Creating a surface implicitly instantiates the canonical `Surface` container component (`common_types.json#/$defs/Surface`) with `child: "root"`. The `surfaceId` must be globally unique for the renderer's lifetime.
+The `createSurface` message allocates a new UI surface identified by a unique `surfaceId`. It must be globally unique within the rendering context (the `MessageProcessor` instance on the renderer), which is typically a conversation. Creating a surface implicitly instantiates the canonical `Surface` container component (`common_types.json#/$defs/Surface`) with `child: "root"`.
 
 - Canonical Schema (v1.0): [`CreateSurfaceMessage`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage)
 - Canonical Schema (v0.9.1): [`CreateSurfaceMessage`](/specification/v0.9.1/schemas/#server_to_client.json/$defs/CreateSurfaceMessage)
@@ -101,11 +36,11 @@ The `createSurface` message allocates a new UI surface identified by a unique `s
 | `dataModel`           | object  | Optional (v1.0 only)                | Initial root data model object for the surface.                                                                                                                                                                  |
 | `metadata.extensions` | object  | Optional (v1.0 only)                | Extensibility map for custom protocol extensions. Extension keys must adhere to UAX #31.                                                                                                                         |
 
-#### Structural changes between v0.9.1 and v1.0
-
-1. **`theme` removed**: v0.9.1 included an optional `theme` object. In v1.0, hardcoded theme overrides are removed from protocol envelopes so visual styling defers entirely to native host application themes.
-2. **`catalogId` optional**: In v0.9.1, `catalogId` was required on `createSurface`. In v1.0, `catalogId` is optional; components and function calls that omit `catalogId` fall back to the surface default when provided.
-3. **Single-message instantiation**: In v1.0, `components` and `dataModel` can be passed inline inside `createSurface`, eliminating the need to send subsequent `updateComponents` and `updateDataModel` messages for initial renders.
+<Aside type="note" title="Changes in v1.0">
+  In v1.0, `catalogId` is optional, `components` and `dataModel` can be passed inline to initialize
+  a surface in a single message, and the v0.9 `theme` property is removed in favor of host
+  application styling.
+</Aside>
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
@@ -354,7 +289,7 @@ To delete the `/selectedFlight` key in v0.9.1, omit `value`:
 
 ### `deleteSurface`
 
-The `deleteSurface` message instructs the renderer to destroy the surface identified by `surfaceId`. The renderer unmounts all native widgets, disposes reactive listeners, and releases associated memory.
+The `deleteSurface` message instructs the renderer to destroy the surface identified by `surfaceId`. The renderer unmounts all widgets, disposes reactive listeners, and releases associated state.
 
 - Canonical Schema (v1.0): [`DeleteSurfaceMessage`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/DeleteSurfaceMessage)
 - Canonical Schema (v0.9.1): [`DeleteSurfaceMessage`](/specification/v0.9.1/schemas/#server_to_client.json/$defs/DeleteSurfaceMessage)
@@ -386,7 +321,7 @@ The `deleteSurface` message instructs the renderer to destroy the surface identi
 
 ### `callRendererFunction` (v1.0 only)
 
-The `callRendererFunction` message is an agent-initiated remote procedure call (RPC). It directs the renderer to execute a function defined in a catalog locally on the client (such as reading screen geometry, querying device orientation, or opening a native dialog).
+The `callRendererFunction` message is an agent-initiated remote procedure call (RPC). It directs the renderer to execute a function defined in a catalog locally on the client (such as reading screen geometry, querying device timezone, or opening a client dialog).
 
 - Canonical Schema (v1.0): [`CallRendererFunctionMessage`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CallRendererFunctionMessage)
 
@@ -418,7 +353,7 @@ The `callRendererFunction` message is an agent-initiated remote procedure call (
 }
 ```
 
-The renderer must respond with a [`rendererFunctionResponse`](#rendererfunctionresponse-v10-only) containing matching `functionCallId`.
+The renderer must respond with a [`rendererFunctionResponse`](#rendererfunctionresponse-v10-only) containing the matching `functionCallId`.
 
 ---
 
@@ -456,8 +391,6 @@ The `agentFunctionResponse` message delivers the agent's response to a preceding
 
 Messages sent from the renderer back to the agent are governed by [`renderer_to_agent.json`](/specification/v1.0/schemas/#renderer_to_agent.json) in v1.0 and [`client_to_server.json`](/specification/v0.9.1/schemas/#client_to_server.json) in v0.9.1.
 
-Like agent messages, each payload contains `"version"` and one message key.
-
 ### `action`
 
 The `action` message notifies the agent that the user interacted with an interactive component (e.g. clicked a button or submitted a form).
@@ -486,7 +419,7 @@ However, the data model is **not** placed inside the `action` payload. Instead, 
 - Under **v1.0**, the transport metadata key is `a2uiRendererDataModel`.
 - Under **v0.9.1**, the transport metadata key is `a2uiClientDataModel`.
 
-This distinction preserves clean protocol boundaries: the `action` message remains focused on event semantics, while transports (such as A2A message headers or MCP metadata) carry the snapshot.
+This distinction keeps the `action` message focused on event semantics, while transports (such as A2A message headers or MCP metadata) carry the state snapshot.
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
@@ -593,152 +526,9 @@ The `rendererFunctionResponse` message delivers the renderer's return value or e
 
 ---
 
-### `error` and the self-correction loop
-
-The `error` message reports validation errors, catalog constraint violations, or runtime exceptions encountered by the renderer.
-
-- Canonical Schema (v1.0): [`error`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/error)
-- Canonical Schema (v0.9.1): [`error`](/specification/v0.9.1/schemas/#client_to_server.json/properties/error)
-
-#### Error types and codes
-
-The protocol defines two error shapes:
-
-1. **Validation errors**: Fired when incoming messages violate JSON Schema specifications, reference unknown components, or break catalog topological constraints.
-   - In **v1.0**, `code` is an enum with three values:
-     - `VALIDATION_FAILED`: Schema property mismatch, missing required field, or invalid data type.
-     - `UNALLOWED_PARENT`: The component was placed inside a parent component that does not permit it (violating `allowedParents`).
-     - `UNALLOWED_CHILD`: The component contains a child component type that is not permitted (violating `allowedChildren`).
-   - In **v0.9.1**, `code` was strictly `VALIDATION_FAILED`.
-   - Requires `surfaceId`, `path` (JSON Pointer to the failing node), and `message`.
-2. **Generic runtime errors**: Fired during function execution or unexpected runtime faults.
-   - In **v1.0**, generic errors require `code` and `message`, paired with either `surfaceId` or `functionCallId` (mutually exclusive). This allows function failures to reference their `functionCallId` directly without requiring a surface.
-   - In **v0.9.1**, generic errors required `surfaceId`, `code`, and `message`.
-
-#### The self-correction loop
-
-Structured errors enable automatic error recovery without human intervention:
-
-1. The LLM generates an invalid component structure (for example, placing a `Button` inside a `Text` widget, violating `allowedChildren`).
-2. The Core SDK validator on the client intercepts the payload before mounting widgets, rejects the subtree, and emits an `error` message with `code: "UNALLOWED_CHILD"` and `path: "/components/1"`.
-3. The Agent SDK intercepts this error message and feeds it directly into the LLM conversation context as an observation: `"Renderer rejected component at /components/1: UNALLOWED_CHILD"`.
-4. The agent corrects the structure and emits a valid `updateComponents` message. The client mounts the corrected UI cleanly.
-
-<Tabs syncKey="protocol-version">
-  <TabItem label="v1.0 (Candidate)">
-```json
-{
-  "version": "1.0",
-  "error": {
-    "code": "UNALLOWED_CHILD",
-    "surfaceId": "flight_search",
-    "path": "/components/1/children/0",
-    "message": "Component 'Text' does not permit child component of type 'Button'."
-  }
-}
-```
-
-Generic function execution error in v1.0 citing `functionCallId`:
-
-```json
-{
-  "version": "1.0",
-  "error": {
-    "code": "GEOLOCATION_PERMISSION_DENIED",
-    "functionCallId": "call_geo_101",
-    "message": "User denied device location permissions."
-  }
-}
-```
-
-  </TabItem>
-  <TabItem label="v0.9.1 (Active)">
-```json
-{
-  "version": "v0.9",
-  "error": {
-    "code": "VALIDATION_FAILED",
-    "surfaceId": "flight_search",
-    "path": "/components/1",
-    "message": "Component validation failed against catalog schema."
-  }
-}
-```
-  </TabItem>
-</Tabs>
-
----
-
-## Flat component trees and identifier rules
-
-A2UI represents UI hierarchies as flat adjacency lists rather than nested JSON trees.
-
-```json
-[
-  {"id": "root", "component": "Card", "child": "flight_col"},
-  {"id": "flight_col", "component": "Column", "children": ["title", "select_btn"]},
-  {"id": "title", "component": "Text", "text": "Flight LH458"},
-  {"id": "select_btn", "component": "Button", "text": "Book"}
-]
-```
-
-### Why flat arrays instead of nested trees
-
-Nested JSON trees present practical difficulties for generative AI interfaces:
-
-1. **LLM streaming stability**: Deeply nested trees require language models to maintain long syntactic stacks across streaming chunks. If a token stream is interrupted, deep closing braces break parser integrity. Flat arrays allow models to output discrete component objects line by line.
-2. **Surgical, targeted mutations**: In a nested tree, modifying a single leaf node requires replacing the entire ancestor path or calculating complex multi-level JSON pointers. With an adjacency list, sending `{ "id": "select_btn", "text": "Confirmed" }` updates that single node in place, leaving parents, siblings, and child nodes untouched.
-3. **Graph flexibility and templating**: Container components reference child IDs through simple strings (`child: "flight_col"`) or slot lists (`children: ["title", "select_btn"]`). Dynamic collection templates (`ChildList`) map an array in the data model to a template component ID with zero duplication of layout logic.
-
-### The single `root` ID rule
-
-Every surface component tree must have exactly one component with `"id": "root"`.
-
-When `createSurface` is processed, the renderer creates an implicit surface container node whose `child` points to `"root"`. The component with `id: "root"` anchors the hierarchy; all other visible components must be reachable as direct or indirect descendants of this root node.
-
-### UAX #31 identifier requirements
-
-For reliable code generation, serialization, and cross-language interoperability across TypeScript, Python, Dart, and Swift, v1.0 requires all identifiers to follow [Unicode Standard Annex #31 (UAX #31)](https://www.unicode.org/reports/tr31/).
-
-This rule applies to:
-
-- Component instance IDs ([`ComponentId`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentId))
-- Component types (e.g. `Text`, `Button`)
-- Function names (e.g. `formatCurrency`, `getDeviceTimezone`)
-- Argument and property keys (e.g. `flightId`, `selected_index`)
-- Metadata extension keys (`metadata.extensions`)
-
-#### Syntax rules
-
-1. **Start character**: Must begin with a character in the Unicode property class `XID_Start` or an underscore (`_`, `U+005F`).
-2. **Subsequent characters**: Must belong to the Unicode property class `XID_Continue`.
-3. **Prohibited starts**: Must not start with a decimal digit (`0`–`9`).
-4. **Prohibited punctuation**: Must not contain hyphens (`-`), spaces, periods (`.`), slashes, or symbol characters.
-
-| Identifier        | Status      | Reason                                                      |
-| :---------------- | :---------- | :---------------------------------------------------------- |
-| `root`            | Valid       | Standard alphabetic string.                                 |
-| `flight_card`     | Valid       | Uses underscore in `XID_Continue`.                          |
-| `btnSubmit`       | Valid       | CamelCase conforms to `XID_Start` and `XID_Continue`.       |
-| `flight_1_select` | Valid       | Digits are permitted after initial character.               |
-| `_temp_slot`      | Valid       | Underscore is allowed as initial character.                 |
-| `flight-card`     | **Invalid** | Hyphen (`-`) is prohibited by UAX #31.                      |
-| `1st_flight`      | **Invalid** | Cannot begin with a decimal digit.                          |
-| `flight card`     | **Invalid** | Whitespace is prohibited.                                   |
-| `user.name`       | **Invalid** | Periods are reserved for path syntax and prohibited in IDs. |
-
-<Aside type="note" title="Normative prose vs. schema regex">
-In [`common_types.json#/$defs/ComponentId`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentId), `ComponentId` is defined simply as `"type": "string"` without an embedded regex pattern.
-
-However, UAX #31 compliance is a **normative prose requirement** specified in the A2UI protocol specification. Official A2UI SDKs, parsers, and conformance test suites enforce UAX #31 to prevent runtime collisions in target languages.
-
-</Aside>
-
----
-
 ## End-to-end flight booking sequence
 
-The following sequence diagram traces the complete lifecycle of a surface across five operational phases in a flight booking scenario. In phase 1, the user's natural language request prompts the agent to allocate an isolated surface via `createSurface`. In phase 2, the agent streams decoupled `updateComponents` layout and `updateDataModel` flight state messages, which the client renders as native cards. In phase 3, the user clicks a flight card, causing the client to dispatch an `action` message with bound context data back to the agent, which responds with an incremental `updateDataModel` state mutation. Optional branches demonstrate remote agent function calls (`callAgentFunction`), agent-initiated device queries (`callRendererFunction`), runtime error reporting (`error` with `UNALLOWED_CHILD` triggering the LLM self-correction loop), and eventual surface disposal via `deleteSurface`.
+The following sequence diagram traces the lifecycle of a surface in a flight booking scenario. First, the user's request prompts the agent to allocate a surface via `createSurface`. Next, the agent streams `updateComponents` layout and `updateDataModel` flight state messages, which the client renders as native cards. When the user clicks a flight card, the client sends an `action` message with bound context data back to the agent, which responds with an incremental `updateDataModel` state update. Optional branches show remote agent function calls (`callAgentFunction`), agent-initiated client function calls (`callRendererFunction`), and surface disposal via `deleteSurface`.
 
 ```mermaid
 sequenceDiagram
@@ -754,35 +544,76 @@ sequenceDiagram
     Note over Renderer,Agent: 2. Decoupled Layout & State Streaming
     Agent-->>Renderer: updateComponents(surfaceId: "flights", [root, header, card, btn_select])
     Agent-->>Renderer: updateDataModel(surfaceId: "flights", path: "/flights", value: [{id: "LH458", price: 680}])
-    Renderer->>User: Renders native flight card with "Select LH458 ($680)" button
+    Renderer->>User: Renders flight card with "Select LH458 ($680)" button
 
     Note over User,Agent: 3. User Interaction & State Update
     User->>Renderer: Clicks "Select LH458"
-    Renderer-->>Agent: action(name: "select_flight", sourceComponentId: "btn_select", context: {flightId: "LH458", price: 680})
+    Renderer-->>Agent: action(name: "select_flight", surfaceId: "flights", sourceComponentId: "btn_select", context: {flightId: "LH458", price: 680})
     Agent-->>Renderer: updateDataModel(surfaceId: "flights", path: "/selectedFlight", value: "LH458")
     Renderer->>User: Updates UI to show selected state
 
     opt Remote Function Execution (callAgentFunction)
-        Renderer-->>Agent: callAgentFunction(functionCallId: "call_bag_1", callFunction: {name: "getBaggageFee", arguments: {flightId: "LH458"}})
+        Renderer-->>Agent: callAgentFunction(surfaceId: "flights", functionCallId: "call_bag_1", callFunction: {catalogId: "travel:flights", name: "getBaggageFee", arguments: {flightId: "LH458"}})
         Agent-->>Renderer: agentFunctionResponse(functionCallId: "call_bag_1", value: {fee: 0, allowance: "2 bags"})
     end
 
     opt Local Function Execution (callRendererFunction)
-        Agent-->>Renderer: callRendererFunction(functionCallId: "call_tz_1", callFunction: {name: "getDeviceTimezone"})
+        Agent-->>Renderer: callRendererFunction(surfaceId: "flights", functionCallId: "call_tz_1", callFunction: {catalogId: "device:sensors", name: "getDeviceTimezone"})
         Renderer-->>Agent: rendererFunctionResponse(functionCallId: "call_tz_1", value: {timeZone: "Europe/Berlin"})
-    end
-
-    alt Self-Correction Loop on Structural Error
-        Agent-->>Renderer: updateComponents with invalid child nesting
-        Renderer-->>Agent: error(code: "UNALLOWED_CHILD", path: "/components/1", message: "Text cannot contain Button")
-        Note over Agent: LLM ingests error into conversation prompt
-        Agent-->>Renderer: updateComponents with corrected flat hierarchy
-        Renderer->>User: Mounts valid layout cleanly
     end
 
     opt Surface Cleanup
         User->>Renderer: Closes booking workflow
         Agent-->>Renderer: deleteSurface(surfaceId: "flights")
-        Renderer->>Renderer: Disposes native widgets and surface state
+        Renderer->>Renderer: Disposes widgets and surface state
     end
 ```
+
+---
+
+## Differences between v0.9 and v1.0
+
+Protocol v1.0 introduces several naming and structural updates compared to v0.9 and v0.9.1:
+
+### Top-level envelope rename and version string
+
+The protocol envelope schemas were renamed between v0.9.1 and v1.0 to reflect agentic architectures:
+
+- In **v0.9.1**, envelopes were named [`server_to_client.json`](/specification/v0.9.1/schemas/#server_to_client.json) and [`client_to_server.json`](/specification/v0.9.1/schemas/#client_to_server.json), with `"version"` set to `"v0.9"` or `"v0.9.1"`.
+- In **v1.0**, envelopes are named [`agent_to_renderer.json`](/specification/v1.0/schemas/#agent_to_renderer.json) and [`renderer_to_agent.json`](/specification/v1.0/schemas/#renderer_to_agent.json), with `"version"` set to `"1.0"` (without a `"v"` prefix).
+
+This rename decouples protocol roles from physical hosting infrastructure. An agent may run on a remote server, locally on a user's machine, or inside an embedded runtime, while a renderer may run in a web browser, a mobile app, or a test harness.
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+```json
+{
+  "version": "1.0",
+  "createSurface": {
+    "surfaceId": "flight_booking",
+    "catalogId": "travel:flights"
+  }
+}
+```
+  </TabItem>
+  <TabItem label="v0.9.1 (Active)">
+```json
+{
+  "version": "v0.9",
+  "createSurface": {
+    "surfaceId": "flight_booking",
+    "catalogId": "travel:flights"
+  }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Message and payload changes
+
+| Area                         | v0.9 / v0.9.1                                                                                                               | v1.0                                                                                                                  |
+| :--------------------------- | :-------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- |
+| `createSurface`              | `catalogId` required; optional `theme` property supported.                                                                  | `catalogId` optional; `theme` removed; supports inline `components`, `dataModel`, and `metadata.extensions`.          |
+| `updateDataModel` deletion   | Omit `value` to delete the key at `path`.                                                                                   | `value` is required; set `"value": null` to delete the key at `path`.                                                 |
+| Bidirectional function calls | No wire messages for remote function execution.                                                                             | Adds `callRendererFunction` / `rendererFunctionResponse` and `callAgentFunction` / `agentFunctionResponse`.           |
+| `action` payload & metadata  | Carries `name`, `surfaceId`, `sourceComponentId`, `timestamp`, `context`; data model metadata key is `a2uiClientDataModel`. | Adds optional `userMessage` and `metadata.extensions`; data model metadata key is renamed to `a2uiRendererDataModel`. |
