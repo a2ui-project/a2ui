@@ -154,7 +154,10 @@ def test_catalog_provider_conformance(suite: str, case: Mapping[str, Any]) -> No
 
     if "expect_error" in case:
         assert_known_keys(case["expect_error"], _EXPECT_ERROR_KEYS, "expect_error")
-        with pytest.raises(_ERROR_CATEGORIES[case["expect_error"]["category"]]):
+        with pytest.raises(
+            _ERROR_CATEGORIES[case["expect_error"]["category"]],
+            match=case["expect_error"].get("message"),
+        ):
             provide()
         return
 
@@ -207,7 +210,10 @@ def test_catalog_resolution_conformance(suite: str, case: Mapping[str, Any]) -> 
 
     if "expect_error" in case:
         assert_known_keys(case["expect_error"], _EXPECT_ERROR_KEYS, "expect_error")
-        with pytest.raises(_ERROR_CATEGORIES[case["expect_error"]["category"]]):
+        with pytest.raises(
+            _ERROR_CATEGORIES[case["expect_error"]["category"]],
+            match=case["expect_error"].get("message"),
+        ):
             resolve()
         return
 

@@ -20,7 +20,6 @@ import pytest
 
 from a2ui.core import (
     A2uiCatalogError,
-    A2uiError,
     A2uiRecursionError,
     A2uiValidationError,
 )
@@ -71,9 +70,8 @@ def test_expect_error(suite: str, case: Case) -> None:
     del suite
     assert case.expect_error is not None
     assert_known_keys(case.expect_error, _EXPECT_ERROR_KEYS, "expect_error")
-    category = case.expect_error.get("category")
-    expected_exc = CATEGORY_TO_EXCEPTION.get(str(category), A2uiError)
-    with pytest.raises(expected_exc):
+    expected_exc = CATEGORY_TO_EXCEPTION[str(case.expect_error.get("category"))]
+    with pytest.raises(expected_exc, match=case.expect_error.get("message")):
         payload = run_case(case)
         if payload:
             validate_payload(payload, case)

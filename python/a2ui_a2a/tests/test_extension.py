@@ -127,9 +127,10 @@ def test_v1_0_params_match_agent_capabilities_schema(
     supported_catalog_ids: list[str],
 ) -> None:
     schema = json.loads(_AGENT_CAPABILITIES_SCHEMA_PATH.read_text(encoding="utf-8"))
-    v1_0_schema = dict(schema["properties"]["1.0"])
-    if not supported_catalog_ids:
-        v1_0_schema.pop("required", None)
+    v1_0_schema = {
+        **schema["properties"]["1.0"],
+        "additionalProperties": False,
+    }
 
     ext = get_a2ui_agent_extension(
         ProtocolVersion.V1_0,

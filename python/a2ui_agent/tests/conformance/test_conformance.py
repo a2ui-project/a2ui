@@ -288,21 +288,6 @@ def _case_protocol_version(case: Mapping[str, Any]) -> str:
     return version
 
 
-def get_conformance_cases(filename):
-    if filename in SKIP_TEST_SUITES or os.path.basename(filename) in SKIP_TEST_SUITES:
-        return []
-
-    cases = load_tests(filename)
-    filtered = []
-    for case in cases:
-        name = case.get("name")
-        version = _case_protocol_version(case)
-        if version not in SUPPORTED_PROTOCOL_VERSIONS or name in SKIP_TEST_NAMES:
-            continue
-        filtered.append((name, case))
-    return filtered
-
-
 CONFORMANCE_SURFACE_ID = "default_surface"
 
 DEFAULT_CATALOG = "test_data/catalogs/simplified_catalog_v1_0.json"
@@ -1024,6 +1009,11 @@ def _expect_catalog(catalog, expected):
     assert_known_keys(expected, _CATALOG_EXPECT_KEYS, "expect.catalog")
     if "catalog_id" in expected:
         assert catalog.catalog_id == expected["catalog_id"]
+    if "protocol_version" in expected:
+        assert (
+            to_protocol_version(catalog.protocol_version).value
+            == expected["protocol_version"]
+        )
     if "components" in expected:
         assert sorted(catalog.components) == sorted(set(expected["components"]))
     if "functions" in expected:

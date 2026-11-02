@@ -118,7 +118,10 @@ def _run_export_to_directory_case(case: dict[str, Any], args: dict[str, Any]) ->
         expect_error = case.get("expect_error")
         if expect_error is not None:
             assert_known_keys(expect_error, _EXPECT_ERROR_KEYS, "expect_error")
-            with pytest.raises(_ERROR_CATEGORIES[expect_error["category"]]):
+            with pytest.raises(
+                _ERROR_CATEGORIES[expect_error["category"]],
+                match=expect_error.get("message"),
+            ):
                 run()
         else:
             run()
