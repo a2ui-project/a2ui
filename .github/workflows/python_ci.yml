@@ -119,6 +119,16 @@ jobs:
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness python-core \
             --corpus core
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus extensions \
+            --only 'extensions/a2a/**' \
+            --harness python-a2a
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus extensions \
+            --only 'extensions/adk/**' \
+            --harness python-adk
       - name: Set Up Dart
         uses: ./.github/actions/setup-dart
       - name: Run CLI Python Runtime Tests

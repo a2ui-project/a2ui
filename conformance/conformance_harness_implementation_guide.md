@@ -340,6 +340,31 @@ Each case in `core/accessibility.yaml` (`action: accessibility_check`) provides 
 
 Where a browser-based test runner cannot read YAML from disk at test time, parse the suite files in the runner configuration and inject them as JSON. For example, [typescript/renderers/angular/karma.conf.js](../typescript/renderers/angular/karma.conf.js) parses `accessibility.yaml`, `adapter_conformance.yaml`, and `catalogs/basic/v1/catalog.json` in Node and exposes them to Jasmine browser specs via `client.conformanceSuites`.
 
+## Extension harnesses (`conformance/extensions/`)
+
+Protocol and agent-framework integrations (such as A2A and ADK) live outside the Core and Inference SDK packages and run the suites under `conformance/extensions/`. Each extension harness dispatches cases through an explicit `RUNNERS` map, rejects unknown actions and unknown `args`, `expect`, or `expectError` keys with `_assert_known_keys` against a per-handler `_KNOWN_KEYS` allowlist, and writes its executed-case manifest to `$A2UI_CONFORMANCE_MANIFEST_DIR`.
+
+### A2A extension (`conformance/extensions/a2a/a2a_integration.yaml`)
+
+1. `create_a2ui_part`: Call `create_a2ui_part(args.data, version=args.version)`, verify `is_a2ui_part(part)` is `true`, extract the data part with `get_a2ui_datapart(part)`, and compare its `metadata.mimeType` with `expect.mimeType`.
+2. `is_a2ui_part`: Build a `DataPart` with `metadata: {"mimeType": args.mimeType}`, call `is_a2ui_part`, and compare the boolean result with `expect`.
+3. `try_activate_extension`: Build a request context with `requested_extensions = args.uris` and an agent card advertising every URI `get_a2ui_extension_uri` produces for `v0.8`, `v0.9`, and `1.0`. Call `try_activate_a2ui_extension(context, card)` and assert `(result is not None) == expect`.
+4. `get_extension`: Call `get_a2ui_agent_extension(args.version)` with optional `accepts_inline_catalogs` (`args.acceptsInlineCatalogs`) and `supported_catalog_ids` (`args.supportedCatalogIds`). Compare `uri` with `expect.uri` and `params` with `expect.params`.
+5. `try_activate`: Build a request context requesting `args.requested` and an agent card advertising `args.advertised`. Call `try_activate_a2ui_extension(context, card)` and verify `expect.activated` (`null` when no extension is activated, or the activated URI together with `expect.version`).
+6. `select_newest`: Call the version selector with `args.requested` and `args.advertised` and compare the selected URI with `expect.newest`.
+
+### ADK extension (`conformance/extensions/adk/adk_extensions.yaml`)
+
+1. `convert_event`: Dispatches to one of two runners based on `args` keys, failing the case if neither key set matches:
+   1. Subagent surface ownership (`subagent` and `message` in `args`, with optional `surfaceId` and `state`): Wrap `args.message` with `create_a2ui_part`, call `A2uiSubagentMap.update_from_server_event(part, subagent, session_service, session)`, and either verify `SurfaceIdAlreadyExistsError` (`expectError.category == "IntegrityError"` and `expectError.message`) or verify that the appended session event's `actions.state_delta` equals `expect.stateDelta`.
+   2. Event converter (`errorCode`, `errorMessage`, `contentText`, or `hasCatalog` in `args`): Construct an ADK `Event` with `error_code` and `error_message` or text `content`, invoke `A2uiEventConverter` with a provider that returns a Direct JSON `A2uiRequestProcessor` when `hasCatalog` is `true` and `None` otherwise, and check `expectEmpty: true` (empty event list) or `expect` (`type`, `state`, and `message`).
+2. `execute_tool`: Construct `SendA2uiToClientToolset`'s tool with a Direct JSON `A2uiRequestProcessor`. Pass `args.a2uiJson` under the tool's payload argument name (or raw `args` when testing missing arguments). Check `expect.success`: when `true`, verify no error key is returned and check `expect.containsValidatedJson`; when `false`, verify the error key is present and check `expect.errorContains`.
+3. `data_model`: Copy `args.clientDataModel`, run `A2uiSubagentMap.strip_unowned_surfaces_from_data_model(args.subagent, client_data_model, args.state)`, and compare the stripped dictionary with `expect.clientDataModel`.
+
+### `UNSUPPORTED` and manifest checking for extensions
+
+If an extension harness does not implement an action or a nested key path, list `"<action>"` or `"<action>.<key path>"` (or `"<suite>#<case>"`) in its `UNSUPPORTED` map with a non-empty reason so matching cases are recorded as `skipped` in the manifest. Any `UNSUPPORTED` or `EXPECTED_FAILURES` entry that matches no case fails the test run. Because `conformance/extensions/` groups suites for separate extension packages, pass `--only 'extensions/a2a/**'` or `--only 'extensions/adk/**'` to `check_executed_cases.py --corpus extensions` so each harness checks its own extension suite.
+
 ## Reference harnesses
 
 Inspect these existing implementations for concrete code examples:
