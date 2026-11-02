@@ -1145,6 +1145,10 @@ extension ConformanceTestHelper {
       "to_json": "CatalogConformanceTests.swift",
       "validation_schema": "CatalogConformanceTests.swift",
     ],
+    "core/common_types.yaml": [
+      "common_types_schema": "CommonTypesConformanceTests.swift",
+      "validate_common_type": "CommonTypesConformanceTests.swift",
+    ],
     "core/composition_constraints.yaml": [
       "process_messages": "ValidatorConformanceTests.swift",
       "validate": "ValidatorConformanceTests.swift",
@@ -1221,8 +1225,6 @@ extension ConformanceTestHelper {
       "render_surface cases require the SwiftUI framework adapter harness",
     "core/agent_to_renderer.yaml":
       "agent_to_renderer_schema is not implemented in the Swift core harness",
-    "core/common_types.yaml":
-      "common_types_schema and validate_common_type are not implemented in the Swift core harness",
     "core/message_processor_v0_8.yaml":
       "protocol version v0.8 is not supported by A2UICore",
     "core/validator_v0_8.yaml":

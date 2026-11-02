@@ -25,6 +25,10 @@ const Map<String, Map<String, String>> coreSuiteActions = {
     'to_json': 'catalog_schema_conformance_test.dart',
     'validation_schema': 'catalog_schema_conformance_test.dart',
   },
+  'core/common_types.yaml': {
+    'common_types_schema': 'common_types_conformance_test.dart',
+    'validate_common_type': 'common_types_conformance_test.dart',
+  },
   'core/composition_constraints.yaml': {
     'process_messages': 'message_processor_conformance_test.dart',
     'validate': 'message_processor_conformance_test.dart',
@@ -106,9 +110,6 @@ const Map<String, String> unsupportedCoreSuites = {
           'the framework adapter harness.',
   'core/agent_to_renderer.yaml':
       'Protocol envelope schema generation is not implemented in a2ui_core.',
-  'core/common_types.yaml':
-      'Common-type schema generation and validation are not implemented in '
-          'a2ui_core.',
   'core/message_processor_v0_8.yaml':
       'Targets protocol v0.8, which a2ui_core does not implement.',
   'core/validator_v0_8.yaml':
