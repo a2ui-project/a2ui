@@ -214,6 +214,13 @@ export class PayloadValidator {
       );
     }
 
+    this.assertIdentifier(
+      componentType,
+      `Component type '${componentType}' must be a valid UAX #31 identifier`,
+      false,
+      '/component',
+    );
+
     // Decides which nested calls run in this catalog; see
     // `nestedCallRunsInCatalog`.
     const rawCatalogId = comp['catalogId'];

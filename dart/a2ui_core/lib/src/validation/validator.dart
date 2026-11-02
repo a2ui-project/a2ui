@@ -309,6 +309,10 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       _throwDetail('/component', 'missing_field',
           "Component '$id' does not name a component type.");
     }
+    if (_v1 && !isValidUax31Identifier(type)) {
+      _throwDetail('/component', 'invalid_value',
+          "Component type '$type' must be a valid UAX #31 identifier");
+    }
     final Object? rawCatalogId = component['catalogId'];
     if (rawCatalogId != null && rawCatalogId is! String) {
       _throwDetail('/catalogId', 'invalid_value',
