@@ -412,6 +412,7 @@ struct RPCHandlerTests {
   }
 
   @Test func outgoingCallUsesDefaultTimeoutWhenOmitted() async throws {
+    #expect(RPCHandler.defaultTimeoutSeconds == 30)
     let handler = RPCHandler()
     let (stream, continuation) = AsyncStream<RendererToAgentMessage>.makeStream()
 

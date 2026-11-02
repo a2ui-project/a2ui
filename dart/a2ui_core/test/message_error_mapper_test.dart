@@ -116,6 +116,8 @@ void main() {
         stateErr,
         defaultVersion: '1.0',
       );
+      // Pins current Dart MessageErrorMapper behavior (STATE_ERROR) rather
+      // than a cross-SDK wire error code.
       expect(mappedState.error.code, 'STATE_ERROR');
       expect(mappedState.error.surfaceId, 'surf-state');
       expect(mappedState.error.functionCallId, isNull);
@@ -128,6 +130,8 @@ void main() {
       );
       final ErrorMessage mappedExpr =
           MessageErrorMapper.map(exprErr, defaultVersion: '1.0');
+      // Pins current Dart MessageErrorMapper behavior (EXECUTION_ERROR) rather
+      // than a cross-SDK wire error code.
       expect(mappedExpr.error.code, 'EXECUTION_ERROR');
       expect(mappedExpr.error.surfaceId, 'surf-expr');
       expect(mappedExpr.error.functionCallId, isNull);
@@ -145,6 +149,8 @@ void main() {
       expect(mappedData.error.code, 'DATA_ERROR');
       expect(mappedData.error.surfaceId, 'surf-data');
       expect(mappedData.error.functionCallId, isNull);
+      // Pins current Dart MessageErrorMapper behavior (omitting path on
+      // A2uiDataError) rather than a cross-SDK wire error contract.
       expect(mappedData.error.path, isNull);
 
       final parseErr = A2uiParseError(
@@ -185,6 +191,8 @@ void main() {
         withoutPath,
         defaultVersion: '1.0',
       );
+      // Pins current Dart MessageErrorMapper behavior
+      // (SCHEMA_VALIDATION_FAILED) rather than a cross-SDK wire error code.
       expect(mappedWithoutPath.error.code, 'SCHEMA_VALIDATION_FAILED');
       expect(mappedWithoutPath.error.path, isNull);
       expect(mappedWithoutPath.error.surfaceId, 'surf-schema');
@@ -263,6 +271,8 @@ void main() {
         },
       );
       expect(mappedSurface.version, 'v0.9.1');
+      // Pins current Dart MessageErrorMapper behavior (STATE_ERROR) rather
+      // than a cross-SDK wire error code.
       expect(mappedSurface.error.code, 'STATE_ERROR');
       expect(mappedSurface.error.surfaceId, 'extracted-surf');
       expect(mappedSurface.error.functionCallId, isNull);

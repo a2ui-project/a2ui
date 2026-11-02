@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as path from 'path';
 import {describe, expect, it} from 'vitest';
@@ -39,44 +40,6 @@ function findSpecificationExampleFiles(): string[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-/**
- * Recursively strips empty `context: {}` on `event` objects and sorts `components`
- * arrays by component `id` so two semantically identical A2UI message payloads can
- * be compared with `toEqual`.
- */
-function normalizeValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    const normalizedItems = value.map(normalizeValue);
-    if (
-      normalizedItems.length > 0 &&
-      normalizedItems.every(item => isRecord(item) && typeof item.id === 'string')
-    ) {
-      return [...normalizedItems].sort((a, b) =>
-        String((a as Record<string, unknown>).id).localeCompare(
-          String((b as Record<string, unknown>).id),
-        ),
-      );
-    }
-    return normalizedItems;
-  }
-  if (isRecord(value)) {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) {
-      if (
-        k === 'context' &&
-        isRecord(v) &&
-        Object.keys(v).length === 0 &&
-        typeof value.name === 'string'
-      ) {
-        continue;
-      }
-      out[k] = normalizeValue(v);
-    }
-    return out;
-  }
-  return value;
 }
 
 /**
@@ -138,7 +101,7 @@ function canonicalizeMessages(messages: AgentToRendererMessage[]): AgentToRender
     coalesced.push(rawMsg);
   }
 
-  return normalizeValue(coalesced) as AgentToRendererMessage[];
+  return coalesced as unknown as AgentToRendererMessage[];
 }
 
 const EXAMPLE_FILES = findSpecificationExampleFiles();
@@ -163,16 +126,17 @@ describe('Specification v1.0 example corpus Express round-trip', () => {
 
     it(`round-trips ${fileName} through Express decompile and compile`, () => {
       const messages = (data.messages ?? [data]) as AgentToRendererMessage[];
+      const canonical = canonicalizeMessages(messages);
       const parser = expressFormat.createParser();
       const expressDsl = parser.decompile(messages);
       expect(expressDsl.trim().length).toBeGreaterThan(0);
 
       const recompiled = parser.compile(expressDsl);
-      expect(normalizeValue(recompiled)).toEqual(canonicalizeMessages(messages));
+      assert.deepStrictEqual(recompiled, canonical);
 
-      // Verify exact idempotence on a second decompile -> compile pass.
+      // Verify exact idempotence on a second decompile and compile pass.
       const recompiledAgain = parser.compile(parser.decompile(recompiled));
-      expect(recompiledAgain).toEqual(recompiled);
+      assert.deepStrictEqual(recompiledAgain, recompiled);
     });
   }
 });

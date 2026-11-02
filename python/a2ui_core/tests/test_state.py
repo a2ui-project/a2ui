@@ -658,6 +658,9 @@ def test_surface_model_disposal():
     surface.set_extension("theme", "dark")
     surface.data_model.set("/key", "updated")
     comp.properties = {"text": "changed"}
+    surface.components_model.add_component(ComponentModel("c2", "Text", cat, {}))
+    surface.components_model.remove_component("c2")
+    surface.components_model.remove_component("c1")
 
     assert actions == []
     assert errors == []
@@ -665,6 +668,8 @@ def test_surface_model_disposal():
     assert metadata_events == []
     assert data_events == []
     assert comp_updates == []
+    assert created_events == []
+    assert deleted_events == []
 
     # Subscriptions registered after disposal can be unsubscribed cleanly.
     post_actions: list[dict[str, Any]] = []

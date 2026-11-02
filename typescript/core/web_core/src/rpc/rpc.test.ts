@@ -661,25 +661,13 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     assert.strictEqual(pendingMap.size, 0);
   });
 
-  it('cleans up pendingAgentCalls after an external AbortSignal cancel and ignores late responses', async () => {
-    const controller = new AbortController();
+  it('cleans up pending call when outbound listener rejects asynchronously and ignores late response', async () => {
+    let rejectSend!: (reason?: unknown) => void;
     const handler = new RpcHandler({
       catalogs: [mockCatalog],
       outboundListener: () =>
         new Promise<void>((_resolve, reject) => {
-          controller.signal.addEventListener(
-            'abort',
-            () => {
-              reject(
-                new A2uiRpcError(
-                  'Call aborted by external AbortSignal.',
-                  RpcErrorCode.CANCELLED,
-                  'abort-call-1',
-                ),
-              );
-            },
-            {once: true},
-          );
+          rejectSend = reject;
         }),
     });
     const pendingMap = (handler as unknown as {pendingAgentCalls: Map<string, unknown>})
@@ -692,17 +680,16 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     );
     assert.strictEqual(pendingMap.size, 1);
 
-    controller.abort();
+    const thrown = new Error('transport aborted');
+    rejectSend(thrown);
 
     await assert.rejects(promise, (err: unknown) => {
-      assert.ok(err instanceof A2uiRpcError);
-      assert.strictEqual(err.code, RpcErrorCode.CANCELLED);
-      assert.strictEqual(err.functionCallId, 'abort-call-1');
+      assert.strictEqual(err, thrown);
       return true;
     });
     assert.strictEqual(pendingMap.size, 0);
 
-    // A later response for the cancelled functionCallId is ignored and leaves the map empty.
+    // A later response for the rejected functionCallId is ignored and leaves the map empty.
     handler.handleAgentFunctionResponse({
       version: '1.0',
       agentFunctionResponse: {
