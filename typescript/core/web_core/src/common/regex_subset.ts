@@ -423,6 +423,9 @@ function parseClass(s: Scanner): RegexNode {
   if (!s.eat(0x5d)) {
     throw new RegexSyntaxError('Unclosed character class', false);
   }
+  if (ranges.length === 0) {
+    throw new RegexSyntaxError('Empty character class', false);
+  }
   const normalized = normalizeRanges(ranges);
   return {
     kind: 'charSet',

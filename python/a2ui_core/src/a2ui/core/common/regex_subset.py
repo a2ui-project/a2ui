@@ -491,6 +491,8 @@ def _parse_class(s: _Scanner) -> CharSetNode:
         ranges.extend(_parse_class_item(s))
     if not s.eat(0x5D):
         raise RegexSyntaxError("Unclosed character class", False)
+    if not ranges:
+        raise RegexSyntaxError("Empty character class", False)
     normalized = normalize_ranges(ranges)
     return CharSetNode(ranges=complement_ranges(normalized) if negated else normalized)
 
