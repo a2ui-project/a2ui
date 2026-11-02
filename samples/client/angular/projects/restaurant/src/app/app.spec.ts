@@ -32,32 +32,34 @@ class StubClient {
   private readonly renderer = inject(A2uiRendererService);
   readonly isLoading = signal(false);
   readonly handleAction = jasmine.createSpy('handleAction');
-  readonly makeRequest = jasmine.createSpy('makeRequest').and.callFake(async () => {
-    const messages: A2uiMessage[] = [
-      {
-        version: 'v0.9',
-        createSurface: {
-          surfaceId: 'restaurant-surface',
-          catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+  readonly makeRequest = jasmine
+    .createSpy<Client['makeRequest']>('makeRequest')
+    .and.callFake(async () => {
+      const messages: A2uiMessage[] = [
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 'restaurant-surface',
+            catalogId: 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+          },
         },
-      },
-      {
-        version: 'v0.9',
-        updateComponents: {
-          surfaceId: 'restaurant-surface',
-          components: [
-            {
-              id: 'root',
-              component: 'Text',
-              text: 'Golden Dragon Bistro',
-            },
-          ],
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'restaurant-surface',
+            components: [
+              {
+                id: 'root',
+                component: 'Text',
+                text: 'Golden Dragon Bistro',
+              },
+            ],
+          },
         },
-      },
-    ];
-    this.renderer.processMessages(messages);
-    return [];
-  });
+      ];
+      this.renderer.processMessages(messages);
+      return [];
+    });
 }
 
 describe('App', () => {
@@ -103,9 +105,7 @@ describe('App', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(client.makeRequest).toHaveBeenCalledOnceWith(
-      'Top 5 Chinese restaurants in New York.' as never,
-    );
+    expect(client.makeRequest).toHaveBeenCalledOnceWith('Top 5 Chinese restaurants in New York.');
 
     const surfaceEl = compiled.querySelector('a2ui-v09-surface');
     expect(surfaceEl).toBeInstanceOf(HTMLElement);
