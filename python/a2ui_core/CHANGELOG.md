@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Basic catalog `regex` function (`v0_9` and `v1_0`) now validates patterns against the A2UI portable regex subset (ECMAScript `Pattern` in Unicode mode with no flags), enforces the 4-rule static ReDoS safety guard (`PATTERN_TOO_LONG` at 256 code points, `NESTED_QUANTIFIER`, `OVERLAPPING_ALTERNATION`, and `ADJACENT_OVERLAP`), translates patterns to Python `re` with exact ECMAScript character class and anchor semantics (`\A`, `\Z`, ASCII `\d`/`\w`/`\b`/`\B`, and `\uXXXX`/`\UXXXXXXXX` bracket classes), raises `A2uiExpressionError` with the rejection token on invalid or unsafe patterns, and returns `False` / `{"valid": False}` without raising when the input value exceeds 4,096 Unicode code points. Exports `parse_regex_subset`, `check_regex_safety`, `analyze_regex`, `translate_to_python`, `compile_guarded`, `regex_test`, `RegexNode`, `RegexRejection`, `RegexAnalysisResult`, `RegexSyntaxError`, `MAX_REGEX_PATTERN_CODE_POINTS`, and `MAX_REGEX_VALUE_CODE_POINTS` from `a2ui.core` and `a2ui.core.common`.
 - **BREAKING CHANGE**: (v1_0) The basic catalog `TextField` requires `value`,
   as the other input components do, so a `TextField` without one fails
   validation instead of accepting input that never reaches the data model.
