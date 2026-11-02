@@ -1304,6 +1304,48 @@ describe('NodeResolver constructor checks and disposal', () => {
 
     resolver.dispose();
   });
+
+  it('falls back to the surface default catalog when a component model omits catalog (3-arg v0.9 constructor)', () => {
+    const {surface, resolver} = setup();
+    surface.componentsModel.addComponent(new ComponentModel('root', 'Card', {child: 'leaf'}));
+    surface.componentsModel.addComponent(
+      new ComponentModel('leaf', 'Text', {text: 'From default catalog'}),
+    );
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(root.type, 'Card');
+    const leaf = child(root, 'child');
+    assert.strictEqual(leaf.type, 'Text');
+    assert.strictEqual(bound(leaf, 'text'), 'From default catalog');
+    resolver.dispose();
+  });
+
+  it('resolves over a partial surface and component stand-in with legacy surface.catalog', () => {
+    const catalog = makeCatalog();
+    const partialSurface = {
+      id: 'partial-surf',
+      catalog,
+      componentsModel: new Map([
+        [
+          'root',
+          {
+            id: 'root',
+            type: 'Text',
+            properties: {text: 'From partial mock'},
+          },
+        ],
+      ]),
+    } as unknown as SurfaceModel<ComponentApi>;
+
+    const resolver = new NodeResolver(partialSurface);
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(root.type, 'Text');
+    assert.strictEqual(bound(root, 'text'), 'From partial mock');
+    assert.strictEqual(getValue(root.metadata), undefined);
+    resolver.dispose();
+  });
 });
 
 describe('NodeResolver on a surface without a default catalog', () => {

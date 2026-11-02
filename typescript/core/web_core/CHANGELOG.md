@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `NodeResolver`, `DataContext`, and `GenericBinder` fall back to `surface.defaultCatalog ?? surface.catalog` when a component model omits `catalog` (such as components created with the 3-argument `new ComponentModel(id, type, properties)` overload) and guard optional `metadataSignal`, `onUpdated`, `dispatchError`, and schema fields when resolving over partial test stand-ins. [#3829](https://github.com/a2ui-project/a2ui/pull/3829)
+
 ## 0.15.0
 
 - `DataContext.resolveSignal` seeds the result of a function call that returns a `Signal` with the signal's current value before it creates the forwarding `effect`. Under a reactivity backend whose effects run on the next flush rather than on creation (the Angular adapter), an enclosing call such as `not(areComponentsValid(...))` previously read `undefined` for that argument on its first evaluation and dispatched a spurious `EXPRESSION_ERROR`.

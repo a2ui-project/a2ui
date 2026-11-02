@@ -376,6 +376,82 @@ describe('ComponentHostComponent', () => {
 
       expect(runSpy).toHaveBeenCalled();
     });
+
+    it('should render components constructed with the 3-argument ComponentModel overload', () => {
+      surface.componentsModel.removeComponent('root');
+      surface.componentsModel.addComponent(
+        new ComponentModel('root', 'TestType', {text: 'Legacy'}),
+      );
+
+      fixture.detectChanges();
+
+      const childDebugElement = fixture.debugElement.query(By.directive(TestChildComponent));
+      expect(childDebugElement).toBeTruthy();
+      expect((childDebugElement.componentInstance as TestChildComponent).props.text.value()).toBe(
+        'Legacy',
+      );
+    });
+
+    it('should tolerate partial surface and component mocks that omit defaultCatalog and event emitters', () => {
+      const partialSurface = {
+        id: 'partial-surf',
+        catalog,
+        componentsModel: new Map([
+          [
+            'root',
+            {
+              id: 'root',
+              type: 'TestType',
+              properties: {text: 'Partial mock'},
+            },
+          ],
+        ]),
+      };
+      mockSurfaceGroup.getSurface.and.returnValue(partialSurface);
+
+      const testFixture = TestBed.createComponent(ComponentHostComponent);
+      testFixture.componentRef.setInput('componentKey', 'root');
+      testFixture.componentRef.setInput('surfaceId', 'partial-surf');
+      expect(() => testFixture.detectChanges()).not.toThrow();
+
+      const childDebugElement = testFixture.debugElement.query(By.directive(TestChildComponent));
+      expect(childDebugElement).toBeTruthy();
+      expect((childDebugElement.componentInstance as TestChildComponent).props.text.value()).toBe(
+        'Partial mock',
+      );
+      testFixture.destroy();
+    });
+
+    it('should tolerate partial surface mocks with an empty catalog map without throwing', () => {
+      const consoleErrorSpy = spyOn(console, 'error');
+      const partialSurface = {
+        id: 'empty-mock-surf',
+        catalog: {
+          id: 'mock-catalog',
+          components: new Map(),
+        },
+        componentsModel: new Map([
+          [
+            'root',
+            {
+              id: 'root',
+              type: 'MissingType',
+              properties: {},
+            },
+          ],
+        ]),
+      };
+      mockSurfaceGroup.getSurface.and.returnValue(partialSurface);
+
+      const testFixture = TestBed.createComponent(ComponentHostComponent);
+      testFixture.componentRef.setInput('componentKey', 'root');
+      testFixture.componentRef.setInput('surfaceId', 'empty-mock-surf');
+      expect(() => testFixture.detectChanges()).not.toThrow();
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Component type "MissingType" not found in catalog "mock-catalog"',
+      );
+      testFixture.destroy();
+    });
   });
 
   describe('Node resolution', () => {

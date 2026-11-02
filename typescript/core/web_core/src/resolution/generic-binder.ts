@@ -29,7 +29,6 @@ import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/
 import {extractRefDefName} from '../catalog/reference-map.js';
 import {ActionDispatchOptions} from '../common/metadata.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
-import {isAtLeastVersion} from '../common/semver.js';
 
 // --- Schema Scraping ---
 
@@ -252,7 +251,10 @@ function scrapeObjectShape(objShape: Record<string, z.ZodTypeAny>): Record<strin
  * @param type Zod schema to inspect.
  * @returns Behavior node representing runtime handling for the schema.
  */
-function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
+function getFieldBehavior(type: z.ZodTypeAny | undefined): BehaviorNode {
+  if (!type) {
+    return {type: 'STATIC'};
+  }
   const defName = getRefDefName(type);
 
   if (isCheckableField(type)) {
@@ -516,10 +518,10 @@ export class GenericBinder<T> {
   private connect() {
     if (this.isConnected) return;
     this.isConnected = true;
-    const sub = this.context.componentModel.onUpdated.subscribe(() => {
+    const sub = this.context.componentModel.onUpdated?.subscribe(() => {
       this.rebuildAllBindings();
     });
-    this.compUnsub = () => sub.unsubscribe();
+    this.compUnsub = sub ? () => sub.unsubscribe() : undefined;
     this.rebuildAllBindings();
   }
 
@@ -644,11 +646,7 @@ export class GenericBinder<T> {
       return value;
     }
 
-    const atLeastV10 = isAtLeastVersion(
-      this.context.dataContext.surface?.protocolVersion ??
-        this.context.dataContext.surface?.defaultCatalog?.protocolVersion,
-      '1.0',
-    );
+    const atLeastV10 = this.context.dataContext.atLeastV10;
     const binding = atLeastV10 ? {'@path': templatePath} : {path: templatePath};
     const bound = this.context.dataContext.subscribeDynamicValue(binding, newVal => {
       const resolvedChildren = this.mapTemplateChildren(newVal, templateComponentId, templatePath);

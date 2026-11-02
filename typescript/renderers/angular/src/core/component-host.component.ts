@@ -304,7 +304,9 @@ export class ComponentHostComponent {
     id: string,
   ): void {
     if (node?.state === 'unknown-type') {
-      const catalog = surface.componentsModel.get(id)?.catalog as AngularCatalog | undefined;
+      const catalog = (surface.componentsModel.get(id)?.catalog ??
+        surface.defaultCatalog ??
+        surface.catalog) as AngularCatalog | undefined;
       console.error(`Component type "${node.type}" not found in catalog "${catalog?.id}"`);
       return;
     }
@@ -323,10 +325,10 @@ export class ComponentHostComponent {
     this.updateProps();
     this.metadata.set(getValue(node.metadata));
 
-    this.propsSub = node.context!.componentModel.onUpdated.subscribe(() => {
+    this.propsSub = node.context!.componentModel.onUpdated?.subscribe(() => {
       this.ngZone.run(() => this.updateProps());
     });
-    this.metadataSub = node.context!.componentModel.onMetadataChanged.subscribe(nextMeta => {
+    this.metadataSub = node.context!.componentModel.onMetadataChanged?.subscribe(nextMeta => {
       this.ngZone.run(() => {
         this.metadata.set(nextMeta);
         this.cdr.markForCheck();
@@ -360,7 +362,7 @@ export class ComponentHostComponent {
     this.mountedWcEl = el;
     this.elementRef.nativeElement.appendChild(el);
 
-    this.propsSub = node.context!.componentModel.onUpdated.subscribe(() => {
+    this.propsSub = node.context!.componentModel.onUpdated?.subscribe(() => {
       this.ngZone.run(() => {
         if (this.mountedWcEl) {
           this.mountedWcEl.node = node;
