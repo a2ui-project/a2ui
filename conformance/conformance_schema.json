@@ -31,7 +31,10 @@
       {"$ref": "#/$defs/EvaluateFunctionTest"},
       {"$ref": "#/$defs/DispatchActionTest"},
       {"$ref": "#/$defs/DeriveTest"},
-      {"$ref": "#/$defs/RenderSurfaceTest"}
+      {"$ref": "#/$defs/RenderSurfaceTest"},
+      {"$ref": "#/$defs/ReadRendererCapabilitiesTest"},
+      {"$ref": "#/$defs/ParseInboundMessageTest"},
+      {"$ref": "#/$defs/RendererStateTurnsTest"}
     ]
   },
   "$defs": {
@@ -102,7 +105,10 @@
             "validate_common_type",
             "validation_schema",
             "verify_cuttable_keys",
-            "wrap"
+            "wrap",
+            "read_renderer_capabilities",
+            "parse_inbound_message",
+            "renderer_state_turns"
           ],
           "description": "The conformance test action to perform."
         },
@@ -305,6 +311,33 @@
           },
           "then": {
             "not": {"anyOf": [{"required": ["expect"]}, {"required": ["expectFile"]}]}
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "read_renderer_capabilities"}},
+            "required": ["action"]
+          },
+          "then": {
+            "$ref": "#/$defs/ReadRendererCapabilitiesTest"
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "parse_inbound_message"}},
+            "required": ["action"]
+          },
+          "then": {
+            "$ref": "#/$defs/ParseInboundMessageTest"
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "renderer_state_turns"}},
+            "required": ["action"]
+          },
+          "then": {
+            "$ref": "#/$defs/RendererStateTurnsTest"
           }
         }
       ],
@@ -1449,6 +1482,11 @@
           "type": "boolean",
           "description": "Generating twice from the same inputs returns the same string."
         },
+        "expect_callable_functions": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Agent-callable function names in catalog and declaration order that the standalone-call prompt rule must list."
+        },
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["action", "args"]
@@ -2123,6 +2161,147 @@
           }
         }
       },
+      "additionalProperties": false
+    },
+    "ReadRendererCapabilitiesTest": {
+      "type": "object",
+      "description": "Reading and validating a renderer capabilities entry from request or message metadata for a target protocol version.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "read_renderer_capabilities"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "version": {"$ref": "#/$defs/ProtocolVersion"},
+            "metadata": {
+              "type": ["object", "null"],
+              "description": "Message or transport metadata mapping, or null when absent."
+            }
+          },
+          "required": ["version", "metadata"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": ["object", "null"],
+          "description": "Normalized capabilities map for `resolve_catalogs`, or null when no matching entry is present."
+        },
+        "expectError": {"$ref": "#/$defs/ExpectError"},
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["name", "action", "args"],
+      "oneOf": [
+        {"required": ["expect"]},
+        {"required": ["expectError"]},
+        {"required": ["expect_error"]}
+      ],
+      "additionalProperties": false
+    },
+    "ParseInboundMessageTest": {
+      "type": "object",
+      "description": "Validating an inbound renderer-to-agent message and formatting user actions and errors for model input.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "parse_inbound_message"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "version": {"$ref": "#/$defs/ProtocolVersion"},
+            "message": {
+              "type": "object",
+              "description": "Inbound renderer-to-agent message object."
+            }
+          },
+          "required": ["version", "message"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "action",
+                "error",
+                "callAgentFunction",
+                "rendererFunctionResponse"
+              ]
+            },
+            "model_input_contains": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "model_input": {
+              "type": "null"
+            }
+          },
+          "required": ["kind"],
+          "not": {
+            "required": ["model_input_contains", "model_input"]
+          },
+          "additionalProperties": false
+        },
+        "expectError": {"$ref": "#/$defs/ExpectError"},
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["name", "action", "args"],
+      "oneOf": [
+        {"required": ["expect"]},
+        {"required": ["expectError"]},
+        {"required": ["expect_error"]}
+      ],
+      "additionalProperties": false
+    },
+    "RendererStateTurnsTest": {
+      "type": "object",
+      "description": "Applying a multi-turn sequence of message payloads or formatted model responses against a stateful `RendererState` instance.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "renderer_state_turns"},
+        "catalogs": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {"$ref": "#/$defs/AgentCatalogRef"},
+              {"$ref": "#/$defs/CatalogRegistration"}
+            ]
+          },
+          "description": "Active catalogs registered on the `RendererState` instance."
+        },
+        "turns": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "payload": {
+                "type": "array",
+                "items": {"type": "object"},
+                "description": "Decoded AgentToRendererMessage objects applied in a single turn."
+              },
+              "response": {
+                "type": "string",
+                "description": "Raw model response parsed and applied in a single turn."
+              },
+              "format": {"$ref": "#/$defs/InferenceFormatName"},
+              "expect_surfaces": {
+                "type": "object",
+                "description": "Expected surface state snapshot keyed by surface ID after this turn completes."
+              },
+              "expectError": {"$ref": "#/$defs/ExpectError"},
+              "expect_error": {"$ref": "#/$defs/ExpectError"}
+            },
+            "oneOf": [
+              {"required": ["payload"]},
+              {"required": ["response"]}
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["name", "action", "catalogs", "turns"],
       "additionalProperties": false
     }
   }

@@ -112,6 +112,9 @@ def iter_renderer_errors(case):
     for step in case.get("steps") or []:
         if isinstance(step, dict):
             yield from _iter_container_renderer_errors(step)
+    for turn in case.get("turns") or []:
+        if isinstance(turn, dict):
+            yield from _iter_container_renderer_errors(turn)
 
 
 def get_yaml_files():
@@ -377,3 +380,191 @@ def test_renderer_error_validates_against_spec(valid_renderer_error):
 def test_renderer_error_rejects_spec_violations(invalid_renderer_error):
     with pytest.raises(jsonschema.ValidationError):
         validate_renderer_error_payload(invalid_renderer_error)
+
+
+@pytest.mark.parametrize(
+    "valid_case",
+    [
+        {
+            "name": "read capabilities object",
+            "action": "read_renderer_capabilities",
+            "args": {
+                "version": "1.0",
+                "metadata": {
+                    "a2uiRendererCapabilities": {
+                        "1.0": {"supportedCatalogIds": ["catalog_a"]}
+                    }
+                },
+            },
+            "expect": {"1.0": {"supportedCatalogIds": ["catalog_a"]}},
+        },
+        {
+            "name": "read capabilities null",
+            "action": "read_renderer_capabilities",
+            "args": {"version": "1.0", "metadata": None},
+            "expect": None,
+        },
+        {
+            "name": "read capabilities error",
+            "action": "read_renderer_capabilities",
+            "args": {
+                "version": "1.0",
+                "metadata": {"a2uiRendererCapabilities": {"1.0": "invalid"}},
+            },
+            "expectError": {"category": "CatalogError"},
+        },
+        {
+            "name": "inbound action message",
+            "action": "parse_inbound_message",
+            "args": {
+                "version": "1.0",
+                "message": {
+                    "version": "1.0",
+                    "action": {
+                        "name": "submit",
+                        "surfaceId": "main",
+                        "sourceComponentId": "btn",
+                        "timestamp": "2026-01-01T00:00:00Z",
+                        "context": {"qty": 2},
+                    },
+                },
+            },
+            "expect": {
+                "kind": "action",
+                "model_input_contains": ["submit", "main", "btn"],
+            },
+        },
+        {
+            "name": "inbound rpc message",
+            "action": "parse_inbound_message",
+            "args": {
+                "version": "1.0",
+                "message": {
+                    "version": "1.0",
+                    "callAgentFunction": {
+                        "functionCallId": "call-1",
+                        "callFunction": {"@call": "lookup"},
+                    },
+                },
+            },
+            "expect": {
+                "kind": "callAgentFunction",
+                "model_input": None,
+            },
+        },
+        {
+            "name": "inbound invalid message",
+            "action": "parse_inbound_message",
+            "args": {"version": "1.0", "message": {"version": "v0.9"}},
+            "expectError": {"category": "ValidationError"},
+        },
+        {
+            "name": "multi-turn renderer state",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [
+                {
+                    "payload": [
+                        {
+                            "version": "1.0",
+                            "createSurface": {
+                                "surfaceId": "s1",
+                                "catalogId": "conformance/simplified",
+                            },
+                        }
+                    ],
+                    "expect_surfaces": {"s1": {"components": []}},
+                },
+                {
+                    "response": '<a2ui>\nsurface("s1") { root = Text("Hi") }\n</a2ui>',
+                    "format": "express",
+                    "expectError": {"category": "ValidationError"},
+                },
+            ],
+        },
+        {
+            "name": "prompt snippet callable functions",
+            "action": "generate_prompt_snippet",
+            "args": {
+                "format": "express",
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ],
+            },
+            "expect_callable_functions": ["notifyAgent", "showToast"],
+            "expect_contains": ["notifyAgent", "showToast"],
+        },
+    ],
+)
+def test_agent_suite_schemas_accept_valid_cases(valid_case):
+    VALIDATOR.validate([valid_case])
+
+
+@pytest.mark.parametrize(
+    "invalid_case",
+    [
+        # read_renderer_capabilities missing metadata in args
+        {
+            "name": "missing metadata",
+            "action": "read_renderer_capabilities",
+            "args": {"version": "1.0"},
+            "expect": None,
+        },
+        # read_renderer_capabilities with both expect and expectError
+        {
+            "name": "both expect and expectError",
+            "action": "read_renderer_capabilities",
+            "args": {"version": "1.0", "metadata": {}},
+            "expect": None,
+            "expectError": {"category": "CatalogError"},
+        },
+        # parse_inbound_message with unknown kind
+        {
+            "name": "unknown inbound kind",
+            "action": "parse_inbound_message",
+            "args": {"version": "1.0", "message": {}},
+            "expect": {"kind": "unknownKind"},
+        },
+        # parse_inbound_message with both model_input_contains and model_input
+        {
+            "name": "conflicting model_input expectations",
+            "action": "parse_inbound_message",
+            "args": {"version": "1.0", "message": {}},
+            "expect": {
+                "kind": "action",
+                "model_input_contains": ["x"],
+                "model_input": None,
+            },
+        },
+        # renderer_state_turns turn missing both payload and response
+        {
+            "name": "turn without payload or response",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [{"expect_surfaces": {}}],
+        },
+        # renderer_state_turns turn with both payload and response
+        {
+            "name": "turn with both payload and response",
+            "action": "renderer_state_turns",
+            "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
+            "turns": [{"payload": [], "response": "<a2ui></a2ui>"}],
+        },
+        # generate_prompt_snippet with non-array expect_callable_functions
+        {
+            "name": "non-array expect_callable_functions",
+            "action": "generate_prompt_snippet",
+            "args": {
+                "format": "express",
+                "catalogs": [
+                    {"catalog": "test_data/catalogs/simplified_catalog_v1_0.json"}
+                ],
+            },
+            "expect_callable_functions": "notifyAgent",
+        },
+    ],
+)
+def test_agent_suite_schemas_reject_invalid_cases(invalid_case):
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([invalid_case])
+
