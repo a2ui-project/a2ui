@@ -252,6 +252,9 @@
   optional `block_comments` argument for this
   ([#3479](https://github.com/a2ui-project/a2ui/issues/3479)).
   [#3709](https://github.com/a2ui-project/a2ui/pull/3709)
+- `DirectJsonParser` rejects a number out of the range of a double, such as
+  `1e400`, with `A2uiParseError`, as the Dart SDK does. It used to read it as
+  `inf`, which `json.dumps` writes as `Infinity`, a token JSON does not have.
 
 ## 0.9.0 (2026-10-17)
 

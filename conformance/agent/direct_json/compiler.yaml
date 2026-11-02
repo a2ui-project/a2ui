@@ -151,6 +151,16 @@
   expect_error:
     category: "ParseError"
 
+- name: test_compile_json_number_out_of_range_is_a_parse_error
+  description: A number too large for a double, such as `1e400`, is a parse error rather than an infinity that JSON cannot write back out.
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '[{"version": "1.0", "updateDataModel": {"surfaceId": "s1", "path": "/total", "value": 1e400}}]'
+  expect_error:
+    category: "ParseError"
+
 - name: test_compile_json_empty_block_is_a_parse_error
   description: A block with nothing in it is a parse error rather than an empty message list.
   action: compile

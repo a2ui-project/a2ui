@@ -789,6 +789,26 @@
       expect_error:
         category: "ParseError"
 
+- name: test_chunk_number_out_of_range_fails_when_the_block_closes
+  description: A message holding a number too large for a double is not emitted while it streams, and the block raises a parse error at the close tag.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateDataModel": {"surfaceId": "s1", "path": "/total", "value": 1e400'
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+    - input: "}}"
+      expect: []
+    - input: "]</a2ui-json>"
+      expect_error:
+        category: "ParseError"
+
 # --- Values a parser may not guess at ---
 
 - name: test_chunk_partial_id_withholds_while_earlier_messages_emit
