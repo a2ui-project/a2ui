@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.14.0
+
 - Add `metadata` (`input<A2uiMetadata | undefined>()`) and `extensions` (`computed<Extensions | undefined>()`) signals on `CatalogComponent` and `CatalogComponentInstance`, bound reactively from `ComponentNode.metadata` in `ComponentHostComponent` and `ComponentBinder.bindNode`. [#3469](https://github.com/a2ui-project/a2ui/issues/3469), [#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)
 - **BREAKING CHANGE**: `createComponentImplementation` and `toWebComponent` keep the `allowedParents`, `allowedChildren` and `metadata` of the component they receive. The message processor now enforces them for custom Angular components, so a payload that breaks them is rejected with `UNALLOWED_PARENT` or `UNALLOWED_CHILD` (previously accepted). [#3533](https://github.com/a2ui-project/a2ui/issues/3533)
 - `new AngularCatalog(id, components?, functions?, themeSchema?, instructions?)` without a `protocolVersion` constructs a `'0.9'` catalog (deprecated overload), so catalogs written against 0.9.x keep constructing. `new AngularCatalog(id, protocolVersion, ...)` is unchanged ([#3658](https://github.com/a2ui-project/a2ui/pull/3658)).
