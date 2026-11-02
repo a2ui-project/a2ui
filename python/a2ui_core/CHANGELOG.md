@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.5.0 (2026-11-02)
+
 - **BREAKING CHANGE**: `DataContext` refuses a function whose `allowed_callers`
   is `agentOnly`, before running it, so a binding, check or function call
   action that calls one reports an `EXPRESSION_ERROR` instead of running it, as

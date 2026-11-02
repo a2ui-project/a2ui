@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.2.0 (2026-11-02)
+
 - `create_a2ui_part` labels a part with the message's own `version` field when
   no `version` is passed, so a v0.9.1 or v1.0 message gets the current A2UI MIME
   type. [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
