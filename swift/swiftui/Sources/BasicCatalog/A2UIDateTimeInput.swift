@@ -113,12 +113,7 @@ public struct A2UIDateTimeInput: View {
         .accessibilityIdentifier("A2UIDateTimeInput_\(node.id)")
         .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
 
-      if let firstError = validationErrors.first {
-        Text(firstError)
-          .font(.caption)
-          .foregroundStyle(Color.red)
-          .accessibilityIdentifier("A2UIDateTimeInput_Error_\(node.id)")
-      }
+      A2UICheckMessage(node: node, identifierPrefix: "A2UIDateTimeInput")
     }
   }
 
