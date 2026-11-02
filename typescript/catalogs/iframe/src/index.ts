@@ -15,11 +15,30 @@
  */
 
 /**
- * @a2ui/catalog-iframe: the A2UI iframe catalog. This entry point exposes the sandbox
- * configuration and the `a2ui_*` host bridge; the frame components follow.
+ * @a2ui/catalog-iframe: the A2UI iframe catalog. This entry point exposes the catalog with its two
+ * universal components, the sandbox configuration and the `a2ui_*` host bridge.
  */
 
-export {IFRAME_CATALOG_ID} from './catalog.js';
+// The catalog and its components.
+export {IFRAME_CATALOG_ID, iframeCatalog} from './catalog.js';
+export {
+  A2uiWebAppFrameUrl,
+  WebAppFrameUrlApi,
+  type WebAppFrameUrlProps,
+} from './components/web_app_frame_url.js';
+export {
+  A2uiWebAppFrameSrcdoc,
+  WebAppFrameSrcdocApi,
+  type WebAppFrameSrcdocProps,
+} from './components/web_app_frame_srcdoc.js';
+
+// Base class and host adapter for other sandboxed frame components.
+export {
+  frameHeightFromProp,
+  frameTitleFromProps,
+  SandboxedFrameElement,
+} from './shared/sandbox/sandboxed_frame_element.js';
+export {ComponentContextFrameHost} from './shared/sandbox/component_context_frame_host.js';
 
 // Sandbox configuration.
 export {
