@@ -15,13 +15,8 @@
 import A2UICore
 import BasicCatalog
 import Foundation
-import OrderedCollections
 import OrderedJSON
 import Testing
-
-private final class ExpressionErrorCaptureBox: @unchecked Sendable {
-  var errors: [RendererError] = []
-}
 
 /// Runs the shared `conformance/core/expressions.yaml` suite.
 struct ExpressionsConformanceTests {
@@ -163,132 +158,7 @@ struct ExpressionsConformanceTests {
         conformanceCase.parsedTestCase(),
         "[\(conformanceCase.name)] Could not parse validate case"
       )
-      try runValidateCase(testCase)
-    }
-  }
-
-  @MainActor
-  private func runValidateCase(_ testCase: ConformanceTestCase) throws {
-    let processor = MessageProcessor(
-      catalogs: try ConformanceTestHelper.buildCatalogs(for: testCase),
-      validationConfig: ValidationConfig(targetVersion: "1.0")
-    )
-    // Expression errors raised while resolving nodes reach the surface as `EXPRESSION_ERROR`
-    // rather than being thrown out of `processMessages`.
-    let capturedErrors = ExpressionErrorCaptureBox()
-    processor.outboundListener = { message in
-      MainActor.assumeIsolated {
-        if case .error(let error) = message {
-          capturedErrors.errors.append(error)
-        }
-      }
-    }
-
-    for (stepIndex, step) in testCase.steps.enumerated() {
-      guard let payload = step.payload else { continue }
-      capturedErrors.errors.removeAll()
-
-      let isFinalStep = stepIndex == testCase.steps.count - 1
-      if let expectedError = step.expectError ?? (isFinalStep ? testCase.expectError : nil) {
-        assertValidateStepError(
-          payload: payload,
-          processor: processor,
-          capturedErrors: capturedErrors,
-          expectedError: expectedError,
-          testName: testCase.name,
-          stepIndex: stepIndex
-        )
-        continue
-      }
-
-      try processor.processMessages(payload)
-      #expect(
-        capturedErrors.errors.isEmpty,
-        "\(testCase.name): unexpected error at step \(stepIndex): \(capturedErrors.errors)"
-      )
-
-      let expectedSurfaces = (step.expect ?? testCase.expect)?["surfaces"]?.objectValue ?? [:]
-      try assertValidateSurfaces(
-        OrderedDictionary(uniqueKeysWithValues: expectedSurfaces.map { ($0.key, $0.value) }),
-        on: processor,
-        testName: testCase.name
-      )
-    }
-  }
-
-  @MainActor
-  private func assertValidateStepError(
-    payload: JSONValue,
-    processor: MessageProcessor,
-    capturedErrors: ExpressionErrorCaptureBox,
-    expectedError: ConformanceExpectError,
-    testName: String,
-    stepIndex: Int
-  ) {
-    var errorMessages: [String] = []
-    do {
-      try processor.processMessages(payload)
-    } catch {
-      let message = (error as? (any A2UIError))?.message ?? error.localizedDescription
-      errorMessages.append(message)
-    }
-    for error in capturedErrors.errors {
-      switch error {
-      case .validationFailed(let validationError):
-        errorMessages.append(validationError.message)
-      case .generic(let genericError):
-        errorMessages.append(genericError.message)
-      }
-    }
-    #expect(
-      !errorMessages.isEmpty,
-      "\(testName): expected an error at step \(stepIndex)"
-    )
-    if let expectedMessage = expectedError.message {
-      #expect(
-        errorMessages.contains { $0.localizedCaseInsensitiveContains(expectedMessage) },
-        "\(testName): messages \(errorMessages) do not contain '\(expectedMessage)'"
-      )
-    }
-  }
-
-  @MainActor
-  private func assertValidateSurfaces(
-    _ expectedSurfaces: OrderedDictionary<String, JSONValue>,
-    on processor: MessageProcessor,
-    testName: String
-  ) throws {
-    for (surfaceID, expectedSurface) in expectedSurfaces {
-      if let surfObj = expectedSurface.objectValue {
-        try ConformanceTestHelper.assertKnownKeys(
-          surfObj,
-          ["components"],
-          "expressions.yaml expect.surfaces.\(surfaceID) in '\(testName)'",
-          allowMetadata: false
-        )
-      }
-      let surface = try #require(
-        processor.surfaceGroupModel[surfaceID],
-        "\(testName): expected surface '\(surfaceID)'"
-      )
-      let expectedComponents = expectedSurface["components"]?.objectValue ?? [:]
-      for (componentID, expectedComponent) in expectedComponents {
-        let node = try #require(
-          surface.findNode(id: componentID),
-          "\(testName): expected resolved node '\(componentID)'"
-        )
-        for (property, expectedValue) in expectedComponent.objectValue ?? [:]
-        where property != "component" {
-          let binding = try #require(
-            node.properties[property] as? DataBinding<String>,
-            "\(testName): '\(componentID).\(property)' is not a string binding"
-          )
-          #expect(
-            binding.value == expectedValue.stringValue,
-            "\(testName): '\(componentID).\(property)' is '\(String(describing: binding.value))'"
-          )
-        }
-      }
+      try ConformanceTestHelper.runValidateCase(testCase)
     }
   }
 

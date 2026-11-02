@@ -384,21 +384,25 @@ struct BasicCatalogConformanceTests {
   @Test(arguments: ConformanceTestHelper.cases("core/functions.yaml", action: "validate"))
   func functionsValidateConformance(_ conformanceCase: ConformanceCase) throws {
     try ConformanceManifest.run(conformanceCase) {
-      try runValidatedCatalogCase(conformanceCase, suiteName: "functions.yaml")
+      let testCase = try validateAndParseCatalogCase(
+        conformanceCase,
+        suiteName: "functions.yaml"
+      )
+      try ConformanceTestHelper.runValidateCase(testCase)
     }
   }
 
   @Test(arguments: ConformanceTestHelper.cases("core/index_function.yaml", action: "validate"))
   func indexFunctionConformance(_ conformanceCase: ConformanceCase) throws {
     try ConformanceManifest.run(conformanceCase) {
-      try runValidatedCatalogCase(conformanceCase, suiteName: "index_function.yaml")
+      try runIndexFunctionCase(conformanceCase)
     }
   }
 
-  private func runValidatedCatalogCase(
+  private func validateAndParseCatalogCase(
     _ conformanceCase: ConformanceCase,
     suiteName: String
-  ) throws {
+  ) throws -> ConformanceTestCase {
     let rawDict = conformanceCase.rawDictionary
     try ConformanceTestHelper.assertKnownKeys(
       rawDict,
@@ -423,9 +427,16 @@ struct BasicCatalogConformanceTests {
         }
       }
     }
-    let testCase = try #require(
+    return try #require(
       conformanceCase.parsedTestCase(),
       "[\(conformanceCase.name)] Could not parse test case"
+    )
+  }
+
+  private func runIndexFunctionCase(_ conformanceCase: ConformanceCase) throws {
+    let testCase = try validateAndParseCatalogCase(
+      conformanceCase,
+      suiteName: "index_function.yaml"
     )
     let errorHandler = IndexConformanceErrorHandler()
     let processor = MessageProcessor(
@@ -434,10 +445,11 @@ struct BasicCatalogConformanceTests {
       validationConfig: ValidationConfig(targetVersion: "1.0")
     )
 
-    for step in testCase.steps {
+    for (stepIndex, step) in testCase.steps.enumerated() {
       guard let payload = step.payload else { continue }
       try executeIndexStep(
         step: step,
+        isFinalStep: stepIndex == testCase.steps.count - 1,
         payload: payload,
         testCase: testCase,
         processor: processor,
@@ -448,12 +460,14 @@ struct BasicCatalogConformanceTests {
 
   private func executeIndexStep(
     step: ConformanceStep,
+    isFinalStep: Bool,
     payload: JSONValue,
     testCase: ConformanceTestCase,
     processor: MessageProcessor,
     errorHandler: IndexConformanceErrorHandler
   ) throws {
-    if let expectedError = step.expectError {
+    // The case's expectError applies to the last step only.
+    if let expectedError = step.expectError ?? (isFinalStep ? testCase.expectError : nil) {
       errorHandler.capturedErrors.removeAll()
       var caughtError: Error?
       do {
@@ -471,7 +485,8 @@ struct BasicCatalogConformanceTests {
     }
 
     try processor.processMessages(payload)
-    guard let expectObj = testCase.expect?.objectValue else { return }
+    let caseExpect = isFinalStep ? testCase.expect : nil
+    guard let expectObj = (step.expect ?? caseExpect)?.objectValue else { return }
     try ConformanceTestHelper.assertKnownKeys(
       expectObj,
       ["surfaces"],
