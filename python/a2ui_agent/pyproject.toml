@@ -22,7 +22,7 @@ requires-python = ">=3.10"
 # Framework integrations live in their own distributions (a2ui-a2a, a2ui-adk).
 # tests/test_framework_agnostic.py enforces this.
 dependencies = [
-  "a2ui-core>=0.4.1,<0.5.0",
+  "a2ui-core>=0.5.0,<0.6.0",
   "antlr4-python3-runtime>=4.13.0,<4.14.0",
   "jsonschema>=4.0.0",
   "pydantic>=2.11.0",
@@ -53,7 +53,7 @@ build-backend = "hatchling.build"
 # last released version rather than 0.0.0.
 [tool.hatch.version]
 source = "vcs"
-fallback-version = "0.6.0"
+fallback-version = "0.10.0"
 
 [tool.hatch.version.raw-options]
 root = "../.."
