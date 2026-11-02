@@ -562,6 +562,11 @@ struct ValidatorConformanceTests {
         error is A2UICatalogError,
         "[\(testName)] Expected A2UICatalogError for '\(category)', got \(type(of: error))"
       )
+    case "DataError":
+      #expect(
+        error is A2UIDataError,
+        "[\(testName)] Expected A2UIDataError for '\(category)', got \(type(of: error))"
+      )
     default:
       Issue.record("[\(testName)] Unknown error category '\(category)'")
       throw UnknownConformanceKeyError("[\(testName)] Unknown error category '\(category)'")
