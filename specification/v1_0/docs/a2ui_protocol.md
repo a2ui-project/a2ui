@@ -1428,16 +1428,20 @@ This message is sent by the renderer to execute a function remotely on the agent
 
 When the renderer evaluates a `FunctionCall` (from an action handler, validation check, or dynamic value), it determines the execution target using implicit fallback routing:
 
-1. **Local Lookup:** The renderer checks if a local renderer-side function with that name is registered in its local catalog/registry. If found, the renderer executes the function locally.
-2. **Fallback to Agent RPC:** If the function is not registered in the local renderer catalog, the renderer assumes it is an agent-side function and dispatches a `callAgentFunction` message over the protocol.
-3. **Agent Error Handling:** If the agent does not recognize the function name (or if parameter validation fails on the server), the agent MUST return an `agentFunctionResponse` message containing an `error` payload (`code: "UNKNOWN_FUNCTION"` or `"INVALID_FUNCTION_CALL"`). The renderer then handles the error state locally (e.g., via component error boundaries or fallbacks).
+1. **Catalog Resolution:** The renderer resolves the catalog the call runs in, from its explicit `catalogId` or the surface default `catalogId` (see [Mixable catalogs and component resolution logic](#mixable-catalogs-and-component-resolution-logic)). A call whose catalog cannot be resolved is a catalog error, and is not routed to the agent.
+2. **Local Lookup:** A reserved system function (`@`-prefixed, such as `@index`) is always evaluated locally and MUST NOT be routed to the agent. Otherwise, the renderer checks whether it has a local implementation of the function in that catalog. A function counts as registered locally only if the renderer can execute it. If it can, the renderer enforces the function's `allowedCallers` and `requiresUserActivation` boundaries and executes it locally.
+3. **Fallback to Agent RPC:** If the renderer has no local implementation, the renderer assumes it is an agent-side function and dispatches a `callAgentFunction` message over the protocol. This covers a function that the catalog does not declare, and a function that the catalog declares without the renderer implementing it (a schema-only declaration). For a declared function, the renderer first applies the declaration's boundaries: if it sets `allowedCallers: "agentOnly"`, or sets `requiresUserActivation: true` and the evaluation is not user-activated (such as a data binding or a check), the renderer MUST NOT dispatch the call and reports an `EXPRESSION_ERROR` instead. The renderer resolves the arguments before dispatching, and validates the arguments of a declared function against its schema; arguments that fail validation are reported as an `EXPRESSION_ERROR` and are not sent. Routing is a renderer-initiated call, so it applies to a schema-only function whose `allowedCallers` is `"rendererOnly"`, the default: that value only forbids the agent from calling the function with `callRendererFunction`.
+   - **Sharing and caching:** For reactive evaluations (data bindings and checks), a renderer MAY share one in-flight call between identical calls (the same resolved `catalogId`, function name and `args`) on a surface, and MAY reuse the settled answer of such a call on that surface. Imperative evaluations (actions) MUST send a new `callAgentFunction` each time. An agent function with side effects should therefore be called from an action.
+4. **Agent Error Handling:** If the agent does not recognize the function name (or if parameter validation fails on the server), the agent MUST return an `agentFunctionResponse` message containing an `error` payload (`code: "UNKNOWN_FUNCTION"` or `"INVALID_FUNCTION_CALL"`). The renderer then handles the error state locally (e.g., via component error boundaries or fallbacks).
+
+Fallback routing only applies to function calls that the renderer accepts. A renderer that rejects payloads naming functions absent from its catalogs MUST declare the agent-side functions it expects, without implementing them, for those calls to reach the agent.
 
 **Properties:**
 
 - `callAgentFunction` (object, required):
   - `surfaceId` (string, required): The surface ID where the call originated.
   - `functionCallId` (string, required): A unique identifier for this invocation instance. The agent MUST copy this ID verbatim into the return `agentFunctionResponse`.
-  - `callFunction` (object, required): The description of the function call (`@call`, `catalogId`, `args`).
+  - `callFunction` (object, required): The description of the function call (`@call`, `catalogId`, `args`). The renderer MUST set `catalogId` to the catalog the call resolved to, even when the originating `FunctionCall` omits it and relies on the surface default, so that the agent does not need to track each surface's default catalog. `args` carries the resolved argument values. For a function the catalog declares, `args` is the result of validating those values against the declared schema, with the schema's defaults applied.
 
 **Example:**
 
@@ -1449,6 +1453,7 @@ When the renderer evaluates a `FunctionCall` (from an action handler, validation
     "functionCallId": "verify_provider_99",
     "callFunction": {
       "@call": "verifyProvider",
+      "catalogId": "https://example.com/catalogs/healthcare.json",
       "args": {
         "providerId": "PRV-102"
       }
