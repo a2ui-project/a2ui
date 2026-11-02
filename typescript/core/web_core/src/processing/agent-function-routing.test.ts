@@ -1270,6 +1270,40 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     }
   });
 
+  it('refuses template parts and callRendererFunction arguments even when the agent already answered the call (V3)', async () => {
+    const cached = ctx.resolveDynamicValue<Promise<unknown>>({'@call': 'fetchName', 'args': {}});
+    await flush();
+    respond(0, {value: 'Ann'});
+    assert.strictEqual(await cached, 'Ann');
+    assert.strictEqual(
+      await ctx.resolveDynamicValue<Promise<unknown>>({'@call': 'fetchName', 'args': {}}),
+      'Ann',
+      'the answer is cached for bindings',
+    );
+    assert.strictEqual(outbound.length, 1);
+
+    const sub = ctx.subscribeDynamicValue(
+      {'@call': 'formatString', 'args': {'value': 'Hi ${fetchName()}!'}},
+      () => {},
+    );
+    await flush();
+    assert.strictEqual(sub.value, 'Hi !', 'a template part does not read the cached answer');
+    sub.unsubscribe();
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.strictEqual(errors[0].expression, 'fetchName');
+
+    const responses = await callRenderer({
+      '@call': 'upper',
+      'args': {'value': {'@call': 'fetchName', 'args': {}}},
+    });
+    assert.ok(responses.every(m => !m.callAgentFunction));
+    const response = responses.find(m => m.rendererFunctionResponse)!.rendererFunctionResponse;
+    assert.strictEqual(response.error.code, 'EXECUTION_ERROR');
+    assert.match(response.error.message, /Function not found/);
+    assert.strictEqual(outbound.filter(m => m.callAgentFunction).length, 1, 'nothing more is sent');
+  });
+
   it('sends schema defaults from a document catalog as a local implementation receives them (V11)', async () => {
     const docCatalog = Catalog.fromJson(
       {
