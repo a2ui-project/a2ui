@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- (v1_0) `PayloadValidator` now validates component type names against UAX #31 identifier syntax on v1.0+ surfaces.
 - **Breaking:** Unify the v1.0 protocol version wire value on `'1.0'` (without
   a `'v'` prefix) across message envelopes, `MessageProcessor.getRendererCapabilities`,
   `RpcHandler`, and catalog documents (`A2uiProtocolVersion.v1_0.jsonValue` is

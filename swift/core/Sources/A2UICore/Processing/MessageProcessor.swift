@@ -286,7 +286,7 @@ public final class MessageProcessor: ObservableObject {
     if version.isAtLeastV10 {
       var defs: OrderedDictionary<String, JSONValue> = [:]
       if !componentsDictionary.isEmpty {
-        let componentRefs: [JSONValue] = componentsDictionary.keys.map {
+        let componentRefs: [JSONValue] = componentsDictionary.keys.sorted().map {
           .object(["$ref": .string("#/components/\($0)")])
         }
         defs["anyComponent"] = .object([
@@ -340,20 +340,32 @@ public final class MessageProcessor: ObservableObject {
     ]
     var required: [JSONValue] = [.string("component")]
 
-    let propsSource =
-      processedSchema["properties"]?.objectValue
-      ?? processedSchema["allOf"]?.arrayValue?.compactMap { $0["properties"]?.objectValue }.first
-    if let originalProperties = propsSource {
+    if let originalProperties = processedSchema["properties"]?.objectValue {
       for (key, value) in originalProperties {
         properties[key] = value
       }
     }
-    let reqSource =
-      processedSchema["required"]?.arrayValue
-      ?? processedSchema["allOf"]?.arrayValue?.compactMap { $0["required"]?.arrayValue }.first
-    if let originalRequired = reqSource {
+    if let allOf = processedSchema["allOf"]?.arrayValue {
+      for subschema in allOf {
+        if let subProps = subschema["properties"]?.objectValue {
+          for (key, value) in subProps {
+            properties[key] = value
+          }
+        }
+      }
+    }
+    if let originalRequired = processedSchema["required"]?.arrayValue {
       for requiredProperty in originalRequired where !required.contains(requiredProperty) {
         required.append(requiredProperty)
+      }
+    }
+    if let allOf = processedSchema["allOf"]?.arrayValue {
+      for subschema in allOf {
+        if let subRequired = subschema["required"]?.arrayValue {
+          for requiredProperty in subRequired where !required.contains(requiredProperty) {
+            required.append(requiredProperty)
+          }
+        }
       }
     }
 
