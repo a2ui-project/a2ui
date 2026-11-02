@@ -62,6 +62,13 @@ export default defineConfig({
             href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
           },
         },
+        {
+          tag: 'script',
+          attrs: {
+            type: 'module',
+          },
+          content: `import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'; const renderMermaid = async () => { const blocks = document.querySelectorAll('pre[data-language="mermaid"]'); if (!blocks.length) return; const isDark = document.documentElement.getAttribute('data-theme') !== 'light'; mermaid.initialize({ startOnLoad: false, theme: isDark ? 'dark' : 'default', fontFamily: 'inherit' }); for (let i = 0; i < blocks.length; i++) { const pre = blocks[i]; if (pre.getAttribute('data-mermaid-processed')) continue; pre.setAttribute('data-mermaid-processed', 'true'); const code = pre.querySelector('code')?.innerText || pre.innerText; try { const id = 'mermaid-svg-' + i + '-' + Date.now().toString(36); const { svg } = await mermaid.render(id, code.trim()); const div = document.createElement('div'); div.className = 'mermaid-rendered not-content my-6 flex justify-center overflow-x-auto'; div.innerHTML = svg; const container = pre.closest('.expressive-code') || pre; container.replaceWith(div); } catch (err) { console.error('Mermaid render error:', err); } } }; if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', renderMermaid); } else { renderMermaid(); } window.addEventListener('theme-changed', renderMermaid);`,
+        },
       ],
       components: {
         Header: './src/components/StarlightHeader.astro',
