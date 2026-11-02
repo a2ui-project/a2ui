@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.15.0
+
 - `DataContext.resolveSignal` seeds the result of a function call that returns a `Signal` with the signal's current value before it creates the forwarding `effect`. Under a reactivity backend whose effects run on the next flush rather than on creation (the Angular adapter), an enclosing call such as `not(areComponentsValid(...))` previously read `undefined` for that argument on its first evaluation and dispatched a spurious `EXPRESSION_ERROR`.
 - **BREAKING CHANGE**: A catalog's `invoker` refuses a function whose `allowedCallers` is `'agentOnly'` with an `A2uiExpressionError`, before running it, so a property binding, check or function call action that calls one reports an `EXPRESSION_ERROR` instead of running it, as the v1.0 specification requires. `RpcHandler` still runs such a function for an agent's `callRendererFunction`. Recommended migration: set `allowedCallers` to `'rendererOrAgent'` on a function both the renderer and the agent call ([#3483](https://github.com/a2ui-project/a2ui/issues/3483), [#3557](https://github.com/a2ui-project/a2ui/pull/3557)).
 - **BREAKING CHANGE**: Unify the v1.0 protocol version wire value on `'1.0'` (without a `'v'` prefix) across message envelopes, `MessageProcessor.getRendererCapabilities()`, `RpcHandler`, and catalog documents (`ProtocolVersion` uses `'1.0'`), while accepting `'v1.0'` in `VersionAdapterFactory.getAdapter` and `Catalog.fromJson`. [#3097](https://github.com/a2ui-project/a2ui/issues/3097), [#3726](https://github.com/a2ui-project/a2ui/pull/3726)
