@@ -1906,3 +1906,28 @@ async def test_call_renderer_function_argument_ignores_cached_answer() -> None:
     assert "fetchFxRate" in replies[0]["error"]["message"]
     assert seen == [], "the function doesn't run with the cached answer"
     assert len([m for m in h.outbound if "callAgentFunction" in m]) == 1
+
+
+@pytest.mark.asyncio
+async def test_format_string_part_ignores_cached_answer() -> None:
+    proc, surface, outbound, errors = _basic_harness()
+    ctx = DataContext(surface, "/")
+    _read(ctx, {"@call": "fetchFxRate", "args": {}})
+    call_id = outbound[0]["callAgentFunction"]["functionCallId"]
+    proc.process_messages([{
+        "version": "1.0",
+        "agentFunctionResponse": {"functionCallId": call_id, "value": 1.08},
+    }])
+    await _flush()
+    assert ctx.resolve_dynamic_value({"@call": "fetchFxRate", "args": {}}) == 1.08
+
+    changes: list[Any] = []
+    sub = ctx.subscribe_dynamic_value(
+        {"@call": "formatString", "args": {"value": "Rate: ${fetchFxRate()}"}},
+        changes.append,
+    )
+    assert sub.value == "Rate: ", "the part renders empty"
+    assert len(outbound) == 1, "nothing more is sent"
+    assert [e["code"] for e in errors] == ["EXPRESSION_ERROR"]
+    assert "fetchFxRate" in errors[0]["message"]
+    sub.unsubscribe()

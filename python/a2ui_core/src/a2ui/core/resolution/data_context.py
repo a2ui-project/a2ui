@@ -587,7 +587,8 @@ class DataContext:
         A function the renderer does not implement fails as it did before
         fallback routing existed: nothing is sent, and the surface's cached
         agent answers are not read either. `RpcHandler` resolves the
-        arguments of an agent's `callRendererFunction` this way.
+        arguments of an agent's `callRendererFunction` this way, and
+        `formatString` its template parts.
 
         Internal: not part of the package's public API.
         """
