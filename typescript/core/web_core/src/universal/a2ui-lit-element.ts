@@ -14,19 +14,38 @@
  * limitations under the License.
  */
 
-import {LitElement, css, nothing, type CSSResult, type PropertyValues} from 'lit';
+import {
+  type CSSResult,
+  css,
+  LitElement,
+  nothing,
+  type PropertyValues,
+  type TemplateResult,
+} from 'lit';
 import {property} from 'lit/decorators.js';
-import {type A2uiMetadata, type Extensions} from '../common/metadata.js';
-import {ComponentContext} from '../resolution/component-context.js';
-import {isComponentNode, type ComponentNode} from '../resolution/component-node.js';
-import {ResolvedBinding} from '../resolution/resolved-binding.js';
-import {peekValue} from '../reactivity/signals.js';
+
 import {Catalog, ComponentApi, type InferredComponentApiSchemaType} from '../catalog/types.js';
+import {type A2uiMetadata, type Extensions} from '../common/metadata.js';
+import {peekValue} from '../reactivity/signals.js';
+import {ComponentContext} from '../resolution/component-context.js';
+import {type ComponentNode, isComponentNode} from '../resolution/component-node.js';
 import type {ResolveA2uiProps} from '../resolution/generic-binder.js';
-import type {WebComponentImplementation} from './web_component_implementation.js';
+import {nextNodeId} from '../resolution/node-id.js';
+import {ResolvedBinding} from '../resolution/resolved-binding.js';
 import {type ComponentId} from '../types/common-types.js';
-import {renderA2uiNode} from './render-a2ui-node.js';
 import {A2uiController} from './a2ui-controller.js';
+import {
+  type CheckableResolvedProps,
+  hasAttributeValue,
+  hasValidationErrors,
+  renderValidationErrors as renderValidationErrorsBlock,
+  type ResolvedAccessibilityAttributes,
+  setHostAccessibilityAttributes,
+} from './basic_catalog/components/accessibility.js';
+import {renderA2uiNode} from './render-a2ui-node.js';
+import type {WebComponentImplementation} from './web_component_implementation.js';
+
+export type {CheckableResolvedProps, ResolvedAccessibilityAttributes};
 
 /**
  * A reference to a child component to render. Either a string ID, or an object
@@ -76,6 +95,123 @@ export abstract class A2uiLitElement<
   private _controller?: A2uiController<Api, Props>;
   private _controllerContext?: ComponentContext;
   private _controllerNode?: ComponentNode;
+  private fallbackDomId?: string;
+  private _hasDefaultGroupRole = false;
+
+  /**
+   * Document-unique ID prefix for associating internal labels, controls, and error messages.
+   *
+   * Reads `ComponentNode.id` when rendered through a `NodeResolver`; an element mounted
+   * with only a `ComponentContext` draws one lazily from the same ID sequence.
+   */
+  protected get domId(): string {
+    return this.node?.id ?? (this.fallbackDomId ??= nextNodeId());
+  }
+
+  /**
+   * Returns the inner semantic element that should receive `accessibility.label`,
+   * `accessibility.description`, and validation error attributes (`aria-invalid` and
+   * `aria-describedby`), or `null` when no inner control targets those attributes.
+   *
+   * When this method returns `null` and an accessibility `label` or `description` is
+   * present, `applyAccessibilityAttributes` falls back to setting `role="group"` on the
+   * host element (unless an explicit `role` attribute is already set) along with
+   * `aria-label` and `aria-description`.
+   */
+  protected accessibilityTarget(): Element | null {
+    return null;
+  }
+
+  /**
+   * Renders the validation error messages block (`#${this.domId}-error`) when the
+   * component fails one or more validation checks, or `nothing` when valid.
+   *
+   * @param props Optional resolved checkable props; defaults to `this.controller?.props`.
+   */
+  protected renderValidationErrors(
+    props?: CheckableResolvedProps,
+  ): TemplateResult | typeof nothing {
+    const resolvedProps = props ?? (this.controller?.props as CheckableResolvedProps | undefined);
+    return renderValidationErrorsBlock(this.domId, resolvedProps);
+  }
+
+  /**
+   * Applies host-level and target-level accessibility and validation attributes after render.
+   *
+   * Sets `aria-live` and `aria-hidden` on the host element. When `accessibilityTarget()`
+   * returns an element, applies `aria-label`, `aria-description`, `aria-invalid`, and
+   * `aria-describedby` (referencing `#${this.domId}-error`) onto that element. When
+   * `accessibilityTarget()` returns `null` and a `label` or `description` is present,
+   * sets `role="group"` on the host (preserving any existing `role` attribute) together
+   * with `aria-label` and `aria-description`.
+   */
+  protected applyAccessibilityAttributes(
+    accessibility?: ResolvedAccessibilityAttributes,
+    checkable?: CheckableResolvedProps,
+  ): void {
+    setHostAccessibilityAttributes(this, accessibility);
+    const target = this.accessibilityTarget();
+    const hasLabel = hasAttributeValue(accessibility?.label);
+    const hasDescription = hasAttributeValue(accessibility?.description);
+
+    if (target) {
+      if (target !== this) {
+        if (this._hasDefaultGroupRole && this.getAttribute('role') === 'group') {
+          this.removeAttribute('role');
+        }
+        this._hasDefaultGroupRole = false;
+        this.removeAttribute('aria-label');
+        this.removeAttribute('aria-description');
+      }
+      if (hasLabel) {
+        target.setAttribute('aria-label', String(accessibility?.label));
+      } else {
+        target.removeAttribute('aria-label');
+      }
+      if (hasDescription) {
+        target.setAttribute('aria-description', String(accessibility?.description));
+      } else {
+        target.removeAttribute('aria-description');
+      }
+      if (checkable?.isValid === false) {
+        target.setAttribute('aria-invalid', 'true');
+      } else {
+        target.removeAttribute('aria-invalid');
+      }
+      if (hasValidationErrors(checkable)) {
+        target.setAttribute('aria-describedby', `${this.domId}-error`);
+      } else {
+        target.removeAttribute('aria-describedby');
+      }
+      return;
+    }
+
+    if (hasLabel || hasDescription) {
+      if (!this.hasAttribute('role')) {
+        this.setAttribute('role', 'group');
+        this._hasDefaultGroupRole = true;
+      }
+      if (hasLabel) {
+        this.setAttribute('aria-label', String(accessibility?.label));
+      } else {
+        this.removeAttribute('aria-label');
+      }
+      if (hasDescription) {
+        this.setAttribute('aria-description', String(accessibility?.description));
+      } else {
+        this.removeAttribute('aria-description');
+      }
+    } else {
+      if (this._hasDefaultGroupRole) {
+        if (this.getAttribute('role') === 'group') {
+          this.removeAttribute('role');
+        }
+        this._hasDefaultGroupRole = false;
+      }
+      this.removeAttribute('aria-label');
+      this.removeAttribute('aria-description');
+    }
+  }
 
   /**
    * The reactive controller instance managing property bindings and state subscriptions.
@@ -379,6 +515,14 @@ export abstract class A2uiLitElement<
       return;
     }
     super.update(changedProperties);
+  }
+
+  protected override updated(changedProperties: PropertyValues) {
+    super.updated(changedProperties);
+    const props = this.controller?.props as
+      | ({accessibility?: ResolvedAccessibilityAttributes} & CheckableResolvedProps)
+      | undefined;
+    this.applyAccessibilityAttributes(props?.accessibility, props);
   }
 }
 

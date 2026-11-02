@@ -15,9 +15,11 @@
  */
 
 export {
-  A2uiLitElement,
-  type ResolvedChildList,
   type A2uiChildRef,
+  A2uiLitElement,
+  type CheckableResolvedProps,
+  type ResolvedAccessibilityAttributes,
+  type ResolvedChildList,
   type ResolvedChildRef,
 } from './a2ui-lit-element.js';
 export {A2uiController} from './a2ui-controller.js';

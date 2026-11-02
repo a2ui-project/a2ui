@@ -64,7 +64,7 @@ A web adapter whose implementations are not custom elements (React function comp
 ### **7. Shared basic catalog**
 
 - The basic catalog ships once, as universal elements in the shared web layer, with one `WebComponentImplementation` per element per supported protocol version. Web framework packages register these entries; they do not reimplement the basic catalog.
-- Custom elements are responsible for mapping `accessibility` attributes and rendering validation messages on their own semantic DOM elements. In the shared basic catalog, the base element applies only the host-level `aria-live` and `aria-hidden` attributes, while each component binds `accessibility.label`, `accessibility.description`, and validation messages onto its inner control (or `role="group"` container host).
+- The base element sets `aria-live` and `aria-hidden` on the host, applies `accessibility.label`, `accessibility.description`, and validation error wiring (`aria-invalid`, `aria-describedby`, and `renderValidationErrors`) to `accessibilityTarget()` when provided, and falls back to `role="group"` (when no `role` attribute is already set) plus `aria-label` and `aria-description` on the host when `accessibilityTarget()` returns `null`. In the shared basic catalog, each component binds `accessibility.label`, `accessibility.description`, and validation messages onto its inner semantic control (or `role="group"` container host).
 
 ### **8. Lifecycle**
 
