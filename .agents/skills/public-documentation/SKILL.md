@@ -18,6 +18,8 @@ This skill defines the standards, conventions, and authoring guidelines for crea
 Public documentation must read as professional, accurate, and human-authored technical writing.
 
 - **Follow the Natural Writing Skill**: Strictly adhere to [.agents/skills/natural-writing/SKILL.md](../natural-writing/SKILL.md).
+- **First-Sentence Purpose Statement**: Each documentation page must start immediately with a natural, concise sentence explaining what is in the page, so readers can stop reading quickly if the page does not cover the information they need. Avoid robotic formulas (such as "This page covers..." or "In this guide..."); use direct, informative framing (e.g. "A2UI separates declarative UI layout from reactive data state through an asynchronous, bidirectional messaging protocol.").
+- **Avoid Numbered Headings**: Avoid the use of numbered headings (such as `## 1. ...` or `### 2. ...`) unless the numbers have a special meaning (for example, strict sequential steps in a tutorial, ordered protocol execution phases, or numbered specification clauses). Use descriptive, unnumbered headings instead.
 - **Avoid AI-isms and Buzzwords**: Never use banned puffery, hype, or overrepresented words (e.g. _seamlessly_, _robust_, _delve_, _transformative_, _testament_, _tapestry_, _interplay_, _empower_, _leverage_).
 - **Direct and Neutral Tone**: State technical facts directly. Use plain copulas ("is", "are") rather than figurative phrasing ("serves as", "stands as"). Write instructions clearly and concisely.
 - **Link Key Terms**: Link new concepts or terminology to their formal definition in the glossary or specification on first mention.
@@ -108,6 +110,12 @@ When documenting client-side UI rendering, catalog registration, or component ad
 
 To balance visual quality with ease of maintenance, public documentation uses a **hybrid diagram pattern**:
 
+- **Preceding Text Explanation (Accessibility & Alternative Representation)**:
+  All diagrams on documentation pages (excluding marketing or landing pages) must have an explanatory paragraph immediately before them that explains the content, components, and relationships shown in the diagram. This ensures people who cannot read or view diagrams (including developers using screen readers or text-only browsers) receive the complete conceptual information without visual dependency.
+- **Prioritize Simplicity Over Exhaustive Edge Cases**:
+  All diagrams must be kept as simple as possible. Prioritize clear, direct mental models over showing every particular edge case, error path, or secondary branching permutation.
+- **Visual Layout Verification via Screenshots (Custom Tailwind Diagrams)**:
+  When creating or modifying custom Tailwind or Astro diagram components, agents must capture screenshots (or evaluate rendered visual layout in a browser environment) to ensure the design renders cleanly. Pay specific attention to responsive layout across viewport widths, ensuring text never overflows containers, labels do not wrap awkwardly, and badges remain legible.
 - **Use Themed Mermaid Sequence Diagrams for Protocol Lifecycles**:
   - _When to use_: Message exchange between Agent and Renderer, client/server event lifecycles, handshake flows, and error handling loops (e.g., `Messages`).
   - _Why_: Sequence diagrams are tedious to create by hand. Plaintext Mermaid blocks are directly diffable in Git and can be updated instantly whenever protocol schemas evolve.

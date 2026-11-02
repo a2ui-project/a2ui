@@ -170,7 +170,7 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
     1. **Catalog Anatomy Visual (`<CatalogAnatomy />`)**: Two-column Tailwind card showing a sample catalog URI (`components` chips with property/slot badges on the left; `functions` chips with caller badges on the right) plus a callout explaining `allowedCallers` (`rendererOnly` | `agentOnly` | `rendererOrAgent`) and `requiresUserActivation`.
     2. **Conceptual Foundations**: Define Catalogs (`catalogId` URI contract, `instructions`), Components (properties, `ChildList` slots, `checks`, `allowedParents` / `allowedChildren`), and Functions (local zero-latency renderer functions vs. remote `callAgentFunction` RPCs).
     3. **Using and Extending Catalogs Across SDKs**:
-        - _Agent Side (`TypeScript` | `Python` | `Dart`)_: Show loading a `catalog.json` (`Catalog`, `CatalogConfig`) and pruning components (`ComponentPruningTransformer`), verified against `python/a2ui_agent/`, `typescript/agents/a2ui_agent/`, and `dart/a2ui_agent/`.
+        - _Agent Side (`TypeScript` | `Python` | `Dart`)_: Show loading a `catalog.json` (`Catalog`, `CatalogConfig`), verified against `python/a2ui_agent/`, `typescript/agents/a2ui_agent/`, and `dart/a2ui_agent/`.
         - _Renderer Side (`Flutter` | `Web` | `SwiftUI` | `Jetpack Compose`)_: Show registering component adapters and local function implementations with `MessageProcessor`.
     4. **The Basic Catalog**: Explain [`catalogs/basic/v1/catalog.json`](../../catalogs/basic/v1/catalog.json) as an optional, styleable reference catalog that teams can use directly, replace with custom domain catalogs, reimplement with their own design system, or mix per component via `catalogId`.
 
