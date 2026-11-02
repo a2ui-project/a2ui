@@ -311,7 +311,7 @@ async def test_runner_invalid_send_a2ui_tool_call_feeds_error_to_second_request(
 )
 @pytest.mark.asyncio
 async def test_executor_streams_partial_a2ui_json_chunks_in_emission_order(
-    version: str, expected_mime: str
+    version: str, expected_mime: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     catalog_id, processor = _direct_json_processor(version)
     messages = _sample_messages(
@@ -322,69 +322,66 @@ async def test_executor_streams_partial_a2ui_json_chunks_in_emission_order(
     full_text = chunk_1 + chunk_2
 
     open_stream_spy = MagicMock(wraps=processor.open_stream)
-    monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(processor, "open_stream", open_stream_spy)
-    try:
-        llm = ScriptedLlm(
-            responses=[
-                [
-                    make_text_response(chunk_1, partial=True),
-                    make_text_response(chunk_2, partial=True),
-                    make_text_response(full_text, partial=False),
-                ],
-                [
-                    make_text_response(chunk_1, partial=True),
-                    make_text_response(chunk_2, partial=True),
-                    make_text_response(full_text, partial=False),
-                ],
-            ]
-        )
-        agent = LlmAgent(model=llm, name="stream_agent")
-        runner = InMemoryRunner(agent=agent, app_name=_APP)
-        converter = A2uiEventConverter(a2ui_processor=processor)
-        executor = A2aAgentExecutor(
-            runner=runner,
-            config=A2aAgentExecutorConfig(event_converter=converter),
-        )
 
-        queue_1 = EventQueue()
-        await executor.execute(
-            _make_a2a_request_context("first turn", message_id="m1"),
-            queue_1,
-        )
-        events_1 = await _drain_queue(queue_1)
-
-        # Exactly one stream was opened for the first invocation and closed on completion.
-        assert open_stream_spy.call_count == 1
-        assert converter._streams == {}
-
-        status_updates = [
-            event for event in events_1 if isinstance(event, TaskStatusUpdateEvent)
+    llm = ScriptedLlm(
+        responses=[
+            [
+                make_text_response(chunk_1, partial=True),
+                make_text_response(chunk_2, partial=True),
+                make_text_response(full_text, partial=False),
+            ],
+            [
+                make_text_response(chunk_1, partial=True),
+                make_text_response(chunk_2, partial=True),
+                make_text_response(full_text, partial=False),
+            ],
         ]
-        a2ui_data_parts: list[DataPart] = []
-        for event in status_updates:
-            if event.status.message and event.status.message.parts:
-                for part in event.status.message.parts:
-                    if is_a2ui_part(part) and isinstance(part.root, DataPart):
-                        assert part.root.metadata is not None
-                        assert part.root.metadata.get("mimeType") == expected_mime
-                        a2ui_data_parts.append(part.root)
+    )
+    agent = LlmAgent(model=llm, name="stream_agent")
+    runner = InMemoryRunner(agent=agent, app_name=_APP)
+    converter = A2uiEventConverter(a2ui_processor=processor)
+    executor = A2aAgentExecutor(
+        runner=runner,
+        config=A2aAgentExecutorConfig(event_converter=converter),
+    )
 
-        assert [dp.data for dp in a2ui_data_parts] == messages
-        assert status_updates[-1].final is True
-        assert status_updates[-1].status.state == TaskState.completed
+    queue_1 = EventQueue()
+    await executor.execute(
+        _make_a2a_request_context("first turn", message_id="m1"),
+        queue_1,
+    )
+    events_1 = await _drain_queue(queue_1)
 
-        # A second invocation opens a separate stream for that invocation.
-        queue_2 = EventQueue()
-        await executor.execute(
-            _make_a2a_request_context("second turn", message_id="m2"),
-            queue_2,
-        )
-        await _drain_queue(queue_2)
-        assert open_stream_spy.call_count == 2
-        assert converter._streams == {}
-    finally:
-        monkeypatch.undo()
+    # Exactly one stream was opened for the first invocation and closed on completion.
+    assert open_stream_spy.call_count == 1
+    assert converter._streams == {}
+
+    status_updates = [
+        event for event in events_1 if isinstance(event, TaskStatusUpdateEvent)
+    ]
+    a2ui_data_parts: list[DataPart] = []
+    for event in status_updates:
+        if event.status.message and event.status.message.parts:
+            for part in event.status.message.parts:
+                if is_a2ui_part(part) and isinstance(part.root, DataPart):
+                    assert part.root.metadata is not None
+                    assert part.root.metadata.get("mimeType") == expected_mime
+                    a2ui_data_parts.append(part.root)
+
+    assert [dp.data for dp in a2ui_data_parts] == messages
+    assert status_updates[-1].final is True
+    assert status_updates[-1].status.state == TaskState.completed
+
+    # A second invocation opens a separate stream for that invocation.
+    queue_2 = EventQueue()
+    await executor.execute(
+        _make_a2a_request_context("second turn", message_id="m2"),
+        queue_2,
+    )
+    await _drain_queue(queue_2)
+    assert open_stream_spy.call_count == 2
+    assert converter._streams == {}
 
 
 @pytest.mark.parametrize("version", ["0.9", "1.0"], ids=["v0.9", "1.0"])
