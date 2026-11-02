@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { provideMarkdownRenderer } from '@a2ui/angular';
+import {ApplicationConfig, provideBrowserGlobalErrorListeners} from '@angular/core';
+import {provideMarkdownRenderer} from '@a2ui/angular';
 
 export const appConfig: ApplicationConfig = {
   providers: [provideBrowserGlobalErrorListeners(), provideMarkdownRenderer()],

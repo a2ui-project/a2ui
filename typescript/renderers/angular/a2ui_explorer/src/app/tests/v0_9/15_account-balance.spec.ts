@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ComponentFixture } from '@angular/core/testing';
-import { DemoComponent } from '../../demo.component';
-import { getCanvas, loadExample, wait } from '../utils';
+import {ComponentFixture} from '@angular/core/testing';
+import {DemoComponent} from '../../demo.component';
+import {getCanvas, loadExample, wait} from '../utils';
 
 describe('Example: Account Balance', () => {
   let fixture: ComponentFixture<DemoComponent>;
@@ -24,7 +24,7 @@ describe('Example: Account Balance', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample({ name: 'Account Balance' });
+    fixture = await loadExample({name: 'Account Balance'});
     component = fixture.componentInstance;
     textContent = getCanvas().textContent;
   });
@@ -48,7 +48,7 @@ describe('Example: Account Balance', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const transferBtn = buttons.find((b) => b.textContent.includes('Transfer'))!;
+    const transferBtn = buttons.find(b => b.textContent.includes('Transfer'))!;
     expect(transferBtn).withContext('Should find Transfer button').toBeTruthy();
 
     transferBtn.click();
@@ -64,7 +64,7 @@ describe('Example: Account Balance', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const payBtn = buttons.find((b) => b.textContent.includes('Pay Bill'))!;
+    const payBtn = buttons.find(b => b.textContent.includes('Pay Bill'))!;
     expect(payBtn).withContext('Should find Pay Bill button').toBeTruthy();
 
     payBtn.click();

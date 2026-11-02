@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { InjectionToken, inject } from '@angular/core';
-import { EXAMPLES_V08, EXAMPLES_V09, EXAMPLES_V10 } from './generated/examples-bundle';
-import { Version, A2uiExample } from './types';
-import { A2UI_VERSION } from './version_injector';
+import {InjectionToken, inject} from '@angular/core';
+import {EXAMPLES_V08, EXAMPLES_V09, EXAMPLES_V10} from './generated/examples-bundle';
+import {Version, A2uiExample} from './types';
+import {A2UI_VERSION} from './version_injector';
 
 /**
  * Dependency injection token for the active A2UI examples list.

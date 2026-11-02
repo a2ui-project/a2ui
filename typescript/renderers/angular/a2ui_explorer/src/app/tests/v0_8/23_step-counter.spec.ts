@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { Version, getCanvas, loadExample } from '../utils/test_utils';
+import {Version, getCanvas, loadExample} from '../utils/test_utils';
 
 describe('Example: Step Counter (basic) (v0.8)', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample({ name: 'Step Counter (basic)', version: Version.V0_8 });
+    await loadExample({name: 'Step Counter (basic)', version: Version.V0_8});
     textContent = getCanvas().textContent;
   });
 

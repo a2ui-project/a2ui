@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { loadExample, wait } from '../utils';
+import {loadExample, wait} from '../utils';
 
 describe('v1.0 Example: Modal', () => {
   it('should open and close modal', async () => {
-    const fixture = await loadExample({ name: 'Modal Sample', version: '1.0' });
+    const fixture = await loadExample({name: 'Modal Sample', version: '1.0'});
 
     // Check if trigger is rendered
     const trigger = fixture.nativeElement.querySelector('.a2ui-modal-trigger');

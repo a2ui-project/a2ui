@@ -27,26 +27,26 @@ import {
   ElementRef,
   InjectionToken,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {CommonModule} from '@angular/common';
 import {
   A2uiRendererService,
   A2UI_RENDERER_CONFIG,
   AngularCatalog,
   SurfaceComponent as SurfaceComponentV09,
 } from '@a2ui/angular/v0_9';
-import { AgentStubService } from './agent-stub.service';
-import { AgentStubV08Service } from './agent-stub-v08.service';
-import { AgentStubV09Service } from './agent-stub-v09.service';
-import { provideMarkdownRenderer, Surface as SurfaceV08 } from '@a2ui/angular/v0_8';
-import { DemoCatalog, DemoCatalogV10, McpDemoCatalog } from './demo-catalog';
-import { compareSemVer } from '@a2ui/web_core';
-import { A2uiClientAction, A2uiMessage } from '@a2ui/web_core/v0_9';
-import { ServerToClientMessage } from 'src/v0_8/types';
-import { A2uiExample, A2UI_VERSION, A2UI_EXAMPLES, Version } from './types';
-import { EXAMPLES_V08, EXAMPLES_V09, EXAMPLES_V10 } from './generated/examples-bundle';
-import { ActionDispatcher } from './action-dispatcher.service';
-import { Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08 } from '@a2ui/angular/v0_8';
-import { observeMcpApps } from './mcp';
+import {AgentStubService} from './agent-stub.service';
+import {AgentStubV08Service} from './agent-stub-v08.service';
+import {AgentStubV09Service} from './agent-stub-v09.service';
+import {provideMarkdownRenderer, Surface as SurfaceV08} from '@a2ui/angular/v0_8';
+import {DemoCatalog, DemoCatalogV10, McpDemoCatalog} from './demo-catalog';
+import {compareSemVer} from '@a2ui/web_core';
+import {A2uiClientAction, A2uiMessage} from '@a2ui/web_core/v0_9';
+import {ServerToClientMessage} from 'src/v0_8/types';
+import {A2uiExample, A2UI_VERSION, A2UI_EXAMPLES, Version} from './types';
+import {EXAMPLES_V08, EXAMPLES_V09, EXAMPLES_V10} from './generated/examples-bundle';
+import {ActionDispatcher} from './action-dispatcher.service';
+import {Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08} from '@a2ui/angular/v0_8';
+import {observeMcpApps} from './mcp';
 
 /**
  * Forces `useUniversalComponents` in the explorer (tests only); `null` leaves the decision to
@@ -872,9 +872,9 @@ function getUseUniversalComponents(): boolean {
   ],
   providers: [
     A2uiRendererService,
-    { provide: AngularCatalog, useClass: DemoCatalog },
+    {provide: AngularCatalog, useClass: DemoCatalog},
     DemoCatalogV10,
-    { provide: CatalogV08, useValue: DEFAULT_CATALOG_V08 },
+    {provide: CatalogV08, useValue: DEFAULT_CATALOG_V08},
     provideMarkdownRenderer(),
     ActionDispatcher,
     {
@@ -1061,7 +1061,7 @@ export class DemoComponent implements OnInit, OnDestroy {
   selectNextExample() {
     if (!this.examples || this.examples.length === 0) return;
     const currentIndex = this.selectedExample
-      ? this.examples.findIndex((ex) => ex === this.selectedExample)
+      ? this.examples.findIndex(ex => ex === this.selectedExample)
       : -1;
     const nextIndex = currentIndex < this.examples.length - 1 ? currentIndex + 1 : 0;
     this.selectExample(this.examples[nextIndex]);
@@ -1070,7 +1070,7 @@ export class DemoComponent implements OnInit, OnDestroy {
   selectPrevExample() {
     if (!this.examples || this.examples.length === 0) return;
     const currentIndex = this.selectedExample
-      ? this.examples.findIndex((ex) => ex === this.selectedExample)
+      ? this.examples.findIndex(ex => ex === this.selectedExample)
       : -1;
     const prevIndex = currentIndex > 0 ? currentIndex - 1 : this.examples.length - 1;
     this.selectExample(this.examples[prevIndex]);
@@ -1109,7 +1109,7 @@ export class DemoComponent implements OnInit, OnDestroy {
 
     const matched =
       this.examples.find(
-        (ex) => (prevFilename && ex.filename === prevFilename) || ex.name === prevName,
+        ex => (prevFilename && ex.filename === prevFilename) || ex.name === prevName,
       ) ?? this.examples[0];
     if (matched) {
       this.selectExample(matched);
@@ -1144,11 +1144,11 @@ export class DemoComponent implements OnInit, OnDestroy {
     if (!this.primaryColor || this.version !== Version.V0_9) {
       return messages;
     }
-    return messages.map((msg) => {
+    return messages.map(msg => {
       if (
         'createSurface' in msg &&
-        typeof (msg as { version?: string }).version === 'string' &&
-        compareSemVer((msg as { version: string }).version, '1.0') < 0 &&
+        typeof (msg as {version?: string}).version === 'string' &&
+        compareSemVer((msg as {version: string}).version, '1.0') < 0 &&
         msg.createSurface
       ) {
         return {
@@ -1231,7 +1231,7 @@ export class DemoComponent implements OnInit, OnDestroy {
     if (typeof window !== 'undefined') {
       setTimeout(() => {
         const activeEl = this.elementRef.nativeElement.querySelector('.example-list li.active');
-        activeEl?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        activeEl?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
       }, 0);
     }
   }
@@ -1264,7 +1264,7 @@ export class DemoComponent implements OnInit, OnDestroy {
         return;
       }
 
-      const updatedMessages = this.getActiveMessages().map((m) =>
+      const updatedMessages = this.getActiveMessages().map(m =>
         'createSurface' in m ? parsed : m,
       );
       this.customMessages = updatedMessages;
@@ -1342,7 +1342,7 @@ export class DemoComponent implements OnInit, OnDestroy {
     const hash = window.location.hash.substring(1) || '';
     const example: A2uiExample | undefined =
       this.examples.find(
-        (ex) =>
+        ex =>
           this.slugify(ex.name) === hash ||
           ex.filename === hash ||
           ex.filename?.replace('.json', '') === hash,

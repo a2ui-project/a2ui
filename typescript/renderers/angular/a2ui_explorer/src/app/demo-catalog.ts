@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { Injectable } from '@angular/core';
-import { AngularCatalog, BASIC_COMPONENTS, BASIC_FUNCTIONS } from '@a2ui/angular/v0_9';
-import { BasicCatalogThemeSchema } from '@a2ui/web_core/v0_9/basic_catalog';
-import { BasicCatalogBase as BasicCatalogBaseV10 } from '@a2ui/angular';
-import { mcpCatalog } from '@a2ui/catalog-mcp';
-import { customSliderComponentDeclaration } from './custom-slider.component';
-import { customGridComponentDeclaration } from './custom-grid.component';
+import {Injectable} from '@angular/core';
+import {AngularCatalog, BASIC_COMPONENTS, BASIC_FUNCTIONS} from '@a2ui/angular/v0_9';
+import {BasicCatalogThemeSchema} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogBase as BasicCatalogBaseV10} from '@a2ui/angular';
+import {mcpCatalog} from '@a2ui/catalog-mcp';
+import {customSliderComponentDeclaration} from './custom-slider.component';
+import {customGridComponentDeclaration} from './custom-grid.component';
 
 /**
  * A catalog specific to the demo, extending the basic catalog with custom components.
