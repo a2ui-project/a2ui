@@ -52,6 +52,7 @@
   ([#3415](https://github.com/a2ui-project/a2ui/issues/3415),
   [#3536](https://github.com/a2ui-project/a2ui/issues/3536),
   [#3740](https://github.com/a2ui-project/a2ui/pull/3740))
+
 - **BREAKING CHANGE**: `DataContext` refuses a function whose `allowed_callers`
   is `agentOnly`, before running it, so a binding, check or function call
   action that calls one reports an `EXPRESSION_ERROR` instead of running it, as
