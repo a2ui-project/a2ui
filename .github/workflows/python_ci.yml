@@ -129,6 +129,10 @@ jobs:
             --corpus extensions \
             --only 'extensions/adk/**' \
             --harness python-adk
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus agent \
+            --harness python-agent
       - name: Set Up Dart
         uses: ./.github/actions/setup-dart
       - name: Run CLI Python Runtime Tests
