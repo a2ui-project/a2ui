@@ -100,7 +100,7 @@ public struct ResolvedAction: Sendable {
   }
 
   /// Returns a copy of this resolved action configured with the given user activation state.
-  package func withUserActivation(_ userActivation: Bool) -> ResolvedAction {
+  public func withUserActivation(_ userActivation: Bool) -> ResolvedAction {
     ResolvedAction(
       identity: identity,
       sourceComponentID: sourceComponentID,
@@ -130,6 +130,7 @@ extension ResolvedAction: Equatable {
     lhs.identity == rhs.identity
       && lhs.dataContextPath == rhs.dataContextPath
       && lhs.rawUserMessage == rhs.rawUserMessage
+      && lhs.userActivation == rhs.userActivation
       && MetadataValidator.areEqual(lhs.metadata, rhs.metadata)
   }
 }

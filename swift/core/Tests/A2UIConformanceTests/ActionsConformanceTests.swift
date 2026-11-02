@@ -141,7 +141,8 @@ struct ActionsConformanceTests {
       path: scope,
       functionHandler: handler,
       protocolVersion: protocolVersion,
-      index: index
+      index: index,
+      userActivation: userActivation
     )
 
     let rawAction =

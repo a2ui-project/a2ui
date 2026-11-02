@@ -1609,7 +1609,7 @@ public final class NodeResolver: Sendable {
       dataContextPath: basePath,
       rawUserMessage: userMessageValue,
       metadata: actionMetadata,
-      triggerWithUserActivation: { [weak self] userActivation, callMetadata in
+      triggerWithUserActivation: { [weak self] _, callMetadata in
         guard let self else { return }
         guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
           return
@@ -1617,16 +1617,10 @@ public final class NodeResolver: Sendable {
         let resolvedContext = self.evaluateActionContext(
           contextDictionary,
           basePath: basePath,
-          index: index,
-          userActivation: userActivation
+          index: index
         )
         let resolvedUserMessage = userMessageValue.flatMap {
-          self.evaluateDynamicValue(
-            $0,
-            basePath: basePath,
-            index: index,
-            userActivation: userActivation
-          ).stringValue
+          self.evaluateDynamicValue($0, basePath: basePath, index: index).stringValue
         }
         let validatedBase = try MetadataValidator.validate(
           rawMetadata,
@@ -1706,12 +1700,11 @@ public final class NodeResolver: Sendable {
   private func evaluateActionContext(
     _ contextDictionary: [String: JSONValue]?,
     basePath: String?,
-    index: Int?,
-    userActivation: Bool = false
+    index: Int?
   ) -> [String: JSONValue] {
     guard let contextDictionary else { return [:] }
     return contextDictionary.mapValues {
-      evaluateDynamicValue($0, basePath: basePath, index: index, userActivation: userActivation)
+      evaluateDynamicValue($0, basePath: basePath, index: index)
     }
   }
 

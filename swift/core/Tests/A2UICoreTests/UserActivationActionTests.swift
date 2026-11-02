@@ -116,11 +116,11 @@ struct UserActivationActionTests {
   }
 
   @Test func gatedActionRefusedWithoutUserActivation() throws {
-    let gatedFn = try SpyUserActivationFunction(
+    let gatedFunction = try SpyUserActivationFunction(
       name: "openExternal",
       requiresUserActivation: true
     )
-    let catalog = try Self.makeButtonCatalog(functions: [gatedFn])
+    let catalog = try Self.makeButtonCatalog(functions: [gatedFunction])
     let actionHandler = TestProcessorActionHandler()
     let resolver = Self.makeButtonResolver(
       functionName: "openExternal",
@@ -132,15 +132,15 @@ struct UserActivationActionTests {
     let programmaticAction = try #require(root.action(for: "action", userActivation: false))
     programmaticAction()
 
-    #expect(gatedFn.callCount == 0)
+    #expect(gatedFunction.callCount == 0)
     #expect(actionHandler.capturedActions.isEmpty)
     #expect(actionHandler.capturedErrors.count == 1)
-    if case .generic(let err) = actionHandler.capturedErrors.first {
-      #expect(err.code == "EXPRESSION_ERROR")
-      #expect(err.surfaceID == "main")
-      #expect(err.expression == "openExternal")
+    if case .generic(let error) = actionHandler.capturedErrors.first {
+      #expect(error.code == "EXPRESSION_ERROR")
+      #expect(error.surfaceID == "main")
+      #expect(error.expression == "openExternal")
       #expect(
-        err.message == "Function 'openExternal' requires user activation context to execute."
+        error.message == "Function 'openExternal' requires user activation context to execute."
       )
     } else {
       Issue.record("Expected EXPRESSION_ERROR generic error, got \(actionHandler.capturedErrors)")
@@ -148,11 +148,11 @@ struct UserActivationActionTests {
   }
 
   @Test func gatedActionRunsWithUserActivation() throws {
-    let gatedFn = try SpyUserActivationFunction(
+    let gatedFunction = try SpyUserActivationFunction(
       name: "openExternal",
       requiresUserActivation: true
     )
-    let catalog = try Self.makeButtonCatalog(functions: [gatedFn])
+    let catalog = try Self.makeButtonCatalog(functions: [gatedFunction])
     let actionHandler = TestProcessorActionHandler()
     let resolver = Self.makeButtonResolver(
       functionName: "openExternal",
@@ -162,25 +162,28 @@ struct UserActivationActionTests {
 
     let root = try #require(resolver.resolveTree())
     let gestureAction = try #require(root.action(for: "action", userActivation: true))
+    let unactivatedAction = try #require(root.action(for: "action", userActivation: false))
+    #expect(gestureAction != unactivatedAction)
+    #expect(gestureAction.withUserActivation(false) == unactivatedAction)
     gestureAction()
 
-    #expect(gatedFn.callCount == 1)
+    #expect(gatedFunction.callCount == 1)
     #expect(actionHandler.capturedActions.isEmpty)
     #expect(actionHandler.capturedErrors.isEmpty)
 
     let legacyAction = try #require(root.action(for: "action"))
     legacyAction()
 
-    #expect(gatedFn.callCount == 2)
+    #expect(gatedFunction.callCount == 2)
     #expect(actionHandler.capturedErrors.isEmpty)
   }
 
   @Test func ungatedActionRunsWithOrWithoutUserActivation() throws {
-    let ungatedFn = try SpyUserActivationFunction(
+    let ungatedFunction = try SpyUserActivationFunction(
       name: "increment",
       requiresUserActivation: false
     )
-    let catalog = try Self.makeButtonCatalog(functions: [ungatedFn])
+    let catalog = try Self.makeButtonCatalog(functions: [ungatedFunction])
     let actionHandler = TestProcessorActionHandler()
     let resolver = Self.makeButtonResolver(
       functionName: "increment",
@@ -191,23 +194,23 @@ struct UserActivationActionTests {
     let root = try #require(resolver.resolveTree())
     let withoutActivation = try #require(root.action(for: "action", userActivation: false))
     withoutActivation()
-    #expect(ungatedFn.callCount == 1)
+    #expect(ungatedFunction.callCount == 1)
     #expect(actionHandler.capturedErrors.isEmpty)
 
     let withActivation = try #require(root.action(for: "action", userActivation: true))
     withActivation()
-    #expect(ungatedFn.callCount == 2)
+    #expect(ungatedFunction.callCount == 2)
     #expect(actionHandler.capturedErrors.isEmpty)
   }
 
   @Test func dataContextRefusesGatedFunctionWithoutUserActivation() throws {
-    let gatedFn = try SpyUserActivationFunction(
+    let gatedFunction = try SpyUserActivationFunction(
       name: "openExternal",
       requiresUserActivation: true
     )
-    let handler = RecordingFunctionHandler(functions: [gatedFn])
+    let handler = RecordingFunctionHandler(functions: [gatedFunction])
     let dataModel = DataModel()
-    let callExpr: JSONValue = .object([
+    let callExpression: JSONValue = .object([
       "@call": .string("openExternal"),
       "args": .object([:]),
     ])
@@ -216,12 +219,12 @@ struct UserActivationActionTests {
       dataModel: dataModel,
       path: "/",
       functionHandler: handler,
-      protocolVersion: .v10,
-      userActivation: false
+      protocolVersion: .v10
     )
-    let deniedResult = inactiveContext.resolveDynamicValue(callExpr)
+    #expect(inactiveContext.userActivation == false)
+    let deniedResult = inactiveContext.resolveDynamicValue(callExpression)
     #expect(deniedResult == .null)
-    #expect(gatedFn.callCount == 0)
+    #expect(gatedFunction.callCount == 0)
     #expect(handler.recordedErrors.count == 1)
 
     let recordedError = try #require(handler.recordedErrors.first?.error as? FunctionError)
@@ -239,22 +242,22 @@ struct UserActivationActionTests {
       protocolVersion: .v10,
       userActivation: true
     )
-    let overrideDenied = activeContext.resolveDynamicValue(callExpr, userActivation: false)
+    let overrideDenied = activeContext.resolveDynamicValue(callExpression, userActivation: false)
     #expect(overrideDenied == .null)
-    #expect(gatedFn.callCount == 0)
+    #expect(gatedFunction.callCount == 0)
     #expect(handler.recordedErrors.count == 2)
 
-    let allowedResult = activeContext.resolveDynamicValue(callExpr)
+    let allowedResult = activeContext.resolveDynamicValue(callExpression)
     #expect(allowedResult == .string("ran-openExternal"))
-    #expect(gatedFn.callCount == 1)
+    #expect(gatedFunction.callCount == 1)
   }
 
   @Test func passiveBindingsAndChecksRefuseGatedFunctions() throws {
-    let gatedFn = try SpyUserActivationFunction(
+    let gatedFunction = try SpyUserActivationFunction(
       name: "openExternal",
       requiresUserActivation: true
     )
-    let catalog = try Self.makeButtonCatalog(functions: [gatedFn])
+    let catalog = try Self.makeButtonCatalog(functions: [gatedFunction])
     let actionHandler = TestProcessorActionHandler()
     let resolver = NodeResolver(
       surfaceID: "main",
@@ -263,7 +266,7 @@ struct UserActivationActionTests {
       actionHandler: actionHandler,
       protocolVersion: .v10
     )
-    let callExpr: JSONValue = .object([
+    let callExpression: JSONValue = .object([
       "@call": .string("openExternal"),
       "args": .object([:]),
     ])
@@ -272,10 +275,10 @@ struct UserActivationActionTests {
         id: "root",
         type: "Button",
         properties: [
-          "label": callExpr,
+          "label": callExpression,
           "checks": .array([
             .object([
-              "condition": callExpr,
+              "condition": callExpression,
               "message": .string("Blocked check"),
             ])
           ]),
@@ -286,7 +289,7 @@ struct UserActivationActionTests {
     let root = try #require(resolver.resolveTree())
     #expect(root.string(for: "label") == nil)
     #expect(root.isValid == false)
-    #expect(gatedFn.callCount == 0)
+    #expect(gatedFunction.callCount == 0)
     #expect(actionHandler.capturedErrors.count == 2)
 
     resolver.componentsModel.addComponent(
@@ -297,7 +300,7 @@ struct UserActivationActionTests {
           "action": .object([
             "event": .object([
               "name": .string("submit"),
-              "context": .object(["urlResult": callExpr]),
+              "context": .object(["secret": callExpression]),
             ])
           ])
         ]
@@ -307,11 +310,22 @@ struct UserActivationActionTests {
     let eventRoot = try #require(resolver.resolveTree())
     let programmaticEvent = try #require(eventRoot.action(for: "action", userActivation: false))
     programmaticEvent()
-    #expect(gatedFn.callCount == 0)
+    #expect(gatedFunction.callCount == 0)
     #expect(actionHandler.capturedErrors.count == 3)
+    if case .event(_, let context, _) = actionHandler.capturedActions.last?.identity {
+      #expect(context?["secret"] == .null)
+    } else {
+      Issue.record("Expected dispatched event action")
+    }
 
     let gestureEvent = try #require(eventRoot.action(for: "action", userActivation: true))
     gestureEvent()
-    #expect(gatedFn.callCount == 1)
+    #expect(gatedFunction.callCount == 0)
+    #expect(actionHandler.capturedErrors.count == 4)
+    if case .event(_, let context, _) = actionHandler.capturedActions.last?.identity {
+      #expect(context?["secret"] == .null)
+    } else {
+      Issue.record("Expected dispatched event action")
+    }
   }
 }

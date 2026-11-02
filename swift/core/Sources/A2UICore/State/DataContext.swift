@@ -30,20 +30,22 @@ public final class DataContext {
   /// A reference to the function handler to evaluate dynamic function calls.
   public weak var functionHandler: FunctionHandler?
 
-  public init(
+  public convenience init(
     dataModel: DataModel,
     path: String,
     functionHandler: FunctionHandler,
     protocolVersion: A2UIProtocolVersion? = nil,
     index: Int? = nil,
-    userActivation: Bool = true
+    userActivation: Bool = false
   ) {
-    self.dataModel = dataModel
-    self.path = path
-    self.functionHandler = functionHandler
-    self.protocolVersion = protocolVersion
-    self.index = index
-    self.userActivation = userActivation
+    self.init(
+      dataModel: dataModel,
+      path: path,
+      optionalFunctionHandler: functionHandler,
+      protocolVersion: protocolVersion,
+      index: index,
+      userActivation: userActivation
+    )
   }
 
   private init(
@@ -52,7 +54,7 @@ public final class DataContext {
     optionalFunctionHandler: FunctionHandler?,
     protocolVersion: A2UIProtocolVersion?,
     index: Int?,
-    userActivation: Bool
+    userActivation: Bool = false
   ) {
     self.dataModel = dataModel
     self.path = path
@@ -191,7 +193,7 @@ public final class DataContext {
       return .null
     }
 
-    if function.api.requiresUserActivation && !userActivation {
+    guard !function.api.requiresUserActivation || userActivation else {
       functionHandler?.handleFunctionError(
         FunctionError.userActivationRequired(name: callName),
         functionName: callName
@@ -206,7 +208,8 @@ public final class DataContext {
       for (argKey, argVal) in argsObj {
         let resolvedVal = resolveDynamicValue(argVal)
         if let propSchema = argPropsSchema?[argKey] {
-          resolvedArgs[argKey] = Self.coerceValidationResults(schema: propSchema, value: resolvedVal)
+          resolvedArgs[argKey] = Self.coerceValidationResults(
+            schema: propSchema, value: resolvedVal)
         } else {
           resolvedArgs[argKey] = resolvedVal
         }
