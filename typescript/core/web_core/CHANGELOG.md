@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v0_9, v1_0) The basic catalog `Modal` (`<a2ui-modal>`) shows its overlay in a native `<dialog>` opened with `showModal()`, so it renders in the browser's top layer: it is no longer covered by host UI when an ancestor of the surface creates a stacking context, and it closes on Escape and keeps focus inside the modal. The overlay's classes and `--a2ui-modal-*` variables are unchanged; the content element no longer carries `role="dialog"`/`aria-modal`, which the `<dialog>` now provides. Environments without `showModal()` (such as jsdom) get a plain open `<dialog>`. [#3807](https://github.com/a2ui-project/a2ui/issues/3807)
+
 ## 0.15.0
 
 - `DataContext.resolveSignal` seeds the result of a function call that returns a `Signal` with the signal's current value before it creates the forwarding `effect`. Under a reactivity backend whose effects run on the next flush rather than on creation (the Angular adapter), an enclosing call such as `not(areComponentsValid(...))` previously read `undefined` for that argument on its first evaluation and dispatched a spurious `EXPRESSION_ERROR`.

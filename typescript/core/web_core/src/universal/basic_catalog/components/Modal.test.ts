@@ -181,4 +181,49 @@ describe('Modal Component', () => {
     // Modal overlay should remain open because inner content click event stops propagation
     assert.notStrictEqual(el.querySelector('.a2ui-modal-overlay'), null);
   });
+
+  it('should show the overlay in an open dialog', async () => {
+    const el = document.createElement('a2ui-modal') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'comp1');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const trigger = el.querySelector('.a2ui-modal-trigger') as HTMLElement;
+    trigger.click();
+    await asyncUpdate(el, () => {});
+
+    // Browsers open it with showModal() (top layer); jsdom has no showModal()
+    // and gets the plain `open` fallback.
+    const dialog = el.querySelector('dialog.a2ui-modal-dialog') as HTMLDialogElement;
+    assert.notStrictEqual(dialog, null);
+    assert.strictEqual(dialog.hasAttribute('open'), true);
+    assert.notStrictEqual(dialog.querySelector('.a2ui-modal-overlay'), null);
+  });
+
+  it('should close when the dialog closes (e.g. Escape)', async () => {
+    const el = document.createElement('a2ui-modal') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'comp1');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const trigger = el.querySelector('.a2ui-modal-trigger') as HTMLElement;
+    trigger.click();
+    await asyncUpdate(el, () => {});
+    const dialog = el.querySelector('dialog.a2ui-modal-dialog') as HTMLDialogElement;
+    assert.notStrictEqual(dialog, null);
+
+    // Escape cancels a modal dialog, which then fires `close`.
+    dialog.dispatchEvent(new Event('close'));
+    await asyncUpdate(el, () => {});
+
+    assert.strictEqual(el.querySelector('.a2ui-modal-overlay'), null);
+  });
 });

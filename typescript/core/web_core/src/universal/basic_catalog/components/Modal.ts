@@ -16,6 +16,7 @@
 
 import {html, nothing, css} from 'lit';
 import {state} from 'lit/decorators.js';
+import {createRef, ref} from 'lit/directives/ref.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ModalSupportedApis} from './supported_apis.js';
 
@@ -23,6 +24,11 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<ModalSupportedApis>
   /** @nocollapse */
   static readonly tagName = 'a2ui-modal';
   /**
+   * The overlay is shown in a native `<dialog>` opened with `showModal()`, so
+   * it renders in the browser's top layer: it stays above the host page even
+   * when an ancestor creates a stacking context, closes on Escape, and keeps
+   * focus inside the modal.
+   *
    * The styles of the modal can be customized by redefining the following
    * CSS variables:
    *
@@ -44,6 +50,22 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<ModalSupportedApis>
     }
     .a2ui-modal-trigger {
       cursor: pointer;
+    }
+    .a2ui-modal-dialog {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      max-height: none;
+      margin: 0;
+      padding: 0;
+      border: none;
+      background: transparent;
+      overflow: visible;
+    }
+    .a2ui-modal-dialog::backdrop {
+      background: transparent;
     }
     .a2ui-modal-overlay {
       position: fixed;
@@ -85,12 +107,28 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<ModalSupportedApis>
 
   @state() isOpen = false;
 
+  private readonly dialogRef = createRef<HTMLDialogElement>();
+
   openModal() {
     this.isOpen = true;
   }
 
   closeModal() {
     this.isOpen = false;
+  }
+
+  override updated(changed: Map<PropertyKey, unknown>) {
+    super.updated(changed);
+    // Show the dialog as modal once it is rendered, which moves it to the top
+    // layer. Environments without `showModal()` (e.g. jsdom) get a plain open
+    // dialog instead.
+    const dialog = this.dialogRef.value;
+    if (!this.isOpen || !dialog || dialog.open) return;
+    if (typeof dialog.showModal === 'function') {
+      dialog.showModal();
+    } else {
+      dialog.setAttribute('open', '');
+    }
   }
 
   override render() {
@@ -104,24 +142,25 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<ModalSupportedApis>
         </div>
         ${this.isOpen
           ? html`
-              <div class="a2ui-modal-overlay" @click=${() => this.closeModal()}>
-                <div
-                  class="a2ui-modal-content"
-                  role="dialog"
-                  aria-modal="true"
-                  @click=${(e: Event) => e.stopPropagation()}
-                >
-                  <button
-                    type="button"
-                    class="a2ui-modal-close"
-                    aria-label="Close"
-                    @click=${() => this.closeModal()}
-                  >
-                    &times;
-                  </button>
-                  ${props.content ? html`${this.renderNode(props.content)}` : nothing}
+              <dialog
+                ${ref(this.dialogRef)}
+                class="a2ui-modal-dialog"
+                @close=${() => this.closeModal()}
+              >
+                <div class="a2ui-modal-overlay" @click=${() => this.closeModal()}>
+                  <div class="a2ui-modal-content" @click=${(e: Event) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      class="a2ui-modal-close"
+                      aria-label="Close"
+                      @click=${() => this.closeModal()}
+                    >
+                      &times;
+                    </button>
+                    ${props.content ? html`${this.renderNode(props.content)}` : nothing}
+                  </div>
                 </div>
-              </div>
+              </dialog>
             `
           : nothing}
       </div>
