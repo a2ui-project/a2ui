@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import type {z} from 'zod';
 
 /**
  * Formats a single Zod issue into a human-readable diagnostic message.
@@ -31,31 +31,33 @@ export function formatZodIssue(err: z.ZodIssue): string {
   const path = err.path.join('.') || 'root';
 
   switch (err.code) {
-    case z.ZodIssueCode.invalid_union: {
-      const unionIssues = (err as z.ZodInvalidUnionIssue).unionErrors?.flatMap(uErr => uErr.issues);
+    case 'invalid_union': {
+      const unionErr = err as z.ZodInvalidUnionIssue & {errors?: z.ZodIssue[][]};
+      const unionIssues =
+        unionErr.unionErrors?.flatMap(uErr => uErr.issues) ?? unionErr.errors?.flat();
       if (unionIssues && unionIssues.length > 0) {
         return unionIssues.map(formatZodIssue).join('; ');
       }
       return `${path}: Invalid union`;
     }
 
-    case z.ZodIssueCode.unrecognized_keys: {
+    case 'unrecognized_keys': {
       const keysStr = (err as z.ZodUnrecognizedKeysIssue).keys.map(k => `'${k}'`).join(', ');
       return `${path}: Unrecognized key(s) in object: ${keysStr}`;
     }
 
-    case z.ZodIssueCode.invalid_enum_value: {
+    case 'invalid_enum_value': {
       const issue = err as z.ZodInvalidEnumValueIssue;
       const optionsStr = issue.options.map(o => String(o)).join(' | ');
       return `${path}: Invalid enum value. Expected ${optionsStr}, received '${String(issue.received)}'`;
     }
 
-    case z.ZodIssueCode.invalid_type: {
+    case 'invalid_type': {
       const issue = err as z.ZodInvalidTypeIssue;
       return `${path}: Expected ${issue.expected}, received ${issue.received}`;
     }
 
-    case z.ZodIssueCode.custom:
+    case 'custom':
       return `${path}: ${err.message}`;
 
     default:

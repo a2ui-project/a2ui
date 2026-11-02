@@ -255,7 +255,7 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
     const preparedPayload = this.preparePayloadForValidation(msgObj);
     const parseResult = this.schema.safeParse(preparedPayload);
     if (!parseResult.success) {
-      const formattedErrors = parseResult.error.errors.map(formatZodIssue).join('; ');
+      const formattedErrors = parseResult.error.issues.map(formatZodIssue).join('; ');
       const envCtx = extractEnvelopeErrorContext(msgObj, this.version);
       const preliminaryErr = new A2uiValidationError(
         `Invalid ${this.version} message: ${formattedErrors}`,

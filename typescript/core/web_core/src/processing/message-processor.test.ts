@@ -398,6 +398,79 @@ describe('MessageProcessor', () => {
       assert.strictEqual(formatZodIssue(issue), 'label: Expected string, received number');
     });
 
+    it('formats Zod 4 invalid_union issues where nested errors is a 2D issue array', () => {
+      const issue: any = {
+        code: 'invalid_union',
+        path: ['action'],
+        message: 'Invalid input',
+        errors: [
+          [
+            {
+              code: 'invalid_type',
+              expected: 'string',
+              received: 'number',
+              path: ['action', 'name'],
+              message: 'Expected string, received number',
+            },
+          ],
+        ],
+      };
+      assert.strictEqual(formatZodIssue(issue), 'action.name: Expected string, received number');
+    });
+
+    it('surfaces A2uiValidationError instead of TypeError when schema error has issues without errors (Zod 4)', () => {
+      const zod4LikeSchema: any = {
+        safeParse: () => ({
+          success: false,
+          error: {
+            issues: [
+              {
+                code: 'invalid_type',
+                expected: 'string',
+                received: 'number',
+                path: ['label'],
+                message: 'Expected string, received number',
+              },
+            ],
+            // In Zod 4, ZodError.errors was removed (undefined).
+            errors: undefined,
+          },
+        }),
+      };
+      const zod4ButtonApi: ComponentApi = {
+        name: 'Zod4Button',
+        schema: zod4LikeSchema,
+      };
+      const proc = new MessageProcessor([new Catalog('cat-zod4', '0.9', [zod4ButtonApi])]);
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 's-zod4', catalogId: 'cat-zod4'},
+        },
+      ]);
+
+      assert.throws(
+        () => {
+          proc.processMessages([
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 's-zod4',
+                components: [{id: 'b1', component: 'Zod4Button', label: 123} as any],
+              },
+            },
+          ]);
+        },
+        (err: Error) => {
+          assert.ok(
+            err.message.includes('label: Expected string, received number'),
+            `Expected formatted Zod 4 issue message, got: ${err.message}`,
+          );
+          return true;
+        },
+      );
+    });
+
     it('surfaces unrecognized property validation error when processing component updates', () => {
       const strictButtonApi: ComponentApi = {
         name: 'MaterialButton',

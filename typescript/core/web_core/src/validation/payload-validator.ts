@@ -246,7 +246,7 @@ export class PayloadValidator {
 
     const result = componentApi.schema.safeParse(properties);
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+      const formattedErrors = result.error.issues.map(formatZodIssue).join(', ');
       const details = zodIssuesToDetails(result.error.issues);
       const uniquePaths = new Set(details.map(d => d.path));
       const firstPath = uniquePaths.size === 1 ? details[0]?.path : undefined;
@@ -279,7 +279,7 @@ export class PayloadValidator {
       delete properties['accessibility'];
       const accResult = AccessibilityAttributesSchema.optional().safeParse(accVal);
       if (!accResult.success) {
-        const formattedErrors = accResult.error.errors.map(formatZodIssue).join(', ');
+        const formattedErrors = accResult.error.issues.map(formatZodIssue).join(', ');
         const details = zodIssuesToDetails(accResult.error.issues, '/accessibility');
         throw new A2uiValidationError(
           `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
@@ -296,7 +296,7 @@ export class PayloadValidator {
       delete properties['metadata'];
       const metaResult = ComponentCommonSchema.shape.metadata.safeParse(metaVal);
       if (!metaResult.success) {
-        const formattedErrors = metaResult.error.errors.map(formatZodIssue).join(', ');
+        const formattedErrors = metaResult.error.issues.map(formatZodIssue).join(', ');
         const details = zodIssuesToDetails(metaResult.error.issues, '/metadata');
         throw new A2uiValidationError(
           `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
@@ -473,7 +473,7 @@ export class PayloadValidator {
 
     const result = fn.schema.safeParse(args ?? {});
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+      const formattedErrors = result.error.issues.map(formatZodIssue).join(', ');
       const details = zodIssuesToDetails(result.error.issues, '/args');
       throw new A2uiValidationError(
         `Validation failed for function '${name}': ${formattedErrors}`,
@@ -500,7 +500,7 @@ export class PayloadValidator {
 
     const result = themeSchema.safeParse(theme);
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+      const formattedErrors = result.error.issues.map(formatZodIssue).join(', ');
       const details = zodIssuesToDetails(result.error.issues, '/theme');
       throw new A2uiValidationError(
         `Validation failed for theme: ${formattedErrors}`,
