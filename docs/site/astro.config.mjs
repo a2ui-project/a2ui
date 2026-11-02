@@ -107,7 +107,7 @@ export default defineConfig({
               badge: {text: 'P0', variant: 'danger'},
             },
             {
-              label: 'Catalogs, Components, and Functions',
+              label: 'Catalogs',
               slug: 'concepts/catalogs',
               badge: {text: 'P0', variant: 'danger'},
             },

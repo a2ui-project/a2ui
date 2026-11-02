@@ -1,9 +1,9 @@
 ---
-title: 'Catalogs, Components, and Functions'
-description: 'How an A2UI catalog defines the components, functions, and prompt instructions that an agent and a renderer agree on.'
+title: 'Catalogs'
+description: 'How component catalogs define the components, functions, and rules shared between agents and renderers.'
 ---
 
-import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
+import {Tabs, TabItem} from '@astrojs/starlight/components';
 import CatalogAnatomy from '@components/docs/CatalogAnatomy.astro';
 
 An A2UI catalog defines the UI components, the functions that populate data or handle user events, and the prompt instructions that an agent and a renderer agree on. Because both sides work from the same catalog contract, the agent only sends component types and properties that the renderer knows how to build natively, never raw HTML, CSS, or executable scripts.
@@ -185,25 +185,6 @@ Each entry in a catalog's `functions` map declares a `returnType` (`"string"`, `
 
   </TabItem>
 </Tabs>
-
-### Who can call a renderer function
-
-In v1.0, the `allowedCallers` field on a renderer-side function controls whether the renderer, the agent, or both can invoke it:
-
-| Setting                    | Who can call it                                                     | Typical uses                                                                                         |
-| :------------------------- | :------------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------- |
-| `"rendererOnly"` (default) | Only the renderer, while it resolves properties or handles actions. | Formatting (`formatCurrency`), validation (`required`, `regex`), and logic (`and`, `not`).           |
-| `"agentOnly"`              | Only the agent, through `callRendererFunction`.                     | Saving a boarding pass locally, reading device state, or other work the agent asks the client to do. |
-| `"rendererOrAgent"`        | Both.                                                               | Calculations that both sides need, such as currency conversion.                                      |
-
-A renderer function can also set `requiresUserActivation: true` (always paired with `"rendererOnly"`). The renderer then runs it only in response to an active user gesture, such as a button tap. Functions like `openUrl` use this so that an agent cannot open pages on its own.
-
-<Aside type="caution">
-  In v1.0, if a component calls a function name that the renderer has not registered locally, the
-  renderer routes the call to the agent as a `callAgentFunction` message. Register every local
-  formatting and validation function in the renderer's catalog to avoid unexpected network round
-  trips.
-</Aside>
 
 ## Using a catalog in an agent
 
