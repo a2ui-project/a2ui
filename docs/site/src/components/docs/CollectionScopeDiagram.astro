@@ -123,6 +123,23 @@
       </div>
     </div>
   </div>
+  <!-- Agent & Accessibility View: Machine-readable spec hidden from human UI -->
+  <script type="text/vnd.mermaid" data-agent-diagram="spec" style="display: none;">
+    flowchart LR
+      subgraph DataModel["Data Model (/guests)"]
+        g0["/guests/0: { name: 'Alex Rivera' }"]
+        g1["/guests/1: { name: 'Sam Taylor' }"]
+      end
+      subgraph Template["Template Component (Text#guestRow)"]
+        tpl["text: { '@path': 'name' }"]
+      end
+      subgraph Rendered["Rendered List UI (Column#root)"]
+        r0["Row 0: 'Alex Rivera' (/guests/0/name)"]
+        r1["Row 1: 'Sam Taylor' (/guests/1/name)"]
+      end
+      g0 --> tpl --> r0
+      g1 --> tpl --> r1
+  </script>
 </div>
 
 <style>

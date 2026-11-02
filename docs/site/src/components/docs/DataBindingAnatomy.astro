@@ -165,6 +165,22 @@
       </div>
     </div>
   </div>
+  <!-- Agent & Accessibility View: Machine-readable spec hidden from human UI -->
+  <script type="text/vnd.mermaid" data-agent-diagram="spec" style="display: none;">
+    flowchart LR
+      subgraph DataModel["Surface DataModel (surfaceId: booking)"]
+        dest["/reservation/destination: 'Kyoto, Japan'"]
+        email["/reservation/guestEmail: 'alex@example.com'"]
+      end
+      subgraph UI["Rendered Surface UI"]
+        textComp["Text#destinationText (1-way read @path)"]
+        inputComp["TextField#emailInput (2-way input @path)"]
+        btnComp["Button#submitButton (event context @path)"]
+      end
+      dest --> textComp
+      email <--> inputComp
+      email --> btnComp
+  </script>
 </div>
 
 <style>
