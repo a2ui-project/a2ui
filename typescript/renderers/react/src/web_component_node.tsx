@@ -31,7 +31,6 @@ interface ControllableElement extends Element {
 }
 
 function assign(element: A2uiWebComponentElement, node: ComponentNode): void {
-  element.context = node.context;
   element.node = node;
 }
 

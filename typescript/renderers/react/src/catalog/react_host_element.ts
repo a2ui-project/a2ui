@@ -33,6 +33,7 @@ export interface ReactHostElement extends A2uiWebComponentElement {
 
 /** The behaviour every host shares; `toWebComponent` derives one subclass per tag name. */
 export class ReactWcHost extends HTMLElement implements ReactHostElement {
+  /** @deprecated Assign `node` instead. */
   context?: ComponentContext;
   private _node?: ComponentNode<ReactComponentImplementation>;
   private registry?: HostRegistry;
@@ -65,14 +66,16 @@ export class ReactWcHost extends HTMLElement implements ReactHostElement {
 
   private register() {
     const node = this._node;
-    const surface = node?.context?.dataContext.surface;
-    if (!this.isConnected || !node || !surface || isReactRendered(this)) return;
+    if (!this.isConnected || !node || isReactRendered(this)) return;
+    const owner = ownerAbove(this);
+    const surface = owner?.surface ?? node.context?.dataContext.surface;
+    if (!surface) return;
     const registry = HostRegistry.forSurface(surface);
     // A node from another surface moves the host to that surface.
     if (this.registry !== registry) {
       this.registry?.delete(this);
       this.registry = registry;
     }
-    registry.add(this, node, ownerAbove(this));
+    registry.add(this, node, owner);
   }
 }

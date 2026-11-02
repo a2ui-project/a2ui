@@ -186,7 +186,7 @@ function surfaceWith(id: string, ...components: ComponentModel[]) {
 }
 
 describe('mixed React and Web Component catalogs', () => {
-  it('renders a Web Component root as its element, carrying the context', () => {
+  it('renders a Web Component root as its element, carrying the node', () => {
     const surface = surfaceWith(
       'wc-root',
       new ComponentModel('root', 'Column', {children: []}, catalog),
@@ -196,7 +196,7 @@ describe('mixed React and Web Component catalogs', () => {
 
     const element = container.firstElementChild as A2uiWebComponentElement;
     expect(element.tagName.toLowerCase()).toBe('a2ui-basic-column');
-    expect(element.context?.componentModel.id).toBe('root');
+    expect(element.node?.componentId).toBe('root');
   });
 
   it('renders a React child inside its host under a React parent', () => {
@@ -241,7 +241,7 @@ describe('mixed React and Web Component catalogs', () => {
     const column = container.querySelector<A2uiWebComponentElement>(
       'a2ui-react-panel > [data-testid="panel"] > a2ui-basic-column',
     );
-    expect(column?.context?.componentModel.id).toBe('column-1');
+    expect(column?.node?.componentId).toBe('column-1');
   });
 
   it('nests React, Lit and React three levels deep', async () => {
