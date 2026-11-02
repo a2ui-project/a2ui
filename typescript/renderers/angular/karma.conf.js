@@ -43,13 +43,13 @@ function ConformanceManifestReporter(baseReporterDecorator) {
     if (!manifestPath || !rec || !rec.suite || !rec.case) {
       return;
     }
-    fs.mkdirSync(manifestDir, { recursive: true });
+    fs.mkdirSync(manifestDir, {recursive: true});
     const entry = {
       harness: rec.harness || 'angular',
       suite: String(rec.suite).replace(/\\/g, '/'),
       case: rec.case,
       status: rec.status,
-      ...(rec.reason ? { reason: rec.reason } : {}),
+      ...(rec.reason ? {reason: rec.reason} : {}),
     };
     fs.appendFileSync(manifestPath, `${JSON.stringify(entry)}\n`, 'utf8');
   }
@@ -71,7 +71,7 @@ module.exports = function (config) {
       require('karma-chrome-launcher'),
       require('karma-jasmine-html-reporter'),
       require('karma-coverage'),
-      { 'reporter:conformance-manifest': ['type', ConformanceManifestReporter] },
+      {'reporter:conformance-manifest': ['type', ConformanceManifestReporter]},
     ],
     client: {
       jasmine: {
@@ -92,7 +92,7 @@ module.exports = function (config) {
     coverageReporter: {
       dir: require('path').join(__dirname, './coverage/lib'),
       subdir: '.',
-      reporters: [{ type: 'html' }, { type: 'text-summary' }],
+      reporters: [{type: 'html'}, {type: 'text-summary'}],
     },
     reporters: ['progress', 'kjhtml', 'conformance-manifest'],
     browsers: ['Chrome'],

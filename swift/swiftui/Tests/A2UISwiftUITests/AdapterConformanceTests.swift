@@ -68,9 +68,14 @@ struct AdapterConformanceTests {
       let name = testCase["name"] as? String ?? "<unnamed>"
       do {
         try AdapterHarness.assertKnownAccessibilityCase(testCase)
-        let steps =
-          (testCase["steps"] as? [[String: Any]])
-          ?? [["assertions": testCase["assertions"] as Any]]
+        let steps: [[String: Any]]
+        if let rawSteps = testCase["steps"] as? [[String: Any]] {
+          steps = rawSteps
+        } else if let assertions = testCase["assertions"] as? [String: Any] {
+          steps = [["assertions": assertions]]
+        } else {
+          steps = []
+        }
         if let skipReason = AdapterHarness.findUnsupportedReason(name, steps: steps) {
           writeManifestRecord(
             AdapterManifestRecord(

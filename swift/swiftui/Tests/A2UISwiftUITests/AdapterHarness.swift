@@ -519,7 +519,7 @@ enum AdapterHarness {
   }
 
   /// Appends a manifest record to `$A2UI_CONFORMANCE_MANIFEST_DIR/<harness>-<pid>.jsonl`.
-  nonisolated static func writeManifestRecord(_ rec: AdapterManifestRecord) {
+  static func writeManifestRecord(_ rec: AdapterManifestRecord) {
     guard
       let manifestDir = ProcessInfo.processInfo.environment["A2UI_CONFORMANCE_MANIFEST_DIR"],
       !manifestDir.isEmpty
@@ -1283,6 +1283,7 @@ func assertKnownKeys(_ step: [String: Any]) throws {
 
 /// Top-level helper appending a conformance manifest record when `A2UI_CONFORMANCE_MANIFEST_DIR`
 /// is set.
+@MainActor
 func writeManifestRecord(_ rec: AdapterManifestRecord) {
   AdapterHarness.writeManifestRecord(rec)
 }
