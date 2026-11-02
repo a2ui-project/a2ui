@@ -65,7 +65,7 @@ jobs:
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness swift-core \
             --corpus core \
-            --exclude core/message_processor_scaling.yaml="no Swift timing harness"
+            --exclude "core/message_processor_scaling.yaml=performance: runs in the test (performance) job with A2UI_RUN_TIMING=1"
 
   ios-build:
     # `swift test` above builds for macOS only, so `#if os(iOS)` and UIKit code

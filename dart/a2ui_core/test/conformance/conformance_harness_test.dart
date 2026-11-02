@@ -317,13 +317,34 @@ void main() {
           'case',
         ),
         throwsA(
-          isA<TestFailure>().having(
+          isA<UnknownConformanceKeyError>().having(
             (e) => e.message,
             'message',
             contains('Unhandled keys at case: [bogus]'),
           ),
         ),
       );
+    });
+
+    test('expectedFailures does not swallow assertKnownKeys failures',
+        () async {
+      final skippedMessages = <String>[];
+      await expectLater(
+        () => runConformanceCase(
+          const {'name': 'xfailing_case', 'bogus': true},
+          () {
+            assertKnownKeys(
+              const {'name': 'xfailing_case', 'bogus': true},
+              const {'name'},
+              'case',
+            );
+          },
+          expectedFailures: const {'xfailing_case': 'known gap'},
+          onSkip: skippedMessages.add,
+        ),
+        throwsA(isA<UnknownConformanceKeyError>()),
+      );
+      expect(skippedMessages, isEmpty);
     });
   });
 

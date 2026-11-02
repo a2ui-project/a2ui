@@ -71,6 +71,12 @@ struct SuiteRegistryTests {
     for knownIssueName in NodeResolutionConformanceTests.placeholderKnownIssues.keys {
       #expect(nodeResNames.contains(knownIssueName), "Unused known issue '\(knownIssueName)'")
     }
+
+    let scalingNames = Set(
+      ConformanceTestHelper.cases("core/message_processor_scaling.yaml").map(\.name))
+    for gapName in MessageProcessorScalingConformanceTests.knownGaps.keys {
+      #expect(scalingNames.contains(gapName), "Unused scaling knownGap '\(gapName)'")
+    }
   }
 
   private func verifySupportedSuiteActions() throws {

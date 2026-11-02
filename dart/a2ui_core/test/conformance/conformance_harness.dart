@@ -46,6 +46,16 @@ const Set<String> knownExpectErrorKeys = {
   'surfaceId',
 };
 
+/// Thrown by [assertKnownKeys] when a conformance YAML object contains an
+/// unrecognized key.
+///
+/// Extends [TestFailure] so `throwsA(isA<TestFailure>())` matchers continue to
+/// work, while [_runExpectedFailureCase] can rethrow unknown-key errors instead
+/// of treating them as expected SDK failures.
+class UnknownConformanceKeyError extends TestFailure {
+  UnknownConformanceKeyError(super.message);
+}
+
 /// Fails the current test if [obj] contains any keys not in [allowed].
 void assertKnownKeys(
   Map<String, Object?> obj,
@@ -55,7 +65,7 @@ void assertKnownKeys(
   final List<String> unknown =
       obj.keys.where((k) => !allowed.contains(k)).toList()..sort();
   if (unknown.isNotEmpty) {
-    fail('Unhandled keys at $where: $unknown');
+    throw UnknownConformanceKeyError('Unhandled keys at $where: $unknown');
   }
 }
 
@@ -275,6 +285,11 @@ Future<void> _runExpectedFailureCase(
     await body();
   } catch (error) {
     caughtError = error;
+  }
+
+  if (caughtError is UnknownConformanceKeyError) {
+    _recordIfSuite(suite, name, 'failed', '$caughtError', manifestDir);
+    throw caughtError;
   }
 
   if (caughtError != null) {

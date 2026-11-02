@@ -1317,7 +1317,7 @@ extension ConformanceTestHelper {
   }
 
   /// Verifies that every key in `dict` belongs to `allowed` (or `metadataCaseKeys` when
-  /// `allowMetadata` is true), recording an issue and throwing on the first unknown key.
+  /// `allowMetadata` is true), throwing `UnknownConformanceKeyError` on the first unknown key.
   public static func assertKnownKeys(
     _ dict: [String: Any],
     _ allowed: Set<String>,
@@ -1327,13 +1327,12 @@ extension ConformanceTestHelper {
     let permitted = allowMetadata ? allowed.union(metadataCaseKeys) : allowed
     for key in dict.keys.sorted() where !permitted.contains(key) {
       let msg = "Unknown \(location) key '\(key)' (allowed: \(permitted.sorted()))"
-      Issue.record(Comment(rawValue: msg))
       throw UnknownConformanceKeyError(msg)
     }
   }
 
   /// Verifies that every key in `dict` belongs to `allowed` (or `metadataCaseKeys` when
-  /// `allowMetadata` is true), recording an issue and throwing on the first unknown key.
+  /// `allowMetadata` is true), throwing `UnknownConformanceKeyError` on the first unknown key.
   public static func assertKnownKeys(
     _ dict: OrderedDictionary<String, JSONValue>,
     _ allowed: Set<String>,
@@ -1343,7 +1342,6 @@ extension ConformanceTestHelper {
     let permitted = allowMetadata ? allowed.union(metadataCaseKeys) : allowed
     for key in dict.keys.sorted() where !permitted.contains(key) {
       let msg = "Unknown \(location) key '\(key)' (allowed: \(permitted.sorted()))"
-      Issue.record(Comment(rawValue: msg))
       throw UnknownConformanceKeyError(msg)
     }
   }

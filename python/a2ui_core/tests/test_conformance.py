@@ -58,7 +58,10 @@ from a2ui.core.validation import (
 )
 
 try:
-    from .node_resolution_runner import run_node_resolution_case
+    from .node_resolution_runner import (
+        UnknownConformanceKeyError,
+        run_node_resolution_case,
+    )
 except ImportError:
     import importlib.util as _importlib_util
 
@@ -69,6 +72,7 @@ except ImportError:
     assert _nr_spec and _nr_spec.loader
     _nr_mod = _importlib_util.module_from_spec(_nr_spec)
     _nr_spec.loader.exec_module(_nr_mod)
+    UnknownConformanceKeyError = _nr_mod.UnknownConformanceKeyError
     run_node_resolution_case = _nr_mod.run_node_resolution_case
 
 CATEGORY_TO_EXCEPTION = {
@@ -161,7 +165,7 @@ def _assert_known_keys(
     target = case_key or _CURRENT_CASE_KEY or str(obj.get("name", "<unknown>"))
     for key in obj:
         if key not in allowed:
-            pytest.fail(f"Unknown {where} '{key}' in {target}")
+            raise UnknownConformanceKeyError(f"Unknown {where} '{key}' in {target}")
 
 
 # Actions that time an operation rather than check what it returns. Their cases
@@ -909,7 +913,7 @@ def _dispatch_conformance_action(
         ), "resolve_nodes is only supported in core/node_resolution.yaml"
     handler = _ACTION_HANDLERS.get(action)
     if handler is None:
-        pytest.fail(
+        raise UnknownConformanceKeyError(
             f"Action '{action}' has no handler in the core Python harness."
             " Add one, or add the suite to UNRUNNABLE_SUITES with a reason."
         )
@@ -945,6 +949,8 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
     if case_key in EXPECTED_FAILURES:
         try:
             _dispatch_conformance_action(rel_path, action, case)
+        except UnknownConformanceKeyError:
+            raise
         except (Exception, pytest.fail.Exception):
             pytest.xfail(EXPECTED_FAILURES[case_key])
         pytest.fail(f"Expected failure '{case_key}' passed unexpectedly.")
@@ -1030,6 +1036,22 @@ def test_resolve_nodes_outside_its_suite_is_unsupported() -> None:
     with pytest.raises((pytest.fail.Exception, AssertionError)):
         test_conformance_suite(
             "core/data_model.yaml::stray", "core/data_model.yaml", case
+        )
+
+
+def test_expected_failure_does_not_swallow_unknown_keys() -> None:
+    expected_key = next(iter(EXPECTED_FAILURES))
+    rel_path, case_name = expected_key.split("#", 1)
+    bad_case = {
+        "name": case_name,
+        "action": "handle_rpc",
+        "unexpectedBogusKey": True,
+    }
+    with pytest.raises(UnknownConformanceKeyError, match="unexpectedBogusKey"):
+        test_conformance_suite(
+            f"{rel_path}::{case_name}",
+            rel_path,
+            bad_case,
         )
 
 

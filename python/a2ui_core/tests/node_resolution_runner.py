@@ -85,6 +85,10 @@ _STEP_KEYS_BY_OP: dict[str, frozenset[str]] = {
 }
 
 
+class UnknownConformanceKeyError(AssertionError):
+    """Raised when a conformance YAML dictionary contains an unrecognized key."""
+
+
 def _assert_known_keys(
     obj: Mapping[str, Any],
     allowed: frozenset[str],
@@ -93,7 +97,7 @@ def _assert_known_keys(
 ) -> None:
     for key in obj:
         if key not in allowed:
-            raise AssertionError(f"Unknown {where} '{key}' in {context}")
+            raise UnknownConformanceKeyError(f"Unknown {where} '{key}' in {context}")
 
 
 @dataclass

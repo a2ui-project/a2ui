@@ -32,9 +32,24 @@ struct MessageProcessorScalingConformanceTests {
   /// time to resolve a surface arriving in n messages grows with n squared. At the sizes of the
   /// composition case, 1000 and 4000, that dominates; making resolution incremental (#3231) is
   /// expected to remove it.
-  private static let knownGaps: [String: String] = [
+  static let knownGaps: [String: String] = [
     "test_scaling_process_single_component_messages_composition_v10":
       "the node tree is resolved again after each message (#3231)"
+  ]
+
+  private static let knownCaseKeys: Set<String> = [
+    "action",
+    "args",
+    "catalogPaths",
+    "max_ratio",
+    "operation",
+    "payload",
+    "protocolVersion",
+    "sizes",
+  ]
+
+  private static let knownArgsKeys: Set<String> = [
+    "validation_config"
   ]
 
   @Test(.enabled(if: ConformanceTiming.isEnabled, "set A2UI_RUN_TIMING=1 to run timing cases"))
@@ -49,21 +64,67 @@ struct MessageProcessorScalingConformanceTests {
     )
     #expect(!cases.isEmpty, "\(Self.suite) should hold test cases")
     var executed = 0
-    for (rawCase, testCase) in zip(rawCases, cases)
-    where ConformanceTiming.runsCase(named: testCase.name) {
-      if try runCase(rawCase, testCase) {
+    for (rawCase, testCase) in zip(rawCases, cases) {
+      if !ConformanceTiming.runsCase(named: testCase.name) {
+        ConformanceManifest.record(
+          suite: Self.suite,
+          name: testCase.name,
+          status: .skipped,
+          reason: "filtered by A2UI_TIMING_CASE"
+        )
+        continue
+      }
+      if try runAndRecordCase(rawCase, testCase) {
         executed += 1
       }
     }
     #expect(executed > 0, "no timing case of \(Self.suite) ran")
   }
 
-  /// Runs a timing case, returning false when it is a known gap and was skipped.
-  private func runCase(_ rawCase: [String: Any], _ testCase: ConformanceTestCase) throws -> Bool {
-    let name = testCase.name
-    if let reason = Self.knownGaps[name] {
-      print("[\(name)] skipped: \(reason)")
+  private func runAndRecordCase(
+    _ rawCase: [String: Any],
+    _ testCase: ConformanceTestCase
+  ) throws -> Bool {
+    if let reason = Self.knownGaps[testCase.name] {
+      print("[\(testCase.name)] skipped: \(reason)")
+      ConformanceManifest.record(
+        suite: Self.suite,
+        name: testCase.name,
+        status: .skipped,
+        reason: reason
+      )
       return false
+    }
+    do {
+      try runCase(rawCase, testCase)
+      ConformanceManifest.record(suite: Self.suite, name: testCase.name, status: .passed)
+      return true
+    } catch {
+      ConformanceManifest.record(
+        suite: Self.suite,
+        name: testCase.name,
+        status: .failed,
+        reason: String(describing: error)
+      )
+      throw error
+    }
+  }
+
+  /// Runs a timing case and asserts its median growth ratio stays within `max_ratio`.
+  private func runCase(_ rawCase: [String: Any], _ testCase: ConformanceTestCase) throws {
+    let name = testCase.name
+    try ConformanceTestHelper.assertKnownKeys(
+      rawCase,
+      Self.knownCaseKeys,
+      "\(Self.suite) case '\(name)'"
+    )
+    if let argsDict = rawCase["args"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        argsDict,
+        Self.knownArgsKeys,
+        "\(Self.suite) args in '\(name)'",
+        allowMetadata: false
+      )
     }
     #expect(testCase.action == "measure_growth", "[\(name)] unknown action")
     #expect(rawCase["operation"] as? String == "process_messages", "[\(name)] unknown operation")
@@ -108,6 +169,8 @@ struct MessageProcessorScalingConformanceTests {
       + "at \(sizes[0]): \(result.baseline), ratio \(result.ratio) (max \(maxRatio))"
     print(report)
     #expect(result.ratio <= maxRatio, "\(report)")
-    return true
+    if result.ratio > maxRatio {
+      throw ConformanceTimingError(report)
+    }
   }
 }

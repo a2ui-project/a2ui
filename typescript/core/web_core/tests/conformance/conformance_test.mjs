@@ -538,6 +538,18 @@ function verifyHarnessInvariants(discoveredSuites, state) {
       );
     }
   }
+  const skipNameKeys =
+    SKIP_TEST_NAMES instanceof Map ? SKIP_TEST_NAMES.keys() : SKIP_TEST_NAMES.values();
+  for (const name of skipNameKeys) {
+    if (!state.matchedSkippedNames.has(name)) {
+      recordInvariantFailure(
+        state,
+        'SKIP_TEST_NAMES',
+        name,
+        'Skipped test name matches no test case.',
+      );
+    }
+  }
 }
 
 function loadSuiteTestCases(filePath, relativePath, state) {

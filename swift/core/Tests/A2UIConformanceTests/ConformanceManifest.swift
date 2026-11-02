@@ -100,12 +100,19 @@ public enum ConformanceManifest {
       return
     }
     if let knownIssueReason {
+      var unknownKeyError: UnknownConformanceKeyError?
       withKnownIssue(Comment(rawValue: knownIssueReason)) {
         do {
           try body()
+        } catch let error as UnknownConformanceKeyError {
+          unknownKeyError = error
         } catch {
           Issue.record(error)
         }
+      }
+      if let unknownKeyError {
+        record(testCase, status: .failed, reason: unknownKeyError.description)
+        throw unknownKeyError
       }
       record(testCase, status: .xfailed, reason: knownIssueReason)
       return
@@ -131,12 +138,19 @@ public enum ConformanceManifest {
       return
     }
     if let knownIssueReason {
+      var unknownKeyError: UnknownConformanceKeyError?
       await withKnownIssue(Comment(rawValue: knownIssueReason)) {
         do {
           try await body()
+        } catch let error as UnknownConformanceKeyError {
+          unknownKeyError = error
         } catch {
           Issue.record(error)
         }
+      }
+      if let unknownKeyError {
+        record(testCase, status: .failed, reason: unknownKeyError.description)
+        throw unknownKeyError
       }
       record(testCase, status: .xfailed, reason: knownIssueReason)
       return
