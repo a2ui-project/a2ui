@@ -19,6 +19,10 @@ import OrderedCollections
 import OrderedJSON
 import Testing
 
+private final class ExpressionErrorCaptureBox: @unchecked Sendable {
+  var errors: [RendererError] = []
+}
+
 /// Runs the shared `conformance/core/expressions.yaml` suite.
 struct ExpressionsConformanceTests {
   private static let knownParseCaseKeys: Set<String> = [
@@ -171,25 +175,25 @@ struct ExpressionsConformanceTests {
     )
     // Expression errors raised while resolving nodes reach the surface as `EXPRESSION_ERROR`
     // rather than being thrown out of `processMessages`.
-    var capturedErrors: [RendererError] = []
+    let capturedErrors = ExpressionErrorCaptureBox()
     processor.outboundListener = { message in
       MainActor.assumeIsolated {
         if case .error(let error) = message {
-          capturedErrors.append(error)
+          capturedErrors.errors.append(error)
         }
       }
     }
 
     for (stepIndex, step) in testCase.steps.enumerated() {
       guard let payload = step.payload else { continue }
-      capturedErrors.removeAll()
+      capturedErrors.errors.removeAll()
 
       let isFinalStep = stepIndex == testCase.steps.count - 1
       if let expectedError = step.expectError ?? (isFinalStep ? testCase.expectError : nil) {
         assertValidateStepError(
           payload: payload,
           processor: processor,
-          capturedErrors: &capturedErrors,
+          capturedErrors: capturedErrors,
           expectedError: expectedError,
           testName: testCase.name,
           stepIndex: stepIndex
@@ -199,8 +203,8 @@ struct ExpressionsConformanceTests {
 
       try processor.processMessages(payload)
       #expect(
-        capturedErrors.isEmpty,
-        "\(testCase.name): unexpected error at step \(stepIndex): \(capturedErrors)"
+        capturedErrors.errors.isEmpty,
+        "\(testCase.name): unexpected error at step \(stepIndex): \(capturedErrors.errors)"
       )
 
       let expectedSurfaces = (step.expect ?? testCase.expect)?["surfaces"]?.objectValue ?? [:]
@@ -216,7 +220,7 @@ struct ExpressionsConformanceTests {
   private func assertValidateStepError(
     payload: JSONValue,
     processor: MessageProcessor,
-    capturedErrors: inout [RendererError],
+    capturedErrors: ExpressionErrorCaptureBox,
     expectedError: ConformanceExpectError,
     testName: String,
     stepIndex: Int
@@ -228,7 +232,7 @@ struct ExpressionsConformanceTests {
       let message = (error as? (any A2UIError))?.message ?? error.localizedDescription
       errorMessages.append(message)
     }
-    for error in capturedErrors {
+    for error in capturedErrors.errors {
       switch error {
       case .validationFailed(let validationError):
         errorMessages.append(validationError.message)
