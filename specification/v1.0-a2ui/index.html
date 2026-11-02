@@ -1469,6 +1469,46 @@
 </nav>
 </li>
 <li class="md-nav__item">
+<a class="md-nav__link" href="#the-regex-function">
+<span class="md-ellipsis">
+      
+        The regex function
+      
+    </span>
+</a>
+<nav aria-label="The regex function" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#regex-dialect">
+<span class="md-ellipsis">
+      
+        regex dialect
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#regex-safety-check">
+<span class="md-ellipsis">
+      
+        regex safety check
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#regex-examples">
+<span class="md-ellipsis">
+      
+        regex examples
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
 <a class="md-nav__link" href="#the-index-function">
 <span class="md-ellipsis">
       
@@ -2770,6 +2810,46 @@
 </nav>
 </li>
 <li class="md-nav__item">
+<a class="md-nav__link" href="#the-regex-function">
+<span class="md-ellipsis">
+      
+        The regex function
+      
+    </span>
+</a>
+<nav aria-label="The regex function" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#regex-dialect">
+<span class="md-ellipsis">
+      
+        regex dialect
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#regex-safety-check">
+<span class="md-ellipsis">
+      
+        regex safety check
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#regex-examples">
+<span class="md-ellipsis">
+      
+        regex examples
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
 <a class="md-nav__link" href="#the-index-function">
 <span class="md-ellipsis">
       
@@ -3077,7 +3157,7 @@
 <ul>
 <li><strong>Bidirectional Function Calls</strong>: Supports explicit, typed function invocation messages (<code>callRendererFunction</code>, <code>callAgentFunction</code>, <code>rendererFunctionResponse</code>, and <code>agentFunctionResponse</code>) verified against runtime catalog definitions.</li>
 <li><strong>Single-Message UI Instantiation</strong>: Allows initial component trees and data models to be embedded directly within <code>createSurface</code>, enabling complete UI composition in a single payload.</li>
-<li><strong>Decoupled Branding</strong>: Removes rigid theme properties (removing hardcoded brand colors) to defer visual styling entirely to the target framework's native theme.</li>
+<li><strong>Decoupled Branding</strong>: Removes rigid theme properties (removing hardcoded brand colors) to defer visual styling entirely to the target framework's native theme. A v1.0 <code>createSurface</code> that carries <code>theme</code> is invalid.</li>
 <li><strong>Enhanced Catalog Schemas</strong>: Refactors function definitions into object maps for direct O(1) lookups and supports standard JSON Schema metadata fields (<code>$schema</code>, <code>$id</code>) on inline catalogs.</li>
 <li><strong>Strict Identifier &amp; Context Standards</strong>: Enforces Unicode (UAX #31) naming rules across all catalog entities and reserves the <code>@</code> namespace for universal system context evaluations (such as <code>@index</code>).</li>
 </ul>
@@ -3147,7 +3227,7 @@
 <h3 id="common-types">Common types<a class="headerlink" href="#common-types" title="Permanent link">¶</a></h3>
 <p>The [<code>common_types.json</code>] schema defines reusable primitives used throughout the protocol.</p>
 <ul>
-<li><strong><code>DynamicString</code> / <code>DynamicNumber</code> / <code>DynamicBoolean</code> / <code>DynamicStringList</code></strong>: The core of the data binding system. Any property that can be bound to data is defined as a <code>Dynamic*</code> type. It accepts either a literal value, a <code>DataBinding</code> (<code>{"@path": "..."}</code> using <a href="https://datatracker.ietf.org/doc/html/rfc6901">JSON Pointer</a>), or a <code>FunctionCall</code> (<code>{"@call": "...", "args": {...}}</code>). When a <code>DynamicBoolean</code> resolves to a <code>ValidationResult</code> object (an object with a boolean <code>valid</code> property), it is coerced to <code>result.valid</code>.</li>
+<li><strong><code>DynamicString</code> / <code>DynamicNumber</code> / <code>DynamicBoolean</code> / <code>DynamicStringList</code></strong>: The core of the data binding system. Any property that can be bound to data is defined as a <code>Dynamic*</code> type. It accepts either a literal value, a <code>DataBinding</code> (<code>{"@path": "..."}</code> using <a href="https://datatracker.ietf.org/doc/html/rfc6901">JSON Pointer</a>), or a <code>FunctionCall</code> (<code>{"@call": "...", "args": {...}}</code>). When a <code>DynamicBoolean</code> resolves to a <code>ValidationResult</code> object (an object with a boolean <code>valid</code> property), it is coerced to <code>result.valid</code>; strings, numbers, <code>null</code>, objects, and arrays are coerced as defined under <a href="#dynamicboolean-and-checkrule-coercion"><code>DynamicBoolean</code> and <code>CheckRule</code> Coercion</a>.</li>
 <li><strong><code>ChildList</code></strong>: Defines how containers hold children. It supports:</li>
 <li><code>array</code>: A static array of <code>ComponentId</code> component references.</li>
 <li>
@@ -3204,6 +3284,7 @@
 <li><code>dataModel</code> (object, optional): A plain JSON object representing the initial root state of the data model.</li>
 <li><code>metadata</code> (object, optional): Surface-level metadata containing an optional <code>extensions</code> map (<code>common_types.json#/$defs/Extensions</code>).</li>
 </ul>
+<p>When a single <code>createSurface</code> carries both <code>dataModel</code> and <code>components</code>, the renderer applies <code>dataModel</code> first, so components bind against the initial data on their first resolution. Separate messages keep arrival order (see <a href="#callrendererfunction"><code>callRendererFunction</code></a>).</p>
 <p><strong>Example:</strong></p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="p">{</span>
 </span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1.0"</span><span class="p">,</span>
@@ -3474,7 +3555,10 @@ There is <strong>no fallback</strong> to the list of catalogs declared in <code>
 <ul>
 <li><strong>Plumb Accessibility Attributes</strong>: Map all relevant A2UI <code>AccessibilityAttributes</code> (<code>label</code>, <code>description</code>, <code>live</code>, <code>hidden</code>) to the underlying UI framework's accessibility APIs (e.g., WAI-ARIA <code>aria-label</code>, <code>aria-describedby</code>, <code>aria-live</code>, and <code>aria-hidden</code> for web renderers; <code>Semantics</code> properties for Flutter; <code>AccessibilityNodeInfo</code> / <code>accessibilityLabel</code> for Android and iOS renderers).</li>
 <li><strong>Infer Default Semantics</strong>: Use component types and non-accessibility properties (such as visible titles or text labels) to configure accessibility defaults automatically. When explicit <code>AccessibilityAttributes</code> (e.g., <code>label</code> or <code>description</code>) are provided, they MUST override inferred visual defaults. For example, a button component with a title of <code>"Submit"</code> and an explicit <code>accessibility.label</code> of <code>"Send Form"</code> must be announced by assistive technologies as <code>"Send Form"</code>.</li>
-<li><strong>SDK Linter Checks</strong>: SDK tooling and catalog linters MUST verify that component schemas accepting actions or input bindings declare accessible label requirements or fallbacks.</li>
+</ul>
+<p><strong>Catalog tooling SHOULD:</strong></p>
+<ul>
+<li><strong>Catalog Linter Checks</strong>: Catalog tooling SHOULD warn when a component that accepts an action or user input declares no text-bearing label property (or, in strict mode, no required text-bearing property). A component accepts an action when one of its properties references <code>common_types.json#/$defs/Action</code>, and accepts user input when it includes <code>common_types.json#/$defs/Checkable</code>. A text-bearing property is a string or <code>DynamicString</code> property, a child component reference, or an array of objects that each declare a text-bearing property. Because JSON Schema does not say which property holds the input value, tooling MAY exclude the property it treats as the input value (by convention <code>value</code>). This is a heuristic: it cannot prove a label exists, and a warning can be acknowledged per component.</li>
 </ul>
 <h3 id="the-component-catalog">The component catalog<a class="headerlink" href="#the-component-catalog" title="Permanent link">¶</a></h3>
 <p>The set of available UI components and functions is defined in a <strong>Catalog</strong>. The basic catalog is defined in [<code>catalogs/basic/catalog.json</code>]. While the Basic Catalog is useful for starting out, most production applications will define their own catalog to reflect their specific design system. The agent must generate messages that conform to the catalog understood by the renderer.</p>
@@ -4010,7 +4094,7 @@ While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 
 </ul>
 <p>Because <code>ValidationResult</code> permits additional unconstrained properties, validation functions and specialized components can extend the object with custom domain-specific metadata (such as suggested fix values, field paths, or retry parameters).</p>
 <h4 id="dynamicboolean-and-checkrule-coercion"><code>DynamicBoolean</code> and <code>CheckRule</code> Coercion<a class="headerlink" href="#dynamicboolean-and-checkrule-coercion" title="Permanent link">¶</a></h4>
-<p>To allow validation functions (<code>required</code>, <code>email</code>, <code>regex</code>, <code>length</code>, <code>numeric</code>, which return <code>ValidationResult</code>) to compose with boolean properties and functions accepting <code>DynamicBoolean</code> arguments (such as <code>and</code>, <code>or</code>, and <code>not</code>, which return <code>boolean</code>), renderers apply two coercion rules:</p>
+<p>To allow validation functions (<code>required</code>, <code>email</code>, <code>regex</code>, <code>length</code>, <code>numeric</code>, which return <code>ValidationResult</code>) to compose with boolean properties and functions accepting <code>DynamicBoolean</code> arguments (such as <code>and</code>, <code>or</code>, and <code>not</code>, which return <code>boolean</code>), renderers apply three coercion rules:</p>
 <ol>
 <li><strong><code>ValidationResult</code> → <code>boolean</code> in <code>DynamicBoolean</code></strong>:</li>
 <li>Schema validation of a <code>DynamicBoolean</code> occurs on the written wire payload (which accepts a literal <code>boolean</code>, any <code>DataBinding</code>, or any <code>FunctionCall</code>) before nested expressions are evaluated.</li>
@@ -4020,6 +4104,52 @@ While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 
 <li>When a <code>CheckRule.condition</code> evaluates to <code>true</code>, the renderer coerces it to <code>{"valid": true}</code>.</li>
 <li>When a <code>CheckRule.condition</code> evaluates to <code>false</code>, the renderer coerces it to <code>{"valid": false, "message": &lt;CheckRule.message&gt;, "severity": "error"}</code>.</li>
 <li>When a <code>CheckRule.condition</code> evaluates to a <code>ValidationResult</code> with <code>valid: false</code>, <code>CheckRule.message</code> is used as a fallback if <code>ValidationResult.message</code> is omitted, and <code>severity</code> defaults to <code>"error"</code> if omitted.</li>
+<li><strong>Any value → <code>boolean</code> in <code>DynamicBoolean</code></strong>:</li>
+<li>
+<p>This coercion applies wherever a <code>DynamicBoolean</code> is resolved, including component properties typed <code>DynamicBoolean</code> and <code>DynamicBoolean</code> function arguments (<code>and</code>, <code>or</code>, <code>not</code>, and any catalog function whose argument schema references <code>DynamicBoolean</code>), before the function runs:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Resolved value</th>
+<th style="text-align: left;">Coerced <code>boolean</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>boolean</code></td>
+<td style="text-align: left;">Unchanged (<code>true</code> or <code>false</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>ValidationResult</code> (an object with a boolean <code>valid</code> property)</td>
+<td style="text-align: left;"><code>result.valid</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>string</code> <code>"true"</code> or <code>"false"</code> (in any letter case)</td>
+<td style="text-align: left;"><code>true</code> or <code>false</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Any other <code>string</code>, including <code>""</code> and <code>"hello"</code></td>
+<td style="text-align: left;"><code>false</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>number</code> <code>0</code></td>
+<td style="text-align: left;"><code>false</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Any other <code>number</code></td>
+<td style="text-align: left;"><code>true</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>null</code> or absent</td>
+<td style="text-align: left;"><code>false</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Any other object or array</td>
+<td style="text-align: left;"><code>false</code></td>
+</tr>
+</tbody>
+</table>
+</li>
 </ol>
 <p><em>Example Component Definition:</em></p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-24-1"><a href="#__codelineno-24-1" id="__codelineno-24-1" name="__codelineno-24-1"></a><span class="nt">"checks"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
@@ -4199,7 +4329,7 @@ While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 
 </tr>
 <tr>
 <td style="text-align: left;"><strong>regex</strong></td>
-<td style="text-align: left;">Checks that the value matches a regular expression string.</td>
+<td style="text-align: left;">Checks that the value contains a match for a pattern in the A2UI regex dialect.</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>length</strong></td>
@@ -4293,6 +4423,30 @@ While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 
 <li><strong>Null/Undefined</strong>: An empty string <code>""</code>.</li>
 <li><strong>Objects/Arrays</strong>: Stringified as JSON to ensure consistency across different renderer implementations.</li>
 </ul>
+<h3 id="the-regex-function">The <code>regex</code> function<a class="headerlink" href="#the-regex-function" title="Permanent link">¶</a></h3>
+<p>The <code>regex</code> validation function evaluates a regular expression pattern in the <strong>A2UI regex dialect</strong> and applies a static safety check before matching. Any catalog function that accepts a regular expression pattern (<code>regex</code>, <code>regexCapture</code>, <code>split</code>) SHOULD use this dialect and safety check.</p>
+<h4 id="regex-dialect"><code>regex</code> dialect<a class="headerlink" href="#regex-dialect" title="Permanent link">¶</a></h4>
+<p>The dialect is a portable subset of ECMAScript <code>Pattern</code> syntax, evaluated in Unicode mode (<code>u</code>) with no other flags:</p>
+<ol>
+<li><strong>Matching semantics</strong>: Matching is case-sensitive. <code>.</code> matches any code point except U+000A, U+000D, U+2028, and U+2029. <code>^</code> and <code>$</code> match only at the start and end of the value (no multiline mode, and <code>$</code> does not match before a trailing newline). <code>\d</code>, <code>\w</code>, and <code>\b</code> are ASCII-only. <code>\s</code> is the ECMAScript WhiteSpace and LineTerminator set. The function uses search semantics: it returns valid when the pattern matches anywhere in the value, like <code>RegExp.prototype.test</code>.</li>
+<li><strong>Allowed syntax</strong>: Literals, <code>.</code>, character classes with ranges and negation, the class escapes <code>\d \D \w \W \s \S</code>, <code>\b \B</code>, control escapes <code>\t \n \v \f \r</code>, <code>\0</code> not followed by a digit, <code>\xHH</code>, <code>\uHHHH</code>, <code>\u{H...}</code>, identity escapes of syntax characters, capturing groups <code>( )</code>, non-capturing groups <code>(?: )</code>, lookahead <code>(?= )</code> and <code>(?! )</code>, alternation, and the quantifiers <code>* + ? {n} {n,} {n,m}</code> with optional lazy <code>?</code>.</li>
+<li><strong>Not allowed</strong>: Backreferences (<code>\1</code>-<code>\9</code>, <code>\k&lt;name&gt;</code>), lookbehind (<code>(?&lt;=</code>, <code>(?&lt;!</code>), named groups (<code>(?&lt;name&gt;</code>), <code>\p{...}</code>/<code>\P{...}</code>, <code>\cX</code>, legacy octal escapes, and inline flags. A pattern that does not parse in this dialect, or uses a construct that is not allowed, fails with <code>code: "EXPRESSION_ERROR"</code>.</li>
+</ol>
+<h4 id="regex-safety-check"><code>regex</code> safety check<a class="headerlink" href="#regex-safety-check" title="Permanent link">¶</a></h4>
+<p>Before any matching, the renderer applies a static safety check and rejects the pattern with <code>code: "EXPRESSION_ERROR"</code> when:</p>
+<ol>
+<li>It is longer than 256 code points.</li>
+<li>A quantifier whose upper bound is above 1 applies to a subexpression that contains an unbounded quantifier (<code>*</code>, <code>+</code>, <code>{n,}</code>).</li>
+<li>An unbounded quantifier applies to an alternation two of whose branches can start with the same character.</li>
+<li>Two unbounded-quantified atoms with overlapping character sets are adjacent in one concatenation, where only zero-width assertions or items that can match the empty string lie between them.</li>
+</ol>
+<p><code>?</code> and <code>{0,1}</code> count as upper bound 1. Counted bounds such as <code>{1,1000}</code> are bounded. A group whose only content is one quantified atom counts as that atom. Rule 3 compares the first-character sets of the branches after unwrapping groups.</p>
+<p>A value longer than 4,096 code points does not match; <code>regex</code> returns <code>{"valid": false}</code> and reports no error.</p>
+<h4 id="regex-examples"><code>regex</code> examples<a class="headerlink" href="#regex-examples" title="Permanent link">¶</a></h4>
+<ul>
+<li><strong>Accepted</strong>: <code>^[a-z]+@[a-z]+\.com$</code>, <code>^(?=.*\d).{8,}$</code>, <code>\w+\s+\w+</code>.</li>
+<li><strong>Rejected</strong>: <code>(a+)+$</code> (rule 2), <code>(a|ab)*c</code> (rule 3), <code>\d+\s*\d+</code> (rule 4), <code>(\w)\1</code> (backreference).</li>
+</ul>
 <h3 id="the-index-function">The <code>@index</code> function<a class="headerlink" href="#the-index-function" title="Permanent link">¶</a></h3>
 <p>The <code>@index</code> function returns the 0-based index of the current item when rendering a dynamic list from a template. It is a universal system function available across all catalogs.</p>
 <h4 id="index-scope-restriction"><code>@index</code> scope restriction<a class="headerlink" href="#index-scope-restriction" title="Permanent link">¶</a></h4>
@@ -4385,16 +4539,19 @@ While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 
 <p><strong>Function Location Resolution &amp; Fallback Routing:</strong></p>
 <p>When the renderer evaluates a <code>FunctionCall</code> (from an action handler, validation check, or dynamic value), it determines the execution target using implicit fallback routing:</p>
 <ol>
-<li><strong>Local Lookup:</strong> The renderer checks if a local renderer-side function with that name is registered in its local catalog/registry. If found, the renderer executes the function locally.</li>
-<li><strong>Fallback to Agent RPC:</strong> If the function is not registered in the local renderer catalog, the renderer assumes it is an agent-side function and dispatches a <code>callAgentFunction</code> message over the protocol.</li>
+<li><strong>Catalog Resolution:</strong> The renderer resolves the catalog the call runs in, from its explicit <code>catalogId</code> or the surface default <code>catalogId</code> (see <a href="#mixable-catalogs-and-component-resolution-logic">Mixable catalogs and component resolution logic</a>). A call whose catalog cannot be resolved is a catalog error, and is not routed to the agent.</li>
+<li><strong>Local Lookup:</strong> A reserved system function (<code>@</code>-prefixed, such as <code>@index</code>) is always evaluated locally and MUST NOT be routed to the agent. Otherwise, the renderer checks whether it has a local implementation of the function in that catalog. A function counts as registered locally only if the renderer can execute it. If it can, the renderer enforces the function's <code>allowedCallers</code> and <code>requiresUserActivation</code> boundaries and executes it locally.</li>
+<li><strong>Fallback to Agent RPC:</strong> If the renderer has no local implementation, the renderer assumes it is an agent-side function and dispatches a <code>callAgentFunction</code> message over the protocol. This covers a function that the catalog does not declare, and a function that the catalog declares without the renderer implementing it (a schema-only declaration). For a declared function, the renderer first applies the declaration's boundaries: if it sets <code>allowedCallers: "agentOnly"</code>, or sets <code>requiresUserActivation: true</code> and the evaluation is not user-activated (such as a data binding or a check), the renderer MUST NOT dispatch the call and reports an <code>EXPRESSION_ERROR</code> instead. The renderer resolves the arguments before dispatching, and validates the arguments of a declared function against its schema; arguments that fail validation are reported as an <code>EXPRESSION_ERROR</code> and are not sent. Routing is a renderer-initiated call, so it applies to a schema-only function whose <code>allowedCallers</code> is <code>"rendererOnly"</code>, the default: that value only forbids the agent from calling the function with <code>callRendererFunction</code>.</li>
+<li><strong>Sharing and caching:</strong> For reactive evaluations (data bindings and checks), a renderer MAY share one in-flight call between identical calls (the same resolved <code>catalogId</code>, function name and <code>args</code>) on a surface, and MAY reuse the settled answer of such a call on that surface. Imperative evaluations (actions) MUST send a new <code>callAgentFunction</code> each time. An agent function with side effects should therefore be called from an action.</li>
 <li><strong>Agent Error Handling:</strong> If the agent does not recognize the function name (or if parameter validation fails on the server), the agent MUST return an <code>agentFunctionResponse</code> message containing an <code>error</code> payload (<code>code: "UNKNOWN_FUNCTION"</code> or <code>"INVALID_FUNCTION_CALL"</code>). The renderer then handles the error state locally (e.g., via component error boundaries or fallbacks).</li>
 </ol>
+<p>Fallback routing only applies to function calls that the renderer accepts. A renderer that rejects payloads naming functions absent from its catalogs MUST declare the agent-side functions it expects, without implementing them, for those calls to reach the agent.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li><code>callAgentFunction</code> (object, required):</li>
 <li><code>surfaceId</code> (string, required): The surface ID where the call originated.</li>
 <li><code>functionCallId</code> (string, required): A unique identifier for this invocation instance. The agent MUST copy this ID verbatim into the return <code>agentFunctionResponse</code>.</li>
-<li><code>callFunction</code> (object, required): The description of the function call (<code>@call</code>, <code>catalogId</code>, <code>args</code>).</li>
+<li><code>callFunction</code> (object, required): The description of the function call (<code>@call</code>, <code>catalogId</code>, <code>args</code>). The renderer MUST set <code>catalogId</code> to the catalog the call resolved to, even when the originating <code>FunctionCall</code> omits it and relies on the surface default, so that the agent does not need to track each surface's default catalog. <code>args</code> carries the resolved argument values. For a function the catalog declares, <code>args</code> is the result of validating those values against the declared schema, with the schema's defaults applied.</li>
 </ul>
 <p><strong>Example:</strong></p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-31-1"><a href="#__codelineno-31-1" id="__codelineno-31-1" name="__codelineno-31-1"></a><span class="p">{</span>
@@ -4404,12 +4561,13 @@ While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 
 </span><span id="__span-31-5"><a href="#__codelineno-31-5" id="__codelineno-31-5" name="__codelineno-31-5"></a><span class="w">    </span><span class="nt">"functionCallId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"verify_provider_99"</span><span class="p">,</span>
 </span><span id="__span-31-6"><a href="#__codelineno-31-6" id="__codelineno-31-6" name="__codelineno-31-6"></a><span class="w">    </span><span class="nt">"callFunction"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-31-7"><a href="#__codelineno-31-7" id="__codelineno-31-7" name="__codelineno-31-7"></a><span class="w">      </span><span class="nt">"@call"</span><span class="p">:</span><span class="w"> </span><span class="s2">"verifyProvider"</span><span class="p">,</span>
-</span><span id="__span-31-8"><a href="#__codelineno-31-8" id="__codelineno-31-8" name="__codelineno-31-8"></a><span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-31-9"><a href="#__codelineno-31-9" id="__codelineno-31-9" name="__codelineno-31-9"></a><span class="w">        </span><span class="nt">"providerId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PRV-102"</span>
-</span><span id="__span-31-10"><a href="#__codelineno-31-10" id="__codelineno-31-10" name="__codelineno-31-10"></a><span class="w">      </span><span class="p">}</span>
-</span><span id="__span-31-11"><a href="#__codelineno-31-11" id="__codelineno-31-11" name="__codelineno-31-11"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-31-12"><a href="#__codelineno-31-12" id="__codelineno-31-12" name="__codelineno-31-12"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-31-13"><a href="#__codelineno-31-13" id="__codelineno-31-13" name="__codelineno-31-13"></a><span class="p">}</span>
+</span><span id="__span-31-8"><a href="#__codelineno-31-8" id="__codelineno-31-8" name="__codelineno-31-8"></a><span class="w">      </span><span class="nt">"catalogId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://example.com/catalogs/healthcare.json"</span><span class="p">,</span>
+</span><span id="__span-31-9"><a href="#__codelineno-31-9" id="__codelineno-31-9" name="__codelineno-31-9"></a><span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-31-10"><a href="#__codelineno-31-10" id="__codelineno-31-10" name="__codelineno-31-10"></a><span class="w">        </span><span class="nt">"providerId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PRV-102"</span>
+</span><span id="__span-31-11"><a href="#__codelineno-31-11" id="__codelineno-31-11" name="__codelineno-31-11"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-31-12"><a href="#__codelineno-31-12" id="__codelineno-31-12" name="__codelineno-31-12"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-31-13"><a href="#__codelineno-31-13" id="__codelineno-31-13" name="__codelineno-31-13"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-31-14"><a href="#__codelineno-31-14" id="__codelineno-31-14" name="__codelineno-31-14"></a><span class="p">}</span>
 </span></code></pre></div>
 <h3 id="rendererfunctionresponse"><code>rendererFunctionResponse</code><a class="headerlink" href="#rendererfunctionresponse" title="Permanent link">¶</a></h3>
 <p>This message is sent by the renderer to return the execution result or error of an agent-initiated <code>callRendererFunction</code> request.</p>
@@ -4481,24 +4639,24 @@ While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 
 <h3 id="3-failure-propagation-recovery-rules">3. Failure Propagation &amp; Recovery Rules<a class="headerlink" href="#3-failure-propagation-recovery-rules" title="Permanent link">¶</a></h3>
 <p>If a function call within a content pipeline fails (returns an <code>agentFunctionResponse</code> containing an <code>error</code> payload, throws a local execution error, times out, or triggers a transport error), the renderer applies the following recovery rules:</p>
 <ul>
-<li><strong>Dynamic Value Binding Failure:</strong> The property binding resolves to <code>null</code> (or a declared fallback value), and the renderer logs an evaluation error without crashing the surrounding component tree.</li>
-<li><strong>Validation Rule Failure (<code>Checkable</code>):</strong> The check rule evaluates as invalid, displaying the rule's specified error message to the user.</li>
-<li><strong>Action Pipeline Failure:</strong> Halts execution of any subsequent steps in the action execution pipeline and dispatches a local error boundary event or toast notification. Any side effects of previously executed steps are preserved.</li>
+<li><strong>Dynamic Value Binding Failure:</strong> The binding resolves to <code>null</code> (there is no declared fallback value in v1.0). The renderer reports an <code>error</code> with <code>code: "EXPRESSION_ERROR"</code>, including the call's <code>functionCallId</code> when a routed agent function failed or the <code>surfaceId</code> for a local evaluation failure. The component and its siblings stay mounted and keep resolving their other bindings.</li>
+<li><strong>Validation Rule Failure (<code>Checkable</code>):</strong> The check evaluates to <code>{"valid": false, "message": &lt;CheckRule.message&gt;, "severity": "error"}</code>, using the error's message when <code>CheckRule.message</code> is omitted.</li>
+<li><strong>Action Pipeline Failure:</strong> The renderer stops the remaining steps of that action, dispatches no further events from it, and reports an <code>error</code> (<code>code: "EXPRESSION_ERROR"</code> with the failed call's <code>functionCallId</code> when a routed agent function failed, or <code>code: "EXECUTION_ERROR"</code> with the <code>surfaceId</code> when a local renderer function ran and failed). Effects of steps that already ran are kept. The surface stays mounted. Whether the adapter also shows the failure to the user (inline message, toast) is the adapter's choice.</li>
 </ul>
 <hr/>
 <h2 id="capabilities-and-metadata">Capabilities and metadata<a class="headerlink" href="#capabilities-and-metadata" title="Permanent link">¶</a></h2>
-<p>In A2UI v1.0, capabilities and other metadata are exchanged via <strong>transport metadata</strong> or initialization payloads (e.g., A2A metadata, Agent Cards, or MCP initialization) rather than as first-class A2UI messages.</p>
+<p>In A2UI v1.0, capabilities and other metadata travel in <strong>transport metadata</strong> or a <strong>transport handshake</strong>, with each transport binding defining where they are placed rather than encoding them as first-class A2UI messages.</p>
 <h3 id="agent-capabilities">Agent capabilities<a class="headerlink" href="#agent-capabilities" title="Permanent link">¶</a></h3>
-<p>An agent advertises its capabilities using the [<code>agent_capabilities.json</code>] schema. This indicates which catalogs it can generate UI for, and whether it accepts inline catalogs from the renderer. The exact mechanism depends on the transport (e.g., the <code>params</code> object in an A2A AgentCard, or agent capabilities in MCP).</p>
+<p>An agent advertises its capabilities using the [<code>agent_capabilities.json</code>] schema. This indicates which catalogs it can generate UI for, and whether it accepts inline catalogs from the renderer. Each transport binding defines where this advertisement is carried.</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li><code>1.0</code> (object, required): The capability structure for version 1.0 of the A2UI protocol.</li>
-<li><code>supportedCatalogIds</code> (array of strings, required): An array of strings identifying the Catalog Definition Schemas the agent can generate.</li>
+<li><code>supportedCatalogIds</code> (array of strings, optional): An array of strings identifying the Catalog Definition Schemas the agent can generate.</li>
 <li><code>acceptsInlineCatalogs</code> (boolean, optional, default <code>false</code>): Indicates if the agent can accept custom inline component/function catalogs in the renderer's capabilities metadata.</li>
 </ul>
 <h3 id="renderer-capabilities">Renderer capabilities<a class="headerlink" href="#renderer-capabilities" title="Permanent link">¶</a></h3>
-<p>The <code>a2uiRendererCapabilities</code> object in the transport metadata follows the [<code>renderer_capabilities.json</code>] schema to describe the renderer's capabilities.</p>
-<p>If <code>a2uiRendererCapabilities</code> is carried on message metadata (eg, in A2A), it should be scoped to that conversation turn, and omitting it on subsequent messages should withdraw A2UI support for those turns. If <code>a2uiRendererCapabilities</code> is carried on session metadata (eg, in MCP initialize) it should be scoped to the session.</p>
+<p>The <code>a2uiRendererCapabilities</code> object in transport metadata follows the [<code>renderer_capabilities.json</code>] schema to describe the renderer's capabilities.</p>
+<p>Capabilities carried per message are scoped to that message's turn, and omitting them withdraws A2UI for that turn; capabilities carried at session setup are scoped to the session. Each transport binding states which applies (see <a href="../extensions/a2a/docs/a2ui_extension_specification.md#capability-scoping">Capability scoping</a> for the A2A rule).</p>
 <p><strong>Properties:</strong></p>
 <ul>
 <li><code>1.0</code> (object, required): The capability structure for version 1.0 of the A2UI protocol.</li>

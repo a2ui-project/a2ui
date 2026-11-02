@@ -2620,6 +2620,9 @@ Do not migrate v0.9 payloads with a blanket find-and-replace of <code>"path":</c
 <li>Enforced runtime lookup of function execution boundaries and return types. If a renderer receives a remote call to a function configured as <code>rendererOnly</code> or if the function is unregistered, it rejects the call and returns an error with the code <code>INVALID_FUNCTION_CALL</code>.</li>
 <li>Enforced catalog entity naming compliance with Unicode Standard Annex #31 (UAX #31).</li>
 <li>Restricted <code>@index</code> evaluation scope strictly to template instantiation loops (Collection Scope). Calling <code>@index</code> outside of template iteration results in an evaluation error.</li>
+<li>Defined <code>DynamicBoolean</code> coercion for strings, numbers, <code>null</code>, objects and arrays, applied to properties and function arguments alike.</li>
+<li>Defined the <code>regex</code> dialect and a static safety check; unsafe or unsupported patterns fail with <code>EXPRESSION_ERROR</code>.</li>
+<li>A <code>createSurface</code> carrying <code>theme</code> fails strict validation; relaxed renderers drop it.</li>
 </ul>
 <h3 id="28-terminology-standardization">2.8. Terminology standardization<a class="headerlink" href="#28-terminology-standardization" title="Permanent link">&para;</a></h3>
 <ul>

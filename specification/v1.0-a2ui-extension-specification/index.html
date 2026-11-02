@@ -2519,7 +2519,7 @@
 <p>The URI of this extension is https://a2ui.org/a2a-extension/a2ui/v1.0</p>
 <p>This URI is the canonical way to communicate protocol versioning between renderers and agents. The extension URI explicitly encodes the version (e.g., <code>v1.0</code>). A renderer requesting this specific URI indicates it supports the v1.0 schema format.</p>
 <h2 id="agent-card">Agent Card<a class="headerlink" href="#agent-card" title="Permanent link">&para;</a></h2>
-<p>Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the <code>AgentCapabilities.extensions</code> list. This advertisement is optional, but it informs the renderer whether to send <code>message.metadata["a2uiRendererCapabilities"]</code>. The <code>params</code> object defines the agent's specific UI support and corresponds directly to the <a href="../v1_0/json/agent_capabilities.json">Agent Capabilities Schema</a>.</p>
+<p>Agents are encouraged to advertise their A2UI capabilities in their AgentCard within the <code>AgentCapabilities.extensions</code> list. This advertisement is optional, but it informs the renderer whether to send <code>message.metadata["a2uiRendererCapabilities"]</code>. The <code>params</code> object defines the agent's specific UI support and MUST validate against <a href="../v1_0/json/agent_capabilities.json"><code>agent_capabilities.json#/properties/1.0</code></a>. The schema keys capabilities by version so a single object can describe multiple versions. Because A2A gives each version its own extension URI, <code>params</code> carries only the inner <code>1.0</code> object and never the <code>{"1.0": {...}}</code> wrapper.</p>
 <p>Example AgentCard payload:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Dashboard Agent&quot;</span><span class="p">,</span>
@@ -2548,11 +2548,11 @@
 <li><code>params.acceptsInlineCatalogs</code> (optional): A boolean indicating if the agent can accept an <code>inlineCatalogs</code> array in the renderer's <code>a2uiRendererCapabilities</code>. If omitted, this defaults to <code>false</code>.</li>
 </ul>
 <h2 id="a2a-extension-activation">A2A Extension activation<a class="headerlink" href="#a2a-extension-activation" title="Permanent link">&para;</a></h2>
-<p>Activating the A2UI extension is optional. Renderers and agents can negotiate A2UI support using <code>message.metadata["a2uiRendererCapabilities"]</code> A2A <code>DataPart.data.metadata["mimeType"] = "application/a2ui+json"</code>.</p>
+<p>Activating the A2UI extension is optional. Renderers and agents can negotiate A2UI support using <code>message.metadata["a2uiRendererCapabilities"]</code> and A2A <code>DataPart.data.metadata["mimeType"] = "application/a2ui+json"</code>.</p>
 <p>Specifically:</p>
 <ul>
 <li>If a renderer includes <code>message.metadata["a2uiRendererCapabilities"]</code>, the agent can use this object to determine the supported A2UI protocol version and catalogs.</li>
-<li>If an agent returns A2A A2A <code>DataPart.data.metadata["mimeType"] = "application/a2ui+json"</code>, the renderer knows the payload contains A2UI messages.</li>
+<li>If an agent returns A2A <code>DataPart.data.metadata["mimeType"] = "application/a2ui+json"</code>, the renderer knows the payload contains A2UI messages.</li>
 </ul>
 <p>While explicit activation is not required, renderers can still explicitly activate the extension using the transport-defined A2A extension activation mechanism. The <a href="https://a2a-protocol.org/latest/topics/extensions/">A2A Extensions Guide</a> defines this process.</p>
 <p>Note: You should not use <code>accepted_output_modes: ['a2ui']</code> (which is not an A2UI standard) to trigger A2UI.</p>
@@ -2586,16 +2586,15 @@
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">&quot;parts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">      </span><span class="p">{</span>
 </span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">        </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Hello, show me the dashboard&quot;</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">      </span><span class="p">]</span>
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="p">}</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="p">]</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="p">}</span>
 </span></code></pre></div>
 <h2 id="a2a-renderer-to-agent-metadata">A2A Renderer to Agent Metadata<a class="headerlink" href="#a2a-renderer-to-agent-metadata" title="Permanent link">&para;</a></h2>
-<p>Renderers attach <code>a2uiRendererCapabilities</code> and <code>a2uiRendererDataModel</code> to A2A messages to communicate their state and supported catalogs.</p>
+<p>Renderers attach <code>a2uiRendererCapabilities</code> and <code>a2uiRendererDataModel</code> to A2A message metadata (<code>message.metadata</code>) to communicate their state and supported catalogs.</p>
 <h3 id="a2uirenderercapabilities"><code>a2uiRendererCapabilities</code><a class="headerlink" href="#a2uirenderercapabilities" title="Permanent link">&para;</a></h3>
-<p>The renderer sends <code>sendMessageRequest.message["a2uiRendererCapabilities"]</code> = <a href="../v1_0/json/renderer_capabilities.json">Renderer Capabilities Schema</a> to advertise which catalogs the renderer supports.</p>
+<p>The renderer sends <code>message.metadata["a2uiRendererCapabilities"]</code>, whose value is the whole version-keyed capabilities object and MUST validate against the <a href="../v1_0/json/renderer_capabilities.json">Renderer Capabilities Schema</a>, to advertise which catalogs the renderer supports.</p>
 <p>Additionally, the renderer determines a function's execution boundary (e.g., <code>rendererOnly</code> status) at runtime by reading its configuration from the active catalog definition.</p>
 <p><strong>Example <code>SendMessageRequest</code> with Capabilities:</strong></p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
@@ -2618,8 +2617,10 @@
 </span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="w">  </span><span class="p">}</span>
 </span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="p">}</span>
 </span></code></pre></div>
+<h3 id="capability-scoping">Capability scoping<a class="headerlink" href="#capability-scoping" title="Permanent link">&para;</a></h3>
+<p>In A2A, renderer capabilities ride on message metadata, so they are scoped to that message's turn. An agent MUST treat a message that carries no <code>a2uiRendererCapabilities</code> entry for its version as a turn in which the renderer offers no A2UI, and MUST NOT send <code>application/a2ui+json</code> DataParts in reply to it. Activating the extension through <code>X-A2A-Extensions</code> alone does not offer catalogs. An entry keyed for another version is ignored. Agent SDKs expose this lookup as <code>read_renderer_capabilities</code>, and <code>a2ui.a2a</code> wraps it for an A2A <code>Message</code>, reading <code>Message.metadata</code> first and then each <code>DataPart</code>'s metadata in order.</p>
 <h3 id="a2uirendererdatamodel"><code>a2uiRendererDataModel</code><a class="headerlink" href="#a2uirendererdatamodel" title="Permanent link">&para;</a></h3>
-<p>When a surface enables Data Model Sync, the renderer sends <code>sendMessageRequest.message["a2uiRendererDataModel"]</code> = <a href="../v1_0/json/renderer_data_model.json">Renderer Data Model Schema</a> on every message. This model provides the agent with the latest UI state. For more details, see the <a href="../../concepts/actions/">Actions Guide</a>.</p>
+<p>When a surface enables Data Model Sync, the renderer sends <code>message.metadata["a2uiRendererDataModel"]</code> = <a href="../v1_0/json/renderer_data_model.json">Renderer Data Model Schema</a> on every message. This model provides the agent with the latest UI state. For more details, see the <a href="../../concepts/actions/">Actions Guide</a>.</p>
 <p><strong>Example <code>SendMessageRequest</code> with Data Model:</strong></p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;message&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
