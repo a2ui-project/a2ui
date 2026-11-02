@@ -5,7 +5,7 @@ description: 'Asynchronous bidirectional message types, protocol envelopes, flat
 
 import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 
-A2UI communicates across an asynchronous, bidirectional boundary. Rather than transferring opaque HTML, images, or executable code, an agent and a client application exchange structured JSON message envelopes.
+A2UI coordinates agent runtimes and client renderers through an asynchronous, bidirectional JSON messaging protocol. This page covers top-level message envelopes, agent-to-renderer and renderer-to-agent message payloads, flat component array rules, and full interaction lifecycles. Rather than transferring opaque HTML, images, or executable code, both endpoints exchange structured JSON message envelopes.
 
 These messages govern two concerns:
 
@@ -728,9 +728,7 @@ However, UAX #31 compliance is a **normative prose requirement** specified in th
 
 ## End-to-end flight booking sequence
 
-The following sequence diagram illustrates the complete message exchange between the User, the Client Application (Renderer SDK), and the Agent Server (LLM + Agent SDK) for a flight booking scenario.
-
-The diagram shows surface initialization, decoupled layout and data streaming, user interaction dispatch, function invocations, error self-correction, and teardown.
+The following sequence diagram traces the complete lifecycle of a surface across five operational phases in a flight booking scenario. In phase 1, the user's natural language request prompts the agent to allocate an isolated surface via `createSurface`. In phase 2, the agent streams decoupled `updateComponents` layout and `updateDataModel` flight state messages, which the client renders as native cards. In phase 3, the user clicks a flight card, causing the client to dispatch an `action` message with bound context data back to the agent, which responds with an incremental `updateDataModel` state mutation. Optional branches demonstrate remote agent function calls (`callAgentFunction`), agent-initiated device queries (`callRendererFunction`), runtime error reporting (`error` with `UNALLOWED_CHILD` triggering the LLM self-correction loop), and eventual surface disposal via `deleteSurface`.
 
 ```mermaid
 sequenceDiagram
