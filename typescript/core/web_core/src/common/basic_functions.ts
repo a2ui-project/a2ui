@@ -22,24 +22,12 @@
  */
 
 import {ExpressionParser} from '../expressions/expression_parser.js';
-import {
-  computed,
-  isSignal,
-  getValue,
-  peekValue,
-  setValue,
-  signal,
-  Signal,
-} from '../reactivity/signals.js';
+import {computed, isSignal, getValue, Signal} from '../reactivity/signals.js';
 import {createFunctionImplementation, FunctionImplementation} from '../catalog/types.js';
 import {A2uiExpressionError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
-import {
-  resolveArgumentValue,
-  resolveSignalKeepingPending,
-} from '../resolution/data-context-internal.js';
+import {withoutAgentRouting} from '../resolution/data-context-internal.js';
 import {isAtLeastVersion} from './semver.js';
-import {findFailedArgument, isThenable, settleDeep} from './settle_deep.js';
 import {isSafeRegex} from '../v0_9/basic_catalog/functions/safe_regex.js';
 
 export {isSafeRegex, type SafeRegexOptions} from '../v0_9/basic_catalog/functions/safe_regex.js';
@@ -467,74 +455,20 @@ export function executeFormatString(
     context.surface?.protocolVersion ?? context.surface?.defaultCatalog?.protocolVersion,
     '1.0',
   );
-  if (atLeastV10) {
-    return formatPendingAwareV10(
-      parts.map(part =>
-        typeof part !== 'object' || part === null || Array.isArray(part)
-          ? part
-          : adaptAstPartForV10(part),
-      ),
-      context,
-    );
-  }
-
+  // A template part never waits for the agent: from v1.0, a part that calls
+  // a function the renderer does not implement fails with an
+  // `EXPRESSION_ERROR` naming it, sends nothing, and renders empty.
+  const partContext = atLeastV10 ? withoutAgentRouting(context) : context;
   const dynamicParts = parts.map(part => {
     if (typeof part !== 'object' || part === null || Array.isArray(part)) {
       return part;
     }
-    return context.resolveSignal(part);
+    const adapted = atLeastV10 ? adaptAstPartForV10(part) : part;
+    return partContext.resolveSignal(adapted);
   });
 
   return computed(() => {
     return dynamicParts.map(p => coerceToString(isSignal(p) ? getValue(p) : p)).join('');
-  });
-}
-
-/**
- * Formats the parts of a v1.0 template, waiting for parts that are pending.
- *
- * A part can be an asynchronous call, such as a function routed to the
- * agent. The formatted value is pending until every part settles, as an
- * argument of a function call is: in a binding the signal holds `undefined`
- * meanwhile, and elsewhere (an action or a one-shot read) the result is a
- * Promise of the string. If a part fails, the failure has been reported and
- * the template has no value.
- *
- * @param parts The template parts: literal strings and v1.0 dynamic values.
- * @param context The context the template is evaluated in.
- * @returns The formatted string, a signal of it, a Promise of it, or the
- *   failed part.
- */
-function formatPendingAwareV10(parts: unknown[], context: DataContext): any {
-  const isDynamic = (part: unknown) =>
-    typeof part === 'object' && part !== null && !Array.isArray(part);
-  const join = (values: unknown[]) => values.map(coerceToString).join('');
-
-  if (!context.isPassiveEvaluation || context.isActionExecution) {
-    const values = parts.map(part =>
-      isDynamic(part) ? resolveArgumentValue(context, part, 1, context.isUserActivated) : part,
-    );
-    const settled = settleDeep(values);
-    const finish = (settledValues: unknown) =>
-      findFailedArgument(settledValues) ?? join(settledValues as unknown[]);
-    return isThenable(settled) ? Promise.resolve(settled).then(finish) : finish(settled);
-  }
-
-  const partValues = parts.map(part =>
-    isDynamic(part) ? resolveSignalKeepingPending(context, part) : part,
-  );
-  // Bumped when pending parts settle, so the template is formatted again.
-  const settledCount = signal(0);
-  return computed(() => {
-    getValue(settledCount);
-    const values = partValues.map(part => (isSignal(part) ? getValue(part) : part));
-    const settled = settleDeep(values);
-    if (isThenable(settled)) {
-      const bump = () => setValue(settledCount, peekValue(settledCount) + 1);
-      Promise.resolve(settled).then(bump, bump);
-      return undefined;
-    }
-    return findFailedArgument(settled) ? undefined : join(settled as unknown[]);
   });
 }
 

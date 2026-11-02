@@ -74,3 +74,14 @@ export function allowsAgentRouting(ctx: DataContext): boolean {
 export function resolveSignalKeepingPending(ctx: DataContext, value: unknown): Signal<unknown> {
   return ctx['resolveSignalValue'](value, 0, true);
 }
+
+/**
+ * Returns a view of `ctx` in which a call the renderer does not implement
+ * fails instead of being sent to the agent.
+ *
+ * @param ctx The context to evaluate in.
+ * @returns The view.
+ */
+export function withoutAgentRouting(ctx: DataContext): DataContext {
+  return ctx['withFlags']({noAgentRouting: true});
+}

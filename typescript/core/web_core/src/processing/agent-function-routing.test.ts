@@ -1251,28 +1251,23 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     assert.match(response.error.message, /Function not found/);
   });
 
-  it('waits for an agent call inside a formatString template (V3)', async () => {
+  it('refuses an agent call inside a formatString template without sending it (V3)', async () => {
     const template = {'@call': 'formatString', 'args': {'value': 'Hi ${fetchName()}!'}};
     const sub = ctx.subscribeDynamicValue(template, () => {});
     await flush();
-    assert.strictEqual(outbound.length, 1);
-    assert.strictEqual(sub.value, undefined, 'the formatted value is pending, not partial');
-    respond(0, {value: 'Ann'});
-    await flush();
-    assert.strictEqual(sub.value, 'Hi Ann!');
+    assert.strictEqual(outbound.length, 0, 'a template part never calls the agent');
+    assert.strictEqual(sub.value, 'Hi !', 'the refused part renders empty');
     sub.unsubscribe();
 
     const resolved = ctx.resolveAction({event: {name: 'greet', context: {'msg': template}}});
     await flush();
-    assert.strictEqual(outbound.length, 2, 'an action sends its own call');
-    respond(1, {value: 'Bo'});
-    assert.deepStrictEqual(await resolved, {event: {name: 'greet', context: {'msg': 'Hi Bo!'}}});
-
-    const failed = ctx.resolveAction({event: {name: 'greet', context: {'msg': template}}});
-    await flush();
-    respond(2, {error: {code: 'EXECUTION_ERROR', message: 'no name'}});
-    assert.strictEqual(await failed, undefined, 'a failed part fails the template');
-    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(outbound.length, 0);
+    assert.deepStrictEqual(await resolved, {event: {name: 'greet', context: {'msg': 'Hi !'}}});
+    assert.ok(errors.length >= 2);
+    for (const error of errors) {
+      assert.strictEqual(error.code, 'EXPRESSION_ERROR');
+      assert.strictEqual(error.expression, 'fetchName');
+    }
   });
 
   it('sends schema defaults from a document catalog as a local implementation receives them (V11)', async () => {
@@ -1321,7 +1316,7 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     assert.deepStrictEqual(localArgs, {symbol: 'GOOG', options: {currency: 'USD'}});
   });
 
-  it('reports a malformed event context value as INVALID_ACTION, first or after a pending entry (V12)', async () => {
+  it('reports a malformed event context value as EXPRESSION_ERROR, first or after a pending entry (V12)', async () => {
     const bad = {'@unknown': 1};
     assert.strictEqual(ctx.resolveAction({event: {name: 'go', context: {'bad': bad}}}), undefined);
     const later = ctx.resolveAction({
@@ -1330,12 +1325,47 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     await flush();
     respond(0, {value: 1});
     assert.strictEqual(await later, undefined);
-    assert.strictEqual(errors.length, 2);
+    assert.strictEqual(
+      ctx.resolveAction({event: {name: 'go', userMessage: {'@unknown': 1}}}),
+      undefined,
+    );
+    assert.strictEqual(errors.length, 3);
     for (const error of errors) {
-      assert.strictEqual(error.code, 'INVALID_ACTION');
+      assert.strictEqual(error.code, 'EXPRESSION_ERROR');
       assert.strictEqual((error as {surfaceId?: string}).surfaceId, 's1');
-      assert.match(error.message, /context entry 'bad' is invalid/);
     }
+    assert.match(errors[0].message, /^Action event context entry 'bad' is invalid: /);
+    assert.match(errors[1].message, /^Action event context entry 'bad' is invalid: /);
+    assert.match(errors[2].message, /^Action event userMessage is invalid: /);
+  });
+
+  it('reports refusals in actions as EXPRESSION_ERROR; only a local function that throws is EXECUTION_ERROR (V9)', async () => {
+    ctx.resolveAction(
+      {event: {name: 'pay', context: {'ok': {'@call': 'confirmPayment', 'args': {}}}}},
+      {userActivation: false},
+    );
+    ctx.resolveAction({
+      event: {name: 'go', context: {'x': {'@call': 'agentOnlySchemaFn', 'args': {}}}},
+    });
+    ctx.resolveAction({functionCall: {'@call': 'agentOnlySchemaFn', 'args': {}}});
+    ctx.resolveAction({
+      event: {name: 'go', context: {'x': {'@call': 'upper', 'args': {'value': 42}}}},
+    });
+    ctx.resolveAction({functionCall: {'@call': 'upper', 'args': {'value': 42}}});
+    ctx.resolveAction({functionCall: {'@call': 'explode', 'args': {'value': 'a'}}});
+    await flush();
+    assert.strictEqual(outbound.length, 0);
+    assert.deepStrictEqual(
+      errors.map(e => e.code),
+      [
+        'EXPRESSION_ERROR',
+        'EXPRESSION_ERROR',
+        'EXPRESSION_ERROR',
+        'EXPRESSION_ERROR',
+        'EXPRESSION_ERROR',
+        'EXECUTION_ERROR',
+      ],
+    );
   });
 
   it('gives the agent a descriptive message when a nested argument fails without one (V13)', async () => {

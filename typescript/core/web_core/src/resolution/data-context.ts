@@ -1207,14 +1207,18 @@ export class DataContext {
             entryController.signal,
           );
         } catch (e: unknown) {
-          // A malformed value, such as an unrecognized `@` key, is reported
-          // the same way whether it comes first or after a pending entry.
+          // A malformed value, such as an unrecognized `@` key, is an
+          // expression error, reported the same way whether it comes first
+          // or after a pending entry.
           entryController.abort();
-          return this.handleInvalidAction(
-            `Action event ${contextEntry ? `context entry '${contextEntry[0]}'` : "'userMessage'"} is invalid: ${
+          this.surface?.dispatchError({
+            code: 'EXPRESSION_ERROR',
+            surfaceId: this.surface?.id,
+            message: `Action event ${contextEntry ? `context entry '${contextEntry[0]}'` : 'userMessage'} is invalid: ${
               (e as {message?: string} | undefined)?.message ?? String(e)
             }`,
-          );
+          });
+          return undefined;
         }
         const store = (settled: unknown): boolean => {
           if (findFailedArgument(settled)) {
