@@ -21,7 +21,7 @@ flowchart TD
   Agent -- "createSurface.catalogId" --> Renderer
   subgraph Catalog["Catalog (https://example.com/catalogs/travel/v1/catalog.json)"]
     Components["components: FlightStatusCard, Column, Text, Button, TextField"]
-    Functions["functions: formatCurrency (rendererOnly), holdSeat (agentOnly)"]
+    Functions["functions: formatCurrency (rendererOnly), saveBoardingPass (agentOnly)"]
     Instructions["instructions: Markdown guidance added to LLM system prompt"]
   end
   Agent --> Catalog
@@ -137,7 +137,7 @@ flowchart TD
         </div>
 
         <div class="ca-card">
-          <code class="ca-card__name">holdSeat</code>
+          <code class="ca-card__name">saveBoardingPass</code>
           <p class="ca-card__desc">
             Runs on the renderer when the agent sends <code>callRendererFunction</code>.
           </p>
@@ -165,7 +165,7 @@ flowchart TD
     type="text/vnd.mermaid"
     data-agent-diagram="spec"
     style="display: none;"
-    set:html={mermaid.trim()}
+    set:html={mermaid.trim().replace(/<\//g, '<\\/')}
   />
 </div>
 

@@ -8,7 +8,7 @@ import CatalogAnatomy from '@components/docs/CatalogAnatomy.astro';
 
 An A2UI catalog defines the UI components, the functions that populate data or handle user events, and the prompt instructions that an agent and a renderer agree on. Because both sides work from the same catalog contract, the agent only sends component types and properties that the renderer knows how to build natively, never raw HTML, CSS, or executable scripts.
 
-In the diagram below, the renderer advertises the catalogs it supports through `supportedCatalogIds`, and the agent selects a default catalog for a surface by setting `catalogId` in `createSurface`. The shared catalog document has three sections: components such as `FlightStatusCard` and `Column`, functions such as `formatCurrency` and `holdSeat`, and Markdown `instructions` that the agent SDK adds to the LLM system prompt.
+In the diagram below, the renderer advertises the catalogs it supports through `supportedCatalogIds`, and the agent selects a default catalog for a surface by setting `catalogId` in `createSurface`. The shared catalog document has three sections: components such as `FlightStatusCard` and `Column`, functions such as `formatCurrency` and `saveBoardingPass`, and Markdown `instructions` that the agent SDK adds to the LLM system prompt.
 
 <CatalogAnatomy />
 
@@ -190,11 +190,11 @@ Each entry in a catalog's `functions` map declares a `returnType` (`"string"`, `
 
 In v1.0, the `allowedCallers` field on a renderer-side function controls whether the renderer, the agent, or both can invoke it:
 
-| Setting                    | Who can call it                                                     | Typical uses                                                                               |
-| :------------------------- | :------------------------------------------------------------------ | :----------------------------------------------------------------------------------------- |
-| `"rendererOnly"` (default) | Only the renderer, while it resolves properties or handles actions. | Formatting (`formatCurrency`), validation (`required`, `regex`), and logic (`and`, `not`). |
-| `"agentOnly"`              | Only the agent, through `callRendererFunction`.                     | Holding a seat, reading device state, or other work the agent asks the client to do.       |
-| `"rendererOrAgent"`        | Both.                                                               | Calculations that both sides need, such as currency conversion.                            |
+| Setting                    | Who can call it                                                     | Typical uses                                                                                         |
+| :------------------------- | :------------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------- |
+| `"rendererOnly"` (default) | Only the renderer, while it resolves properties or handles actions. | Formatting (`formatCurrency`), validation (`required`, `regex`), and logic (`and`, `not`).           |
+| `"agentOnly"`              | Only the agent, through `callRendererFunction`.                     | Saving a boarding pass locally, reading device state, or other work the agent asks the client to do. |
+| `"rendererOrAgent"`        | Both.                                                               | Calculations that both sides need, such as currency conversion.                                      |
 
 A renderer function can also set `requiresUserActivation: true` (always paired with `"rendererOnly"`). The renderer then runs it only in response to an active user gesture, such as a button tap. Functions like `openUrl` use this so that an agent cannot open pages on its own.
 
@@ -458,7 +458,10 @@ const FlightStatusCardApi = {
   `,
 })
 export class FlightStatusCardComponent extends CatalogComponent<typeof FlightStatusCardApi> {
-  readonly flightNumber = computed(() => this.props().flightNumber?.value() ?? '');
+  readonly flightNumber = computed(() => {
+    const flight = this.props().flightNumber?.value();
+    return typeof flight === 'string' ? flight : '';
+  });
   readonly formattedFare = computed(() => {
     const fare = this.props().fareAmount?.value();
     return typeof fare === 'number' ? fare.toFixed(2) : undefined;
@@ -493,12 +496,13 @@ let flightStatusCard = ComponentImplementation(
         "type": "object",
         "properties": {
           "component": { "const": "FlightStatusCard" },
-          "flightNumber": { "type": "string" },
-          "fareAmount": { "type": "number" }
+          "flightNumber": { "$ref": "common_types.json#/$defs/DynamicString" },
+          "fareAmount": { "$ref": "common_types.json#/$defs/DynamicNumber" }
         },
         "required": ["component", "flightNumber"]
       }
-      """
+      """,
+    remoteSchemas: A2UICommonSchema.allSchemas
   ),
   allowedParents: ["Column", "List"]
 ) { node in
@@ -522,14 +526,6 @@ let travelCatalog = Catalog(
 )
 
 let processor = MessageProcessor(catalogs: [travelCatalog])
-```
-
-  </TabItem>
-  <TabItem label="Jetpack Compose">
-
-```kotlin
-// [TODO]: Add Jetpack Compose catalog registration example.
-// The Jetpack Compose A2UI renderer maps each ComponentApi name to a @Composable builder function.
 ```
 
   </TabItem>
