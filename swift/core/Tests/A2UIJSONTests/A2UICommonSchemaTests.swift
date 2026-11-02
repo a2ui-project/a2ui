@@ -68,10 +68,6 @@ struct A2UICommonSchemaTests {
     #expect(schemas[A2UICommonSchema.v10BaseURI] == A2UICommonSchema.v10Document)
     #expect(schemas["common_types.json"] == A2UICommonSchema.v10Document)
     #expect(
-      schemas["https://swift-json-schema.invalid/common_types.json"]
-        == A2UICommonSchema.v10Document
-    )
-    #expect(
       schemas[A2UICommonSchema.v10CatalogDefinitionURI]
         == A2UICommonSchema.v10CatalogDefinitionDocument
     )
@@ -87,6 +83,64 @@ struct A2UICommonSchemaTests {
       schemas["https://a2ui.org/specification/v1_0/catalog.json"]
         == A2UICommonSchema.v10CatalogFunctionStubDocument
     )
+  }
+
+  @Test func testAllSchemasIdentifiesEachAliasByItsURL() throws {
+    // swift-json-schema caches a document under its `$id` and looks it up by the `$ref` URL,
+    // so an alias whose document keeps another `$id` is built again on every `$ref`.
+    for (key, document) in A2UICommonSchema.allSchemas where key.hasPrefix("https://") {
+      #expect(document.object?["$id"]?.string == key, "\(key)")
+    }
+  }
+
+  @Test func testAliasCopyKeepsRelativeRefTargets() throws {
+    let alias = try #require(
+      A2UICommonSchema.allSchemas["https://swift-json-schema.invalid/common_types.json"]
+    )
+    let functionRefs = try #require(
+      alias.object?["$defs"]?.object?["FunctionCall"]?.object?["allOf"]?.array?.last?
+        .object?["oneOf"]?.array
+    )
+    #expect(
+      functionRefs.first?.object?["$ref"]?.string
+        == "https://a2ui.org/specification/v1_0/catalog.json#/$defs/anyFunction"
+    )
+    #expect(functionRefs.last?.object?["$ref"]?.string == "#/$defs/IndexSystemFunction")
+
+    var withCanonicalID = try #require(alias.object)
+    withCanonicalID["$id"] = .string(A2UICommonSchema.v10BaseURI)
+    let canonicalDefs = try #require(A2UICommonSchema.v10Document.object?["$defs"]?.object)
+    for (name, definition) in withCanonicalID["$defs"]?.object ?? [:] where name != "FunctionCall" {
+      #expect(definition == canonicalDefs[name], "\(name)")
+    }
+  }
+
+  @Test(arguments: [
+    "common_types.json#/$defs/DynamicString",
+    "https://a2ui.org/specification/v1_0/catalogs/basic/common_types.json#/$defs/DynamicString",
+  ])
+  func testAliasRefValidatesLikeCanonicalRef(_ aliasRef: String) throws {
+    func schema(_ ref: String) throws -> Schema {
+      try Schema(
+        rawSchema: .object(["$ref": .string(ref)]),
+        context: A2UISchemaRegistry.makeContext()
+      )
+    }
+    let canonical = try schema(A2UICommonSchema.v10URI(for: "DynamicString"))
+    let viaAlias = try schema(aliasRef)
+    let instances: [JSONValue] = [
+      "text",
+      42,
+      ["@path": "/name"],
+      ["@path": "/name", "extra": true],
+      ["@call": "@index"],
+      ["@call": "@index", "args": ["offset": "one"]],
+    ]
+    #expect(canonical.validate("text").isValid)
+    #expect(!canonical.validate(42).isValid)
+    for instance in instances {
+      #expect(viaAlias.validate(instance).isValid == canonical.validate(instance).isValid)
+    }
   }
 
   // MARK: - Schema Registry
