@@ -1,11 +1,510 @@
 ---
 title: 'Data Model and Data Binding'
-description: 'Surface data models, reactive JSON Pointer data binding, and state synchronization in A2UI.'
+description: 'Learn how A2UI separates surface UI structure from reactive JSON state, enabling two-way local bindings, reactive formatting, dynamic list templates, and on-demand state synchronization.'
 ---
 
-import {Aside} from '@astrojs/starlight/components';
+import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
+import DataBindingAnatomy from '../../../components/docs/DataBindingAnatomy.astro';
+import CollectionScopeDiagram from '../../../components/docs/CollectionScopeDiagram.astro';
 
-<Aside type="note" title="Work in Progress">
-  This page is currently being authored. Refer to the site outline in the repository for the
-  specification and planned content.
+In A2UI, the component hierarchy of a surface is decoupled from its runtime state. Every surface owns an isolated, reactive JSON object tree called the **`DataModel`**.
+
+Components bind their properties to locations inside the `DataModel` using [RFC 6901 JSON Pointers](https://datatracker.ietf.org/doc/html/rfc6901) (such as `/reservation/guestEmail` or `/invoice/total`). When either the agent or the user mutates a path in the `DataModel`, only the specific widgets subscribed to that path re-render.
+
+<DataBindingAnatomy />
+
+---
+
+## Populating the data model
+
+A surface `DataModel` can be populated through two complementary paths:
+
+1. **Deterministic tool and backend data injection**: An agent runtime, server, or tool handler can populate structured data directly into the surface's `DataModel` using [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage). When an external tool returns live database rows, flight availability, or price calculations, the host application injects that data payload directly into target pointers (for example, `/flights` or `/invoice/total`) without forcing a large language model to serialize and echo the records into its text output stream. This approach prevents hallucinated fields and conserves output tokens.
+2. **Model-generated state**: A language model can define initial data values inline within [`createSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) or emit subsequent `updateDataModel` messages to modify state during a conversational turn.
+
+Because UI layout ([`updateComponents`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateComponentsMessage)) and data payloads (`updateDataModel`) are transmitted as distinct messages, an agent can emit a shared component template once and update data payloads dynamically at any point during a session.
+
+---
+
+## Upsert and deletion semantics (`updateDataModel`)
+
+When the client renderer receives an [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) message (or [`UpdateDataModelMessage`](/specification/v0.9.1/schemas/#server_to_client.json/$defs/UpdateDataModelMessage) in v0.9.1), it applies upsert semantics at the target JSON Pointer `path`:
+
+1. **Root replacement**: Omitting `path` (or providing `"path": "/"`) replaces the entire `DataModel` object of the surface.
+2. **Targeted path update**: Providing a pointer such as `"path": "/invoice/total"` creates any missing intermediate objects and updates only that specific leaf value.
+3. **Key deletion**: In v1.0, setting `"value": null` removes the key at `path` from its parent object. In v0.9.1, omitting the `value` property deletes the key.
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```json
+[
+  {
+    "version": "1.0",
+    "updateDataModel": {
+      "surfaceId": "checkout",
+      "path": "/invoice/total",
+      "value": 310.0
+    }
+  },
+  {
+    "version": "1.0",
+    "updateDataModel": {
+      "surfaceId": "checkout",
+      "path": "/invoice/promoCode",
+      "value": null
+    }
+  }
+]
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Current)">
+
+```json
+[
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "checkout",
+      "path": "/invoice/total",
+      "value": 310.0
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "checkout",
+      "path": "/invoice/promoCode"
+    }
+  }
+]
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Core data binding patterns
+
+Component properties typed as dynamic values ([`DynamicString`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicString), [`DynamicNumber`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicNumber), [`DynamicBoolean`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicBoolean), [`DynamicStringList`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicStringList), or [`DynamicValue`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicValue)) accept three forms:
+
+1. A static literal value (such as `"Alex"` or `42`).
+2. A reactive [`DataBinding`](/specification/v1.0/schemas/#common_types.json/$defs/DataBinding) pointing to a path in the `DataModel` (`{"@path": "/path"}` in v1.0, `{"path": "/path"}` in v0.9.1).
+3. A catalog function call (`{"@call": "fnName", "args": {...}}` in v1.0, `{"call": "fnName", "args": {...}}` in v0.9.1).
+
+### Pattern 1: Two-way input binding and action context
+
+Interactive input components bind their `value` property to a `DataModel` path. As the user enters text in a `TextField` or toggles a `CheckBox`, the renderer mutates that path in the local `DataModel` immediately.
+
+When the user triggers an action (such as clicking a submit `Button`), the button's [`action.event.context`](/specification/v1.0/schemas/#common_types.json/$defs/Event) resolves those JSON Pointers and sends the current values to the agent in an [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```json
+[
+  {
+    "id": "emailInput",
+    "component": "TextField",
+    "label": "Guest Email",
+    "value": {"@path": "/reservation/email"}
+  },
+  {
+    "id": "optInCheck",
+    "component": "CheckBox",
+    "label": "Send SMS flight alerts",
+    "value": {"@path": "/reservation/smsAlerts"}
+  },
+  {
+    "id": "confirmLabel",
+    "component": "Text",
+    "text": "Confirm Reservation"
+  },
+  {
+    "id": "confirmBtn",
+    "component": "Button",
+    "child": "confirmLabel",
+    "action": {
+      "event": {
+        "name": "confirm_reservation",
+        "context": {
+          "email": {"@path": "/reservation/email"},
+          "smsAlerts": {"@path": "/reservation/smsAlerts"}
+        }
+      }
+    }
+  }
+]
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Current)">
+
+```json
+[
+  {
+    "id": "emailInput",
+    "component": "TextField",
+    "label": "Guest Email",
+    "value": {"path": "/reservation/email"}
+  },
+  {
+    "id": "optInCheck",
+    "component": "CheckBox",
+    "label": "Send SMS flight alerts",
+    "value": {"path": "/reservation/smsAlerts"}
+  },
+  {
+    "id": "confirmLabel",
+    "component": "Text",
+    "text": "Confirm Reservation"
+  },
+  {
+    "id": "confirmBtn",
+    "component": "Button",
+    "child": "confirmLabel",
+    "action": {
+      "event": {
+        "name": "confirm_reservation",
+        "context": {
+          "email": {"path": "/reservation/email"},
+          "smsAlerts": {"path": "/reservation/smsAlerts"}
+        }
+      }
+    }
+  }
+]
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+### Pattern 2: Reactive formatting and string interpolation (`@call` and `formatString`)
+
+Component properties can bind to local catalog functions whose arguments reference `DataModel` pointers. When an underlying path in the `DataModel` changes, the Core SDK re-evaluates the function and updates the bound widget property.
+
+For combining text with dynamic paths or nested function calls, use the Basic Catalog function `formatString` with `${...}` interpolation placeholders:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```json
+[
+  {
+    "id": "formattedTotal",
+    "component": "Text",
+    "text": {
+      "@call": "formatCurrency",
+      "args": {
+        "value": {"@path": "/invoice/total"},
+        "currency": {"@path": "/invoice/currency"}
+      }
+    }
+  },
+  {
+    "id": "summaryBanner",
+    "component": "Text",
+    "text": {
+      "@call": "formatString",
+      "args": {
+        "value": "Booking for ${/reservation/email} — Total: ${formatCurrency(value: ${/invoice/total}, currency: 'USD')}"
+      }
+    }
+  }
+]
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Current)">
+
+```json
+[
+  {
+    "id": "formattedTotal",
+    "component": "Text",
+    "text": {
+      "call": "formatCurrency",
+      "args": {
+        "value": {"path": "/invoice/total"},
+        "currency": {"path": "/invoice/currency"}
+      }
+    }
+  },
+  {
+    "id": "summaryBanner",
+    "component": "Text",
+    "text": {
+      "call": "formatString",
+      "args": {
+        "value": "Booking for ${/reservation/email} — Total: ${formatCurrency(value: ${/invoice/total}, currency: 'USD')}"
+      }
+    }
+  }
+]
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+### Pattern 3: Local control-to-control synchronization
+
+Because the `DataModel` is backed by reactive state signals on the client, two or more components bound to the same JSON Pointer stay synchronized locally without network round-trips.
+
+For example, binding both a `Slider` and a `Text` display to `/reservation/guests` updates the label on every drag frame:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```json
+[
+  {
+    "id": "guestSlider",
+    "component": "Slider",
+    "label": "Number of Guests",
+    "min": 1,
+    "max": 8,
+    "value": {"@path": "/reservation/guests"}
+  },
+  {
+    "id": "guestBadge",
+    "component": "Text",
+    "text": {
+      "@call": "pluralize",
+      "args": {
+        "value": {"@path": "/reservation/guests"},
+        "one": "1 guest selected",
+        "other": {
+          "@call": "formatString",
+          "args": {
+            "template": "{} guests selected",
+            "values": [{"@path": "/reservation/guests"}]
+          }
+        }
+      }
+    }
+  }
+]
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Current)">
+
+```json
+[
+  {
+    "id": "guestSlider",
+    "component": "Slider",
+    "label": "Number of Guests",
+    "min": 1,
+    "max": 8,
+    "value": {"path": "/reservation/guests"}
+  },
+  {
+    "id": "guestBadge",
+    "component": "Text",
+    "text": {
+      "call": "pluralize",
+      "args": {
+        "value": {"path": "/reservation/guests"},
+        "one": "1 guest selected",
+        "other": {
+          "call": "formatString",
+          "args": {
+            "template": "{} guests selected",
+            "values": [{"path": "/reservation/guests"}]
+          }
+        }
+      }
+    }
+  }
+]
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+### Pattern 4: Collection scopes and dynamic list templates (`ChildList` and `@index`)
+
+Container components whose children property uses [`ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList) (`List`, `Row`, `Column`) can either list static child component IDs (`["item1", "item2"]`) or bind to an array in the `DataModel` using a template object:
+
+```json
+"children": {
+  "path": "/addons",
+  "componentId": "addonRow"
+}
+```
+
+<Aside type="caution" title="Protocol rule: ChildList uses path in both v0.9.1 and v1.0">
+  Unlike property bindings that use <code>"@path"</code> in v1.0, the <code>ChildList</code> schema
+  definition in <code>common_types.json#/$defs/ChildList</code> uses the literal property key{' '}
+  <code>"path"</code> in <strong>both v0.9.1 and v1.0</strong>. Do not replace <code>"path"</code>{' '}
+  with <code>"@path"</code> inside a <code>ChildList</code> template object.
 </Aside>
+
+When a container uses a template object, the Core SDK establishes a scoped `DataContext` for each item in the array at `/addons`:
+
+1. **Relative JSON Pointers**: Paths without a leading slash (such as `{"@path": "title"}` or `{"@path": "price"}`) resolve relative to the current array item (for example, `/addons/0/title`).
+2. **Absolute JSON Pointers**: Paths with a leading slash (such as `{"@path": "/invoice/currency"}`) resolve from the root of the surface `DataModel`.
+3. **Current element index (`@index`)**: In v1.0, calling the built-in system function `{"@call": "@index"}` returns the zero-based integer index of the current template instance. It resolves to the innermost enclosing template scope and accepts an optional `offset` parameter (`{"@call": "@index", "args": {"offset": 1}}`) for one-based numbering.
+
+<CollectionScopeDiagram />
+
+---
+
+## Synchronizing state back to the agent (`context` vs. `sendDataModel`)
+
+Local two-way data bindings do not stream individual keystrokes or slider movements across the network. State returns from the client renderer to the agent only when an interaction triggers an outbound message ([`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) or `callAgentFunction`), using one of two mechanisms:
+
+| Mechanism                                            | Configuration                                                                                                                                     | When to use                                                                                                                                                                                                 |
+| :--------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Explicit action context (`action.event.context`)** | Declare a `context` map on the component's `action.event` containing the specific `@path` pointers needed for that action.                        | **Default pattern.** Keeps network payloads minimal; the agent receives only the fields relevant to the triggered action.                                                                                   |
+| **Full surface state (`sendDataModel: true`)**       | Set `"sendDataModel": true` inside the [`createSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) message. | Form wizards or stateful sessions where the agent expects the complete surface `DataModel` attached to every outbound client message (`a2uiRendererDataModel` in v1.0, or `a2uiClientDataModel` in v0.9.1). |
+
+<Aside type="note" title="Multi-agent privacy boundary">
+  When `"sendDataModel": true` is enabled on a surface, the client renderer attaches that surface's
+  `DataModel` snapshot strictly to messages routed to the agent that created the surface, not
+  broadcasting surface state to other agents.
+</Aside>
+
+---
+
+## Accessing the data model across SDKs
+
+Every Core SDK exposes a consistent surface and `DataModel` API for reading and mutating state:
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="TypeScript">
+
+```typescript
+import {MessageProcessor} from '@a2ui/web_core';
+import {travelCatalog} from './catalog.js';
+
+const processor = new MessageProcessor([travelCatalog]);
+
+// 1. Process createSurface and updateDataModel messages
+processor.processMessages([
+  {
+    version: '1.0',
+    createSurface: {
+      surfaceId: 'checkout',
+      catalogId: 'https://example.com/catalogs/travel/v1/catalog.json',
+    },
+  },
+  {
+    version: '1.0',
+    updateDataModel: {
+      surfaceId: 'checkout',
+      path: '/invoice/total',
+      value: 285.0,
+    },
+  },
+]);
+
+// 2. Read or mutate the surface reactive DataModel directly on the client
+const surface = processor.model.getSurface('checkout');
+const currentTotal = surface?.dataModel.get('/invoice/total');
+const totalSignal = surface?.dataModel.getSignal('/invoice/total');
+```
+
+  </TabItem>
+  <TabItem label="Python">
+
+```python
+from a2ui.core import Catalog, MessageProcessor
+
+processor = MessageProcessor(catalogs=[travel_catalog])
+
+# Apply createSurface and updateDataModel messages
+processor.process_messages([
+    {
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "checkout",
+            "catalogId": "https://example.com/catalogs/travel/v1/catalog.json",
+        },
+    },
+    {
+        "version": "1.0",
+        "updateDataModel": {
+            "surfaceId": "checkout",
+            "path": "/invoice/total",
+            "value": 285.0,
+        },
+    },
+])
+
+surface = processor.model.get_surface("checkout")
+current_total = surface.data_model.get("/invoice/total")
+```
+
+  </TabItem>
+  <TabItem label="Dart">
+
+```dart
+import 'package:a2ui_core/a2ui_core.dart';
+
+final processor = MessageProcessor(catalogs: [travelCatalog]);
+
+// Process createSurface and updateDataModel payloads
+processor.processMessages([
+  {
+    'version': '1.0',
+    'createSurface': {
+      'surfaceId': 'checkout',
+      'catalogId': 'https://example.com/catalogs/travel/v1/catalog.json',
+    },
+  },
+  {
+    'version': '1.0',
+    'updateDataModel': {
+      'surfaceId': 'checkout',
+      'path': '/invoice/total',
+      'value': 285.0,
+    },
+  },
+]);
+
+final surface = processor.model.getSurface('checkout');
+final currentTotal = surface?.dataModel.get('/invoice/total');
+```
+
+  </TabItem>
+  <TabItem label="Swift">
+
+```swift
+import A2UICore
+
+let processor = MessageProcessor(catalogs: [travelCatalog])
+
+try processor.processMessages([
+  [
+    "version": "1.0",
+    "createSurface": [
+      "surfaceId": "checkout",
+      "catalogId": "https://example.com/catalogs/travel/v1/catalog.json",
+    ],
+  ],
+  [
+    "version": "1.0",
+    "updateDataModel": [
+      "surfaceId": "checkout",
+      "path": "/invoice/total",
+      "value": 285.0,
+    ],
+  ],
+])
+
+let surface = processor.surfaceGroupModel["checkout"]
+let currentTotal = surface?.dataModel.get("/invoice/total")
+```
+
+  </TabItem>
+</Tabs>

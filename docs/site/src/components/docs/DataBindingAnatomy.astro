@@ -1,0 +1,935 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+---
+
+<div class="db-root not-content">
+  <!-- Top Lifecycle Banner -->
+  <div class="db-banner">
+    <div class="db-banner__left">
+      <span class="db-badge db-badge--teal">REACTIVE STATE ARCHITECTURE</span>
+      <span class="db-banner__title">Surface DataModel &amp; Live Binding Graph</span>
+    </div>
+    <div class="db-banner__pills">
+      <span class="db-pill db-pill--amber">
+        <span class="db-dot db-dot--amber" aria-hidden="true"></span>
+        2-Way Input (<code>@path</code>)
+      </span>
+      <span class="db-pill db-pill--teal">
+        <span class="db-dot db-dot--teal" aria-hidden="true"></span>
+        1-Way Computed (<code>@call</code>)
+      </span>
+    </div>
+  </div>
+
+  <!-- Main 2-Column Visual Map -->
+  <div class="db-stage">
+    <!-- Left Column: Compact DataModel State Tree (Narrower) -->
+    <div class="db-col db-col--state">
+      <div class="db-col__header">
+        <div class="db-col__title-wrap">
+          <span class="db-step">1</span>
+          <div>
+            <div class="db-col__title">Surface <code>DataModel</code></div>
+            <div class="db-col__sub"><code>surfaceId: "checkout"</code></div>
+          </div>
+        </div>
+        <code class="db-wire-tag">updateDataModel</code>
+      </div>
+
+      <div class="db-json">
+        <!-- Group 1: 2-Way Input State -->
+        <div class="db-json__group db-json__group--amber">
+          <div class="db-json__group-head">
+            <span class="db-json__key">"/reservation/*"</span>
+            <span class="db-tag db-tag--amber">2-Way State</span>
+          </div>
+          <div class="db-json__row">
+            <code class="db-pointer">/reservation/email</code>
+            <span class="db-val db-val--str">"alex@example.com"</span>
+          </div>
+          <div class="db-json__row">
+            <code class="db-pointer">/reservation/guests</code>
+            <span class="db-val db-val--num">3</span>
+          </div>
+        </div>
+
+        <!-- Group 2: Agent Streamed Invoice -->
+        <div class="db-json__group db-json__group--teal">
+          <div class="db-json__group-head">
+            <span class="db-json__key">"/invoice/*"</span>
+            <span class="db-tag db-tag--teal">Streamed</span>
+          </div>
+          <div class="db-json__row">
+            <code class="db-pointer">/invoice/total</code>
+            <span class="db-val db-val--num">285.00</span>
+          </div>
+          <div class="db-json__row">
+            <code class="db-pointer">/invoice/currency</code>
+            <span class="db-val db-val--str">"USD"</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Live Rendered Surface (Wider, Clean 3-Widget Layout) -->
+    <div class="db-col db-col--ui">
+      <div class="db-col__header">
+        <div class="db-col__title-wrap">
+          <span class="db-step">2</span>
+          <div>
+            <div class="db-col__title">Rendered Native Surface</div>
+            <div class="db-col__sub">Live widgets reacting to DataModel pointers &amp; functions</div>
+          </div>
+        </div>
+        <code class="db-wire-tag">updateComponents</code>
+      </div>
+
+      <div class="db-surface-preview">
+        <!-- Widget 1: Two-way Input -->
+        <div class="db-widget db-widget--amber">
+          <div class="db-widget__meta">
+            <code>TextField#emailInput</code>
+            <span class="db-bind-pill db-bind-pill--amber">&harr; <code>&#123;"@path": "/reservation/email"&#125;</code></span>
+          </div>
+          <div class="db-input-mock">
+            <span class="db-input-mock__label">Guest Email (typing mutates local DataModel immediately)</span>
+            <div class="db-input-mock__box">
+              <span>alex@example.com</span>
+              <span class="db-cursor"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Widget 2: Control-to-Control Slider + Live Text -->
+        <div class="db-widget db-widget--amber">
+          <div class="db-widget__meta">
+            <code>Slider#guestSlider</code> + <code>Text#guestBadge</code>
+            <span class="db-bind-pill db-bind-pill--amber">&harr; <code>&#123;"@path": "/reservation/guests"&#125;</code></span>
+          </div>
+          <div class="db-slider-mock">
+            <div class="db-slider-mock__row">
+              <span class="db-slider-mock__label">Party Size (synced locally across controls)</span>
+              <strong>3 guests</strong>
+            </div>
+            <div class="db-slider-mock__track">
+              <div class="db-slider-mock__fill"></div>
+              <div class="db-slider-mock__thumb"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Widget 3: Reactive Formatted Text -->
+        <div class="db-widget db-widget--teal">
+          <div class="db-widget__meta">
+            <code>Text#totalBanner</code>
+            <span class="db-bind-pill db-bind-pill--teal">&larr; <code>@call: formatCurrency(/invoice/total)</code></span>
+          </div>
+          <div class="db-total-mock">
+            <span>Total Due (recomputed automatically on price changes)</span>
+            <strong>$285.00</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Sync Strip: Returning State to the Agent -->
+  <div class="db-sync-strip">
+    <div class="db-sync-strip__head">
+      <span class="db-step">3</span>
+      <div>
+        <div class="db-sync-strip__title">State Synchronization Back to Agent (On-Demand)</div>
+        <div class="db-sync-strip__sub">Keystrokes remain local. State returns to the agent only upon user interaction:</div>
+      </div>
+    </div>
+    <div class="db-sync-strip__cards">
+      <div class="db-sync-card">
+        <div class="db-sync-card__top">
+          <code>action.event.context</code>
+          <span class="db-tag db-tag--teal">Targeted Slice</span>
+        </div>
+        <p>The interactive component snapshots only the declared JSON Pointer paths and sends them in the <code>action</code> payload.</p>
+      </div>
+      <div class="db-sync-card">
+        <div class="db-sync-card__top">
+          <code>createSurface.sendDataModel: true</code>
+          <span class="db-tag db-tag--blue">Full Snapshot</span>
+        </div>
+        <p>Automatically attaches the entire surface <code>dataModel</code> to outbound message metadata for the owning agent.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .db-root {
+    margin: 1.5rem 0 2rem;
+    font-family: var(--sl-font);
+    color: #e2e8f0;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #0c1322 0%, #090d16 100%);
+    border: 1px solid #1e293b;
+    box-shadow:
+      0 10px 28px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+  }
+
+  :root[data-theme='light'] .db-root {
+    color: #0f172a;
+    background: #ffffff;
+    border-color: #cbd5e1;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
+  }
+
+  /* Banner */
+  .db-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    padding: 0.75rem 1.15rem;
+    background: rgba(15, 23, 42, 0.8);
+    border-bottom: 1px solid #1e293b;
+  }
+
+  :root[data-theme='light'] .db-banner {
+    background: #f8fafc;
+    border-bottom-color: #e2e8f0;
+  }
+
+  .db-banner__left {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+  }
+
+  .db-badge {
+    font-family: var(--sl-font-mono);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 0.18rem 0.5rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .db-badge--teal {
+    background: rgba(20, 184, 166, 0.16);
+    color: #2dd4bf;
+    border: 1px solid rgba(20, 184, 166, 0.35);
+  }
+
+  :root[data-theme='light'] .db-badge--teal {
+    background: #ccfbf1;
+    color: #0f766e;
+    border-color: #5eead4;
+  }
+
+  .db-banner__title {
+    font-weight: 700;
+    font-size: 0.86rem;
+    color: #f8fafc;
+  }
+
+  :root[data-theme='light'] .db-banner__title {
+    color: #0f172a;
+  }
+
+  .db-banner__pills {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .db-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0.15rem 0.48rem;
+    border-radius: 999px;
+  }
+
+  .db-pill code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.66rem;
+  }
+
+  .db-pill--amber {
+    background: rgba(245, 158, 11, 0.1);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.28);
+  }
+
+  :root[data-theme='light'] .db-pill--amber {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fcd34d;
+  }
+
+  .db-pill--teal {
+    background: rgba(20, 184, 166, 0.1);
+    color: #5eead4;
+    border: 1px solid rgba(20, 184, 166, 0.25);
+  }
+
+  :root[data-theme='light'] .db-pill--teal {
+    background: #f0fdfa;
+    color: #0f766e;
+    border-color: #99f6e4;
+  }
+
+  .db-pill--purple {
+    background: rgba(168, 85, 247, 0.12);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.28);
+  }
+
+  :root[data-theme='light'] .db-pill--purple {
+    background: #f3e8ff;
+    color: #6b21a8;
+    border-color: #d8b4fe;
+  }
+
+  .db-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .db-dot--amber {
+    background: #f59e0b;
+  }
+
+  .db-dot--teal {
+    background: #14b8a6;
+  }
+
+  .db-dot--purple {
+    background: #a855f7;
+  }
+
+  /* 2-Column Stage: 38% Left (State), 62% Right (UI) */
+  .db-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+    gap: 0.95rem;
+    padding: 0.95rem 1.15rem;
+    align-items: stretch;
+  }
+
+  .db-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 0.85rem;
+    border-radius: 9px;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid #1e293b;
+    min-width: 0;
+  }
+
+  :root[data-theme='light'] .db-col {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  .db-col__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.45);
+  }
+
+  :root[data-theme='light'] .db-col__header {
+    border-bottom-color: #cbd5e1;
+  }
+
+  .db-col__title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .db-step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: 50%;
+    font-family: var(--sl-font-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: #14b8a6;
+    color: #042f2e;
+    flex-shrink: 0;
+  }
+
+  :root[data-theme='light'] .db-step {
+    background: #0d9488;
+    color: #ffffff;
+  }
+
+  .db-col__title {
+    font-weight: 700;
+    font-size: 0.85rem;
+    line-height: 1.2;
+  }
+
+  .db-col__title code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.78rem;
+    color: #2dd4bf;
+  }
+
+  :root[data-theme='light'] .db-col__title code {
+    color: #0f766e;
+  }
+
+  .db-col__sub {
+    font-size: 0.68rem;
+    color: #94a3b8;
+  }
+
+  .db-col__sub code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.66rem;
+    color: #cbd5e1;
+  }
+
+  :root[data-theme='light'] .db-col__sub {
+    color: #64748b;
+  }
+
+  :root[data-theme='light'] .db-col__sub code {
+    color: #334155;
+  }
+
+  .db-wire-tag {
+    font-family: var(--sl-font-mono);
+    font-size: 0.67rem;
+    padding: 0.12rem 0.42rem;
+    border-radius: 4px;
+    background: rgba(20, 184, 166, 0.12);
+    color: #2dd4bf;
+    border: 1px solid rgba(20, 184, 166, 0.28);
+    white-space: nowrap;
+  }
+
+  :root[data-theme='light'] .db-wire-tag {
+    background: #ccfbf1;
+    color: #0f766e;
+    border-color: #99f6e4;
+  }
+
+  /* Left Column: Compact JSON State */
+  .db-json {
+    font-family: var(--sl-font-mono);
+    font-size: 0.72rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    flex: 1;
+  }
+
+  .db-json__group {
+    padding: 0.5rem 0.65rem;
+    border-radius: 7px;
+    background: rgba(2, 6, 23, 0.6);
+    border: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  :root[data-theme='light'] .db-json__group {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .db-json__group--amber {
+    border-left: 3px solid #f59e0b;
+  }
+
+  .db-json__group--teal {
+    border-left: 3px solid #14b8a6;
+  }
+
+  .db-json__group--purple {
+    border-left: 3px solid #a855f7;
+  }
+
+  .db-json__group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    padding-bottom: 0.2rem;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+  }
+
+  :root[data-theme='light'] .db-json__group-head {
+    border-bottom-color: #f1f5f9;
+  }
+
+  .db-json__key {
+    font-weight: 700;
+    color: #f8fafc;
+    font-size: 0.72rem;
+  }
+
+  :root[data-theme='light'] .db-json__key {
+    color: #0f172a;
+  }
+
+  .db-tag {
+    font-family: var(--sl-font);
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.08rem 0.36rem;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  .db-tag--amber {
+    background: rgba(245, 158, 11, 0.16);
+    color: #fbbf24;
+  }
+
+  :root[data-theme='light'] .db-tag--amber {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .db-tag--teal {
+    background: rgba(20, 184, 166, 0.16);
+    color: #2dd4bf;
+  }
+
+  :root[data-theme='light'] .db-tag--teal {
+    background: #ccfbf1;
+    color: #0f766e;
+  }
+
+  .db-tag--purple {
+    background: rgba(168, 85, 247, 0.16);
+    color: #c084fc;
+  }
+
+  :root[data-theme='light'] .db-tag--purple {
+    background: #f3e8ff;
+    color: #6b21a8;
+  }
+
+  .db-tag--blue {
+    background: rgba(56, 189, 248, 0.16);
+    color: #38bdf8;
+  }
+
+  :root[data-theme='light'] .db-tag--blue {
+    background: #e0f2fe;
+    color: #0369a1;
+  }
+
+  .db-json__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+  }
+
+  .db-pointer {
+    font-size: 0.69rem;
+    color: #94a3b8;
+    white-space: nowrap;
+  }
+
+  :root[data-theme='light'] .db-pointer {
+    color: #475569;
+  }
+
+  .db-val--str {
+    color: #34d399;
+    white-space: nowrap;
+  }
+
+  :root[data-theme='light'] .db-val--str {
+    color: #047857;
+  }
+
+  .db-val--num {
+    color: #fbbf24;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  :root[data-theme='light'] .db-val--num {
+    color: #b45309;
+  }
+
+  .db-val--obj {
+    font-size: 0.65rem;
+    color: #cbd5e1;
+    white-space: nowrap;
+  }
+
+  :root[data-theme='light'] .db-val--obj {
+    color: #334155;
+  }
+
+  /* Right Column: Rendered Native Surface (Wider) */
+  .db-surface-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    flex: 1;
+  }
+
+  .db-widget {
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.6);
+    border: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  :root[data-theme='light'] .db-widget {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .db-widget--amber {
+    border-left: 3px solid #f59e0b;
+  }
+
+  .db-widget--teal {
+    border-left: 3px solid #14b8a6;
+  }
+
+  .db-widget__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    font-size: 0.71rem;
+    flex-wrap: wrap;
+  }
+
+  .db-widget__meta > code {
+    font-family: var(--sl-font-mono);
+    font-weight: 700;
+    color: #f8fafc;
+  }
+
+  :root[data-theme='light'] .db-widget__meta > code {
+    color: #0f172a;
+  }
+
+  .db-bind-pill {
+    font-family: var(--sl-font-mono);
+    font-size: 0.66rem;
+    padding: 0.08rem 0.4rem;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .db-bind-pill--amber {
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+  }
+
+  :root[data-theme='light'] .db-bind-pill--amber {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .db-bind-pill--teal {
+    background: rgba(20, 184, 166, 0.12);
+    color: #2dd4bf;
+  }
+
+  :root[data-theme='light'] .db-bind-pill--teal {
+    background: #ccfbf1;
+    color: #0f766e;
+  }
+
+  /* Mock UI Controls */
+  .db-input-mock {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .db-input-mock__label {
+    font-size: 0.68rem;
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .db-input-mock__label {
+    color: #64748b;
+  }
+
+  .db-input-mock__box {
+    display: flex;
+    align-items: center;
+    padding: 0.3rem 0.5rem;
+    border-radius: 5px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    font-family: var(--sl-font-mono);
+    font-size: 0.73rem;
+    color: #f8fafc;
+  }
+
+  :root[data-theme='light'] .db-input-mock__box {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #0f172a;
+  }
+
+  .db-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 0.82rem;
+    background: #f59e0b;
+    margin-left: 2px;
+  }
+
+  .db-slider-mock {
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+  }
+
+  .db-slider-mock__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.71rem;
+  }
+
+  .db-slider-mock__label {
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .db-slider-mock__label {
+    color: #64748b;
+  }
+
+  .db-slider-mock__row strong {
+    color: #fbbf24;
+    font-family: var(--sl-font-mono);
+  }
+
+  :root[data-theme='light'] .db-slider-mock__row strong {
+    color: #b45309;
+  }
+
+  .db-slider-mock__track {
+    position: relative;
+    height: 6px;
+    border-radius: 999px;
+    background: #1e293b;
+  }
+
+  :root[data-theme='light'] .db-slider-mock__track {
+    background: #e2e8f0;
+  }
+
+  .db-slider-mock__fill {
+    width: 29%;
+    height: 100%;
+    border-radius: 999px;
+    background: #f59e0b;
+  }
+
+  .db-slider-mock__thumb {
+    position: absolute;
+    top: -3px;
+    left: calc(29% - 6px);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fbbf24;
+    border: 2px solid #090d16;
+  }
+
+  .db-total-mock {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.35rem 0.55rem;
+    border-radius: 5px;
+    background: rgba(20, 184, 166, 0.1);
+    border: 1px solid rgba(20, 184, 166, 0.25);
+    font-size: 0.71rem;
+    color: #cbd5e1;
+  }
+
+  .db-total-mock strong {
+    font-family: var(--sl-font-mono);
+    font-size: 0.86rem;
+    color: #2dd4bf;
+  }
+
+  :root[data-theme='light'] .db-total-mock {
+    background: #f0fdfa;
+    border-color: #99f6e4;
+    color: #334155;
+  }
+
+  :root[data-theme='light'] .db-total-mock strong {
+    color: #0f766e;
+  }
+
+  /* Bottom Sync Strip */
+  .db-sync-strip {
+    padding: 0.8rem 1.15rem;
+    background: rgba(15, 23, 42, 0.8);
+    border-top: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  :root[data-theme='light'] .db-sync-strip {
+    background: #f8fafc;
+    border-top-color: #e2e8f0;
+  }
+
+  .db-sync-strip__head {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .db-sync-strip__title {
+    font-weight: 700;
+    font-size: 0.84rem;
+    color: #f8fafc;
+  }
+
+  :root[data-theme='light'] .db-sync-strip__title {
+    color: #0f172a;
+  }
+
+  .db-sync-strip__sub {
+    font-size: 0.72rem;
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .db-sync-strip__sub {
+    color: #475569;
+  }
+
+  .db-sync-strip__cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.65rem;
+  }
+
+  .db-sync-card {
+    padding: 0.55rem 0.75rem;
+    border-radius: 7px;
+    background: rgba(2, 6, 23, 0.55);
+    border: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  :root[data-theme='light'] .db-sync-card {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .db-sync-card__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .db-sync-card__top code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #f8fafc;
+  }
+
+  :root[data-theme='light'] .db-sync-card__top code {
+    color: #0f172a;
+  }
+
+  .db-sync-card p {
+    margin: 0;
+    font-size: 0.71rem;
+    color: #94a3b8;
+    line-height: 1.38;
+  }
+
+  .db-sync-card p code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.68rem;
+    color: #2dd4bf;
+  }
+
+  :root[data-theme='light'] .db-sync-card p {
+    color: #475569;
+  }
+
+  :root[data-theme='light'] .db-sync-card p code {
+    color: #0f766e;
+  }
+
+  @media (max-width: 900px) {
+    .db-stage {
+      grid-template-columns: 1fr;
+    }
+
+    .db-sync-strip__cards {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .db-json__row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.15rem;
+    }
+
+    .db-widget__meta {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.25rem;
+    }
+  }
+</style>
