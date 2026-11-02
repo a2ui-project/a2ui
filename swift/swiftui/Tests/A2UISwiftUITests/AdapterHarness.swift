@@ -125,10 +125,11 @@ struct AdapterViewNode {
   }
 }
 
-/// Holds a mounted `A2UISwiftUI.Surface` and tracks its Combine subscriptions.
+/// Holds a mounted `A2UISwiftUI.Surface`, its `HostedViewDriver`, and its Combine subscriptions.
 @MainActor
 final class MountedSurfaceHarness {
   let surface: Surface
+  let driver: HostedViewDriver
   private var subscriptions: [AnyCancellable] = []
   private(set) var isMounted = true
   private(set) var emissionCount = 0
@@ -139,6 +140,7 @@ final class MountedSurfaceHarness {
 
   init(surface: Surface) {
     self.surface = surface
+    self.driver = HostedViewDriver(surface: surface)
     surface.viewModel.objectWillChange
       .sink { [weak self] _ in self?.emissionCount += 1 }
       .store(in: &subscriptions)
@@ -150,6 +152,7 @@ final class MountedSurfaceHarness {
   func unmount() {
     isMounted = false
     subscriptions.removeAll()
+    driver.tearDown()
     surface.viewModel.dispose()
   }
 }
@@ -187,6 +190,7 @@ enum AdapterHarness {
   static let unsupported: [String: String] = [:]
 
   private static var matchedUnsupportedKeys: Set<String> = []
+  private static var completedCasesBySuite: [String: Set<String>] = [:]
   private static var completedSuites: Set<String> = []
   private static let allAdapterSuites: Set<String> = [
     "core/accessibility.yaml",
@@ -518,6 +522,15 @@ enum AdapterHarness {
     }
   }
 
+  /// Records completion of a single parameterized case in `suite`, finishing the suite once all
+  /// `expectedTotal` cases have run.
+  static func recordCaseCompleted(suite: String, caseName: String, expectedTotal: Int) {
+    completedCasesBySuite[suite, default: []].insert(caseName)
+    if (completedCasesBySuite[suite]?.count ?? 0) >= expectedTotal {
+      finishSuite(suite)
+    }
+  }
+
   /// Appends a manifest record to `$A2UI_CONFORMANCE_MANIFEST_DIR/<harness>-<pid>.jsonl`.
   static func writeManifestRecord(_ rec: AdapterManifestRecord) {
     guard
@@ -603,10 +616,14 @@ enum AdapterHarness {
       try processAdapterMessages(messages, session: session)
       session.currentTree = extractViewTree(session)
     case "user_input":
-      applyUserInput(step, surface: session.mountedHarness?.surface)
+      try applyUserInput(step, session: session)
       session.currentTree = extractViewTree(session)
-    case "user_gesture", "programmatic_invoke":
-      invokeStepAction(step, surface: session.mountedHarness?.surface)
+    case "user_gesture":
+      try invokeUserGesture(step, session: session)
+      session.currentTree = extractViewTree(session)
+    case "programmatic_invoke":
+      invokeProgrammaticAction(step, surface: session.mountedHarness?.surface)
+      session.mountedHarness?.driver.flush()
       session.currentTree = extractViewTree(session)
     case "unmount_surface":
       #expect(
@@ -750,13 +767,36 @@ enum AdapterHarness {
         defaultCatalogID: BasicCatalog.catalogURI(version: .v10)
       )
       session.mountedHarness = MountedSurfaceHarness(surface: surface)
+    } else {
+      session.mountedHarness?.driver.flush()
     }
   }
 
-  private static func applyUserInput(_ step: [String: Any], surface: Surface?) {
+  private static func applyUserInput(_ step: [String: Any], session: AdapterSession) throws {
+    guard let driver = session.mountedHarness?.driver,
+      let targetID = step["targetNode"] as? String
+    else {
+      return
+    }
+    if let boolValue = step["inputValue"] as? Bool {
+      try driver.setToggle(boolValue, componentID: targetID)
+    } else if let strValue = step["inputValue"] as? String {
+      try driver.enterText(strValue, componentID: targetID)
+    }
+  }
+
+  private static func invokeUserGesture(_ step: [String: Any], session: AdapterSession) throws {
+    guard let driver = session.mountedHarness?.driver,
+      let targetID = step["targetNode"] as? String
+    else {
+      return
+    }
+    try driver.press(componentID: targetID)
+  }
+
+  private static func invokeProgrammaticAction(_ step: [String: Any], surface: Surface?) {
     guard let surface,
       let targetID = step["targetNode"] as? String,
-      let inputValue = step["inputValue"] as? String,
       let rootNode = surface.viewModel.rootNode
     else {
       return
@@ -764,34 +804,14 @@ enum AdapterHarness {
     var nodes: [String: A2UICore.Node] = [:]
     collectNodes(from: rootNode, into: &nodes)
     guard let targetNode = nodes[targetID] else { return }
-    let textField = A2UITextField(node: targetNode)
-    textField.valueBinding.wrappedValue = inputValue
-  }
-
-  private static func invokeStepAction(_ step: [String: Any], surface: Surface?) {
-    guard let surface,
-      let targetID = step["targetNode"] as? String,
-      let rootNode = surface.viewModel.rootNode
-    else {
-      return
-    }
-    var nodes: [String: A2UICore.Node] = [:]
-    collectNodes(from: rootNode, into: &nodes)
-    guard let targetNode = nodes[targetID] else { return }
-    invokeAction(on: targetNode)
-  }
-
-  private static func invokeAction(
-    on node: A2UICore.Node,
-    property: String = "action"
-  ) {
-    if node.type == "Button" {
-      let button = A2UIButton(node: node)
+    let userActivation = (step["userActivation"] as? Bool) ?? false
+    if targetNode.type == "Button" {
+      let button = A2UIButton(node: targetNode)
       guard !button.isDisabled else { return }
     } else {
-      guard node.isValid else { return }
+      guard targetNode.isValid else { return }
     }
-    node.action(for: property)?()
+    targetNode.action(for: "action", userActivation: userActivation)?()
   }
 
   static func resolveViewTree(for surface: Surface) -> AdapterViewNode? {
@@ -886,7 +906,12 @@ enum AdapterHarness {
     if let expA11y = step["expectAccessibilityTree"] as? [String: [String: Any]],
       let currentTree = session.currentTree
     {
-      try assertAccessibilityTreeMatches(currentTree, expected: expA11y, context: context)
+      try assertAccessibilityTreeMatches(
+        currentTree,
+        driver: session.mountedHarness?.driver,
+        expected: expA11y,
+        context: context
+      )
     }
     if let expSubs = step["expectActiveSubscriptions"] as? Int,
       let harness = session.mountedHarness
@@ -1117,6 +1142,7 @@ enum AdapterHarness {
 
   static func assertAccessibilityTreeMatches(
     _ root: AdapterViewNode,
+    driver: HostedViewDriver? = nil,
     expected: [String: [String: Any]],
     context: String
   ) throws {
@@ -1129,10 +1155,12 @@ enum AdapterHarness {
         Issue.record("\(context): missing accessibility node '\(componentID)'")
         throw AdapterConformanceError("\(context): missing accessibility node '\(componentID)'")
       }
+      let hostedElement = driver?.accessibilityNode(componentID: componentID)
       let modifier = A2UIAccessibilityModifier(node: node)
       try assertModifierMatches(
         modifier,
         node: node,
+        hostedElement: hostedElement,
         expected: expectedProps,
         context: "\(context) [\(componentID)]"
       )
@@ -1142,44 +1170,47 @@ enum AdapterHarness {
   static func assertModifierMatches(
     _ modifier: A2UIAccessibilityModifier,
     node: A2UICore.Node,
+    hostedElement: HostedViewDriver.AccessibilityElement? = nil,
     expected: [String: Any],
     context: String
   ) throws {
     if let expLabel = expected["label"] as? String {
-      let actual = effectiveLabel(for: node, modifier: modifier)
+      let actual = hostedElement?.label ?? effectiveLabel(for: node, modifier: modifier)
       #expect(actual == expLabel, "\(context): label")
       if actual != expLabel {
         throw AdapterConformanceError("\(context): label mismatch")
       }
     }
     if let expDesc = expected["description"] as? String {
-      #expect(modifier.hint == expDesc, "\(context): description mismatch")
-      if modifier.hint != expDesc {
+      let actual = hostedElement?.help ?? modifier.hint
+      #expect(actual == expDesc, "\(context): description mismatch")
+      if actual != expDesc {
         throw AdapterConformanceError("\(context): description mismatch")
       }
     }
     if let expLive = expected["live"] as? String {
-      let actual = node.explicitAccessibilityAttributes?.live
+      let actual = hostedElement?.live ?? node.explicitAccessibilityAttributes?.live
       #expect(actual == expLive, "\(context): live mismatch")
       if actual != expLive {
         throw AdapterConformanceError("\(context): live mismatch")
       }
     }
     if let expHidden = expected["hidden"] as? Bool {
-      #expect(modifier.isHidden == expHidden, "\(context): hidden mismatch")
-      if modifier.isHidden != expHidden {
+      let actual = hostedElement?.isHidden ?? modifier.isHidden
+      #expect(actual == expHidden, "\(context): hidden mismatch")
+      if actual != expHidden {
         throw AdapterConformanceError("\(context): hidden mismatch")
       }
     }
     if let expRole = expected["role"] as? String {
-      let actual = semanticRole(for: node)
+      let actual = hostedElement?.role ?? semanticRole(for: node)
       #expect(actual == expRole, "\(context): role mismatch")
       if actual != expRole {
         throw AdapterConformanceError("\(context): role mismatch")
       }
     }
     if let expChecked = expected["checked"] as? Bool {
-      let actual = checkedState(for: node)
+      let actual = hostedElement?.isChecked ?? checkedState(for: node)
       #expect(actual == expChecked, "\(context): checked mismatch")
       if actual != expChecked {
         throw AdapterConformanceError("\(context): checked mismatch")
@@ -1233,7 +1264,7 @@ enum AdapterHarness {
     }
   }
 
-  static func toJSONValue(_ value: Any) -> JSONValue {
+  nonisolated static func toJSONValue(_ value: Any) -> JSONValue {
     if value is NSNull { return .null }
     if let boolVal = value as? Bool { return .boolean(boolVal) }
     if let intVal = value as? Int { return .integer(intVal) }
@@ -1248,6 +1279,29 @@ enum AdapterHarness {
       return .object(obj)
     }
     return .null
+  }
+
+  nonisolated static func fromJSONValue(_ value: JSONValue) -> Any {
+    switch value {
+    case .null:
+      return NSNull()
+    case .boolean(let boolVal):
+      return boolVal
+    case .integer(let intVal):
+      return intVal
+    case .number(let doubleVal):
+      return doubleVal
+    case .string(let strVal):
+      return strVal
+    case .array(let arrVal):
+      return arrVal.map { fromJSONValue($0) }
+    case .object(let objVal):
+      var dict: [String: Any] = [:]
+      for (key, val) in objVal {
+        dict[key] = fromJSONValue(val)
+      }
+      return dict
+    }
   }
 }
 
