@@ -67,9 +67,12 @@ public struct A2UIVideo: View {
   @StateObject private var model: A2UIVideoPlayerModel
   @State private var isShowingPoster: Bool = true
 
-  public init(node: Node, model: A2UIVideoPlayerModel = A2UIVideoPlayerModel()) {
+  public init(
+    node: Node,
+    model: @autoclosure @escaping () -> A2UIVideoPlayerModel = A2UIVideoPlayerModel()
+  ) {
     self.node = node
-    self._model = StateObject(wrappedValue: model)
+    self._model = StateObject(wrappedValue: model())
   }
 
   private var urlString: String {

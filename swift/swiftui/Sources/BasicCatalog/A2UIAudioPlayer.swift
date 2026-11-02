@@ -157,9 +157,12 @@ public struct A2UIAudioPlayer: View {
   public let node: Node
   @StateObject private var model: AudioPlayerModel
 
-  public init(node: Node, model: AudioPlayerModel = AudioPlayerModel()) {
+  public init(
+    node: Node,
+    model: @autoclosure @escaping () -> AudioPlayerModel = AudioPlayerModel()
+  ) {
     self.node = node
-    self._model = StateObject(wrappedValue: model)
+    self._model = StateObject(wrappedValue: model())
   }
 
   private var urlString: String {
