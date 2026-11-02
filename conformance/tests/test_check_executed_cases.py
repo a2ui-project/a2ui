@@ -449,10 +449,17 @@ def test_only_glob_narrows_corpus(tmp_path: Path) -> None:
     assert exit_code == 0
 
 
+def test_only_glob_matching_no_suites_raises(tmp_path: Path) -> None:
+    conf_root, _ = _create_temp_conformance(tmp_path)
+    with pytest.raises(ValueError, match="--only pattern 'extensions/missing/\\*\\*'"):
+        load_corpus(conf_root, ["extensions"], only=["extensions/missing/**"])
+
+
 def test_exclude_skips_suite_and_prints_reason(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     conf_root, manifest_dir = _create_temp_conformance(tmp_path)
+    matrix_file = tmp_path / "matrix.md"
     _write_jsonl(
         manifest_dir / "dart-core.jsonl",
         [
@@ -468,6 +475,13 @@ def test_exclude_skips_suite_and_prints_reason(
                 "case": "case_two",
                 "status": "passed",
             },
+            {
+                "harness": "dart-core",
+                "suite": "core/beta.yaml",
+                "case": "case_three",
+                "status": "skipped",
+                "reason": "excluded suite record",
+            },
         ],
     )
     exit_code = main([
@@ -481,10 +495,15 @@ def test_exclude_skips_suite_and_prints_reason(
         "core",
         "--exclude",
         "core/beta.yaml=performance tagged suite",
+        "--matrix-out",
+        str(matrix_file),
     ])
     assert exit_code == 0
     captured = capsys.readouterr()
     assert "Excluded core/beta.yaml: performance tagged suite" in captured.out
+    matrix_text = matrix_file.read_text(encoding="utf-8")
+    assert "| `core/alpha.yaml` | 2 | 0 | 0 | 0 | 2 |" in matrix_text
+    assert "core/beta.yaml" not in matrix_text
 
 
 def test_out_of_corpus_and_other_harness_records_are_ignored(
@@ -552,4 +571,3 @@ def test_load_records_returns_empty_when_manifest_dir_is_file(tmp_path: Path) ->
     manifest_file = tmp_path / "not_a_dir.jsonl"
     manifest_file.write_text("{}", encoding="utf-8")
     assert load_records(manifest_file, "python-core") == []
-

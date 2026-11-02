@@ -119,6 +119,23 @@ def _iter_pattern_files(conformance_root: Path, patterns: Sequence[str]) -> list
     return files
 
 
+def _filter_corpus_by_only(
+    corpus: dict[str, set[str]],
+    only: Sequence[str],
+    corpus_names: Sequence[str],
+) -> dict[str, set[str]]:
+    matched_suites: set[str] = set()
+    for pat in only:
+        rx = _glob_to_regex(pat)
+        hits = {suite for suite in corpus if rx.match(suite) is not None}
+        if not hits:
+            raise ValueError(
+                f"--only pattern {pat!r} matched no suites in {list(corpus_names)}"
+            )
+        matched_suites.update(hits)
+    return {suite: cases for suite, cases in corpus.items() if suite in matched_suites}
+
+
 def load_corpus(
     conformance_root: Path,
     corpus_names: Sequence[str],
@@ -137,12 +154,7 @@ def load_corpus(
             corpus[rel_suite] = _extract_suite_cases(suite_path)
     if not only:
         return corpus
-    compiled_only = [_glob_to_regex(pat) for pat in only]
-    return {
-        suite: cases
-        for suite, cases in corpus.items()
-        if any(rx.match(suite) is not None for rx in compiled_only)
-    }
+    return _filter_corpus_by_only(corpus, only, corpus_names)
 
 
 def _is_unreasoned_only(raw: Mapping[str, Any]) -> bool:
@@ -454,7 +466,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.matrix_out is not None:
         in_corpus_records = [
-            rec for rec in records if rec.suite in corpus and rec.error is None
+            rec
+            for rec in records
+            if rec.suite in corpus and rec.suite not in excluded and rec.error is None
         ]
         args.matrix_out.parent.mkdir(parents=True, exist_ok=True)
         args.matrix_out.write_text(render_matrix(in_corpus_records), encoding="utf-8")
