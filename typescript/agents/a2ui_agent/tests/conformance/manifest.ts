@@ -57,7 +57,8 @@ export function recordCase(
   if (reason) {
     record['reason'] = reason;
   }
-  const filePath = join(manifestDir, `ts-agent-${process.pid}.jsonl`);
+  const workerId = process.env['VITEST_WORKER_ID'] ?? '0';
+  const filePath = join(manifestDir, `ts-agent-${process.pid}-${workerId}.jsonl`);
   appendFileSync(filePath, `${JSON.stringify(record)}\n`, 'utf8');
 }
 
