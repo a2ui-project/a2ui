@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-import {describe, expect, test} from 'vitest';
+import {expect} from 'vitest';
+
 import {DirectJsonParser} from '../../src/inference-formats/direct-json/parser.js';
-import {FileSystemCatalogProvider} from '../../src/processor/catalog-providers.js';
-import {ResponseStream} from '../../src/parser/response-stream.js';
 import {StreamPart} from '../../src/parser/response-part.js';
+import {ResponseStream} from '../../src/parser/response-stream.js';
+import {FileSystemCatalogProvider} from '../../src/processor/catalog-providers.js';
 import {LoadedCase, loadCases} from './loader.js';
-import {categoryOf, conformancePath, registerCase} from './suite-helpers.js';
+import {categoryOf, conformancePath, describeSuite} from './suite-helpers.js';
 
 /**
  * Cases that run but do not pass yet, with the reason for each.
@@ -168,16 +169,15 @@ function runCase(testCase: LoadedCase): void {
   }
 }
 
-describe('Conformance: direct_json/response_streaming.yaml', () => {
-  for (const testCase of loadCases([
-    conformancePath('agent/direct_json/response_streaming.yaml'),
-  ])) {
-    const version = declaredVersion(testCase.args as unknown as StreamingArgs);
-    const unsupported = version ? UNSUPPORTED_VERSIONS.get(version) : undefined;
-    if (unsupported) {
-      test.skip(`${testCase.action} · ${testCase.name} (${unsupported})`, () => {});
-      continue;
-    }
-    registerCase(testCase, KNOWN_FAILURES, () => runCase(testCase));
-  }
-});
+describeSuite(
+  'Conformance: direct_json/response_streaming.yaml',
+  loadCases([conformancePath('agent/direct_json/response_streaming.yaml')]),
+  testCase => runCase(testCase),
+  {
+    knownFailures: KNOWN_FAILURES,
+    skipReason: testCase => {
+      const version = declaredVersion(testCase.args as unknown as StreamingArgs);
+      return version ? UNSUPPORTED_VERSIONS.get(version) : undefined;
+    },
+  },
+);

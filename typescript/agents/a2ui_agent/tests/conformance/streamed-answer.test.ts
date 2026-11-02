@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {describe, expect} from 'vitest';
+import {expect} from 'vitest';
 
 import {
   A2uiRequestProcessor,
@@ -25,7 +25,7 @@ import {
 } from '../../src/index.js';
 import {MessageProcessor} from '../../src/internal/web-core.js';
 import {loadCases} from './loader.js';
-import {categoryOf, conformancePath, registerCase} from './suite-helpers.js';
+import {categoryOf, conformancePath, describeSuite} from './suite-helpers.js';
 
 /** Cases that run but do not pass yet, with the reason for each. */
 const KNOWN_FAILURES = new Map<string, string>();
@@ -54,48 +54,49 @@ function partToDict(part: AnswerPart, renderer: MessageProcessor): Record<string
   return {surface: part.surface.id};
 }
 
-describe('Conformance: streamed_answer.yaml', () => {
-  for (const testCase of loadCases([conformancePath('agent/streamed_answer.yaml')])) {
-    registerCase(testCase, KNOWN_FAILURES, () => {
-      const args = testCase.args as unknown as AnswerArgs;
-      if (args.format !== 'direct_json') {
-        throw new Error(`Unexpected format '${args.format}'`);
-      }
-      const processor = new A2uiRequestProcessor(
-        [load(args.catalog)],
-        undefined,
-        new DirectJsonFormatFactory(),
-      );
-      const renderer = new MessageProcessor(
-        (args.renderer_catalogs ?? [args.catalog]).map(load) as never,
-      );
-      const open = () => new StreamedAnswer(processor, {renderer});
+describeSuite(
+  'Conformance: streamed_answer.yaml',
+  loadCases([conformancePath('agent/streamed_answer.yaml')]),
+  testCase => {
+    const args = testCase.args as unknown as AnswerArgs;
+    if (args.format !== 'direct_json') {
+      throw new Error(`Unexpected format '${args.format}'`);
+    }
+    const processor = new A2uiRequestProcessor(
+      [load(args.catalog)],
+      undefined,
+      new DirectJsonFormatFactory(),
+    );
+    const renderer = new MessageProcessor(
+      (args.renderer_catalogs ?? [args.catalog]).map(load) as never,
+    );
+    const open = () => new StreamedAnswer(processor, {renderer});
 
-      const expectError = testCase.expect_error as {category: string} | undefined;
-      if (expectError) {
-        let thrown: unknown;
-        try {
-          open();
-        } catch (e) {
-          thrown = e;
-        }
-        expect(categoryOf(thrown)).toBe(expectError.category);
-        return;
+    const expectError = testCase.expect_error as {category: string} | undefined;
+    if (expectError) {
+      let thrown: unknown;
+      try {
+        open();
+      } catch (e) {
+        thrown = e;
       }
+      expect(categoryOf(thrown)).toBe(expectError.category);
+      return;
+    }
 
-      const answer = open();
-      const parts = () => answer.parts.map(part => partToDict(part, renderer));
-      for (const [index, step] of (testCase.steps as Step[]).entries()) {
-        answer.feed(step.input);
-        expect(parts(), `step ${index}: ${step.input}`).toEqual(step.expect_parts);
-        if (step.expect_in_block !== undefined) {
-          expect(answer.isInBlock, `step ${index}: in block`).toBe(step.expect_in_block);
-        }
+    const answer = open();
+    const parts = () => answer.parts.map(part => partToDict(part, renderer));
+    for (const [index, step] of (testCase.steps as Step[]).entries()) {
+      answer.feed(step.input);
+      expect(parts(), `step ${index}: ${step.input}`).toEqual(step.expect_parts);
+      if (step.expect_in_block !== undefined) {
+        expect(answer.isInBlock, `step ${index}: in block`).toBe(step.expect_in_block);
       }
-      answer.close();
-      if (testCase.expect_close) {
-        expect(parts(), 'close').toEqual(testCase.expect_close);
-      }
-    });
-  }
-});
+    }
+    answer.close();
+    if (testCase.expect_close) {
+      expect(parts(), 'close').toEqual(testCase.expect_close);
+    }
+  },
+  {knownFailures: KNOWN_FAILURES},
+);

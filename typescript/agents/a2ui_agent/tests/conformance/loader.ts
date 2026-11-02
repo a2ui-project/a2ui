@@ -14,16 +14,19 @@
  * limitations under the License.
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as yaml from 'js-yaml';
+import {readFileSync} from 'fs';
+import {dirname, relative, resolve} from 'path';
 import {fileURLToPath} from 'url';
+
+import {loadAll} from 'js-yaml';
+
+import {recordCase} from './manifest.js';
 
 // Using __dirname isn't directly available in ESM unless constructed
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirname(__filename);
 
-export const CONFORMANCE_ROOT = path.resolve(__dirname, '../../../../../conformance');
+export const CONFORMANCE_ROOT = resolve(__dirname, '../../../../../conformance');
 
 export interface TestCase {
   name: string;
@@ -118,15 +121,22 @@ const SUPPORTED_FORMATS = new Set(['direct_json', 'express']);
  */
 const UNIMPLEMENTED_ACTIONS = new Map<string, string>([]);
 
+function skipVerdict(testCase: TestCase, reason: string) {
+  if ('sourceFile' in testCase && typeof testCase.sourceFile === 'string') {
+    recordCase(testCase.sourceFile, testCase.name, 'skipped', reason);
+  }
+  return {runnable: false, reason};
+}
+
 export function classify(testCase: TestCase) {
   const superseded = SUPERSEDED.get(testCase.name) ?? SUPERSEDED_ACTIONS.get(testCase.action);
   if (superseded) {
-    return {runnable: false, reason: superseded};
+    return skipVerdict(testCase, superseded);
   }
 
   const unimplemented = UNIMPLEMENTED_ACTIONS.get(testCase.action);
   if (unimplemented) {
-    return {runnable: false, reason: unimplemented};
+    return skipVerdict(testCase, unimplemented);
   }
 
   let version = 'unversioned';
@@ -148,10 +158,10 @@ export function classify(testCase: TestCase) {
   }
 
   if (version !== 'unversioned' && !SUPPORTED_PROTOCOL_VERSIONS.has(version)) {
-    return {runnable: false, reason: `Unsupported protocol version: ${version}`};
+    return skipVerdict(testCase, `Unsupported protocol version: ${version}`);
   }
   if (!SUPPORTED_FORMATS.has(format)) {
-    return {runnable: false, reason: `Unsupported format: ${format}`};
+    return skipVerdict(testCase, `Unsupported format: ${format}`);
   }
 
   return {runnable: true, reason: ''};
@@ -160,17 +170,22 @@ export function classify(testCase: TestCase) {
 export function loadCases(files: string[]): LoadedCase[] {
   const allCases: LoadedCase[] = [];
   for (const file of files) {
-    const content = fs.readFileSync(file, 'utf-8');
-    const docs = yaml.loadAll(content) as Array<
-      Record<string, unknown> | Record<string, unknown>[]
-    >;
+    const sourceFile = relative(CONFORMANCE_ROOT, file).replace(/\\/g, '/');
+    const content = readFileSync(file, 'utf-8');
+    const docs = loadAll(content) as Array<Record<string, unknown> | Record<string, unknown>[]>;
     for (const doc of docs) {
       if (Array.isArray(doc)) {
         for (const item of doc) {
-          allCases.push({...(item as TestCase), sourceFile: path.basename(file)});
+          allCases.push({...(item as TestCase), sourceFile});
+        }
+      } else if (doc && Array.isArray(doc.tests)) {
+        for (const item of doc.tests as Record<string, unknown>[]) {
+          const name = (item.name ?? item.id) as string;
+          const action = (item.action ?? 'build') as string;
+          allCases.push({...(item as TestCase), name, action, sourceFile});
         }
       } else if (doc) {
-        allCases.push({...(doc as TestCase), sourceFile: path.basename(file)});
+        allCases.push({...(doc as TestCase), sourceFile});
       }
     }
   }

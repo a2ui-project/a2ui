@@ -122,6 +122,8 @@ jobs:
       - uses: ./.github/actions/setup-python
       - name: Check web_core executed cases
         run: uv run --project conformance python conformance/scripts/check_executed_cases.py --manifest-dir "${{ runner.temp }}/a2ui-manifest" --harness web_core --corpus core
+      - name: Check TS agent executed cases
+        run: uv run --project conformance python conformance/scripts/check_executed_cases.py --manifest-dir "${{ runner.temp }}/a2ui-manifest" --corpus agent --harness ts-agent
       - name: Test React 18 Compatibility
         run: yarn workspace @a2ui/react run test:react18
       - name: Verify NPM Publish Script
