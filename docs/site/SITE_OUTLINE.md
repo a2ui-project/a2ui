@@ -212,7 +212,8 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
     4. **Available Official Agent SDKs Table**:
         - **Columns**: (1) _Language / Runtime_, (2) _Packages & Roles_ (Agent SDK, framework adapters like ADK/A2A, and Core SDK dependency), (3) _Protocol Versions_, (4) _GitHub Source_ (deep link in `a2ui-project/a2ui`), (5) _Published Package_ (direct link on PyPI, npm, pub.dev, or explicit in-repo status).
         - **Discovery Instructions**: Inspect `python/*/pyproject.toml`, `typescript/agents/*/package.json`, `typescript/core/*/package.json`, `dart/*/pubspec.yaml`, and `kotlin/` legacy notes; verify `"private"` flags, release tags, and live registry URLs. Note that Swift targets client rendering (`A2UISwiftCore` / `A2UISwiftUI`) rather than server-side agent generation.
-    5. **Community & Custom SDKs**: Cross-link to [`/ecosystem/renderers/`](#ecosystem-renderers--tools-ecosystemrenderers) and [`/guides/sdk-development/`](#sdk-development).
+    5. **Next Steps / Integration Guide**: Follow the step-by-step server setup and framework wiring in [How to Integrate with My Agent Server](#how-to-integrate-with-my-agent-server) (`/guides/agent-integration/`).
+    6. **Community & Custom SDKs**: Cross-link to [`/ecosystem/renderers/`](#ecosystem-renderers--tools-ecosystemrenderers) and [`/guides/sdk-development/`](#sdk-development).
 
 #### Renderer SDKs
 
@@ -229,7 +230,8 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
     5. **Available Official Renderer SDKs Table**:
         - **Columns**: (1) _UI Framework / Platform_, (2) _Language_, (3) _Packages & Core Dependency_ (Framework Adapter, Core SDK, and Basic/Add-on Catalog packages where separate), (4) _Protocol Versions_, (5) _GitHub / Source Code_, (6) _Published Package_.
         - **Discovery Instructions**: Inspect `typescript/{core,renderers,catalogs}/*/package.json` (noting Web bundles the Basic Catalog in `@a2ui/lit` and `@a2ui/web_core/v0_9/universal`, while `typescript/catalogs/` houses add-on catalogs like `mcp` and `vegachart`), `dart/*/pubspec.yaml`, and the repo-root [`Package.swift`](../../Package.swift) (`A2UISwiftCore`, `A2UISwiftUI`, `BasicCatalog`, `BasicCatalogSwiftUI`), verifying `"private"` flags and live registry links. Explicitly include the **Jetpack Compose SDK**, consulting [https://developer.android.com/develop/ui/compose/agentic](https://developer.android.com/develop/ui/compose/agentic) for authoritative Maven coordinates, source links, and documentation.
-    6. **Community Renderers & Custom Adapters**: Cross-link to [`/ecosystem/renderers/`](#ecosystem-renderers--tools-ecosystemrenderers) and [`/guides/sdk-development/`](#sdk-development).
+    6. **Next Steps / Integration Guide**: Follow the step-by-step client runtime setup, catalog registration, and reactive update mounting in [How to Integrate with My Client](#how-to-integrate-with-my-client) (`/guides/client-integration/`).
+    7. **Community Renderers & Custom Adapters**: Cross-link to [`/ecosystem/renderers/`](#ecosystem-renderers--tools-ecosystemrenderers) and [`/guides/sdk-development/`](#sdk-development).
 
 #### Swappable Inference Formats
 
