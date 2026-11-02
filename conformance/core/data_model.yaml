@@ -993,3 +993,31 @@
     - op: "get"
       path: "///"
       expect: {"a": {"b": "val"}}
+
+- name: test_data_model_set_defensive_copy_isolates_caller_mutation
+  description: >-
+    Mutating an object passed to set after the call does not alter the
+    committed data model state or trigger watcher notifications.
+  catalog:
+    protocolVersion: "v0.9"
+  action: data_model
+  initial: {}
+  watch: ["/profile", "/profile/name"]
+  steps:
+    - op: "set"
+      path: "/profile"
+      value: {"name": "Alice", "roles": ["admin"]}
+      expect_notified: ["/profile", "/profile/name"]
+      expect_values:
+        "/profile": {"name": "Alice", "roles": ["admin"]}
+        "/profile/name": "Alice"
+    - op: "mutate_input"
+      path: "/name"
+      value: "Mallory"
+      expect_notified: []
+    - op: "get"
+      path: "/profile"
+      expect: {"name": "Alice", "roles": ["admin"]}
+    - op: "get"
+      path: "/profile/name"
+      expect: "Alice"

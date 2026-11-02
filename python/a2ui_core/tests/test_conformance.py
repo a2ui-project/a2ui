@@ -14,6 +14,7 @@
 
 from collections.abc import Callable, Mapping
 import contextlib
+import copy
 import glob
 import json
 import os
@@ -2260,6 +2261,15 @@ _DATA_MODEL_STEP_KEYS_BY_OP: dict[str, frozenset[str]] = {
         "expect_notified",
         "expect_values",
     }),
+    "mutate_input": frozenset({
+        "op",
+        "path",
+        "value",
+        "expect_error",
+        "expectError",
+        "expect_notified",
+        "expect_values",
+    }),
 }
 
 
@@ -2311,6 +2321,7 @@ def validate_data_model_case(case: dict[str, Any]) -> None:
 
     steps = case.get("steps") or []
     assert steps or "expect" in case, "data_model case requires 'steps' or 'expect'"
+    input_state: dict[str, Any] = {"last_set_value": None}
     for idx, step in enumerate(steps):
         op = step.get("op")
         allowed_step_keys = _DATA_MODEL_STEP_KEYS_BY_OP.get(str(op))
@@ -2323,10 +2334,10 @@ def validate_data_model_case(case: dict[str, Any]) -> None:
         expect_err = step.get("expect_error") or step.get("expectError")
         if expect_err:
             with assert_raises(expect_err):
-                _apply_data_model_op(model, step)
+                _apply_data_model_op(model, step, input_state)
             continue
 
-        _apply_data_model_op(model, step)
+        _apply_data_model_op(model, step, input_state)
         _assert_data_model_observer_expectations(idx, step, observers)
 
     if "expect" in case:
@@ -2369,13 +2380,39 @@ def _apply_data_model_get(model: Any, step: dict[str, Any]) -> None:
         )
 
 
-def _apply_data_model_op(model: Any, step: dict[str, Any]) -> None:
+def _mutate_in_place(target: Any, path: str, value: Any) -> None:
+    tokens = [t.replace("~1", "/").replace("~0", "~") for t in path.split("/") if t]
+    if not tokens or target is None:
+        return
+    curr = target
+    for token in tokens[:-1]:
+        curr = curr[int(token)] if isinstance(curr, list) else curr[token]
+    last = tokens[-1]
+    if isinstance(curr, list):
+        curr[int(last)] = value
+    elif isinstance(curr, dict):
+        curr[last] = value
+
+
+def _apply_data_model_op(
+    model: Any,
+    step: dict[str, Any],
+    input_state: dict[str, Any] | None = None,
+) -> None:
     op = step.get("op")
     step_path = step.get("path", "")
     if op == "get":
         _apply_data_model_get(model, step)
     elif op == "set":
-        model.set(step_path, step.get("value"))
+        caller_value = copy.deepcopy(step.get("value"))
+        if input_state is not None:
+            input_state["last_set_value"] = caller_value
+        model.set(step_path, caller_value)
+    elif op == "mutate_input":
+        if input_state is not None:
+            _mutate_in_place(
+                input_state.get("last_set_value"), step_path, step.get("value")
+            )
     elif op == "delete":
         model.set(step_path, None)
     elif op == "dispose":

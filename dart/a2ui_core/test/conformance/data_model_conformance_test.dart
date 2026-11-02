@@ -242,6 +242,7 @@ void _runCase(Map<String, Object?> testCase) {
   }
 
   final steps = testCase['steps']! as List<Object?>;
+  final inputState = <String, Object?>{'lastSetValue': null};
   for (var i = 0; i < steps.length; i++) {
     final step = steps[i]! as Map<String, Object?>;
     assertKnownKeys(step, _knownKeys['step:data_model']!, 'step:data_model');
@@ -253,16 +254,45 @@ void _runCase(Map<String, Object?> testCase) {
     final Object? expectError = step['expect_error'];
     if (expectError != null) {
       expect(
-        () => _applyOp(model, step),
+        () => _applyOp(model, step, inputState: inputState),
         throwsA(_matchesError(expectError as Map<String, Object?>)),
         reason: reason,
       );
       continue;
     }
 
-    _applyOp(model, step, observers: watched, reason: reason);
+    _applyOp(
+      model,
+      step,
+      observers: watched,
+      reason: reason,
+      inputState: inputState,
+    );
     _checkNotifications(step, watched, reason);
     _checkWatchedValues(step, watched, reason);
+  }
+}
+
+void _mutateInPlace(Object? target, String path, Object? value) {
+  final List<String> tokens = [
+    for (final String s in path.split('/'))
+      if (s.isNotEmpty) s.replaceAll('~1', '/').replaceAll('~0', '~'),
+  ];
+  if (tokens.isEmpty || target == null) return;
+  Object? curr = target;
+  for (var i = 0; i < tokens.length - 1; i++) {
+    final String token = tokens[i];
+    if (curr is List) {
+      curr = curr[int.parse(token)];
+    } else if (curr is Map) {
+      curr = curr[token];
+    }
+  }
+  final String last = tokens.last;
+  if (curr is List) {
+    curr[int.parse(last)] = value;
+  } else if (curr is Map) {
+    curr[last] = value;
   }
 }
 
@@ -271,6 +301,7 @@ void _applyOp(
   Map<String, Object?> step, {
   List<_Observer> observers = const [],
   String reason = '',
+  Map<String, Object?>? inputState,
 }) {
   final op = step['op']! as String;
   switch (op) {
@@ -292,7 +323,17 @@ void _applyOp(
         expect(actual, equals(step['expect']), reason: reason);
       }
     case 'set':
-      model.set(step['path']! as String, step['value']);
+      final Object? callerValue = _deepCopy(step['value']);
+      if (inputState != null) {
+        inputState['lastSetValue'] = callerValue;
+      }
+      model.set(step['path']! as String, callerValue);
+    case 'mutate_input':
+      _mutateInPlace(
+        inputState?['lastSetValue'],
+        step['path']! as String,
+        step['value'],
+      );
     case 'delete':
       // Dart has no `undefined`; writing null removes the key.
       model.set(step['path']! as String, null);

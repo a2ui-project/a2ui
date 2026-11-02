@@ -96,13 +96,15 @@ struct DataModelConformanceTests {
       }
     }
 
+    var lastSetValue: JSONValue?
     for (index, step) in steps.enumerated() {
       try runDataModelStep(
         step,
         index: index,
         model: model,
         observers: observers,
-        caseName: name
+        caseName: name,
+        lastSetValue: &lastSetValue
       )
     }
   }
@@ -112,7 +114,8 @@ struct DataModelConformanceTests {
     index: Int,
     model: DataModel,
     observers: [Observer],
-    caseName: String
+    caseName: String,
+    lastSetValue: inout JSONValue?
   ) throws {
     try ConformanceTestHelper.assertKnownKeys(
       step,
@@ -135,11 +138,17 @@ struct DataModelConformanceTests {
         "data_model.yaml expect_error at \(location)",
         allowMetadata: false
       )
-      assertStepError(model: model, step: step, expectError: expectError, location: location)
+      assertStepError(
+        model: model,
+        step: step,
+        expectError: expectError,
+        location: location,
+        lastSetValue: &lastSetValue
+      )
       return
     }
 
-    try applyOp(model: model, step: step, location: location)
+    try applyOp(model: model, step: step, location: location, lastSetValue: &lastSetValue)
     assertStepNotifications(step: step, observers: observers, location: location)
     assertStepWatchedValues(step: step, observers: observers, location: location)
   }
@@ -148,11 +157,12 @@ struct DataModelConformanceTests {
     model: DataModel,
     step: [String: Any],
     expectError: [String: Any],
-    location: String
+    location: String,
+    lastSetValue: inout JSONValue?
   ) {
     let expectedSubstring = expectError["message"] as? String
     do {
-      try applyOp(model: model, step: step, location: location)
+      try applyOp(model: model, step: step, location: location, lastSetValue: &lastSetValue)
       Issue.record("\(location): expected DataError, but succeeded")
     } catch let error as A2UIDataError {
       if let expectedSubstring {
@@ -209,7 +219,8 @@ struct DataModelConformanceTests {
   private func applyOp(
     model: DataModel,
     step: [String: Any],
-    location: String
+    location: String,
+    lastSetValue: inout JSONValue?
   ) throws {
     let operation = step["op"] as? String ?? ""
     let path = step["path"] as? String ?? "/"
@@ -222,7 +233,18 @@ struct DataModelConformanceTests {
         step.keys.contains("value")
         ? step["value"].map { ConformanceTestHelper.toJSONValue($0) }
         : nil
+      lastSetValue = val
       try model.setThrowing(path, value: val)
+    case "mutate_input":
+      let val =
+        step.keys.contains("value")
+        ? step["value"].map { ConformanceTestHelper.toJSONValue($0) }
+        : nil
+      if let currentInput = lastSetValue {
+        let callerCopy = DataModel(initial: currentInput)
+        try callerCopy.setThrowing(path, value: val)
+        lastSetValue = callerCopy.data
+      }
     case "delete":
       try model.setThrowing(path, value: nil)
     case "dispose":

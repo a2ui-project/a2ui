@@ -2163,6 +2163,15 @@ const DATA_MODEL_KNOWN_KEYS = {
       'path',
     ]),
     dispose: new Set(['expectError', 'expect_error', 'op']),
+    mutate_input: new Set([
+      'expectError',
+      'expect_error',
+      'expect_notified',
+      'expect_values',
+      'op',
+      'path',
+      'value',
+    ]),
   },
 };
 
@@ -2188,6 +2197,7 @@ function validateDataModelTestCase(testCase) {
     }
   }
 
+  const inputState = {lastSetValue: undefined};
   if (steps && Array.isArray(steps)) {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
@@ -2200,7 +2210,7 @@ function validateDataModelTestCase(testCase) {
         assertKnownKeys(expectErr, EXPECT_ERROR_KNOWN_KEYS.error, 'data_model.step.expectError');
         assert.throws(
           () => {
-            applyDataModelOp(model, step);
+            applyDataModelOp(model, step, inputState);
           },
           err => {
             if (expectErr.message) {
@@ -2217,7 +2227,7 @@ function validateDataModelTestCase(testCase) {
         continue;
       }
 
-      applyDataModelOp(model, step);
+      applyDataModelOp(model, step, inputState);
 
       if (step.expect_notified !== undefined) {
         const notified = [];
@@ -2253,7 +2263,7 @@ function validateDataModelTestCase(testCase) {
   }
 }
 
-function applyDataModelOp(model, step) {
+function applyDataModelOp(model, step, inputState) {
   const {op, path: stepPath, value, expect: stepExpect, expect_absent, expect_type} = step;
   switch (op) {
     case 'get': {
@@ -2285,7 +2295,35 @@ function applyDataModelOp(model, step) {
     }
     case 'set': {
       assertKnownKeys(step, DATA_MODEL_KNOWN_KEYS.step.set, 'data_model.step.set');
-      model.set(stepPath, value);
+      const callerValue = value !== undefined ? structuredClone(value) : undefined;
+      if (inputState) {
+        inputState.lastSetValue = callerValue;
+      }
+      model.set(stepPath, callerValue);
+      break;
+    }
+    case 'mutate_input': {
+      assertKnownKeys(
+        step,
+        DATA_MODEL_KNOWN_KEYS.step.mutate_input,
+        'data_model.step.mutate_input',
+      );
+      const tokens = (stepPath ?? '')
+        .split('/')
+        .filter(Boolean)
+        .map(t => t.replace(/~1/g, '/').replace(/~0/g, '~'));
+      let curr = inputState?.lastSetValue;
+      if (tokens.length > 0 && curr !== null && curr !== undefined) {
+        for (let i = 0; i < tokens.length - 1; i++) {
+          curr = Array.isArray(curr) ? curr[Number(tokens[i])] : curr[tokens[i]];
+        }
+        const last = tokens[tokens.length - 1];
+        if (Array.isArray(curr)) {
+          curr[Number(last)] = value;
+        } else if (curr && typeof curr === 'object') {
+          curr[last] = value;
+        }
+      }
       break;
     }
     case 'delete': {

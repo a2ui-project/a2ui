@@ -51,6 +51,26 @@ export const MAX_ARRAY_INDEX = 10000;
  */
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
+function cloneValue<T>(val: T): T {
+  if (val === null || val === undefined || typeof val !== 'object') {
+    return val;
+  }
+  if (Array.isArray(val)) {
+    const copy = new Array(val.length);
+    for (let i = 0; i < val.length; i++) {
+      if (i in val) {
+        copy[i] = cloneValue(val[i]);
+      }
+    }
+    return copy as unknown as T;
+  }
+  const copy: Record<string, unknown> = {};
+  for (const key of Object.keys(val as Record<string, unknown>)) {
+    copy[key] = cloneValue((val as Record<string, unknown>)[key]);
+  }
+  return copy as T;
+}
+
 /**
  * Observable data store representing the renderer-side state.
  *
@@ -67,7 +87,7 @@ export class DataModel {
    * @param initialData Initial data for the model. Defaults to an empty object.
    */
   constructor(initialData: Record<string, unknown> = {}) {
-    this.data = initialData;
+    this.data = cloneValue(initialData);
   }
 
   /**
@@ -116,7 +136,7 @@ export class DataModel {
 
     const segments = this.parsePath(path);
     if (segments.length === 0) {
-      this.data = value === null || value === undefined ? {} : value;
+      this.data = value === null || value === undefined ? {} : cloneValue(value);
       this.notifyAllSignals();
       return this;
     }
@@ -251,7 +271,7 @@ export class DataModel {
         delete current[lastSegment];
       }
     } else {
-      current[lastSegment] = value;
+      current[lastSegment] = cloneValue(value);
     }
 
     this.notifySignals(path);
