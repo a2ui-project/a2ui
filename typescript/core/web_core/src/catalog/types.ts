@@ -964,8 +964,12 @@ function createCatalogInvoker<F extends FunctionApi>(
         if (!isThenable(settledArgs)) {
           return sendToAgent(settledArgs);
         }
-        return Promise.resolve(settledArgs).then(resolvedArgs =>
-          abortSignal?.aborted ? undefined : sendToAgent(resolvedArgs),
+        // A failed argument is passed on even when the evaluation was aborted
+        // meanwhile, so the enclosing call stops instead of running.
+        return Promise.resolve(settledArgs).then(
+          resolvedArgs =>
+            findFailedArgument(resolvedArgs) ??
+            (abortSignal?.aborted ? undefined : sendToAgent(resolvedArgs)),
         );
       }
     }
@@ -1013,8 +1017,10 @@ function createCatalogInvoker<F extends FunctionApi>(
     if (!isThenable(settledArgs)) {
       return parseAndExecute(settledArgs);
     }
-    return Promise.resolve(settledArgs).then(resolvedArgs =>
-      abortSignal?.aborted ? undefined : parseAndExecute(resolvedArgs),
+    return Promise.resolve(settledArgs).then(
+      resolvedArgs =>
+        findFailedArgument(resolvedArgs) ??
+        (abortSignal?.aborted ? undefined : parseAndExecute(resolvedArgs)),
     );
   };
 }

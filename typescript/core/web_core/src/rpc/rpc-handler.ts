@@ -16,6 +16,7 @@
 
 import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {DataContext} from '../resolution/data-context.js';
+import {resolveArgumentValue} from '../resolution/data-context-internal.js';
 import {isSignal, getValue} from '../reactivity/signals.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {FunctionCall} from '../v1_0/schema/common-types.js';
@@ -349,6 +350,10 @@ export class RpcHandler {
   /**
    * Cancels all pending agent function calls originating from the given surface.
    *
+   * Each pending call is rejected with an `A2uiRpcError` whose code is
+   * `CANCELLED`. `DataContext` does not report such a rejection, so a
+   * renderer may call this to reset a surface that it keeps.
+   *
    * @param surfaceId Identifier of the surface whose pending calls should be cancelled.
    */
   cancelSurfaceCalls(surfaceId: string): void {
@@ -356,7 +361,7 @@ export class RpcHandler {
       if (pending.surfaceId === surfaceId) {
         pending.reject(
           new A2uiRpcError(
-            `Surface '${surfaceId}' was deleted while call '${id}' was pending.`,
+            `Pending calls for surface '${surfaceId}' were cancelled.`,
             RpcErrorCode.CANCELLED,
             id,
           ),
@@ -542,7 +547,7 @@ export class RpcHandler {
     });
     try {
       for (const [key, val] of Object.entries(args)) {
-        resolvedArgs[key] = context.resolveDynamicValue(val, 1, isUserActivated, true);
+        resolvedArgs[key] = resolveArgumentValue(context, val, 1, isUserActivated);
       }
     } catch (err: unknown) {
       expressionError =

@@ -1089,8 +1089,17 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     // Without an outbound listener there is no way to reach it, so such calls
     // keep failing locally.
     if (this.hasOutboundListener && isAtLeastVersion(surface.protocolVersion, '1.0')) {
+      // A call that resumes after the surface was deleted (for example, an
+      // action that awaited an argument) is cancelled instead of being sent.
       surface.agentFunctionCaller = call =>
-        this.rpc.callAgentFunction(surfaceId, call, {version: surface.protocolVersion});
+        this.model.getSurface(surfaceId) === surface
+          ? this.rpc.callAgentFunction(surfaceId, call, {version: surface.protocolVersion})
+          : Promise.reject(
+              new A2uiRpcError(
+                `Pending calls for surface '${surfaceId}' were cancelled.`,
+                RpcErrorCode.CANCELLED,
+              ),
+            );
     }
     this.model.addSurface(surface);
 

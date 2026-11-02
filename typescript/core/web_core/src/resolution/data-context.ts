@@ -28,13 +28,22 @@ import {z} from 'zod';
 import {DataModel, DataSubscription} from '../state/data-model.js';
 import {type FunctionCall, type Action} from '../types/common-types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
-import {A2uiCatalogError, A2uiExpressionError, A2uiValidationError} from '../errors.js';
+import {
+  A2uiCatalogError,
+  A2uiExpressionError,
+  A2uiRpcError,
+  A2uiValidationError,
+  RpcErrorCode,
+} from '../errors.js';
+import {canonicalJsonKey} from '../common/canonical_json.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {
   FailedArgument,
   findFailedArgument,
+  isPlainObject,
   isThenable,
   recordSettledValue,
+  settleDeep,
 } from '../common/settle_deep.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
@@ -312,6 +321,52 @@ export function resolveContextIndex(startCtx: unknown): number | undefined {
 }
 
 /**
+ * Creates an abort controller that is aborted when `parent` is.
+ *
+ * @param parent Abort signal of the enclosing evaluation, if any.
+ * @returns The new controller.
+ */
+function linkedAbortController(parent?: AbortSignal): AbortController {
+  const controller = new AbortController();
+  if (parent?.aborted) {
+    controller.abort();
+  } else {
+    parent?.addEventListener('abort', () => controller.abort(), {once: true});
+  }
+  return controller;
+}
+
+/**
+ * Aborts `controller` as soon as a pending value nested in `args` settles to
+ * a failure, so the other arguments of the same call stop.
+ *
+ * @param args The resolved arguments of a call, which may hold pending values.
+ * @param controller The controller of the call.
+ */
+function abortOnFailedArgument(args: unknown, controller: AbortController): void {
+  if (isThenable(args)) {
+    Promise.resolve(args).then(
+      settled => {
+        if (findFailedArgument(settled)) controller.abort();
+      },
+      () => controller.abort(),
+    );
+  } else if (Array.isArray(args)) {
+    for (const item of args) abortOnFailedArgument(item, controller);
+  } else if (isPlainObject(args)) {
+    for (const item of Object.values(args)) abortOnFailedArgument(item, controller);
+  }
+}
+
+/**
+ * Sets `key` as an own enumerable property of `target`, so that a key such as
+ * `"__proto__"` stays an ordinary property.
+ */
+function defineOwn(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {value, enumerable: true, writable: true, configurable: true});
+}
+
+/**
  * The maximum allowed recursion depth for evaluating nested dynamic values or function calls.
  * Prevents call stack exhaustion on deeply nested expression payloads.
  */
@@ -525,21 +580,47 @@ export class DataContext {
    * Evaluates the value once at the current moment without creating reactive subscriptions.
    * Use `subscribeDynamicValue` for reactive updates.
    *
-   * A pending Promise, such as the result of an asynchronous function nested
-   * in the arguments of another call, is returned unchanged: the invoker of
-   * the enclosing call awaits it before validating the arguments.
+   * The result of an asynchronous function, such as a call routed to the
+   * agent, is a Promise that resolves to the value, or to `undefined` once
+   * the failure has been reported on the surface.
    * @param value The DynamicValue object or raw value from the A2UI JSON payload.
    * @param depth The current recursion depth when evaluating nested arguments or expressions.
    * @param userActivated Whether the evaluation was initiated by an active user action.
    * @returns The synchronously resolved value.
    */
-  resolveDynamicValue<V>(value: unknown, depth = 0, userActivated = false, keepPending = false): V {
+  resolveDynamicValue<V>(value: unknown, depth = 0, userActivated = false): V {
+    return this.resolveValue<V>(value, depth, userActivated, false);
+  }
+
+  /**
+   * Evaluates a DynamicValue once, as {@link resolveDynamicValue} does.
+   *
+   * Inside the arguments of a function call (`keepPending`), a pending result
+   * stays a Promise, which the invoker of the enclosing call awaits before
+   * validating its arguments, and, from v1.0, a call that fails resolves to a
+   * `FailedArgument` that stops the enclosing call.
+   *
+   * @param value The DynamicValue object or raw value.
+   * @param depth The current recursion depth.
+   * @param userActivated Whether the evaluation was initiated by an active user action.
+   * @param keepPending Whether the value is (part of) a function argument.
+   * @param parentSignal Abort signal of the enclosing call. Calls nested in
+   *   `value` are aborted with it.
+   * @returns The resolved value.
+   */
+  private resolveValue<V>(
+    value: unknown,
+    depth: number,
+    userActivated: boolean,
+    keepPending: boolean,
+    parentSignal?: AbortSignal,
+  ): V {
     if (depth > MAX_DYNAMIC_VALUE_DEPTH) {
       const err = new A2uiExpressionError(
         `Maximum dynamic value nesting depth exceeded (${MAX_DYNAMIC_VALUE_DEPTH})`,
       );
       this.dispatchExpressionError(err, 'DynamicValue');
-      return (keepPending ? new FailedArgument(err) : undefined) as any;
+      return (keepPending ? this.failedArgument(err) : undefined) as V;
     }
 
     if (value === null || typeof value !== 'object' || isThenable(value)) {
@@ -551,7 +632,7 @@ export class DataContext {
         return value as V;
       }
       return value.map(item =>
-        this.resolveDynamicValue(item, depth + 1, userActivated, keepPending),
+        this.resolveValue(item, depth + 1, userActivated, keepPending, parentSignal),
       ) as V;
     }
 
@@ -573,10 +654,11 @@ export class DataContext {
         depth,
         userActivated,
         keepPending,
+        parentSignal,
       );
     }
 
-    return this.resolvePlainObjectValue<V>(rec, depth, userActivated, keepPending);
+    return this.resolvePlainObjectValue<V>(rec, depth, userActivated, keepPending, parentSignal);
   }
 
   /**
@@ -589,63 +671,76 @@ export class DataContext {
    * wrapped so the inner call reports its own rejection once and resolves to a
    * `FailedArgument` that stops the enclosing call from executing.
    *
+   * When an argument fails, the call is aborted, and with it the calls in its
+   * other arguments: one that has not sent its agent call yet does not send
+   * it, and one that fails later reports nothing.
+   *
    * @param call Function call definition to execute.
    * @param depth Current recursion depth for nested expression tracking.
    * @param userActivated Whether the evaluation was initiated by an active user action.
    * @param keepPending Whether the call is nested inside a function argument.
+   * @param parentSignal Abort signal of the enclosing call, if any.
    * @returns The resolved function return value.
    */
   private resolveFunctionCallValue<V>(
     call: FunctionCall,
-    depth = 0,
-    userActivated = false,
-    keepPending = false,
+    depth: number,
+    userActivated: boolean,
+    keepPending: boolean,
+    parentSignal?: AbortSignal,
   ): V {
     const callName = (call['@call'] ?? call.call)!;
     // Resolve before validating: the arguments must be checked against the
     // catalog that will actually run the call, not the surface default.
     const targetCatalog = this.resolveCallCatalog(callName, call);
     if (!targetCatalog) {
-      return (keepPending ? new FailedArgument(undefined) : undefined) as V;
+      return (keepPending ? this.failedArgument(undefined) : undefined) as V;
     }
     try {
       validateFunctionArgs(callName, call.args, targetCatalog);
     } catch (e: unknown) {
       this.dispatchExpressionError(e, callName);
-      return (keepPending ? new FailedArgument(e) : undefined) as V;
+      return (keepPending ? this.failedArgument(e) : undefined) as V;
     }
+    const abortController = linkedAbortController(parentSignal);
     const args: Record<string, unknown> = {};
     for (const [key, argVal] of Object.entries(call.args ?? {})) {
-      args[key] = this.resolveDynamicValue(argVal, depth + 1, userActivated, true);
+      const arg = this.resolveValue(argVal, depth + 1, userActivated, true, abortController.signal);
+      const failed = findFailedArgument(arg);
+      if (failed) {
+        // The arguments resolved so far stop, and the rest are not evaluated.
+        abortController.abort();
+        return (keepPending ? failed : undefined) as V;
+      }
+      defineOwn(args, key, arg);
     }
+    abortOnFailedArgument(args, abortController);
 
-    const abortController = new AbortController();
-    const prevActivated = this._isUserActivated;
-    this._isUserActivated = prevActivated || userActivated;
-    let result: Signal<V> | V;
-    try {
-      result = this.evaluateFunctionReactive<V>(
-        callName,
-        args,
-        targetCatalog.invoker,
-        abortController.signal,
-        keepPending,
-      );
-    } finally {
-      this._isUserActivated = prevActivated;
-    }
+    // The evaluation flags are fixed on a scoped view of this context, so
+    // the function and the error handling that run after pending arguments
+    // settle see the same flags as a synchronous call.
+    const scope =
+      userActivated && !this.isUserActivated ? this.withFlags({userActivated: true}) : this;
+    const result = scope.evaluateFunctionReactive<V>(
+      callName,
+      args,
+      targetCatalog.invoker,
+      abortController.signal,
+      keepPending,
+    );
 
     if (result === undefined) {
       return undefined as unknown as V;
     }
 
     if (result instanceof FailedArgument) {
+      abortController.abort();
       return (keepPending ? result : undefined) as unknown as V;
     }
 
     if (isThenable(result)) {
       if (keepPending) {
-        return this.keepPendingResult(result, callName, abortController.signal) as V;
+        return scope.keepPendingResult(result, callName, abortController.signal) as V;
       }
       return Promise.resolve(result).then(
         value => {
@@ -655,9 +750,7 @@ export class DataContext {
           return isSignal(value) ? peekValue(value) : value;
         },
         (e: unknown) => {
-          if (!this.surface?.disposed) {
-            this.dispatchExpressionError(e, callName);
-          }
+          scope.dispatchExpressionError(e, callName);
           return undefined;
         },
       ) as V;
@@ -673,13 +766,15 @@ export class DataContext {
    * @param depth Current recursion depth for nested expression tracking.
    * @param userActivated Whether the evaluation was initiated by an active user action.
    * @param keepPending Whether the object is nested inside a function argument.
+   * @param parentSignal Abort signal of the enclosing call, if any.
    * @returns A copy of the object with all nested dynamic values resolved.
    */
   private resolvePlainObjectValue<V>(
     rec: Record<string, unknown>,
-    depth = 0,
-    userActivated = false,
-    keepPending = false,
+    depth: number,
+    userActivated: boolean,
+    keepPending: boolean,
+    parentSignal?: AbortSignal,
   ): V {
     if (this.atLeastV10) {
       validateReservedDirectives(Object.keys(rec), this.surfaceProtocolVersion);
@@ -690,7 +785,11 @@ export class DataContext {
     const resolved: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(rec)) {
       const key = this.atLeastV10 ? unescapeObjectKey(k) : k;
-      resolved[key] = this.resolveDynamicValue(v, depth + 1, userActivated, keepPending);
+      defineOwn(
+        resolved,
+        key,
+        this.resolveValue(v, depth + 1, userActivated, keepPending, parentSignal),
+      );
     }
     return resolved as unknown as V;
   }
@@ -776,7 +875,7 @@ export class DataContext {
           ? (((value as any)['@call'] ?? (value as any).call) as string)
           : 'DynamicValue',
       );
-      return signal((keepPending ? new FailedArgument(err) : undefined) as unknown as V);
+      return signal((keepPending ? this.failedArgument(err) : undefined) as unknown as V);
     }
 
     // 1. Primitive literals
@@ -829,14 +928,18 @@ export class DataContext {
       // catalog that will actually run the call, not the surface default.
       const targetCatalog = this.resolveCallCatalog(callName, call);
       if (!targetCatalog) {
-        return signal((keepPending ? new FailedArgument(undefined) : undefined) as unknown as V);
+        return signal((keepPending ? this.failedArgument(undefined) : undefined) as unknown as V);
       }
       try {
         validateFunctionArgs(callName, call.args, targetCatalog);
       } catch (e: unknown) {
         this.dispatchExpressionError(e, callName);
-        return signal((keepPending ? new FailedArgument(e) : undefined) as unknown as V);
+        return signal((keepPending ? this.failedArgument(e) : undefined) as unknown as V);
       }
+      // A binding evaluates passively. The flag is fixed on a scoped view of
+      // this context, so the function and the error handling that run after
+      // pending arguments settle see it too.
+      const scope = this.withFlags({passive: true});
       const argSignals: Record<string, Signal<unknown>> = {};
 
       for (const [key, argVal] of Object.entries(call.args ?? {})) {
@@ -845,24 +948,29 @@ export class DataContext {
 
       if (Object.keys(argSignals).length === 0) {
         const abortController = new AbortController();
-        const result = this.evaluateFunctionPassive<V>({
-          name: callName,
-          args: {},
-          abortSignal: abortController.signal,
-          invoker: targetCatalog.invoker,
+        const result = scope.evaluateFunctionReactive<V>(
+          callName,
+          {},
+          targetCatalog.invoker,
+          abortController.signal,
           keepPending,
-        });
+        );
         let sig: Signal<V>;
         if (isSignal(result)) {
           sig = result;
         } else if (isThenable(result)) {
+          const pendingSig = signal<V | undefined>(undefined);
           if (keepPending) {
-            sig = signal(this.keepPendingResult(result, callName, abortController.signal) as V);
+            setValue(
+              pendingSig,
+              scope.keepPendingResult(result, callName, abortController.signal, {
+                onSignal: inner => scope.forwardSignal(pendingSig, inner, abortController.signal),
+              }) as V,
+            );
           } else {
-            const pendingSig = signal<V | undefined>(undefined);
-            this.settleIntoSignal(pendingSig, result, callName, abortController.signal);
-            sig = pendingSig as Signal<V>;
+            scope.settleIntoSignal(pendingSig, result, callName, abortController.signal);
           }
+          sig = pendingSig as Signal<V>;
         } else if (result instanceof FailedArgument) {
           sig = signal((keepPending ? result : undefined) as unknown as V);
         } else {
@@ -876,33 +984,53 @@ export class DataContext {
       const resultSig = signal<V | undefined>(undefined);
       let abortController: AbortController | undefined;
       let innerUnsubscribe: (() => void) | undefined;
+      // Key of the arguments of the last evaluation, if it failed.
+      let failedArgsKey: string | undefined;
 
       const argsSig = computed(() => {
         const argsRecord: Record<string, unknown> = {};
         for (let i = 0; i < keys.length; i++) {
-          argsRecord[keys[i]] = getValue(argSignals[keys[i]]);
+          defineOwn(argsRecord, keys[i], getValue(argSignals[keys[i]]));
         }
         return argsRecord;
       });
 
       const stopper = effect(() => {
+        let argsKey: string | undefined;
         try {
           const args = getValue(argsSig);
+
+          // A call that failed is not repeated while its arguments stay the
+          // same, such as when a dependency re-evaluates them to an equal
+          // value. A new evaluation (another binding, or a node mounted
+          // later) or a change of the arguments sends it again.
+          argsKey = canonicalJsonKey(args);
+          if (argsKey !== undefined && argsKey === failedArgsKey) {
+            return;
+          }
+          failedArgsKey = undefined;
 
           if (abortController) abortController.abort();
           if (innerUnsubscribe) {
             innerUnsubscribe();
             innerUnsubscribe = undefined;
           }
-          abortController = new AbortController();
+          const evaluation = new AbortController();
+          abortController = evaluation;
+          const evaluatedKey = argsKey;
+          const markFailed = () => {
+            if (!evaluation.signal.aborted) {
+              failedArgsKey = evaluatedKey;
+            }
+          };
 
-          const res = this.evaluateFunctionPassive<V>({
-            name: callName,
+          const res = scope.evaluateFunctionReactive<V>(
+            callName,
             args,
-            abortSignal: abortController.signal,
-            invoker: targetCatalog.invoker,
+            targetCatalog.invoker,
+            evaluation.signal,
             keepPending,
-          });
+          );
 
           if (isSignal(res)) {
             // Seed the result synchronously before wiring the forwarding
@@ -920,22 +1048,27 @@ export class DataContext {
             if (keepPending) {
               setValue(
                 resultSig,
-                this.keepPendingResult(res, callName, abortController.signal) as V,
+                scope.keepPendingResult(res, callName, evaluation.signal, {
+                  onSignal: inner => scope.forwardSignal(resultSig, inner, evaluation.signal),
+                  onFailure: markFailed,
+                }) as V,
               );
             } else {
               // Keep the current value until the call settles; a completion
               // that arrives after the arguments changed again is ignored.
-              this.settleIntoSignal(resultSig, res, callName, abortController.signal);
+              scope.settleIntoSignal(resultSig, res, callName, evaluation.signal, markFailed);
             }
           } else if (res instanceof FailedArgument) {
+            markFailed();
             setValue(resultSig, (keepPending ? res : undefined) as V | undefined);
           } else {
             setValue(resultSig, res);
           }
         } catch (e: unknown) {
-          this.dispatchExpressionError(e, callName);
+          failedArgsKey = argsKey;
+          scope.dispatchExpressionError(e, callName);
           // In reactive mode, we should not throw. Instead, reset the signal value.
-          setValue(resultSig, (keepPending ? new FailedArgument(e) : undefined) as V | undefined);
+          setValue(resultSig, (keepPending ? scope.failedArgument(e) : undefined) as V | undefined);
         }
       });
 
@@ -966,7 +1099,7 @@ export class DataContext {
     const objSig = computed(() => {
       const resolved: Record<string, unknown> = {};
       for (const [k, s] of entrySignals) {
-        resolved[k] = getValue(s);
+        defineOwn(resolved, k, getValue(s));
       }
       return resolved as unknown as V;
     }) as Signal<V>;
@@ -989,47 +1122,103 @@ export class DataContext {
     return undefined;
   }
 
+  /**
+   * Resolves the `context` entries and `userMessage` of an event action.
+   *
+   * The entries are resolved in declared order, then `userMessage`, one at a
+   * time: an entry that waits on an asynchronous call, such as an agent
+   * function call, settles before the next entry is evaluated. The first entry
+   * that fails stops the resolution, so no later entry is evaluated and no
+   * later agent call is sent.
+   *
+   * @param ev The event to resolve.
+   * @param options `userActivation` as passed to {@link resolveAction}.
+   * @returns The resolved event, a Promise of it when an entry waits on an
+   *   asynchronous call, or `undefined` (or a Promise of it) when the event is
+   *   invalid or an entry failed. Every failure has been reported by then.
+   */
   private resolveActionEventObject(
     ev: Record<string, unknown>,
-  ): Record<string, unknown> | undefined {
+    options?: {userActivation?: boolean},
+  ): Record<string, unknown> | undefined | Promise<Record<string, unknown> | undefined> {
     if (typeof ev.name !== 'string' || ev.name.length === 0) {
       return this.handleInvalidAction("Action event is missing required 'name' string.");
     }
-    const prevAction = this._isActionExecution;
-    this._isActionExecution = true;
-    try {
-      let resolvedContext: Record<string, unknown> | undefined = undefined;
-      if (ev.context && typeof ev.context === 'object' && !Array.isArray(ev.context)) {
-        resolvedContext = {};
-        for (const [key, value] of Object.entries(ev.context as Record<string, unknown>)) {
-          const resolvedValue = this.resolveDynamicValue(value, 0, false, true);
-          if (findFailedArgument(resolvedValue)) {
-            return undefined;
-          }
-          resolvedContext[key] = resolvedValue;
-        }
+    const userActivated = options?.userActivation ?? true;
+    const scope = this.withFlags({action: true, passive: options?.userActivation === false});
+
+    const contextEntries =
+      ev.context && typeof ev.context === 'object' && !Array.isArray(ev.context)
+        ? Object.entries(ev.context as Record<string, unknown>)
+        : undefined;
+    const hasUserMessage = ev.userMessage !== undefined;
+    const entryCount = (contextEntries?.length ?? 0) + (hasUserMessage ? 1 : 0);
+    const resolvedContext: Record<string, unknown> = {};
+    let resolvedUserMessage: unknown = undefined;
+
+    const finish = (): Record<string, unknown> | undefined => {
+      const resolvedEvent: Record<string, unknown> = {...ev};
+      if (contextEntries) {
+        resolvedEvent.context = resolvedContext;
       }
-      const resolvedEvent: Record<string, unknown> = {
-        ...ev,
-        ...(resolvedContext !== undefined ? {context: resolvedContext} : {}),
-      };
       if (ev.context === undefined) {
         delete resolvedEvent.context;
       }
-      if (ev.userMessage !== undefined) {
-        const resolvedMsg = this.resolveDynamicValue(ev.userMessage, 0, false, true);
-        if (findFailedArgument(resolvedMsg)) {
-          return undefined;
-        }
-        if (!isThenable(resolvedMsg) && typeof resolvedMsg !== 'string') {
+      if (hasUserMessage) {
+        if (typeof resolvedUserMessage !== 'string') {
           return this.handleInvalidAction("Action event 'userMessage' must resolve to a string.");
         }
-        resolvedEvent.userMessage = resolvedMsg;
+        resolvedEvent.userMessage = resolvedUserMessage;
       }
       return resolvedEvent;
-    } finally {
-      this._isActionExecution = prevAction;
-    }
+    };
+
+    // Resolves the entries from `start` on; entry `contextEntries.length` is
+    // `userMessage`.
+    const resolveFrom = (
+      start: number,
+    ): Record<string, unknown> | undefined | Promise<Record<string, unknown> | undefined> => {
+      for (let index = start; index < entryCount; index++) {
+        const contextEntry = contextEntries?.[index];
+        const entryController = new AbortController();
+        const value = scope.resolveValue(
+          contextEntry ? contextEntry[1] : ev.userMessage,
+          0,
+          userActivated,
+          true,
+          entryController.signal,
+        );
+        const store = (settled: unknown): boolean => {
+          if (findFailedArgument(settled)) {
+            entryController.abort();
+            return false;
+          }
+          if (contextEntry) {
+            defineOwn(resolvedContext, contextEntry[0], settled);
+          } else {
+            resolvedUserMessage = settled;
+          }
+          return true;
+        };
+        const settled = settleDeep(value);
+        if (isThenable(settled)) {
+          return Promise.resolve(settled).then(
+            settledValue => (store(settledValue) ? resolveFrom(index + 1) : undefined),
+            (e: unknown) => {
+              entryController.abort();
+              scope.dispatchExpressionError(e, 'DynamicValue');
+              return undefined;
+            },
+          );
+        }
+        if (!store(settled)) {
+          return undefined;
+        }
+      }
+      return finish();
+    };
+
+    return resolveFrom(0);
   }
 
   private executeActionFunctionCall(
@@ -1049,45 +1238,47 @@ export class DataContext {
       }
     }
     const userActivated = options?.userActivation ?? true;
-    const prevAction = this._isActionExecution;
-    const prevPassive = this._isPassiveEvaluation;
-    this._isActionExecution = true;
-    if (options?.userActivation === false) {
-      this._isPassiveEvaluation = true;
-    }
-    try {
-      return this.resolveDynamicValue(callTarget, 0, userActivated);
-    } finally {
-      this._isActionExecution = prevAction;
-      this._isPassiveEvaluation = prevPassive;
-    }
+    const scope = this.withFlags({action: true, passive: options?.userActivation === false});
+    return scope.resolveValue(callTarget, 0, userActivated, false);
   }
 
   /**
    * Resolves an action by evaluating its top-level dynamic values.
    *
-   * For event actions, resolves each value in the context map.
-   * For function call actions, evaluates the function call.
+   * For event actions, resolves each value in the context map, then
+   * `userMessage`, in order and one at a time (see the protocol's event
+   * actions). For function call actions, evaluates the function call.
+   *
+   * `options.userActivation` applies to both kinds: a function that requires
+   * user activation runs, or is sent to the agent, only when the action is
+   * user-activated (the default), and is refused when it is `false`.
    *
    * @param action The Action object to resolve.
-   * @returns The resolved action payload or function execution result.
+   * @param options Whether the action was initiated by an active user gesture.
+   * @returns For an event action, the action with its context and
+   *   `userMessage` resolved, or a Promise of it when an entry waits on an
+   *   asynchronous call such as an agent function call. `undefined`, or a
+   *   Promise of `undefined`, when the action is invalid or an entry failed;
+   *   the failure has then been reported and the action must not be
+   *   dispatched. For a function call action, the function's result.
    */
   resolveAction(
     action: Action | Record<string, unknown>,
     options?: {userActivation?: boolean},
   ): Action | unknown {
     if ('event' in action && typeof action.event === 'object' && action.event !== null) {
-      const resolvedEvent = this.resolveActionEventObject(action.event as Record<string, unknown>);
-      if (resolvedEvent === undefined) {
-        return undefined;
-      }
-      return {
-        ...action,
-        event: resolvedEvent,
-      };
+      const resolvedEvent = this.resolveActionEventObject(
+        action.event as Record<string, unknown>,
+        options,
+      );
+      const withEvent = (event: Record<string, unknown> | undefined) =>
+        event === undefined ? undefined : {...action, event};
+      return isThenable(resolvedEvent)
+        ? Promise.resolve(resolvedEvent).then(withEvent)
+        : withEvent(resolvedEvent);
     }
     if ('name' in action) {
-      return this.resolveActionEventObject(action as Record<string, unknown>);
+      return this.resolveActionEventObject(action as Record<string, unknown>, options);
     }
     if ('functionCall' in action || 'call' in action || '@call' in action) {
       return this.executeActionFunctionCall(action as Record<string, unknown>, options);
@@ -1174,21 +1365,36 @@ export class DataContext {
     }
   }
 
-  private evaluateFunctionPassive<V>(options: {
-    name: string;
-    args: Record<string, unknown>;
-    invoker: FunctionInvoker;
-    abortSignal?: AbortSignal;
-    keepPending?: boolean;
-  }): Signal<V> | V {
-    const {name, args, invoker, abortSignal, keepPending = false} = options;
-    const prevPassive = this._isPassiveEvaluation;
-    this._isPassiveEvaluation = true;
-    try {
-      return this.evaluateFunctionReactive<V>(name, args, invoker, abortSignal, keepPending);
-    } finally {
-      this._isPassiveEvaluation = prevPassive;
-    }
+  /**
+   * Returns a view of this context with evaluation flags added.
+   *
+   * The view shares everything else with this context. A call evaluated
+   * through it keeps the flags for as long as it runs, including the parts
+   * that run after its pending arguments settle, instead of reading flags
+   * that were reset when the synchronous part returned.
+   *
+   * @param flags The flags to add to those of this context.
+   * @returns The view.
+   */
+  private withFlags(flags: {userActivated?: boolean; passive?: boolean; action?: boolean}): this {
+    const view = Object.create(this) as this;
+    view._isUserActivated = this._isUserActivated || Boolean(flags.userActivated);
+    view._isPassiveEvaluation = this._isPassiveEvaluation || Boolean(flags.passive);
+    view._isActionExecution = this._isActionExecution || Boolean(flags.action);
+    return view;
+  }
+
+  /**
+   * The value of a failed call inside the arguments of another call.
+   *
+   * From v1.0 it is a `FailedArgument`, which stops the enclosing call. Before
+   * v1.0 it is `undefined`, as it always was.
+   *
+   * @param error The failure.
+   * @returns The value standing for the failed call.
+   */
+  private failedArgument(error: unknown): FailedArgument | undefined {
+    return this.atLeastV10 ? new FailedArgument(error) : undefined;
   }
 
   /**
@@ -1217,7 +1423,7 @@ export class DataContext {
       return invoker(name, args, this, abortSignal) as Signal<V> | V;
     } catch (e: unknown) {
       this.dispatchExpressionError(e, name);
-      return (keepPending ? new FailedArgument(e) : undefined) as unknown as V;
+      return (keepPending ? this.failedArgument(e) : undefined) as unknown as V;
     }
   }
 
@@ -1225,32 +1431,40 @@ export class DataContext {
    * Wraps a pending function result nested inside a function argument.
    *
    * The inner call reports its own rejection once (attributed to `name`) and
-   * resolves to a `FailedArgument`, which stops the enclosing call from
-   * executing or reporting a duplicate error. Settled values are recorded so
-   * `settleDeep` can read them synchronously if a sibling reactive dependency
-   * changes later.
+   * resolves to a `FailedArgument` (`undefined` before v1.0), which stops the
+   * enclosing call from executing or reporting a duplicate error. Settled
+   * values are recorded so `settleDeep` can read them synchronously if a
+   * sibling reactive dependency changes later.
    *
    * @param pending The pending result.
    * @param name Name of the function that produced `pending`.
    * @param abortSignal Signal that marks the evaluation as stale.
+   * @param handlers `onSignal` receives a `Signal` the result settles to, so
+   *   a binding can follow its later values; `onFailure` runs when the result
+   *   rejects. Neither runs once `abortSignal` has fired.
    * @returns A Promise resolving to the settled value or a `FailedArgument`.
    */
   private keepPendingResult(
     pending: PromiseLike<unknown>,
     name: string,
     abortSignal?: AbortSignal,
+    handlers?: {onSignal?: (source: Signal<unknown>) => void; onFailure?: () => void},
   ): Promise<unknown> {
     const tracked: Promise<unknown> = Promise.resolve(pending).then(
       value => {
         const unwrapped = isSignal(value) ? peekValue(value) : value;
         recordSettledValue(tracked, unwrapped);
+        if (isSignal(value) && !abortSignal?.aborted) {
+          handlers?.onSignal?.(value);
+        }
         return unwrapped;
       },
       (e: unknown) => {
-        if (!abortSignal?.aborted && !this.surface?.disposed) {
+        if (!abortSignal?.aborted) {
+          handlers?.onFailure?.();
           this.dispatchExpressionError(e, name);
         }
-        const failed = new FailedArgument(e);
+        const failed = this.failedArgument(e);
         recordSettledValue(tracked, failed);
         return failed;
       },
@@ -1263,40 +1477,61 @@ export class DataContext {
    *
    * The signal keeps its current value while the result is pending. A
    * completion that arrives after `abortSignal` fired is ignored, since the
-   * arguments changed or the subscription ended in the meantime. A rejection
-   * is dispatched as an `EXPRESSION_ERROR` and resets the signal, as a
-   * synchronous failure of the same call would.
+   * arguments changed or the subscription ended in the meantime. A result
+   * that settles to a `Signal` is followed until `abortSignal` fires. A
+   * rejection is dispatched as an `EXPRESSION_ERROR` and resets the signal,
+   * as a synchronous failure of the same call would.
    *
    * @param sig The signal that exposes the result.
    * @param pending The pending result.
    * @param name Name of the function being evaluated.
    * @param abortSignal Signal that marks the evaluation as stale.
+   * @param onFailure Runs when the result rejects, before subscribers see it.
    */
   private settleIntoSignal<V>(
     sig: Signal<V | undefined>,
     pending: PromiseLike<unknown>,
     name: string,
     abortSignal?: AbortSignal,
+    onFailure?: () => void,
   ): void {
     Promise.resolve(pending).then(
       value => {
-        if (!abortSignal?.aborted && !this.surface?.disposed) {
-          const unwrapped =
-            value instanceof FailedArgument
-              ? undefined
-              : isSignal(value)
-                ? peekValue(value)
-                : value;
-          setValue(sig, unwrapped as V);
+        if (abortSignal?.aborted || this.surface?.disposed) return;
+        if (value instanceof FailedArgument) {
+          setValue(sig, undefined);
+        } else if (isSignal(value) && abortSignal) {
+          this.forwardSignal(sig, value, abortSignal);
+        } else {
+          setValue(sig, (isSignal(value) ? peekValue(value) : value) as V);
         }
       },
       (e: unknown) => {
-        if (!abortSignal?.aborted && !this.surface?.disposed) {
-          this.dispatchExpressionError(e, name);
-          setValue(sig, undefined);
-        }
+        if (abortSignal?.aborted || this.surface?.disposed) return;
+        onFailure?.();
+        this.dispatchExpressionError(e, name);
+        setValue(sig, undefined);
       },
     );
+  }
+
+  /**
+   * Copies the values of `source` into `target` until `abortSignal` fires.
+   *
+   * @param target The signal that exposes the result.
+   * @param source The signal a function returned.
+   * @param abortSignal Signal that ends the forwarding.
+   */
+  private forwardSignal<V>(
+    target: Signal<V | undefined>,
+    source: Signal<unknown>,
+    abortSignal: AbortSignal,
+  ): void {
+    if (abortSignal.aborted) return;
+    const stop = effect(() => {
+      setValue(target, getValue(source) as V);
+    });
+    abortSignal.addEventListener('abort', () => stop(), {once: true});
   }
 
   /**
@@ -1305,13 +1540,16 @@ export class DataContext {
    * Every failure other than an unresolvable catalog uses this code, including
    * a function missing from the catalog the call resolved to and an unknown
    * system function. Unresolvable catalogs are reported by
-   * {@link resolveCallCatalog} as `CATALOG_ERROR`.
+   * {@link resolveCallCatalog} as `CATALOG_ERROR`. A cancelled agent call
+   * (an `A2uiRpcError` with code `CANCELLED`, as when its surface is deleted)
+   * is not reported.
    *
    * @param e The error thrown while evaluating the call.
    * @param name Name of the function being evaluated.
    */
   private dispatchExpressionError(e: unknown, name: string): void {
     if (!this.surface || this.surface.disposed) return;
+    if (e instanceof A2uiRpcError && e.code === RpcErrorCode.CANCELLED) return;
     if (
       e instanceof z.ZodError ||
       (typeof e === 'object' && e !== null && (e as {name?: string}).name === 'ZodError')
@@ -1337,8 +1575,12 @@ export class DataContext {
       });
     } else {
       const errObj = typeof e === 'object' && e !== null ? (e as {message?: string}) : {};
+      // A local function that throws while an action runs is an execution
+      // failure. A call the agent answers with an error, or that times out,
+      // is an expression failure wherever it runs.
+      const isAgentFailure = e instanceof A2uiRpcError;
       this.surface.dispatchError({
-        code: this._isActionExecution ? 'EXECUTION_ERROR' : 'EXPRESSION_ERROR',
+        code: this.isActionExecution && !isAgentFailure ? 'EXECUTION_ERROR' : 'EXPRESSION_ERROR',
         message: errObj.message ?? `An unexpected error occurred in function ${name}.`,
         expression: name,
       });

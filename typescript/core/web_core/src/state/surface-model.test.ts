@@ -22,6 +22,7 @@ import {Catalog, ComponentApi} from '../catalog/types.js';
 import {ComponentModel} from './component-model.js';
 import {ComponentContext} from '../resolution/component-context.js';
 import {setValue} from '../reactivity/signals.js';
+import {A2uiRpcError, RpcErrorCode} from '../errors.js';
 
 describe('SurfaceModel', () => {
   let surface: SurfaceModel<ComponentApi>;
@@ -225,6 +226,120 @@ describe('SurfaceModel', () => {
     assert.strictEqual(actions[1].userMessage, undefined);
     assert.strictEqual(actions[2].userMessage, undefined);
     assert.strictEqual(actions[3].userMessage, undefined);
+  });
+
+  it('drops a non-string userMessage the same way whether it settles synchronously or not', async () => {
+    await surface.dispatchAction({event: {name: 'syncMsg', userMessage: 42}}, 'btn-1');
+    await surface.dispatchAction(
+      {event: {name: 'asyncMsg', userMessage: Promise.resolve(42)}},
+      'btn-2',
+    );
+    await surface.dispatchAction(
+      {event: {name: 'asyncText', userMessage: Promise.resolve('Sent')}},
+      'btn-3',
+    );
+    assert.deepStrictEqual(
+      actions.map(a => [a.name, a.userMessage]),
+      [
+        ['syncMsg', undefined],
+        ['asyncMsg', undefined],
+        ['asyncText', 'Sent'],
+      ],
+    );
+    assert.deepStrictEqual(errors, []);
+  });
+
+  it('stops dispatch without an unhandled rejection when a pending action value rejects', async () => {
+    await surface.dispatchAction(
+      {event: {name: 'ctx', context: {v: Promise.reject(new Error('context failed'))}}},
+      'btn-1',
+    );
+    await surface.dispatchAction(
+      {event: {name: 'msg', userMessage: Promise.reject(new Error('message failed'))}},
+      'btn-2',
+    );
+    await surface.dispatchAction(Promise.reject(new Error('payload failed')), 'btn-3');
+    await surface.dispatchAction(
+      {
+        event: {
+          name: 'cancelled',
+          context: {v: Promise.reject(new A2uiRpcError('gone', RpcErrorCode.CANCELLED))},
+        },
+      },
+      'btn-4',
+    );
+    assert.deepStrictEqual(actions, []);
+    assert.deepStrictEqual(
+      errors.map(e => [e.code, e.message]),
+      [
+        ['INVALID_ACTION', 'Action could not be resolved: context failed'],
+        ['INVALID_ACTION', 'Action could not be resolved: message failed'],
+        ['INVALID_ACTION', 'Action could not be resolved: payload failed'],
+      ],
+      'a cancelled agent call is not reported',
+    );
+  });
+
+  it('dispatches the Promise of a resolved action once it settles', async () => {
+    await surface.dispatchAction(
+      Promise.resolve({event: {name: 'later', context: {a: 1}}}),
+      'btn-1',
+    );
+    await surface.dispatchAction(Promise.resolve(undefined), 'btn-2');
+    assert.strictEqual(actions.length, 1);
+    assert.deepStrictEqual(actions[0].context, {a: 1});
+  });
+
+  describe('callAgentFunction', () => {
+    const call = {'@call': 'fetchRate', 'catalogId': 'test-catalog', 'args': {base: 'EUR'}};
+
+    it('does not cache an answer that arrives after the caller was replaced', async () => {
+      let resolveOld!: (v: unknown) => void;
+      surface.agentFunctionCaller = () => new Promise(resolve => (resolveOld = resolve));
+      const pending = surface.callAgentFunction(call);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      let newCalls = 0;
+      surface.agentFunctionCaller = async () => {
+        newCalls++;
+        return 'new';
+      };
+      resolveOld('old');
+      assert.strictEqual(await pending, 'old');
+      assert.strictEqual(await surface.callAgentFunction(call), 'new');
+      assert.strictEqual(newCalls, 1, 'the old answer was not cached for the new caller');
+    });
+
+    it('clears cached answers when the caller is cleared', async () => {
+      surface.agentFunctionCaller = async () => 'first';
+      assert.strictEqual(await surface.callAgentFunction(call), 'first');
+      surface.agentFunctionCaller = undefined;
+      await assert.rejects(surface.callAgentFunction(call), /cannot call the agent/);
+    });
+
+    it('sends nothing for an aborted signal or a disposed surface', async () => {
+      let calls = 0;
+      surface.agentFunctionCaller = async () => {
+        calls++;
+        return 1;
+      };
+      const controller = new AbortController();
+      controller.abort();
+      assert.strictEqual(await surface.callAgentFunction(call, controller.signal), undefined);
+
+      const beforeDispose = surface.callAgentFunction(call);
+      surface.dispose();
+      await assert.rejects(
+        beforeDispose,
+        (e: unknown) => e instanceof A2uiRpcError && e.code === RpcErrorCode.CANCELLED,
+      );
+      await assert.rejects(
+        surface.callAgentFunction(call),
+        (e: unknown) => e instanceof A2uiRpcError && e.code === RpcErrorCode.CANCELLED,
+      );
+      assert.strictEqual(calls, 0);
+    });
   });
 
   it('takes a plain object in the 3rd argument as the theme of a pre-1.0 caller', () => {

@@ -19,7 +19,8 @@ import {afterEach, beforeEach, describe, it} from 'node:test';
 import {z} from 'zod';
 
 import {Catalog, createFunctionImplementation, FunctionApi} from '../catalog/types.js';
-import {getValue, peekValue} from '../reactivity/signals.js';
+import {getValue, peekValue, setValue, signal} from '../reactivity/signals.js';
+import {A2uiRpcError, RpcErrorCode} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
 import {MessageProcessor} from './message-processor.js';
 
@@ -57,6 +58,52 @@ const agentOnlySchemaFn: FunctionApi = {
   allowedCallers: 'agentOnly',
 };
 
+/** Throws a plain `Error`, which an action reports as an `EXECUTION_ERROR`. */
+const explode = createFunctionImplementation(
+  {name: 'explode', returnType: 'string', schema: z.object({'value': z.string()})},
+  () => {
+    throw new Error('boom');
+  },
+);
+
+/** Records the evaluation flags its context carries when it runs. */
+const probeCalls: Array<{isActionExecution: boolean; isUserActivated: boolean}> = [];
+const probe = createFunctionImplementation(
+  {name: 'probe', returnType: 'string', schema: z.object({'value': z.string()})},
+  (args, ctx) => {
+    probeCalls.push({
+      isActionExecution: ctx.isActionExecution,
+      isUserActivated: ctx.isUserActivated,
+    });
+    return args.value;
+  },
+);
+
+/** Schema-only function that requires a user gesture. */
+const confirmPayment: FunctionApi = {
+  name: 'confirmPayment',
+  returnType: 'boolean',
+  schema: z.object({}),
+  requiresUserActivation: true,
+};
+
+/** Returns a signal that the test drives, to check that a binding follows it. */
+const liveSignals: Array<ReturnType<typeof signal<string>>> = [];
+const liveValue = createFunctionImplementation(
+  {name: 'liveValue', returnType: 'string', schema: z.object({'seed': z.string()})},
+  args => {
+    const sig = signal(args.seed);
+    liveSignals.push(sig);
+    return sig;
+  },
+);
+
+/** Resolves after a macrotask, so a call that awaits it is suspended meanwhile. */
+const slowToken = createFunctionImplementation(
+  {name: 'slowToken', returnType: 'string', schema: z.object({})},
+  () => new Promise<string>(resolve => setTimeout(() => resolve('tok'), 5)) as unknown as string,
+);
+
 describe('Fallback routing of unimplemented functions to the agent (v1.0)', () => {
   let outbound: any[];
   let errors: Array<{code: string; message: string; expression?: string}>;
@@ -82,7 +129,17 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
       FIN_CATALOG_ID,
       '1.0',
       [],
-      [upper, concat, quote, agentOnlySchemaFn],
+      [
+        upper,
+        concat,
+        quote,
+        agentOnlySchemaFn,
+        explode,
+        probe,
+        confirmPayment,
+        liveValue,
+        slowToken,
+      ],
     );
     proc = new MessageProcessor([catalog], undefined, {
       outboundListener:
@@ -556,6 +613,34 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     assert.match(errors[0].message, /Function not found/);
   });
 
+  it('keeps the pre-1.0 behavior for a failed nested call: the enclosing call runs with undefined', async () => {
+    const failingAsync = createFunctionImplementation(
+      {name: 'failingAsync', returnType: 'string', schema: z.object({})},
+      () => Promise.reject(new Error('async failure')) as unknown as string,
+    );
+    const orDefault = createFunctionImplementation(
+      {name: 'orDefault', returnType: 'string', schema: z.object({'value': z.any().optional()})},
+      args => (args.value as string | undefined) ?? 'fallback',
+    );
+    const catalog = new Catalog<any, any>(FIN_CATALOG_ID, '0.9', [], [failingAsync, orDefault]);
+    proc = new MessageProcessor([catalog]);
+    proc.processMessages({
+      version: 'v0.9',
+      createSurface: {surfaceId: 's1', catalogId: FIN_CATALOG_ID},
+    } as any);
+    const surface = proc.model.getSurface('s1')!;
+    const preErrors: unknown[] = [];
+    surface.onError.subscribe(e => {
+      preErrors.push(e);
+    });
+    const result = new DataContext(surface, '/').resolveDynamicValue<Promise<string>>({
+      call: 'orDefault',
+      args: {value: {call: 'failingAsync', args: {}}},
+    });
+    assert.strictEqual(await result, 'fallback');
+    assert.strictEqual(preErrors.length, 1);
+  });
+
   it('bypasses cache for outer action calls whose arguments contain a pending agent call', async () => {
     const action = {
       functionCall: {
@@ -604,5 +689,384 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     assert.strictEqual(outbound.length, 0);
     assert.strictEqual(errors.length, 1);
     assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+  });
+  // U1: the flags of a call survive its pending arguments.
+  it('keeps the action flags for a local function that runs after an agent argument settles', async () => {
+    probeCalls.length = 0;
+    const done = Promise.resolve(
+      ctx.resolveAction({
+        functionCall: {'@call': 'probe', 'args': {'value': {'@call': 'fetchGreeting', 'args': {}}}},
+      }),
+    );
+    await flush();
+    respond(0, {value: 'hi'});
+    assert.strictEqual(await done, 'hi');
+    assert.deepStrictEqual(probeCalls, [{isActionExecution: true, isUserActivated: true}]);
+
+    const failed = Promise.resolve(
+      ctx.resolveAction({
+        functionCall: {
+          '@call': 'explode',
+          'args': {'value': {'@call': 'fetchGreeting2', 'args': {}}},
+        },
+      }),
+    );
+    await flush();
+    respond(1, {value: 'hi'});
+    await failed;
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(
+      errors[0].code,
+      'EXECUTION_ERROR',
+      'an action that throws after awaiting an argument is still an action failure',
+    );
+  });
+
+  // U2: event action entries resolve one at a time and stop at the first failure.
+  it('resolves event context entries in order and sends nothing after a failed entry', async () => {
+    const surface = proc.model.getSurface('s1')!;
+    const dispatched: unknown[] = [];
+    surface.onAction.subscribe(a => {
+      dispatched.push(a);
+    });
+    const action = {
+      event: {
+        name: 'checkout',
+        context: {
+          'a': {'@call': 'fetchA', 'args': {}},
+          'b': {'@call': 'fetchB', 'args': {}},
+        },
+        userMessage: {'@call': 'fetchMessage', 'args': {}},
+      },
+    };
+
+    const ok = surface.dispatchAction(ctx.resolveAction(action), 'btn');
+    await flush();
+    assert.deepStrictEqual(
+      outbound.map(m => m.callAgentFunction.callFunction['@call']),
+      ['fetchA'],
+      'the second entry waits for the first',
+    );
+    respond(0, {value: 1});
+    await flush();
+    assert.strictEqual(outbound[1].callAgentFunction.callFunction['@call'], 'fetchB');
+    respond(1, {value: 2});
+    await flush();
+    assert.strictEqual(outbound[2].callAgentFunction.callFunction['@call'], 'fetchMessage');
+    respond(2, {value: 'Buy'});
+    await ok;
+    assert.strictEqual(dispatched.length, 1);
+    assert.deepStrictEqual((dispatched[0] as any).context, {'a': 1, 'b': 2});
+    assert.strictEqual((dispatched[0] as any).userMessage, 'Buy');
+
+    const failing = surface.dispatchAction(ctx.resolveAction(action), 'btn');
+    await flush();
+    assert.strictEqual(outbound.length, 4);
+    respond(3, {error: {code: 'EXECUTION_ERROR', message: 'A failed'}});
+    await failing;
+    await flush();
+    assert.strictEqual(outbound.length, 4, 'no later entry is evaluated after a failure');
+    assert.strictEqual(dispatched.length, 1, 'the action is not dispatched');
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].expression, 'fetchA');
+  });
+
+  it('resolves an event action to plain values, with no internal placeholders', async () => {
+    const resolved = ctx.resolveAction({
+      event: {name: 'go', context: {'rate': {'@call': 'fetchFxRate', 'args': {}}}},
+    });
+    assert.ok(resolved instanceof Promise, 'an action waiting on the agent resolves to a Promise');
+    await flush();
+    respond(0, {value: 1.08});
+    assert.deepStrictEqual(await resolved, {event: {name: 'go', context: {'rate': 1.08}}});
+
+    const failed = ctx.resolveAction({
+      event: {name: 'go', context: {'rate': {'@call': 'fetchFxRate2', 'args': {}}}},
+    });
+    await flush();
+    respond(1, {error: {code: 'EXECUTION_ERROR', message: 'down'}});
+    assert.strictEqual(await failed, undefined);
+  });
+
+  it('does not send a sibling agent call when another argument fails first', async () => {
+    assert.strictEqual(
+      ctx.resolveDynamicValue({
+        '@call': 'concat',
+        'args': {
+          'a': {'@call': 'quote', 'args': {'symbol': 42}},
+          'b': {'@call': 'fetchGreeting', 'args': {}},
+        },
+      }),
+      undefined,
+    );
+    await flush();
+    assert.strictEqual(outbound.length, 0, 'the sibling call is aborted before it is sent');
+    assert.strictEqual(errors.length, 1);
+  });
+
+  it('reports a sibling that fails after another argument failed only once', async () => {
+    const result = ctx.resolveDynamicValue<Promise<unknown>>({
+      '@call': 'concat',
+      'args': {
+        'a': {'@call': 'fetchA', 'args': {}},
+        'b': {'@call': 'fetchB', 'args': {}},
+      },
+    });
+    await flush();
+    assert.strictEqual(outbound.length, 2, 'sibling arguments run concurrently');
+    respond(0, {error: {code: 'EXECUTION_ERROR', message: 'A failed'}});
+    await flush();
+    respond(1, {error: {code: 'EXECUTION_ERROR', message: 'B failed'}});
+    assert.strictEqual(await result, undefined);
+    await flush();
+    assert.deepStrictEqual(
+      errors.map(e => e.expression),
+      ['fetchA'],
+      'the late failure of an aborted sibling is not reported',
+    );
+  });
+
+  // U3: event actions honor the caller's user activation.
+  it('applies userActivation to event action context entries', async () => {
+    const action = {
+      event: {name: 'pay', context: {'ok': {'@call': 'confirmPayment', 'args': {}}}},
+    };
+    assert.strictEqual(ctx.resolveAction(action, {userActivation: false}), undefined);
+    await flush();
+    assert.strictEqual(outbound.length, 0, 'a passive action does not send the call');
+    assert.strictEqual(errors.length, 1);
+    assert.match(errors[0].message, /requires user activation/);
+
+    const resolved = ctx.resolveAction(action, {userActivation: true});
+    await flush();
+    assert.strictEqual(outbound.length, 1);
+    respond(0, {value: true});
+    assert.deepStrictEqual(await resolved, {event: {name: 'pay', context: {'ok': true}}});
+  });
+
+  // U4: call keys and JSON arguments.
+  it('keeps "__proto__" an ordinary argument key when sharing calls', async () => {
+    ctx.resolveDynamicValue({'@call': 'lookup', 'args': JSON.parse('{"__proto__": {"a": 1}}')});
+    ctx.resolveDynamicValue({'@call': 'lookup', 'args': JSON.parse('{"__proto__": {"a": 2}}')});
+    await flush();
+    assert.strictEqual(outbound.length, 2, 'calls with different "__proto__" values are distinct');
+    assert.deepStrictEqual(
+      outbound[0].callAgentFunction.callFunction.args,
+      JSON.parse('{"__proto__": {"a": 1}}'),
+    );
+  });
+
+  it('fails a call whose arguments are not valid JSON locally, and omits undefined properties', async () => {
+    for (const bad of [NaN, Infinity, new Date(0), [1, undefined]]) {
+      ctx.resolveDynamicValue({'@call': 'lookup', 'args': {'value': bad}});
+    }
+    await flush();
+    assert.strictEqual(outbound.length, 0);
+    assert.strictEqual(errors.length, 4);
+    for (const error of errors) {
+      assert.strictEqual(error.code, 'EXPRESSION_ERROR');
+      assert.strictEqual(error.expression, 'lookup');
+      assert.match(error.message, /arguments of function 'lookup' are not valid JSON/i);
+    }
+
+    ctx.resolveDynamicValue({
+      '@call': 'lookup',
+      'args': {'base': 'EUR', 'missing': {'@path': '/nothing/here'}},
+    });
+    await flush();
+    assert.strictEqual(outbound.length, 1);
+    assert.deepStrictEqual(outbound[0].callAgentFunction.callFunction.args, {'base': 'EUR'});
+  });
+
+  // U6: cached and shared answers are copies.
+  it('gives each caller its own copy of a shared or cached answer', async () => {
+    const first = ctx.resolveDynamicValue<Promise<{list: number[]}>>({
+      '@call': 'fetchProfile',
+      'args': {},
+    });
+    const second = ctx.resolveDynamicValue<Promise<{list: number[]}>>({
+      '@call': 'fetchProfile',
+      'args': {},
+    });
+    await flush();
+    assert.strictEqual(outbound.length, 1);
+    respond(0, {value: {list: [1]}});
+    const [a, b] = await Promise.all([first, second]);
+    a.list.push(2);
+    assert.deepStrictEqual(b, {list: [1]}, 'in-flight sharers do not see each other mutate');
+
+    const cached = await ctx.resolveDynamicValue<Promise<{list: number[]}>>({
+      '@call': 'fetchProfile',
+      'args': {},
+    });
+    assert.strictEqual(outbound.length, 1);
+    assert.deepStrictEqual(cached, {list: [1]}, 'mutating an answer does not change the cache');
+    cached.list.push(3);
+    const again = await ctx.resolveDynamicValue<Promise<{list: number[]}>>({
+      '@call': 'fetchProfile',
+      'args': {},
+    });
+    assert.deepStrictEqual(again, {list: [1]});
+  });
+
+  // U7: cancellation is silent.
+  it('does not report calls cancelled on a live surface', async () => {
+    const sig = ctx.resolveSignal({'@call': 'fetchFxRate', 'args': {}});
+    const action = Promise.resolve(
+      ctx.resolveAction({functionCall: {'@call': 'submitOrder', 'args': {}}}),
+    );
+    await flush();
+    assert.strictEqual(outbound.length, 2);
+    let rejection: unknown;
+    proc.rpc
+      .callAgentFunction('s1', {'@call': 'other', 'catalogId': FIN_CATALOG_ID, 'args': {}})
+      .catch(e => {
+        rejection = e;
+      });
+    proc.rpc.cancelSurfaceCalls('s1');
+    await flush();
+    assert.strictEqual(await action, undefined);
+    assert.strictEqual(getValue(sig), undefined);
+    assert.deepStrictEqual(errors, []);
+    assert.ok(rejection instanceof A2uiRpcError);
+    assert.strictEqual((rejection as A2uiRpcError).code, RpcErrorCode.CANCELLED);
+    assert.match((rejection as Error).message, /Pending calls for surface 's1' were cancelled\./);
+  });
+
+  // U8: a deleted surface sends nothing.
+  it('does not send an action call that resumes after its surface was deleted', async () => {
+    const action = Promise.resolve(
+      ctx.resolveAction({
+        functionCall: {
+          '@call': 'submitOrder',
+          'args': {'token': {'@call': 'slowToken', 'args': {}}},
+        },
+      }),
+    );
+    proc.processMessages({version: '1.0', deleteSurface: {surfaceId: 's1'}} as any);
+    assert.strictEqual(await action, undefined);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.strictEqual(outbound.length, 0);
+    assert.deepStrictEqual(errors, []);
+  });
+
+  it('cancels a call made through a removed surface without sending it', async () => {
+    const surface = proc.model.getSurface('s1')!;
+    const caller = surface.agentFunctionCaller!;
+    proc.model.deleteSurface('s1');
+    await assert.rejects(
+      caller({'@call': 'late', 'catalogId': FIN_CATALOG_ID, 'args': {}}),
+      (e: unknown) => e instanceof A2uiRpcError && e.code === RpcErrorCode.CANCELLED,
+    );
+    assert.strictEqual(outbound.length, 0);
+  });
+
+  // U9: schema-only arguments are validated once resolved.
+  it('validates the resolved arguments of a schema-only function', async () => {
+    const surface = proc.model.getSurface('s1')!;
+    surface.dataModel.set('/sym', 'GOOG');
+    ctx.resolveDynamicValue({'@call': 'quote', 'args': {'symbol': {'@path': '/sym'}}});
+    await flush();
+    assert.deepStrictEqual(outbound[0].callAgentFunction.callFunction.args, {
+      'symbol': 'GOOG',
+      'currency': 'USD',
+    });
+
+    const res = ctx.resolveDynamicValue<Promise<unknown>>({
+      '@call': 'quote',
+      'args': {'symbol': {'@call': 'fetchSymbol', 'args': {}}},
+    });
+    await flush();
+    assert.strictEqual(outbound[1].callAgentFunction.callFunction['@call'], 'fetchSymbol');
+    respond(1, {value: 42});
+    assert.strictEqual(await res, undefined);
+    await flush();
+    assert.strictEqual(outbound.length, 2, 'an invalid resolved argument is not sent');
+    assert.strictEqual(errors.length, 1);
+    assert.match(errors[0].message, /Validation failed for function 'quote'/);
+  });
+
+  // U12: a failed call is not re-sent for equal arguments, but is retried.
+  it('does not re-send a failed call when its arguments re-evaluate to equal values', async () => {
+    const surface = proc.model.getSurface('s1')!;
+    surface.dataModel.set('/user', {id: 1});
+    const sub = ctx.subscribeDynamicValue(
+      {'@call': 'fetchProfile', 'args': {'user': {'@path': '/user'}}},
+      () => {},
+    );
+    await flush();
+    respond(0, {error: {code: 'EXECUTION_ERROR', message: 'nope'}});
+    await flush();
+    assert.strictEqual(errors.length, 1);
+
+    surface.dataModel.set('/user', {id: 1});
+    await flush();
+    assert.strictEqual(outbound.length, 1, 'equal arguments do not re-send the failed call');
+
+    surface.dataModel.set('/user', {id: 2});
+    await flush();
+    assert.strictEqual(outbound.length, 2, 'new arguments send the call');
+
+    const other = ctx.subscribeDynamicValue(
+      {'@call': 'fetchProfile', 'args': {'user': {'@path': '/user'}}},
+      () => {},
+    );
+    respond(1, {error: {code: 'EXECUTION_ERROR', message: 'nope'}});
+    await flush();
+    surface.dataModel.set('/user', {id: 1});
+    await flush();
+    const third = ctx.subscribeDynamicValue(
+      {'@call': 'fetchProfile', 'args': {'user': {'@path': '/user'}}},
+      () => {},
+    );
+    await flush();
+    assert.ok(
+      outbound.length >= 3 &&
+        outbound.slice(2).every(m => m.callAgentFunction.callFunction.args.user.id === 1),
+      'a new evaluation retries a failed call',
+    );
+    sub.unsubscribe();
+    other.unsubscribe();
+    third.unsubscribe();
+  });
+
+  // U13: a Signal returned after pending arguments settle keeps streaming.
+  it('follows a Signal that a local function returns after an agent argument settles', async () => {
+    liveSignals.length = 0;
+    const values: unknown[] = [];
+    const sub = ctx.subscribeDynamicValue(
+      {'@call': 'liveValue', 'args': {'seed': {'@call': 'fetchSeed', 'args': {}}}},
+      value => values.push(value),
+    );
+    await flush();
+    respond(0, {value: 'one'});
+    await flush();
+    assert.strictEqual(sub.value, 'one');
+    setValue(liveSignals[liveSignals.length - 1], 'two');
+    assert.strictEqual(sub.value, 'two');
+    sub.unsubscribe();
+    setValue(liveSignals[liveSignals.length - 1], 'three');
+    assert.strictEqual(values[values.length - 1], 'two', 'unsubscribing stops the forwarding');
+  });
+
+  // U5: replacing the caller drops the caches.
+  it('drops shared and cached answers when the agent caller changes', async () => {
+    const surface = proc.model.getSurface('s1')!;
+    const first = ctx.resolveDynamicValue<Promise<unknown>>({'@call': 'fetchFxRate', 'args': {}});
+    await flush();
+    respond(0, {value: 1});
+    assert.strictEqual(await first, 1);
+
+    const sent: unknown[] = [];
+    surface.agentFunctionCaller = async call => {
+      sent.push(call);
+      return 2;
+    };
+    assert.strictEqual(
+      await ctx.resolveDynamicValue<Promise<unknown>>({'@call': 'fetchFxRate', 'args': {}}),
+      2,
+      'the new caller answers instead of the old cache',
+    );
+    assert.strictEqual(sent.length, 1);
   });
 });
