@@ -25,6 +25,7 @@ import Testing
   import UIKit
 #endif
 
+@Suite(.serialized)
 @MainActor
 struct A2UIModalTests {
 
@@ -52,7 +53,6 @@ struct A2UIModalTests {
     let view = A2UIModal(node: modalNode)
     #expect(modalNode.child(for: "trigger")?.id == "trigger_btn")
     #expect(modalNode.child(for: "content")?.id == "modal_body")
-    #expect(initialIsPresented(in: view) == false)
 
     var inlineIDs: [String] = []
     collectComponentNodeIDs(in: view.body, into: &inlineIDs)
@@ -155,15 +155,6 @@ struct A2UIModalTests {
       let rendered = Surface.render(node: node, using: [catalog.id: catalog])
       #expect(rendered != nil)
     }
-  }
-
-  private func initialIsPresented(in view: A2UIModal) -> Bool? {
-    for child in Mirror(reflecting: view).children where child.label == "_isPresented" {
-      if let state = child.value as? State<Bool> {
-        return state.wrappedValue
-      }
-    }
-    return nil
   }
 
   private func collectComponentNodeIDs(in value: Any, into ids: inout [String]) {

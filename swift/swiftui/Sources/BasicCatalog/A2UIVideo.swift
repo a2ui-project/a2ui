@@ -28,37 +28,6 @@ extension BasicCatalogImplementation {
   }
 }
 
-// MARK: - View Model
-
-/// Observable model that owns the `AVPlayer` lifecycle for ``A2UIVideo``.
-@MainActor
-public final class A2UIVideoPlayerModel: ObservableObject {
-  @Published public private(set) var player: AVPlayer?
-
-  public init() {}
-
-  public func load(url: URL?) {
-    guard let url, !url.absoluteString.isEmpty else {
-      cleanup()
-      return
-    }
-    if let currentItem = player?.currentItem,
-      let asset = currentItem.asset as? AVURLAsset,
-      asset.url == url
-    {
-      return
-    }
-    cleanup()
-    player = AVPlayer(url: url)
-  }
-
-  public func cleanup() {
-    player?.pause()
-    player?.replaceCurrentItem(with: nil)
-    player = nil
-  }
-}
-
 // MARK: - View
 
 /// SwiftUI component view for the A2UI Basic Catalog `Video` component.
@@ -150,7 +119,7 @@ public struct A2UIVideo: View {
       model.load(url: resolvedURL)
     }
     .onDisappear {
-      model.cleanup()
+      model.cleanUp()
     }
   }
 }

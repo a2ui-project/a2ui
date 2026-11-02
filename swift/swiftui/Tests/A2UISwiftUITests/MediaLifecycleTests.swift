@@ -40,7 +40,7 @@ struct MediaLifecycleTests {
   private struct HostedMediaContainer: View {
     @ObservedObject var state: HostSwitchState
     let audioNode: Node
-    let audioModel: AudioPlayerModel
+    let audioModel: A2UIAudioPlayerModel
 
     var body: some View {
       if state.showMedia {
@@ -90,14 +90,14 @@ struct MediaLifecycleTests {
     #expect(firstPlayer.currentItem == nil)
 
     // Cleanup pauses, clears currentItem, and releases the player reference.
-    model.cleanup()
+    model.cleanUp()
     #expect(model.player == nil)
     #expect(secondPlayer.currentItem == nil)
   }
 
   // A2UIVideo is not hosted here: realizing AVKit's VideoPlayer inside a
   // test bundle aborts the test process on macOS CI. Its unmount path calls
-  // A2UIVideoPlayerModel.cleanup(), which the test above covers.
+  // A2UIVideoPlayerModel.cleanUp(), which the test above covers.
   @Test func hostedAudioPlayerReleasesPlayerOnUnmount() throws {
     let coreCatalog = BasicCatalog.makeCatalog(version: .v091)
     let viewModel = SurfaceViewModel(surfaceID: "media-lifecycle", catalog: coreCatalog)
@@ -114,7 +114,7 @@ struct MediaLifecycleTests {
     )
 
     let audioNode = try #require(viewModel.rootNode)
-    let audioModel = AudioPlayerModel()
+    let audioModel = A2UIAudioPlayerModel()
     let switchState = HostSwitchState()
     let container = HostedMediaContainer(
       state: switchState,

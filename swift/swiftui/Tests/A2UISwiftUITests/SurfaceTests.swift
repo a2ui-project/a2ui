@@ -54,8 +54,28 @@ private func makeTestSurfaceCatalogForRendering() throws -> AnyCatalog {
   )
 }
 
+@Suite(.serialized)
 @MainActor
 struct SurfaceTests {
+
+  #if canImport(AppKit)
+    private func flushLayout(in window: NSWindow, hostingView: NSView) {
+      RunLoop.main.run(until: Date())
+      hostingView.needsLayout = true
+      hostingView.layoutSubtreeIfNeeded()
+      window.displayIfNeeded()
+      RunLoop.main.run(until: Date())
+      hostingView.layoutSubtreeIfNeeded()
+    }
+  #elseif canImport(UIKit)
+    private func flushLayout(in window: UIWindow, hostingView: UIView) {
+      RunLoop.main.run(until: Date())
+      hostingView.setNeedsLayout()
+      hostingView.layoutIfNeeded()
+      RunLoop.main.run(until: Date())
+      hostingView.layoutIfNeeded()
+    }
+  #endif
 
   @Test func surfaceInitializesWithViewModel() throws {
     let catalog = try makeTestSurfaceCatalogForRendering()
@@ -124,8 +144,24 @@ struct SurfaceTests {
   }
 
   @Test func swappingSurfaceViewModelsDisposesOldResolverAndRendersNewSurface() throws {
+    var renderedTexts: [String] = []
+    let baseCatalog = BasicCatalogImplementation.makeCatalog(version: .v091)
+    let instrumentedComponents = baseCatalog.components.values.map { component in
+      ComponentImplementation(api: component) { node in
+        if let text = node.string(for: "text") {
+          renderedTexts.append(text)
+        }
+        return component.builder(node)
+      }
+    }
+    let swiftUICatalog = Catalog(
+      id: baseCatalog.id,
+      protocolVersion: .v091,
+      components: instrumentedComponents,
+      functions: Array(baseCatalog.functions.values),
+      themeSchema: baseCatalog.themeSchema
+    )
     let coreCatalog = BasicCatalog.makeCatalog(version: .v091)
-    let swiftUICatalog = BasicCatalogImplementation.makeCatalog(version: .v091)
 
     let firstViewModel = SurfaceViewModel(surfaceID: "surface-a", catalog: coreCatalog)
     firstViewModel.componentsModel.addComponent(
@@ -148,27 +184,38 @@ struct SurfaceTests {
     #if canImport(AppKit)
       let hostingView = NSHostingView(rootView: firstSurface)
       hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: 120)
-      hostingView.layoutSubtreeIfNeeded()
+      let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 320, height: 120),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+      )
+      window.contentView = hostingView
+      flushLayout(in: window, hostingView: hostingView)
     #elseif canImport(UIKit)
       let hostingController = UIHostingController(rootView: firstSurface)
-      hostingController.view.frame = CGRect(x: 0, y: 0, width: 320, height: 120)
-      hostingController.view.layoutIfNeeded()
+      let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: 120))
+      window.rootViewController = hostingController
+      window.makeKeyAndVisible()
+      flushLayout(in: window, hostingView: hostingController.view)
     #endif
 
-    #expect(firstViewModel.rootNode?.string(for: "text") == "Surface A")
+    #expect(renderedTexts == ["Surface A"])
 
     // Swap to the second surface model and dispose the first surface model.
     firstViewModel.dispose()
     let secondSurface = Surface(viewModel: secondViewModel, catalog: swiftUICatalog)
     #if canImport(AppKit)
       hostingView.rootView = secondSurface
-      hostingView.layoutSubtreeIfNeeded()
+      flushLayout(in: window, hostingView: hostingView)
     #elseif canImport(UIKit)
       hostingController.rootView = secondSurface
-      hostingController.view.layoutIfNeeded()
+      flushLayout(in: window, hostingView: hostingController.view)
     #endif
 
-    // Mutations to the disposed first surface no longer resolve new nodes.
+    #expect(renderedTexts == ["Surface A", "Surface B"])
+
+    // Mutations to the disposed first surface no longer resolve or render new nodes.
     firstViewModel.componentsModel.addComponent(
       ComponentModel(
         id: "root",
@@ -176,6 +223,13 @@ struct SurfaceTests {
         properties: ["text": .string("Stale Update")]
       )
     )
+    #if canImport(AppKit)
+      flushLayout(in: window, hostingView: hostingView)
+    #elseif canImport(UIKit)
+      flushLayout(in: window, hostingView: hostingController.view)
+    #endif
+
+    #expect(renderedTexts == ["Surface A", "Surface B"])
     #expect(firstViewModel.rootNode?.string(for: "text") == "Surface A")
     #expect(secondSurface.surfaceID == "surface-b")
     #expect(secondViewModel.rootNode?.string(for: "text") == "Surface B")

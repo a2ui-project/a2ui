@@ -53,19 +53,23 @@ struct A2UITabsTests {
       ]
     )
 
-    let view = A2UITabs(node: tabsNode)
-    var extractedTabs: [(id: Int, title: String, childID: String?)] = []
-    extractTabs(from: view.body, into: &extractedTabs)
+    #expect(resolvedTabTitles(in: tabsNode) == ["Overview", "Details"])
 
-    #expect(extractedTabs.map(\.title) == ["Overview", "Details"])
-    #expect(extractedTabs.map(\.childID) == ["tab1_body", "tab2_body"])
+    var selectedTab = 0
+    let selection = Binding(get: { selectedTab }, set: { selectedTab = $0 })
+    let view = A2UITabs(node: tabsNode, selectedIndex: selection)
 
     var renderedChildIDs: [String] = []
     collectComponentNodeIDs(in: view.body, into: &renderedChildIDs)
     #expect(renderedChildIDs == ["tab1_body"])
+
+    selectedTab = 1
+    var secondRenderedChildIDs: [String] = []
+    collectComponentNodeIDs(in: view.body, into: &secondRenderedChildIDs)
+    #expect(secondRenderedChildIDs == ["tab2_body"])
   }
 
-  @Test func boundTabTitlesUpdateWithDataModelAndActiveChildFollowsTabOrder() async throws {
+  @Test func boundTabTitlesUpdateWithDataModelAndSelectionSwitchesActiveChild() async throws {
     let processor = MessageProcessor(catalogs: [V10BasicCatalog.catalog])
     let parser = MessageParser()
     let initialMessages: [[String: Any]] = [
@@ -111,59 +115,42 @@ struct A2UITabsTests {
 
     let surface = try #require(processor.surfaceGroupModel.surfacesMap["tabs-surface"])
     let rootBefore = try #require(surface.rootNode)
-    let viewBefore = A2UITabs(node: rootBefore)
+    #expect(resolvedTabTitles(in: rootBefore) == ["Summary", "Metrics"])
 
-    var tabsBefore: [(id: Int, title: String, childID: String?)] = []
-    extractTabs(from: viewBefore.body, into: &tabsBefore)
-    #expect(tabsBefore.map(\.title) == ["Summary", "Metrics"])
+    var selectedTab = 0
+    let selection = Binding(get: { selectedTab }, set: { selectedTab = $0 })
+    let viewBefore = A2UITabs(node: rootBefore, selectedIndex: selection)
 
     var activeBefore: [String] = []
     collectComponentNodeIDs(in: viewBefore.body, into: &activeBefore)
     #expect(activeBefore == ["pane_a"])
 
-    // Update the bound title and swap the active first tab to pane_b.
-    let updateMessages: [[String: Any]] = [
-      [
-        "version": "1.0",
-        "updateDataModel": [
-          "surfaceId": "tabs-surface",
-          "path": "/firstTitle",
-          "value": "Updated Summary",
-        ],
-      ],
-      [
-        "version": "1.0",
-        "updateComponents": [
-          "surfaceId": "tabs-surface",
-          "components": [
-            [
-              "id": "root",
-              "component": "Tabs",
-              "tabs": [
-                ["title": ["@path": "/secondTitle"], "child": "pane_b"],
-                ["title": ["@path": "/firstTitle"], "child": "pane_a"],
-              ],
-            ]
-          ],
-        ],
+    // Switch tab selection from 0 to 1 without reordering the tabs array.
+    selectedTab = 1
+    var activeAfterSelectionChange: [String] = []
+    collectComponentNodeIDs(in: viewBefore.body, into: &activeAfterSelectionChange)
+    #expect(activeAfterSelectionChange == ["pane_b"])
+
+    // Update the bound title in the data model while keeping selection on tab 1.
+    let updateMessage: [String: Any] = [
+      "version": "1.0",
+      "updateDataModel": [
+        "surfaceId": "tabs-surface",
+        "path": "/firstTitle",
+        "value": "Updated Summary",
       ],
     ]
-    for message in updateMessages {
-      let data = try JSONSerialization.data(withJSONObject: message)
-      processor.process(message: try parser.decode(jsonData: data))
-    }
+    let updateData = try JSONSerialization.data(withJSONObject: updateMessage)
+    processor.process(message: try parser.decode(jsonData: updateData))
     await Task.yield()
 
     let rootAfter = try #require(surface.rootNode)
-    let viewAfter = A2UITabs(node: rootAfter)
+    #expect(resolvedTabTitles(in: rootAfter) == ["Updated Summary", "Metrics"])
 
-    var tabsAfter: [(id: Int, title: String, childID: String?)] = []
-    extractTabs(from: viewAfter.body, into: &tabsAfter)
-    #expect(tabsAfter.map(\.title) == ["Metrics", "Updated Summary"])
-
-    var activeAfter: [String] = []
-    collectComponentNodeIDs(in: viewAfter.body, into: &activeAfter)
-    #expect(activeAfter == ["pane_b"])
+    let viewAfter = A2UITabs(node: rootAfter, selectedIndex: selection)
+    var activeAfterDataUpdate: [String] = []
+    collectComponentNodeIDs(in: viewAfter.body, into: &activeAfterDataUpdate)
+    #expect(activeAfterDataUpdate == ["pane_b"])
   }
 
   @Test func tabsRenderFromCatalogs() throws {
@@ -185,34 +172,13 @@ struct A2UITabsTests {
     }
   }
 
-  private func extractTabs(
-    from value: Any,
-    into results: inout [(id: Int, title: String, childID: String?)]
-  ) {
-    let mirror = Mirror(reflecting: value)
-    var id: Int?
-    var title: String?
-    var hasChildNodeKey = false
-    var childID: String?
-    for child in mirror.children {
-      switch child.label {
-      case "id":
-        id = child.value as? Int
-      case "title":
-        title = child.value as? String
-      case "childNode":
-        hasChildNodeKey = true
-        childID = (child.value as? Node)?.id
-      default:
-        break
-      }
-    }
-    if let id, let title, hasChildNodeKey {
-      results.append((id: id, title: title, childID: childID))
-      return
-    }
-    for child in mirror.children {
-      extractTabs(from: child.value, into: &results)
+  private func resolvedTabTitles(in node: Node) -> [String] {
+    guard let array = node.array(for: "tabs") else { return [] }
+    return array.enumerated().map { index, element in
+      let dict = element as? ResolvedDictionary
+      return (dict?["title"] as? String)
+        ?? (dict?["title"] as? DataBinding<String>)?.value
+        ?? "Tab \(index + 1)"
     }
   }
 

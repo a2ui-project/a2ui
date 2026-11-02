@@ -19,6 +19,13 @@ import BasicCatalogSwiftUI
 import SwiftUI
 import Testing
 
+#if canImport(AppKit)
+  import AppKit
+#elseif canImport(UIKit)
+  import UIKit
+#endif
+
+@Suite(.serialized)
 @MainActor
 struct A2UIDividerTests {
 
@@ -61,20 +68,60 @@ struct A2UIDividerTests {
       type: "Divider",
       properties: [:]
     )
-    let defaultModifier = A2UIAccessibilityModifier(node: defaultNode)
     #expect(defaultNode.explicitAccessibilityAttributes == nil)
-    #expect(defaultModifier.label == nil)
-    #expect(defaultModifier.hint == nil)
-    #expect(defaultModifier.announcementText == nil)
-    #expect(!defaultModifier.isHidden)
+
+    var renderedNodes: [Node] = []
+    let baseCatalog = BasicCatalogImplementation.makeCatalog(version: .v091)
+    let instrumentedComponents = baseCatalog.components.values.map { component in
+      ComponentImplementation(api: component) { node in
+        renderedNodes.append(node)
+        return component.builder(node)
+      }
+    }
+    let swiftUICatalog = Catalog(
+      id: baseCatalog.id,
+      protocolVersion: .v091,
+      components: instrumentedComponents,
+      functions: Array(baseCatalog.functions.values),
+      themeSchema: baseCatalog.themeSchema
+    )
 
     let hiddenNode = Node(
       id: "divA11yHidden",
       type: "Divider",
+      catalogID: swiftUICatalog.id,
       properties: ["accessibility": ResolvedDictionary(["hidden": true])]
     )
-    let hiddenModifier = A2UIAccessibilityModifier(node: hiddenNode)
-    #expect(hiddenModifier.isHidden)
+    #expect(hiddenNode.explicitAccessibilityAttributes?.hidden == true)
+
+    let rootView = ComponentNodeView(node: hiddenNode)
+      .environment(\.a2uiCatalogs, [swiftUICatalog.id: swiftUICatalog])
+    #if canImport(AppKit)
+      let hostingView = NSHostingView(rootView: rootView)
+      hostingView.frame = NSRect(x: 0, y: 0, width: 200, height: 40)
+      let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 200, height: 40),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+      )
+      window.contentView = hostingView
+      RunLoop.main.run(until: Date())
+      hostingView.needsLayout = true
+      hostingView.layoutSubtreeIfNeeded()
+      window.displayIfNeeded()
+    #elseif canImport(UIKit)
+      let hostingController = UIHostingController(rootView: rootView)
+      let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 200, height: 40))
+      window.rootViewController = hostingController
+      window.makeKeyAndVisible()
+      RunLoop.main.run(until: Date())
+      hostingController.view.setNeedsLayout()
+      hostingController.view.layoutIfNeeded()
+    #endif
+
+    #expect(renderedNodes.map(\.id) == ["divA11yHidden"])
+    #expect(renderedNodes.first?.explicitAccessibilityAttributes?.hidden == true)
   }
 
   @Test func dividerRendersFromCatalogs() throws {
