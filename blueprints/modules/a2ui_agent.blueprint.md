@@ -477,7 +477,7 @@ An agent that keeps one `MessageProcessor` across a session and runs its own out
 
 #### Agent-callable functions
 
-A function is agent-callable when its catalog `allowedCallers` is `"agentOnly"` or `"rendererOrAgent"` (default `"rendererOnly"`). Prompt generators MUST list only agent-callable functions as targets of `callRendererFunction`. Parsers and `ResponseStream`, or the core `MessageProcessor` they delegate to, MUST reject a `callRendererFunction` that names a function that is not agent-callable in the negotiated catalogs with `A2uiValidationError`. `catalog_definition.json` already forbids `requiresUserActivation: true` on agent-callable functions; an SDK MAY also exclude activation-gated functions as a safeguard, as Dart does (`express/prompt_generator.dart:166-174`).
+A function is agent-callable when its catalog `allowedCallers` is `"agentOnly"` or `"rendererOrAgent"` (default `"rendererOnly"`). Prompt generators MUST list only agent-callable functions as targets of `callRendererFunction`. Parsers and `ResponseStream`, or the core `MessageProcessor` they delegate to, MUST reject a `callRendererFunction` that names a function that is not agent-callable in the negotiated catalogs with `A2uiValidationError`. `catalog_definition.json` already forbids `requiresUserActivation: true` on agent-callable functions; an SDK MAY also exclude activation-gated functions as a safeguard, as Dart does in [`prompt_generator.dart`](../../dart/a2ui_agent/lib/src/inference_formats/express/prompt_generator.dart).
 
 ---
 
@@ -1086,7 +1086,7 @@ The suites covering this document live under `conformance/agent/`:
 | `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                    |
 | `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs` |
 
-Suites under `conformance/agent/legacy/` describe the earlier interface of `kotlin/agent_sdk_legacy`, which runs them. `python/a2ui_agent` implements the current interface above and runs none of them. The TypeScript agent harness runs the subset of `legacy/parser.yaml` and `legacy/inference_format.yaml` that the current suites do not supersede (`typescript/agents/a2ui_agent/tests/conformance/loader.ts:55-114`).
+Suites under `conformance/agent/legacy/` describe the earlier interface of `kotlin/agent_sdk_legacy`, which runs them. `python/a2ui_agent` implements the current interface above and runs none of them. The TypeScript agent harness runs the subset of `legacy/parser.yaml` and `legacy/inference_format.yaml` that the current suites do not supersede ([`loader.ts`](../../typescript/agents/a2ui_agent/tests/conformance/loader.ts)).
 
 Where a suite fixes something this document leaves open, the decision is stated in that suite's header rather than left for a reader to infer from the cases.
 

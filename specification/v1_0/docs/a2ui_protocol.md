@@ -190,7 +190,7 @@ The `createSurface` message implicitly instantiates the canonical `Surface` cont
 
 v1.0 has no `theme` property. A `createSurface` that carries `theme` is invalid; a renderer that rejects it reports `code: "VALIDATION_FAILED"`, and a renderer that accepts it anyway MUST NOT expose a theme to adapters or components.
 
-When a single `createSurface` carries both `dataModel` and `components`, the renderer applies `dataModel` first, so components bind against the initial data on their first resolution. Separate messages keep arrival order (see [Envelope Dispatch Ordering](#envelope-dispatch-ordering)).
+When a single `createSurface` carries both `dataModel` and `components`, the renderer applies `dataModel` first, so components bind against the initial data on their first resolution. Separate messages keep arrival order (see [`callRendererFunction`](#callrendererfunction)).
 
 **Example:**
 

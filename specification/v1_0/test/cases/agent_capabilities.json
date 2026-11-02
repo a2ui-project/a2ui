@@ -19,6 +19,15 @@
       "data": {
         "supportedCatalogIds": ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"]
       }
+    },
+    {
+      "description": "Valid agent capabilities omitting optional supportedCatalogIds",
+      "valid": true,
+      "data": {
+        "1.0": {
+          "acceptsInlineCatalogs": true
+        }
+      }
     }
   ]
 }
