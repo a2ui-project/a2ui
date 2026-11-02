@@ -92,14 +92,14 @@ The `createSurface` message allocates a new UI surface identified by a unique `s
 
 #### Properties
 
-| Property | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `surfaceId` | string | Yes | Unique identifier for the surface. |
-| `catalogId` | string | Optional (v1.0) / Required (v0.9.1) | Default catalog URI for this surface (e.g. `travel:flights`). In v1.0, individual components can declare their own `catalogId` if omitted here. |
-| `sendDataModel` | boolean | Optional | When `true`, the renderer transmits the full surface data model alongside every upstream message in transport metadata (`a2uiRendererDataModel` in v1.0 / `a2uiClientDataModel` in v0.9.1). Defaults to `false`. |
-| `components` | array | Optional (v1.0 only) | Inline component definitions. Allows the agent to instantiate a complete UI tree in a single wire message. |
-| `dataModel` | object | Optional (v1.0 only) | Initial root data model object for the surface. |
-| `metadata.extensions` | object | Optional (v1.0 only) | Extensibility map for custom protocol extensions. Extension keys must adhere to UAX #31. |
+| Property              | Type    | Required                            | Description                                                                                                                                                                                                      |
+| :-------------------- | :------ | :---------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `surfaceId`           | string  | Yes                                 | Unique identifier for the surface.                                                                                                                                                                               |
+| `catalogId`           | string  | Optional (v1.0) / Required (v0.9.1) | Default catalog URI for this surface (e.g. `travel:flights`). In v1.0, individual components can declare their own `catalogId` if omitted here.                                                                  |
+| `sendDataModel`       | boolean | Optional                            | When `true`, the renderer transmits the full surface data model alongside every upstream message in transport metadata (`a2uiRendererDataModel` in v1.0 / `a2uiClientDataModel` in v0.9.1). Defaults to `false`. |
+| `components`          | array   | Optional (v1.0 only)                | Inline component definitions. Allows the agent to instantiate a complete UI tree in a single wire message.                                                                                                       |
+| `dataModel`           | object  | Optional (v1.0 only)                | Initial root data model object for the surface.                                                                                                                                                                  |
+| `metadata.extensions` | object  | Optional (v1.0 only)                | Extensibility map for custom protocol extensions. Extension keys must adhere to UAX #31.                                                                                                                         |
 
 #### Structural changes between v0.9.1 and v1.0
 
@@ -172,10 +172,10 @@ The `updateComponents` message updates the component hierarchy of an existing su
 
 #### Properties
 
-| Property | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `surfaceId` | string | Yes | The identifier of the surface to update. |
-| `components` | array | Yes | A flat array of component objects. Exactly one component must have `id: "root"` (or refer to a previously mounted subtree root). |
+| Property     | Type   | Required | Description                                                                                                                      |
+| :----------- | :----- | :------- | :------------------------------------------------------------------------------------------------------------------------------- |
+| `surfaceId`  | string | Yes      | The identifier of the surface to update.                                                                                         |
+| `components` | array  | Yes      | A flat array of component objects. Exactly one component must have `id: "root"` (or refer to a previously mounted subtree root). |
 
 When the renderer receives `updateComponents`, it merges the components into its internal component registry for that `surfaceId`. Any component whose `id` already exists in the surface is replaced with the new definition.
 
@@ -275,16 +275,17 @@ The `updateDataModel` message updates the surface data model at a targeted locat
 
 #### Properties
 
-| Property | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `surfaceId` | string | Yes | The identifier of the target surface. |
-| `path` | string | Optional | RFC 6901 JSON Pointer indicating where to apply the update (e.g. `"/selectedFlight"`). If omitted or set to `"/"`, the update replaces the entire root data model. |
-| `value` | any | Required (v1.0) / Optional (v0.9.1) | The new value to store at `path`. |
+| Property    | Type   | Required                            | Description                                                                                                                                                        |
+| :---------- | :----- | :---------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `surfaceId` | string | Yes                                 | The identifier of the target surface.                                                                                                                              |
+| `path`      | string | Optional                            | RFC 6901 JSON Pointer indicating where to apply the update (e.g. `"/selectedFlight"`). If omitted or set to `"/"`, the update replaces the entire root data model. |
+| `value`     | any    | Required (v1.0) / Optional (v0.9.1) | The new value to store at `path`.                                                                                                                                  |
 
 <Aside type="caution" title="Key deletion version delta">
 In **v1.0**, `value` is a required property. To delete a key or path from the data model, set `"value": null` explicitly.
 
 In **v0.9.1**, `value` was optional. Providing `value` replaced or created the value at `path`, whereas omitting `value` entirely deleted the key at `path`.
+
 </Aside>
 
 <Tabs syncKey="protocol-version">
@@ -305,6 +306,7 @@ In **v0.9.1**, `value` was optional. Providing `value` replaced or created the v
 ```
 
 To delete the `/selectedFlight` key in v1.0:
+
 ```json
 {
   "version": "1.0",
@@ -315,6 +317,7 @@ To delete the `/selectedFlight` key in v1.0:
   }
 }
 ```
+
   </TabItem>
   <TabItem label="v0.9.1 (Active)">
 ```json
@@ -333,6 +336,7 @@ To delete the `/selectedFlight` key in v1.0:
 ```
 
 To delete the `/selectedFlight` key in v0.9.1, omit `value`:
+
 ```json
 {
   "version": "v0.9",
@@ -342,6 +346,7 @@ To delete the `/selectedFlight` key in v0.9.1, omit `value`:
   }
 }
 ```
+
   </TabItem>
 </Tabs>
 
@@ -386,16 +391,17 @@ The `callRendererFunction` message is an agent-initiated remote procedure call (
 - Canonical Schema (v1.0): [`CallRendererFunctionMessage`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CallRendererFunctionMessage)
 
 <Aside type="note" title="New in v1.0">
-This message is introduced in protocol v1.0. In v0.9.1, `server_to_client.json` did not define an agent-to-renderer function invocation message.
+  This message is introduced in protocol v1.0. In v0.9.1, `server_to_client.json` did not define an
+  agent-to-renderer function invocation message.
 </Aside>
 
 #### Properties
 
-| Property | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `functionCallId` | string | Yes | Unique correlation identifier for this call. The renderer returns this exact ID in `rendererFunctionResponse`. |
-| `callFunction` | object | Yes | The function invocation details. Must include `catalogId`, `name`, and optional `arguments`. |
-| `surfaceId` | string | Optional | Surface ID whose data model provides the evaluation context. If omitted, the function executes in a root context with an empty data model. |
+| Property         | Type   | Required | Description                                                                                                                                |
+| :--------------- | :----- | :------- | :----------------------------------------------------------------------------------------------------------------------------------------- |
+| `functionCallId` | string | Yes      | Unique correlation identifier for this call. The renderer returns this exact ID in `rendererFunctionResponse`.                             |
+| `callFunction`   | object | Yes      | The function invocation details. Must include `catalogId`, `name`, and optional `arguments`.                                               |
+| `surfaceId`      | string | Optional | Surface ID whose data model provides the evaluation context. If omitted, the function executes in a root context with an empty data model. |
 
 ```json
 {
@@ -424,11 +430,11 @@ The `agentFunctionResponse` message delivers the agent's response to a preceding
 
 #### Properties
 
-| Property | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `functionCallId` | string | Yes | The correlation identifier copied from the original `callAgentFunction` request. |
-| `value` | any | Optional | The return value produced by the function execution on success. |
-| `error` | string | Optional | An error message string if function execution failed on the agent. |
+| Property         | Type   | Required | Description                                                                      |
+| :--------------- | :----- | :------- | :------------------------------------------------------------------------------- |
+| `functionCallId` | string | Yes      | The correlation identifier copied from the original `callAgentFunction` request. |
+| `value`          | any    | Optional | The return value produced by the function execution on success.                  |
+| `error`          | string | Optional | An error message string if function execution failed on the agent.               |
 
 ```json
 {
@@ -461,15 +467,15 @@ The `action` message notifies the agent that the user interacted with an interac
 
 #### Properties
 
-| Property | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `name` | string | Yes | The action event name declared on the component's `action.event.name`. |
-| `surfaceId` | string | Yes | The surface ID where the interaction occurred. |
-| `sourceComponentId` | string | Yes | The component `id` that triggered the action. |
-| `timestamp` | string (ISO 8601) | Yes | Timestamp indicating when the user triggered the action. |
-| `context` | object | Yes | Resolved key-value dictionary from `action.event.context`, with all reactive bindings (`@path` / `path`) resolved to current values. |
-| `userMessage` | string | Optional (v1.0 only) | Human-readable string resolved from `action.event.userMessage`, suitable for direct ingestion into LLM conversation turns. |
-| `metadata.extensions` | object | Optional (v1.0 only) | Extensibility map for client-specific metadata. |
+| Property              | Type              | Required             | Description                                                                                                                          |
+| :-------------------- | :---------------- | :------------------- | :----------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                | string            | Yes                  | The action event name declared on the component's `action.event.name`.                                                               |
+| `surfaceId`           | string            | Yes                  | The surface ID where the interaction occurred.                                                                                       |
+| `sourceComponentId`   | string            | Yes                  | The component `id` that triggered the action.                                                                                        |
+| `timestamp`           | string (ISO 8601) | Yes                  | Timestamp indicating when the user triggered the action.                                                                             |
+| `context`             | object            | Yes                  | Resolved key-value dictionary from `action.event.context`, with all reactive bindings (`@path` / `path`) resolved to current values. |
+| `userMessage`         | string            | Optional (v1.0 only) | Human-readable string resolved from `action.event.userMessage`, suitable for direct ingestion into LLM conversation turns.           |
+| `metadata.extensions` | object            | Optional (v1.0 only) | Extensibility map for client-specific metadata.                                                                                      |
 
 #### Full data model transport metadata
 
@@ -532,11 +538,11 @@ The `callAgentFunction` message is a client-initiated RPC requesting that the ag
 
 #### Properties
 
-| Property | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `surfaceId` | string | Yes | The surface ID where the call originated. |
-| `functionCallId` | string | Yes | Unique correlation identifier for this call. The agent returns this ID in `agentFunctionResponse`. |
-| `callFunction` | object | Yes | The function call details, including `catalogId`, `name`, and optional `arguments`. |
+| Property         | Type   | Required | Description                                                                                        |
+| :--------------- | :----- | :------- | :------------------------------------------------------------------------------------------------- |
+| `surfaceId`      | string | Yes      | The surface ID where the call originated.                                                          |
+| `functionCallId` | string | Yes      | Unique correlation identifier for this call. The agent returns this ID in `agentFunctionResponse`. |
+| `callFunction`   | object | Yes      | The function call details, including `catalogId`, `name`, and optional `arguments`.                |
 
 ```json
 {
@@ -566,11 +572,11 @@ The `rendererFunctionResponse` message delivers the renderer's return value or e
 
 #### Properties
 
-| Property | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `functionCallId` | string | Yes | The correlation identifier copied from the original `callRendererFunction` request. |
-| `value` | any | Optional | The return value produced by the renderer function on success. |
-| `error` | string | Optional | An error message string if execution failed on the renderer. |
+| Property         | Type   | Required | Description                                                                         |
+| :--------------- | :----- | :------- | :---------------------------------------------------------------------------------- |
+| `functionCallId` | string | Yes      | The correlation identifier copied from the original `callRendererFunction` request. |
+| `value`          | any    | Optional | The return value produced by the renderer function on success.                      |
+| `error`          | string | Optional | An error message string if execution failed on the renderer.                        |
 
 ```json
 {
@@ -633,6 +639,7 @@ Structured errors enable automatic error recovery without human intervention:
 ```
 
 Generic function execution error in v1.0 citing `functionCallId`:
+
 ```json
 {
   "version": "1.0",
@@ -643,6 +650,7 @@ Generic function execution error in v1.0 citing `functionCallId`:
   }
 }
 ```
+
   </TabItem>
   <TabItem label="v0.9.1 (Active)">
 ```json
@@ -693,6 +701,7 @@ When `createSurface` is processed, the renderer creates an implicit surface cont
 For reliable code generation, serialization, and cross-language interoperability across TypeScript, Python, Dart, and Swift, v1.0 requires all identifiers to follow [Unicode Standard Annex #31 (UAX #31)](https://www.unicode.org/reports/tr31/).
 
 This rule applies to:
+
 - Component instance IDs ([`ComponentId`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentId))
 - Component types (e.g. `Text`, `Button`)
 - Function names (e.g. `formatCurrency`, `getDeviceTimezone`)
@@ -706,22 +715,23 @@ This rule applies to:
 3. **Prohibited starts**: Must not start with a decimal digit (`0`–`9`).
 4. **Prohibited punctuation**: Must not contain hyphens (`-`), spaces, periods (`.`), slashes, or symbol characters.
 
-| Identifier | Status | Reason |
-| :--- | :--- | :--- |
-| `root` | Valid | Standard alphabetic string. |
-| `flight_card` | Valid | Uses underscore in `XID_Continue`. |
-| `btnSubmit` | Valid | CamelCase conforms to `XID_Start` and `XID_Continue`. |
-| `flight_1_select` | Valid | Digits are permitted after initial character. |
-| `_temp_slot` | Valid | Underscore is allowed as initial character. |
-| `flight-card` | **Invalid** | Hyphen (`-`) is prohibited by UAX #31. |
-| `1st_flight` | **Invalid** | Cannot begin with a decimal digit. |
-| `flight card` | **Invalid** | Whitespace is prohibited. |
-| `user.name` | **Invalid** | Periods are reserved for path syntax and prohibited in IDs. |
+| Identifier        | Status      | Reason                                                      |
+| :---------------- | :---------- | :---------------------------------------------------------- |
+| `root`            | Valid       | Standard alphabetic string.                                 |
+| `flight_card`     | Valid       | Uses underscore in `XID_Continue`.                          |
+| `btnSubmit`       | Valid       | CamelCase conforms to `XID_Start` and `XID_Continue`.       |
+| `flight_1_select` | Valid       | Digits are permitted after initial character.               |
+| `_temp_slot`      | Valid       | Underscore is allowed as initial character.                 |
+| `flight-card`     | **Invalid** | Hyphen (`-`) is prohibited by UAX #31.                      |
+| `1st_flight`      | **Invalid** | Cannot begin with a decimal digit.                          |
+| `flight card`     | **Invalid** | Whitespace is prohibited.                                   |
+| `user.name`       | **Invalid** | Periods are reserved for path syntax and prohibited in IDs. |
 
 <Aside type="note" title="Normative prose vs. schema regex">
 In [`common_types.json#/$defs/ComponentId`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentId), `ComponentId` is defined simply as `"type": "string"` without an embedded regex pattern.
 
 However, UAX #31 compliance is a **normative prose requirement** specified in the A2UI protocol specification. Official A2UI SDKs, parsers, and conformance test suites enforce UAX #31 to prevent runtime collisions in target languages.
+
 </Aside>
 
 ---
