@@ -666,9 +666,11 @@ class GenericBinder:
 
     @staticmethod
     def _compute_validation_summary(
-        rule_results: list[dict[str, Any]],
+        rule_results: list[dict[str, Any] | None],
     ) -> tuple[bool, list[str], list[dict[str, Any]], dict[str, Any]]:
-        failed_rules = [r for r in rule_results if not r["valid"]]
+        # A rule whose condition waits for an agent call (None) does not
+        # fail while it is pending.
+        failed_rules = [r for r in rule_results if r is not None and not r["valid"]]
         error_rules = [r for r in failed_rules if r.get("severity", "error") == "error"]
         is_valid = len(error_rules) == 0
         validation_errors = [r["message"] for r in error_rules if r.get("message")]
@@ -690,7 +692,7 @@ class GenericBinder:
         is_sync: bool,
     ) -> Any:
         rules = value if isinstance(value, list) else []
-        rule_results: list[dict[str, Any]] = [
+        rule_results: list[dict[str, Any] | None] = [
             {"valid": True, "message": "", "severity": "error"} for _ in rules
         ]
         parent_path = path[:-1]
@@ -733,28 +735,35 @@ class GenericBinder:
             # the rule message is only the fallback.
             explicit_msg = None if self._is_path_bound(condition) else rule_msg
             fallback_msg = rule_msg or "Validation failed"
-            rule_results[idx]["message"] = fallback_msg
 
-            def make_on_change(
+            def rule_result(
+                state: Any, exp_msg: str | None, fb_msg: str
+            ) -> dict[str, Any] | None:
+                # A condition waiting for an agent call has no result yet.
+                # Once the call settles the rule is evaluated; a call that
+                # failed leaves the condition None, which fails the rule.
+                if state.pending:
+                    return None
+                return self._process_rule_val(state.value, exp_msg, fb_msg)
+
+            def make_on_state(
                 i: int, exp_msg: str | None, fb_msg: str
-            ) -> Callable[[Any], None]:
-                def on_change(new_val: Any) -> None:
-                    rule_results[i] = self._process_rule_val(new_val, exp_msg, fb_msg)
+            ) -> Callable[[Any, bool], None]:
+                def on_state(state: Any, _value_changed: bool) -> None:
+                    rule_results[i] = rule_result(state, exp_msg, fb_msg)
                     _apply_validation_state(reactive=True)
 
-                return on_change
+                return on_state
 
-            bound = self.context.data_context.subscribe_dynamic_value(
-                condition, make_on_change(idx, explicit_msg, fallback_msg)
+            bound = self.context.data_context._subscribe_dynamic_state(
+                condition, make_on_state(idx, explicit_msg, fallback_msg)
             )
             if not is_sync:
                 self.data_listeners.append(bound)
             else:
                 bound.unsubscribe()
 
-            rule_results[idx] = self._process_rule_val(
-                bound.value, explicit_msg, fallback_msg
-            )
+            rule_results[idx] = rule_result(bound.value, explicit_msg, fallback_msg)
 
         _apply_validation_state(reactive=False)
         return value

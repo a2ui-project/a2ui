@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Any, TypeVar, Union, cast
 
 from ..catalog import CatalogApi
+from ..common.event_loop import get_or_create_event_loop
 from ..exceptions import A2uiRpcError, RpcErrorCode
 from ..processing.adapters import is_catalog_version_compatible
 from ..resolution.data_context import DataContext
@@ -148,8 +149,7 @@ class RpcHandler:
             self._pending_agent_calls.pop(call_id, None)
             pending.reject(
                 A2uiRpcError(
-                    f"Surface '{surface_id}' was deleted while call '{call_id}'"
-                    " was pending.",
+                    f"Pending calls for surface '{surface_id}' were cancelled.",
                     function_call_id=call_id,
                     code=RpcErrorCode.CANCELLED.value,
                 )
@@ -813,15 +813,7 @@ class RpcHandler:
 
     def _get_or_create_loop(self) -> asyncio.AbstractEventLoop:
         """Retrieves or creates an event loop safely."""
-        try:
-            return asyncio.get_running_loop()
-        except RuntimeError:
-            try:
-                return asyncio.get_event_loop_policy().get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                return loop
+        return get_or_create_event_loop()
 
     def _create_timeout_timer(
         self,

@@ -18,10 +18,12 @@ from collections.abc import Awaitable, Callable, Sequence
 import copy
 from dataclasses import dataclass, field
 import json
+import math
 from typing import Any
 import warnings
 
 from ..catalog import CatalogApi
+from ..common.event_loop import get_or_create_event_loop
 from ..common.events import AbortSignal, EventSource
 from ..common.metadata import (
     A2uiMetadata,
@@ -31,7 +33,13 @@ from ..common.metadata import (
     validate_metadata,
 )
 from ..common.uax31 import is_valid_uax31_identifier
-from ..exceptions import A2uiCatalogError, A2uiExpressionError, A2uiValidationError
+from ..exceptions import (
+    A2uiCatalogError,
+    A2uiExpressionError,
+    A2uiRpcError,
+    A2uiValidationError,
+    RpcErrorCode,
+)
 from ..schema import ProtocolVersion
 from .data_model import DataModel
 from .surface_components_model import SurfaceComponentsModel
@@ -67,21 +75,80 @@ AgentFunctionCaller = Callable[[AgentFunctionCall], Awaitable[Any]]
 """
 
 
+def _is_plain_json(value: Any) -> bool:
+    """Returns whether `value` has a faithful JSON form.
+
+    That is None, a bool, an int, a finite float, a string, or a list or a
+    dict with string keys of such values. NaN and infinities, non-string
+    keys and other types have none: `json.dumps` would reject them or change
+    them.
+    """
+    value_type = type(value)
+    if value is None or value_type in (bool, int, str):
+        return True
+    if value_type is float:
+        return math.isfinite(value)
+    if value_type is list:
+        return all(_is_plain_json(item) for item in value)
+    if value_type is dict:
+        return all(
+            type(key) is str and _is_plain_json(item) for key, item in value.items()
+        )
+    return False
+
+
 def _agent_call_key(call: AgentFunctionCall) -> str | None:
     """Builds the key that identifies identical agent function calls.
 
+    The key is the canonical JSON form of the catalog, the function name and
+    the arguments, with object keys sorted at every level and array order
+    kept.
+
     Returns:
-        The key, or None if the arguments cannot be serialized, in which case
-        the call is not shared.
+        The key, or None if the arguments have no faithful JSON form.
     """
+    if not _is_plain_json(call.args):
+        return None
     try:
         return json.dumps(
             [call.catalog_id, call.call, call.args],
             sort_keys=True,
             separators=(",", ":"),
+            allow_nan=False,
         )
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, RecursionError):
         return None
+
+
+def _settled_future(value: Any) -> asyncio.Future[Any]:
+    """Returns a future that already holds `value`."""
+    future: asyncio.Future[Any] = get_or_create_event_loop().create_future()
+    future.set_result(value)
+    return future
+
+
+def _isolated_future(source: asyncio.Future[Any]) -> asyncio.Future[Any]:
+    """Returns a future that settles like `source`, with a copy of its result.
+
+    Callers that share one in-flight call each get their own copy of the
+    answer, so one of them changing it does not change it for the others.
+    """
+    target: asyncio.Future[Any] = source.get_loop().create_future()
+
+    def _copy(done: asyncio.Future[Any]) -> None:
+        if target.done():
+            return
+        if done.cancelled():
+            target.cancel()
+            return
+        error = done.exception()
+        if error is not None:
+            target.set_exception(error)
+        else:
+            target.set_result(copy.deepcopy(done.result()))
+
+    source.add_done_callback(_copy)
+    return target
 
 
 class SurfaceModel:
@@ -130,12 +197,7 @@ class SurfaceModel:
         self.on_action = EventSource()
         self.on_error = EventSource()
         self.on_warning = EventSource()
-        # Sends calls to functions the renderer does not implement to the
-        # agent. When set, a v1.0 function call whose function has no local
-        # implementation in the catalog it resolves to (undeclared, or
-        # declared schema-only) is routed here instead of failing, as the v1.0
-        # fallback routing defines.
-        self.agent_function_caller: AgentFunctionCaller | None = None
+        self._agent_function_caller: AgentFunctionCaller | None = None
         # Agent function calls awaiting a response, keyed by call.
         self._in_flight_agent_calls: dict[str, asyncio.Future[Any]] = {}
         # Settled reactive agent function call answers, bounded by LRU order.
@@ -147,6 +209,26 @@ class SurfaceModel:
     def disposed(self) -> bool:
         """Whether this surface has been disposed."""
         return self._disposed
+
+    @property
+    def agent_function_caller(self) -> AgentFunctionCaller | None:
+        """Sends calls to functions the renderer does not implement to the agent.
+
+        When set, a v1.0 function call whose function has no local
+        implementation in the catalog it resolves to (undeclared, or declared
+        schema-only) is routed here instead of failing, as the v1.0 fallback
+        routing defines. Setting a different caller, or clearing it, drops
+        the calls in flight and the cached answers of the previous one.
+        """
+        return self._agent_function_caller
+
+    @agent_function_caller.setter
+    def agent_function_caller(self, caller: AgentFunctionCaller | None) -> None:
+        if caller == self._agent_function_caller:
+            return
+        self._agent_function_caller = caller
+        self._in_flight_agent_calls.clear()
+        self._settled_agent_calls.clear()
 
     @property
     def metadata(self) -> A2uiMetadata | None:
@@ -256,64 +338,93 @@ class SurfaceModel:
         and canonical arguments is returned from the surface cache, and a call
         identical to one still awaiting its response shares that response
         instead of sending another message, so re-evaluating a binding or
-        flipping a bound argument back does not repeat the request. Failed calls
-        are evicted on failure, and imperative action calls (`bypass_cache`)
-        always execute fresh.
+        flipping a bound argument back does not repeat the request. Each
+        caller gets its own copy of a shared or cached answer. A failed call
+        is evicted before its callers learn of the failure, and imperative
+        action calls (`bypass_cache`) always execute fresh.
+
+        Nothing is sent on a disposed surface, nor for an evaluation that
+        `abort_signal` has aborted.
 
         Args:
             call: The call to send, naming the catalog it resolved to.
             abort_signal: Optional signal cancelling this caller's interest.
+                If it has fired already, nothing is sent and the returned
+                future holds None.
             bypass_cache: When True, bypasses in-flight sharing and settled
                 answer caching (used for imperative action calls).
 
         Returns:
-            A future resolving to the agent's result.
+            A future resolving to the agent's result. Callers that are not on
+            a running event loop, such as synchronous code or a worker
+            thread, can still read a cached answer from it right away.
 
         Raises:
-            A2uiExpressionError: If no `agent_function_caller` is set.
+            A2uiRpcError: With code `CANCELLED` if the surface is disposed.
+            A2uiExpressionError: If no `agent_function_caller` is set, or the
+                arguments have no faithful JSON form (such as NaN or an
+                infinity).
         """
-        caller = self.agent_function_caller
+        if self._disposed:
+            raise A2uiRpcError(
+                f"Pending calls for surface '{self.id}' were cancelled.",
+                code=RpcErrorCode.CANCELLED,
+            )
+        caller = self._agent_function_caller
         if caller is None:
             raise A2uiExpressionError(
                 f"Function '{call.call}' is not implemented locally and surface"
                 f" '{self.id}' cannot call the agent."
             )
-        key = None if bypass_cache else _agent_call_key(call)
-        if key is not None:
-            if key in self._settled_agent_calls:
-                self._settled_agent_calls.move_to_end(key)
-                settled_val = self._settled_agent_calls[key]
-                try:
-                    loop = asyncio.get_running_loop()
-                except RuntimeError:
-                    loop = asyncio.get_event_loop_policy().get_event_loop()
-                settled_fut: asyncio.Future[Any] = loop.create_future()
-                settled_fut.set_result(settled_val)
-                return settled_fut
-            in_flight = self._in_flight_agent_calls.get(key)
-            if in_flight is not None:
-                return in_flight
-        pending = asyncio.ensure_future(caller(call))
-        if key is not None:
-            self._in_flight_agent_calls[key] = pending
+        key = _agent_call_key(call)
+        if key is None:
+            raise A2uiExpressionError(
+                f"Function '{call.call}' arguments are not valid JSON, so the"
+                " call was not sent to the agent."
+            )
+        if abort_signal is not None and abort_signal.aborted:
+            return _settled_future(None)
+        if bypass_cache:
+            return self._send_agent_call(caller, call)
+        if key in self._settled_agent_calls:
+            self._settled_agent_calls.move_to_end(key)
+            return _settled_future(copy.deepcopy(self._settled_agent_calls[key]))
+        in_flight = self._in_flight_agent_calls.get(key)
+        if in_flight is not None:
+            return _isolated_future(in_flight)
+        pending = self._send_agent_call(caller, call)
+        self._in_flight_agent_calls[key] = pending
 
-            def _release(done: asyncio.Future[Any]) -> None:
-                if self._in_flight_agent_calls.get(key) is done:
-                    del self._in_flight_agent_calls[key]
-                if (
-                    not self._disposed
-                    and not done.cancelled()
-                    and done.exception() is None
-                ):
-                    self._settled_agent_calls.pop(key, None)
-                    while (
-                        len(self._settled_agent_calls) >= _MAX_AGENT_CALL_CACHE_ENTRIES
-                    ):
-                        self._settled_agent_calls.popitem(last=False)
-                    self._settled_agent_calls[key] = done.result()
+        def _release(done: asyncio.Future[Any]) -> None:
+            # Runs before the callers' callbacks, so a failed call is gone
+            # from the surface by the time they hear of the failure.
+            if self._in_flight_agent_calls.get(key) is done:
+                del self._in_flight_agent_calls[key]
+            if (
+                self._disposed
+                # The answer of a caller that has been replaced is stale.
+                or self._agent_function_caller is not caller
+                or done.cancelled()
+                or done.exception() is not None
+            ):
+                return
+            self._settled_agent_calls.pop(key, None)
+            while len(self._settled_agent_calls) >= _MAX_AGENT_CALL_CACHE_ENTRIES:
+                self._settled_agent_calls.popitem(last=False)
+            self._settled_agent_calls[key] = copy.deepcopy(done.result())
 
-            pending.add_done_callback(_release)
-        return pending
+        pending.add_done_callback(_release)
+        return _isolated_future(pending)
+
+    @staticmethod
+    def _send_agent_call(
+        caller: AgentFunctionCaller, call: AgentFunctionCall
+    ) -> asyncio.Future[Any]:
+        """Sends `call` through `caller` and returns its result as a future."""
+        sent = caller(call)
+        if isinstance(sent, asyncio.Future):
+            return sent
+        return asyncio.ensure_future(sent, loop=get_or_create_event_loop())
 
     def dispatch_action(
         self,
@@ -321,7 +432,18 @@ class SurfaceModel:
         source_component_id: str,
         metadata: A2uiMetadata | None = None,
     ) -> None:
-        """Triggers action emission from component interactives."""
+        """Triggers action emission from component interactives.
+
+        The event's `context` values and `userMessage` may hold results that
+        `DataContext.resolve_action` left pending, such as agent function
+        results. The action is emitted once they have all settled, and not at
+        all if one of them fails; that failure has been reported already.
+
+        `userMessage` is validated where it is resolved. A non-string that an
+        action expression produced is an `INVALID_ACTION` error, whether it
+        resolved inside `resolve_action` or settled here later. A non-string
+        passed to this method as a literal is ignored.
+        """
         if not isinstance(payload, dict):
             return
         import datetime
@@ -463,7 +585,7 @@ class SurfaceModel:
     def dispose(self) -> None:
         """Disposes of the surface and its resources."""
         self._disposed = True
-        self.agent_function_caller = None
+        self._agent_function_caller = None
         self._in_flight_agent_calls.clear()
         self._settled_agent_calls.clear()
         if hasattr(self.data_model, "dispose") and callable(self.data_model.dispose):

@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import asyncio
 import copy
+from dataclasses import dataclass
 import inspect
-from typing import Any, Callable, Final
+from typing import Any, Callable, Final, NamedTuple, TypeVar
 import warnings
 
 from ..catalog import is_system_function_name, system_functions_for
@@ -27,11 +28,13 @@ from ..exceptions import (
     A2uiCatalogError,
     A2uiErrorDetail,
     A2uiExpressionError,
+    A2uiRpcError,
     A2uiValidationError,
+    RpcErrorCode,
 )
 from ..schema import ProtocolVersion
 from ..state.data_model import DataModel
-from ..state.surface_model import AgentFunctionCall, SurfaceModel
+from ..state.surface_model import AgentFunctionCall, SurfaceModel, _agent_call_key
 from ..validation.payload_validator import (
     MAX_FUNCTION_CALL_ARGS,
     PayloadValidator,
@@ -132,6 +135,109 @@ def _has_failed_result(value: Any) -> bool:
         return any(_has_failed_result(item) for item in value)
     return False
 
+
+def _is_pending(value: Any) -> bool:
+    """Returns whether a `_PendingResult` nested in `value` has not settled."""
+    pending: list[_PendingResult] = []
+    _collect_pending(value, pending)
+    return bool(pending)
+
+
+def _failed_result() -> _PendingResult:
+    """Returns a result that has failed already."""
+    failed = _PendingResult()
+    failed.fail()
+    return failed
+
+
+def _when_all_settled(
+    pending: list[_PendingResult], callback: Callable[[], None]
+) -> None:
+    """Runs `callback` once every result in `pending` has settled."""
+    if not pending:
+        callback()
+        return
+    remaining = [len(pending)]
+
+    def _on_settled() -> None:
+        remaining[0] -= 1
+        if remaining[0] == 0:
+            callback()
+
+    for result in pending:
+        result.when_settled(_on_settled)
+
+
+def _is_cancellation(error: BaseException | None) -> bool:
+    """Returns whether `error` cancelled a call rather than failing it.
+
+    Calls are cancelled when their surface is deleted or disposed. That is
+    not an error in the expression, so it is not reported.
+    """
+    if isinstance(error, asyncio.CancelledError):
+        return True
+    return isinstance(error, A2uiRpcError) and (
+        error.code == RpcErrorCode.CANCELLED.value
+    )
+
+
+class _ValueState(NamedTuple):
+    """A subscribed dynamic value and whether it still waits for a result."""
+
+    value: Any
+    pending: bool
+
+
+class _AgentCallMemory:
+    """The agent calls that one subscription's evaluations make.
+
+    A failed call is remembered for as long as each new evaluation makes it
+    again, so re-evaluating after a change to an unrelated path doesn't send
+    it again. A call whose key (catalog, name or arguments) changes is a new
+    call, and is sent.
+    """
+
+    def __init__(self) -> None:
+        self._failed: set[str] = set()
+        self._made: set[str] = set()
+
+    def start_evaluation(self) -> None:
+        """Forgets the failures of calls the last evaluation did not make."""
+        self._failed &= self._made
+        self._made = set()
+
+    def make(self, key: str) -> bool:
+        """Records that the current evaluation makes the call `key`.
+
+        Returns:
+            Whether an earlier evaluation made the call and it failed.
+        """
+        self._made.add(key)
+        return key in self._failed
+
+    def record(self, key: str, *, failed: bool) -> None:
+        """Records whether the call `key` failed."""
+        if failed:
+            self._failed.add(key)
+        else:
+            self._failed.discard(key)
+
+
+@dataclass(frozen=True)
+class _EvaluationScope:
+    """The state of an evaluation that outlives its synchronous part.
+
+    A call whose arguments are pending finishes after the method that
+    started it has returned and reset its flags. It runs in the scope
+    captured when it started.
+    """
+
+    user_activated: bool
+    in_action: bool
+    agent_calls: _AgentCallMemory | None
+
+
+_T = TypeVar("_T")
 
 _MISSING: Final = object()
 
@@ -256,6 +362,8 @@ class DataContext:
         self._cached_at_least_v10: bool | None = None
         self._user_activated = False
         self._is_action_execution = False
+        # The agent calls of the subscription being evaluated, if any.
+        self._agent_calls: _AgentCallMemory | None = None
 
     @property
     def is_user_activated(self) -> bool:
@@ -275,6 +383,33 @@ class DataContext:
         return self._is_action_execution or bool(
             self.parent is not None and self.parent._in_action_execution
         )
+
+    def _capture_scope(
+        self, *, user_activated: bool | None = None, in_action: bool = False
+    ) -> _EvaluationScope:
+        """Captures the state that a later part of this evaluation runs in."""
+        return _EvaluationScope(
+            user_activated=(
+                self.is_user_activated if user_activated is None else user_activated
+            ),
+            in_action=in_action or self._in_action_execution,
+            agent_calls=self._agent_calls,
+        )
+
+    def _run_in_scope(self, scope: _EvaluationScope, run: Callable[[], _T]) -> _T:
+        """Runs `run` in `scope`, then restores the current state."""
+        previous = (self._user_activated, self._is_action_execution, self._agent_calls)
+        self._user_activated = scope.user_activated
+        self._is_action_execution = scope.in_action
+        self._agent_calls = scope.agent_calls
+        try:
+            return run()
+        finally:
+            (
+                self._user_activated,
+                self._is_action_execution,
+                self._agent_calls,
+            ) = previous
 
     def _surface_protocol_version(self) -> Any:
         """Returns the surface's protocol version, which outlives its default catalog."""
@@ -368,9 +503,29 @@ class DataContext:
         value: Any,
         peek: bool = True,
         abort_signal: AbortSignal | None = None,
-        _keep_failed: bool = False,
     ) -> Any:
-        """Recursively evaluates Literals, Data Paths, and Function Calls against the active DataModel."""
+        """Recursively evaluates Literals, Data Paths, and Function Calls against the active DataModel.
+
+        A call whose result arrives later, such as an agent function call,
+        evaluates to None, or with `peek=False` to a signal whose value is
+        None until the result arrives. A call that fails evaluates to None.
+        """
+        return self._resolve_value(value, peek, abort_signal, keep_failed=False)
+
+    def _resolve_value(
+        self,
+        value: Any,
+        peek: bool,
+        abort_signal: AbortSignal | None,
+        *,
+        keep_failed: bool,
+    ) -> Any:
+        """Evaluates `value` like `resolve_dynamic_value`.
+
+        With `keep_failed`, a call that failed, or whose result is pending,
+        evaluates to its `_PendingResult`, so the caller can tell a failure
+        from a None value and wait for a pending result.
+        """
         if value is None:
             return None
 
@@ -433,11 +588,13 @@ class DataContext:
                     catalog_id=cat_id,
                     abort_signal=abort_signal,
                     names_catalog=names_catalog,
-                    _keep_failed=_keep_failed,
+                    _keep_failed=keep_failed,
                 )
+                if isinstance(res, _PendingResult) and res.failed and not keep_failed:
+                    return None
                 if (
                     not peek
-                    or _keep_failed
+                    or keep_failed
                     and isinstance(res, _PendingResult)
                     and (not res.settled or res.failed)
                 ):
@@ -447,12 +604,7 @@ class DataContext:
         # 3. Recurse into lists/arrays
         if isinstance(value, list):
             return [
-                self.resolve_dynamic_value(
-                    item,
-                    peek=peek,
-                    abort_signal=abort_signal,
-                    _keep_failed=_keep_failed,
-                )
+                self._resolve_value(item, peek, abort_signal, keep_failed=keep_failed)
                 for item in value
             ]
 
@@ -461,34 +613,115 @@ class DataContext:
             if at_least_v10:
                 validate_reserved_directives(value.keys(), proto_ver or "1.0")
                 return {
-                    unescape_object_key(k): self.resolve_dynamic_value(
-                        v,
-                        peek=peek,
-                        abort_signal=abort_signal,
-                        _keep_failed=_keep_failed,
+                    unescape_object_key(k): self._resolve_value(
+                        v, peek, abort_signal, keep_failed=keep_failed
                     )
                     for k, v in value.items()
                 }
             return {
-                k: self.resolve_dynamic_value(
-                    v,
-                    peek=peek,
-                    abort_signal=abort_signal,
-                    _keep_failed=_keep_failed,
-                )
+                k: self._resolve_value(v, peek, abort_signal, keep_failed=keep_failed)
                 for k, v in value.items()
             }
 
         # 5. Return static literals directly
         return value
 
-    def _resolve_action_context(self, context: Any) -> dict[str, Any]:
-        if not isinstance(context, dict):
-            return {}
-        return {
-            k: self.resolve_dynamic_value(v, _keep_failed=True)
-            for k, v in context.items()
-        }
+    def _resolve_action_values(self, items: list[Any]) -> list[Any] | None:
+        """Resolves the context values and user message of an event action.
+
+        From v1.0 they are resolved in order, see `_resolve_in_order`.
+        Before v1.0 a value that fails resolves to None, as it always has.
+
+        Returns:
+            The resolved values, or None if one failed synchronously.
+        """
+        if not self.at_least_v10:
+            return [self.resolve_dynamic_value(item) for item in items]
+        return self._resolve_in_order(items, self._capture_scope())
+
+    def _resolve_in_order(
+        self, items: list[Any], scope: _EvaluationScope
+    ) -> list[Any] | None:
+        """Resolves imperative action values one after another.
+
+        A value whose result is pending, such as an agent function call, is
+        awaited before the next value is evaluated, so a value that fails
+        stops the values after it from being evaluated at all: they send no
+        `callAgentFunction`. Values after a pending one are returned as
+        pending results that settle once they have been evaluated, or fail
+        without being evaluated if an earlier value fails.
+
+        Returns:
+            The resolved values, which may be pending results, or None if a
+            value failed synchronously. A failed value has been reported.
+        """
+        results: list[Any] = []
+        for index, item in enumerate(items):
+            value = self._resolve_value(item, True, None, keep_failed=True)
+            if _has_failed_result(value):
+                return None
+            results.append(value)
+            pending: list[_PendingResult] = []
+            _collect_pending(value, pending)
+            rest_items = items[index + 1 :]
+            if pending and rest_items:
+                rest = [_PendingResult() for _ in rest_items]
+                results.extend(rest)
+
+                def _resume(
+                    value: Any = value,
+                    rest_items: list[Any] = rest_items,
+                    rest: list[_PendingResult] = rest,
+                ) -> None:
+                    self._resume_in_order(value, rest_items, rest, scope)
+
+                _when_all_settled(pending, _resume)
+                return results
+        return results
+
+    def _resume_in_order(
+        self,
+        settled: Any,
+        items: list[Any],
+        placeholders: list[_PendingResult],
+        scope: _EvaluationScope,
+    ) -> None:
+        """Evaluates the action values after `settled`, once it has settled."""
+        if getattr(self.surface, "disposed", False) or _has_failed_result(settled):
+            for placeholder in placeholders:
+                placeholder.fail()
+            return
+        values: list[Any] | None
+        try:
+            values = self._run_in_scope(
+                scope, lambda: self._resolve_in_order(items, scope)
+            )
+        except Exception as e:
+            if self.surface and hasattr(self.surface, "dispatch_error"):
+                self.surface.dispatch_error({
+                    "code": "EXPRESSION_ERROR",
+                    "message": str(e),
+                })
+            values = None
+        if values is None:
+            for placeholder in placeholders:
+                placeholder.fail()
+            return
+        for placeholder, value in zip(placeholders, values):
+            self._settle_when_ready(value, placeholder)
+
+    def _settle_when_ready(self, value: Any, target: _PendingResult) -> None:
+        """Settles `target` with `value` once its pending results have settled."""
+        pending: list[_PendingResult] = []
+        _collect_pending(value, pending)
+
+        def _done() -> None:
+            if _has_failed_result(value):
+                target.fail()
+            else:
+                target.settle(self._settled_value(value))
+
+        _when_all_settled(pending, _done)
 
     def _emit_invalid_action_error(self, message: str) -> None:
         if self.surface and hasattr(self.surface, "dispatch_error"):
@@ -504,12 +737,19 @@ class DataContext:
                 "Action event is missing required string 'name'."
             )
             return None
+        context = evt.get("context")
+        keys = list(context) if isinstance(context, dict) else []
+        has_user_message = evt.get("userMessage") is not None
+        items = [context[k] for k in keys] if isinstance(context, dict) else []
+        if has_user_message:
+            items.append(evt["userMessage"])
+        values = self._resolve_action_values(items)
+        if values is None:
+            return None
         if "context" in evt:
-            evt["context"] = self._resolve_action_context(evt["context"])
-        if evt.get("userMessage") is not None:
-            resolved_um = self.resolve_dynamic_value(
-                evt["userMessage"], _keep_failed=True
-            )
+            evt["context"] = dict(zip(keys, values))
+        if has_user_message:
+            resolved_um = values[-1]
             if resolved_um is not None and not isinstance(
                 resolved_um, (str, _PendingResult)
             ):
@@ -531,7 +771,7 @@ class DataContext:
                 else None
             )
             names_cat = self.at_least_v10 and ("catalogId" in fc or "catalog_id" in fc)
-            return self._execute_function(
+            result = self._execute_function(
                 fn_name,
                 fc.get("args", {}),
                 catalog_id=cat_id,
@@ -539,6 +779,9 @@ class DataContext:
                 is_action=True,
                 is_user_activated=is_user_activated,
             )
+            if isinstance(result, _PendingResult) and result.failed:
+                return None
+            return result
         if "functionCall" in action:
             return self.resolve_dynamic_value(action["functionCall"])
         return action
@@ -560,14 +803,19 @@ class DataContext:
 
             if "name" in action:
                 resolved = dict(action)
+                context = action.get("context")
+                keys = list(context) if isinstance(context, dict) else []
+                has_user_message = action.get("userMessage") is not None
+                items = [context[k] for k in keys] if isinstance(context, dict) else []
+                if has_user_message:
+                    items.append(action["userMessage"])
+                values = self._resolve_action_values(items)
+                if values is None:
+                    return None
                 if "context" in action:
-                    resolved["context"] = self._resolve_action_context(
-                        action["context"]
-                    )
-                if action.get("userMessage") is not None:
-                    resolved["userMessage"] = self.resolve_dynamic_value(
-                        action["userMessage"], _keep_failed=True
-                    )
+                    resolved["context"] = dict(zip(keys, values))
+                if has_user_message:
+                    resolved["userMessage"] = values[-1]
                 return resolved
 
             if isinstance(action.get("functionCall"), dict):
@@ -591,7 +839,35 @@ class DataContext:
     def subscribe_dynamic_value(
         self, value: Any, on_change: Callable[[Any], None]
     ) -> Subscription:
-        """Subscribes reactively to dynamic paths, chained function expressions, or active streaming functions."""
+        """Subscribes reactively to dynamic paths, chained function expressions, or active streaming functions.
+
+        The returned subscription's `value` is the initial value. A call whose
+        result arrives later, such as an agent function call, leaves it None
+        until `on_change` delivers the result.
+        """
+
+        def _on_state(state: _ValueState, value_changed: bool) -> None:
+            if value_changed:
+                on_change(state.value)
+
+        sub = self._subscribe_dynamic_state(value, _on_state)
+        return Subscription(sub.unsubscribe, initial_value=sub.value.value)
+
+    def _subscribe_dynamic_state(
+        self,
+        value: Any,
+        on_state: Callable[[_ValueState, bool], None],
+    ) -> Subscription:
+        """Subscribes to a dynamic value and to whether it is pending.
+
+        Like `subscribe_dynamic_value`, but the subscription's `value` is the
+        initial `_ValueState`, and `on_state` gets each later state together
+        with whether its value changed. A pending result that fails, or
+        settles to the value it already had, changes only the state.
+
+        A call that failed is not sent again when the value is re-evaluated
+        because a path it does not depend on changed; see `_AgentCallMemory`.
+        """
         paths: set[str] = set()
 
         def _extract_paths(val: Any) -> None:
@@ -623,14 +899,20 @@ class DataContext:
         path_subs: list[Subscription] = []
         stream_sub: list[Any] = []  # Holds subscription to returned EventSource stream
         abort_controller: list[AbortSignal] = []
-        UNSET = object()
-        current_val: list[Any] = [UNSET]
+        agent_calls = _AgentCallMemory()
+        current_raw: list[Any] = [None]
+        state: list[_ValueState] = [_ValueState(None, False)]
+        has_value: list[bool] = [False]
         is_sync: list[bool] = [True]
 
-        def _update_output(new_val: Any) -> None:
-            current_val[0] = new_val
+        def _publish(new_val: Any, value_changed: bool = True) -> None:
+            new_state = _ValueState(new_val, _is_pending(current_raw[0]))
+            if not value_changed and new_state.pending == state[0].pending:
+                return
+            state[0] = new_state
+            has_value[0] = True
             if not is_sync[0]:
-                on_change(new_val)
+                on_state(new_state, value_changed)
 
         def _run_evaluation(dummy: Any = None) -> None:
             if abort_controller:
@@ -645,41 +927,51 @@ class DataContext:
             sig = AbortSignal()
             abort_controller.append(sig)
 
-            raw_res = self.resolve_dynamic_value(value, peek=False, abort_signal=sig)
+            agent_calls.start_evaluation()
+            previous_calls = self._agent_calls
+            self._agent_calls = agent_calls
+            try:
+                raw_res = self._resolve_value(value, False, sig, keep_failed=False)
+            finally:
+                self._agent_calls = previous_calls
+            current_raw[0] = raw_res
 
             if hasattr(raw_res, "subscribe") and callable(raw_res.subscribe):
                 # Arm the active stream subscription
-                sub = raw_res.subscribe(_update_output)
+                sub = raw_res.subscribe(_publish)
                 stream_sub.append(sub)
 
                 # Initialize concrete output if not already emitted by BehaviorSubject/Signal
-                if current_val[0] is UNSET:
-                    init_val = self._peek_value(raw_res)
-                    current_val[0] = init_val
-                    if not is_sync[0]:
-                        on_change(init_val)
+                if not has_value[0]:
+                    _publish(self._peek_value(raw_res))
             else:
                 nested_streams: list[Any] = []
                 _collect_subscribables(raw_res, nested_streams)
                 if nested_streams:
-                    snap = self._settled_value(raw_res)
-                    current_val[0] = snap
-                    if not is_sync[0]:
-                        on_change(snap)
+                    _publish(self._settled_value(raw_res))
                     initializing = [True]
 
                     def _on_nested(_: Any = None) -> None:
                         if initializing[0]:
                             return
-                        _update_output(self._settled_value(raw_res))
+                        _publish(self._settled_value(raw_res))
 
                     for ns in nested_streams:
                         stream_sub.append(ns.subscribe(_on_nested))
                     initializing[0] = False
                 else:
-                    current_val[0] = raw_res
-                    if not is_sync[0]:
-                        on_change(raw_res)
+                    _publish(raw_res)
+
+            # A pending result that fails, or settles without changing the
+            # value, emits nothing, so its settling is watched separately.
+            def _on_pending_settled() -> None:
+                if not sig.aborted:
+                    _publish(state[0].value, value_changed=False)
+
+            pending: list[_PendingResult] = []
+            _collect_pending(raw_res, pending)
+            for result in pending:
+                result.when_settled(_on_pending_settled)
 
         if paths:
             for p in paths:
@@ -700,7 +992,7 @@ class DataContext:
         _run_evaluation()
         is_sync[0] = False
 
-        return Subscription(_unsubscribe_all, initial_value=current_val[0])
+        return Subscription(_unsubscribe_all, initial_value=state[0])
 
     @staticmethod
     def _check_action_user_activation(
@@ -758,7 +1050,11 @@ class DataContext:
 
         A nested call whose result arrives later (an agent function) leaves
         an argument pending. The call then runs once every such argument has
-        settled, and its result is pending until then.
+        settled, and its result is pending until then. It runs with the user
+        activation and action state it started with.
+
+        A call that is cancelled (its surface was deleted) fails without
+        reporting an error.
         """
         in_body = False
         effective_user_activated = (
@@ -830,26 +1126,38 @@ class DataContext:
                     )
 
             in_body = True
+            # An event action's context and user message are imperative too,
+            # so a function in them needs the action's user activation.
             self._check_action_user_activation(
-                fn, name, is_action, effective_user_activated
+                fn,
+                name,
+                is_action or self._in_action_execution,
+                effective_user_activated,
             )
             local_fn = fn
             local_catalog = target_catalog
+            scope = self._capture_scope(
+                user_activated=effective_user_activated, in_action=is_action
+            )
+
+            def _run_local(args: Any) -> Any:
+                return self._run_in_scope(
+                    scope,
+                    lambda: self._run_local_function(
+                        local_fn, local_catalog, args, abort_signal
+                    ),
+                )
+
             return self._run_when_args_settled(
                 name,
-                self.resolve_dynamic_value(
-                    raw_args,
-                    peek=False,
-                    abort_signal=abort_signal,
-                    _keep_failed=True,
-                ),
-                lambda args: self._run_local_function(
-                    local_fn, local_catalog, args, abort_signal
-                ),
+                self._resolve_value(raw_args, False, abort_signal, keep_failed=True),
+                _run_local,
                 abort_signal,
                 is_action=is_action,
             )
         except Exception as e:
+            if _is_cancellation(e):
+                return _failed_result() if _keep_failed else None
             err_code = self._resolve_function_error_code(e, is_action, in_body)
             if self._dispatch_function_error(e, name, code_override=err_code):
                 if _keep_failed:
@@ -940,6 +1248,7 @@ class DataContext:
         abort_signal: AbortSignal | None,
         *,
         is_action: bool = False,
+        in_body: bool = True,
     ) -> Any:
         """Runs a call once its arguments have settled.
 
@@ -950,14 +1259,15 @@ class DataContext:
         argument has settled, unless `abort_signal` has fired by then or a
         pending argument failed. The failure of a pending argument has been
         reported already, so the call is not run and its result fails too.
+
+        `in_body` says whether an error that `run` raises comes from the
+        function's own body, which classifies it for an action.
         """
         pending: list[_PendingResult] = []
         _collect_pending(resolved_args, pending)
         if not pending:
             if _has_failed_result(resolved_args):
-                failed = _PendingResult()
-                failed.fail()
-                return failed
+                return _failed_result()
             return run(self._settled_value(resolved_args))
 
         deferred = _PendingResult()
@@ -977,18 +1287,29 @@ class DataContext:
             try:
                 result = run(self._settled_value(resolved_args))
             except Exception as e:
-                err_code = self._resolve_function_error_code(e, is_action, True)
-                self._dispatch_function_error(e, name, code_override=err_code)
+                if not _is_cancellation(e):
+                    err_code = self._resolve_function_error_code(e, is_action, in_body)
+                    self._dispatch_function_error(e, name, code_override=err_code)
                 deferred.fail()
                 return
-            self._forward_result(result, deferred)
+            self._forward_result(result, deferred, abort_signal)
 
         for result in pending:
             result.when_settled(_on_arg_settled)
         return deferred
 
-    def _forward_result(self, result: Any, target: _PendingResult) -> None:
-        """Settles `target` with `result`, once `result` has settled if pending."""
+    def _forward_result(
+        self,
+        result: Any,
+        target: _PendingResult,
+        abort_signal: AbortSignal | None,
+    ) -> None:
+        """Settles `target` with `result`, once `result` has settled if pending.
+
+        A `result` that streams values, such as a signal a local function
+        returns, keeps updating `target` until `abort_signal` fires, as it
+        would have had the call's arguments settled from the start.
+        """
         if isinstance(result, _PendingResult):
 
             def _on_settled() -> None:
@@ -998,8 +1319,19 @@ class DataContext:
                     target.settle(result.peek())
 
             result.when_settled(_on_settled)
-        else:
-            target.settle(self._peek_value(result))
+            return
+        target.settle(self._peek_value(result))
+        if not (hasattr(result, "subscribe") and callable(result.subscribe)):
+            return
+        if abort_signal is not None and abort_signal.aborted:
+            return
+
+        def _on_update(new_val: Any) -> None:
+            target.value = new_val
+
+        sub = result.subscribe(_on_update)
+        if abort_signal is not None and hasattr(sub, "unsubscribe"):
+            abort_signal.add_event_listener("abort", sub.unsubscribe)
 
     def _routes_to_agent(self, fn: Any) -> bool:
         """Returns whether a call to `fn` in its resolved catalog runs on the agent.
@@ -1028,16 +1360,19 @@ class DataContext:
         """Routes a call to the agent: the v1.0 fallback routing.
 
         A declared (schema-only) function's `requires_user_activation` is
-        enforced and its arguments are validated against its schema before
-        anything is sent; the arguments sent are those a local implementation
-        would receive, with the schema's defaults filled in. An undeclared
-        function's arguments are sent as they resolve. Pending arguments
-        settle first. The call always names the catalog it resolved to.
+        enforced before anything is resolved or sent. Pending arguments
+        settle first. Then a declared function's resolved arguments are
+        validated against its schema, and the arguments sent are those a
+        local implementation would receive, with the schema's defaults filled
+        in. An undeclared function's arguments are sent as they resolve.
+        Arguments with no faithful JSON form (such as NaN) are not sent. The
+        call always names the catalog it resolved to.
 
         Returns:
             The call's result, pending (None) until the agent responds. An
             agent error or a timeout is reported as an `EXPRESSION_ERROR`,
-            and the result fails, keeping the value None.
+            and the result fails, keeping the value None. A call that is
+            cancelled, because its surface was deleted, fails silently.
 
         Raises:
             A2uiExpressionError: If the function requires user activation and
@@ -1050,6 +1385,7 @@ class DataContext:
         effective_user_activated = (
             self.is_user_activated if is_user_activated is None else is_user_activated
         )
+        agent_calls = self._agent_calls
         defaults: dict[str, Any] = {}
         args_schema: Any = None
         if fn is None:
@@ -1064,8 +1400,11 @@ class DataContext:
                     f"Function '{name}' requires user activation and cannot be"
                     " evaluated without an active user gesture."
                 )
+            # The arguments as written may hold bindings and calls, which the
+            # schema may not admit, so only their envelope is checked here.
+            # The schema is checked once they have resolved.
             try:
-                validated = PayloadValidator(catalog=target_catalog).validate_function(
+                PayloadValidator(catalog=target_catalog)._validate_function_identifiers(
                     name, raw_args
                 )
             except A2uiValidationError as e:
@@ -1074,50 +1413,74 @@ class DataContext:
                     details=e.details,
                 ) from e
             args_schema = _function_args_schema(target_catalog, fn)
-            written = raw_args if isinstance(raw_args, dict) else {}
             defaults = _schema_defaults(args_schema)
-            # Validating against a Pydantic model fills in its defaults.
-            defaults.update({
-                k: v
-                for k, v in (validated or {}).items()
-                if v is not None and k not in written
-            })
 
         bypass_cache = is_action or self._in_action_execution
 
         def _send(resolved_args: Any) -> _PendingResult:
+            if abort_signal is not None and abort_signal.aborted:
+                # A newer evaluation replaced this one: send nothing.
+                return _PendingResult()
             args: dict[str, Any] = (
                 dict(resolved_args) if isinstance(resolved_args, dict) else {}
             )
             if fn is not None:
                 args = coerce_validation_results(args_schema, args)
-                for key, value in defaults.items():
-                    args.setdefault(key, copy.deepcopy(value))
+                for arg_name, default in defaults.items():
+                    args.setdefault(arg_name, copy.deepcopy(default))
+                try:
+                    validated = PayloadValidator(
+                        catalog=target_catalog
+                    ).validate_function(name, args)
+                except A2uiValidationError as e:
+                    raise A2uiExpressionError(
+                        f"Validation failed for function '{name}': {e}",
+                        details=e.details,
+                    ) from e
+                # Validating against a Pydantic model fills in its defaults.
+                for arg_name, parsed in (validated or {}).items():
+                    if parsed is not None and arg_name not in args:
+                        args[arg_name] = copy.deepcopy(parsed)
+            call = AgentFunctionCall(call=name, catalog_id=catalog_id, args=args)
+            key: str | None = (
+                None if bypass_cache or agent_calls is None else _agent_call_key(call)
+            )
+            if key is not None and agent_calls is not None and agent_calls.make(key):
+                # The subscription saw this call fail; it was reported then.
+                return _failed_result()
             future = self.surface.call_agent_function(
-                AgentFunctionCall(call=name, catalog_id=catalog_id, args=args),
+                call,
                 abort_signal=abort_signal,
                 bypass_cache=bypass_cache,
             )
             result = _PendingResult()
+
+            def _record(failed: bool) -> None:
+                if key is not None and agent_calls is not None:
+                    agent_calls.record(key, failed=failed)
+
             if future.done() and not future.cancelled() and future.exception() is None:
+                _record(False)
                 result.settle(future.result())
                 return result
 
             def _on_response(done: asyncio.Future[Any]) -> None:
-                if done.cancelled():
-                    error: BaseException | None = A2uiExpressionError(
-                        f"Agent function call '{name}' was cancelled."
-                    )
-                else:
-                    error = done.exception()
+                error: BaseException | None = (
+                    asyncio.CancelledError() if done.cancelled() else done.exception()
+                )
                 if (abort_signal is not None and abort_signal.aborted) or getattr(
                     self.surface, "disposed", False
                 ):
                     # A newer evaluation replaced this one, or the surface was disposed.
                     return
+                if _is_cancellation(error):
+                    result.fail()
+                    return
                 if error is None:
+                    _record(False)
                     result.settle(done.result())
                     return
+                _record(True)
                 self._dispatch_function_error(error, name)
                 result.fail()
 
@@ -1126,13 +1489,9 @@ class DataContext:
 
         return self._run_when_args_settled(
             name,
-            self.resolve_dynamic_value(
-                raw_args,
-                peek=False,
-                abort_signal=abort_signal,
-                _keep_failed=True,
-            ),
+            self._resolve_value(raw_args, False, abort_signal, keep_failed=True),
             _send,
             abort_signal,
             is_action=is_action,
+            in_body=False,
         )

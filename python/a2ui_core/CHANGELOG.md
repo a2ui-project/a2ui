@@ -5,34 +5,53 @@
   ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
 - (v1_0) A function call whose function the renderer does not implement
   (undeclared in the catalog the call resolves to, or declared schema-only) is
-  routed to the agent with `callAgentFunction`, as the specification's fallback
-  routing defines, instead of failing with an `EXPRESSION_ERROR` (undeclared)
-  or silently evaluating to `None` (schema-only). This applies to bindings,
-  check rules and `action.functionCall`. The value is pending (`None`, or a
-  pending signal from `resolve_dynamic_value(..., peek=False)` and
-  `subscribe_dynamic_value`) until the `agentFunctionResponse` arrives; an
-  agent error or a timeout dispatches an `EXPRESSION_ERROR`. A call that takes
-  a pending agent result as an argument runs once the result arrives; across all
-  protocol versions, a nested argument call that fails stops its enclosing call
-  from running and reports the error once. The outbound call always names the
-  catalog the call resolved to, even when the payload relied on the surface
-  default. Arguments of a schema-only function are validated against its schema
-  before the call is sent, with its defaults filled in, and its
-  `requires_user_activation` is enforced: it is sent only from `resolve_action`.
-  For reactive bindings, identical calls share one in-flight request and cache
-  settled answers per surface (bounded to 256 entries, evicted on failure and
-  cleared on `deleteSurface`); imperative `action` calls always execute fresh.
-  A call whose catalog cannot be resolved stays a `CATALOG_ERROR` and is not
-  routed, and neither is a call to a function whose `allowed_callers` is
-  `agentOnly`, which stays an `EXPRESSION_ERROR`. `MessageProcessor` enables
-  this on v1.0 surfaces when it has an `outbound_listener`; without one, such
-  calls still fail locally. Adds
-  `SurfaceModel.agent_function_caller`, `SurfaceModel.call_agent_function`,
-  `SurfaceModel.disposed`, `DataContext.is_user_activated`,
-  `MessageProcessor.dispose`, `RpcHandler.cancel_surface_calls`, and the
-  `AgentFunctionCall` and `AgentFunctionCaller` types.
-  [#3415](https://github.com/a2ui-project/a2ui/issues/3415),
-  [#3536](https://github.com/a2ui-project/a2ui/issues/3536)
+  sent to the agent with `callAgentFunction`, as the specification's fallback
+  routing defines. Previously an undeclared function failed with an
+  `EXPRESSION_ERROR` and a schema-only one evaluated to `None`. Routing works
+  for bindings, check rules, `action.functionCall` and `action.event`
+  (`context` and `userMessage`), and `MessageProcessor` enables it on v1.0
+  surfaces that have an `outbound_listener`.
+  - The outbound call names the catalog the call resolved to, even when the
+    payload relied on the surface default. A call whose catalog can't be
+    resolved stays a `CATALOG_ERROR`, and a call to an `agentOnly` function, or
+    to a `requires_user_activation` function outside a user-activated action,
+    stays an `EXPRESSION_ERROR`; neither is sent.
+  - A schema-only function's arguments are validated against its schema once
+    bindings and nested calls have resolved, and are sent with the schema's
+    defaults filled in. Arguments with no JSON form, such as NaN, fail locally
+    with an `EXPRESSION_ERROR`.
+  - While the agent's answer is pending, `resolve_dynamic_value` returns
+    `None` (with `peek=False`, a signal whose value is `None`), and
+    `subscribe_dynamic_value` returns a `Subscription` whose `value` is `None`
+    and calls `on_change` when the answer arrives. A pending check rule does
+    not fail validation. An agent error or a timeout dispatches an
+    `EXPRESSION_ERROR`.
+  - A call that takes a pending result as an argument runs once the result
+    arrives. `action.event` values are resolved in order, each waiting for the
+    one before, and the first failure stops the action: later values are not
+    evaluated and the action is not dispatched.
+  - Identical binding calls share one request, and their answers are cached
+    per surface (up to 256, as copies). A failed call is not cached, and a
+    binding doesn't send it again when an unrelated path changes. Replacing
+    `SurfaceModel.agent_function_caller` drops the cache. Action calls are
+    never shared or cached.
+  - New APIs: `SurfaceModel.agent_function_caller`,
+    `SurfaceModel.call_agent_function`, `SurfaceModel.disposed`,
+    `DataContext.is_user_activated`, `MessageProcessor.dispose`,
+    `RpcHandler.cancel_surface_calls`, and the `AgentFunctionCall` and
+    `AgentFunctionCaller` types.
+
+  Behavior changes that apply whether or not a surface routes calls:
+  - `deleteSurface` cancels the surface's pending agent calls with
+    `CANCELLED`. Cancelled calls report no error.
+  - `MessageProcessor.dispose()` disposes every surface and cancels all
+    pending agent calls.
+  - On every protocol version, a nested argument call that fails stops its
+    enclosing call from running, and the error is reported once.
+
+  ([#3415](https://github.com/a2ui-project/a2ui/issues/3415),
+  [#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3740](https://github.com/a2ui-project/a2ui/pull/3740))
 - **BREAKING CHANGE**: `DataContext` refuses a function whose `allowed_callers`
   is `agentOnly`, before running it, so a binding, check or function call
   action that calls one reports an `EXPRESSION_ERROR` instead of running it, as

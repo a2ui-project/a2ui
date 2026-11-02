@@ -350,15 +350,23 @@ class MessageProcessor:
         return self.rpc.resolve_catalog(catalog_id)
 
     def _agent_function_caller(
-        self, surface_id: str, version: str
+        self, surface: SurfaceModel, version: str
     ) -> AgentFunctionCaller:
         """Builds the caller that sends a surface's agent function calls.
 
         Each call is dispatched as a `callAgentFunction` message through the
         processor's `RpcHandler`, naming the catalog the call resolved to.
+        A call made after the surface was deleted, such as one from an action
+        that resumes later, is not sent: it fails with `CANCELLED`.
         """
+        surface_id = surface.id
 
         def _call(call: AgentFunctionCall) -> asyncio.Future[Any]:
+            if self.model.get_surface(surface_id) is not surface:
+                raise A2uiRpcError(
+                    f"Pending calls for surface '{surface_id}' were cancelled.",
+                    code=RpcErrorCode.CANCELLED,
+                )
             return self.rpc.call_agent_function(
                 surface_id,
                 FunctionCall(  # type: ignore[call-arg]
@@ -758,7 +766,7 @@ class MessageProcessor:
             and is_at_least_version(surface_proto_ver, ProtocolVersion.V1_0)
         ):
             new_surface.agent_function_caller = self._agent_function_caller(
-                surface_id, _version_label(surface_proto_ver)
+                new_surface, _version_label(surface_proto_ver)
             )
         self.model.add_surface(new_surface)
 
