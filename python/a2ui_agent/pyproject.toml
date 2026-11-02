@@ -53,7 +53,7 @@ build-backend = "hatchling.build"
 # last released version rather than 0.0.0.
 [tool.hatch.version]
 source = "vcs"
-fallback-version = "0.6.0"
+fallback-version = "0.10.0"
 
 [tool.hatch.version.raw-options]
 root = "../.."
