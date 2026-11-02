@@ -24,7 +24,7 @@ class ComponentContext {
   final ComponentModel componentModel;
   final DataContext dataContext;
 
-  /// By default, expression errors are dispatched immediately on the surface:
+  /// By default, expression errors are dispatched on the surface:
   /// as `EXECUTION_ERROR` naming the `functionCallId` when the cause is an
   /// [A2uiRpcError] from a call the agent answered with a failure, and as
   /// `EXPRESSION_ERROR` otherwise. Supply [onError] to control their
@@ -84,8 +84,15 @@ class ComponentContext {
   }
 
   /// Dispatches an action from the component.
-  Future<void> dispatchAction(Map<String, dynamic> action) {
-    return surface.dispatchAction(action, componentModel.id);
+  Future<void> dispatchAction(
+    Map<String, dynamic> action, {
+    Map<String, Object?>? metadata,
+  }) {
+    return surface.dispatchAction(
+      action,
+      componentModel.id,
+      metadata: metadata,
+    );
   }
 
   /// Returns a context for rendering a child component.

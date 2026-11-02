@@ -22,10 +22,12 @@ import 'surface_model.dart';
 class SurfaceGroupModel<T extends ComponentApi> {
   final Map<String, SurfaceModel<T>> _surfaces = {};
   final Map<String, Subscription> _actionSubscriptions = {};
+  final Map<String, Subscription> _errorSubscriptions = {};
 
   final _onSurfaceCreated = EventNotifier<SurfaceModel<T>>();
   final _onSurfaceDeleted = EventNotifier<String>();
   final _onAction = EventNotifier<A2uiRendererAction>();
+  final _onError = EventNotifier<A2uiRendererError>();
 
   /// Fires when a new surface is added.
   EventSource<SurfaceModel<T>> get onSurfaceCreated => _onSurfaceCreated;
@@ -36,6 +38,15 @@ class SurfaceGroupModel<T extends ComponentApi> {
   /// Fires when an action is dispatched from ANY surface in the group.
   EventSource<A2uiRendererAction> get onAction => _onAction;
 
+  /// Fires when an error is emitted from any surface in the group or via
+  /// [emitError].
+  EventSource<A2uiRendererError> get onError => _onError;
+
+  /// Emits a renderer error on [onError].
+  void emitError(A2uiRendererError error) {
+    _onError.emit(error);
+  }
+
   /// Adds a surface to the group.
   ///
   /// Throws [A2uiStateError] when the group already holds a surface with the
@@ -44,23 +55,49 @@ class SurfaceGroupModel<T extends ComponentApi> {
     if (_surfaces.containsKey(surface.id)) {
       throw A2uiStateError(
         "Surface '${surface.id}' already exists in this group.",
+        surfaceId: surface.id,
       );
     }
     _surfaces[surface.id] = surface;
     _actionSubscriptions[surface.id] = surface.onAction.subscribe(
       _onAction.emit,
     );
+    _errorSubscriptions[surface.id] = surface.onError.subscribe(
+      _onError.emit,
+    );
     _onSurfaceCreated.emit(surface);
   }
 
   /// Removes a surface from the group by its ID.
   void deleteSurface(String id) {
-    final SurfaceModel<T>? surface = _surfaces.remove(id);
+    final SurfaceModel<T>? surface = _remove(id);
     if (surface != null) {
-      _actionSubscriptions.remove(id)?.unsubscribe();
       surface.dispose();
       _onSurfaceDeleted.emit(id);
     }
+  }
+
+  /// Removes a surface from the group by its ID without disposing of it, and
+  /// returns it, or null when the group holds no surface with [id].
+  ///
+  /// To the group's listeners this is the same as [deleteSurface]:
+  /// [onSurfaceDeleted] fires, and the surface's actions no longer reach
+  /// [onAction]. The caller then owns the surface. It can put the same object
+  /// back with [addSurface], which fires [onSurfaceCreated], as when a
+  /// deletion is undone, or must dispose of it.
+  SurfaceModel<T>? detachSurface(String id) {
+    final SurfaceModel<T>? surface = _remove(id);
+    if (surface != null) _onSurfaceDeleted.emit(id);
+    return surface;
+  }
+
+  SurfaceModel<T>? _remove(String id) {
+    final SurfaceModel<T>? surface = _surfaces.remove(id);
+    if (surface != null) {
+      _actionSubscriptions.remove(id)?.unsubscribe();
+      _errorSubscriptions.remove(id)?.unsubscribe();
+    }
+    return surface;
   }
 
   /// Retrieves a surface by its ID.
@@ -77,5 +114,6 @@ class SurfaceGroupModel<T extends ComponentApi> {
     _onSurfaceCreated.dispose();
     _onSurfaceDeleted.dispose();
     _onAction.dispose();
+    _onError.dispose();
   }
 }

@@ -36,7 +36,7 @@ export interface LoadExampleOptions {
  * Resolves after the example is selected and initial async rendering has time to complete.
  */
 export async function loadExample(options: LoadExampleOptions) {
-  const {name, version = Version.V0_9, useUniversalComponents = false} = options;
+  const {name, version = Version.V0_9, useUniversalComponents = null} = options;
 
   await TestBed.configureTestingModule({
     imports: [DemoComponent],

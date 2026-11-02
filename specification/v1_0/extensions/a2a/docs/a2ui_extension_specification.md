@@ -41,7 +41,7 @@ Example AgentCard payload:
 }
 ```
 
-The `params` object corresponds to the `v1.0` object in the `agent_capabilities.json` schema:
+The `params` object corresponds to the `1.0` object in the `agent_capabilities.json` schema:
 
 - `params.supportedCatalogIds` (optional): An array of strings, where each string is an ID identifying a Catalog Definition Schema that the agent can generate. This is not necessarily a resolvable URI.
 - `params.acceptsInlineCatalogs` (optional): A boolean indicating if the agent can accept an `inlineCatalogs` array in the renderer's `a2uiRendererCapabilities`. If omitted, this defaults to `false`.
@@ -128,7 +128,7 @@ Additionally, the renderer determines a function's execution boundary (e.g., `re
     ],
     "metadata": {
       "a2uiRendererCapabilities": {
-        "v1.0": {
+        "1.0": {
           "supportedCatalogIds": [
             "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
             "https://my-company.com/a2ui/v1.0/my_custom_catalog.json"
@@ -156,7 +156,7 @@ When a surface enables Data Model Sync, the renderer sends `sendMessageRequest.m
     ],
     "metadata": {
       "a2uiRendererDataModel": {
-        "version": "v1.0",
+        "version": "1.0",
         "surfaces": {
           "main_surface_id": {
             "user_id": "12345",
@@ -197,14 +197,14 @@ Example DataPart:
 {
   "data": [
     {
-      "version": "v1.0",
+      "version": "1.0",
       "createSurface": {
         "surfaceId": "example_surface",
         "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateComponents": {
         "surfaceId": "example_surface",
         "components": [
@@ -234,7 +234,7 @@ Example `action` DataPart:
 {
   "data": [
     {
-      "version": "v1.0",
+      "version": "1.0",
       "action": {
         "name": "submit_form",
         "surfaceId": "contact_form_1",

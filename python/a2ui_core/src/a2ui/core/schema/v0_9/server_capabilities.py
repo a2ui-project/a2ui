@@ -25,17 +25,18 @@ class V09ServerCapabilities(StrictBaseModel):
         default=None,
         alias="supportedCatalogIds",
         description=(
-            "An array of strings, where each string is an ID identifying a Catalog"
-            " Definition Schema that the server can generate. This is not necessarily a"
-            " resolvable URI."
+            "An array of strings, where each string is an ID identifying a"
+            " Catalog Definition Schema that the server can generate. This is not"
+            " necessarily a resolvable URI."
         ),
     )
     accepts_inline_catalogs: bool | None = Field(
         default=None,
         alias="acceptsInlineCatalogs",
         description=(
-            "A boolean indicating if the server can accept an 'inlineCatalogs' array in"
-            " the client's a2uiClientCapabilities. If omitted, this defaults to false."
+            "A boolean indicating if the server can accept an 'inlineCatalogs'"
+            " array in the client's a2uiClientCapabilities. If omitted, this"
+            " defaults to false."
         ),
     )
 

@@ -94,17 +94,17 @@ describe('@a2ui/angular v1.0 & BasicCatalog', () => {
       const rendererService = TestBed.inject(A2uiRendererService);
 
       await rendererService.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         messages: [
           {
-            version: 'v1.0',
+            version: '1.0',
             createSurface: {
               surfaceId: 'v1-test-surf',
               catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
             },
           },
           {
-            version: 'v1.0',
+            version: '1.0',
             updateComponents: {
               surfaceId: 'v1-test-surf',
               components: [
@@ -151,7 +151,7 @@ describe('@a2ui/angular v1.0 & BasicCatalog', () => {
             },
           },
           {
-            version: 'v1.0',
+            version: '1.0',
             updateDataModel: {
               surfaceId: 'v1-test-surf',
               path: '/user',

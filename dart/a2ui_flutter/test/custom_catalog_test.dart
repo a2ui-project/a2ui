@@ -16,7 +16,8 @@ import 'dart:async';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:a2ui_flutter/basic_catalog.dart' as v1_0;
+import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -160,6 +161,75 @@ void main() {
     expect(harness.actions.single.context, {'stars': 4});
   });
 
+  testWidgets('on v1.0, renders a component from its own catalog beside the '
+      'basic one, and writes back', (tester) async {
+    const ratingsId = 'https://example.com/ratings/catalog.json';
+    final CatalogImplementation ratings = CatalogImplementation(
+      id: ratingsId,
+      protocolVersion: A2uiProtocolVersion.v1_0,
+      components: [
+        ComponentImplementation(
+          name: 'Rating',
+          schema: Schema.object(
+            properties: {
+              'label': CommonSchemasV1.dynamicString,
+              'value': CommonSchemasV1.dynamicNumber,
+              'onChanged': Schema.fromMap({
+                r'$ref': r'common_types.json#/$defs/Action',
+              }),
+            },
+            required: ['value'],
+          ),
+          builder: _rating.builder,
+        ),
+      ],
+    );
+    final SurfaceHarness harness = await pumpSurface(
+      tester,
+      [
+        {
+          'version': '1.0',
+          'createSurface': {
+            'surfaceId': testSurfaceId,
+            'catalogId': BasicCatalog.v1_0Id,
+            'components': [
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': ['title', 'rating'],
+              },
+              {'id': 'title', 'component': 'Text', 'text': 'Your review'},
+              {
+                'id': 'rating',
+                'component': 'Rating',
+                'catalogId': ratingsId,
+                'label': 'Stars',
+                'value': {'@path': '/stars'},
+                'onChanged': {
+                  'event': {'name': 'rated'},
+                },
+              },
+            ],
+            'dataModel': {'stars': 2},
+          },
+        },
+      ],
+      catalog: v1_0.basicCatalog(),
+      moreCatalogs: [ratings],
+    );
+
+    expect(find.text('Your review'), findsOneWidget);
+    expect(find.byIcon(Icons.star), findsNWidgets(2));
+
+    await tester.tap(find.byTooltip('4'));
+    await tester.pump();
+
+    expect(harness.data('/stars'), 4);
+    expect(find.byIcon(Icons.star), findsNWidgets(4));
+    expect(harness.actions.single.name, 'rated');
+    expect(harness.errors, isEmpty);
+  });
+
   testWidgets('leaves an app key equal to a component id or type to the '
       "builder's widget", (tester) async {
     final stepper = ComponentImplementation(
@@ -185,5 +255,199 @@ void main() {
 
     expect(tester.widget<Text>(find.byKey(const Key('qty'))).data, '3');
     expect(tester.widget<Text>(find.byKey(const Key('Stepper'))).data, '+');
+  });
+
+  testWidgets(
+    'reads node.metadata.value reactively and passes ActionDispatchOptions',
+    (tester) async {
+      final CatalogImplementation badgeCatalog = CatalogImplementation(
+        id: _demoCatalogId,
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: [
+          ComponentImplementation(
+            name: 'MetaBadge',
+            schema: Schema.object(
+              properties: {
+                'onTap': Schema.fromMap({
+                  r'$ref': r'common_types.json#/$defs/Action',
+                }),
+              },
+            ),
+            builder: (context, node, props, buildChild) {
+              final Map<String, Object?>? meta = node.metadata.value;
+              final ext = meta?['extensions'] as Map<String, Object?>?;
+              return ElevatedButton(
+                onPressed: () {
+                  unawaited(
+                    props
+                        .action('onTap')
+                        ?.call(
+                          const ActionDispatchOptions(
+                            metadata: {
+                              'extensions': {'trace_ext': 't-42'},
+                            },
+                          ),
+                        ),
+                  );
+                },
+                child: Text('badge:${ext?['badge_ext'] ?? 'none'}'),
+              );
+            },
+          ),
+        ],
+      );
+
+      final SurfaceHarness harness = await pumpSurface(tester, [
+        {
+          'version': '1.0',
+          'createSurface': {
+            'surfaceId': testSurfaceId,
+            'catalogId': _demoCatalogId,
+            'components': [
+              {
+                'id': 'root',
+                'component': 'MetaBadge',
+                'metadata': {
+                  'extensions': {'badge_ext': 'v1'},
+                },
+                'onTap': {
+                  'event': {'name': 'tapped'},
+                },
+              },
+            ],
+          },
+        },
+      ], catalog: badgeCatalog);
+
+      expect(harness.errors, isEmpty);
+      expect(find.text('badge:v1'), findsOneWidget);
+
+      harness
+          .surface()
+          .componentsModel
+          .get('root')!
+          .setExtension('badge_ext', 'v2');
+      await tester.pump();
+      expect(find.text('badge:v2'), findsOneWidget);
+
+      await tester.tap(find.byType(ElevatedButton));
+      await tester.pump();
+
+      expect(harness.actions, hasLength(1));
+      expect(harness.actions.single.name, 'tapped');
+      expect(harness.actions.single.metadata, {
+        'extensions': {'trace_ext': 't-42'},
+      });
+    },
+  );
+
+  testWidgets(
+    'does not rebuild a component when its own metadata changes if its '
+    'builder never reads node.metadata',
+    (tester) async {
+      var buildCount = 0;
+      final plainItem = ComponentImplementation(
+        name: 'PlainItem',
+        schema: Schema.object(
+          properties: {'label': CommonSchemas.dynamicString},
+        ),
+        builder: (context, node, props, buildChild) {
+          buildCount++;
+          return Text('plain:${props.string('label') ?? ''}');
+        },
+      );
+
+      final SurfaceHarness harness = await pumpComponents(tester, [
+        {'id': 'root', 'component': 'PlainItem', 'label': 'Stable'},
+      ], catalog: _demoCatalog([plainItem]));
+
+      expect(find.text('plain:Stable'), findsOneWidget);
+      final initialBuilds = buildCount;
+
+      harness
+          .surface()
+          .componentsModel
+          .get('root')!
+          .setExtension('unused_ext', 'value1');
+      await tester.pump();
+
+      expect(buildCount, initialBuilds);
+    },
+  );
+
+  test('enforces the allowedParents and allowedChildren of its components', () {
+    Widget empty(context, node, props, buildChild) => const SizedBox();
+    const catalogId = 'https://example.com/composition/catalog.json';
+    final processor = MessageProcessor<ComponentImplementation>(
+      catalogs: [
+        CatalogImplementation(
+          id: catalogId,
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          components: [
+            ComponentImplementation(
+              name: 'Box',
+              schema: Schema.object(
+                properties: {
+                  'children': Schema.fromMap({
+                    r'$ref': r'common_types.json#/$defs/ChildList',
+                  }),
+                },
+              ),
+              allowedChildren: ['Rune'],
+              builder: empty,
+            ),
+            ComponentImplementation(
+              name: 'Rune',
+              schema: Schema.object(),
+              allowedParents: ['Box'],
+              builder: empty,
+            ),
+          ],
+        ),
+      ],
+      defaultVersion: A2uiProtocolVersion.v1_0,
+    );
+    var surfaces = 0;
+    void createSurface(List<Map<String, Object?>> components) =>
+        processor.processMessages(
+          AgentToRendererMessage.parseAll([
+            {
+              'version': '1.0',
+              'createSurface': {
+                'surfaceId': 's${surfaces++}',
+                'catalogId': catalogId,
+                'components': components,
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v1_0),
+        );
+    Matcher violation(String code) =>
+        throwsA(isA<A2uiValidationError>().having((e) => e.code, 'code', code));
+
+    createSurface([
+      {
+        'id': 'root',
+        'component': 'Box',
+        'children': ['r'],
+      },
+      {'id': 'r', 'component': 'Rune'},
+    ]);
+    expect(
+      () => createSurface([
+        {'id': 'root', 'component': 'Rune'},
+      ]),
+      violation('UNALLOWED_PARENT'),
+    );
+    expect(
+      () => createSurface([
+        {
+          'id': 'root',
+          'component': 'Box',
+          'children': ['b'],
+        },
+        {'id': 'b', 'component': 'Box', 'children': <String>[]},
+      ]),
+      violation('UNALLOWED_CHILD'),
+    );
   });
 }

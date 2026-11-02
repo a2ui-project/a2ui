@@ -1,0 +1,146 @@
+{
+  "name": "@a2ui/catalog-vegachart",
+  "version": "0.1.0",
+  "description": "A2UI VegaChart Catalog — Vega and Vega-Lite chart component for A2UI surfaces",
+  "homepage": "https://a2ui.org/",
+  "repository": {
+    "directory": "typescript/catalogs/vegachart",
+    "type": "git",
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/a2ui-project/a2ui/issues"
+  },
+  "keywords": [
+    "a2ui",
+    "vega",
+    "vega-lite",
+    "vegachart",
+    "chart",
+    "visualization",
+    "catalog",
+    "ai",
+    "agent",
+    "ui"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./v0_9": {
+      "types": "./dist/v0_9/index.d.ts",
+      "default": "./dist/v0_9/index.js"
+    },
+    "./v1": {
+      "types": "./dist/v1/index.d.ts",
+      "default": "./dist/v1/index.js"
+    },
+    "./v0_9/catalog.json": "./dist/v0_9/catalog.json",
+    "./v1/catalog.json": "./dist/v1/catalog.json"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
+    "publish:package": "yarn build && node ../../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public",
+    "prepack": "yarn build",
+    "prepare": "yarn build",
+    "build": "wireit",
+    "build:tsc": "wireit",
+    "test": "wireit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "wireit",
+    "format:check": "wireit",
+    "clean": "wireit"
+  },
+  "wireit": {
+    "copy-catalog": {
+      "command": "node scripts/copy-catalog.js",
+      "files": [
+        "../../../catalogs/vegachart/v0_9/catalog.json",
+        "../../../catalogs/vegachart/v1/catalog.json",
+        "scripts/copy-catalog.js"
+      ],
+      "output": [
+        "src/v0_9/catalog.json",
+        "src/v1/catalog.json"
+      ]
+    },
+    "build": {
+      "dependencies": [
+        "build:tsc"
+      ]
+    },
+    "build:tsc": {
+      "command": "tsc -b --pretty",
+      "dependencies": [
+        "copy-catalog",
+        "../../core/web_core:build"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "tsconfig.json"
+      ],
+      "output": [
+        "dist/",
+        "!dist/**/*.tsbuildinfo"
+      ],
+      "clean": "if-file-deleted"
+    },
+    "test": {
+      "command": "node --test \"dist/**/*.test.js\"",
+      "dependencies": [
+        "build"
+      ]
+    },
+    "clean": {
+      "command": "rm -rf dist src/v0_9/catalog.json src/v1/catalog.json tsconfig.tsbuildinfo .wireit"
+    },
+    "format": {
+      "command": "prettier --write .",
+      "files": [
+        "src/**/*.ts",
+        "scripts/**/*.js",
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    "format:check": {
+      "command": "prettier --check .",
+      "files": [
+        "src/**/*.ts",
+        "scripts/**/*.js",
+        "package.json",
+        "tsconfig.json"
+      ]
+    }
+  },
+  "author": "Google",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/jsdom": "^28.0.3",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3",
+    "wireit": "^0.15.0-pre.2"
+  },
+  "dependencies": {
+    "@a2ui/web_core": "workspace:*",
+    "lit": "^3.3.3",
+    "vega": "^5.30.0",
+    "vega-embed": "^6.26.0",
+    "vega-lite": "^5.21.0",
+    "zod": "^3.25.76"
+  }
+}

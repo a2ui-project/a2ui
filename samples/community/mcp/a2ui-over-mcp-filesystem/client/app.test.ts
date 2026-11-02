@@ -166,9 +166,9 @@ describe('the filesystem payload', () => {
   it('validates against the catalog it names', async () => {
     await bootstrap(app);
 
-    expect(app.processor.getClientCapabilities()['v0.9']?.supportedCatalogIds).toContain(
-      CATALOG_ID,
-    );
+    expect(
+      app.processor.getClientCapabilities({versions: ['v0.9']})['v0.9']?.supportedCatalogIds,
+    ).toContain(CATALOG_ID);
     expect(app.surface).toBeDefined();
     expect(app.surface!.componentsModel.get('entry_row')).toBeDefined();
     expect((app as any).error).toBe('');

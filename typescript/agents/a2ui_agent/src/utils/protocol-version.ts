@@ -15,14 +15,14 @@
  */
 
 import {A2uiCatalogError} from '../errors.js';
-import {normalizeVersionString, ProtocolVersion} from '../internal/web-core.js';
+import {isAtLeastVersion, normalizeVersionString, ProtocolVersion} from '../internal/web-core.js';
 
 /**
  * Converts a catalog's declared protocol version into the form that goes on the wire.
  *
- * Catalogs spell the version inconsistently: the compiled v1.0 catalog says `v1.0`, the
- * catalog JSON says `1.0`, and directory-derived values say `v1_0`. Protocol messages
- * always carry the `v`-prefixed dotted form, so normalise on the way out.
+ * Pre-1.0 protocol messages carry the `v`-prefixed dotted form (`v0.9`, `v0.9.1`), whereas
+ * 1.0+ protocol messages, capability objects, and catalogs all use bare semantic version
+ * strings (`1.0`).
  *
  * There is deliberately no default. A version has to be stated by whoever supplies the
  * catalog, so a new protocol release never needs a hardcoded default bumped.
@@ -34,5 +34,18 @@ export function toWireProtocolVersion(raw: string | undefined | null): ProtocolV
   if (!normalized) {
     throw new A2uiCatalogError('A protocol version is required, but none was given.');
   }
-  return `v${normalized}` as ProtocolVersion;
+  return (isAtLeastVersion(normalized, '1.0') ? normalized : `v${normalized}`) as ProtocolVersion;
+}
+
+/**
+ * Converts a catalog's declared protocol version into the release line it belongs to.
+ *
+ * v0.9 and v0.9.1 catalogs are interchangeable, as in the core's catalog compatibility, so
+ * both belong to `v0.9`. Every other version is its own release line, in wire form.
+ *
+ * @throws {A2uiCatalogError} If `raw` is empty or missing.
+ */
+export function toReleaseLine(raw: string | undefined | null): ProtocolVersion {
+  const wire = toWireProtocolVersion(raw);
+  return wire === 'v0.9.1' ? 'v0.9' : wire;
 }

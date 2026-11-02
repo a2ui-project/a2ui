@@ -1,0 +1,383 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "vegachart-dashboard",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "vegachart-dashboard",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": [
+            "title",
+            "revenue_card",
+            "traffic_card",
+            "latency_card",
+            "facet_card",
+            "tickets_card"
+          ]
+        },
+        {
+          "id": "title",
+          "component": "Text",
+          "text": {"path": "/dashboardTitle"},
+          "variant": "h2"
+        },
+
+        {
+          "id": "revenue_card",
+          "component": "Card",
+          "child": "revenue_col"
+        },
+        {
+          "id": "revenue_col",
+          "component": "Column",
+          "children": ["revenue_heading", "revenue_caption", "revenue_chart"]
+        },
+        {
+          "id": "revenue_heading",
+          "component": "Text",
+          "text": "Quarterly Revenue by Product Line",
+          "variant": "h4"
+        },
+        {
+          "id": "revenue_caption",
+          "component": "Text",
+          "text": "Grouped bars with `xOffset`, rounded corners, and tooltips. Bound to `/charts/quarterlyRevenue`.",
+          "variant": "caption"
+        },
+        {
+          "id": "revenue_chart",
+          "component": "VegaChart",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
+          "height": 300,
+          "spec": {"path": "/charts/quarterlyRevenue"}
+        },
+
+        {
+          "id": "traffic_card",
+          "component": "Card",
+          "child": "traffic_col"
+        },
+        {
+          "id": "traffic_col",
+          "component": "Column",
+          "children": ["traffic_heading", "traffic_caption", "traffic_chart"]
+        },
+        {
+          "id": "traffic_heading",
+          "component": "Text",
+          "text": "Monthly Active Users by Channel",
+          "variant": "h4"
+        },
+        {
+          "id": "traffic_caption",
+          "component": "Text",
+          "text": "Multi-series temporal line. The spec asks for `%b` month labels; because the data spans two years, the renderer rewrites the axis to `%b %Y` so labels stay unambiguous.",
+          "variant": "caption"
+        },
+        {
+          "id": "traffic_chart",
+          "component": "VegaChart",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
+          "height": 300,
+          "spec": {"path": "/charts/monthlyTraffic"}
+        },
+
+        {
+          "id": "latency_card",
+          "component": "Card",
+          "child": "latency_col"
+        },
+        {
+          "id": "latency_col",
+          "component": "Column",
+          "children": ["latency_heading", "latency_caption", "latency_chart"]
+        },
+        {
+          "id": "latency_heading",
+          "component": "Text",
+          "text": "API Latency: p50 with p5–p95 Band",
+          "variant": "h4"
+        },
+        {
+          "id": "latency_caption",
+          "component": "Text",
+          "text": "A `layer` spec combining an area band, a line, and a dashed SLO rule.",
+          "variant": "caption"
+        },
+        {
+          "id": "latency_chart",
+          "component": "VegaChart",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
+          "height": 300,
+          "spec": {"path": "/charts/latency"}
+        },
+
+        {
+          "id": "facet_card",
+          "component": "Card",
+          "child": "facet_col"
+        },
+        {
+          "id": "facet_col",
+          "component": "Column",
+          "children": ["facet_heading", "facet_caption", "regional_facet_chart"]
+        },
+        {
+          "id": "facet_heading",
+          "component": "Text",
+          "text": "Category Sales by Region",
+          "variant": "h4"
+        },
+        {
+          "id": "facet_caption",
+          "component": "Text",
+          "text": "Faceted with `encoding.column`. Subplot width is divided across the measured container; subplot height is derived from the number of categories.",
+          "variant": "caption"
+        },
+        {
+          "id": "regional_facet_chart",
+          "component": "VegaChart",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
+          "spec": {"path": "/charts/regionalSales"}
+        },
+
+        {
+          "id": "tickets_card",
+          "component": "Card",
+          "child": "tickets_col"
+        },
+        {
+          "id": "tickets_col",
+          "component": "Column",
+          "children": ["tickets_heading", "tickets_caption", "tickets_chart"]
+        },
+        {
+          "id": "tickets_heading",
+          "component": "Text",
+          "text": "Open Support Tickets by Team and Priority",
+          "variant": "h4"
+        },
+        {
+          "id": "tickets_caption",
+          "component": "Text",
+          "text": "Faceted with `encoding.facet` and `columns: 2`, so four teams wrap onto two rows. The chart grows taller than its default `height` to fit every subplot.",
+          "variant": "caption"
+        },
+        {
+          "id": "tickets_chart",
+          "component": "VegaChart",
+          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
+          "spec": {"path": "/charts/ticketsByTeam"}
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "vegachart-dashboard",
+      "path": "/",
+      "value": {
+        "dashboardTitle": "A2UI VegaChart Catalog Demo",
+        "charts": {
+          "quarterlyRevenue": {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "description": "Quarterly revenue by product line in thousands of dollars",
+            "data": {
+              "values": [
+                {"quarter": "Q1", "product": "Compute", "revenue": 420},
+                {"quarter": "Q1", "product": "Storage", "revenue": 260},
+                {"quarter": "Q1", "product": "Analytics", "revenue": 180},
+                {"quarter": "Q2", "product": "Compute", "revenue": 510},
+                {"quarter": "Q2", "product": "Storage", "revenue": 290},
+                {"quarter": "Q2", "product": "Analytics", "revenue": 240},
+                {"quarter": "Q3", "product": "Compute", "revenue": 640},
+                {"quarter": "Q3", "product": "Storage", "revenue": 310},
+                {"quarter": "Q3", "product": "Analytics", "revenue": 330},
+                {"quarter": "Q4", "product": "Compute", "revenue": 780},
+                {"quarter": "Q4", "product": "Storage", "revenue": 350},
+                {"quarter": "Q4", "product": "Analytics", "revenue": 450}
+              ]
+            },
+            "mark": {"type": "bar", "cornerRadiusEnd": 4, "tooltip": true},
+            "encoding": {
+              "x": {
+                "field": "quarter",
+                "type": "ordinal",
+                "title": "Quarter",
+                "axis": {"labelAngle": 0}
+              },
+              "xOffset": {"field": "product"},
+              "y": {"field": "revenue", "type": "quantitative", "title": "Revenue ($K)"},
+              "color": {"field": "product", "type": "nominal", "title": "Product line"}
+            }
+          },
+          "monthlyTraffic": {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "description": "Monthly active users by acquisition channel",
+            "data": {
+              "values": [
+                {"month": "2025-09-01", "channel": "Organic", "users": 9100},
+                {"month": "2025-10-01", "channel": "Organic", "users": 9800},
+                {"month": "2025-11-01", "channel": "Organic", "users": 10900},
+                {"month": "2025-12-01", "channel": "Organic", "users": 11600},
+                {"month": "2026-01-01", "channel": "Organic", "users": 12400},
+                {"month": "2026-02-01", "channel": "Organic", "users": 14200},
+                {"month": "2026-03-01", "channel": "Organic", "users": 16800},
+                {"month": "2026-04-01", "channel": "Organic", "users": 19500},
+                {"month": "2025-09-01", "channel": "Direct", "users": 6900},
+                {"month": "2025-10-01", "channel": "Direct", "users": 7200},
+                {"month": "2025-11-01", "channel": "Direct", "users": 7600},
+                {"month": "2025-12-01", "channel": "Direct", "users": 7900},
+                {"month": "2026-01-01", "channel": "Direct", "users": 8200},
+                {"month": "2026-02-01", "channel": "Direct", "users": 8900},
+                {"month": "2026-03-01", "channel": "Direct", "users": 9700},
+                {"month": "2026-04-01", "channel": "Direct", "users": 11300},
+                {"month": "2025-09-01", "channel": "Referral", "users": 2800},
+                {"month": "2025-10-01", "channel": "Referral", "users": 3100},
+                {"month": "2025-11-01", "channel": "Referral", "users": 3600},
+                {"month": "2025-12-01", "channel": "Referral", "users": 3900},
+                {"month": "2026-01-01", "channel": "Referral", "users": 4100},
+                {"month": "2026-02-01", "channel": "Referral", "users": 5300},
+                {"month": "2026-03-01", "channel": "Referral", "users": 6100},
+                {"month": "2026-04-01", "channel": "Referral", "users": 7400}
+              ]
+            },
+            "mark": {"type": "line", "point": true, "tooltip": true, "interpolate": "monotone"},
+            "encoding": {
+              "x": {
+                "field": "month",
+                "type": "temporal",
+                "title": "Month",
+                "axis": {"format": "%b"}
+              },
+              "y": {"field": "users", "type": "quantitative", "title": "Active users"},
+              "color": {"field": "channel", "type": "nominal", "title": "Channel"}
+            }
+          },
+          "latency": {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "description": "API latency percentiles over the last eight weeks",
+            "data": {
+              "values": [
+                {"week": "2026-03-02", "p5": 82, "p50": 118, "p95": 210},
+                {"week": "2026-03-09", "p5": 80, "p50": 115, "p95": 198},
+                {"week": "2026-03-16", "p5": 85, "p50": 124, "p95": 245},
+                {"week": "2026-03-23", "p5": 79, "p50": 109, "p95": 182},
+                {"week": "2026-03-30", "p5": 77, "p50": 104, "p95": 171},
+                {"week": "2026-04-06", "p5": 81, "p50": 112, "p95": 190},
+                {"week": "2026-04-13", "p5": 76, "p50": 101, "p95": 163},
+                {"week": "2026-04-20", "p5": 74, "p50": 98, "p95": 158}
+              ]
+            },
+            "encoding": {
+              "x": {
+                "field": "week",
+                "type": "temporal",
+                "title": "Week",
+                "axis": {"format": "%b %d"}
+              }
+            },
+            "layer": [
+              {
+                "mark": {"type": "area", "opacity": 0.2},
+                "encoding": {
+                  "y": {"field": "p5", "type": "quantitative", "title": "Latency (ms)"},
+                  "y2": {"field": "p95"}
+                }
+              },
+              {
+                "mark": {"type": "line", "point": true, "tooltip": true},
+                "encoding": {
+                  "y": {"field": "p50", "type": "quantitative"}
+                }
+              },
+              {
+                "mark": {"type": "rule", "strokeDash": [6, 4], "color": "#EA4335"},
+                "encoding": {
+                  "y": {"datum": 200}
+                }
+              }
+            ]
+          },
+          "regionalSales": {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "description": "Product category sales broken down by region",
+            "data": {
+              "values": [
+                {"region": "North America", "category": "Compute", "sales": 340},
+                {"region": "North America", "category": "Storage", "sales": 210},
+                {"region": "North America", "category": "Analytics", "sales": 290},
+                {"region": "North America", "category": "Networking", "sales": 150},
+                {"region": "Europe", "category": "Compute", "sales": 280},
+                {"region": "Europe", "category": "Storage", "sales": 190},
+                {"region": "Europe", "category": "Analytics", "sales": 240},
+                {"region": "Europe", "category": "Networking", "sales": 120},
+                {"region": "Asia Pacific", "category": "Compute", "sales": 310},
+                {"region": "Asia Pacific", "category": "Storage", "sales": 230},
+                {"region": "Asia Pacific", "category": "Analytics", "sales": 360},
+                {"region": "Asia Pacific", "category": "Networking", "sales": 170}
+              ]
+            },
+            "mark": {"type": "bar", "tooltip": true},
+            "encoding": {
+              "column": {"field": "region", "type": "nominal", "title": null},
+              "x": {"field": "sales", "type": "quantitative", "title": "Sales ($K)"},
+              "y": {"field": "category", "type": "nominal", "title": null, "sort": "-x"},
+              "color": {"field": "category", "type": "nominal", "legend": null}
+            }
+          },
+          "ticketsByTeam": {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "description": "Open support tickets by team and priority",
+            "data": {
+              "values": [
+                {"team": "Billing", "priority": "P0", "tickets": 2},
+                {"team": "Billing", "priority": "P1", "tickets": 9},
+                {"team": "Billing", "priority": "P2", "tickets": 21},
+                {"team": "Billing", "priority": "P3", "tickets": 34},
+                {"team": "Platform", "priority": "P0", "tickets": 4},
+                {"team": "Platform", "priority": "P1", "tickets": 15},
+                {"team": "Platform", "priority": "P2", "tickets": 27},
+                {"team": "Platform", "priority": "P3", "tickets": 19},
+                {"team": "Mobile", "priority": "P0", "tickets": 1},
+                {"team": "Mobile", "priority": "P1", "tickets": 6},
+                {"team": "Mobile", "priority": "P2", "tickets": 18},
+                {"team": "Mobile", "priority": "P3", "tickets": 25},
+                {"team": "Integrations", "priority": "P0", "tickets": 3},
+                {"team": "Integrations", "priority": "P1", "tickets": 11},
+                {"team": "Integrations", "priority": "P2", "tickets": 14},
+                {"team": "Integrations", "priority": "P3", "tickets": 12}
+              ]
+            },
+            "mark": {"type": "bar", "cornerRadiusEnd": 3, "tooltip": true},
+            "encoding": {
+              "facet": {"field": "team", "type": "nominal", "columns": 2, "title": null},
+              "x": {
+                "field": "priority",
+                "type": "ordinal",
+                "title": null,
+                "axis": {"labelAngle": 0}
+              },
+              "y": {"field": "tickets", "type": "quantitative", "title": "Open tickets"},
+              "color": {
+                "field": "priority",
+                "type": "ordinal",
+                "scale": {"range": ["#EA4335", "#FF6D01", "#FBBC04", "#34A853"]},
+                "legend": null
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+]

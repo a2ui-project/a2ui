@@ -169,7 +169,7 @@ ValidationResult validateRegex(Object? value, Object? pattern) {
     throw A2uiExpressionError(
       'Invalid regex pattern: $source',
       expression: 'regex',
-      details: e,
+      details: e.message,
     );
   }
   return regex.hasMatch(coerceToString(value))

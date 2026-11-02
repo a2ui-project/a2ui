@@ -63,13 +63,10 @@ class ExpressPromptGenerator extends PromptGenerator {
   /// has no Express notation; see [ExpressDecompiler.decompile].
   @override
   String generate() {
-    if (this.catalogs.isEmpty) {
+    if (catalogs.isEmpty) {
       throw A2uiCatalogError('An Express prompt needs at least one catalog.');
     }
-    // The decompiler holds linked copies, which resolve cross-catalog
-    // references; [catalogs] stay as they are.
-    final decompiler = ExpressDecompiler(this.catalogs);
-    final List<CatalogApi> catalogs = decompiler.catalogs;
+    final decompiler = ExpressDecompiler(catalogs);
     final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
     final bool v1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
     final buffer = StringBuffer(
@@ -89,7 +86,7 @@ class ExpressPromptGenerator extends PromptGenerator {
         ..write(section(catalogs.single, '##'));
     } else {
       buffer.write(v1 ? _catalogsV1(catalogs) : _catalogsV0_9(catalogs));
-      for (final catalog in catalogs) {
+      for (final CatalogApi catalog in catalogs) {
         buffer
           ..write('\n\n## Catalog `${catalog.id}`\n\n')
           ..write(section(catalog, '###'));
@@ -400,7 +397,7 @@ const String _contract = '''# A2UI Express DSL Output Contract
 
 You must output the user interface using A2UI Express.
 
-IMPORTANT: You MUST always surround the entire A2UI Express block with the sentinel tags `<a2ui>` and `</a2ui>`.
+IMPORTANT: You MUST always surround the entire A2UI Express block with the literal sentinel tags `<a2ui>` and `</a2ui>` (always include both the opening and closing tags; do NOT wrap the tags in backticks or replace the opening tag with a markdown code fence such as ```a2ui).
 
 The host compiler will compile your A2UI Express output into the correct JSON envelopes automatically.
 

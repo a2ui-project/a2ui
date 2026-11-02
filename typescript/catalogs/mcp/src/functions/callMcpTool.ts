@@ -21,10 +21,8 @@
  * ## Setup
  *
  * ```ts
- * const catalogs: Catalog<any>[] = [];
- * const processor = new MessageProcessor(catalogs);
- * const callMcpTool = createCallMcpToolImplementation(getMcpClientForTool, processor);
- * catalogs.push(new Catalog(MCP_CATALOG_ID, '0.9', [], [callMcpTool]));
+ * const processor = new MessageProcessor([mcpCatalog]);
+ * configureMcpCatalog({getMcpClientForTool, processor});
  * ```
  *
  * ## Supported MCP UI Responses
@@ -123,6 +121,8 @@ import {
   createFunctionImplementation,
   type A2uiMessage,
   type CreateSurfaceMessage,
+  type DataContext,
+  type FunctionCall,
   type FunctionImplementation,
   type MessageProcessor,
 } from '@a2ui/web_core/v0_9';
@@ -131,10 +131,37 @@ import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
 import {z} from 'zod';
 
-import {resolveDynamicRecord} from '../dynamic-values.js';
+import {isFunctionCall, isRecord, resolveDynamicRecord} from '../dynamic-values.js';
+import {DEFAULT_MESSAGE_VERSION, getMcpCatalogConfig} from '../mcp_catalog_config.js';
 
 /** MIME type identifying an A2UI payload in an MCP resource. */
 export const A2UI_MIME_TYPE = 'application/a2ui+json';
+
+/** MIME type identifying an MCP App HTML bundle (`ui://`) resource. */
+export const MCP_APP_MIME_TYPE = 'text/html;profile=mcp-app';
+
+/**
+ * Resolved MCP App resource (`text/html;profile=mcp-app`) together with its `_meta.ui` security
+ * metadata and the originating tool's input and result.
+ */
+export interface McpAppResourcePayload {
+  readonly resourceUri: string;
+  readonly html: string;
+  readonly csp?: {
+    readonly connectDomains?: readonly string[];
+    readonly resourceDomains?: readonly string[];
+    readonly frameDomains?: readonly string[];
+    readonly baseUriDomains?: readonly string[];
+  };
+  readonly permissions?: {
+    readonly camera?: Record<string, unknown>;
+    readonly microphone?: Record<string, unknown>;
+    readonly geolocation?: Record<string, unknown>;
+    readonly clipboardWrite?: Record<string, unknown>;
+  };
+  readonly toolInput?: Record<string, unknown>;
+  readonly toolResult?: Record<string, unknown>;
+}
 
 /** Maximum number of decoded UI resources to cache per implementation. */
 const MAX_CACHED_RESOURCES = 100;
@@ -164,46 +191,114 @@ export const CallMcpToolApi = {
   schema: z.object({
     name: DynamicStringSchema.describe('The name of the MCP tool to execute.'),
     arguments: z
-      .record(DynamicValueSchema)
+      .union([z.custom<FunctionCall>(isArgumentsCall), z.record(DynamicValueSchema)])
       .optional()
       .default({})
-      .describe('The arguments to pass to the MCP tool.'),
+      .describe(
+        'The arguments to pass to the MCP tool: an object of dynamic values, or a function call that returns one.',
+      ),
+    targetDataPath: DynamicStringSchema.optional().describe(
+      'Optional JSON Pointer path on the surface data model where a resolved MCP App resource payload (`resourceUri`, `html`, `csp`, `permissions`, `toolInput`, `toolResult`) is written.',
+    ),
   }),
   description: 'Invokes a tool on a connected Model Context Protocol (MCP) server.',
 };
 
 /**
- * Creates the `callMcpTool` function implementation.
+ * Checks whether `arguments` is a function call that produces the whole arguments object rather
+ * than a record of tool arguments. A record that merely has a `call` key next to other arguments
+ * stays a record.
+ */
+function isArgumentsCall(value: unknown): value is FunctionCall {
+  return (
+    isFunctionCall(value) &&
+    Object.keys(value).every(key => key === 'call' || key === 'args' || key === 'returnType')
+  );
+}
+
+/**
+ * Resolves the `arguments` of a `callMcpTool` call: a function call is invoked once and its result
+ * is the whole arguments object (tool arguments named `path` or `call` stay literal that way), and a
+ * record resolves each of its values.
+ */
+function resolveToolArguments(
+  value: FunctionCall | Record<string, unknown>,
+  context: DataContext,
+): unknown {
+  if (!isArgumentsCall(value)) {
+    return resolveDynamicRecord(value, context);
+  }
+  return context.resolveDynamicValue({
+    call: value.call,
+    args: value.args ?? {},
+    returnType: value.returnType ?? 'any',
+  });
+}
+
+/** Options of `createCallMcpToolImplementation`. */
+export interface CallMcpToolOptions {
+  /** Resolves the connected MCP client for a tool name. */
+  readonly getMcpClientForTool?: McpClientResolver;
+  /** Message processor that receives A2UI messages decoded from tool results. */
+  readonly processor?: MessageProcessor<any>;
+  /**
+   * The A2UI protocol version given to decoded messages that carry no `version`, such as the
+   * payloads of MCP catalog servers that predate the field. Defaults to `'1.0'`.
+   */
+  readonly defaultVersion?: string;
+  /**
+   * Optional callback invoked whenever a tool call resolves an MCP App (`text/html;profile=mcp-app`)
+   * resource.
+   */
+  readonly onMcpAppResource?: (payload: McpAppResourcePayload, context: DataContext) => void;
+}
+
+interface DecodedUiResource {
+  readonly a2uiMessages: A2uiMessage[];
+  readonly mcpAppResources: Array<Omit<McpAppResourcePayload, 'toolInput' | 'toolResult'>>;
+}
+
+/**
+ * Creates a `callMcpTool` function implementation bound to a configuration getter.
  *
- * Invokes the named MCP tool, processes any referenced or inline `application/a2ui+json`
- * resources through `processor`, and returns the raw `CallToolResult`.
+ * The getter is read on every invocation, so the host can configure (or reconfigure) the MCP
+ * client resolver and message processor after the catalog is registered. The implementation
+ * invokes the named MCP tool, processes any referenced or inline `application/a2ui+json`
+ * resources through the configured processor, and returns the raw `CallToolResult`.
  *
- * @param getMcpClientForTool Callback that resolves the MCP client for a tool name.
- * @param processor Message processor that applies decoded A2UI messages.
+ * @param getOptions Returns the current options; see `CallMcpToolOptions`.
  */
 export function createCallMcpToolImplementation(
-  getMcpClientForTool: McpClientResolver,
-  processor: MessageProcessor<any>,
+  getOptions: () => CallMcpToolOptions,
 ): FunctionImplementation {
-  /** Cache of decoded A2UI messages keyed by resource URI. */
-  const a2uiMessagesByResourceUri = new Map<string, A2uiMessage[]>();
+  /** Cache of decoded UI resources per MCP client, keyed by resource URI. */
+  const decodedByClient = new WeakMap<McpToolClient, Map<string, DecodedUiResource>>();
 
   /** Cache of tool-declared UI resource URIs per MCP client. */
   const declaredUiResourceUris = new WeakMap<McpToolClient, Promise<Map<string, string[]>>>();
 
-  async function readA2uiResource(client: McpToolClient, uri: string): Promise<A2uiMessage[]> {
-    let messages = a2uiMessagesByResourceUri.get(uri);
-    if (!messages) {
-      messages = parseA2uiMessages(await client.readResource({uri}), uri);
-      if (a2uiMessagesByResourceUri.size >= MAX_CACHED_RESOURCES) {
-        const oldestUri = a2uiMessagesByResourceUri.keys().next().value;
+  async function readUiResource(client: McpToolClient, uri: string): Promise<DecodedUiResource> {
+    let decodedByResourceUri = decodedByClient.get(client);
+    if (!decodedByResourceUri) {
+      decodedByResourceUri = new Map<string, DecodedUiResource>();
+      decodedByClient.set(client, decodedByResourceUri);
+    }
+    let decoded = decodedByResourceUri.get(uri);
+    if (!decoded) {
+      const resource = await client.readResource({uri});
+      decoded = {
+        a2uiMessages: parseA2uiMessages(resource, uri),
+        mcpAppResources: parseMcpAppResources(resource, uri),
+      };
+      if (decodedByResourceUri.size >= MAX_CACHED_RESOURCES) {
+        const oldestUri = decodedByResourceUri.keys().next().value;
         if (oldestUri !== undefined) {
-          a2uiMessagesByResourceUri.delete(oldestUri);
+          decodedByResourceUri.delete(oldestUri);
         }
       }
-      a2uiMessagesByResourceUri.set(uri, messages);
+      decodedByResourceUri.set(uri, decoded);
     }
-    return messages;
+    return decoded;
   }
 
   /** Queries `tools/list` once per client to discover UI resource URIs declared by tools. */
@@ -234,9 +329,31 @@ export function createCallMcpToolImplementation(
 
   return createFunctionImplementation(CallMcpToolApi, async (args, context) => {
     const toolName = context.resolveDynamicValue<string>(args.name);
+    const targetDataPath =
+      args.targetDataPath !== undefined
+        ? context.resolveDynamicValue<string>(args.targetDataPath)
+        : undefined;
+    const {
+      getMcpClientForTool,
+      processor,
+      defaultVersion = DEFAULT_MESSAGE_VERSION,
+      onMcpAppResource,
+    } = getOptions();
+    if (!getMcpClientForTool || !processor) {
+      throw new A2uiExpressionError(
+        `Cannot execute MCP tool '${toolName}': callMcpTool is not configured. Call configureMcpCatalog({getMcpClientForTool, processor}) first.`,
+        'callMcpTool',
+      );
+    }
+    const withVersion = (message: A2uiMessage) => ensureMessageVersion(message, defaultVersion);
 
     try {
-      const resolvedArguments = resolveDynamicRecord(args.arguments ?? {}, context);
+      const resolvedArguments = await resolveToolArguments(args.arguments ?? {}, context);
+      if (!isRecord(resolvedArguments)) {
+        throw new Error(
+          `MCP tool '${toolName}' arguments must resolve to an object, got ${JSON.stringify(resolvedArguments)}.`,
+        );
+      }
 
       const client = await getMcpClientForTool(toolName);
       if (!client) {
@@ -256,21 +373,43 @@ export function createCallMcpToolImplementation(
         throw new Error(`MCP tool '${toolName}' execution failed: ${JSON.stringify(result)}`);
       }
 
+      const emitMcpAppResource = (
+        base: Omit<McpAppResourcePayload, 'toolInput' | 'toolResult'>,
+      ) => {
+        const payload: McpAppResourcePayload = {
+          ...base,
+          toolInput: resolvedArguments,
+          toolResult: result as unknown as Record<string, unknown>,
+        };
+        if (targetDataPath) {
+          context.set(targetDataPath, payload);
+        }
+        onMcpAppResource?.(payload, context);
+      };
+
       // Prefer resource URIs from the tool result, falling back to tool-declared URIs.
       const named = readUiResourceUris(result);
-      const uris =
+      const resourceLinkUris = extractMcpAppResourceLinkUris(result.content);
+      const baseUris =
         named.length > 0 ? named : ((await getDeclaredUiResourceUris(client)).get(toolName) ?? []);
+      const uris = [...new Set([...baseUris, ...resourceLinkUris])];
       for (const uri of uris) {
-        const resourceMessages = await readA2uiResource(client, uri);
+        const {a2uiMessages, mcpAppResources} = await readUiResource(client, uri);
         // Skip recreating surfaces that already exist to avoid throwing A2uiStateError.
-        if (!createsExistingSurface(resourceMessages, processor)) {
-          processor.processMessages(resourceMessages.map(ensureMessageVersion));
+        if (a2uiMessages.length > 0 && !createsExistingSurface(a2uiMessages, processor)) {
+          processor.processMessages(a2uiMessages.map(withVersion));
+        }
+        for (const appResource of mcpAppResources) {
+          emitMcpAppResource(appResource);
         }
       }
 
       const messages = extractA2uiMessages(result.content);
       if (messages.length > 0) {
-        processor.processMessages(messages.map(ensureMessageVersion));
+        processor.processMessages(messages.map(withVersion));
+      }
+      for (const inlineAppResource of extractInlineMcpAppResources(result.content)) {
+        emitMcpAppResource(inlineAppResource);
       }
 
       return result;
@@ -358,6 +497,175 @@ export function parseA2uiMessages(
   });
 }
 
+/**
+ * Matches `text/html` with a `profile=mcp-app` parameter, regardless of case, whitespace and
+ * parameter order.
+ */
+function isMcpAppMimeType(mimeType: unknown): boolean {
+  if (typeof mimeType !== 'string') {
+    return false;
+  }
+  const [type, ...params] = mimeType
+    .toLowerCase()
+    .split(';')
+    .map(part => part.trim());
+  return type === 'text/html' && params.includes('profile=mcp-app');
+}
+
+function isUiSchemeUri(uri: unknown): uri is string {
+  return typeof uri === 'string' && uri.startsWith('ui://');
+}
+
+function decodeBase64Utf8(blob: string): string {
+  const binary = atob(blob);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+function readResourceItemHtml(item: {text?: unknown; blob?: unknown}): string | undefined {
+  if (typeof item.text === 'string') {
+    return item.text;
+  }
+  if (typeof item.blob === 'string') {
+    return decodeBase64Utf8(item.blob);
+  }
+  return undefined;
+}
+
+/**
+ * Extracts `resource_link` URIs from `CallToolResult.content` blocks that reference
+ * an MCP App (`text/html;profile=mcp-app` or `ui://` URI).
+ */
+export function extractMcpAppResourceLinkUris(
+  content: CallToolResult['content'] | undefined,
+): string[] {
+  const uris: string[] = [];
+  for (const item of content ?? []) {
+    const block = item as {type?: string; uri?: unknown; mimeType?: unknown};
+    if (block?.type !== 'resource_link' || typeof block.uri !== 'string' || block.uri === '') {
+      continue;
+    }
+    if (block.mimeType === A2UI_MIME_TYPE) {
+      continue;
+    }
+    if (isMcpAppMimeType(block.mimeType) || isUiSchemeUri(block.uri)) {
+      uris.push(block.uri);
+    }
+  }
+  return [...new Set(uris)];
+}
+
+/**
+ * Builds the resource half of a payload from a resource's `_meta.ui`, keeping only record-shaped
+ * `csp` and `permissions`.
+ */
+function toMcpAppResource(
+  resourceUri: string,
+  html: string,
+  uiMeta: Record<string, unknown> | undefined,
+): Omit<McpAppResourcePayload, 'toolInput' | 'toolResult'> {
+  const csp = uiMeta?.['csp'];
+  const permissions = uiMeta?.['permissions'];
+  return {
+    resourceUri,
+    html,
+    ...(isRecord(csp) ? {csp: csp as McpAppResourcePayload['csp']} : {}),
+    ...(isRecord(permissions)
+      ? {permissions: permissions as McpAppResourcePayload['permissions']}
+      : {}),
+  };
+}
+
+/**
+ * Extracts inline MCP App HTML resources from `CallToolResult.content` blocks.
+ */
+export function extractInlineMcpAppResources(
+  content: CallToolResult['content'] | undefined,
+): Array<Omit<McpAppResourcePayload, 'toolInput' | 'toolResult'>> {
+  const resources: Array<Omit<McpAppResourcePayload, 'toolInput' | 'toolResult'>> = [];
+  for (const item of content ?? []) {
+    const block = item as {
+      type?: string;
+      _meta?: unknown;
+      resource?: {
+        uri?: string;
+        mimeType?: string;
+        text?: unknown;
+        blob?: unknown;
+        _meta?: unknown;
+      };
+    };
+    if (block?.type !== 'resource' || !block.resource) {
+      continue;
+    }
+    const {uri, mimeType} = block.resource;
+    if (mimeType === A2UI_MIME_TYPE) {
+      continue;
+    }
+    if (!isMcpAppMimeType(mimeType) && !isUiSchemeUri(uri)) {
+      continue;
+    }
+    const html = readResourceItemHtml(block.resource);
+    if (html === undefined) {
+      continue;
+    }
+    const uiMeta =
+      ((block.resource._meta as Record<string, unknown> | undefined)?.['ui'] as
+        | Record<string, unknown>
+        | undefined) ??
+      ((block._meta as Record<string, unknown> | undefined)?.['ui'] as
+        | Record<string, unknown>
+        | undefined);
+    resources.push(
+      toMcpAppResource(typeof uri === 'string' && uri !== '' ? uri : 'ui://inline', html, uiMeta),
+    );
+  }
+  return resources;
+}
+
+/**
+ * Parses MCP App HTML resources from a `resources/read` response for all content
+ * blocks matching `text/html;profile=mcp-app` (or a `ui://` URI with HTML content).
+ */
+export function parseMcpAppResources(
+  resource: ReadResourceResult | undefined,
+  uri: string,
+): Array<Omit<McpAppResourcePayload, 'toolInput' | 'toolResult'>> {
+  const results: Array<Omit<McpAppResourcePayload, 'toolInput' | 'toolResult'>> = [];
+  const topLevelUiMeta = (resource?._meta as Record<string, unknown> | undefined)?.['ui'] as
+    | Record<string, unknown>
+    | undefined;
+  for (const item of resource?.contents ?? []) {
+    const content = item as {
+      uri?: string;
+      mimeType?: string;
+      text?: unknown;
+      blob?: unknown;
+      _meta?: unknown;
+    };
+    if (content.mimeType === A2UI_MIME_TYPE) {
+      continue;
+    }
+    const resolvedUri = typeof content.uri === 'string' && content.uri !== '' ? content.uri : uri;
+    if (!isMcpAppMimeType(content.mimeType) && !isUiSchemeUri(resolvedUri)) {
+      continue;
+    }
+    const html = readResourceItemHtml(content);
+    if (html === undefined) {
+      continue;
+    }
+    const itemUiMeta =
+      ((content._meta as Record<string, unknown> | undefined)?.['ui'] as
+        | Record<string, unknown>
+        | undefined) ?? topLevelUiMeta;
+    results.push(toMcpAppResource(resolvedUri, html, itemUiMeta));
+  }
+  return results;
+}
+
 /** Checks whether any message attempts to create a surface that already exists in `processor`. */
 function createsExistingSurface(
   messages: A2uiMessage[],
@@ -373,10 +681,13 @@ function createsExistingSurface(
 }
 
 /**
- * Ensures an A2UI message carries a version identifier before processing,
- * defaulting to 'v0.9' for MCP v0.9 catalog payloads when not explicitly provided.
+ * Ensures an A2UI message carries a version identifier before processing, defaulting to
+ * `defaultVersion` when not explicitly provided.
  */
-export function ensureMessageVersion(message: A2uiMessage): A2uiMessage {
+export function ensureMessageVersion(
+  message: A2uiMessage,
+  defaultVersion = DEFAULT_MESSAGE_VERSION,
+): A2uiMessage {
   if (
     typeof message === 'object' &&
     message !== null &&
@@ -384,8 +695,15 @@ export function ensureMessageVersion(message: A2uiMessage): A2uiMessage {
   ) {
     return {
       ...(message as unknown as Record<string, unknown>),
-      version: 'v0.9',
+      version: defaultVersion,
     } as A2uiMessage;
   }
   return message;
 }
+
+/**
+ * The `callMcpTool` function of the MCP catalog, bound to the host configuration set with
+ * `configureMcpCatalog`. It fails until the host provides `getMcpClientForTool` and `processor`.
+ */
+export const CallMcpToolImplementation: FunctionImplementation =
+  createCallMcpToolImplementation(getMcpCatalogConfig);

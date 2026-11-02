@@ -14,9 +14,29 @@
  * limitations under the License.
  */
 
-import {createContext, useContext} from 'react';
+import {createContext, useContext, type ComponentType} from 'react';
 import type {MarkdownRenderer} from '@a2ui/web_core';
 
 export const MarkdownContext = createContext<MarkdownRenderer | undefined>(undefined);
 
 export const useMarkdownRenderer = () => useContext(MarkdownContext);
+
+/** What the component in `MarkdownComponentContext` receives. */
+export interface MarkdownComponentProps {
+  /** The Markdown to render. */
+  markdown: string;
+}
+
+/**
+ * A React component that renders the Markdown of web_core's basic catalog `Text`, in place of
+ * the function `MarkdownContext` takes, which returns HTML.
+ *
+ * The component renders inside the app's React tree, below the `A2uiSurface` that shows the
+ * `Text`, so it reads the app's context. When both contexts are given, this one is used.
+ * web_core's `Text` reads one Markdown renderer for the whole page, so give the component to
+ * every `A2uiSurface` on the page or to none: a surface without it shows no text for its
+ * Markdown while another surface has it.
+ */
+export const MarkdownComponentContext = createContext<
+  ComponentType<MarkdownComponentProps> | undefined
+>(undefined);

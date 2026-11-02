@@ -68,7 +68,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's-default',
           catalogId: basicCatalog.id,
@@ -76,7 +76,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's-default',
           components: [
@@ -133,11 +133,11 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's-a11y', catalogId: basicCatalog.id},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 's-a11y',
           path: '/a11yLabel',
@@ -145,7 +145,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's-a11y',
           components: [
@@ -182,7 +182,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     // Verify subsequent reactive data model updates propagate to host attributes
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 's-a11y',
           path: '/a11yLabel',
@@ -198,11 +198,11 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's-props', catalogId: basicCatalog.id},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's-props',
           components: [
@@ -267,11 +267,11 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's-checks', catalogId: basicCatalog.id},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 's-checks',
           path: '/warningResult',
@@ -284,7 +284,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's-checks',
           components: [
@@ -399,11 +399,11 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's-act', catalogId: basicCatalog.id},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's-act',
           components: [
@@ -497,11 +497,11 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       const processor = new MessageProcessor([testCatalog as any]);
       processor.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {surfaceId: 's-leak', catalogId: testCatalog.id},
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {surfaceId: 's-leak', path: '/targetUrl', value: 'https://initial.com'},
         },
       ]);
@@ -560,11 +560,11 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const processor = new MessageProcessor([customV1Catalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's-idx', catalogId: customV1Catalog.id},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 's-idx',
           path: '/items',
@@ -572,7 +572,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's-idx',
           components: [{id: 'item1', component: 'CustomItem', indexNum: 0}],
@@ -622,11 +622,11 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog, secondaryCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's-multi', catalogId: basicCatalog.id},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's-multi',
           components: [
@@ -675,11 +675,11 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 'sSliderBounds', catalogId: basicCatalog.id},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'sSliderBounds',
           components: [

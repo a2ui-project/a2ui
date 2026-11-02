@@ -85,3 +85,162 @@ def test_function_property_schema(helper):
 def test_unsupported_catalog_type_raises():
     with pytest.raises(TypeError):
         CatalogSchemaHelper("invalid_catalog_type")  # type: ignore[arg-type]
+
+
+@pytest.fixture
+def inheriting_helper() -> CatalogSchemaHelper:
+    catalog = Catalog.from_json({
+        "catalogId": "inheriting",
+        "protocolVersion": "1.0",
+        "components": {
+            "Base": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Base"},
+                    "mode": {"type": "string", "enum": ["a", "b"]},
+                    "size": {"type": "string", "enum": ["s", "m"]},
+                    "label": {"type": "string"},
+                },
+                "required": ["component"],
+            },
+            "Derived": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "#/components/Base"},
+                    {"$ref": "common_types.json#/$defs/Checkable"},
+                ],
+                "properties": {
+                    "component": {"const": "Derived"},
+                    "mode": {"type": "string"},
+                    "size": {"type": "string", "enum": ["l"]},
+                    "label": {"$ref": "common_types.json#/$defs/ComponentId"},
+                    "checks": {"type": "array"},
+                    "extra": {"type": "string"},
+                },
+                "required": ["component"],
+            },
+        },
+    })
+    return CatalogSchemaHelper(catalog)
+
+
+def test_own_property_definition_wins_over_inherited_one(inheriting_helper):
+    assert inheriting_helper.get_property_enum("Derived", "mode") is None
+    assert inheriting_helper.get_property_enum("Derived", "size") == ["l"]
+    assert inheriting_helper.get_property_type("Derived", "label") == "Child"
+    assert inheriting_helper.get_property_enum("Base", "mode") == ["a", "b"]
+
+
+def test_inherited_property_order_lists_checks_once_and_last(inheriting_helper):
+    assert inheriting_helper.get_component_properties("Derived") == [
+        "mode",
+        "size",
+        "label",
+        "extra",
+        "checks",
+    ]
+    assert inheriting_helper.is_checkable("Derived")
+
+
+_V0_9_COMMON_TYPES = "https://a2ui.org/specification/v0_9/common_types.json"
+
+
+@pytest.fixture
+def nested_mixin_helper() -> CatalogSchemaHelper:
+    catalog = Catalog.from_json({
+        "catalogId": "nested_mixin",
+        "protocolVersion": "v0.9",
+        "$defs": {
+            "MaterialComponentCommon": {
+                "allOf": [
+                    {"$ref": f"{_V0_9_COMMON_TYPES}#/$defs/ComponentCommon"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "weight": {"type": "number"},
+                            "style": {
+                                "type": "string",
+                                "enum": ["flat", "raised"],
+                            },
+                        },
+                    },
+                ]
+            }
+        },
+        "components": {
+            "MaterialText": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "#/$defs/MaterialComponentCommon"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "MaterialText"},
+                            "text": {"type": "string"},
+                            "usageHint": {
+                                "type": "string",
+                                "enum": ["h1", "body"],
+                            },
+                        },
+                        "required": ["component", "text"],
+                    },
+                ],
+            },
+            "MaterialHeading": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "#/$defs/MaterialComponentCommon"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "MaterialHeading"},
+                            "text": {"type": "string"},
+                            "style": {"type": "string", "enum": ["display"]},
+                        },
+                        "required": ["component", "text"],
+                    },
+                ],
+                "properties": {
+                    "weight": {"$ref": f"{_V0_9_COMMON_TYPES}#/$defs/ComponentId"},
+                },
+            },
+        },
+    })
+    return CatalogSchemaHelper(catalog)
+
+
+def test_nested_local_mixin_properties_follow_component_properties(
+    nested_mixin_helper,
+):
+    assert nested_mixin_helper.get_component_properties("MaterialText") == [
+        "text",
+        "usageHint",
+        "weight",
+        "style",
+    ]
+    assert nested_mixin_helper.get_component_required("MaterialText") == [
+        "component",
+        "text",
+    ]
+    assert nested_mixin_helper.get_property_schema("MaterialText", "weight") == {
+        "type": "number"
+    }
+    assert nested_mixin_helper.get_property_enum("MaterialText", "style") == [
+        "flat",
+        "raised",
+    ]
+    assert nested_mixin_helper.accepts_number(
+        nested_mixin_helper.get_property_schema("MaterialText", "weight")
+    )
+
+
+def test_own_definition_wins_over_nested_local_mixin(nested_mixin_helper):
+    assert nested_mixin_helper.get_component_properties("MaterialHeading") == [
+        "text",
+        "style",
+        "weight",
+    ]
+    assert nested_mixin_helper.get_property_enum("MaterialHeading", "style") == [
+        "display"
+    ]
+    assert nested_mixin_helper.get_property_type("MaterialHeading", "weight") == "Child"

@@ -129,7 +129,7 @@ void main() {
 
   /// One v1.0 message, parsed from [json].
   AgentToRendererMessage message(Map<String, Object?> json) =>
-      AgentToRendererMessage.fromJson({'version': 'v1.0', ...json});
+      AgentToRendererMessage.fromJson({'version': '1.0', ...json});
 
   /// The JSON of [messages].
   List<Map<String, Object?>> json(List<AgentToRendererMessage> messages) => [
@@ -140,7 +140,7 @@ void main() {
   /// [bodies].
   String jsonBlock(List<Map<String, Object?>> bodies) =>
       '<a2ui-json>${jsonEncode([
-        for (final body in bodies) {'version': 'v1.0', ...body},
+        for (final body in bodies) {'version': '1.0', ...body},
       ])}</a2ui-json>';
 
   /// A v1.0 `createSurface` carrying [components], on [catalogId] or by
@@ -210,7 +210,7 @@ void main() {
       final List<CatalogApi> active = resolveCatalogs(
         [CatalogConfig(basic)],
         A2uiRendererCapabilities.fromJson({
-          'v1.0': {
+          '1.0': {
             'supportedCatalogIds': [basic.id],
             'inlineCatalogs': [
               {
@@ -370,7 +370,7 @@ void main() {
   group('direct JSON', () {
     test('teaches the v1.0 messages and the catalog', () {
       final String snippet = processor().promptSnippet;
-      expect(snippet, contains('"version":{"const":"v1.0"}'));
+      expect(snippet, contains('"version":{"const":"1.0"}'));
       expect(snippet, contains(basic.id));
     });
 
@@ -385,7 +385,7 @@ void main() {
       );
       final create =
           (parts.single as A2uiPart).a2ui.single as CreateSurfaceMessage;
-      expect(create.version, 'v1.0');
+      expect(create.version, '1.0');
       expect(create.components!.single['component'], 'Text');
     });
 
@@ -438,8 +438,8 @@ void main() {
       );
     });
 
-    test('rejects a call only the renderer may make, in compile and as it '
-        'streams', () {
+    test('rejects a call only the renderer may make, in parseResponse and as '
+        'it streams', () {
       final String block = jsonBlock([
         callRendererFunction('formatString', {'value': 'Hello'}),
       ]);
@@ -452,24 +452,19 @@ void main() {
           contains('rendererOnly'),
         ),
       );
-      expect(
-        () => parser().compile(
-          parser().unwrap(block).whereType<RawA2uiPart>().single.a2uiRaw,
-        ),
-        rendererOnly,
-      );
+      expect(() => parser().parseResponse(block), rendererOnly);
       expect(() => processor().parseResponse(block), rendererOnly);
       // The call has closed, but it is never emitted, and the block fails
       // when it closes.
-      final Parser streaming = parser();
+      final ResponseStream stream = parser().openStream();
       expect(
-        streaming
-            .parseChunk(block.substring(0, block.lastIndexOf(']')))
+        stream
+            .feed(block.substring(0, block.lastIndexOf(']')))
             .whereType<A2uiPart>(),
         isEmpty,
       );
       expect(
-        () => streaming.parseChunk(block.substring(block.lastIndexOf(']'))),
+        () => stream.feed(block.substring(block.lastIndexOf(']'))),
         rendererOnly,
       );
     });
@@ -489,22 +484,21 @@ void main() {
 
     test('streams a component once its object closes', () {
       // v1.0 holds components back whatever the format is given.
-      final Parser parser = const DirectJsonFormatFactory().createFormat([
-        basic,
-      ]).createParser();
+      final ResponseStream stream = const DirectJsonFormatFactory()
+          .createFormat([basic])
+          .createParser()
+          .openStream();
       final String response = jsonBlock([helloSurface]);
       final int cut = response.indexOf('Hello');
-      expect(parser.parseChunk(response.substring(0, cut)), isEmpty);
-      final List<ResponsePart> parts = parser.parseChunk(
-        response.substring(cut),
-      );
+      expect(stream.feed(response.substring(0, cut)), isEmpty);
+      final List<ResponsePart> parts = stream.feed(response.substring(cut));
       expect(parts.whereType<A2uiPart>(), isNotEmpty);
     });
 
     test('streams a createSurface once, after its object closes', () {
-      final Parser parser = const DirectJsonFormatFactory(
+      final ResponseStream stream = const DirectJsonFormatFactory(
         progressiveKeys: {'text'},
-      ).createFormat([basic]).createParser();
+      ).createFormat([basic]).createParser().openStream();
       final String response = jsonBlock([
         helloSurface,
         {
@@ -512,8 +506,8 @@ void main() {
         },
       ]);
       final int closed = response.indexOf('}]}}') + 4;
-      expect(parser.parseChunk(response.substring(0, closed - 1)), isEmpty);
-      final List<ResponsePart> parts = parser.parseChunk(
+      expect(stream.feed(response.substring(0, closed - 1)), isEmpty);
+      final List<ResponsePart> parts = stream.feed(
         response.substring(closed - 1),
       );
       expect(
@@ -523,9 +517,10 @@ void main() {
     });
 
     test('streams a callRendererFunction once, after its object closes', () {
-      final Parser parser = const DirectJsonFormatFactory().createFormat([
-        callable,
-      ]).createParser();
+      final ResponseStream stream = const DirectJsonFormatFactory()
+          .createFormat([callable])
+          .createParser()
+          .openStream();
       // The surface id comes last, so the call reads before it arrives.
       final String response = jsonBlock([
         helloSurface,
@@ -547,8 +542,7 @@ void main() {
           response.substring(0, cut),
           response.substring(cut),
         ])
-          for (final A2uiPart part
-              in parser.parseChunk(chunk).whereType<A2uiPart>())
+          for (final A2uiPart part in stream.feed(chunk).whereType<A2uiPart>())
             ...part.a2ui,
       ];
       expect(
@@ -560,49 +554,45 @@ void main() {
     });
 
     test('raises on the chunk that closes an invalid component', () {
-      final Parser parser = const DirectJsonFormatFactory().createFormat([
-        basic,
-      ]).createParser();
-      parser.parseChunk(
-        '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s", '
-        '"catalogId": "${basic.id}"}}, {"version": "v1.0", '
+      final ResponseStream stream = const DirectJsonFormatFactory()
+          .createFormat([basic])
+          .createParser()
+          .openStream();
+      stream.feed(
+        '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s", '
+        '"catalogId": "${basic.id}"}}, {"version": "1.0", '
         '"updateComponents": {"surfaceId": "s", "components": [',
       );
       expect(
-        () => parser.parseChunk(
+        () => stream.feed(
           '{"id": "root", "component": "Marquee", "text": "Hello"}',
         ),
         throwsError<A2uiValidationError>(),
       );
     });
 
-    // A streamed updateComponents is checked a few components at a time, so
-    // these hold only if each check sees the components checked before.
     group('raises on the chunk whose component', () {
-      Parser streaming() {
-        final Parser parser = const DirectJsonFormatFactory().createFormat([
-          basic,
-        ]).createParser();
-        parser.parseChunk(
-          '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": '
-          '"s", "catalogId": "${basic.id}"}}, {"version": "v1.0", '
+      ResponseStream streaming() {
+        final ResponseStream stream = const DirectJsonFormatFactory()
+            .createFormat([basic])
+            .createParser()
+            .openStream();
+        stream.feed(
+          '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": '
+          '"s", "catalogId": "${basic.id}"}}, {"version": "1.0", '
           '"updateComponents": {"surfaceId": "s", "components": [',
         );
-        return parser;
+        return stream;
       }
 
       test('repeats an id an earlier chunk gave', () {
-        final Parser parser = streaming();
+        final ResponseStream stream = streaming();
         expect(
-          parser.parseChunk(
-            '{"id": "root", "component": "Text", "text": "A"}, ',
-          ),
+          stream.feed('{"id": "root", "component": "Text", "text": "A"}, '),
           [isA<A2uiPart>()],
         );
         expect(
-          () => parser.parseChunk(
-            '{"id": "root", "component": "Text", "text": "B"}',
-          ),
+          () => stream.feed('{"id": "root", "component": "Text", "text": "B"}'),
           throwsA(
             isA<A2uiIntegrityError>().having(
               (e) => e.message,
@@ -614,15 +604,15 @@ void main() {
       });
 
       test('closes a cycle with a component an earlier chunk gave', () {
-        final Parser parser = streaming();
+        final ResponseStream stream = streaming();
         expect(
-          parser.parseChunk(
+          stream.feed(
             '{"id": "root", "component": "Column", "children": ["a"]}, ',
           ),
           [isA<A2uiPart>()],
         );
         expect(
-          () => parser.parseChunk(
+          () => stream.feed(
             '{"id": "a", "component": "Column", "children": ["root"]}',
           ),
           throwsA(
@@ -643,12 +633,15 @@ void main() {
       custom,
     ]).createParser();
 
-    List<AgentToRendererMessage> compile(List<Map<String, Object?>> bodies) =>
-        parser().compile(
-          jsonEncode([
-            for (final body in bodies) {'version': 'v1.0', ...body},
-          ]),
-        );
+    List<AgentToRendererMessage> compile(List<Map<String, Object?>> bodies) {
+      final List<AgentToRendererMessage> messages = parser().compile(
+        jsonEncode([
+          for (final body in bodies) {'version': '1.0', ...body},
+        ]),
+      );
+      validatePayload([callable, custom], messages);
+      return messages;
+    }
 
     test('checks a component against the catalog it names', () {
       compile([
@@ -813,7 +806,7 @@ void main() {
       final List<AgentToRendererMessage> messages =
           (parts.single as A2uiPart).a2ui;
       expect(messages.single.toJson(), {
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's',
           'catalogId': basic.id,
@@ -833,7 +826,7 @@ void main() {
         ),
         [
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'createSurface': {
               'surfaceId': 'default_surface',
               'catalogId': basic.id,
@@ -860,7 +853,7 @@ void main() {
         ),
         [
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateComponents': {
               'surfaceId': 'default_surface',
               'components': [
@@ -869,11 +862,11 @@ void main() {
             },
           },
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateDataModel': {
               'surfaceId': 'default_surface',
-              'path': '/',
-              'value': {'count': 2},
+              'path': '/count',
+              'value': 2,
             },
           },
         ],
@@ -1063,21 +1056,13 @@ void main() {
       expect(parser.compile(block), [isA<CallRendererFunctionMessage>()]);
     });
 
-    test('has no notation for a renderer call on a surface, a response to '
-        "the renderer's call, or surface metadata", () {
+    test('has no notation for a renderer call on a surface or a response to '
+        "the renderer's call", () {
       final decompiler = ExpressDecompiler([basic]);
       for (final Map<String, Object?> body in [
         callRendererFunction('formatString', {'value': 'Hi'}, surfaceId: 's'),
         {
           'agentFunctionResponse': {'functionCallId': 'call_1', 'value': 1},
-        },
-        {
-          'createSurface': {
-            ...helloSurface['createSurface']! as Map<String, Object?>,
-            'metadata': {
-              'extensions': {'theme': 'dark'},
-            },
-          },
         },
       ]) {
         expect(
@@ -1086,6 +1071,26 @@ void main() {
           reason: '$body',
         );
       }
+    });
+
+    test('round-trips surface metadata through extensions={...}', () {
+      final parser = ExpressParser([basic]);
+      final AgentToRendererMessage withMetadata = message({
+        'createSurface': {
+          ...helloSurface['createSurface']! as Map<String, Object?>,
+          'metadata': {
+            'extensions': {'theme': 'dark'},
+          },
+        },
+      });
+      final String block = parser.decompile([withMetadata]);
+      expect(
+        block,
+        'surface("s", extensions={theme: "dark"})\nroot = Text("Hello")',
+      );
+      expect(parser.compile(block).map((m) => m.toJson()).toList(), [
+        withMetadata.toJson(),
+      ]);
     });
 
     test('teaches the functions the agent may call on their own', () {
@@ -1360,6 +1365,68 @@ void main() {
         contains(
           'Only these functions can be called this way: '
           '`percent`.',
+        ),
+      );
+    });
+
+    test('waits for a forward-referenced surface(extensions=...) variable and '
+        'rejects extensions on non-creating scopes when streaming', () {
+      final parser = ExpressParser([basic]);
+      final ResponseStream stream = parser.openStream();
+      expect(
+        stream.feed(
+          '<a2ui>\nsurface("s1", extensions=ext)\nroot = Text("Hello")\n',
+        ),
+        isEmpty,
+      );
+      final List<ResponsePart> parts = stream.feed(
+        'ext = {surfaceTheme: "dark"}\n</a2ui>',
+      );
+      expect(parts, hasLength(1));
+      final create =
+          (parts.single as A2uiPart).a2ui.single as CreateSurfaceMessage;
+      expect(create.metadata, {
+        'extensions': {'surfaceTheme': 'dark'},
+      });
+      expect(stream.close(), isEmpty);
+
+      final state = RendererState([basic]);
+      final ResponseStream seed = parser.openStream(state: state);
+      seed.feed('<a2ui>\nsurface("s1")\nroot = Text("Initial")\n</a2ui>');
+      expect(seed.close(), isEmpty);
+
+      final ResponseStream updateWithoutRoot = parser.openStream(state: state);
+      expect(
+        updateWithoutRoot.feed(
+          '<a2ui>\nsurface("s1", extensions={surfaceTheme: "dark"})\n'
+          'c1 = Text("Updated")\n',
+        ),
+        isEmpty,
+      );
+      expect(
+        () => updateWithoutRoot.feed('</a2ui>'),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('surface-creating scope'),
+          ),
+        ),
+      );
+
+      final ResponseStream explicitUpdate = parser.openStream(state: state);
+      expect(
+        () => explicitUpdate.feed(
+          '<a2ui>\n'
+          'surface("s1", update=true, extensions={surfaceTheme: "dark"})\n'
+          'c1 = Text("Updated")\n</a2ui>',
+        ),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('surface() with update=true does not accept extensions'),
+          ),
         ),
       );
     });

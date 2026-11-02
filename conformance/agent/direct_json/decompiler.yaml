@@ -36,6 +36,9 @@
 # v1.0. A case states no version of its own: the version it runs under is the
 # one its catalog document declares.
 
+# A round trip checks the recompiled block on its own, as `validate_payload`
+# does: a surface that the block updates without creating is assumed to exist.
+
 - name: test_decompile_json_messages
   description: Messages are written back out as the JSON a model would have emitted, and compiling that returns them.
   action: decompile
@@ -43,11 +46,11 @@
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s1"
         components:
@@ -66,7 +69,7 @@
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "s1"
         path: "/title"
@@ -83,7 +86,7 @@
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       deleteSurface:
         surfaceId: "s1"
   expect_contains:
@@ -100,22 +103,22 @@
       - "test_data/catalogs/simplified_catalog_v1_0.json"
       - "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s1"
         components:
           - id: "root"
             component: "Text"
             text: "Summary"
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s2"
         catalogId: "conformance/custom"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s2"
         components:

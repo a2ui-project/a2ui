@@ -1,0 +1,1006 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import 'package:a2ui_core/a2ui_core.dart';
+
+import '../../parser/response_part.dart';
+import '../../parser/response_stream.dart';
+import '../../parser/text_run.dart';
+import '../../utils/renderer_state.dart';
+import 'compiler.dart';
+import 'parser.dart';
+import 'schema_helper.dart';
+
+/// Default property keys whose open string literals are healed progressively
+/// while streaming an `<a2ui>` Express block.
+const Set<String> defaultExpressProgressiveKeys = {'text'};
+
+const String _openTagLiteral = '<a2ui>';
+const String _closeTagLiteral = '</a2ui>';
+final RegExp _openTag = RegExp(r'<a2ui(?:\s[^>]*)?>', caseSensitive: false);
+final RegExp _openTagStart = RegExp(r'^<a2ui\s[^>]*$', caseSensitive: false);
+final RegExp _closeTag = RegExp(r'</a2ui\s*>', caseSensitive: false);
+final RegExp _closeTagPrefix = RegExp(r'</a2ui\s*$', caseSensitive: false);
+final RegExp _leadingFence = RegExp(
+  r'^\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n',
+  caseSensitive: false,
+);
+final RegExp _trailingFence = RegExp(
+  r'(?:\r?\n)?[ \t]*```[a-zA-Z0-9_-]*\s*$',
+  caseSensitive: false,
+);
+final RegExp _outerTrailingFence = RegExp(
+  r'(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|(?:^|(?<=\s))`{1,2})$',
+);
+final RegExp _outerTrailingFencePrefix = RegExp(
+  r'(?:```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n[ \t]*)?|`+)$',
+);
+final RegExp _outerInlineOpenBacktick = RegExp(r'(?:^|(?<=\s))`{1,2}$');
+final RegExp _outerLeadingFence = RegExp(
+  r'^\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|$)',
+);
+final RegExp _outerLeadingFencePrefix = RegExp(
+  r'^\s*(?:`{0,2}|```[a-zA-Z0-9_-]*[ \t]*\r?)$',
+);
+final RegExp _outerLeadingFenceInline = RegExp(
+  r'^(?:\s*```[a-zA-Z0-9_-]*[ \t]*(?:\r?\n|$)|`+)',
+);
+final RegExp _outerLeadingFenceInlinePrefix = RegExp(
+  r'^(?:`+|\s*`{0,2}|\s*```[a-zA-Z0-9_-]*[ \t]*\r?)$',
+);
+final RegExp _trailingFenceClose = RegExp(r'\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n?$');
+final RegExp _edgeBackticks = RegExp(r'^`+|`+$');
+final RegExp _ident = RegExp(
+  r'[\p{XID_Start}_]\p{XID_Continue}*',
+  unicode: true,
+);
+final RegExp _dataAssign = RegExp(r'^\s*\$([a-zA-Z0-9_/]*)\s*=(?!=)');
+
+final RegExp _token = RegExp(
+  r'[rR]"""[\s\S]*?"""'
+  r'|[rR](?!""")"[^\r\n"]*"'
+  r'|"""(?:\\[\s\S]|[^\\])*?"""'
+  r'|(?!""")"(?:\\[\s\S]|[^\\"\r\n])*?"'
+  r'|(?:#|//|--)[^\r\n]*'
+  r'|/\*[\s\S]*?\*/'
+  r'|\$[a-zA-Z0-9_/]*'
+  r'|\?[\p{XID_Start}_]\p{XID_Continue}*'
+  r'|[\p{XID_Start}_]\p{XID_Continue}*',
+  unicode: true,
+);
+
+/// Index where a trailing partial `<a2ui` open tag may begin in [text], or
+/// `text.length` if none is present.
+int possibleOpenTagStart(String text) {
+  int i = text.indexOf('<');
+  while (i >= 0) {
+    final String tail = text.substring(i);
+    if (_openTagLiteral.startsWith(tail.toLowerCase()) ||
+        _openTagStart.hasMatch(tail)) {
+      return i;
+    }
+    i = text.indexOf('<', i + 1);
+  }
+  return text.length;
+}
+
+int _possibleFenceStart(String text) =>
+    _outerTrailingFencePrefix.firstMatch(text)?.start ?? text.length;
+
+(int?, int)? _commentCloseTag(String content, int start, int end) {
+  if (!content.startsWith('#', start) &&
+      !content.startsWith('//', start) &&
+      !content.startsWith('--', start)) {
+    return null;
+  }
+  for (var j = start; j < end; j++) {
+    if (content.codeUnitAt(j) == 0x3C /* '<' */ ) {
+      if (_closeTag.matchAsPrefix(content, j) != null) return (j, j);
+      if (_isPartialCloseTag(content, j)) return (null, j);
+    }
+  }
+  return null;
+}
+
+bool _isPartialCloseTag(String content, int i) {
+  if (content.codeUnitAt(i) != 0x3C /* '<' */ ) return false;
+  // Only a tail shorter than the tag can be a literal prefix of it, so the
+  // substring copies at most a few characters.
+  if (content.length - i < _closeTagLiteral.length &&
+      _closeTagLiteral.startsWith(content.substring(i).toLowerCase())) {
+    return true;
+  }
+  return _closeTagPrefix.matchAsPrefix(content, i) != null;
+}
+
+bool _isUnclosedDelimiter(String content, int i) =>
+    content.startsWith('"', i) ||
+    content.startsWith('r"', i) ||
+    content.startsWith('R"', i) ||
+    content.startsWith('/*', i);
+
+bool _isAmbiguousEmptyQuoteAtEof(String content, int start, int end) {
+  if (end != content.length) return false;
+  final int len = end - start;
+  if (len == 2 && content.startsWith('""', start)) return true;
+  if (len == 3 &&
+      (content.startsWith('r""', start) || content.startsWith('R""', start))) {
+    return true;
+  }
+  return false;
+}
+
+/// Scans an `<a2ui>` block in [content] for its closing `</a2ui>` tag.
+///
+/// Returns `(closeStart, readableEnd)`. When `closeStart` is not null, the
+/// block closes there. When `closeStart` is null, `readableEnd` is the index up
+/// to which the block is safe to read (excluding any trailing partial
+/// `</a2ui>` prefix outside strings and comments).
+(int?, int) scanExpressBlock(String content) {
+  final (int? closeStart, int readableEnd, _) = _scanExpressBlockFrom(
+    content,
+    0,
+  );
+  return (closeStart, readableEnd);
+}
+
+(int?, int, int) _scanExpressBlockFrom(String content, int startPos) {
+  var i = startPos;
+  final int n = content.length;
+  while (i < n) {
+    if (_closeTag.matchAsPrefix(content, i) != null) return (i, i, i);
+    if (_isPartialCloseTag(content, i)) return (null, i, i);
+    if (_token.matchAsPrefix(content, i) case final Match token) {
+      if (_isAmbiguousEmptyQuoteAtEof(content, i, token.end)) {
+        return (null, n, i);
+      }
+      final (int?, int)? inComment = _commentCloseTag(content, i, token.end);
+      if (inComment != null) return (inComment.$1, inComment.$2, i);
+      if ((content.startsWith('#', i) ||
+              content.startsWith('//', i) ||
+              content.startsWith('--', i)) &&
+          token.end == n) {
+        return (null, n, i);
+      }
+      i = token.end;
+    } else if (_isUnclosedDelimiter(content, i)) {
+      return (null, n, i);
+    } else {
+      i++;
+    }
+  }
+  final String lastChar = n > 0 ? content[n - 1] : '';
+  final int resumePos =
+      lastChar == 'r' || lastChar == 'R' || lastChar == '/' || lastChar == '-'
+      ? n - 1
+      : n;
+  return (null, n, resumePos);
+}
+
+/// Strips leading/trailing markdown fences and edge backticks from
+/// `block.substring(0, end)`, returning null if only an incomplete opening
+/// fence has arrived so far.
+String? cleanExpressPayload(String block, int end) {
+  final String text = block.substring(0, end);
+  final String stripped = text.trimLeft();
+  if (stripped.isNotEmpty &&
+      stripped.length <= 3 &&
+      '```'.startsWith(stripped)) {
+    return null;
+  }
+  if (stripped.startsWith('```') && !stripped.contains('\n')) {
+    return null;
+  }
+  return text
+      .replaceFirst(_leadingFence, '')
+      .replaceFirst(_trailingFence, '')
+      .replaceAll(_edgeBackticks, '');
+}
+
+class _ScanCursor {
+  int depth = 0;
+  bool hasToken = false;
+  bool sawEquals = false;
+  bool hasRhs = false;
+  bool rhsClosed = false;
+  int lastComplete = 0;
+
+  void resetStatement(int pos) {
+    hasToken = false;
+    sawEquals = false;
+    hasRhs = false;
+    rhsClosed = false;
+    lastComplete = pos;
+  }
+}
+
+/// Splits [source] into `(completePrefix, trailingFragment)`.
+(String, String) splitCompleteStatements(
+  String source, {
+  bool isFinal = false,
+}) {
+  if (isFinal) return (source, '');
+  final cur = _ScanCursor();
+  var i = 0;
+  final int n = source.length;
+  while (i < n) {
+    final (int nextI, bool closedString) = _stepStringOrComment(source, i, n);
+    if (nextI > i) {
+      if (closedString && cur.depth == 0 && cur.sawEquals) {
+        cur.hasRhs = true;
+        cur.rhsClosed = true;
+        cur.lastComplete = nextI;
+      }
+      i = nextI;
+      continue;
+    }
+    i = _stepCodeChar(source, i, n, cur);
+  }
+  return (
+    source.substring(0, cur.lastComplete),
+    source.substring(cur.lastComplete),
+  );
+}
+
+(int, bool) _stepStringOrComment(String source, int i, int n) {
+  if ((source[i] == 'r' || source[i] == 'R') &&
+      i + 1 < n &&
+      source[i + 1] == '"') {
+    final int? end = _scanDoubleQuoted(source, i + 1, n, raw: true);
+    if (end != null) {
+      if (end == n && end - (i + 1) == 2) return (n, false);
+      return (end, true);
+    }
+    return (n, false);
+  }
+  if (source[i] == '"') {
+    final int? end = _scanDoubleQuoted(source, i, n, raw: false);
+    if (end != null) {
+      if (end == n && end - i == 2) return (n, false);
+      return (end, true);
+    }
+    return (n, false);
+  }
+  if (source.startsWith('/*', i)) {
+    final int close = source.indexOf('*/', i + 2);
+    return close >= 0 ? (close + 2, false) : (n, false);
+  }
+  if (source[i] == '#' ||
+      source.startsWith('//', i) ||
+      source.startsWith('--', i)) {
+    final int nl = source.indexOf('\n', i);
+    return nl >= 0 ? (nl, false) : (n, false);
+  }
+  return (i, false);
+}
+
+int? _scanDoubleQuoted(
+  String source,
+  int quoteStart,
+  int n, {
+  required bool raw,
+}) {
+  final bool triple = source.startsWith('"""', quoteStart);
+  final delim = triple ? '"""' : '"';
+  int i = quoteStart + delim.length;
+  while (i < n) {
+    if (!raw && source.codeUnitAt(i) == 0x5C /* '\\' */ ) {
+      if (i + 1 >= n) return null;
+      i += 2;
+      continue;
+    }
+    if (source.startsWith(delim, i)) {
+      return i + delim.length;
+    }
+    i++;
+  }
+  return null;
+}
+
+int _stepCodeChar(String source, int i, int n, _ScanCursor cur) {
+  final String ch = source[i];
+  if (ch == '(' || ch == '[' || ch == '{') {
+    _onOpenBracket(cur);
+  } else if (ch == ')' || ch == ']' || ch == '}') {
+    _onCloseBracket(i, cur);
+  } else if (cur.depth == 0 && (ch == '\n' || ch == ';')) {
+    _onStatementSeparator(i, cur);
+  } else if (ch.trim().isNotEmpty) {
+    _onNonSpaceChar(source, i, n, cur);
+  }
+  return i + 1;
+}
+
+void _onOpenBracket(_ScanCursor cur) {
+  cur.depth++;
+  cur.hasToken = true;
+  if (cur.sawEquals) {
+    cur.hasRhs = true;
+    cur.rhsClosed = false;
+  }
+}
+
+void _onCloseBracket(int i, _ScanCursor cur) {
+  if (cur.depth <= 0) return;
+  cur.depth--;
+  if (cur.depth == 0 && (cur.sawEquals || cur.hasToken)) {
+    cur.hasRhs = true;
+    cur.rhsClosed = true;
+    cur.lastComplete = i + 1;
+  }
+}
+
+void _onStatementSeparator(int i, _ScanCursor cur) {
+  if (cur.rhsClosed || (cur.sawEquals && cur.hasRhs)) {
+    cur.resetStatement(i + 1);
+  } else if (!cur.hasToken) {
+    cur.lastComplete = i + 1;
+  }
+}
+
+void _onNonSpaceChar(String source, int i, int n, _ScanCursor cur) {
+  if (cur.depth == 0 &&
+      source[i] == '=' &&
+      (i + 1 >= n || source[i + 1] != '=')) {
+    cur.sawEquals = true;
+    cur.hasToken = true;
+    return;
+  }
+  cur.hasToken = true;
+  if (cur.depth == 0 && cur.sawEquals) {
+    cur.hasRhs = true;
+  }
+}
+
+class _OpenCallFrame {
+  _OpenCallFrame(this.name);
+
+  final String name;
+  int argIndex = 0;
+  String? kwargName;
+  String? lastIdent;
+}
+
+class _FragmentScanState {
+  final List<String> brackets = [];
+  final List<_OpenCallFrame> calls = [];
+  String? lastIdent;
+}
+
+typedef _UnclosedStringState = (
+  int strStart,
+  String delim,
+  bool isRaw,
+  List<String> brackets,
+  List<_OpenCallFrame> calls,
+);
+
+/// Heals an unclosed progressive string literal at the tail of [fragment], or
+/// returns null when [fragment] is not in a healable progressive string slot.
+String? healProgressiveFragment(
+  String fragment,
+  Map<String, CatalogSchemaHelper> helpers,
+  Set<String> progressiveKeys,
+) {
+  if (progressiveKeys.isEmpty || fragment.trim().isEmpty) return null;
+  final _UnclosedStringState? state = _scanFragmentForUnclosedString(fragment);
+  if (state == null) return null;
+  final (
+    int strStart,
+    String delim,
+    bool isRaw,
+    List<String> brackets,
+    List<_OpenCallFrame> calls,
+  ) = state;
+  final String content = fragment.substring(strStart);
+  if (_isUrlLike(content)) return null;
+  if (!_isProgressiveSlot(fragment, calls, helpers, progressiveKeys)) {
+    return null;
+  }
+  var healed = fragment;
+  if (!isRaw && _hasOddTrailingBackslashes(healed)) {
+    healed = healed.substring(0, healed.length - 1);
+  }
+  if (delim == '"""' && healed.substring(strStart).endsWith('"')) {
+    if (isRaw) return null;
+    healed = '${healed.substring(0, healed.length - 1)}\\"';
+  }
+  final String closingBrackets = [
+    for (final String b in brackets.reversed) _closingDelimiter(b),
+  ].join();
+  return '$healed$delim$closingBrackets';
+}
+
+_UnclosedStringState? _scanFragmentForUnclosedString(String fragment) {
+  var i = 0;
+  final int n = fragment.length;
+  final st = _FragmentScanState();
+
+  while (i < n) {
+    final (int, _UnclosedStringState?)? strRes = _tryScanFragmentString(
+      fragment,
+      i,
+      n,
+      st,
+    );
+    if (strRes != null) {
+      final (int nextI, _UnclosedStringState? unclosed) = strRes;
+      if (unclosed != null) return unclosed;
+      i = nextI;
+      continue;
+    }
+    final int? commentI = _trySkipFragmentComment(fragment, i, n);
+    if (commentI != null) {
+      if (commentI < 0) return null;
+      i = commentI;
+      continue;
+    }
+    i = _stepFragmentToken(fragment, i, st);
+  }
+  return null;
+}
+
+(int, _UnclosedStringState?)? _tryScanFragmentString(
+  String fragment,
+  int i,
+  int n,
+  _FragmentScanState st,
+) {
+  final bool isRaw =
+      (fragment[i] == 'r' || fragment[i] == 'R') &&
+      i + 1 < n &&
+      fragment[i + 1] == '"';
+  if (!isRaw && fragment[i] != '"') return null;
+  final int quotePos = isRaw ? i + 1 : i;
+  final delim = fragment.startsWith('"""', quotePos) ? '"""' : '"';
+  final int? end = _scanDoubleQuoted(fragment, quotePos, n, raw: isRaw);
+  if (end == null) {
+    return (n, (quotePos + delim.length, delim, isRaw, st.brackets, st.calls));
+  }
+  return (end, null);
+}
+
+int? _trySkipFragmentComment(String fragment, int i, int n) {
+  if (fragment.startsWith('/*', i)) {
+    final int close = fragment.indexOf('*/', i + 2);
+    return close < 0 ? -1 : close + 2;
+  }
+  if (fragment[i] == '#' ||
+      fragment.startsWith('//', i) ||
+      fragment.startsWith('--', i)) {
+    final int nl = fragment.indexOf('\n', i);
+    return nl < 0 ? -1 : nl + 1;
+  }
+  return null;
+}
+
+int _stepFragmentToken(String fragment, int i, _FragmentScanState st) {
+  if (_ident.matchAsPrefix(fragment, i) case final Match m) {
+    st.lastIdent = m.group(0);
+    if (st.calls.isNotEmpty &&
+        st.brackets.isNotEmpty &&
+        st.brackets.last == '(') {
+      st.calls.last.lastIdent = st.lastIdent;
+    }
+    return m.end;
+  }
+  _applyFragmentPunct(fragment[i], st);
+  return i + 1;
+}
+
+void _applyFragmentPunct(String ch, _FragmentScanState st) {
+  final bool inCallParens =
+      st.calls.isNotEmpty && st.brackets.isNotEmpty && st.brackets.last == '(';
+  if (ch == '(') {
+    st.brackets.add('(');
+    st.calls.add(_OpenCallFrame(st.lastIdent ?? ''));
+    st.lastIdent = null;
+  } else if (ch == '[' || ch == '{') {
+    st.brackets.add(ch);
+    st.lastIdent = null;
+  } else if (ch == ')' || ch == ']' || ch == '}') {
+    if (st.brackets.isNotEmpty &&
+        st.brackets.removeLast() == '(' &&
+        st.calls.isNotEmpty) {
+      st.calls.removeLast();
+    }
+    st.lastIdent = null;
+  } else if (ch == ',' && inCallParens) {
+    st.calls.last
+      ..argIndex += 1
+      ..kwargName = null
+      ..lastIdent = null;
+  } else if (ch == '=' && inCallParens && st.calls.last.lastIdent != null) {
+    st.calls.last.kwargName = st.calls.last.lastIdent;
+  } else if (ch.trim().isNotEmpty) {
+    st.lastIdent = null;
+  }
+}
+
+bool _isProgressiveSlot(
+  String fragment,
+  List<_OpenCallFrame> calls,
+  Map<String, CatalogSchemaHelper> helpers,
+  Set<String> progressiveKeys,
+) {
+  if (calls.isEmpty) {
+    // A data path heals when its last segment names a progressive key, as a
+    // Direct JSON value heals when its key does.
+    final Match? match = _dataAssign.firstMatch(fragment);
+    if (match == null) return false;
+    final String path = match.group(1)!.replaceFirst(RegExp(r'/+$'), '');
+    return progressiveKeys.contains(path.split('/').last);
+  }
+  final _OpenCallFrame frame = calls.last;
+  if (frame.name.isEmpty) return false;
+  for (final CatalogSchemaHelper helper in helpers.values) {
+    if (helper.isComponent(frame.name)) {
+      if (frame.kwargName != null) {
+        return progressiveKeys.contains(frame.kwargName);
+      }
+      final List<String> props = helper.properties(frame.name);
+      if (frame.argIndex < props.length) {
+        return progressiveKeys.contains(props[frame.argIndex]);
+      }
+    }
+  }
+  return false;
+}
+
+bool _isUrlLike(String content) {
+  final String lower = content.trimLeft().toLowerCase();
+  return lower.startsWith('http://') ||
+      lower.startsWith('https://') ||
+      lower.startsWith('data:');
+}
+
+bool _hasOddTrailingBackslashes(String text) {
+  var count = 0;
+  int idx = text.length - 1;
+  while (idx >= 0 && text.codeUnitAt(idx) == 0x5C /* '\\' */ ) {
+    count++;
+    idx--;
+  }
+  return count.isOdd;
+}
+
+String _closingDelimiter(String openCh) => switch (openCh) {
+  '(' => ')',
+  '[' => ']',
+  '{' => '}',
+  _ => ')',
+};
+
+/// Reads one streamed Express response chunk by chunk.
+///
+/// Obtained from [ExpressParser.openStream].
+class ExpressResponseStream extends _ExpressStream<ResponsePart> {
+  /// Creates a stream for [parser].
+  ExpressResponseStream(
+    super.parser, {
+    required super.wrapped,
+    required super.state,
+    super.progressiveKeys,
+  }) : super(continues: false);
+}
+
+/// Reads one streamed Express response, reading past a rejected block.
+///
+/// Obtained from [ExpressParser.openContinuingStream]. Reads as
+/// [ExpressResponseStream] does, except that a rejected block is returned as an
+/// [ErrorPart], its messages not emitted yet are dropped, and the text and
+/// blocks after it are read as usual.
+class ExpressContinuingResponseStream extends _ExpressStream<StreamPart> {
+  /// Creates a continuing stream for [parser].
+  ExpressContinuingResponseStream(
+    super.parser, {
+    required super.wrapped,
+    required super.state,
+    super.progressiveKeys,
+  }) : super(continues: true);
+}
+
+abstract class _ExpressStream<P extends StreamPart> extends ResponseReader<P> {
+  _ExpressStream(
+    this._parser, {
+    required bool wrapped,
+    required this.state,
+    required bool continues,
+    Set<String>? progressiveKeys,
+  }) : _compiler = ExpressCompiler(_parser.catalogs),
+       _wrapped = wrapped,
+       _continues = continues,
+       _inBlock = !wrapped,
+       _progressiveKeys = Set.unmodifiable(
+         progressiveKeys ?? _parser.progressiveKeys,
+       ) {
+    _resetBlock();
+  }
+
+  final ExpressParser _parser;
+  final ExpressCompiler _compiler;
+  final bool _wrapped;
+  final bool _continues;
+  final Set<String> _progressiveKeys;
+
+  @override
+  final RendererState state;
+
+  bool _closed = false;
+
+  // Text outside blocks.
+  String _held = '';
+  final TextRun _text = TextRun();
+  bool _afterBlock = false;
+  bool _wrappedInInlineBackticks = false;
+
+  // The open block.
+  bool _inBlock;
+  bool _rejected = false;
+  String _block = '';
+  int _scanPos = 0;
+  String _lastCompiledPrefix = '';
+  final Set<String> _touched = {};
+  late Set<String> _initialSurfaces;
+  late ExpressScopeSession _session;
+
+  @override
+  bool get isInBlock => !_closed && _inBlock;
+
+  void _resetBlock() {
+    _block = '';
+    _scanPos = 0;
+    _rejected = false;
+    _lastCompiledPrefix = '';
+    _touched.clear();
+    _initialSurfaces = Set.unmodifiable(state.surfaceIds);
+    _session = ExpressScopeSession(_compiler);
+  }
+
+  @override
+  List<P> feed(String chunk) {
+    if (_closed) throw StateError('The response stream is closed.');
+    final parts = <StreamPart>[];
+    try {
+      _feed(chunk, parts);
+    } catch (e) {
+      _fail();
+      attachPartialResults(e, parts.whereType<ResponsePart>().toList());
+      rethrow;
+    }
+    return List<P>.from(parts);
+  }
+
+  @override
+  List<P> close() {
+    if (_closed) return [];
+    _closed = true;
+    final parts = <StreamPart>[];
+    try {
+      if (!_wrapped) {
+        if (!_rejected) {
+          _readBlock(parts, () => _finishBlock(parts, _block.length));
+        }
+        return List<P>.from(parts);
+      }
+      if (_inBlock) {
+        if (!_rejected) {
+          _readBlock(
+            parts,
+            () => throw A2uiParseError(
+              'The response ended inside an $_openTagLiteral block, before its '
+              '$_closeTagLiteral tag.',
+            ),
+          );
+        }
+        state.markChecked(_touched);
+        return List<P>.from(parts);
+      }
+    } catch (e) {
+      _fail();
+      attachPartialResults(e, parts.whereType<ResponsePart>().toList());
+      rethrow;
+    }
+    if (_held.isNotEmpty) {
+      String rest = _held;
+      _held = '';
+      if (_afterBlock) {
+        final RegExp fenceRe = _wrappedInInlineBackticks
+            ? _outerLeadingFenceInline
+            : _outerLeadingFence;
+        rest = rest.replaceFirst(fenceRe, '');
+        _wrappedInInlineBackticks = false;
+      }
+      _text.emit(parts, rest.replaceFirst(_trailingFenceClose, ''));
+    }
+    return List<P>.from(parts);
+  }
+
+  void _fail() {
+    _closed = true;
+    state.markChecked(_touched);
+  }
+
+  void _readBlock(List<StreamPart> parts, void Function() step) {
+    try {
+      step();
+    } on A2uiError catch (e) {
+      if (!_continues) rethrow;
+      parts.add(ErrorPart(e));
+      state.markChecked(_touched);
+      _rejected = true;
+    }
+  }
+
+  void _feed(String chunk, List<StreamPart> parts) {
+    if (!_wrapped) {
+      _block += chunk;
+      if (!_rejected) {
+        _readBlock(parts, () => _emitReady(parts, _block.length));
+      }
+      return;
+    }
+    String input = _held + chunk;
+    _held = '';
+    while (input.isNotEmpty) {
+      if (_inBlock) {
+        input = _consumeBlockText(parts, input);
+        continue;
+      }
+      if (_afterBlock) {
+        final RegExp prefixRe = _wrappedInInlineBackticks
+            ? _outerLeadingFenceInlinePrefix
+            : _outerLeadingFencePrefix;
+        final RegExp fenceRe = _wrappedInInlineBackticks
+            ? _outerLeadingFenceInline
+            : _outerLeadingFence;
+        if (prefixRe.hasMatch(input)) {
+          _held = input;
+          return;
+        }
+        _afterBlock = false;
+        _wrappedInInlineBackticks = false;
+        input = input.replaceFirst(fenceRe, '');
+        continue;
+      }
+      input = _consumeOutsideText(parts, input);
+    }
+  }
+
+  String _consumeBlockText(List<StreamPart> parts, String input) {
+    _block += input;
+    final (int? closeStart, int readableEnd, int resumePos) =
+        _scanExpressBlockFrom(_block, _scanPos);
+    _scanPos = resumePos;
+    if (closeStart == null) {
+      if (!_rejected) {
+        _readBlock(parts, () => _emitReady(parts, readableEnd));
+      }
+      return '';
+    }
+    final Match closeMatch = _closeTag.matchAsPrefix(_block, closeStart)!;
+    final String remaining = _block.substring(closeMatch.end);
+    if (!_rejected) {
+      _readBlock(parts, () => _finishBlock(parts, closeStart));
+    }
+    _inBlock = false;
+    _afterBlock = true;
+    _resetBlock();
+    return remaining;
+  }
+
+  String _consumeOutsideText(List<StreamPart> parts, String input) {
+    final Match? openMatch = _openTag.firstMatch(input);
+    if (openMatch != null) {
+      final String beforeTag = input.substring(0, openMatch.start);
+      _wrappedInInlineBackticks = _outerInlineOpenBacktick.hasMatch(beforeTag);
+      final String textBefore = beforeTag.replaceFirst(_outerTrailingFence, '');
+      _text.emit(parts, textBefore);
+      _text.reset();
+      _inBlock = true;
+      _resetBlock();
+      return input.substring(openMatch.end);
+    }
+
+    final int tagStart = possibleOpenTagStart(input);
+    final int hold = _possibleFenceStart(input.substring(0, tagStart));
+    _text.emit(parts, input.substring(0, hold));
+    _held = input.substring(hold);
+    return '';
+  }
+
+  void _emitReady(List<StreamPart> parts, int end) {
+    final String? payload = cleanExpressPayload(_block, end);
+    if (payload == null || payload.trim().isEmpty) return;
+    final String completePrefix;
+    final String trailingFragment;
+    if (_lastCompiledPrefix.isNotEmpty &&
+        payload.startsWith(_lastCompiledPrefix) &&
+        (_lastCompiledPrefix.endsWith('\n') ||
+            _lastCompiledPrefix.endsWith(';'))) {
+      final (String tailPrefix, String tailFragment) = splitCompleteStatements(
+        payload.substring(_lastCompiledPrefix.length),
+      );
+      completePrefix = '$_lastCompiledPrefix$tailPrefix';
+      trailingFragment = tailFragment;
+    } else {
+      (completePrefix, trailingFragment) = splitCompleteStatements(payload);
+    }
+    final readyMessages = <AgentToRendererMessage>[];
+    if (completePrefix.trim().isNotEmpty &&
+        completePrefix != _lastCompiledPrefix) {
+      final Object savedSession = _session.snapshot();
+      final savedTouched = Set<String>.from(_touched);
+      try {
+        state.transaction(() {
+          final List<AgentToRendererMessage> prefixMsgs = _compileStep(
+            completePrefix,
+            isFinal: false,
+          );
+          if (prefixMsgs.isNotEmpty) {
+            _apply(prefixMsgs);
+            readyMessages.addAll(prefixMsgs);
+          }
+        });
+        _lastCompiledPrefix = completePrefix;
+      } catch (_) {
+        _session.restore(savedSession);
+        _touched
+          ..clear()
+          ..addAll(savedTouched);
+        rethrow;
+      }
+    }
+
+    final String? healed = healProgressiveFragment(
+      trailingFragment,
+      _compiler.catalogHelpers,
+      _progressiveKeys,
+    );
+    if (healed != null) {
+      final String combined = completePrefix.trim().isNotEmpty
+          ? '$completePrefix\n$healed'
+          : healed;
+      readyMessages.addAll(_tryCompileAndApplyHealed(combined));
+    }
+
+    if (readyMessages.isNotEmpty) {
+      parts.add(A2uiPart(_mergeSameSurfaceUpdates(readyMessages)));
+    }
+  }
+
+  List<AgentToRendererMessage> _tryCompileAndApplyHealed(String combined) {
+    final Object savedSession = _session.snapshot();
+    final savedTouched = Set<String>.from(_touched);
+    try {
+      return state.transaction(() {
+        final List<AgentToRendererMessage> msgs = _compileStep(
+          combined,
+          isFinal: false,
+          cachePrefix: false,
+        );
+        if (msgs.isNotEmpty) {
+          _apply(msgs);
+        }
+        return msgs;
+      });
+    } on A2uiError {
+      _session.restore(savedSession);
+      _touched
+        ..clear()
+        ..addAll(savedTouched);
+      return const [];
+    }
+  }
+
+  void _finishBlock(List<StreamPart> parts, int end) {
+    final String payload = cleanExpressPayload(_block, end) ?? '';
+    final List<AgentToRendererMessage> models = state.transaction(() {
+      final List<AgentToRendererMessage> emitted;
+      if (!_session.hasEmitted && _initialSurfaces.isEmpty) {
+        emitted = _parser.compile(payload);
+        _apply(emitted);
+      } else {
+        emitted = _compileStep(payload, isFinal: true);
+        if (emitted.isNotEmpty) {
+          _apply(emitted);
+        }
+      }
+      state.checkTopology(_touched);
+      return emitted;
+    });
+    if (models.isNotEmpty) {
+      parts.add(A2uiPart(models));
+    }
+  }
+
+  List<AgentToRendererMessage> _compileStep(
+    String source, {
+    required bool isFinal,
+    bool cachePrefix = true,
+  }) => _session.compileStep(
+    source,
+    isFinal: isFinal,
+    existingSurfaces: _initialSurfaces,
+    cachePrefix: cachePrefix,
+  );
+
+  void _apply(Iterable<AgentToRendererMessage> messages) {
+    for (final (String surfaceId, String compId)
+        in _session.supersededComponents) {
+      state.dropProvisionalComponent(surfaceId, compId);
+    }
+    _session.supersededComponents.clear();
+    _touched.addAll(state.apply(messages));
+  }
+}
+
+List<Map<String, Object?>> _mergeComponentLists(
+  List<Map<String, Object?>> first,
+  List<Map<String, Object?>> second,
+) => <String, Map<String, Object?>>{
+  for (final c in first) c['id']! as String: c,
+  for (final c in second) c['id']! as String: c,
+}.values.toList();
+
+AgentToRendererMessage? _tryMergeComponentUpdate(
+  AgentToRendererMessage prev,
+  UpdateComponentsMessage msg,
+) {
+  if (prev is UpdateComponentsMessage && prev.surfaceId == msg.surfaceId) {
+    return UpdateComponentsMessage(
+      version: msg.version,
+      surfaceId: msg.surfaceId,
+      components: _mergeComponentLists(prev.components, msg.components),
+    );
+  }
+  if (prev is CreateSurfaceMessage &&
+      prev.surfaceId == msg.surfaceId &&
+      prev.components != null) {
+    return CreateSurfaceMessage(
+      version: prev.version,
+      surfaceId: prev.surfaceId,
+      catalogId: prev.catalogId,
+      components: _mergeComponentLists(prev.components!, msg.components),
+      dataModel: prev.dataModel,
+      theme: prev.theme,
+      sendDataModel: prev.sendDataModel,
+    );
+  }
+  return null;
+}
+
+/// Coalesces adjacent `UpdateComponentsMessage`s targeting the same surface in
+/// a single emitted chunk (for example, when both `completePrefix` and
+/// `healed` produce component updates in the same `feed` call).
+List<AgentToRendererMessage> _mergeSameSurfaceUpdates(
+  List<AgentToRendererMessage> messages,
+) {
+  if (messages.length <= 1) return messages;
+  final merged = <AgentToRendererMessage>[];
+  for (final msg in messages) {
+    if (msg is UpdateComponentsMessage && merged.isNotEmpty) {
+      final AgentToRendererMessage? combined = _tryMergeComponentUpdate(
+        merged.last,
+        msg,
+      );
+      if (combined != null) {
+        merged[merged.length - 1] = combined;
+        continue;
+      }
+    }
+    merged.add(msg);
+  }
+  return merged;
+}

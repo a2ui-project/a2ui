@@ -16,18 +16,21 @@
 
 import {ChangeDetectionStrategy, Component, input} from '@angular/core';
 import {ComponentHostComponent} from './component-host.component';
+import {SurfaceNodeResolver} from './surface-node-resolver.service';
 
 /**
  * High-level component for rendering an entire A2UI surface.
  *
  * This component handles the boilerplate of setting up a {@link ComponentHostComponent}
- * for the 'root' component of a surface. It is the recommended way to embed an
- * A2UI surface in an Angular application.
+ * for the 'root' component of a surface and owns the surface's `NodeResolver` (via
+ * {@link SurfaceNodeResolver}) so all hosts beneath it share one resolved node tree.
+ * It is the recommended way to embed an A2UI surface in an Angular application.
  */
 @Component({
   selector: 'a2ui-v09-surface',
   standalone: true,
   imports: [ComponentHostComponent],
+  providers: [SurfaceNodeResolver],
   host: {
     style: 'display: contents;',
   },

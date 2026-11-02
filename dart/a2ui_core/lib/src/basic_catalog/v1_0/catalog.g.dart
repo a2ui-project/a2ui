@@ -51,6 +51,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -105,6 +106,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -209,6 +211,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -238,6 +241,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -267,6 +271,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -321,6 +326,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -375,6 +381,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -422,6 +429,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -447,6 +455,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -491,6 +500,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -521,6 +531,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -551,6 +562,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'type': 'number',
               'description':
                   "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+              'catalogDefRef': r'#/$defs/Weight',
             },
           },
           'required': <Object?>[
@@ -595,6 +607,7 @@ List<ComponentApi> basicComponentsV1_0() => [
                   'type': 'number',
                   'description':
                       "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+                  'catalogDefRef': r'#/$defs/Weight',
                 },
               },
               'required': <Object?>[
@@ -647,6 +660,7 @@ List<ComponentApi> basicComponentsV1_0() => [
                   'type': 'number',
                   'description':
                       "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+                  'catalogDefRef': r'#/$defs/Weight',
                 },
               },
               'required': <Object?>[
@@ -684,6 +698,7 @@ List<ComponentApi> basicComponentsV1_0() => [
                   'type': 'number',
                   'description':
                       "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+                  'catalogDefRef': r'#/$defs/Weight',
                 },
               },
               'required': <Object?>[
@@ -773,6 +788,7 @@ List<ComponentApi> basicComponentsV1_0() => [
                   'type': 'number',
                   'description':
                       "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+                  'catalogDefRef': r'#/$defs/Weight',
                 },
               },
               'required': <Object?>[
@@ -825,6 +841,7 @@ List<ComponentApi> basicComponentsV1_0() => [
                   'type': 'number',
                   'description':
                       "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+                  'catalogDefRef': r'#/$defs/Weight',
                 },
               },
               'required': <Object?>[
@@ -927,6 +944,7 @@ List<ComponentApi> basicComponentsV1_0() => [
                   'type': 'number',
                   'description':
                       "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+                  'catalogDefRef': r'#/$defs/Weight',
                 },
               },
               'required': <Object?>[
@@ -1336,8 +1354,15 @@ Catalog<ComponentApi, F> basicCatalogV1_0<F extends FunctionApi>(
       title: 'A2UI Basic Catalog',
       description: 'Unified catalog of basic A2UI components and functions.',
       instructions:
-          'For layout, use the Row and Column components to organize other components.\n\n## Catalog Guidelines\n\n1. String Concatenation & Formatting: A2UI does not support binary operators like \'+\' or formatting symbols. To concatenate strings or dynamically inject data bindings into text, you must use the catalog function `formatString(value)` where the value string contains placeholders formatted as `\${expression}`:\n   formatString("Hello \${/user/name}")\n\n2. Strict Hierarchy: You must strictly adhere to the requested component nesting and hierarchy. If the prompt specifies that a component is \'inside\' or \'contained in\' another component, you MUST place it as a child of that specific component, not as a sibling or in a different container.\n\n3. Validation Checks: When components support validation checks, specify any custom error messages directly as the \'message\' inside the check. Do NOT create separate text-display components to display validation errors.\n\n## Examples\n\nExample 1: Dynamic text form\n```json\n[\n  {\n    "version": "v1.0",\n    "createSurface": {\n      "surfaceId": "main",\n      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n      "components": [\n        {\n          "id": "root",\n          "component": "Column",\n          "children": ["repField", "valueField"]\n        },\n        {\n          "id": "repField",\n          "component": "TextField",\n          "label": "Representative",\n          "value": {"@path": "/form/rep"},\n          "placeholder": "Enter name"\n        },\n        {\n          "id": "valueField",\n          "component": "TextField",\n          "label": "Deal Value",\n          "value": {"@path": "/form/value"},\n          "placeholder": "0.00",\n          "variant": "number",\n          "checks": [\n            {\n              "condition": {\n                "@call": "required",\n                "args": {"value": {"@path": "/form/value"}}\n              },\n              "message": "Deal value is required."\n            }\n          ]\n        }\n      ],\n      "dataModel": {\n        "form": {\n          "rep": "John Doe",\n          "value": 1500.00\n        }\n      }\n    }\n  }\n]\n```\n\nExample 2: Dynamic list with templates\n```json\n[\n  {\n    "version": "v1.0",\n    "createSurface": {\n      "surfaceId": "main",\n      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n      "components": [\n        {\n          "id": "root",\n          "component": "Card",\n          "child": "breedList"\n        },\n        {\n          "id": "breedList",\n          "component": "List",\n          "children": {\n            "path": "/breeds",\n            "componentId": "breedTemplate"\n          },\n          "direction": "horizontal"\n        },\n        {\n          "id": "breedTemplate",\n          "component": "Image",\n          "url": {"@path": "url"}\n        }\n      ],\n      "dataModel": {\n        "breeds": [\n          {\n            "url": "https://example.com/poodle.jpg"\n          },\n          {\n            "url": "https://example.com/lab.jpg"\n          }\n        ]\n      }\n    }\n  }\n]\n```',
+          'For layout, use the Row and Column components to organize other components.\n\n## Catalog Guidelines\n\n1. String Concatenation & Formatting: A2UI does not support binary operators like \'+\' or formatting symbols. To concatenate strings or dynamically inject data bindings into text, you must use the catalog function `formatString(value)` where the value string contains placeholders formatted as `\${expression}`:\n   formatString("Hello \${/user/name}")\n\n2. Strict Hierarchy: You must strictly adhere to the requested component nesting and hierarchy. If the prompt specifies that a component is \'inside\' or \'contained in\' another component, you MUST place it as a child of that specific component, not as a sibling or in a different container.\n\n3. Validation Checks: When components support validation checks, specify any custom error messages directly as the \'message\' inside the check. Do NOT create separate text-display components to display validation errors.\n\n## Examples\n\nExample 1: Dynamic text form\n```json\n[\n  {\n    "version": "1.0",\n    "createSurface": {\n      "surfaceId": "main",\n      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n      "components": [\n        {\n          "id": "root",\n          "component": "Column",\n          "children": ["repField", "valueField"]\n        },\n        {\n          "id": "repField",\n          "component": "TextField",\n          "label": "Representative",\n          "value": {"@path": "/form/rep"},\n          "placeholder": "Enter name"\n        },\n        {\n          "id": "valueField",\n          "component": "TextField",\n          "label": "Deal Value",\n          "value": {"@path": "/form/value"},\n          "placeholder": "0.00",\n          "variant": "number",\n          "checks": [\n            {\n              "condition": {\n                "@call": "required",\n                "args": {"value": {"@path": "/form/value"}}\n              },\n              "message": "Deal value is required."\n            }\n          ]\n        }\n      ],\n      "dataModel": {\n        "form": {\n          "rep": "John Doe",\n          "value": 1500.00\n        }\n      }\n    }\n  }\n]\n```\n\nExample 2: Dynamic list with templates\n```json\n[\n  {\n    "version": "1.0",\n    "createSurface": {\n      "surfaceId": "main",\n      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n      "components": [\n        {\n          "id": "root",\n          "component": "Card",\n          "child": "breedList"\n        },\n        {\n          "id": "breedList",\n          "component": "List",\n          "children": {\n            "path": "/breeds",\n            "componentId": "breedTemplate"\n          },\n          "direction": "horizontal"\n        },\n        {\n          "id": "breedTemplate",\n          "component": "Image",\n          "url": {"@path": "url"}\n        }\n      ],\n      "dataModel": {\n        "breeds": [\n          {\n            "url": "https://example.com/poodle.jpg"\n          },\n          {\n            "url": "https://example.com/lab.jpg"\n          }\n        ]\n      }\n    }\n  }\n]\n```',
       protocolVersion: A2uiProtocolVersion.v1_0,
       components: basicComponentsV1_0(),
       functions: functions,
+      definitions: const <String, Object?>{
+        'Weight': <String, Object?>{
+          'type': 'number',
+          'description':
+              "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+        },
+      },
     );

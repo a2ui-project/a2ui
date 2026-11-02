@@ -22,6 +22,7 @@ import {RegexCaptureImplementation} from './regexCapture.js';
 
 const catalog = new Catalog<any>(
   'https://a2ui.org/test/regexCapture',
+  '0.9',
   [],
   [RegexCaptureImplementation, JmespathImplementation],
 );
@@ -31,7 +32,7 @@ const call = (name: string, args: Record<string, unknown>) =>
     name,
     args,
     new DataContext(
-      {dataModel: new DataModel({}), catalog: {invoker: catalog.invoker}} as any,
+      {dataModel: new DataModel({}), defaultCatalog: {invoker: catalog.invoker}} as any,
       '/',
     ),
   );

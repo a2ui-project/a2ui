@@ -329,4 +329,41 @@ describe('reference-map schema introspection', () => {
     assert.ok(refMap.SectionList.nestedRefs?.sections.has('headerChild'));
     assert.strictEqual(refMap.SectionList.nestedRefs?.sections.has('title'), false);
   });
+
+  it('recognizes v0.8 inline string child properties (child, entryPointChild, contentChild)', () => {
+    const cardApi: ComponentApi = {
+      name: 'Card',
+      schema: z.object({
+        child: z.string(),
+      }),
+    };
+    const modalApi: ComponentApi = {
+      name: 'Modal',
+      schema: z.object({
+        entryPointChild: z.string(),
+        contentChild: z.string(),
+      }),
+    };
+    const tabsApi: ComponentApi = {
+      name: 'Tabs',
+      schema: z.object({
+        tabItems: z.array(
+          z.object({
+            title: z.string(),
+            child: z.string(),
+          }),
+        ),
+      }),
+    };
+
+    const v08Catalog = new Catalog('v08-cat', '0.8', [cardApi, modalApi, tabsApi]);
+    const refMap = v08Catalog.componentRefMap;
+    assert.deepStrictEqual(Array.from(refMap.Card.singleRefs), ['child']);
+    assert.deepStrictEqual(Array.from(refMap.Modal.singleRefs).sort(), [
+      'contentChild',
+      'entryPointChild',
+    ]);
+    assert.deepStrictEqual(Array.from(refMap.Tabs.listRefs), ['tabItems']);
+    assert.ok(refMap.Tabs.nestedRefs?.tabItems.has('child'));
+  });
 });

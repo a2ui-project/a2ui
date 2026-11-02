@@ -15,6 +15,7 @@
 import os
 
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.processor import A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import to_version_number
 
@@ -139,7 +140,9 @@ if __name__ == "__main__":
         catalog_path=COMPOSITE_CATALOG_PATH,
         protocol_version=version,
     ).transformed_catalog
-    processor = A2uiRequestProcessor([catalog])
+    processor = A2uiRequestProcessor(
+        [catalog], format_factory=DirectJsonFormatFactory()
+    )
     examples = load_examples(
         processor.active_catalogs,
         f"examples/{to_version_number(version)}",

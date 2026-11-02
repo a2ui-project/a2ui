@@ -28,7 +28,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Any, Final, NamedTuple
 
-from ._json_schema import KEEP_ANY_OF_MARKER, SPEC_TITLE_KEY
+from ._json_schema import CATALOG_DEF_MARKER, KEEP_ANY_OF_MARKER, SPEC_TITLE_KEY
 
 
 def is_ref(item: Any, target_def: str) -> bool:
@@ -179,7 +179,8 @@ def build_dynamic_type_index(defs: dict[str, Any]) -> DynamicTypeIndex:
     }
     all_kinds = frozenset().union(*kinds_by_name.values())
     catch_all = next(
-        (name for name, kinds in kinds_by_name.items() if kinds >= all_kinds), None
+        (name for name, kinds in kinds_by_name.items() if kinds >= all_kinds),
+        None,
     )
     by_literal_shape = {
         shape_by_name[name]: name
@@ -246,10 +247,17 @@ def clean_schema_node(
         for k, v in node.items():
             if k == "title" and not is_properties_dict:
                 continue
+            if k == CATALOG_DEF_MARKER and not is_properties_dict:
+                continue
             if k == SPEC_TITLE_KEY and not is_properties_dict:
                 cleaned["title"] = v
                 continue
-            if not is_properties_dict and k in ("const", "default", "enum", "examples"):
+            if not is_properties_dict and k in (
+                "const",
+                "default",
+                "enum",
+                "examples",
+            ):
                 cleaned[k] = v
                 continue
             cleaned[k] = clean_schema_node(

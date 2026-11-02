@@ -39,16 +39,16 @@ describe('readInboundMessage', () => {
     const inbound = readInboundMessage(
       message({
         kind: 'data',
-        data: {version: 'v1.0', action: {name: 'book_restaurant', context: {address: 'Main St'}}},
+        data: {version: '1.0', action: {name: 'book_restaurant', context: {address: 'Main St'}}},
       }),
-      'v1.0',
+      '1.0',
     );
     expect(inbound.action).toEqual({name: 'book_restaurant', context: {address: 'Main St'}});
   });
 
   it('ignores an action labeled with another version, but reads a legacy userAction', () => {
     const otherVersion = readInboundMessage(
-      message({kind: 'data', data: {version: 'v1.0', action: {name: 'book_restaurant'}}}),
+      message({kind: 'data', data: {version: '1.0', action: {name: 'book_restaurant'}}}),
       'v0.9',
     );
     expect(otherVersion.action).toBeUndefined();

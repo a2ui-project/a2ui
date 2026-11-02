@@ -287,6 +287,18 @@ interface ComponentApi {
   readonly name: string;
   /** The technical definition used for validation and generating renderer capabilities. */
   readonly schema: Schema;
+  /**
+   * Static 'ComponentDefinition.metadata' from the catalog document (v1.0+), with every
+   * 'extensions' key validated as a UAX #31 identifier at load. Round-trips through
+   * 'Catalog.fromJson' and 'Catalog.toJson'. The catalog document root carries no
+   * 'metadata'; only component definitions do.
+   */
+  readonly metadata?: A2uiMetadata;
+}
+
+/** Matches 'metadata' containers in the v1.0 wire schemas: '{ extensions?: Extensions }'. */
+interface A2uiMetadata {
+  readonly extensions?: Readonly<Record<string, unknown>>;
 }
 ```
 
@@ -409,6 +421,18 @@ myCustomCatalog = Catalog(
 )
 ```
 
+To keep some entries of an existing catalog under a new id, derive a catalog from it. A name keeps the source's entry of that name, an entry adds it, and leaving a list out keeps all of the source's entries of that kind. An unknown name is an `A2uiCatalogError`. The derived catalog keeps the source's protocol version, theme and document layout, and not its `$id`, title, description or instructions, which describe the source: the basic catalog's instructions name its id in their examples, so they would teach a model to write messages for the wrong catalog.
+
+```python
+# Pseudocode
+chatCatalog = basicCatalog.derive(
+  catalogId="https://mycompany.com/catalogs/chat.json",
+  components=["Text", "Image", "Row", "Column", "Button", MyCarouselComponent()],
+  functions=["openUrl"],
+  instructions=chatInstructions,
+)
+```
+
 ---
 
 ### B. Processing Layer (`a2ui.core.processing`)
@@ -468,6 +492,12 @@ export interface MessageProcessorOptions {
   defaultTimeoutSeconds?: number;
 }
 
+/** Options for one call of 'processMessages' or 'processMessagesAsync'. */
+export interface ExecutionContext {
+  /** Whether the call runs in an active user gesture. */
+  isUserActivated?: boolean;
+}
+
 class MessageProcessor<T extends ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly rpc: RpcHandler;
@@ -479,8 +509,11 @@ class MessageProcessor<T extends ComponentApi> {
   );
 
   // Synchronous and asynchronous message processing
-  processMessages(messages: AgentToRendererMessagePayload): void;
-  processMessagesAsync(messages: AgentToRendererMessagePayload): Promise<void>;
+  processMessages(messages: AgentToRendererMessagePayload, context?: ExecutionContext): void;
+  processMessagesAsync(
+    messages: AgentToRendererMessagePayload,
+    context?: ExecutionContext,
+  ): Promise<void>;
 
   // Outbound RPC convenience delegation to 'rpc' (v1.0+)
   callAgentFunction<T = unknown>(
@@ -502,6 +535,8 @@ class MessageProcessor<T extends ComponentApi> {
   dispose(reason?: string): void;
 }
 ```
+
+The optional [`agent_renderer_app`](../features/agent_renderer_app.blueprint.md) feature adds `MessageProcessor.catalogs`, and a validation config for one call in `ExecutionContext`, for an agent that checks its messages against the renderer's own processor.
 
 ##### RPC ownership
 
@@ -1000,15 +1035,14 @@ export class RpcHandler {
 #### RPC Execution Lifecycle & Safeguards
 
 1. **Inbound Call Execution (`handleCallRendererFunction`)**:
-   - **Catalog Resolution Order**: An explicit `catalogId` and its absence are two separate paths, not steps in one fallback chain.
-     1. If the call carries a `catalogId`, resolve it against the surface's `availableCatalogs`, then against the processor's global catalog list. If neither has it, return `RpcErrorCode.INVALID_FUNCTION_CALL`. Do not fall through to the surface default: the caller named a catalog, and answering with a different one is worse than failing.
-     2. If the call carries no `catalogId`, use the surface's `defaultCatalog`.
-     3. If neither path yields a catalog, return `RpcErrorCode.INVALID_FUNCTION_CALL`.
+   - **Catalog Resolution Order**: Resolve the call's `catalogId` against the surface's `availableCatalogs`, then against the processor's global catalog list. If neither has it, return `RpcErrorCode.INVALID_FUNCTION_CALL`. Do not fall through to the surface default.
 
-     Falling back to the first entry of the global catalog list is wrong for the same reason. It resolves against a catalog the surface may never have negotiated, so a typo in `catalogId` executes a same-named function from an unrelated catalog instead of failing. Once resolved, verify the catalog's `protocolVersion` is compatible with the surface before executing.
+     Falling back to the first entry of the global catalog list is also wrong. It resolves against a catalog the surface may never have negotiated, so a typo in `catalogId` executes a same-named function from an unrelated catalog instead of failing. Once resolved, verify the catalog's `protocolVersion` is compatible with the surface before executing.
+
+     A call with no `catalogId` should not reach this step. The schema requires `catalogId` on `callRendererFunction`, so inbound parsing should reject the message with `A2uiValidationError` and no `rendererFunctionResponse` will be sent. Agents should check this field against the schema before sending the message.
 
    - **Function Resolution & Argument Coercion**: Look up the function in the resolved catalog. If it is absent, or argument validation fails, return `RpcErrorCode.INVALID_FUNCTION_CALL`. Execute with the coerced arguments returned by `validateFunction`, never the raw payload.
-   - **Permission & Activation Boundaries**: Verifies execution permissions. If a function requires user activation (e.g., audio playback or clipboard write), execution checks that `isUserActivated === true`.
+   - **Permission & Activation Boundaries**: Verifies execution permissions. The function's `allowedCallers` must be `rendererOrAgent` or `agentOnly`; a `rendererOnly` function, including one that declares no `allowedCallers`, returns `RpcErrorCode.INVALID_FUNCTION_CALL`. If a function requires user activation (e.g., audio playback or clipboard write), execution checks that `isUserActivated === true`.
    - **Headless Fallback Context**: If called without an active DOM view context, provisions a headless `DataContext` backed by the surface or root data model so dynamic value resolutions and data path updates resolve cleanly without null reference errors.
    - **Execution Error Trapping**: Catches any unhandled exceptions during execution, converts them to structured error messages with `RpcErrorCode.EXECUTION_ERROR`, and emits `RendererFunctionResponseMessage`.
 
@@ -1133,11 +1167,31 @@ interface A2uiRendererAction {
    * actions contributed by different catalogs on the same surface.
    */
   catalogId?: string;
+  /** Optional 'action.metadata' envelope ('{ extensions }') attached at dispatch time. */
+  metadata?: A2uiMetadata;
 }
 
 type ActionListener = (action: A2uiRendererAction) => void | Promise<void>;
 
-class SurfaceModel<T extends ComponentApi> {
+/**
+ * Shared metadata contract of SurfaceModel and ComponentModel. Every write validates
+ * 'extensions' keys as UAX #31 identifiers (A2uiValidationError otherwise), stores a
+ * defensive deep copy, and is a no-op when the new value is structurally equal to the
+ * stored one. Removing the last extension key clears 'metadata' to undefined.
+ */
+interface MetadataHolder {
+  /** Synchronous snapshot of the current metadata envelope; assigning validates and updates reactively. */
+  metadata: A2uiMetadata | undefined;
+  /** Convenience view of 'metadata.extensions'. */
+  readonly extensions: Readonly<Record<string, unknown>> | undefined;
+  /** Fires after a write changes the stored value, from the wire or from a local mutation. */
+  readonly onMetadataChanged: EventSource<A2uiMetadata | undefined>;
+  /** Sets one extension key. 'null' is a stored value, not a deletion. */
+  setExtension(key: string, value: unknown): void;
+  removeExtension(key: string): void;
+}
+
+class SurfaceModel<T extends ComponentApi> implements MetadataHolder {
   readonly id: string;
 ...
   /**
@@ -1173,13 +1227,28 @@ class SurfaceModel<T extends ComponentApi> {
   /** If true, the renderer should send the full data model with actions. */
   readonly sendDataModel: boolean;
 
+  /**
+   * 'createSurface.metadata' (v1.0+), mutable locally through the 'metadata'
+   * property setter and 'setExtension'/'removeExtension' methods. Also exposed
+   * as a read-only reactive signal because adapter views reach the surface
+   * through ambient context rather than through a node.
+   */
+  metadata: A2uiMetadata | undefined;
+  readonly metadataSignal: ReadonlySignal<A2uiMetadata | undefined>;
+
   readonly onAction: EventSource<A2uiRendererAction>;
   /**
    * Dispatches an action from this surface.
    * @param payload The raw action event from the component.
    * @param sourceComponentId The ID of the component that triggered the action.
+   * @param metadata Optional 'action.metadata' envelope; its 'extensions' keys are
+   *   validated as UAX #31 identifiers and the copy is attached to the emitted action.
    */
-  dispatchAction(payload: Record<string, any>, sourceComponentId: string): Promise<void>;
+  dispatchAction(
+    payload: Record<string, any>,
+    sourceComponentId: string,
+    metadata?: A2uiMetadata,
+  ): Promise<void>;
 }
 ```
 
@@ -1252,7 +1321,7 @@ class SurfaceComponentsModel {
   readonly onDeleted: EventSource<string>;
 }
 
-class ComponentModel {
+class ComponentModel implements MetadataHolder {
   readonly id: string;
   readonly type: string; // Component name (e.g. 'Button')
 
@@ -1271,9 +1340,25 @@ class ComponentModel {
   get properties(): Record<string, any>;
   set properties(newProps: Record<string, any>);
 
+  /**
+   * 'ComponentCommon.metadata' (v1.0+), kept apart from 'properties' so a schema
+   * property named 'metadata' never collides with the envelope. An
+   * 'updateComponents' entry replaces the definition in full: the processor
+   * assigns 'metadata' with the incoming value (undefined when omitted), so stale
+   * metadata never survives an update. The model exposes no public metadata
+   * signal; resolved nodes derive 'ComponentNode.metadata' from the model (see the
+   * node resolution feature blueprint), and 'onMetadataChanged' serves non-signal
+   * consumers. In languages where ComponentModel is a value type or property setters
+   * cannot throw (e.g. Swift), throwing mutators live on ComponentModel and
+   * SurfaceComponentsModel (e.g. 'setMetadata(metadata, forComponentId)').
+   */
+  metadata: A2uiMetadata | undefined;
+
   readonly onUpdated: EventSource<ComponentModel>;
 }
 ```
+
+The processor applies an `updateComponents` entry to an existing component inside one reactive batch, so property and metadata signal writes coalesce for signal consumers. `onUpdated` fires only when `properties` changed; a metadata-only update fires `onMetadataChanged` alone and never re-emits resolved `props`.
 
 ##### `DataModel`
 
@@ -1340,6 +1425,8 @@ _Per-call catalog dispatch._ A `FunctionCall` may carry a `catalogId`. `DataCont
 
 This depends on `catalogId` surviving deserialization. If the `FunctionCall` model used at runtime is the pre-v1.0 shape (`call`, `args`, `returnType`), a strict schema library strips `catalogId` before resolution ever sees it, and every call silently resolves against the default catalog. Version-specific schema models must be selected by the surface's protocol version rather than aliased back to a legacy definition.
 
+_Renderer callers._ Every call `DataContext` evaluates is a renderer call: a property binding, a check, a `functionCall` action, or a call nested in the arguments of any of them. A function whose `allowedCallers` is `agentOnly` runs only for an agent-initiated `callRendererFunction`, which `RpcHandler` executes without going through `DataContext`'s function invocation. `DataContext` therefore refuses an `agentOnly` function with `A2uiExpressionError`, before the user activation check and before running it, and reports it as an `EXPRESSION_ERROR` on the surface. A function that declares no `allowedCallers` is `rendererOnly` and runs.
+
 _Recursion into nested containers._ `resolveDynamicValue` recurses into plain objects and arrays, resolving bindings at any depth. Returning a plain object unresolved means a nested binding such as `{"style": {"color": {"@path": "/accent"}}}` reaches the renderer as a raw pointer object. Recovering that only through a higher-level schema walk leaves direct `DataContext` callers, including conformance harnesses, with different results from the framework path.
 
 _Expression errors are dispatched, not thrown._ A failure while evaluating a bound expression (unknown function, bad arguments) dispatches an `EXPRESSION_ERROR` to the surface and yields an undefined value for that binding. A call whose catalog can't be resolved dispatches a `CATALOG_ERROR` instead: the expression may be fine, and the function may exist in a catalog the surface doesn't have, so the agent needs to tell the two apart. Throwing out of the resolution pass aborts the whole tree, so one malformed binding blanks an otherwise renderable surface. The RPC path is different: it returns a structured error response, since there is a caller waiting on a result.
@@ -1351,6 +1438,8 @@ _Parser bounds._ The expression parser enforces one shared maximum nesting depth
 ##### `GenericBinder`
 
 `GenericBinder` walks a component's declared schema to classify each property as dynamic, action, structural, or checkable, and produces the bound property set the renderer consumes, including two-way setters and action closures.
+
+Classification reaches into lists and objects, so an action, binding or child list inside a list item is bound as it is at the top level. In a language that types the bound property set, its type says so too: a nested action is a function, not the raw action object. A list of check rules is the exception: the binder evaluates the rules and passes the list on as it is.
 
 Classification is driven by the catalog schema, never by inspecting values or matching property names. Hardcoding a property name (for example, treating a key literally named `checks` as special) is a catalog-agnostic violation under `AGENTS.md` §8: it silently privileges one catalog's vocabulary and breaks any catalog that names the concept differently.
 

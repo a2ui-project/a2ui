@@ -13,9 +13,14 @@
 // limitations under the License.
 
 import A2UICore
+import Foundation
 
 /// Provides standard function implementations across supported A2UI protocol versions.
 public enum BasicFunctions: Sendable {
+  /// The locale `formatNumber`, `formatCurrency` and `pluralize` use unless a catalog is built
+  /// with another one. It matches the `en-US` default of the web and Dart implementations.
+  public static let defaultLocale = Locale(identifier: "en_US")
+
   /// Standard function implementations for A2UI Protocol v0.9 and v0.9.1.
   public static let v09Functions: [any FunctionImplementation] =
     V09BasicFunctions.allFunctions

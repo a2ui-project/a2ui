@@ -19,7 +19,7 @@
  */
 
 import {A2uiCatalogError} from '../../errors.js';
-import {CatalogApi, compareSemVer, linkCatalogs} from '../../internal/web-core.js';
+import {CatalogApi, compareSemVer} from '../../internal/web-core.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 import {
   ExpressUnknownComponentError,
@@ -147,9 +147,6 @@ export function catalogsDefining(
 /**
  * Builds one schema helper per catalog, keyed by catalog id.
  *
- * The helpers read copies of the catalogs linked to each other, so cross-catalog
- * `$ref`s resolve; the catalogs passed in are not changed.
- *
  * @param catalogs The active catalogs.
  * @param version The protocol version the helpers read the schemas for.
  * @returns The helpers, in catalog order.
@@ -158,9 +155,7 @@ export function buildSchemaHelpers(
   catalogs: CatalogApi[],
   version: string,
 ): Map<string, CatalogSchemaHelper> {
-  return new Map(
-    linkCatalogs(catalogs).map(catalog => [catalog.id, new CatalogSchemaHelper(catalog, version)]),
-  );
+  return new Map(catalogs.map(catalog => [catalog.id, new CatalogSchemaHelper(catalog, version)]));
 }
 
 /**

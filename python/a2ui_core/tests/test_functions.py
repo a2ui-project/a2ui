@@ -86,9 +86,12 @@ def test_v10_logical_functions_read_validation_result_operands():
         return and_({
             "values": [
                 required({"value": terms}),
-                or_(
-                    {"values": [required({"value": email}), required({"value": phone})]}
-                ),
+                or_({
+                    "values": [
+                        required({"value": email}),
+                        required({"value": phone}),
+                    ]
+                }),
             ]
         })
 
@@ -191,7 +194,11 @@ def test_formatting_format_string_function_call():
 
     context = MockDataContext({}, invoker=mock_invoker)
     assert (
-        invoke("formatString", {"value": "Result: ${add(a: 5, b: 7)}"}, context=context)
+        invoke(
+            "formatString",
+            {"value": "Result: ${add(a: 5, b: 7)}"},
+            context=context,
+        )
         == "Result: 12"
     )
 
@@ -252,7 +259,10 @@ def test_formatting_format_currency():
 
 def test_formatting_format_date():
     assert (
-        invoke("formatDate", {"value": "2025-01-01T12:00:00Z", "format": "yyyy-MM-dd"})
+        invoke(
+            "formatDate",
+            {"value": "2025-01-01T12:00:00Z", "format": "yyyy-MM-dd"},
+        )
         == "2025-01-01"
     )
     # Test extended date formatting tokens
@@ -262,7 +272,10 @@ def test_formatting_format_date():
         == "26-3-5 8:04:09"
     )
     assert (
-        invoke("formatDate", {"value": dt_str, "format": "MMM MMMM E EEEE hh:mm:ss a"})
+        invoke(
+            "formatDate",
+            {"value": dt_str, "format": "MMM MMMM E EEEE hh:mm:ss a"},
+        )
         == "Mar March Thu Thursday 08:04:09 AM"
     )
     dt_pm_str = "2026-03-05T15:04:09Z"
@@ -662,12 +675,12 @@ def test_call_agent_function_helper_and_response_event():
         ),
         options=CallOptions(
             function_call_id="call-98",
-            version="v1.0",
+            version="1.0",
         ),
     )
     assert len(outbound_msgs) == 1
     assert outbound_msgs[0] == {
-        "version": "v1.0",
+        "version": "1.0",
         "callAgentFunction": {
             "surfaceId": "s1",
             "functionCallId": "call-98",
@@ -689,12 +702,12 @@ def test_call_agent_function_helper_and_response_event():
         ),
         options=CallOptions(
             function_call_id="call-99",
-            version="v1.0",
+            version="1.0",
         ),
     )
 
     processor.process_messages([{
-        "version": "v1.0",
+        "version": "1.0",
         "agentFunctionResponse": {
             "functionCallId": "call-99",
             "value": {"status": "success"},
@@ -724,7 +737,7 @@ def test_call_agent_function_response_done_future():
 
     # Processing response for done/cancelled future should not crash with InvalidStateError
     processor.process_messages([{
-        "version": "v1.0",
+        "version": "1.0",
         "agentFunctionResponse": {
             "functionCallId": "call-done",
             "value": {"status": "ignored"},

@@ -53,6 +53,38 @@ struct AndFunctionTests {
     }
   }
 
+  // MARK: - ValidationResult Operands
+
+  @Test func readsFailingValidationResultOperandAsFalseInV10() throws {
+    let result = try AndFunction(readsValidationResults: true).evaluate(
+      arguments: [
+        "values": .array([
+          .object(["valid": .boolean(true)]),
+          .object(["valid": .boolean(false), "message": .string("Required")]),
+        ])
+      ],
+      context: context)
+    #expect(result == .boolean(false))
+  }
+
+  @Test func readsPassingValidationResultOperandsAsTrueInV10() throws {
+    let result = try AndFunction(readsValidationResults: true).evaluate(
+      arguments: [
+        "values": .array([.object(["valid": .boolean(true)]), .boolean(true)])
+      ],
+      context: context)
+    #expect(result == .boolean(true))
+  }
+
+  @Test func readsValidationResultOperandAsPlainObjectInV09() throws {
+    let result = try function.evaluate(
+      arguments: [
+        "values": .array([.object(["valid": .boolean(false)]), .boolean(true)])
+      ],
+      context: context)
+    #expect(result == .boolean(true))
+  }
+
   @Test func throwsErrorWithEmptyArray() throws {
     #expect(throws: FunctionError.self) {
       try function.evaluate(

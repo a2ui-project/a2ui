@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -508,6 +509,91 @@ void main() {
         ),
       );
       expect(tester.getTopRight(find.text('Send')).dx, lessThan(_width));
+    });
+  });
+
+  group('unresolved children', () {
+    // They render nothing, so the container lays out as if they were absent:
+    // no slot, no gap, no flex share, no part in justify.
+    const lenient = ValidationConfig(
+      allowDanglingReferences: true,
+      allowUnknownElements: true,
+    );
+
+    testWidgets('add no gap to a Column, then take their place on arrival', (
+      tester,
+    ) async {
+      final SurfaceHarness harness = await pumpComponents(
+        tester,
+        [
+          _flex('root', 'Column', ['a', 'late', 'weird', 'b']),
+          _text('a', 'A'),
+          {'id': 'weird', 'component': 'StarRating'},
+          _text('b', 'B'),
+        ],
+        catalog: _catalog,
+        validationConfig: lenient,
+      );
+
+      expect(
+        tester.getTopLeft(find.text('B')).dy,
+        tester.getBottomLeft(find.text('A')).dy + flexGap,
+      );
+
+      await harness.send([
+        updateComponents([_text('late', 'Late')]),
+      ]);
+
+      expect(
+        tester.getTopLeft(find.text('Late')).dy,
+        tester.getBottomLeft(find.text('A')).dy + flexGap,
+      );
+      expect(
+        tester.getTopLeft(find.text('B')).dy,
+        tester.getBottomLeft(find.text('Late')).dy + flexGap,
+      );
+    });
+
+    testWidgets('take no width share in a Row', (tester) async {
+      final String first = List.filled(30, 'first').join(' ');
+      final String second = List.filled(50, 'second').join(' ');
+      await pumpComponents(
+        tester,
+        [
+          _flex('root', 'Row', ['a', 'late', 'b']),
+          _text('a', first),
+          _text('b', second),
+        ],
+        catalog: _catalog,
+        validationConfig: lenient,
+      );
+
+      final double half = (_width - flexGap) / 2;
+      expect(_size(tester, first).width, moreOrLessEquals(half, epsilon: 0.01));
+      expect(
+        _size(tester, second).width,
+        moreOrLessEquals(half, epsilon: 0.01),
+      );
+      expect(
+        tester.getTopLeft(find.text(second)).dx,
+        moreOrLessEquals(half + flexGap, epsilon: 0.01),
+      );
+    });
+
+    testWidgets('take no part in justify', (tester) async {
+      await pumpComponents(
+        tester,
+        [
+          _flex('root', 'Row', ['late', 'a'], justify: 'spaceBetween'),
+          _text('a', 'A'),
+        ],
+        catalog: _catalog,
+        validationConfig: lenient,
+      );
+
+      // A lone child of spaceBetween sits at the start, as if `late` were
+      // absent, rather than being pushed to the end.
+      expect(tester.getTopLeft(find.text('A')).dx, 0);
     });
   });
 

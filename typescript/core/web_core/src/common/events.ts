@@ -65,7 +65,10 @@ export class EventEmitter<T> implements EventSource<T> {
   async emit(data: T): Promise<void> {
     for (const listener of this.listeners) {
       try {
-        await listener(data);
+        const res = listener(data);
+        if (res && typeof (res as Promise<void>).then === 'function') {
+          await res;
+        }
       } catch (e) {
         console.error('EventEmitter error:', e);
       }

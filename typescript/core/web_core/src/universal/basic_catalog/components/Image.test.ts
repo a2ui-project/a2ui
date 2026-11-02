@@ -136,6 +136,88 @@ describe('Image Component', () => {
     assert.strictEqual(img.style.objectFit, 'scale-down');
   });
 
+  it('should allow data: URLs for inline images', async () => {
+    const dataUrl =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'comp1',
+              component: 'Image',
+              url: dataUrl,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-image') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'comp1');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const img = el.querySelector('img');
+    assert.notStrictEqual(img, null);
+    assert.strictEqual(img?.getAttribute('src'), dataUrl);
+  });
+
+  it('should omit src when url uses a disallowed scheme', async () => {
+    const disallowedUrls = [
+      'javascript:alert(1)',
+      'vbscript:msgbox(1)',
+      'file:///etc/passwd',
+      'blob:https://example.com/123',
+      '//evil.example.com/pixel.png',
+      '/\\evil.example.com/pixel.png',
+      '/\t/evil.example.com/pixel.png',
+      'http:evil.example.com/pixel.png',
+      'https:evil.example.com/pixel.png',
+    ];
+
+    const el = document.createElement('a2ui-image') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    for (const badUrl of disallowedUrls) {
+      processor.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'comp1',
+                component: 'Image',
+                url: badUrl,
+              },
+            ],
+          },
+        },
+      ]);
+
+      const context = new ComponentContext(surface, 'comp1');
+      await asyncUpdate(el, e => {
+        e.context = context;
+      });
+
+      const img = el.querySelector('img');
+      assert.notStrictEqual(img, null);
+      assert.strictEqual(
+        img?.getAttribute('src'),
+        null,
+        `Expected src to be omitted for ${badUrl}`,
+      );
+    }
+  });
+
   describe('ImageApi schema validation', () => {
     it('should parse valid image with description', () => {
       const validImage = {

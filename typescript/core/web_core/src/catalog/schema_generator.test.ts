@@ -407,7 +407,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
 
     const loaded = Catalog.fromJson({
       catalogId: 'https://example.com/v10-loaded.json',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       components: {
         Open: {type: 'object', properties: {component: {const: 'Open'}}},
         Closed: {
@@ -650,7 +650,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
 
     const published = Catalog.fromJson({
       catalogId: 'https://example.com/published.json',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       components: {
         Label: {
           type: 'object',
@@ -728,7 +728,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
   it('excludes system functions and follows the source order of a loaded catalog', () => {
     const loaded = Catalog.fromJson({
       catalogId: 'https://example.com/order.json',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       components: {
         Zeta: {type: 'object', properties: {component: {const: 'Zeta'}}},
         Alpha: {type: 'object', properties: {component: {const: 'Alpha'}}},
@@ -770,7 +770,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
       title: 'Described',
       description: 'Document description.',
       catalogId: 'https://example.com/described',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       components: {
         Profile: {
           type: 'object',
@@ -925,6 +925,93 @@ describe('Catalog.validationSchema & schema_generator', () => {
       {required: ['max']},
     ]);
     assert.strictEqual(between.properties.args.unevaluatedProperties, false);
+  });
+
+  it('requires args when authored function argument schemas require arguments via combinators or $ref', () => {
+    const loaded = Catalog.fromJson({
+      catalogId: 'https://example.com/combinator-args.json',
+      protocolVersion: '1.0',
+      $defs: {
+        RequiredArgDef: {
+          type: 'object',
+          properties: {target: {type: 'string'}},
+          required: ['target'],
+        },
+        OptionalArgDef: {
+          type: 'object',
+          properties: {target: {type: 'string'}},
+        },
+      },
+      functions: {
+        oneOfRequired: {
+          returnType: 'string',
+          properties: {
+            '@call': {const: 'oneOfRequired'},
+            args: {
+              oneOf: [
+                {
+                  type: 'object',
+                  properties: {kind: {const: 'a'}, value: {type: 'string'}},
+                  required: ['kind', 'value'],
+                },
+                {
+                  type: 'object',
+                  properties: {kind: {const: 'b'}, count: {type: 'number'}},
+                  required: ['kind', 'count'],
+                },
+              ],
+            },
+          },
+        },
+        anyOfSubRequired: {
+          returnType: 'boolean',
+          properties: {
+            '@call': {const: 'anyOfSubRequired'},
+            args: {
+              type: 'object',
+              properties: {min: {type: 'number'}, max: {type: 'number'}},
+              anyOf: [{required: ['min']}, {required: ['max']}],
+            },
+          },
+        },
+        oneOfOptionalBranch: {
+          returnType: 'string',
+          properties: {
+            '@call': {const: 'oneOfOptionalBranch'},
+            args: {
+              oneOf: [{$ref: '#/$defs/RequiredArgDef'}, {$ref: '#/$defs/OptionalArgDef'}],
+            },
+          },
+        },
+        allOfRefRequired: {
+          returnType: 'string',
+          properties: {
+            '@call': {const: 'allOfRefRequired'},
+            args: {
+              allOf: [{$ref: '#/$defs/OptionalArgDef'}, {$ref: '#/$defs/RequiredArgDef'}],
+            },
+          },
+        },
+        minPropsRequired: {
+          returnType: 'string',
+          properties: {
+            '@call': {const: 'minPropsRequired'},
+            args: {
+              type: 'object',
+              minProperties: 1,
+            },
+          },
+        },
+      },
+    });
+    const fns = loaded.validationSchema['functions'] as Record<string, any>;
+    assert.deepStrictEqual(fns['oneOfRequired'].required, ['@call', 'args']);
+    assert.strictEqual(fns['oneOfRequired'].properties.args.oneOf.length, 2);
+    assert.strictEqual(fns['oneOfRequired'].properties.args.properties, undefined);
+    assert.deepStrictEqual(fns['anyOfSubRequired'].required, ['@call', 'args']);
+    assert.deepStrictEqual(fns['oneOfOptionalBranch'].required, ['@call']);
+    assert.deepStrictEqual(fns['allOfRefRequired'].required, ['@call', 'args']);
+    assert.deepStrictEqual(fns['minPropsRequired'].required, ['@call', 'args']);
   });
 
   describe('deep pointers into common types', () => {

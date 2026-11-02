@@ -190,7 +190,8 @@ def test_additional_properties_handling_with_models():
 
     # 2. Rejects extra properties when extra is forbid
     with pytest.raises(
-        (ValidationError, ValueError), match="Additional properties are not allowed"
+        (ValidationError, ValueError),
+        match="Additional properties are not allowed",
     ):
         _val(cat).validate_components(
             [{"id": "b3", "component": "ForbidBox", "extraProp": 789}]
@@ -368,7 +369,7 @@ def _v10_nested_call_catalog() -> Catalog:
         onSearch: dict[str, Any]
 
     return Catalog(
-        protocol_version="v1.0",
+        protocol_version="1.0",
         catalog_id="https://a2ui.org/v10-nested-func-test",
         components=[ModelComponentApi(SearchButton)],
         functions=[FunctionApi("doSearch", schema=SearchArgs)],
@@ -414,13 +415,20 @@ def test_v10_nested_calls_fully_checked_by_default():
     # A call nested in another call's args is checked too.
     assert "unrecognized_function" in _v10_nested_call_errors(
         val,
-        {"@call": "doSearch", "args": {"query": {"@call": "noSuchFn", "args": {}}}},
+        {
+            "@call": "doSearch",
+            "args": {"query": {"@call": "noSuchFn", "args": {}}},
+        },
     )
     # A call naming another catalog runs there, so only its identifiers are
     # checked.
     assert not _v10_nested_call_errors(
         val,
-        {"@call": "anyFn", "catalogId": "https://other.example/c", "args": {"a": 1}},
+        {
+            "@call": "anyFn",
+            "catalogId": "https://other.example/c",
+            "args": {"a": 1},
+        },
     )
     assert "invalid_identifier" in _v10_nested_call_errors(
         val, {"@call": "any-fn", "catalogId": "https://other.example/c"}
@@ -455,7 +463,10 @@ def test_v10_nested_call_errors_are_located_in_the_component():
         "unrecognized_function",
     ) in _v10_nested_call_error_details(
         val,
-        {"@call": "doSearch", "args": {"query": {"@call": "noSuchFn", "args": {}}}},
+        {
+            "@call": "doSearch",
+            "args": {"query": {"@call": "noSuchFn", "args": {}}},
+        },
     )
     assert _v10_nested_call_error_details(
         val, {"@call": "any-fn", "catalogId": "https://other.example/c"}
@@ -701,9 +712,10 @@ def test_v10_component_naming_a_catalog_leaves_its_catalogless_calls_unjudged():
     )
     # A call nested in @index's args is judged the same way.
     assert not details({"@call": "@index", "args": {"offset": {"@call": "noSuchFn"}}})
-    assert details(
-        {"@call": "@index", "args": {"offset": {"@call": "f", "args": {"bad-arg": 1}}}}
-    ) == [("components.b1.onSearch.args.offset.args.bad-arg", "invalid_identifier")]
+    assert details({
+        "@call": "@index",
+        "args": {"offset": {"@call": "f", "args": {"bad-arg": 1}}},
+    }) == [("components.b1.onSearch.args.offset.args.bad-arg", "invalid_identifier")]
 
 
 def test_v10_generated_basic_json_catalog_judges_only_calls_it_runs():
@@ -730,9 +742,11 @@ def test_v10_generated_basic_json_catalog_judges_only_calls_it_runs():
     assert errors({"@call": "noSuchFn", "catalogId": catalog.catalog_id}) == [
         ("components.t1.text", "unrecognized_function")
     ]
-    assert errors(
-        {"@call": "shout", "catalogId": other, "args": {"v": {"@call": "noSuchFn"}}}
-    ) == [("components.t1.text.args.v", "unrecognized_function")]
+    assert errors({
+        "@call": "shout",
+        "catalogId": other,
+        "args": {"v": {"@call": "noSuchFn"}},
+    }) == [("components.t1.text.args.v", "unrecognized_function")]
     assert errors({"@call": "@index", "args": {"offset": 1}}) == []
     assert errors({"@call": "@index", "catalogId": catalog.catalog_id}) == [
         ("components.t1.text.catalogId", "extra_field")
@@ -844,7 +858,7 @@ def test_basic_catalog_initialization():
     # Test shared factory with different versions
     assert BasicCatalog("0.8").protocol_version == "v0.8"
     assert BasicCatalog("0.9").protocol_version == "v0.9"
-    assert BasicCatalog("1.0").protocol_version == "v1.0"
+    assert BasicCatalog("1.0").protocol_version == "1.0"
 
     with pytest.raises(TypeError):
         BasicCatalog()  # type: ignore[call-arg]
@@ -853,7 +867,7 @@ def test_basic_catalog_initialization():
 def test_catalog_v1_0_additions():
     cat = Catalog(
         catalog_id="https://a2ui.org/v10-spec",
-        protocol_version="v1.0",
+        protocol_version="1.0",
     )
     assert cat.id == "https://a2ui.org/v10-spec"
 
@@ -862,7 +876,7 @@ def test_basic_catalog_version_submodules():
     from a2ui.core.basic_catalog import v1_0, v0_9, v0_8
 
     cat_v10 = v1_0.BasicCatalog()
-    assert cat_v10.protocol_version == "v1.0"
+    assert cat_v10.protocol_version == "1.0"
 
     cat_v09 = v0_9.BasicCatalog()
     assert cat_v09.protocol_version == "v0.9"
@@ -890,7 +904,7 @@ def test_mixed_catalog_validation():
 
     cat_a = Catalog.from_json({
         "catalogId": "cat-a",
-        "protocolVersion": "v1.0",
+        "protocolVersion": "1.0",
         "components": {
             "CompA": {
                 "type": "object",
@@ -906,7 +920,7 @@ def test_mixed_catalog_validation():
 
     cat_b = Catalog.from_json({
         "catalogId": "cat-b",
-        "protocolVersion": "v1.0",
+        "protocolVersion": "1.0",
         "components": {
             "CompB": {
                 "type": "object",
@@ -1000,7 +1014,7 @@ def test_computed_catalog_schema():
 
     cat = Catalog(
         catalog_id="https://a2ui.org/computed-catalog",
-        protocol_version="v1.0",
+        protocol_version="1.0",
         components=[comp],
         functions=[fn],
         theme_schema={"primaryColor": "#000"},
@@ -1028,7 +1042,7 @@ def test_catalog_from_json_preserves_custom_defs():
     """Verifies that custom $defs in raw JSON catalog schema are preserved in Catalog and catalog_schema."""
     catalog_json = {
         "catalogId": "https://a2ui.org/catalogs/custom",
-        "protocolVersion": "v1.0",
+        "protocolVersion": "1.0",
         "$defs": {
             "CustomType": {
                 "type": "string",
@@ -1115,7 +1129,7 @@ def test_validate_function_rejects_non_dict_args():
 
     catalog = Catalog(
         catalog_id="test_cat",
-        protocol_version="v1.0",
+        protocol_version="1.0",
         components=[],
         functions=[
             FunctionImplementation(
@@ -1149,7 +1163,7 @@ def test_validate_function_non_string_arg_key_defensive():
 
     catalog = Catalog(
         catalog_id="test_cat",
-        protocol_version="v1.0",
+        protocol_version="1.0",
         components=[],
         functions=[
             FunctionImplementation(
@@ -1471,14 +1485,14 @@ def test_v10_catalog_rejects_at_prefixed_function_names():
     with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
         Catalog(
             catalog_id="https://a2ui.org/v10-reserved-fn",
-            protocol_version="v1.0",
+            protocol_version="1.0",
             functions=[FunctionApi(name="@index", return_type="number")],
         )
 
     with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
         Catalog.from_json({
             "catalogId": "https://a2ui.org/v10-reserved-fn",
-            "protocolVersion": "v1.0",
+            "protocolVersion": "1.0",
             "functions": {"@index": {"returnType": "number"}},
         })
 
@@ -1487,7 +1501,7 @@ def test_v10_catalog_accepts_ref_and_combiner_parameters():
     """Parameters defined with $ref or combiners are not treated as shorthand maps."""
     cat = Catalog.from_json({
         "catalogId": "https://a2ui.org/v10-ref-fn",
-        "protocolVersion": "v1.0",
+        "protocolVersion": "1.0",
         "functions": {
             "refFunc": {
                 "parameters": {"$ref": "#/$defs/MyArgs"},
@@ -1514,7 +1528,7 @@ def test_v10_catalog_accepts_ref_and_combiner_parameters():
     with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 argument identifier"):
         Catalog.from_json({
             "catalogId": "https://a2ui.org/v10-invalid-param",
-            "protocolVersion": "v1.0",
+            "protocolVersion": "1.0",
             "functions": {
                 "badFunc": {
                     "parameters": {

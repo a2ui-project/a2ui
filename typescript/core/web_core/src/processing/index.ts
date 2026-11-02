@@ -15,6 +15,16 @@
  */
 
 export * from './message-processor.js';
+export {
+  mapErrorToRendererMessage,
+  extractEnvelopeErrorContext,
+  normalizeJsonPointer,
+  type RendererErrorMessage,
+  type A2uiRendererError,
+  type ValidationFailedErrorBody,
+  type GenericErrorBody,
+  type ErrorEnvelopeContext,
+} from './message-error-mapper.js';
 export * from './adapters/factory.js';
 export * from './adapters/base.js';
 export * from '../errors.js';

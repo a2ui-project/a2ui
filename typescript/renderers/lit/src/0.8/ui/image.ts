@@ -20,6 +20,7 @@ import {Root} from './root.js';
 import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
 import * as Primitives from '@a2ui/web_core/types/primitives';
 import * as Types from '@a2ui/web_core/types/types';
+import {sanitizeMediaUrl} from '@a2ui/web_core';
 import {classMap} from 'lit/directives/class-map.js';
 import {styleMap} from 'lit/directives/style-map.js';
 import {structuralStyles} from './styles.js';
@@ -67,7 +68,12 @@ export class Image extends Root {
       return nothing;
     }
 
-    const render = (url: string) => {
+    const render = (url: unknown) => {
+      const safeUrl = sanitizeMediaUrl(url);
+      if (!safeUrl) {
+        return html`Invalid image URL`;
+      }
+
       let resolvedAlt = '';
       if (this.altText) {
         if (typeof this.altText === 'object') {
@@ -89,16 +95,14 @@ export class Image extends Root {
           }
         }
       }
-      return html`<img src=${url} alt=${resolvedAlt} />`;
+      return html`<img src=${safeUrl} alt=${resolvedAlt} />`;
     };
 
     if (this.url && typeof this.url === 'object') {
       if ('literalString' in this.url) {
-        const imageUrl = this.url.literalString ?? '';
-        return render(imageUrl);
+        return render(this.url.literalString);
       } else if ('literal' in this.url) {
-        const imageUrl = this.url.literal ?? '';
-        return render(imageUrl);
+        return render(this.url.literal);
       } else if (this.url && 'path' in this.url && this.url.path) {
         if (!this.processor || !this.component) {
           return html`(no model)`;
@@ -109,13 +113,6 @@ export class Image extends Root {
           this.url.path,
           this.surfaceId ?? A2uiMessageProcessor.DEFAULT_SURFACE_ID,
         );
-        if (!imageUrl) {
-          return html`Invalid image URL`;
-        }
-
-        if (typeof imageUrl !== 'string') {
-          return html`Invalid image URL`;
-        }
         return render(imageUrl);
       }
     }

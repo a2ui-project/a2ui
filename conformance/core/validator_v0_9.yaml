@@ -138,7 +138,7 @@
       expectError:
         category: "ValidationError"
         details:
-          - path: "chartType"
+          - path: "/chartType"
             code: "invalid_value"
     - messages:
         - version: "v0.9"
@@ -151,7 +151,7 @@
       expectError:
         category: "ValidationError"
         details:
-          - path: "children"
+          - path: "/children"
             code: "invalid_value"
     - messages:
         - version: "v0.9"
@@ -163,7 +163,7 @@
       expectError:
         category: "ValidationError"
         details:
-          - path: "children"
+          - path: "/children"
             code: "missing_field"
     - messages:
         - version: "v0.9"
@@ -175,7 +175,7 @@
       expectError:
         category: "ValidationError"
         details:
-          - path: "component"
+          - path: "/component"
             code: "invalid_value"
 
 - name: test_recursion_limit_function_call_depth_exceeded_error
@@ -354,6 +354,13 @@
                 foo: "bar"
       expectError:
         category: "ValidationError"
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "VALIDATION_FAILED"
+            surfaceId: "s1"
+            path: "/components/0/component"
+            message: "UnknownWidget"
 
 - name: test_v09_unknown_component_property
   description: Tests that extra unknown component properties fail schema validation in v0.9.
@@ -461,6 +468,12 @@
       expectError:
         category: ValidationError
         message: Duplicate component ID
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "INTEGRITY_ERROR"
+            surfaceId: "s1"
+            message: "Duplicate component ID"
 
 - name: test_v09_topology_template_child_reachable
   description: Tests that a component referenced only as a list template is reachable from the root in v0.9 strict mode.
@@ -516,6 +529,12 @@
       expectError:
         category: ValidationError
         message: references non-existent component 'missing_id'
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "INTEGRITY_ERROR"
+            surfaceId: "s1"
+            message: "missing_id"
 
 - name: test_v09_invalid_binding_path_error
   description: Tests that a data binding path with an invalid JSON Pointer escape ('~2') fails validation in v0.9.
@@ -1248,6 +1267,12 @@
       expectError:
         category: ValidationError
         message: Duplicate component ID
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "INTEGRITY_ERROR"
+            surfaceId: "s1"
+            message: "Duplicate component ID"
 
 - name: test_v09_topology_structured_array_item_dangling_child_error
   description: Tests that a dangling child reference inside a structured array item (Tabs.tabs[].child) fails validation in v0.9 strict mode.
@@ -1306,6 +1331,175 @@
       expectError:
         category: ValidationError
         message: orphan_id
+
+- name: test_v09_topology_component_id_array_dangling_reference_error
+  description: Tests that every item of an array property whose items are ComponentId is a child reference, whatever the property is called, so an item naming no component fails validation in v0.9 strict mode even when no other item names one.
+  action: validate
+  protocolVersion: v0.9
+  catalog:
+    catalogId: custom
+    components:
+      Stack:
+        type: object
+        properties:
+          component: {const: Stack}
+          slots:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - slots
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                slots: [missing_slot]
+      expectError:
+        category: ValidationError
+        message: missing_slot
+
+- name: test_v09_topology_component_id_array_child_reachable
+  description: Tests that a component named in an array property whose items are ComponentId is reachable from the root in v0.9 strict mode, whatever the property is called.
+  action: validate
+  protocolVersion: v0.9
+  catalog:
+    catalogId: custom
+    components:
+      Stack:
+        type: object
+        properties:
+          component: {const: Stack}
+          slots:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - slots
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                slots: [first]
+              - id: first
+                component: Stack
+                slots: []
+
+- name: test_v09_topology_component_id_array_partial_dangling_reference_error
+  description: A property declared as an array of ComponentId directly (an array whose items are a ComponentId $ref, not a ChildList) is read as a list of child references. With one held and one missing item, the missing item is reported as a dangling reference at its index in v0.9 strict mode.
+  action: validate
+  protocolVersion: v0.9
+  catalog:
+    catalogId: custom
+    components:
+      Stack:
+        type: object
+        properties:
+          component: {const: Stack}
+          slots:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - slots
+      Label:
+        type: object
+        properties:
+          component: {const: Label}
+          text: {type: string}
+        required:
+          - component
+          - text
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                slots: [held, missing]
+              - id: held
+                component: Label
+                text: held
+      expectError:
+        category: ValidationError
+        message: "references non-existent component 'missing' in field 'slots[1]'"
+
+- name: test_v09_topology_component_id_array_circular_reference_error
+  description: A property declared as an array of ComponentId directly (an array whose items are a ComponentId $ref, not a ChildList) is read as a list of child references, so a cycle through it is detected in v0.9 strict mode.
+  action: validate
+  protocolVersion: v0.9
+  catalog:
+    catalogId: custom
+    components:
+      Stack:
+        type: object
+        properties:
+          component: {const: Stack}
+          slots:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - slots
+      Label:
+        type: object
+        properties:
+          component: {const: Label}
+          text: {type: string}
+        required:
+          - component
+          - text
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                slots: [loop_a]
+              - id: loop_a
+                component: Stack
+                slots: [loop_b]
+              - id: loop_b
+                component: Stack
+                slots: [loop_a]
+      expectError:
+        category: ValidationError
+        message: "Circular reference detected"
 
 - name: test_v09_child_list_template_missing_path_error
   description: Tests that a ChildList template object missing its required 'path' property fails schema validation in v0.9.
@@ -1399,6 +1593,13 @@
               primaryColor: not-a-hex-color
       expectError:
         category: ValidationError
+        rendererError:
+          version: "v0.9"
+          error:
+            code: "VALIDATION_FAILED"
+            surfaceId: "s1"
+            path: "/theme/primaryColor"
+            message: "primaryColor"
 
 - name: test_v09_incremental_update_same_component_id_across_messages
   description: Tests that updating the same component ID across separate updateComponents messages succeeds in v0.9 strict mode.

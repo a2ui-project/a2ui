@@ -52,7 +52,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added the canonical `"Surface"` container component type in `common_types.json` to represent the top-level container of a surface for `"allowedParents": ["Surface"]` rules. The protocol reserves the `"Surface"` component name. The `createSurface` message implicitly creates `Surface` with `"child": "root"`, and you cannot modify `Surface` using `updateComponents`. These schema additions are catalog-level metadata and do not alter the wire format of component instances in `createSurface` or `updateComponents`.
 - Added static `metadata` (containing `extensions`) property to `ComponentDefinition` inside `catalog_definition.json`.
 - Introduced `x-deprecated-reason` as a human-readable explanation for a deprecated component, function, or property in addition to the standard JSON Schema `deprecated: true`.
-- Allowed cross-catalog `$ref`s to peer catalogs that the agent or renderer already holds locally (for example `<peer catalog $id>#/components/Text`), alongside `common_types.json#/$defs/...`, and specified how the peer document is matched by `catalogId`, `$id` or file name. See "Cross-Catalog References" in the protocol specification.
+- A catalog whose `$ref` targets anything other than its own components and functions or `common_types.json` is a catalog error, reported when the catalog is loaded. Implementations never fetch a `$ref` target over the network.
 
 ### 2.2. Standard catalogs (basic)
 
@@ -76,7 +76,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `$defs/Extensions` to `common_types.json` and added optional `metadata` (containing `extensions`, `$ref: "#/$defs/Extensions"`) to `ComponentCommon`.
 - Added `$defs/Child` (`"$ref": "#/$defs/ComponentId"`), `$defs/FunctionCommon`, and `$defs/IndexSystemFunction` to `common_types.json`.
 - Added the `Component` definition in `agent_to_renderer.json` (referenced by `ComponentsList`) to compose `ComponentCommon` (`$ref: "common_types.json#/$defs/ComponentCommon"`) and updated `FunctionCall` in `common_types.json` to compose `FunctionCommon` (`$ref: "#/$defs/FunctionCommon"`), so base component and function call properties are validated at the envelope level regardless of catalog structure.
-- Updated all protocol version references and envelopes from `v0.9` or `v0.9.1` to `v1.0`.
+- Updated all protocol version references and envelopes from `v0.9` or `v0.9.1` to `1.0`.
 
 ### 2.4. Renderer-to-agent events
 
@@ -85,12 +85,12 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added optional `userMessage` (string, resolved from `Action.event.userMessage`) and `metadata` (containing `extensions`, `$ref: "common_types.json#/$defs/Extensions"`) to the renderer-to-agent `action` message in `renderer_to_agent.json`.
 - Updated renderer `error` messages to support `functionCallId` when reporting function execution failures, enforcing mutual exclusivity with `surfaceId`.
 - Added `"UNALLOWED_PARENT"` and `"UNALLOWED_CHILD"` error code values to `renderer_to_agent.json` for reporting validation errors when a component is placed under an unallowed parent or an unallowed child is placed inside a container.
-- Updated all protocol version references from `v0.9` or `v0.9.1` to `v1.0`.
+- Updated all protocol version references from `v0.9` or `v0.9.1` to `1.0`.
 
 ### 2.5. Agent card and transport metadata
 
 - Standardized the official MIME type to `application/a2ui+json` to conform to IANA media type guidelines.
-- Updated capabilities namespace in transport metadata and A2A metadata parameters from `v0.9`/`v0.9.1` to `v1.0`.
+- Updated capabilities namespace in transport metadata and A2A metadata parameters from `v0.9`/`v0.9.1` to `1.0`.
 - Clarified that `supportedCatalogIds` in `rendererCapabilities` and `agentCapabilities` are mixable within a single UI surface.
 - Simplified `renderer_capabilities.json` by removing local inline catalog `$defs` (`Catalog`, `FunctionDefinition`) and replacing `inlineCatalogs` items with a direct `$ref` to `https://a2ui.org/specification/v1_0/catalog_definition.json`.
 - Relocated extension specification from `v0_9_1/docs/a2ui_extension_specification.md` to `v1_0/extensions/a2a/docs/a2ui_extension_specification.md`.
@@ -134,7 +134,7 @@ This section outlines the steps required to migrate existing applications and co
 
 ### For agents
 
-- Set the `version` field in all streamed JSON envelopes to `"v1.0"`.
+- Set the `version` field in all streamed JSON envelopes to `"1.0"`.
 - Change the MIME type of A2UI payloads in transport layers from `application/json+a2ui` to `application/a2ui+json`.
 - Remove the `theme` field from `createSurface` messages. You can pass initial `components`, `dataModel`, and optional `metadata.extensions` directly in the `createSurface` payload, and `catalogId` is now optional (acting as the default catalog for that surface).
 - When mixing components from multiple catalogs, specify the optional `catalogId` on individual components or function calls.
@@ -153,7 +153,7 @@ This section outlines the steps required to migrate existing applications and co
 - Implement component and function resolution order: (1) explicit component/call `catalogId`, (2) surface default `catalogId`, (3) error if neither exists (no fallback to capabilities).
 - Implement function execution by adding support for parsing `callRendererFunction` messages from the agent, checking authorized callers in the catalog (`allowedCallers`), rejecting invalid calls with `INVALID_FUNCTION_CALL`, and returning `rendererFunctionResponse` messages.
 - Implement renderer-initiated function calls by sending `callAgentFunction` messages to the agent and handling incoming `agentFunctionResponse` messages.
-- Support simultaneous version handling during session initialization by inspecting the `version` property (e.g., `"v1.0"`) to route payloads to version-specific controllers.
+- Support simultaneous version handling during session initialization by inspecting the `version` property (e.g., `"1.0"`) to route payloads to version-specific controllers.
 - Enforce surface uniqueness by raising an error if `createSurface` is received for an existing `surfaceId`.
 - Update error reporting to handle `functionCallId` and enforce mutual exclusivity with `surfaceId`.
 - Enforce Unicode identifier naming by verifying that all catalog entity names (components, functions, prop keys) conform to UAX #31 identifier rules.

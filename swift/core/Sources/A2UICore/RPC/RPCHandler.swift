@@ -225,7 +225,6 @@ public final class RPCHandler {
   ///   - functionName: The name of the function to execute on the agent.
   ///   - catalogID: Optional catalog identifier.
   ///   - args: Named argument dictionary.
-  ///   - returnType: Expected return type name.
   ///   - version: The A2UI protocol version for the outbound message.
   ///   - timeoutSeconds: Maximum duration to wait before timing out (default 30s).
   ///   - sendOutbound: Callback sending the outbound message.
@@ -236,7 +235,6 @@ public final class RPCHandler {
     catalogID: String? = nil,
     functionCallID: String? = nil,
     args: [String: JSONValue]? = nil,
-    returnType: String? = nil,
     version: A2UIProtocolVersion,
     timeoutSeconds: TimeInterval = 30.0,
     sendOutbound: @escaping @Sendable (RendererToAgentMessage) -> Void
@@ -245,8 +243,7 @@ public final class RPCHandler {
     let payload = CallFunctionPayload(
       call: functionName,
       catalogID: catalogID,
-      args: args,
-      returnType: returnType
+      args: args
     )
     let message = CallAgentFunctionMessage(
       surfaceID: surfaceID,

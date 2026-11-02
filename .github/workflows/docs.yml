@@ -58,6 +58,12 @@ jobs:
         uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: filter
         with:
+          # An empty token makes the action diff `pull_request.base.sha..HEAD`
+          # with git instead of reading the pull request's files from the
+          # GitHub API, which fails the job when the API has a transient
+          # error. It fetches the base commit itself, so the shallow checkout
+          # above is enough. Push and scheduled runs always used git.
+          token: ""
           filters: |
             docs:
               - ".github/workflows/docs.yml"
@@ -117,6 +123,7 @@ jobs:
           # The MCP catalog v1 targets protocol v1.0.
           mkdir -p docs/public/specification/v1_0/catalogs/mcp
           cp catalogs/mcp/v1/catalog.json docs/public/specification/v1_0/catalogs/mcp/
+          cp -R catalogs/mcp/v1/examples docs/public/specification/v1_0/catalogs/mcp/
           # Flatten JSON files to version roots to support clean URLs without redirects
           for version in v0_8 v0_9 v0_9_1 v1_0; do
             if [ -d "docs/public/specification/$version/json" ]; then

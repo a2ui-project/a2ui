@@ -8,7 +8,7 @@
   "maxProperties": 2,
   "properties": {
     "version": {
-      "const": "v1.0"
+      "const": "1.0"
     },
     "action": {
       "type": "object",

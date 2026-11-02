@@ -147,8 +147,8 @@ describe('A2uiRendererService', () => {
 
     it('should delegate processMessagesAsync to MessageProcessor', async () => {
       const spy = spyOn(service.processor, 'processMessagesAsync').and.resolveTo();
-      await service.processMessagesAsync({version: 'v1.0', messages: []});
-      expect(spy).toHaveBeenCalledWith({version: 'v1.0', messages: []});
+      await service.processMessagesAsync({version: '1.0', messages: []});
+      expect(spy).toHaveBeenCalledWith({version: '1.0', messages: []});
     });
 
     it('should delegate callAgentFunction to MessageProcessor', async () => {

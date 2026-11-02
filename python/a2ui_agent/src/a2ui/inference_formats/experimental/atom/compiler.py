@@ -1224,7 +1224,11 @@ class AtomCompiler:
         return comp, prop
 
     def _auto_wrap_text_child(
-        self, text: Any, block: _Block, catalog_id: str, helper: CatalogSchemaHelper
+        self,
+        text: Any,
+        block: _Block,
+        catalog_id: str,
+        helper: CatalogSchemaHelper,
     ) -> str | None:
         """Wraps a bare-string child in a catalog's text component.
 

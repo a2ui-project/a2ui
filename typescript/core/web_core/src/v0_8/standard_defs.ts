@@ -25,6 +25,7 @@ import type {ChildRefAnalysisOptions} from '../catalog/reference-map.js';
 export const V08_CHILD_REF_OPTIONS: ChildRefAnalysisOptions = {
   childRefNames: new Set(['ComponentId', 'Child', 'ChildComponentId']),
   childListRefNames: new Set(['ChildList', 'TemplateChildList']),
+  childPropertyNames: new Set(['child', 'entryPointChild', 'contentChild']),
 };
 
 /**

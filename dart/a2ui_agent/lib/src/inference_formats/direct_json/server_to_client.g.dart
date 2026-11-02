@@ -173,11 +173,11 @@ const String agentToRendererV1_0Json = r'''
       "type": "object",
       "properties": {
         "version": {
-          "const": "v1.0"
+          "const": "1.0"
         },
         "createSurface": {
           "type": "object",
-          "description": "Signals the renderer to create a new surface and begin rendering it. Creating a surface implicitly instantiates the canonical 'Surface' container component ('common_types.json#/$defs/Surface') with 'child': 'root'. It is an error to try to create a surface with an existing ID without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. When this message is sent, the renderer expects 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId to define the component tree.",
+          "description": "Signals the renderer to create a new surface and begin rendering it. Creating a surface implicitly instantiates the canonical 'Surface' container component ('common_types.json#/$defs/Surface') with 'child': 'root'. It is an error to try to create a surface with an existing ID without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. The component tree and initial data model may be provided inline via 'components' and 'dataModel', or sent later in 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId.",
           "properties": {
             "surfaceId": {
               "type": "string",
@@ -251,7 +251,7 @@ const String agentToRendererV1_0Json = r'''
       "type": "object",
       "properties": {
         "version": {
-          "const": "v1.0"
+          "const": "1.0"
         },
         "updateComponents": {
           "type": "object",
@@ -276,7 +276,7 @@ const String agentToRendererV1_0Json = r'''
       "type": "object",
       "properties": {
         "version": {
-          "const": "v1.0"
+          "const": "1.0"
         },
         "updateDataModel": {
           "type": "object",
@@ -305,7 +305,7 @@ const String agentToRendererV1_0Json = r'''
       "type": "object",
       "properties": {
         "version": {
-          "const": "v1.0"
+          "const": "1.0"
         },
         "deleteSurface": {
           "type": "object",
@@ -327,7 +327,7 @@ const String agentToRendererV1_0Json = r'''
       "type": "object",
       "properties": {
         "version": {
-          "const": "v1.0"
+          "const": "1.0"
         },
         "callRendererFunction": {
           "type": "object",
@@ -363,7 +363,7 @@ const String agentToRendererV1_0Json = r'''
       "type": "object",
       "properties": {
         "version": {
-          "const": "v1.0"
+          "const": "1.0"
         },
         "agentFunctionResponse": {
           "$ref": "common_types.json#/$defs/FunctionResponse"

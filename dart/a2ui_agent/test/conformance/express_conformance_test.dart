@@ -15,6 +15,7 @@
 import 'dart:convert';
 
 import 'package:a2ui_agent/a2ui_agent.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 import 'suites.dart';
@@ -33,6 +34,7 @@ void main() {
   for (final suite in [
     'compiler',
     'response_parser',
+    'response_streaming',
     'prompt_generator',
     'decompiler',
   ]) {
@@ -53,22 +55,71 @@ void main() {
   }
 }
 
-/// Cases that state what v0.9 cannot, so they run as written in v1.0 only.
-const Set<String> _v1OnlyCases = {
-  // Several catalogs on one surface: v1.0 names the catalog per component.
-  'test_compile_express_surface_targeting_names_a_catalog',
-  'test_decompile_express_two_surfaces_in_two_catalogs',
-  // A map in an event's context: a v0.9 DynamicValue holds no map.
-  'test_decompile_express_event_action_with_nested_context',
+const String _oneCatalogPerSurface =
+    'v0.9 names one catalog per surface, so the case runs as written in v1.0 '
+    'only.';
+
+const String _reservedPlainKeys =
+    'v0.9 reserves the plain path and call keys for data bindings and '
+    'function calls, so a map literal that uses them runs as written in v1.0 '
+    'only.';
+
+const String _noUserMessage =
+    'The v0.9 Action has no userMessage field, so an event carrying one runs '
+    'as written in v1.0 only.';
+
+/// Cases that state what v0.9 cannot, or that are already written against a
+/// v0.9 catalog, so they run in [SuiteVersion.v1_0] (as written) only, with
+/// the reason for each.
+const Map<String, String> _v1OnlyCases = {
+  'test_compile_express_event_user_message': _noUserMessage,
+  'test_compile_express_event_user_message_binding_with_context':
+      _noUserMessage,
+  'test_decompile_express_event_action_with_user_message': _noUserMessage,
+  'test_compile_express_event_user_message_function_call': _noUserMessage,
+  'test_decompile_express_event_action_with_function_call_user_message':
+      _noUserMessage,
+  'test_compile_express_surface_targeting_names_a_catalog':
+      _oneCatalogPerSurface,
+  'test_decompile_express_two_surfaces_in_two_catalogs': _oneCatalogPerSurface,
+  'test_decompile_express_event_action_with_nested_context':
+      'A v0.9 DynamicValue holds no map, so a map in an event\'s context runs '
+      'as written in v1.0 only.',
+  'test_decompile_express_non_identifier_id_before_v1_0_derives_a_variable':
+      'Already written against a v0.9 catalog to test pre-v1.0 component id '
+      'derivation, so it runs as written without lowering.',
+  'test_decompile_express_non_identifier_id_from_v1_0_is_a_validation_error':
+      'Before v1.0, component ids that are not UAX 31 identifiers are derived '
+      'into variables rather than rejected.',
+  'test_compile_express_non_identifier_id_from_v1_0_is_a_validation_error':
+      'Before v1.0, component ids need not be UAX 31 identifiers.',
+  'test_compile_express_map_literal_keeps_keys_named_like_express_constructs':
+      _reservedPlainKeys,
+  'test_compile_express_map_literal_keeps_quoted_keys_named_like_constructs':
+      _reservedPlainKeys,
+  'test_compile_express_map_literals_in_function_arguments_keep_their_keys':
+      _reservedPlainKeys,
+  'test_decompile_express_map_with_keys_named_like_express_constructs':
+      _reservedPlainKeys,
+  'test_decompile_express_map_with_plain_call_and_args_keys':
+      _reservedPlainKeys,
+  'test_decompile_express_map_with_a_binding_key_beside_other_keys':
+      'Lowered to v0.9, the @path key becomes the plain path key, which '
+      'v0.9 reserves for data bindings, so the case runs as written in v1.0 '
+      'only.',
+  'test_compile_express_map_with_call_like_keys_still_rejects_bindings':
+      'Lowered to v0.9, this SDK does not reject a binding nested in a '
+      'free-form object property.',
+  'test_compile_express_surface_extensions_variable_reference':
+      'Surface extensions are only supported in A2UI v1.0 or later.',
+  'test_compile_express_empty_extensions_preserved':
+      'Surface and component extensions require A2UI v1.0 or later.',
 };
 
 /// Why this SDK cannot run [testCase] in [version], or null if it can.
 String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
   if (version == SuiteVersion.v1_0) return null;
-  if (_v1OnlyCases.contains(testCase['name'])) {
-    return 'v0.9 names one catalog per surface, so the case runs as written '
-        'in v1.0 only.';
-  }
+  if (_v1OnlyCases[testCase['name']] case final String reason) return reason;
   if (jsonEncode(testCase).contains('"callRendererFunction"')) {
     return 'Protocol v0.9 has no callRendererFunction message.';
   }
@@ -76,6 +127,10 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
 }
 
 void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
+  if (testCase['action'] == 'parse_chunk') {
+    _runChunks(testCase, version);
+    return;
+  }
   final Object? error = testCase['expect_error'];
   if (error != null) {
     expectThrowsCategory(() => _perform(testCase, version), error);
@@ -101,11 +156,107 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
   }
 }
 
+void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
+  final args = testCase['args']! as Map<String, Object?>;
+  final bool wrapped = args['wrapped'] as bool? ?? true;
+  final String? catalogId = version.injectedCatalog(testCase);
+  List<Object?> lift(List<StreamPart> parts) =>
+      version.partsJson(parts, injectedCatalogId: catalogId, join: true);
+  final Parser parser = _format(testCase, version).createParser();
+  final ResponseReader<StreamPart> stream =
+      args['after_rejected_block'] == 'continue'
+      ? parser.openContinuingStream(wrapped: wrapped)
+      : parser.openStream(wrapped: wrapped);
+  void expectInBlock(Map<String, Object?> step, int i) {
+    if (step['expect_in_block'] case final bool inBlock) {
+      expect(stream.isInBlock, inBlock, reason: 'step $i: in block');
+    }
+  }
+
+  final chunks = <String>[];
+  final yielded = <Object?>[];
+  for (final (int i, Object? step)
+      in (testCase['steps']! as List<Object?>).indexed) {
+    final stepCase = step! as Map<String, Object?>;
+    final chunk = stepCase['input']! as String;
+    chunks.add(chunk);
+    if (stepCase['expect_error'] case final Object error) {
+      A2uiError? thrown;
+      expectThrowsCategory(
+        () {
+          try {
+            stream.feed(chunk);
+          } on A2uiError catch (e) {
+            thrown = e;
+            rethrow;
+          }
+        },
+        error,
+        reason: 'step $i',
+      );
+      if (stepCase['expect_partial_results'] case final Object partial) {
+        expect(
+          lift(thrown!.partialResults),
+          partial,
+          reason: 'step $i: partial results',
+        );
+      }
+      expectInBlock(stepCase, i);
+      return;
+    }
+    final List<Object?> parts = lift(stream.feed(chunk));
+    expect(parts, stepCase['expect'], reason: 'step $i: ${stepCase['input']}');
+    expectInBlock(stepCase, i);
+    yielded.addAll(parts);
+  }
+  if (testCase['expect_error'] case final Object error) {
+    expectThrowsCategory(stream.close, error, reason: 'close');
+    return;
+  }
+  final List<Object?> closed = lift(stream.close());
+  if (testCase['expect_close'] case final Object expected) {
+    expect(closed, expected, reason: 'close');
+  }
+  yielded.addAll(closed);
+  if (testCase['expect_matches_single_shot'] == true) {
+    expect(
+      _mergeAdjacentText(yielded),
+      _mergeAdjacentText(
+        lift(parser.parseResponse(chunks.join(), wrapped: wrapped)),
+      ),
+    );
+  }
+}
+
+List<Object?> _mergeAdjacentText(List<Object?> parts) {
+  final merged = <Object?>[];
+  for (final part in parts) {
+    if (merged.isNotEmpty &&
+        merged.last is Map<String, Object?> &&
+        part is Map<String, Object?> &&
+        (merged.last as Map<String, Object?>).containsKey('text') &&
+        part.containsKey('text')) {
+      final lastMap = Map<String, Object?>.from(
+        merged.last as Map<String, Object?>,
+      );
+      lastMap['text'] = '${lastMap['text']}${part['text']}';
+      merged[merged.length - 1] = lastMap;
+    } else {
+      merged.add(part);
+    }
+  }
+  return merged;
+}
+
 InferenceFormat _format(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
+  final progressiveKeys = args['progressive_keys'] as List<Object?>?;
   return ExpressFormatFactory(
     allowedMessages: (args['allowed_messages'] as List<Object?>?)
         ?.cast<String>(),
+    progressiveKeys: progressiveKeys == null
+        ? defaultExpressProgressiveKeys
+        : {for (final Object? key in progressiveKeys) key! as String},
   ).createFormat(
     version.catalogs(args),
     examples: [
@@ -127,6 +278,11 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
     case 'wrap':
       return format.createParser().wrap(
         rawParts(testCase['parts']! as List<Object?>),
+      );
+    case 'has_format_content':
+      return format.createParser().hasFormatContent(
+        input!,
+        complete: args['complete'] as bool? ?? false,
       );
     case 'unwrap':
       return [

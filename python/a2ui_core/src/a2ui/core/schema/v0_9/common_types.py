@@ -109,19 +109,19 @@ class AccessibilityAttributes(SpecBaseModel):
     label: DynamicString | None = Field(
         default=None,
         description=(
-            "A short string, typically 1 to 3 words, used by assistive technologies to"
-            " convey the purpose or intent of an element. For example, an input field"
-            " might have an accessible label of 'User ID' or a button might be labeled"
-            " 'Submit'."
+            "A short string, typically 1 to 3 words, used by assistive"
+            " technologies to convey the purpose or intent of an element. For"
+            " example, an input field might have an accessible label of 'User ID'"
+            " or a button might be labeled 'Submit'."
         ),
     )
     description: DynamicString | None = Field(
         default=None,
         description=(
-            "Additional information provided by assistive technologies about an element"
-            " such as instructions, format requirements, or result of an action. For"
-            " example, a mute button might have a label of 'Mute' and a description of"
-            " 'Silences notifications about this conversation'."
+            "Additional information provided by assistive technologies about an"
+            " element such as instructions, format requirements, or result of an"
+            " action. For example, a mute button might have a label of 'Mute' and"
+            " a description of 'Silences notifications about this conversation'."
         ),
     )
 
@@ -185,8 +185,8 @@ class Checkable(SpecBaseModel):
     checks: list[CheckRule] | None = Field(
         default=None,
         description=(
-            "A list of checks to perform. These are function calls that must return a"
-            " boolean indicating validity."
+            "A list of checks to perform. These are function calls that must"
+            " return a boolean indicating validity."
         ),
     )
 
@@ -202,8 +202,9 @@ class ActionEvent(SpecBaseModel):
         default=None,
         description=(
             "A JSON object containing the key-value pairs for the action context."
-            " Values can be literals or paths. Use literal values unless the value must"
-            " be dynamically bound to the data model. Do NOT use paths for static IDs."
+            " Values can be literals or paths. Use literal values unless the"
+            " value must be dynamically bound to the data model. Do NOT use paths"
+            " for static IDs."
         ),
     )
 
@@ -258,8 +259,8 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         ComponentId,
         Field(
             description=(
-                "The unique identifier for a component, used for both definitions and"
-                " references within the same surface."
+                "The unique identifier for a component, used for both"
+                " definitions and references within the same surface."
             )
         ),
     ],
@@ -277,8 +278,8 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         DynamicValue,
         Field(
             description=(
-                "A value that can be a literal, a path, or a function call returning"
-                " any type."
+                "A value that can be a literal, a path, or a function call"
+                " returning any type."
             )
         ),
     ],
@@ -287,8 +288,9 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         DynamicNumber,
         Field(
             description=(
-                "Represents a value that can be either a literal number, a path to a"
-                " number in the data model, or a function call returning a number."
+                "Represents a value that can be either a literal number, a path"
+                " to a number in the data model, or a function call returning a"
+                " number."
             )
         ),
     ],
@@ -296,8 +298,8 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         DynamicBoolean,
         Field(
             description=(
-                "A boolean value that can be a literal, a path, or a function call"
-                " returning a boolean."
+                "A boolean value that can be a literal, a path, or a function"
+                " call returning a boolean."
             )
         ),
     ],
@@ -305,9 +307,9 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         DynamicStringList,
         Field(
             description=(
-                "Represents a value that can be either a literal array of strings, a"
-                " path to a string array in the data model, or a function call"
-                " returning a string array."
+                "Represents a value that can be either a literal array of"
+                " strings, a path to a string array in the data model, or a"
+                " function call returning a string array."
             )
         ),
     ],
@@ -318,8 +320,8 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         Action,
         Field(
             description=(
-                "Defines an interaction handler that can either trigger a server-side"
-                " event or execute a local client-side function."
+                "Defines an interaction handler that can either trigger a"
+                " server-side event or execute a local client-side function."
             )
         ),
     ],

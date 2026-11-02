@@ -52,10 +52,14 @@ For managed agent sandbox environments (such as `.agents/` or `/.agents/`), gene
 
 When exporting a `SkillSet` to disk via `export_to_directory(output_dir)`:
 
-- **What is wiped**: Existing subdirectories matching skills in the set (for example, `{output_dir}/a2ui-core` or `{output_dir}/a2ui-basic`) MUST be completely removed before writing new files. This ensures no stale or orphaned files (such as obsolete notes, old scripts, or deleted files) remain from prior exports.
+- **What is wiped**: For each skill, the directory that directly holds the skill file (the dirname of `skill.filename`, for example `{output_dir}/a2ui-core` for `a2ui-core/SKILL.md`, or `{output_dir}/src/skills/nested` for `src/skills/nested/SKILL.md`) MUST be completely removed before writing new files. This ensures no stale or orphaned files (such as obsolete notes, old scripts, or deleted files) remain from prior exports.
 - **What is NOT wiped**:
+  - Ancestors of the skill's directory (for example `{output_dir}/src` for `src/skills/nested/SKILL.md`) MUST NOT be removed. Only the deepest directory named by the filename is cleaned.
   - Unrelated sibling skill directories in `output_dir` (e.g. `{output_dir}/git-workflow/` or `{output_dir}/custom-skill/`) MUST be strictly preserved and left untouched.
-  - The `output_dir` root directory itself MUST NOT be wiped.
+  - The `output_dir` root directory itself MUST NOT be wiped. A skill whose filename has no directory component (such as `FLAT.md`) is written into `output_dir` without removing anything.
+- **Rejected filenames**: A `Skill` whose `filename` is absolute or has an empty, `.` or `..` segment (such as `../other/SKILL.md`) MUST be rejected with an error when it is constructed or added to a `SkillSet`, so `export_to_directory` can rely on every filename staying inside `output_dir` without re-checking each path.
+- **Symlinks**: The filename check is lexical, so implementations MUST also resolve each skill directory's parent (its nearest existing ancestor) through symlinks before removing anything, and MUST raise an error, with nothing removed or written, when it resolves outside `output_dir` (for example `output_dir/src -> /elsewhere` with a skill at `src/skills/nested/SKILL.md`). A symlink or regular file sitting at the skill directory path itself MUST be removed as such, never followed, and replaced by a real directory.
+- These rules are checked by the `export_to_directory` cases in `conformance/agent/skill.yaml`; the symlink rules are covered by each SDK's unit tests.
 
 ---
 

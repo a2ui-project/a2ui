@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.wireit/
+*.tsbuildinfo
+client/public/a2ui-sandbox/
+client/playwright-report/
+client/test-results/
+agent/.venv/
+agent/uv.lock
+.env

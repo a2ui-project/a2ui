@@ -35,12 +35,28 @@ public struct ResolvedCheck: Resolved, Equatable, Sendable {
     self.validationResult = validationResult
   }
 
-  /// Whether the check passed (condition evaluated to true).
-  public var isValid: Bool {
+  /// Whether the check's condition passed (evaluated to `true` or to a valid result).
+  public var passed: Bool {
     if let validationResult {
       return validationResult.valid
     }
     return condition.value ?? false
+  }
+
+  /// The severity of a failure of this check.
+  ///
+  /// A boolean condition, or a `ValidationResult` without a `severity`, defaults to `.error`.
+  public var severity: ValidationSeverity {
+    validationResult?.severity ?? .error
+  }
+
+  /// Whether the check does not block its component.
+  ///
+  /// Only an `error`-severity failure makes a check invalid. A failure with `warning` or `info`
+  /// severity is a non-blocking hint: it appears in ``Node/validationResults`` but not in
+  /// ``Node/validationErrors``, and it neither disables a component nor stops its action.
+  public var isValid: Bool {
+    passed || severity != .error
   }
 
   public static func == (lhs: ResolvedCheck, rhs: ResolvedCheck) -> Bool {
@@ -72,12 +88,31 @@ extension Node {
     return []
   }
 
-  /// List of active validation error messages (checks that currently fail).
+  /// Messages of the `error`-severity checks that currently fail.
   public var validationErrors: [String] {
     checks.compactMap { $0.isValid ? nil : $0.message }
   }
 
-  /// Whether all validation checks on this node pass.
+  /// Every check that currently fails, whatever its severity, in check order.
+  ///
+  /// Each result carries the check's resolved message and its effective severity (`.error`
+  /// when none was given), so a renderer can show `warning` and `info` results as
+  /// non-blocking hints.
+  public var validationResults: [ValidationResult] {
+    checks.compactMap { check in
+      guard !check.passed else { return nil }
+      return ValidationResult(
+        valid: false,
+        code: check.validationResult?.code,
+        message: check.message,
+        severity: check.severity
+      )
+    }
+  }
+
+  /// Whether no `error`-severity check on this node fails.
+  ///
+  /// Failing `warning` and `info` checks do not make the node invalid.
   public var isValid: Bool {
     checks.allSatisfy { $0.isValid }
   }

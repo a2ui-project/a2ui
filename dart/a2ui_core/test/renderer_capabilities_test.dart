@@ -47,7 +47,7 @@ void main() {
 
     test('reads an inline catalog that states no version as the entry\'s', () {
       final caps = A2uiRendererCapabilities.fromJson({
-        'v1.0': {
+        '1.0': {
           'supportedCatalogIds': <String>[],
           'inlineCatalogs': [
             {
@@ -224,7 +224,7 @@ void main() {
         'v0.9': {
           'supportedCatalogIds': ['basic'],
         },
-        'v1.0': {
+        '1.0': {
           'supportedCatalogIds': ['basic', 'extra'],
         },
         'v2.0': {
@@ -237,7 +237,7 @@ void main() {
         'v0.9': {
           'supportedCatalogIds': ['basic'],
         },
-        'v1.0': {
+        '1.0': {
           'supportedCatalogIds': ['basic', 'extra'],
         },
       });
@@ -251,7 +251,7 @@ void main() {
         'v0.9.1': {
           'supportedCatalogIds': ['basic'],
         },
-        'v1.0': {
+        '1.0': {
           'supportedCatalogIds': ['basic', 'extra'],
         },
       };
@@ -350,7 +350,7 @@ void main() {
         'v0.9': {
           'supportedCatalogIds': ['cat'],
         },
-        'v1.0': {
+        '1.0': {
           'supportedCatalogIds': ['cat'],
         },
       });
@@ -572,21 +572,21 @@ void main() {
       final Map<String, Object?> json =
           processor.getRendererCapabilities(options).toJson();
       expect(json, {
-        'v1.0': {
+        '1.0': {
           'supportedCatalogIds': ['cat'],
           'inlineCatalogs': [catalog.toJson()],
         },
       });
 
       // Mutating the result leaves the catalog, and a second call, intact.
-      final inline = ((json['v1.0']! as Map)['inlineCatalogs'] as List).single
+      final inline = ((json['1.0']! as Map)['inlineCatalogs'] as List).single
           as Map<String, Object?>;
       (inline['components']! as Map).remove('Label');
       expect((catalog.toJson()['components']! as Map).keys, ['Label']);
       expect(
         processor.getRendererCapabilities(options).toJson(),
         json
-          ..['v1.0'] = {
+          ..['1.0'] = {
             'supportedCatalogIds': ['cat'],
             'inlineCatalogs': [catalog.toJson()],
           },
@@ -664,7 +664,7 @@ void main() {
         ((emitted['v0.9']! as Map)['inlineCatalogs'] as List).single,
         isNot(contains(r'$schema')),
       );
-      expect((emitted['v1.0']! as Map)['inlineCatalogs'], [catalog.toJson()]);
+      expect((emitted['1.0']! as Map)['inlineCatalogs'], [catalog.toJson()]);
     });
   });
 }

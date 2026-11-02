@@ -32,7 +32,7 @@ struct FormatNumberFunctionTests {
   let context = DataContext(
     dataModel: DataModel(), path: "", functionHandler: MockFunctionHandler())
 
-  // Helper to generate expected strings based on current locale
+  // Helper to generate expected strings in the default formatting locale
   func expectedFormat(value: Double, grouping: Bool = true, decimals: Int? = nil) -> String {
     let formatter = NumberFormatter()
     formatter.numberStyle = .decimal
@@ -41,7 +41,7 @@ struct FormatNumberFunctionTests {
       formatter.minimumFractionDigits = decimals
       formatter.maximumFractionDigits = decimals
     }
-    formatter.locale = Locale.current
+    formatter.locale = BasicFunctions.defaultLocale
     return formatter.string(from: NSNumber(value: value)) ?? ""
   }
 

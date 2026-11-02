@@ -34,14 +34,14 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: V1_0_CATALOG_ID,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 's1',
           path: '/greeting',
@@ -49,7 +49,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's1',
           components: [
@@ -78,7 +78,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     await act(async () => {
       processor.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: 's1',
             path: '/greeting',
@@ -96,14 +96,14 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: V1_0_CATALOG_ID,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 's1',
           path: '/form',
@@ -114,7 +114,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's1',
           components: [
@@ -185,7 +185,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
 
       const errorEl = container.querySelector('a2ui-slider .a2ui-error-message');
       expect(errorEl).not.toBeNull();
-      expect(errorEl?.textContent).toContain('Minimum value is 50.');
+      expect(errorEl?.textContent).toContain('Volume must be at least 50');
     });
 
     await act(async () => {
@@ -202,14 +202,14 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: V1_0_CATALOG_ID,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's1',
           components: [
@@ -264,14 +264,14 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: V1_0_CATALOG_ID,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 's1',
           path: '/items',
@@ -279,7 +279,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's1',
           components: [
@@ -374,14 +374,14 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     const processor = new MessageProcessor([mixedCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: 'https://example.com/mixed_v1_0.json',
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's1',
           components: [
@@ -441,12 +441,106 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     });
   });
 
+  describe('enforces composition constraints declared on custom React components', () => {
+    const CATALOG_ID = 'https://example.com/composition_v1_0.json';
+
+    const Box = createBinderlessComponentImplementation(
+      {
+        name: 'Box',
+        schema: z.object({children: CommonSchemas.ChildList}),
+        allowedChildren: ['Rune'],
+      },
+      () => null,
+    );
+    const Card = createComponentImplementation(
+      {name: 'Card', schema: z.object({child: CommonSchemas.ComponentId})},
+      () => null,
+    );
+    const Rune = createComponentImplementation(
+      {name: 'Rune', schema: z.object({}), allowedParents: ['Box']},
+      () => null,
+    );
+
+    function createSurface(components: Array<Record<string, unknown>>) {
+      const processor = new MessageProcessor([
+        new Catalog<ReactCatalogComponent>(CATALOG_ID, '1.0', [Box, Card, Rune], []),
+      ]);
+      processor.processMessages([
+        {version: '1.0', createSurface: {surfaceId: 's1', catalogId: CATALOG_ID, components}},
+      ]);
+    }
+
+    it('keeps allowedParents and allowedChildren on the implementations', () => {
+      expect(Rune.allowedParents).toEqual(['Box']);
+      expect(Box.allowedChildren).toEqual(['Rune']);
+    });
+
+    it('accepts a tree that satisfies the constraints', () => {
+      expect(() =>
+        createSurface([
+          {id: 'root', component: 'Box', children: ['r']},
+          {id: 'r', component: 'Rune'},
+        ]),
+      ).not.toThrow();
+    });
+
+    it('rejects a child whose parent is not in its allowedParents', () => {
+      expect(() =>
+        createSurface([
+          {id: 'root', component: 'Card', child: 'r'},
+          {id: 'r', component: 'Rune'},
+        ]),
+      ).toThrow(expect.objectContaining({code: 'UNALLOWED_PARENT'}));
+    });
+
+    it('rejects a root whose allowedParents omits Surface', () => {
+      expect(() => createSurface([{id: 'root', component: 'Rune'}])).toThrow(
+        expect.objectContaining({code: 'UNALLOWED_PARENT'}),
+      );
+    });
+
+    it('rejects a child that is not in its parent allowedChildren', () => {
+      expect(() =>
+        createSurface([
+          {id: 'root', component: 'Box', children: ['b']},
+          {id: 'b', component: 'Box', children: []},
+        ]),
+      ).toThrow(expect.objectContaining({code: 'UNALLOWED_CHILD'}));
+    });
+  });
+
+  it('renders a React implementation built from a basic catalog Web Component', async () => {
+    const ReactText = createComponentImplementation(
+      basicCatalog.components.get('Text')!,
+      ({props}) => <span data-testid="react-text">{props.text}</span>,
+    );
+    const catalogId = 'https://example.com/react_text_v1_0.json';
+    const processor = new MessageProcessor([
+      new Catalog<ReactCatalogComponent>(catalogId, '1.0', [ReactText], []),
+    ]);
+    processor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId,
+          components: [{id: 'root', component: 'Text', text: 'From React'}],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('s1')!;
+    const {container, getByTestId} = render(<A2uiSurface surface={surface} />);
+    await waitFor(() => expect(getByTestId('react-text').textContent).toBe('From React'));
+    expect(container.querySelector('a2ui-basic-text')).toBeNull();
+  });
+
   it('renders a v1.0 surface with no default catalog whose root names its catalog', async () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
-      {version: 'v1.0', createSurface: {surfaceId: 'no-default'}},
+      {version: '1.0', createSurface: {surfaceId: 'no-default'}},
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'no-default',
           components: [
@@ -477,7 +571,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
       undefined,
       undefined,
       undefined,
-      'v1.0',
+      '1.0',
     );
     const emptyCatalog = new Catalog('empty', '1.0', []);
     surface.componentsModel.addComponent(

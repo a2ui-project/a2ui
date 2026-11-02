@@ -14,6 +14,7 @@
 
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.processor import A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import to_version_number
 
@@ -54,25 +55,28 @@ def get_text_prompt() -> str:
 
 
 if __name__ == "__main__":
+    import os
     from a2ui.utils import load_examples
 
     # Example of how to use A2uiRequestProcessor to generate a system prompt
     # In your actual application, you would call this from your main agent logic.
     version = ProtocolVersion.V0_9
     catalog = CatalogConfig(BasicCatalog(version)).transformed_catalog
-    processor = A2uiRequestProcessor([catalog])
+    processor = A2uiRequestProcessor(
+        [catalog], format_factory=DirectJsonFormatFactory()
+    )
     examples = load_examples(
         processor.active_catalogs,
-        f"examples/{to_version_number(version)}",
+        os.path.join(os.path.dirname(__file__), "examples", to_version_number(version)),
         validate=True,
     )
     prompt_parts = [
         ROLE_DESCRIPTION,
         f"## UI Description:\n{UI_DESCRIPTION}",
-        processor.prompt_snippet,
     ]
     if examples:
         prompt_parts.append(f"### Examples:\n{examples}")
+    prompt_parts.append(processor.prompt_snippet)
     restaurant_prompt = "\n\n".join(prompt_parts)
 
     print(restaurant_prompt)

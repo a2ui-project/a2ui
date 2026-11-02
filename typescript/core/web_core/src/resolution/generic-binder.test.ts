@@ -23,12 +23,21 @@ import {
   MAX_DYNAMIC_CHILD_LIST_SIZE,
   scrapeSchemaBehavior,
   type GenerateSetters,
+  type ResolveA2uiProps,
+  type ResolvedChildRef,
 } from './generic-binder.js';
 import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
-import {CommonSchemas, type DataBinding, type FunctionCall} from '../types/common-types.js';
+import {
+  CommonSchemas,
+  type ChildList,
+  type DataBinding,
+  type DynamicString,
+  type FunctionCall,
+} from '../types/common-types.js';
+import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
 
 describe('GenericBinder Checkable Trait', () => {
   function setupSurfaceAndMocks() {
@@ -989,7 +998,6 @@ describe('GenericBinder Checkable Trait', () => {
               '@call': 'dynamic_validator',
               args: {mode: {'@path': '/mode'}},
             },
-            message: 'Default rule failure message',
           },
         ],
       },
@@ -1009,19 +1017,108 @@ describe('GenericBinder Checkable Trait', () => {
     surface.dataModel.set('/mode', 'boolean_error');
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.strictEqual(binder.snapshot.isValid, false);
-    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Default rule failure message']);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
 
     // Subsequent evaluation returning { valid: false } without message -> should reset to default message
     surface.dataModel.set('/mode', 'object_without_msg');
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.strictEqual(binder.snapshot.isValid, false);
-    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Default rule failure message']);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
 
     // Subsequent evaluation returning true -> valid
     surface.dataModel.set('/mode', 'valid');
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.strictEqual(binder.snapshot.isValid, true);
     assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+  });
+
+  it('should give explicit CheckRule.message precedence over function message', async () => {
+    const mockCatalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    (surface.defaultCatalog as any).functions = new Map([
+      [
+        'dynamic_validator',
+        {
+          execute: () => ({valid: false, message: 'Custom dynamic error'}),
+          schema: z.object({}).passthrough(),
+        },
+      ],
+    ]);
+    (surface.defaultCatalog as any).invoker = (name: string, args: any) => {
+      const fn = (surface.defaultCatalog as any).functions.get(name);
+      return fn.execute(args);
+    };
+
+    const schema = z.object({
+      field: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+
+    const compModel = new ComponentModel(
+      'c_override',
+      'Input',
+      {
+        field: 'val',
+        checks: [
+          {
+            condition: {
+              '@call': 'dynamic_validator',
+            },
+            message: 'Explicit rule message overrides function message',
+          },
+        ],
+      },
+      mockCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c_override');
+    const binder = new GenericBinder<any>(context, schema);
+    binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, [
+      'Explicit rule message overrides function message',
+    ]);
+  });
+
+  it('should keep the data model message on a path-bound check and fall back to CheckRule.message', async () => {
+    const mockCatalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    surface.dataModel.set('/check', {
+      valid: false,
+      code: 'FROM_DATA',
+      message: 'Message from the data model',
+    });
+
+    const schema = z.object({
+      field: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+    const compModel = new ComponentModel(
+      'c_path_bound',
+      'Input',
+      {
+        field: 'val',
+        checks: [{condition: {'@path': '/check'}, message: 'Rule fallback message'}],
+      },
+      mockCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c_path_bound'), schema);
+    binder.subscribe(() => {});
+
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Message from the data model']);
+
+    // Without a message in the data model, the rule message is the fallback.
+    surface.dataModel.set('/check', {valid: false});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Rule fallback message']);
+
+    surface.dataModel.set('/check', false);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Rule fallback message']);
   });
 
   it('should not treat primitive fields or unannotated condition arrays as CHECKABLE', () => {
@@ -1115,6 +1212,65 @@ describe('GenericBinder Checkable Trait', () => {
     assert.strictEqual(scrapeSchemaBehavior(schema), scrapeSchemaBehavior(schema));
   });
 
+  describe('Resolved prop types', () => {
+    type Props = ResolveA2uiProps<{
+      action?: V1Action;
+      items: {name?: string; title?: DynamicString; action?: V1Action}[];
+      header?: {action: V1Action};
+      checks?: V1CheckRule[];
+      rule?: V1CheckRule;
+      data?: Record<string, unknown>;
+    }>;
+    const props = {} as Props;
+
+    it('types an action in a list item or an object as the function the binder makes', () => {
+      const run: () => Promise<void> = async () => {};
+      const item = {} as Props['items'][number];
+      const fromItem: (() => Promise<void>) | undefined = item.action;
+      const fromHeader: (() => Promise<void>) | undefined = props.header?.action;
+      const topLevel: (() => Promise<void>) | undefined = props.action;
+      const assigned: Props['items'][number] = {name: 'a', action: run, setTitle: () => {}};
+      // @ts-expect-error a nested action is a function, not the raw action.
+      const raw: Props['items'][number] = {action: {event: {name: 'x'}}, setTitle: () => {}};
+      assert.deepStrictEqual(
+        [fromItem, fromHeader, topLevel, raw.name],
+        [undefined, undefined, undefined, undefined],
+      );
+      assert.strictEqual(assigned.action, run);
+    });
+
+    it('types a binding in a list item as its value, with a setter', () => {
+      const item: Props['items'][number] = {title: 'Hello', setTitle: () => {}};
+      const title: string | undefined = item.title;
+      // @ts-expect-error a nested binding resolves to its value.
+      const bound: Props['items'][number] = {title: {path: '/x'}, setTitle: () => {}};
+      assert.deepStrictEqual([title, bound.name], ['Hello', undefined]);
+    });
+
+    it('leaves check rules and data objects as they are', () => {
+      const checks: V1CheckRule[] | undefined = props.checks;
+      const rule: Props['rule'] = {condition: {path: '/valid'}};
+      const data: Record<string, unknown> | undefined = props.data;
+      assert.deepStrictEqual(
+        [checks, rule.condition, data],
+        [undefined, {path: '/valid'}, undefined],
+      );
+    });
+
+    it('types a list of strings as strings and a child list as child references', () => {
+      type Lists = ResolveA2uiProps<{
+        names?: string[];
+        csp?: {domains?: string[]};
+        children: ChildList;
+      }>;
+      const lists = {children: ['a', {id: 'b', basePath: '/'}]} as Lists;
+      const names: readonly string[] | undefined = lists.names;
+      const domains: readonly string[] | undefined = lists.csp?.domains;
+      const children: (string | ResolvedChildRef)[] = lists.children;
+      assert.deepStrictEqual([names, domains, children.length], [undefined, undefined, 2]);
+    });
+  });
+
   describe('Generated setter types', () => {
     it('keeps the setter callable for a property declared with no literal branch', () => {
       const bindingOnly: GenerateSetters<{value: DataBinding | FunctionCall}> = {
@@ -1141,6 +1297,92 @@ describe('GenericBinder Checkable Trait', () => {
       // @ts-expect-error a literal branch must still constrain the setter.
       withLiteral.setValue(123);
     });
+  });
+});
+
+describe('GenericBinder allowedCallers', () => {
+  function setup(allowedCallers: 'agentOnly' | 'rendererOrAgent') {
+    const calls: string[] = [];
+    const lookup: FunctionImplementation = {
+      name: 'lookup',
+      returnType: 'string',
+      schema: z.object({}),
+      allowedCallers,
+      execute: () => {
+        calls.push('lookup');
+        return 'secret';
+      },
+    };
+    const isValid: FunctionImplementation = {
+      name: 'isValid',
+      returnType: 'boolean',
+      schema: z.object({}),
+      allowedCallers,
+      execute: () => {
+        calls.push('isValid');
+        return true;
+      },
+    };
+    const catalog = new Catalog('test', '1.0', [], [lookup, isValid]);
+    const surface = new SurfaceModel('s1', catalog);
+    const errors: Array<{code: string; message: string; expression?: string}> = [];
+    surface.onError.subscribe(err => {
+      errors.push(err);
+    });
+
+    const schema = z.object({
+      text: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+      onTap: CommonSchemas.Action,
+    });
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c1',
+        'Test',
+        {
+          text: {'@call': 'lookup', args: {}},
+          checks: [{condition: {'@call': 'isValid', args: {}}, message: 'Invalid'}],
+          onTap: {functionCall: {'@call': 'lookup', args: {}}},
+        },
+        catalog,
+      ),
+    );
+    const binder = new GenericBinder<{text?: string; isValid?: boolean; onTap: () => void}>(
+      new ComponentContext(surface, 'c1'),
+      schema,
+    );
+    binder.subscribe(() => {});
+    return {binder, calls, errors};
+  }
+
+  it('refuses agentOnly functions in bindings, checks and actions without running them', () => {
+    const {binder, calls, errors} = setup('agentOnly');
+
+    assert.strictEqual(binder.snapshot.text, undefined);
+    assert.deepStrictEqual(new Set(errors.map(e => e.expression)), new Set(['lookup', 'isValid']));
+    const errorsBeforeTap = errors.length;
+    binder.snapshot.onTap();
+    assert.strictEqual(errors.length, errorsBeforeTap + 1);
+
+    assert.deepStrictEqual(calls, []);
+    for (const err of errors) {
+      assert.strictEqual(err.code, 'EXPRESSION_ERROR');
+      assert.match(err.message, /cannot be called by renderer \(allowedCallers is agentOnly\)/);
+    }
+    binder.dispose();
+  });
+
+  it('runs rendererOrAgent functions in bindings, checks and actions', () => {
+    const {binder, calls, errors} = setup('rendererOrAgent');
+
+    assert.strictEqual(binder.snapshot.text, 'secret');
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.ok(calls.includes('isValid'));
+    const callsBeforeTap = calls.length;
+    binder.snapshot.onTap();
+    assert.deepStrictEqual(calls.slice(callsBeforeTap), ['lookup']);
+    assert.deepStrictEqual(errors, []);
+    binder.dispose();
   });
 });
 

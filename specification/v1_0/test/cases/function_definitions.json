@@ -1,0 +1,233 @@
+{
+  "schema": "catalog_definition.json",
+  "tests": [
+    {
+      "description": "Valid function with default allowedCallers",
+      "valid": true,
+      "data": {
+        "catalogId": "https://example.com/catalog.json",
+        "functions": {
+          "myFunction": {
+            "type": "object",
+            "description": "Test function myFunction.",
+            "returnType": "string",
+            "properties": {
+              "@call": {
+                "const": "myFunction"
+              },
+              "args": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "required": ["@call"]
+          }
+        }
+      }
+    },
+    {
+      "description": "Valid function allowing rendererOrAgent callers",
+      "valid": true,
+      "data": {
+        "catalogId": "https://example.com/catalog.json",
+        "functions": {
+          "myFunction": {
+            "type": "object",
+            "description": "Test function myFunction.",
+            "returnType": "string",
+            "allowedCallers": "rendererOrAgent",
+            "properties": {
+              "@call": {
+                "const": "myFunction"
+              },
+              "args": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "required": ["@call"]
+          }
+        }
+      }
+    },
+    {
+      "description": "Valid function allowing agentOnly callers",
+      "valid": true,
+      "data": {
+        "catalogId": "https://example.com/catalog.json",
+        "functions": {
+          "myFunction": {
+            "type": "object",
+            "description": "Test function myFunction.",
+            "returnType": "string",
+            "allowedCallers": "agentOnly",
+            "properties": {
+              "@call": {
+                "const": "myFunction"
+              },
+              "args": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "required": ["@call"]
+          }
+        }
+      }
+    },
+    {
+      "description": "Valid function allowing agentOnly callers without user activation",
+      "valid": true,
+      "data": {
+        "catalogId": "https://example.com/catalog.json",
+        "functions": {
+          "myFunction": {
+            "type": "object",
+            "description": "Test function myFunction.",
+            "returnType": "string",
+            "allowedCallers": "agentOnly",
+            "requiresUserActivation": false,
+            "properties": {
+              "@call": {
+                "const": "myFunction"
+              },
+              "args": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "required": ["@call"]
+          }
+        }
+      }
+    },
+    {
+      "description": "Valid function requiring user activation with rendererOnly callers",
+      "valid": true,
+      "data": {
+        "catalogId": "https://example.com/catalog.json",
+        "functions": {
+          "myFunction": {
+            "type": "object",
+            "description": "Test function myFunction.",
+            "returnType": "string",
+            "allowedCallers": "rendererOnly",
+            "requiresUserActivation": true,
+            "properties": {
+              "@call": {
+                "const": "myFunction"
+              },
+              "args": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "required": ["@call"]
+          }
+        }
+      }
+    },
+    {
+      "description": "Valid function requiring user activation with default allowedCallers",
+      "valid": true,
+      "data": {
+        "catalogId": "https://example.com/catalog.json",
+        "functions": {
+          "myFunction": {
+            "type": "object",
+            "description": "Test function myFunction.",
+            "returnType": "string",
+            "requiresUserActivation": true,
+            "properties": {
+              "@call": {
+                "const": "myFunction"
+              },
+              "args": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "required": ["@call"]
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid function requiring user activation with rendererOrAgent callers",
+      "valid": false,
+      "data": {
+        "catalogId": "https://example.com/catalog.json",
+        "functions": {
+          "myFunction": {
+            "type": "object",
+            "description": "Test function myFunction.",
+            "returnType": "string",
+            "allowedCallers": "rendererOrAgent",
+            "requiresUserActivation": true,
+            "properties": {
+              "@call": {
+                "const": "myFunction"
+              },
+              "args": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "required": ["@call"]
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid function requiring user activation with agentOnly callers",
+      "valid": false,
+      "data": {
+        "catalogId": "https://example.com/catalog.json",
+        "functions": {
+          "myFunction": {
+            "type": "object",
+            "description": "Test function myFunction.",
+            "returnType": "string",
+            "allowedCallers": "agentOnly",
+            "requiresUserActivation": true,
+            "properties": {
+              "@call": {
+                "const": "myFunction"
+              },
+              "args": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "required": ["@call"]
+          }
+        }
+      }
+    },
+    {
+      "description": "Invalid allowedCallers value",
+      "valid": false,
+      "data": {
+        "catalogId": "https://example.com/catalog.json",
+        "functions": {
+          "myFunction": {
+            "type": "object",
+            "description": "Test function myFunction.",
+            "returnType": "string",
+            "allowedCallers": "anyone",
+            "properties": {
+              "@call": {
+                "const": "myFunction"
+              },
+              "args": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "required": ["@call"]
+          }
+        }
+      }
+    }
+  ]
+}

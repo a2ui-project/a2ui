@@ -35,6 +35,8 @@ extension BasicCatalogImplementation {
 public struct A2UICheckBox: View {
   public let node: Node
 
+  @ScaledMetric(relativeTo: .body) private var glyphSize: CGFloat = 20
+
   public init(node: Node) {
     self.node = node
   }
@@ -43,19 +45,22 @@ public struct A2UICheckBox: View {
     node.string(for: "label") ?? ""
   }
 
-  private var boolBinding: Binding<Bool> {
+  /// Whether the checkbox is checked, bound to its `value`. Tapping the checkbox and toggling it
+  /// through assistive technologies both write through this binding.
+  public var isOn: Binding<Bool> {
     node.binding(for: "value", default: false)
   }
 
   public var body: some View {
     VStack(alignment: .leading, spacing: 4) {
       Button(action: {
-        boolBinding.wrappedValue.toggle()
+        isOn.wrappedValue.toggle()
       }) {
         HStack(spacing: 10) {
-          Image(systemName: boolBinding.wrappedValue ? "checkmark.square.fill" : "square")
-            .font(.system(size: 20))
-            .foregroundStyle(boolBinding.wrappedValue ? Color.accentColor : Color.secondary)
+          Image(systemName: isOn.wrappedValue ? "checkmark.square.fill" : "square")
+            .font(.system(size: glyphSize))
+            .foregroundStyle(isOn.wrappedValue ? Color.accentColor : Color.secondary)
+            .accessibilityHidden(true)
 
           if !labelText.isEmpty {
             Text(labelText)
@@ -65,6 +70,11 @@ public struct A2UICheckBox: View {
         }
       }
       .buttonStyle(.plain)
+      // Assistive technologies see a standard toggle, which reports its on/off state in the
+      // user's language.
+      .accessibilityRepresentation {
+        Toggle(labelText, isOn: isOn)
+      }
       .accessibilityIdentifier("A2UICheckBox_\(node.id)")
       .a2uiAccessibilityControl(for: node)
 

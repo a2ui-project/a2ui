@@ -43,29 +43,31 @@ class CreateSurface(StrictBaseModel):
         alias="catalogId",
         description=(
             "A string that uniquely identifies this catalog. It is recommended to"
-            " prefix this with an internet domain that you own, to avoid conflicts e.g."
-            " mycompany.com:somecatalog'."
+            " prefix this with an internet domain that you own, to avoid"
+            " conflicts e.g. mycompany.com:somecatalog'."
         ),
     )
     theme: (
         Annotated[
-            Any, SchemaKeywords(def_ref("catalog.json#/$defs/theme"), replace=True)
+            Any,
+            SchemaKeywords(def_ref("catalog.json#/$defs/theme"), replace=True),
         ]
         | None
     ) = Field(
         default=None,
         description=(
-            "Theme parameters for the surface (e.g., {'primaryColor': '#FF0000'})."
-            " These must validate against the 'theme' schema defined in the catalog."
+            "Theme parameters for the surface (e.g., {'primaryColor':"
+            " '#FF0000'}). These must validate against the 'theme' schema defined"
+            " in the catalog."
         ),
     )
     send_data_model: bool | None = Field(
         default=None,
         alias="sendDataModel",
         description=(
-            "If true, the client will send the full data model of this surface in the"
-            " metadata of every A2A message sent to the server that created the"
-            " surface. Defaults to false."
+            "If true, the client will send the full data model of this surface in"
+            " the metadata of every A2A message sent to the server that created"
+            " the surface. Defaults to false."
         ),
     )
 
@@ -127,8 +129,9 @@ class UpdateDataModel(StrictBaseModel):
     path: str | None = Field(
         default=None,
         description=(
-            "An optional path to a location within the data model (e.g., '/user/name')."
-            " If omitted, or set to '/', refers to the entire data model."
+            "An optional path to a location within the data model (e.g.,"
+            " '/user/name'). If omitted, or set to '/', refers to the entire data"
+            " model."
         ),
     )
     value: Annotated[Any, SchemaKeywords({"additionalProperties": True})] | None = (

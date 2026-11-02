@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/weighted_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Conformance Weighted Catalog (v1.0)",
+  "description": "A catalog for testing positional numeric argument placement when optional enum properties precede a numeric property such as weight.",
+  "catalogId": "conformance/weighted",
+  "components": {
+    "Text": {
+      "type": "object",
+      "description": "Displays a run of text.",
+      "properties": {
+        "component": { "const": "Text" },
+        "text": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "variant": {
+          "type": "string",
+          "enum": ["body", "caption"],
+          "default": "body"
+        },
+        "weight": { "type": "number" }
+      },
+      "required": ["component", "text"]
+    },
+    "Column": {
+      "type": "object",
+      "description": "A layout that stacks its children vertically.",
+      "properties": {
+        "component": { "const": "Column" },
+        "children": { "$ref": "common_types.json#/$defs/ChildList" },
+        "justify": {
+          "type": "string",
+          "enum": ["start", "center", "end"],
+          "default": "start"
+        },
+        "align": {
+          "type": "string",
+          "enum": ["start", "center", "end"],
+          "default": "start"
+        },
+        "weight": { "type": "number" }
+      },
+      "required": ["component", "children"]
+    },
+    "Image": {
+      "type": "object",
+      "description": "Displays an image.",
+      "properties": {
+        "component": { "const": "Image" },
+        "url": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "description": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "weight": { "type": "number" }
+      },
+      "required": ["component", "url"]
+    },
+    "TextField": {
+      "type": "object",
+      "description": "A single-line text input.",
+      "properties": {
+        "component": { "const": "TextField" },
+        "label": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "value": { "$ref": "common_types.json#/$defs/DataBinding" },
+        "placeholder": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "weight": { "type": "number" }
+      },
+      "required": ["component", "label"]
+    },
+    "Slider": {
+      "type": "object",
+      "description": "A slider input whose value is a DynamicNumber ref.",
+      "properties": {
+        "component": { "const": "Slider" },
+        "orientation": {
+          "type": "string",
+          "enum": ["horizontal", "vertical"],
+          "default": "horizontal"
+        },
+        "value": { "$ref": "common_types.json#/$defs/DynamicNumber" }
+      },
+      "required": ["component"]
+    },
+    "DualMetric": {
+      "type": "object",
+      "description": "A component with two later numeric properties.",
+      "properties": {
+        "component": { "const": "DualMetric" },
+        "variant": {
+          "type": "string",
+          "enum": ["a", "b"],
+          "default": "a"
+        },
+        "min": { "type": "number" },
+        "max": { "type": "number" }
+      },
+      "required": ["component"]
+    },
+    "Status": {
+      "type": "object",
+      "description": "A status component with a required enum property.",
+      "properties": {
+        "component": { "const": "Status" },
+        "state": {
+          "type": "string",
+          "enum": ["active", "inactive"]
+        },
+        "priority": { "type": "number" }
+      },
+      "required": ["component", "state"]
+    },
+    "Meter": {
+      "type": "object",
+      "description": "A meter component with title, optional unit enum, numeric level, and optional description.",
+      "properties": {
+        "component": { "const": "Meter" },
+        "label": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "unit": {
+          "type": "string",
+          "enum": ["percent", "ratio"],
+          "default": "percent"
+        },
+        "level": { "type": "number" },
+        "description": { "type": "string" }
+      },
+      "required": ["component", "label"]
+    }
+  },
+  "functions": {},
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        { "$ref": "#/components/Text" },
+        { "$ref": "#/components/Column" },
+        { "$ref": "#/components/Image" },
+        { "$ref": "#/components/TextField" },
+        { "$ref": "#/components/Slider" },
+        { "$ref": "#/components/DualMetric" },
+        { "$ref": "#/components/Status" },
+        { "$ref": "#/components/Meter" }
+      ],
+      "discriminator": { "propertyName": "component" }
+    },
+    "anyFunction": {
+      "not": {}
+    }
+  }
+}

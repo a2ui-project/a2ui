@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/composition_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Conformance Composition Catalog (v1.0)",
+  "description": "A two component catalog whose components declare allowedParents and allowedChildren, for the timing cases of core/message_processor_scaling.yaml.",
+  "catalogId": "conformance/composition",
+  "components": {
+    "Text": {
+      "type": "object",
+      "description": "Displays a run of text.",
+      "allowedParents": ["Column"],
+      "properties": {
+        "component": { "const": "Text" },
+        "text": { "$ref": "common_types.json#/$defs/DynamicString" }
+      },
+      "required": ["component", "text"]
+    },
+    "Column": {
+      "type": "object",
+      "description": "A layout that stacks its children vertically.",
+      "allowedParents": ["Surface", "Column"],
+      "allowedChildren": ["Text", "Column"],
+      "properties": {
+        "component": { "const": "Column" },
+        "children": { "$ref": "common_types.json#/$defs/ChildList" }
+      },
+      "required": ["component", "children"]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        { "$ref": "#/components/Text" },
+        { "$ref": "#/components/Column" }
+      ],
+      "discriminator": { "propertyName": "component" }
+    }
+  }
+}

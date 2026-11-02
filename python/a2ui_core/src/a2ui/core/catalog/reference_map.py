@@ -442,6 +442,14 @@ def analyze_child_ref_schema(
                         ):
                             items = target_schema.get("items")
                             if isinstance(items, dict):
+                                # An array of ComponentId (or ChildList) refs
+                                # declared directly. Check before resolving, which
+                                # would replace the ref with its plain string type.
+                                if _is_single_child_json_schema(
+                                    items
+                                ) or _is_child_list_json_schema(items):
+                                    list_refs.add(prop_name)
+                                    continue
                                 if "$ref" in items:
                                     resolved_items = _resolve_schema_ref(
                                         items["$ref"], schema, catalog_schema

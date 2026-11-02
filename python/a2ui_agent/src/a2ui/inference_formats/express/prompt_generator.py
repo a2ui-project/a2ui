@@ -50,7 +50,7 @@ EXPRESS_RULES = r'''# A2UI Express DSL Output Contract
 
 You must output the user interface using A2UI Express.
 
-IMPORTANT: You MUST always surround the entire A2UI Express block with the sentinel tags `<a2ui>` and `</a2ui>`.
+IMPORTANT: You MUST always surround the entire A2UI Express block with the literal sentinel tags `<a2ui>` and `</a2ui>` (always include both the opening and closing tags; do NOT wrap the tags in backticks or replace the opening tag with a markdown code fence such as ```a2ui).
 
 The host compiler will compile your A2UI Express output into the correct JSON envelopes automatically.
 
@@ -156,23 +156,23 @@ def _multi_catalog_rules(helpers: Mapping[str, CatalogSchemaHelper]) -> str:
         "## Multiple Catalogs",
         "",
         (
-            "Several component catalogs are active. Each is identified by its catalog"
-            " ID, and the signatures below are grouped by catalog:"
+            "Several component catalogs are active. Each is identified by its"
+            " catalog ID, and the signatures below are grouped by catalog:"
         ),
         listing,
         "",
         (
             "16. A surface has no catalog of its own: do not name a catalog on a"
             " `surface` line. Each component and function call, including checks,"
-            " actions, nested function calls and inline child components, is found"
-            " by its name in whichever catalog defines it."
+            " actions, nested function calls and inline child components, is"
+            " found by its name in whichever catalog defines it."
         ),
         "",
         (
-            "17. When several catalogs define the same component or function name,"
-            " you MUST say which one you mean: add a `catalogId` keyword argument"
-            " to the component or function call, or a `{catalogId: ...}` argument"
-            " to a check. Do not add `catalogId` to any other name:"
+            "17. When several catalogs define the same component or function"
+            " name, you MUST say which one you mean: add a `catalogId` keyword"
+            " argument to the component or function call, or a `{catalogId: ...}`"
+            " argument to a check. Do not add `catalogId` to any other name:"
         ),
         f'    widget = ComponentName(..., catalogId="{example_id}")',
         f'    action = functionName(..., catalogId="{example_id}")',

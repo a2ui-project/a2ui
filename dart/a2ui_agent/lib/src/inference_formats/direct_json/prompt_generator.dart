@@ -25,7 +25,7 @@ const String _defaultWorkflowRules = '''
 
 The generated response MUST follow these rules:
 - The response can contain one or more A2UI JSON blocks.
-- Each A2UI JSON block MUST be wrapped in `<a2ui-json>` and `</a2ui-json>` tags.
+- Each A2UI JSON block MUST be wrapped in literal `<a2ui-json>` and `</a2ui-json>` tags (always include both the opening and closing tags; do NOT wrap the tags in backticks or replace the opening tag with a markdown code fence such as ```json).
 - Between or around these blocks, you can provide conversational text.
 - The JSON part MUST be a single, raw JSON object (usually a list of A2UI messages) and MUST validate against the provided A2UI JSON SCHEMA.
 - Top-Down Component Ordering: Within the `components` list of a message:
@@ -67,14 +67,11 @@ class DirectJsonPromptGenerator extends PromptGenerator {
   /// message type.
   @override
   String generate() {
-    if (this.catalogs.isEmpty) {
+    if (catalogs.isEmpty) {
       throw A2uiCatalogError(
         'A direct JSON prompt needs at least one catalog.',
       );
     }
-    // Linked copies resolve cross-catalog references; [catalogs] stay as
-    // they are.
-    final List<CatalogApi> catalogs = linkCatalogs(this.catalogs);
     final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
     Map<String, Object?> a2rSchema = _loadAgentToRendererSchema(version);
     if (allowedMessages != null) {
@@ -84,28 +81,9 @@ class DirectJsonPromptGenerator extends PromptGenerator {
     final List<Map<String, Object?>> catalogDocs = [
       for (final CatalogApi c in catalogs) c.toJson(),
     ];
-    final peerResolvedDocs = <Map<String, Object?>>[];
-    for (var i = 0; i < catalogs.length; i++) {
-      final CatalogApi c = catalogs[i];
-      if (c.peerCatalogs.isNotEmpty) {
-        final List<Map<String, Object?>> peerDocs = [
-          for (final Catalog<ComponentApi, FunctionApi> p in c.peerCatalogs)
-            p.toJson(),
-        ];
-        final Object? resolved = inlineLocalRefs(
-          catalogDocs[i],
-          catalogDocs[i],
-          null,
-          peerDocs,
-        );
-        if (resolved is Map<String, Object?>) {
-          peerResolvedDocs.add(resolved);
-        }
-      }
-    }
     final Map<String, Object?> commonTypesSchema = _pruneCommonTypesSchema(
       PayloadValidator.commonTypesFor(version),
-      [...catalogDocs, ...peerResolvedDocs, a2rSchema],
+      [...catalogDocs, a2rSchema],
     );
 
     final schemaSections = <String>[

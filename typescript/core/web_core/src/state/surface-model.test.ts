@@ -21,6 +21,7 @@ import {DataModel} from './data-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {ComponentModel} from './component-model.js';
 import {ComponentContext} from '../resolution/component-context.js';
+import {setValue} from '../reactivity/signals.js';
 
 describe('SurfaceModel', () => {
   let surface: SurfaceModel<ComponentApi>;
@@ -80,7 +81,7 @@ describe('SurfaceModel', () => {
   });
 
   it('takes its protocol version from the default catalog unless one is given', () => {
-    assert.strictEqual(surface.protocolVersion, 'v1.0');
+    assert.strictEqual(surface.protocolVersion, '1.0');
     const noDefault = new SurfaceModel<ComponentApi>(
       'surface-no-default',
       undefined,
@@ -90,10 +91,10 @@ describe('SurfaceModel', () => {
       undefined,
       undefined,
       undefined,
-      'v1.0',
+      '1.0',
     );
     assert.strictEqual(noDefault.defaultCatalog, undefined);
-    assert.strictEqual(noDefault.protocolVersion, 'v1.0');
+    assert.strictEqual(noDefault.protocolVersion, '1.0');
     assert.strictEqual(noDefault.availableCatalogs.get(catalog.id), catalog);
   });
 
@@ -111,8 +112,8 @@ describe('SurfaceModel', () => {
       '1.0.0',
     );
     assert.strictEqual(catalog.protocolVersion, '1.0');
-    assert.strictEqual(fromCatalog.protocolVersion, 'v1.0');
-    assert.strictEqual(fromArgument.protocolVersion, 'v1.0');
+    assert.strictEqual(fromCatalog.protocolVersion, '1.0');
+    assert.strictEqual(fromArgument.protocolVersion, '1.0');
   });
 
   it('exposes the catalogs it was constructed with', () => {
@@ -226,11 +227,30 @@ describe('SurfaceModel', () => {
     assert.strictEqual(actions[3].userMessage, undefined);
   });
 
-  it('throws TypeError if 3rd argument is not a Map or undefined/null', () => {
-    assert.throws(() => new SurfaceModel('surface-err', catalog, {primaryColor: 'red'} as any), {
-      name: 'TypeError',
-      message: /availableCatalogs.*3rd argument.*theme.*4th argument/i,
-    });
+  it('takes a plain object in the 3rd argument as the theme of a pre-1.0 caller', () => {
+    const v09Catalog = new Catalog<ComponentApi>('v09-catalog', '0.9', []);
+    const legacy = new SurfaceModel('surface-legacy', v09Catalog, {primaryColor: 'red'});
+    assert.deepStrictEqual(legacy.theme, {primaryColor: 'red'});
+    assert.strictEqual(legacy.sendDataModel, false);
+    assert.strictEqual(legacy.availableCatalogs.get(v09Catalog.id), v09Catalog);
+  });
+
+  it('shifts sendDataModel and dataModel along with the pre-1.0 theme', () => {
+    const v09Catalog = new Catalog<ComponentApi>('v09-catalog', '0.9', []);
+    const customData = new DataModel({custom: 'data'});
+    const legacy = new SurfaceModel(
+      'surface-legacy',
+      v09Catalog,
+      {primaryColor: 'red'},
+      true,
+      customData,
+    );
+    assert.deepStrictEqual(legacy.theme, {primaryColor: 'red'});
+    assert.strictEqual(legacy.sendDataModel, true);
+    assert.strictEqual(legacy.dataModel, customData);
+  });
+
+  it('throws TypeError if 3rd argument is neither a Map, a theme object, nor undefined/null', () => {
     assert.throws(() => new SurfaceModel('surface-err', catalog, [catalog] as any), {
       name: 'TypeError',
       message: /availableCatalogs.*3rd argument.*theme.*4th argument/i,
@@ -279,6 +299,100 @@ describe('SurfaceModel', () => {
         message:
           "Function call 'f' names no catalogId and surface 'no-default' has no default catalogId.",
       });
+    });
+  });
+
+  describe('metadata APIs', () => {
+    it('manages metadata, extensions, setExtension, and removeExtension reactively', async () => {
+      const emissions: Array<Record<string, unknown> | undefined> = [];
+      surface.onMetadataChanged.subscribe(meta => {
+        emissions.push(meta);
+      });
+
+      assert.strictEqual(surface.metadata, undefined);
+      assert.strictEqual(surface.extensions, undefined);
+
+      const input = {extensions: {agui: {sessionId: 's-1'}}};
+      surface.metadata = input;
+      // Mutating caller object does not mutate internal state
+      (input.extensions.agui as any).sessionId = 'mutated';
+
+      assert.deepStrictEqual(surface.metadata, {extensions: {agui: {sessionId: 's-1'}}});
+      assert.deepStrictEqual(surface.extensions, {agui: {sessionId: 's-1'}});
+      assert.ok(Object.isFrozen(surface.metadata));
+      assert.ok(Object.isFrozen(surface.extensions));
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.strictEqual(emissions.length, 1);
+
+      // Structural equality no-op does not emit again
+      surface.metadata = {extensions: {agui: {sessionId: 's-1'}}};
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.strictEqual(emissions.length, 1);
+
+      // setExtension with null stores explicit null
+      surface.setExtension('flag', null);
+      assert.deepStrictEqual(surface.extensions, {agui: {sessionId: 's-1'}, flag: null});
+
+      // setExtension with undefined deletes the key
+      surface.setExtension('flag', undefined);
+      assert.deepStrictEqual(surface.extensions, {agui: {sessionId: 's-1'}});
+
+      // removeExtension removes last key and clears metadata to undefined
+      surface.removeExtension('agui');
+      assert.strictEqual(surface.metadata, undefined);
+      assert.strictEqual(surface.extensions, undefined);
+
+      // Empty metadata envelopes normalize to undefined
+      surface.metadata = {};
+      assert.strictEqual(surface.metadata, undefined);
+      surface.metadata = {extensions: {}};
+      assert.strictEqual(surface.metadata, undefined);
+    });
+
+    it('rejects non-UAX 31 extension keys and read-only signal writes', () => {
+      assert.throws(() => {
+        surface.metadata = {extensions: {'bad-key': 1}};
+      }, /Invalid UAX #31 extension identifier: "bad-key"/);
+      assert.throws(
+        () => surface.setExtension('123bad', 'v'),
+        /Invalid UAX #31 extension identifier: "123bad"/,
+      );
+      assert.throws(
+        () => setValue(surface.metadataSignal as any, {extensions: {ok: 1}}),
+        TypeError,
+      );
+    });
+
+    it('propagates and validates metadata on dispatchAction', async () => {
+      await surface.dispatchAction({event: {name: 'save', context: {id: 1}}}, 'btn-1', {
+        extensions: {trace_id: 'tr-99'},
+      });
+      assert.strictEqual(actions.length, 1);
+      assert.deepStrictEqual(actions[0].metadata, {extensions: {trace_id: 'tr-99'}});
+
+      await surface.dispatchAction(
+        {
+          event: {
+            name: 'save',
+            metadata: {extensions: {fromPayload: 1, shared: 'payload'}},
+          },
+        },
+        'btn-1',
+        {extensions: {fromCall: 2, shared: 'call'}},
+      );
+      assert.strictEqual(actions.length, 2);
+      assert.deepStrictEqual(actions[1].metadata, {
+        extensions: {fromPayload: 1, fromCall: 2, shared: 'call'},
+      });
+
+      await assert.rejects(
+        async () =>
+          surface.dispatchAction({event: {name: 'save'}}, 'btn-1', {
+            extensions: {'invalid-key': true},
+          }),
+        /Invalid UAX #31 extension identifier: "invalid-key"/,
+      );
     });
   });
 });

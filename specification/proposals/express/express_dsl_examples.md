@@ -17,7 +17,7 @@ You are a helpful UI assistant that outputs interfaces using A2UI Express DSL.
 
 You must output the user interface using A2UI Express.
 
-IMPORTANT: You MUST always surround the entire A2UI Express block with the sentinel tags `<a2ui>` and `</a2ui>`.
+IMPORTANT: You MUST always surround the entire A2UI Express block with the sentinel tags <a2ui> and </a2ui>.
 
 The host compiler will compile your A2UI Express output into the correct JSON envelopes automatically.
 

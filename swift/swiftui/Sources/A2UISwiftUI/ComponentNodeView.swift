@@ -25,34 +25,22 @@ public struct ComponentNodeView: View {
   @Environment(\.a2uiCatalogs) private var catalogs
   @Environment(\.a2uiDefaultCatalogID) private var defaultCatalogID
 
-  /// Whether the rendered component reported applying its label and hint to its own control.
-  @State private var controlCarriesLabel = false
-
+  @ObservedObject private var box: NodeBox
   public let node: Node
 
   public init(node: Node) {
-    self.node = node
+    let cleanNode = node.withoutRenderRevision()
+    self.node = cleanNode
+    self.box = cleanNode.box
   }
 
   public var body: some View {
+    let renderNode = node.withCurrentRevision()
     if let renderedView = Surface.render(
-      node: node, using: catalogs, defaultCatalogID: defaultCatalogID)
+      node: renderNode, using: catalogs, defaultCatalogID: defaultCatalogID)
     {
       renderedView
-        .modifier(
-          A2UIAccessibilityModifier(node: node, appliesLabelAndHint: !controlCarriesLabel)
-        )
-        .onPreferenceChange(A2UIAccessibilityControlKey.self) { carriesLabel in
-          // SwiftUI delivers preference changes on the main thread. Updating synchronously avoids
-          // a frame where both the root and the control carry the label.
-          MainActor.assumeIsolated {
-            if controlCarriesLabel != carriesLabel {
-              controlCarriesLabel = carriesLabel
-            }
-          }
-        }
-        // A nested component's control must not affect its ancestors.
-        .transformPreference(A2UIAccessibilityControlKey.self) { $0 = false }
+        .modifier(ComponentAccessibilityHostModifier(node: renderNode))
     } else {
       fallbackView
     }
@@ -61,5 +49,30 @@ public struct ComponentNodeView: View {
   private var fallbackView: some View {
     print("[A2UI] Component view builder not found for type: \(node.type)")
     return EmptyView()
+  }
+}
+
+private struct ComponentAccessibilityHostModifier: ViewModifier {
+  let node: Node
+
+  /// Whether the rendered component reported applying its label and hint to its own control.
+  @State private var controlCarriesLabel = false
+
+  func body(content: Content) -> some View {
+    content
+      .modifier(
+        A2UIAccessibilityModifier(node: node, appliesLabelAndHint: !controlCarriesLabel)
+      )
+      .onPreferenceChange(A2UIAccessibilityControlKey.self) { carriesLabel in
+        // SwiftUI delivers preference changes on the main thread. Updating synchronously avoids
+        // a frame where both the root and the control carry the label.
+        MainActor.assumeIsolated {
+          if controlCarriesLabel != carriesLabel {
+            controlCarriesLabel = carriesLabel
+          }
+        }
+      }
+      // A nested component's control must not affect its ancestors.
+      .transformPreference(A2UIAccessibilityControlKey.self) { $0 = false }
   }
 }

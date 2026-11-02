@@ -74,6 +74,7 @@ testpaths = [
     "python/a2ui_core/tests",
     "eval/tests",
     "samples/agent/adk/tests",
+    "samples/community/agent/adk/file_upload_summarizer/tests",
     "samples/community/agent/adk/personalized_learning/tests",
     "samples/community/mcp/a2ui-over-mcp-recipe/tests",
 ]
@@ -85,7 +86,12 @@ norecursedirs = [
     "node_modules",
     ".venv",
 ]
-addopts = "--import-mode=importlib"
+# Timing tests are deselected here; `uv run pytest -m performance` runs only
+# them. See python/a2ui_core/tests/timing_harness.py.
+addopts = "--import-mode=importlib -m 'not performance'"
+markers = [
+    "performance: times an operation; run apart from the other tests with `-m performance`",
+]
 
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
@@ -105,6 +111,7 @@ pyink-use-majority-quotes = true
 extend-exclude = '''(?x)(
   /generated/
   | python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/
+  | python/a2ui_agent/src/a2ui/builder/v1_0/catalogs/
 )'''
 pyink-annotation-pragmas = [
   "noqa",
@@ -148,3 +155,9 @@ module = [
 ]
 follow_imports = "skip"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "a2ui.builder.v1_0.catalogs.*",
+]
+disable_error_code = ["call-arg"]

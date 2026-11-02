@@ -5,7 +5,7 @@
       "description": "Valid createSurface with both components list and dataModel update",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -33,7 +33,7 @@
       "description": "Valid createSurface with only components list",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -51,7 +51,7 @@
       "description": "Valid createSurface with only dataModel update",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -65,7 +65,7 @@
       "description": "Valid createSurface without catalogId",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "components": [
@@ -83,7 +83,7 @@
       "description": "Invalid: createSurface contains additional unexpected properties",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -102,7 +102,7 @@
       "description": "Invalid: components is a string instead of an array",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -114,7 +114,7 @@
       "description": "Invalid: components contains empty array",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -126,7 +126,7 @@
       "description": "Invalid: components array contains a null element",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -138,7 +138,7 @@
       "description": "Invalid: dataModel is a string instead of an object",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -150,7 +150,7 @@
       "description": "Invalid: createSurface cannot create a component named Surface",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -167,7 +167,7 @@
       "description": "Invalid: updateComponents cannot create a component named Surface",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [
@@ -183,7 +183,7 @@
       "description": "Valid createSurface with metadata.extensions",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -201,7 +201,7 @@
       "description": "Valid createSurface with non-ASCII Unicode UAX #31 extension keys",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -218,7 +218,7 @@
       "description": "Invalid: createSurface with extension key violating UAX #31 identifier pattern",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -234,7 +234,7 @@
       "description": "Invalid: createSurface metadata contains unrecognized property (additionalProperties: false)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -248,7 +248,7 @@
       "description": "Valid component with metadata.extensions in createSurface",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -271,7 +271,7 @@
       "description": "Invalid: component metadata.extensions has invalid key name",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -294,7 +294,7 @@
       "description": "Invalid: component missing id required by ComponentCommon",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -311,7 +311,7 @@
       "description": "Valid component with accessibility attributes",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -333,7 +333,7 @@
       "description": "Invalid: component with unexpected property on envelope",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "test_surface",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",

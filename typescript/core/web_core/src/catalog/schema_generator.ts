@@ -19,14 +19,15 @@ import {zodToJsonSchema} from 'zod-to-json-schema';
 
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {CommonSchemas} from '../types/common-types.js';
+import {exclusiveUnionOverride} from './exclusive_union.js';
 import {
   catalogDocumentModel,
   deepCopyJson,
   THEME_DOCUMENT_KEYS,
   type CatalogDocumentModel,
 } from './schema_serializer.js';
-import {inlinePeerAndLocalRefs} from './schema_loader.js';
-import {standardDefsForVersion} from './spec_shape.js';
+import {isShorthandParameterMap} from './schema_loader.js';
+import {schemaRequiresArgs, standardDefsForVersion} from './spec_shape.js';
 import type {CatalogInterface, ComponentApi, FunctionApi} from './types.js';
 
 /**
@@ -106,14 +107,18 @@ function transformRefDescriptionNode(obj: Record<string, unknown>): boolean {
 }
 
 /**
- * Normalizes property schema structures like anyOf and additionalProperties.
+ * Normalizes property schema structures like allOf and additionalProperties.
+ *
+ * A `z.union` comes out as `anyOf`, and stays `anyOf`: a value may match more
+ * than one branch. Only a union that requires exactly one match comes out as
+ * `oneOf` (see `exclusiveUnionOverride`).
  */
 function cleanSchemaProperties(
   obj: Record<string, unknown>,
   options: {stripAdditionalProperties?: boolean} = {},
 ): void {
-  // A piped Zod schema, such as the loader's exclusive `oneOf`, comes out as
-  // `allOf: [{}, <schema>]`. The empty member constrains nothing.
+  // A Zod schema piped from `z.any()` comes out as `allOf: [{}, <schema>]`.
+  // The empty member constrains nothing.
   if (Array.isArray(obj.allOf)) {
     const members = obj.allOf.filter(
       m => !(typeof m === 'object' && m !== null && Object.keys(m).length === 0),
@@ -132,11 +137,6 @@ function cleanSchemaProperties(
     } else {
       obj.allOf = members;
     }
-  }
-
-  if (Array.isArray(obj.anyOf)) {
-    obj.oneOf = obj.anyOf;
-    delete obj.anyOf;
   }
 
   if (options.stripAdditionalProperties) {
@@ -210,8 +210,8 @@ export interface GenerateValidationSchemaOptions {
   componentEnvelopeRef?: string;
   /** Explicit standard $defs dictionary to use when serializing catalog components and functions. */
   standardDefs?: Record<string, unknown>;
-  /** Explicit protocol version for standard $defs resolution ('v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0'). */
-  protocolVersion?: 'v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0' | string;
+  /** Explicit protocol version for standard $defs resolution ('v0.8' | 'v0.9' | 'v0.9.1' | '1.0'). */
+  protocolVersion?: 'v0.8' | 'v0.9' | 'v0.9.1' | '1.0' | string;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -257,7 +257,6 @@ interface SourceContext {
   readonly model: CatalogDocumentModel;
   readonly defs: Readonly<JsonObject>;
   readonly rootDoc: JsonObject;
-  readonly peers: readonly CatalogInterface<ComponentApi, FunctionApi>[];
   readonly isV10: boolean;
 }
 
@@ -367,22 +366,6 @@ function collectSourceSubSchemas(
       }
       continue;
     }
-    if (mixinName === undefined && !ref.startsWith('#/') && context.peers.length > 0) {
-      if (!visited.has(ref)) {
-        // `inlinePeerAndLocalRefs` records `ref` itself once it resolves it, so
-        // it is given `visited` without `ref`.
-        const resolvedPeer = inlinePeerAndLocalRefs(sub, context.rootDoc, context.peers, {
-          inlineLocalDefs: false,
-          visited,
-        });
-        if (isJsonObject(resolvedPeer) && resolvedPeer['$ref'] !== ref) {
-          const nextVisited = new Set(visited);
-          nextVisited.add(ref);
-          local.push(...collectSourceSubSchemas(resolvedPeer, context, nextVisited));
-          continue;
-        }
-      }
-    }
     const external = EXTERNAL_DEF_REF.exec(ref);
     const name = mixinName ?? (external && !external[2] ? external[1] : undefined);
     const mixin = name !== undefined ? context.standardDefs[name] : undefined;
@@ -425,9 +408,7 @@ function sourceComponentSchema(
   const copied: JsonObject = {};
   for (const [name, schema] of Object.entries(props)) {
     if (COMPONENT_ENVELOPE_KEYS.has(name)) continue;
-    const copy = inlinePeerAndLocalRefs(deepCopyJson(schema), context.rootDoc, context.peers, {
-      inlineLocalDefs: false,
-    });
+    const copy = deepCopyJson(schema);
     restoreSourceRefs(copy, context.standardDefs, true);
     copied[name] = copy;
   }
@@ -454,7 +435,7 @@ function authoredFunctionArgs(
   if (explicit !== undefined) {
     if (!isJsonObject(explicit)) return {};
     // A bare map of argument schemas, with the object keywords beside it.
-    if (Object.keys(explicit).length > 0 && !('properties' in explicit) && !('type' in explicit)) {
+    if (isShorthandParameterMap(explicit)) {
       return {
         type: 'object',
         properties: explicit,
@@ -537,6 +518,7 @@ function processTheme(
   const themeRaw = zodToJsonSchema(catalog.themeSchema, {
     target: 'jsonSchema2019-09',
     $refStrategy: 'none',
+    override: exclusiveUnionOverride,
   }) as JsonObject;
   cleanSchemaNode(themeRaw);
   mergeGeneratedDefs(themeRaw, defs, generated);
@@ -599,6 +581,7 @@ function extractZodComponentSchema(
   const rawZod = zodToJsonSchema(comp.schema, {
     target: 'jsonSchema2019-09',
     $refStrategy: 'none',
+    override: exclusiveUnionOverride,
   }) as JsonObject;
   cleanSchemaNode(rawZod);
   mergeGeneratedDefs(rawZod, defs, generated);
@@ -764,17 +747,13 @@ function buildFunctionArgsSchema(
   let paramSchemaObj: JsonObject;
   const authored = authoredFunctionArgs(name, context);
   if (authored) {
-    paramSchemaObj = inlinePeerAndLocalRefs(
-      deepCopyJson(authored),
-      context.rootDoc,
-      context.peers,
-      {inlineLocalDefs: false},
-    ) as JsonObject;
+    paramSchemaObj = deepCopyJson(authored);
     restoreSourceRefs(paramSchemaObj, context.standardDefs, false);
   } else if (fn.schema && typeof fn.schema === 'object' && 'safeParse' in fn.schema) {
     const rawZod = zodToJsonSchema(fn.schema, {
       target: 'jsonSchema2019-09',
       $refStrategy: 'none',
+      override: exclusiveUnionOverride,
     }) as JsonObject;
     cleanSchemaNode(rawZod);
     mergeGeneratedDefs(rawZod, defs, generated);
@@ -809,7 +788,7 @@ function processSingleFunction(
   context: SourceContext,
 ): JsonObject {
   const argsSchema = buildFunctionArgsSchema(name, fn, defs, generated, context);
-  const hasRequiredArgs = Array.isArray(argsSchema.required) && argsSchema.required.length > 0;
+  const hasRequiredArgs = schemaRequiresArgs(argsSchema, {...context.defs, ...defs});
   const callKey = context.isV10 ? '@call' : 'call';
   const required = hasRequiredArgs ? [callKey, 'args'] : [callKey];
   if (context.isV10) {
@@ -1033,12 +1012,7 @@ export function generateValidationSchema<
     standardDefs,
     model,
     defs: authoredDefs,
-    rootDoc: {
-      $defs: authoredDefs,
-      components: Object.fromEntries(model.components),
-      functions: Object.fromEntries(model.functions),
-    },
-    peers: catalog.peerCatalogs ?? [],
+    rootDoc: {$defs: authoredDefs},
     isV10: Boolean(version) && isAtLeastVersion(version, '1.0'),
   };
 

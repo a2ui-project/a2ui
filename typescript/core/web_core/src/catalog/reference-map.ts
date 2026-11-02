@@ -59,6 +59,8 @@ export interface ChildRefAnalysisOptions {
   childRefNames: ReadonlySet<string>;
   /** Set of definition names recognized as child list references. */
   childListRefNames: ReadonlySet<string>;
+  /** Optional set of string property names recognized as single child references (e.g. in v0.8 schemas without $ref). */
+  childPropertyNames?: ReadonlySet<string>;
 }
 
 /**
@@ -467,6 +469,10 @@ function inspectShapeField(
   }
 
   const inner = unwrapZodType(fieldSchema);
+  if (options.childPropertyNames?.has(key) && inner?._def?.typeName === 'ZodString') {
+    acc.singleRefs.add(key);
+    return;
+  }
   if (inner?._def?.typeName !== 'ZodArray') return;
 
   const elem = unwrapZodType(inner._def.type);
@@ -477,7 +483,12 @@ function inspectShapeField(
   const elemShape = elem._def.shape();
   for (const [subKey, subSchema] of Object.entries(elemShape)) {
     const subRes = analyzeChildRefSchema(subSchema, options);
-    if (subRes.isChild || subRes.isChildList) {
+    const subInner = unwrapZodType(subSchema);
+    if (
+      subRes.isChild ||
+      subRes.isChildList ||
+      (options.childPropertyNames?.has(subKey) && subInner?._def?.typeName === 'ZodString')
+    ) {
       acc.listRefs.add(key);
       addNestedRef(acc, key, subKey);
     }
@@ -518,13 +529,29 @@ function inspectRawProperties(
       acc.singleRefs.add(key);
       continue;
     }
+    if (
+      options.childPropertyNames?.has(key) &&
+      typeof propSchema === 'object' &&
+      propSchema !== null &&
+      (propSchema as Record<string, unknown>)['type'] === 'string'
+    ) {
+      acc.singleRefs.add(key);
+      continue;
+    }
 
     const itemProps = rawArrayItemProperties(propSchema);
     if (!itemProps) continue;
 
     for (const [subKey, subSchema] of Object.entries(itemProps)) {
       const subRes = analyzeChildRefSchema(subSchema, options);
-      if (subRes.isChild || subRes.isChildList) {
+      if (
+        subRes.isChild ||
+        subRes.isChildList ||
+        (options.childPropertyNames?.has(subKey) &&
+          typeof subSchema === 'object' &&
+          subSchema !== null &&
+          (subSchema as Record<string, unknown>)['type'] === 'string')
+      ) {
         acc.listRefs.add(key);
         addNestedRef(acc, key, subKey);
       }

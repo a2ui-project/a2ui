@@ -93,4 +93,24 @@ struct SurfaceTests {
     )
     #expect(firstSurface.surfaceID != secondSurface.surfaceID)
   }
+
+  @Test func surfaceViewModelMetadataMutatorsExposeExtensions() throws {
+    let catalog = try makeTestSurfaceCatalogForRendering()
+    let viewModel = SurfaceViewModel(
+      surfaceID: "s1",
+      catalog: catalog,
+      metadata: ["extensions": .object(["surfaceTheme": .string("dark")])]
+    )
+    #expect(viewModel.extensions == ["surfaceTheme": .string("dark")])
+    try viewModel.setExtension("mode", value: .string("compact"))
+    #expect(
+      viewModel.extensions == [
+        "surfaceTheme": .string("dark"),
+        "mode": .string("compact"),
+      ]
+    )
+    viewModel.removeExtension("surfaceTheme")
+    viewModel.removeExtension("mode")
+    #expect(viewModel.metadata == nil)
+  }
 }
