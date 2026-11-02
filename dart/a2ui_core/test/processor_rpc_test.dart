@@ -352,6 +352,53 @@ void main() {
     expect(responses().single.response.error!.message, contains('remote'));
   });
 
+  test(
+      'a callRendererFunction argument fails even when the surface holds '
+      'the answer', () async {
+    processor.processMessages({
+      'version': '1.0',
+      'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
+    });
+    final ReadonlySignal<Object?> binding = ComponentContext(
+      processor.model.getSurface('one')!,
+      ComponentModel('root', 'Text', {}),
+    ).dataContext.resolveSignal({
+      '@call': 'remote',
+      'args': <String, Object?>{},
+    });
+    final void Function() unsubscribe = binding.subscribe((_) {});
+    addTearDown(unsubscribe);
+    final CallAgentFunctionMessage outbound =
+        sent.whereType<CallAgentFunctionMessage>().single;
+    processor.processMessages({
+      'version': '1.0',
+      'agentFunctionResponse': {
+        'functionCallId': outbound.functionCallId,
+        'value': 'cached',
+      },
+    });
+    await Future<void>.delayed(Duration.zero);
+    expect(binding.value, 'cached');
+
+    await processor.processMessagesAsync({
+      'version': '1.0',
+      'callRendererFunction': {
+        'surfaceId': 'one',
+        'functionCallId': 'c-cached',
+        'callFunction': {
+          '@call': 'whereAmI',
+          'catalogId': 'alpha',
+          'args': {
+            'x': {'@call': 'remote', 'args': <String, Object?>{}},
+          },
+        },
+      },
+    });
+    expect(sent.whereType<CallAgentFunctionMessage>(), hasLength(1));
+    expect(responses().single.response.error!.code, 'EXECUTION_ERROR');
+    expect(responses().single.response.error!.message, contains('remote'));
+  });
+
   test('a disposed surface refuses agent calls itself', () async {
     final calls = <FunctionCall>[];
     final surface = SurfaceModel<ComponentApi>(
