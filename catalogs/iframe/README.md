@@ -27,6 +27,14 @@ Both components share the properties below.
 
 The allowlists deny by default: the host drops any action, function call or data change that is not listed or whose payload fails validation. The messages exchanged between the host and the embedded application (`a2ui_app_frame_ready`, `a2ui_app_frame_init`, `a2ui_action`, `a2ui_data_model_change`, `a2ui_function_call`, `a2ui_size_changed` and their host-to-app counterparts) are defined in the [WebApp iframe component specification](web_app_frame_specification.md).
 
+## Examples
+
+The [examples](examples/) directory holds A2UI message sequences that validate against this catalog combined with the basic catalog:
+
+- [srcdoc-tip-calculator.json](examples/srcdoc-tip-calculator.json) covers every `WebAppFrameSrcdoc` interaction in one tip calculator: it reads the bill from bound data, takes its currency and locale from `config`, writes the total back through `mutableData`, formats it with `formatCurrency`, reports the saved receipt as an action, sizes its frame and declares `open_url` for its help link. `typescript/catalogs/iframe/tests/examples/` runs it end to end.
+
+`specification/scripts/validate.py` validates these examples in CI.
+
 ## Implementations
 
 The components originated in the [Angular MCP calculator sample](../../samples/community/client/angular/projects/mcp_calculator/src/a2ui-catalog/), which implements a v0.9 predecessor of this catalog under its own sample catalog ID.

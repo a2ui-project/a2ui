@@ -19,6 +19,7 @@ catalogs/
 │       └── basic_catalog_implementation_guide.md
 ├── iframe/                 # iframe catalog
 │   ├── catalog.json
+│   ├── examples/
 │   └── web_app_frame_specification.md
 ├── mcp/                    # MCP catalog
 │   ├── catalog.json        # Pre-1.0 MCP catalog, protocol v0.9
