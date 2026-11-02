@@ -602,14 +602,16 @@ describe('A2uiLitElement', () => {
 
     class TestTargetInputElement extends A2uiLitElement<typeof TargetInputApi> {
       protected override readonly api = TargetInputApi;
+      public targetSelector: string | null = 'input';
 
       protected override accessibilityTarget(): Element | null {
-        return this.querySelector('input');
+        return this.targetSelector ? this.querySelector(this.targetSelector) : null;
       }
 
       override render() {
         return html`
           <input .value=${this.controller.props.value ?? ''} />
+          <textarea .value=${this.controller.props.value ?? ''}></textarea>
           ${this.renderValidationErrors()}
         `;
       }
@@ -668,7 +670,9 @@ describe('A2uiLitElement', () => {
     assert.strictEqual(el.hasAttribute('aria-description'), false);
 
     const input = el.querySelector('input')!;
+    const textarea = el.querySelector('textarea')!;
     assert.ok(input);
+    assert.ok(textarea);
     assert.strictEqual(input.getAttribute('aria-label'), 'Email address');
     assert.strictEqual(input.getAttribute('aria-description'), 'Enter your work email');
     assert.strictEqual(input.getAttribute('aria-invalid'), 'true');
@@ -678,6 +682,20 @@ describe('A2uiLitElement', () => {
     assert.ok(errorEl);
     assert.strictEqual(errorEl.id, `${rootNode.id}-error`);
     assert.strictEqual(errorEl.querySelector('.a2ui-error-message')?.textContent, 'Must be valid');
+
+    // Switching accessibilityTarget() to another inner element clears ARIA attributes from the prior target.
+    await asyncUpdate(el, (e: TestTargetInputElement) => {
+      e.targetSelector = 'textarea';
+      e.requestUpdate();
+    });
+    assert.strictEqual(input.hasAttribute('aria-label'), false);
+    assert.strictEqual(input.hasAttribute('aria-description'), false);
+    assert.strictEqual(input.hasAttribute('aria-invalid'), false);
+    assert.strictEqual(input.hasAttribute('aria-describedby'), false);
+    assert.strictEqual(textarea.getAttribute('aria-label'), 'Email address');
+    assert.strictEqual(textarea.getAttribute('aria-description'), 'Enter your work email');
+    assert.strictEqual(textarea.getAttribute('aria-invalid'), 'true');
+    assert.strictEqual(textarea.getAttribute('aria-describedby'), `${rootNode.id}-error`);
 
     targetProcessor.processMessages([
       {
@@ -700,10 +718,10 @@ describe('A2uiLitElement', () => {
 
     assert.strictEqual(el.hasAttribute('aria-live'), false);
     assert.strictEqual(el.hasAttribute('aria-hidden'), false);
-    assert.strictEqual(input.hasAttribute('aria-label'), false);
-    assert.strictEqual(input.hasAttribute('aria-description'), false);
-    assert.strictEqual(input.hasAttribute('aria-invalid'), false);
-    assert.strictEqual(input.hasAttribute('aria-describedby'), false);
+    assert.strictEqual(textarea.hasAttribute('aria-label'), false);
+    assert.strictEqual(textarea.hasAttribute('aria-description'), false);
+    assert.strictEqual(textarea.hasAttribute('aria-invalid'), false);
+    assert.strictEqual(textarea.hasAttribute('aria-describedby'), false);
     assert.strictEqual(el.querySelector('.a2ui-validation-errors'), null);
 
     el.remove();

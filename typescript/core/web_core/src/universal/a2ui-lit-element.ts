@@ -102,6 +102,7 @@ export abstract class A2uiLitElement<
   private _controllerNode?: ComponentNode;
   private fallbackDomId?: string;
   private _hasDefaultGroupRole = false;
+  private _lastAccessibilityTarget: Element | null = null;
 
   /**
    * Document-unique ID prefix for associating internal labels, controls, and error messages.
@@ -156,6 +157,14 @@ export abstract class A2uiLitElement<
   ): void {
     setHostAccessibilityAttributes(this, accessibility);
     const target = this.accessibilityTarget();
+    const prevTarget = this._lastAccessibilityTarget;
+    if (prevTarget && prevTarget !== target && prevTarget !== this) {
+      prevTarget.removeAttribute('aria-label');
+      prevTarget.removeAttribute('aria-description');
+      prevTarget.removeAttribute('aria-invalid');
+      prevTarget.removeAttribute('aria-describedby');
+    }
+    this._lastAccessibilityTarget = target;
     const hasLabel = hasAttributeValue(accessibility?.label);
     const hasDescription = hasAttributeValue(accessibility?.description);
 
