@@ -43,6 +43,21 @@ type MemoizedRenderInternalProps<Props> = {
 };
 
 /**
+ * Copies the `ComponentApi` fields of `api`. Spreading `api` instead would also copy fields of a
+ * richer entry, such as the `tagName` and `element` of a Web Component implementation, and the
+ * surface would then render that element instead of the React component.
+ */
+function componentApiFields(api: ComponentApi): ComponentApi {
+  return {
+    name: api.name,
+    schema: api.schema,
+    allowedParents: api.allowedParents,
+    allowedChildren: api.allowedChildren,
+    ...(api.metadata !== undefined ? {metadata: api.metadata} : {}),
+  };
+}
+
+/**
  * Creates a React component implementation using the deep generic binder.
  */
 export function createComponentImplementation<Api extends ComponentApi>(
@@ -161,9 +176,7 @@ export function createComponentImplementation<Api extends ComponentApi>(
   NodeView.displayName = `${api.name}.view`;
 
   return {
-    name: api.name,
-    schema: api.schema,
-    ...(api.metadata !== undefined ? {metadata: api.metadata} : {}),
+    ...componentApiFields(api),
     render: ReactWrapper,
     view: NodeView,
   };
@@ -194,9 +207,7 @@ export function createBinderlessComponentImplementation(
   NodeView.displayName = `${api.name}.view`;
 
   return {
-    name: api.name,
-    schema: api.schema,
-    ...(api.metadata !== undefined ? {metadata: api.metadata} : {}),
+    ...componentApiFields(api),
     render: RenderComponent,
     view: NodeView,
   };

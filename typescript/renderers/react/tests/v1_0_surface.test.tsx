@@ -249,11 +249,16 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
       expect(textElements.length).toBe(2);
 
       const accessibleEl = textElements[0]!;
-      expect(accessibleEl.getAttribute('aria-label')).toBe('System status');
-      expect(accessibleEl.getAttribute('aria-description')).toBe(
+      expect(accessibleEl.hasAttribute('aria-label')).toBe(false);
+      expect(accessibleEl.hasAttribute('aria-description')).toBe(false);
+      expect(accessibleEl.getAttribute('aria-live')).toBe('polite');
+
+      const innerSpan = accessibleEl.querySelector('.a2ui-text');
+      expect(innerSpan?.getAttribute('role')).toBe('note');
+      expect(innerSpan?.getAttribute('aria-label')).toBe('System status');
+      expect(innerSpan?.getAttribute('aria-description')).toBe(
         'Indicates whether the system is ready',
       );
-      expect(accessibleEl.getAttribute('aria-live')).toBe('polite');
 
       const hiddenEl = textElements[1]!;
       expect(hiddenEl.getAttribute('aria-hidden')).toBe('true');
@@ -439,6 +444,100 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
       const binderlessWrapper = getByTestId('custom-binderless-wrapper');
       expect(binderlessWrapper.textContent).toContain('Universal Child Inside Binderless React');
     });
+  });
+
+  describe('enforces composition constraints declared on custom React components', () => {
+    const CATALOG_ID = 'https://example.com/composition_v1_0.json';
+
+    const Box = createBinderlessComponentImplementation(
+      {
+        name: 'Box',
+        schema: z.object({children: CommonSchemas.ChildList}),
+        allowedChildren: ['Rune'],
+      },
+      () => null,
+    );
+    const Card = createComponentImplementation(
+      {name: 'Card', schema: z.object({child: CommonSchemas.ComponentId})},
+      () => null,
+    );
+    const Rune = createComponentImplementation(
+      {name: 'Rune', schema: z.object({}), allowedParents: ['Box']},
+      () => null,
+    );
+
+    function createSurface(components: Array<Record<string, unknown>>) {
+      const processor = new MessageProcessor([
+        new Catalog<ReactCatalogComponent>(CATALOG_ID, '1.0', [Box, Card, Rune], []),
+      ]);
+      processor.processMessages([
+        {version: '1.0', createSurface: {surfaceId: 's1', catalogId: CATALOG_ID, components}},
+      ]);
+    }
+
+    it('keeps allowedParents and allowedChildren on the implementations', () => {
+      expect(Rune.allowedParents).toEqual(['Box']);
+      expect(Box.allowedChildren).toEqual(['Rune']);
+    });
+
+    it('accepts a tree that satisfies the constraints', () => {
+      expect(() =>
+        createSurface([
+          {id: 'root', component: 'Box', children: ['r']},
+          {id: 'r', component: 'Rune'},
+        ]),
+      ).not.toThrow();
+    });
+
+    it('rejects a child whose parent is not in its allowedParents', () => {
+      expect(() =>
+        createSurface([
+          {id: 'root', component: 'Card', child: 'r'},
+          {id: 'r', component: 'Rune'},
+        ]),
+      ).toThrow(expect.objectContaining({code: 'UNALLOWED_PARENT'}));
+    });
+
+    it('rejects a root whose allowedParents omits Surface', () => {
+      expect(() => createSurface([{id: 'root', component: 'Rune'}])).toThrow(
+        expect.objectContaining({code: 'UNALLOWED_PARENT'}),
+      );
+    });
+
+    it('rejects a child that is not in its parent allowedChildren', () => {
+      expect(() =>
+        createSurface([
+          {id: 'root', component: 'Box', children: ['b']},
+          {id: 'b', component: 'Box', children: []},
+        ]),
+      ).toThrow(expect.objectContaining({code: 'UNALLOWED_CHILD'}));
+    });
+  });
+
+  it('renders a React implementation built from a basic catalog Web Component', async () => {
+    const ReactText = createComponentImplementation(
+      basicCatalog.components.get('Text')!,
+      ({props}) => <span data-testid="react-text">{props.text}</span>,
+    );
+    const catalogId = 'https://example.com/react_text_v1_0.json';
+    const processor = new MessageProcessor([
+      new Catalog<ReactCatalogComponent>(catalogId, '1.0', [ReactText], []),
+    ]);
+    processor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId,
+          components: [{id: 'root', component: 'Text', text: 'From React'}],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('s1')!;
+    const {container, getByTestId} = render(<A2uiSurface surface={surface} />);
+    await waitFor(() => expect(getByTestId('react-text').textContent).toBe('From React'));
+    expect(container.querySelector('a2ui-basic-text')).toBeNull();
   });
 
   it('renders a v1.0 surface with no default catalog whose root names its catalog', async () => {

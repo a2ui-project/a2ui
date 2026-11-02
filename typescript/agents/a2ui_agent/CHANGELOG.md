@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.1.0
+
 - **BREAKING CHANGE**: Remove duplicate and non-idiomatic APIs across `@a2ui/agent` ([#3592](https://github.com/a2ui-project/a2ui/issues/3592), [#3758](https://github.com/a2ui-project/a2ui/pull/3758)):
   - Remove `Skill.toString()`; call `skill.toMarkdown()` instead.
   - `SkillSet` now implements `Iterable<[string, Skill]>` and `[Symbol.iterator]()` yields `[filename, skill]` entries like `Map`; call `skillSet.keys()` to iterate filenames.
