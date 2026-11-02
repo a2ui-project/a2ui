@@ -15,20 +15,7 @@
  */
 
 import {act} from 'react';
-import {loadExample, cleanup, getSurface, whenSettled} from '../utils/test-utils';
-
-function changeInputValue(input: HTMLInputElement, value: string) {
-  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
-    'value',
-  )?.set;
-  if (nativeInputValueSetter) {
-    nativeInputValueSetter.call(input, value);
-  } else {
-    input.value = value;
-  }
-  input.dispatchEvent(new Event('input', {bubbles: true}));
-}
+import {loadExample, cleanup, getSurface, whenSettled, changeInputValue} from '../utils/test-utils';
 
 describe('v1.0 Example: Simple Login Form', () => {
   let container: HTMLDivElement;

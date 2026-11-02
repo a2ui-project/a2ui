@@ -15,36 +15,14 @@
  */
 
 import {act} from 'react';
-import {loadExample, cleanup, getSurface, whenSettled} from '../utils/test-utils';
-async function waitForCondition(
-  condition: () => boolean,
-  timeout = 1000,
-  interval = 50,
-): Promise<boolean> {
-  const start = performance.now();
-  while (true) {
-    if (condition()) {
-      return true;
-    }
-    if (performance.now() - start > timeout) {
-      return false;
-    }
-    await new Promise(resolve => setTimeout(resolve, interval));
-  }
-}
-
-function changeInputValue(input: HTMLInputElement, value: string) {
-  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
-    'value',
-  )?.set;
-  if (nativeInputValueSetter) {
-    nativeInputValueSetter.call(input, value);
-  } else {
-    input.value = value;
-  }
-  input.dispatchEvent(new Event('input', {bubbles: true}));
-}
+import {
+  loadExample,
+  cleanup,
+  getSurface,
+  whenSettled,
+  changeInputValue,
+  waitForCondition,
+} from '../utils/test-utils';
 
 describe('v1.0 Example: Live Invitation Builder', () => {
   let container: HTMLDivElement;

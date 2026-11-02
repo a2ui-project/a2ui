@@ -134,3 +134,39 @@ export function getSurface(root: Element): HTMLElement {
   }
   return surface as HTMLElement;
 }
+
+/**
+ * Sets an input element's value via the native prototype setter and dispatches a bubbling input event.
+ */
+export function changeInputValue(input: HTMLInputElement, value: string): void {
+  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    'value',
+  )?.set;
+  if (nativeInputValueSetter) {
+    nativeInputValueSetter.call(input, value);
+  } else {
+    input.value = value;
+  }
+  input.dispatchEvent(new Event('input', {bubbles: true}));
+}
+
+/**
+ * Polls a condition function at a fixed interval until it returns true or times out.
+ */
+export async function waitForCondition(
+  condition: () => boolean,
+  timeout = 1000,
+  interval = 50,
+): Promise<boolean> {
+  const start = performance.now();
+  while (true) {
+    if (condition()) {
+      return true;
+    }
+    if (performance.now() - start > timeout) {
+      return false;
+    }
+    await new Promise(resolve => setTimeout(resolve, interval));
+  }
+}
