@@ -686,18 +686,9 @@ class GenericBinder {
   }) {
     final FutureOr<Map<String, dynamic>?> direct = dataContext
         .resolveActionAsync(value, onExpressionFailed: onExpressionFailed);
-    if (direct is Future<Map<String, dynamic>?>) {
-      return direct.then((resolved) {
-        if (resolved != null) return resolved;
-        if (dataContext.isDataBinding(value)) {
-          return dataContext.resolveActionAsync(
-            dataContext.resolveDynamicValue(value),
-            onExpressionFailed: onExpressionFailed,
-          );
-        }
-        return null;
-      });
-    }
+    // A data binding resolves to null synchronously, so a pending result is
+    // never one.
+    if (direct is Future<Map<String, dynamic>?>) return direct;
     if (direct != null) return direct;
     if (dataContext.isDataBinding(value)) {
       return dataContext.resolveActionAsync(

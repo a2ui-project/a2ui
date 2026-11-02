@@ -111,6 +111,12 @@ class DataContext {
 
   final int? _explicitIndex;
 
+  /// Set while an action invokes a function locally, so that
+  /// [CatalogInvokerExtension.invoke] marks a failure of the function itself
+  /// as an [_ExecutionFailure]. Cleared before the function runs, so calls
+  /// it makes are not marked.
+  bool _marksExecutionFailures = false;
+
   /// Whether this context evaluates within a user activation, such as an
   /// action the user triggered. A function whose
   /// [FunctionApi.requiresUserActivation] is set runs only when this is true.
@@ -127,11 +133,13 @@ class DataContext {
   ///
   /// On a v1.0 context with [callAgentFunction], a call whose catalog
   /// resolves but has no function of that name is sent to the agent instead,
-  /// naming the catalog it resolved to; see [evaluateFunctionCall] and
-  /// [isPendingAgentCall] for how its result arrives. A call whose catalog
-  /// cannot be resolved (no such catalog, or no default catalog) is never
-  /// sent: it fails with an [A2uiCatalogResolutionError] as without a
-  /// caller.
+  /// naming the catalog it resolved to, wherever its result can wait: in a
+  /// [resolveSignal] binding, a check, or an action; see
+  /// [evaluateFunctionCall] and [isPendingAgentCall] for how its result
+  /// arrives. A one-shot [resolveDynamicValue] never sends a call. A call
+  /// whose catalog cannot be resolved (no such catalog, or no default
+  /// catalog) is never sent: it fails with an [A2uiCatalogResolutionError]
+  /// as without a caller.
   ///
   /// [index] is the collection iteration index when this context scopes a
   /// template child. [onMissingData] is called once per absolute path, per
@@ -334,6 +342,11 @@ class DataContext {
   /// An array or map payload resolves per element, since a dynamic value may
   /// be nested at any depth inside literal structure. A payload holding no
   /// bindings or calls is returned as-is rather than copied.
+  ///
+  /// The result cannot wait, so a function no catalog implements is not sent
+  /// to the agent: it reads an answer the context already received, null
+  /// while a binding still awaits one, and otherwise fails as a missing
+  /// function.
   Object? resolveDynamicValue(Object? value) => _resolveDynamicValue(value, 0);
 
   Object? _resolveDynamicValue(
@@ -365,9 +378,10 @@ class DataContext {
             keepFailed: true,
           );
         }
-        if (_containsFailedArg(args) || _awaitsAgentArgument(call)) {
-          return keepFailed ? _failedArg : null;
-        }
+        if (_containsFailedArg(args)) return keepFailed ? _failedArg : null;
+        if (_containsPendingArg(args)) return keepFailed ? _pendingArg : null;
+        // A one-shot read cannot wait for an answer, so it never sends a
+        // call to the agent; it can still read an answer already received.
         final Object? result = _evaluateFunction(
           call,
           args,
@@ -503,14 +517,15 @@ class DataContext {
                 in argSignals.entries)
               entry.key: entry.value.value,
           };
-          if (_containsFailedArg(args) ||
-              _awaitsAgentArgument(call, track: true)) {
-            return keepFailed ? _failedArg : null;
+          if (_containsFailedArg(args)) return keepFailed ? _failedArg : null;
+          if (_containsPendingArg(args)) {
+            return keepFailed ? _pendingArg : null;
           }
           final Object? result = _evaluateFunction(
             call,
             args,
             keepFailed: keepFailed,
+            canSend: true,
             lastAgentKey: lastAgentKey,
             lastAgentCall: lastAgentCall,
             onAgentCall: (key, entry) {
@@ -648,6 +663,7 @@ class DataContext {
     FunctionCall call,
     Map<String, dynamic> args, {
     bool keepFailed = false,
+    bool canSend = false,
     String? lastAgentKey,
     _AgentCall? lastAgentCall,
     void Function(String key, _AgentCall entry)? onAgentCall,
@@ -665,37 +681,47 @@ class DataContext {
       } on A2uiCatalogResolutionError catch (error) {
         final String? catalogId = _routableCatalogId(error, name);
         if (catalogId == null) rethrow;
+        final AgentFunctionCaller? caller = canSend ? _agentCallerOrNull : null;
         if (!_isPlainJson(args)) {
-          if (_agentCallerOrNull == null) rethrow;
+          if (caller == null) rethrow;
           _checkJsonArguments(call.call, args);
         }
         final String key = _agentCallKey(call.call, catalogId, args);
-        final _AgentCall? existing = _agentCalls.lookup(call, catalogId, args);
+        // The binding keeps the call it made for these arguments, answered
+        // or failed, even after the shared cache evicts it, so a failing
+        // agent is not asked again in a loop. A cancelled call is not kept:
+        // it is sent again the next time the binding evaluates.
+        final _AgentCall? own = lastAgentKey == key &&
+                lastAgentCall != null &&
+                !lastAgentCall.cancelled
+            ? lastAgentCall
+            : null;
+        final _AgentCall? existing =
+            own ?? _agentCalls.lookup(call, catalogId, args);
         if (existing != null) {
           onAgentCall?.call(key, existing);
-          existing.version.value;
-          return existing.failed && keepFailed
-              ? _failedArg
-              : existing.value.value;
+          return _agentCallValue(existing, keepFailed: keepFailed);
         }
-        if (lastAgentKey == key &&
-            lastAgentCall != null &&
-            lastAgentCall.failed) {
-          lastAgentCall.version.value;
-          return keepFailed ? _failedArg : null;
-        }
-        final AgentFunctionCaller? caller = _agentCallerOrNull;
         if (caller == null) rethrow;
         final _AgentCall entry = _agentCall(call, catalogId, args, caller);
         onAgentCall?.call(key, entry);
-        entry.version.value;
-        return entry.failed && keepFailed ? _failedArg : entry.value.value;
+        return _agentCallValue(entry, keepFailed: keepFailed);
       }
     } catch (error) {
       if (_onError == null) rethrow;
       _report(error, call.call);
       return keepFailed ? _failedArg : null;
     }
+  }
+
+  /// The value [entry] gives a binding, which depends on it: the answer, or,
+  /// while it is pending or after it failed, null, or with [keepFailed] the
+  /// [_pendingArg] or [_failedArg] marker that holds the enclosing call.
+  static Object? _agentCallValue(_AgentCall entry, {required bool keepFailed}) {
+    entry.version.value;
+    if (entry.pending) return keepFailed ? _pendingArg : null;
+    if (entry.failed) return keepFailed ? _failedArg : null;
+    return entry.value.value;
   }
 
   static const String _indexFunctionName = '@index';
@@ -824,6 +850,13 @@ class DataContext {
     if (onError == null) return;
     onError(
       switch (error) {
+        _ExecutionFailure(error: final Object cause) => A2uiExpressionError(
+            "Function '$name' failed: "
+            '${cause is A2uiError ? cause.message : cause}',
+            expression: name,
+            code: 'EXECUTION_ERROR',
+            cause: cause,
+          ),
         A2uiExpressionError() => error,
         A2uiCatalogError() => A2uiExpressionError(
             error.message,
@@ -852,10 +885,12 @@ class DataContext {
   /// same name, catalog and arguments is in flight or completed.
   ///
   /// Sharing the entry is what keeps a `computed` that re-evaluates with
-  /// unchanged arguments from sending the call again. A failure evicts the
-  /// entry (so a later retry or argument change can re-send it), leaves the
-  /// value null, and is reported once through the reporter with the
-  /// `A2uiRpcError` as its cause.
+  /// unchanged arguments from sending the call again. Settling bumps only
+  /// the entry's own version, so only the bindings that read it evaluate
+  /// again. A failure evicts the entry (so a new evaluation can send it
+  /// again), leaves the value null, and is reported once through the
+  /// reporter with the `A2uiRpcError` as its cause. A cancellation evicts
+  /// the entry without notifying or reporting anything.
   ///
   /// [catalogId] is the catalog the call resolved to: the outbound call names
   /// it, and calls that resolve to the same catalog share one entry whether
@@ -871,10 +906,18 @@ class DataContext {
     final _AgentCall? existing = _agentCalls.lookup(call, catalogId, args);
     if (existing != null) return existing;
     _agentCalls.evictIfFull();
+    // A call that names no catalog is filed under the one it resolved to,
+    // which a later lookup that does not know it falls back on.
+    if (call.catalogId == null) _agentCalls.defaultCatalogId ??= catalogId;
     final String key = _agentCallKey(call.call, catalogId, args);
-    _agentCalls.failed.remove(key);
     final entry = _AgentCall(call.call, catalogId);
     _agentCalls.entries[key] = entry;
+    void evict() {
+      if (identical(_agentCalls.entries[key], entry)) {
+        _agentCalls.entries.remove(key);
+      }
+    }
+
     final outbound = FunctionCall(
       call: call.call,
       args: args,
@@ -896,21 +939,27 @@ class DataContext {
           // others.
           entry.value.value = _frozen(value);
           entry.version.value++;
-          _agentCalls.version.value++;
         });
       },
       onError: (Object error) {
+        if (_isCancellation(error)) {
+          // Not a failure: nothing is reported or remembered, and the
+          // bindings that read the call are not woken, so a deleted surface
+          // does not send it again. A binding that evaluates again sends it.
+          evict();
+          entry.pending = false;
+          entry.cancelled = true;
+          return;
+        }
         batch(() {
           // Evicted before the flush, so a listener that re-reads the call as
           // it settles sends it again rather than finding the failed entry.
-          _agentCalls.entries.remove(key);
+          evict();
           entry.pending = false;
           entry.failed = true;
           entry.version.value++;
-          _agentCalls.markFailed(key);
-          _agentCalls.version.value++;
         });
-        if (!_isCancellation(error)) _report(error, call.call);
+        _report(error, call.call);
       },
     );
     return entry;
@@ -964,18 +1013,20 @@ class DataContext {
     );
   }
 
-  /// Whether [value] is plain JSON: null, a bool, a string, a finite number,
-  /// a [ValidationResult] (sent as its JSON object), or a list or
-  /// string-keyed map of plain JSON.
-  static bool _isPlainJson(Object? value) => switch (value) {
-        null || bool() || String() || int() || ValidationResult() => true,
-        final double number => number.isFinite,
-        final List<Object?> list => list.every(_isPlainJson),
-        final Map<Object?, Object?> map => map.entries.every(
-            (entry) => entry.key is String && _isPlainJson(entry.value),
-          ),
-        _ => false,
-      };
+  /// Whether [value] has a faithful JSON form: whether `jsonEncode` accepts
+  /// it. That is null, a bool, a string, a finite number, a list, a map with
+  /// string keys, and an object with a `toJson` (such as a
+  /// [ValidationResult]) of those; `jsonEncode` rejects NaN and infinities.
+  static bool _isPlainJson(Object? value) {
+    try {
+      jsonEncode(value);
+      return true;
+      // The encoder's own verdict is the definition being checked.
+      // ignore: avoid_catching_errors
+    } on JsonUnsupportedObjectError {
+      return false;
+    }
+  }
 
   /// [value] with every map and list in it, at any depth, made unmodifiable.
   static Object? _frozen(Object? value) => switch (value) {
@@ -1013,37 +1064,6 @@ class DataContext {
     return value.values.any(isPendingAgentCall);
   }
 
-  /// Whether [value] reads an agent call whose last attempt failed.
-  bool _isFailedAgentCall(Object? value) {
-    if (_agentCalls.failed.isEmpty) return false;
-    if (value is List) return value.any(_isFailedAgentCall);
-    if (value is! Map) return false;
-    if (isFunctionCall(value)) {
-      final call = FunctionCall.fromJson(_asStringKeyedMap(value));
-      if (call.args.values.any(_isFailedAgentCall)) return true;
-      return _agentCalls.hasFailed(call, _peekArguments(call));
-    }
-    return value.values.any(_isFailedAgentCall);
-  }
-
-  /// Whether [call] must wait instead of running: one of its arguments reads
-  /// an agent call that is still awaiting its response, or whose last attempt
-  /// failed (that failure has been reported already).
-  ///
-  /// A pending argument reads as null, which a function cannot tell from a
-  /// null value, so the call waits for it to settle, as the fallback routing
-  /// requires. With [track], the caller re-evaluates when an agent call
-  /// settles, even if the argument's value stays null.
-  bool _awaitsAgentArgument(FunctionCall call, {bool track = false}) {
-    if (!atLeastV10) return false;
-    if (_agentCalls.entries.isEmpty && _agentCalls.failed.isEmpty) {
-      return false;
-    }
-    if (track) _agentCalls.version.value;
-    return call.args.values
-        .any((arg) => isPendingAgentCall(arg) || _isFailedAgentCall(arg));
-  }
-
   /// The arguments of [call] resolved without sending any agent call.
   Map<String, dynamic> _peekArguments(FunctionCall call) {
     final peek = DataContext._derived(
@@ -1069,15 +1089,19 @@ class DataContext {
 
   /// [resolveSignal], paired with whether the value is a placeholder for
   /// a pending agent call. The signal updates when the value changes and
-  /// when a pending call settles, even if its value stays null.
+  /// when a pending call it reads settles, even if its value stays null.
   ReadonlySignal<DynamicValueState> resolveSignalWithPending(
     Object? value,
   ) {
-    final ReadonlySignal<Object?> resolved = resolveSignal(value);
+    final ReadonlySignal<Object?> resolved =
+        _resolveSignal(value, 0, keepFailed: true);
     return computed(() {
-      // Read so a settled call re-runs this even when the value is unchanged.
-      _agentCalls.version.value;
-      return (value: resolved.value, pending: isPendingAgentCall(value));
+      final Object? current = resolved.value;
+      final bool pending = _containsPendingArg(current);
+      return (
+        value: pending ? null : _withoutMarkers(current),
+        pending: pending
+      );
     });
   }
 
@@ -1086,13 +1110,16 @@ class DataContext {
   /// agent on a v1.0 context, completing with the result.
   ///
   /// Arguments are resolved independently (never reading or populating the
-  /// reactive value cache), awaiting any nested agent or async function calls
-  /// before invoking the outer function. A function that throws follows the
-  /// reporter policy of [resolveDynamicValue] and completes with null. A
-  /// function that returns a failing `Future`, and an outer agent call that
+  /// reactive value cache), together, awaiting any nested agent or async
+  /// function calls before invoking the outer function. A function that
+  /// throws is reported as `EXECUTION_ERROR` when a catalog runs it (other
+  /// failures, such as invalid arguments, as `EXPRESSION_ERROR`), following
+  /// the reporter policy of [resolveDynamicValue], and completes with null.
+  /// A function that returns a failing `Future`, and an outer agent call that
   /// fails (an `A2uiRpcError`), fail the returned future instead. If a nested
-  /// argument fails, its error is reported once through the reporter and the
-  /// outer call completes with null without running. A nested agent call
+  /// argument fails, its error is reported once through the reporter, its
+  /// siblings that have not run yet do not run, and the outer call completes
+  /// with null without running. A nested agent call
   /// that is cancelled (an [A2uiRpcError] with [RpcErrorCode.cancelled]), as
   /// when its surface is deleted, does the same without a report.
   Future<Object?> evaluateFunctionCall(
@@ -1104,28 +1131,33 @@ class DataContext {
     Map<String, Object?> functionCall,
     int depth, {
     required bool reportTopLevelAgentError,
+    _ActionGroup? group,
   }) async {
+    final Object? failed = reportTopLevelAgentError ? _failedArg : null;
     if (depth > maxDynamicValueDepth) {
       _reportDepthExceeded();
-      return reportTopLevelAgentError ? _failedArg : null;
+      return failed;
     }
     if (_systemCallNamingCatalog(functionCall)
         case final A2uiExpressionError error) {
       _reportSync(error);
-      return reportTopLevelAgentError ? _failedArg : null;
+      return failed;
     }
     final call = FunctionCall.fromJson(_asStringKeyedMap(functionCall));
     final List<MapEntry<String, dynamic>> argEntries =
         call.args.entries.toList();
-    final FutureOr<List<Object?>> pendingArgs = _resolveActionValuesInOrder(
+    final FutureOr<List<Object?>> pendingArgs = _resolveActionValuesTogether(
       [for (final MapEntry<String, dynamic> entry in argEntries) entry.value],
       depth + 1,
       keepFailed: atLeastV10,
+      group: group,
     );
     final List<Object?> argValues =
         pendingArgs is Future<List<Object?>> ? await pendingArgs : pendingArgs;
-    if (atLeastV10 && argValues.any(_containsFailedArg)) {
-      return reportTopLevelAgentError ? _failedArg : null;
+    // A failed argument, or a failed sibling of this call, stops it.
+    if (atLeastV10 &&
+        (argValues.any(_containsFailedArg) || (group?.aborted ?? false))) {
+      return failed;
     }
     final args = <String, dynamic>{
       for (var i = 0; i < argEntries.length; i++)
@@ -1144,20 +1176,23 @@ class DataContext {
         );
       }
       try {
+        _marksExecutionFailures = true;
         result = _invokeLocally(call, args);
       } on A2uiCatalogResolutionError catch (error) {
         agentCatalogId = _routableCatalogId(error, call.call);
         agentCaller = agentCatalogId == null ? null : _agentCallerOrNull;
         if (agentCaller == null) rethrow;
         _checkJsonArguments(call.call, args);
+      } finally {
+        _marksExecutionFailures = false;
       }
-    } catch (error) {
-      if (_onError == null) rethrow;
+    } catch (error, stackTrace) {
+      if (_onError == null) _rethrowUnwrapped(error, stackTrace);
       _report(error, call.call);
-      return reportTopLevelAgentError ? _failedArg : null;
+      return failed;
     }
-    if (agentCaller != null) {
-      try {
+    try {
+      if (agentCaller != null) {
         result = await agentCaller(
           FunctionCall(
             call: call.call,
@@ -1167,27 +1202,32 @@ class DataContext {
             reservedKeys: true,
           ),
         );
-      } catch (error) {
-        if (!reportTopLevelAgentError) rethrow;
-        if (_isCancellation(error)) return _failedArg;
-        if (_onError == null) rethrow;
-        _report(error, call.call);
-        return _failedArg;
-      }
-    }
-    if (result is Future) {
-      try {
+      } else if (result is Future) {
         result = await result;
-      } catch (error) {
-        if (!reportTopLevelAgentError) rethrow;
-        if (_isCancellation(error)) return _failedArg;
-        if (_onError == null) rethrow;
-        _report(error, call.call);
+      }
+    } catch (error, stackTrace) {
+      if (!reportTopLevelAgentError) rethrow;
+      // Cancellation and failures after a sibling failed are silent.
+      if (_isCancellation(error) || (group?.aborted ?? false)) {
         return _failedArg;
       }
+      if (_onError == null) rethrow;
+      _report(
+        agentCaller != null ? error : _ExecutionFailure(error, stackTrace),
+        call.call,
+      );
+      return _failedArg;
     }
     if (result is ReadonlySignal) result = result.value;
     return result;
+  }
+
+  /// Rethrows [error], or the error an [_ExecutionFailure] wraps.
+  static Never _rethrowUnwrapped(Object error, StackTrace stackTrace) {
+    if (error is _ExecutionFailure) {
+      Error.throwWithStackTrace(error.error, error.stackTrace);
+    }
+    Error.throwWithStackTrace(error, stackTrace);
   }
 
   /// Resolves [value], a dynamic value inside an action, awaiting any
@@ -1197,11 +1237,12 @@ class DataContext {
   /// function: data bindings, nested or not, resolve synchronously. With
   /// [keepFailed], a call that failed (and was reported) resolves to
   /// [_failedArg], which stops the enclosing call or action; otherwise it
-  /// resolves to null.
+  /// resolves to null. [group] holds the siblings [value] resolves with.
   Object? _resolveActionValue(
     Object? value,
     int depth, {
     required bool keepFailed,
+    _ActionGroup? group,
   }) {
     if (depth > maxDynamicValueDepth) {
       _reportDepthExceeded();
@@ -1213,7 +1254,12 @@ class DataContext {
         return _readBinding(resolvePath(binding.path));
       }
       if (value is Map && value.containsKey('@call')) {
-        return _resolveActionCall(value, depth, keepFailed: keepFailed);
+        return _resolveActionCall(
+          value,
+          depth,
+          keepFailed: keepFailed,
+          group: group,
+        );
       }
       if (value is Map) {
         final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
@@ -1224,6 +1270,7 @@ class DataContext {
           depth,
           keepFailed: keepFailed,
           unescapeKeys: true,
+          group: group,
         );
       }
     } else {
@@ -1247,13 +1294,37 @@ class DataContext {
     }
     if (value is List) {
       if (!_containsDynamicValue(value, depth)) return value;
-      return _resolveActionValuesInOrder(
+      return _resolveActionValuesTogether(
         value,
         depth + 1,
         keepFailed: keepFailed,
+        group: group,
       );
     }
     return value;
+  }
+
+  /// [_resolveActionValue], with a synchronous failure, such as a malformed
+  /// directive, reported like a failed call instead of thrown, so it is
+  /// handled the same whether or not a pending value came before it.
+  Object? _resolveActionValueReporting(
+    Object? value,
+    int depth, {
+    required bool keepFailed,
+    _ActionGroup? group,
+  }) {
+    try {
+      return _resolveActionValue(
+        value,
+        depth,
+        keepFailed: keepFailed,
+        group: group,
+      );
+    } catch (error) {
+      if (_onError == null) rethrow;
+      _report(error, 'action');
+      return keepFailed ? _failedArg : null;
+    }
   }
 
   /// Evaluates the function call [value] inside an action. Without
@@ -1262,22 +1333,25 @@ class DataContext {
     Map<Object?, Object?> value,
     int depth, {
     required bool keepFailed,
+    _ActionGroup? group,
   }) {
     final Future<Object?> result = _evaluateActionCall(
       _asStringKeyedMap(value),
       depth,
       reportTopLevelAgentError: true,
+      group: group,
     );
     if (keepFailed) return result;
     return result.then((res) => identical(res, _failedArg) ? null : res);
   }
 
-  /// Resolves the values of [map] like [_resolveActionValuesInOrder].
+  /// Resolves the values of [map] like [_resolveActionValuesTogether].
   FutureOr<Map<String, dynamic>> _resolveActionMap(
     Map<String, dynamic> map,
     int depth, {
     required bool keepFailed,
     required bool unescapeKeys,
+    _ActionGroup? group,
   }) {
     final List<String> keys = map.keys.toList();
     Map<String, dynamic> build(List<Object?> values) => <String, dynamic>{
@@ -1286,15 +1360,68 @@ class DataContext {
                 ? keys[i].substring(1)
                 : keys[i]: values[i],
         };
-    final FutureOr<List<Object?>> values = _resolveActionValuesInOrder(
+    final FutureOr<List<Object?>> values = _resolveActionValuesTogether(
       map.values.toList(),
       depth + 1,
       keepFailed: keepFailed,
+      group: group,
     );
     return values is Future<List<Object?>> ? values.then(build) : build(values);
   }
 
-  /// Resolves [values] in order with [_resolveActionValue].
+  /// Resolves [values], the sibling arguments of one call or the items of
+  /// one map or list, together, as the TypeScript `settleDeep` does.
+  ///
+  /// Returns a list, not a `Future`, when no value calls a function.
+  /// Otherwise every value starts at once, in order, and the returned
+  /// `Future` completes once all have settled, so no started evaluation is
+  /// left unhandled. With [keepFailed], the first value that fails aborts
+  /// the group: values not yet started are skipped, calls in it that have
+  /// not run yet do not run, and failures after it are not reported. The
+  /// list then holds the [_failedArg].
+  FutureOr<List<Object?>> _resolveActionValuesTogether(
+    List<Object?> values,
+    int depth, {
+    required bool keepFailed,
+    _ActionGroup? group,
+  }) {
+    final siblings = _ActionGroup(group);
+    final results = List<Object?>.filled(values.length, null);
+    final pending = <Future<void>>[];
+    void settle(int index, Object? value) {
+      results[index] = value;
+      if (keepFailed && _containsFailedArg(value)) siblings.abort();
+    }
+
+    for (var i = 0; i < values.length; i++) {
+      if (keepFailed && siblings.aborted) break;
+      final Object? value = _resolveActionValueReporting(
+        values[i],
+        depth,
+        keepFailed: keepFailed,
+        group: siblings,
+      );
+      if (value is Future) {
+        final index = i;
+        pending.add(
+          value.then<void>(
+            (Object? settled) => settle(index, settled),
+            onError: (Object error, StackTrace stackTrace) {
+              siblings.abort();
+              Error.throwWithStackTrace(error, stackTrace);
+            },
+          ),
+        );
+      } else {
+        settle(i, value);
+      }
+    }
+    if (pending.isEmpty) return results;
+    return Future.wait<void>(pending).then((_) => results);
+  }
+
+  /// Resolves [values], the entries of an event action, in order with
+  /// [_resolveActionValueReporting].
   ///
   /// Returns a list, not a `Future`, when no value calls a function.
   /// Otherwise each value is evaluated only after the one before it has
@@ -1314,7 +1441,7 @@ class DataContext {
     }
 
     for (var i = 0; i < values.length; i++) {
-      final Object? value = _resolveActionValue(
+      final Object? value = _resolveActionValueReporting(
         values[i],
         depth,
         keepFailed: keepFailed,
@@ -1323,7 +1450,7 @@ class DataContext {
         return () async {
           if (add(await value)) return resolved;
           for (int j = i + 1; j < values.length; j++) {
-            final Object? next = _resolveActionValue(
+            final Object? next = _resolveActionValueReporting(
               values[j],
               depth,
               keepFailed: keepFailed,
@@ -1388,8 +1515,13 @@ class DataContext {
   ///
   /// Returns the payload synchronously, not a `Future`, when no value calls
   /// a function; data bindings, nested or not, resolve synchronously.
-  /// Otherwise the values are evaluated one after another, each once the one
-  /// before it has settled. Returns null for an invalid payload.
+  /// Otherwise the `context` entries, then `userMessage`, are evaluated one
+  /// after another, each once the one before it has settled; the arguments
+  /// and items inside one entry resolve together. Returns null for an
+  /// invalid payload.
+  ///
+  /// A function a catalog runs that throws is reported as `EXECUTION_ERROR`.
+  /// A malformed value is reported as `EXPRESSION_ERROR`, like a failed call.
   ///
   /// From v1.0, if a function call fails, its error is reported through the
   /// reporter, the values after it are not evaluated, [onExpressionFailed]
@@ -1527,13 +1659,82 @@ class DataContext {
 
 /// Sentinel marking a function argument whose synchronous evaluation failed and
 /// was already reported on the surface.
-const Object _failedArg = Object();
+const Object _failedArg = _Marker('failed');
 
-bool _containsFailedArg(Object? value) {
-  if (identical(value, _failedArg)) return true;
-  if (value is List) return value.any(_containsFailedArg);
-  if (value is Map) return value.values.any(_containsFailedArg);
+/// Sentinel marking a function argument that reads an agent call still
+/// awaiting its answer, so the enclosing call waits instead of running.
+const Object _pendingArg = _Marker('pending');
+
+/// A distinct marker object. Two `const Object()` are the same instance.
+class _Marker {
+  const _Marker(this.name);
+
+  final String name;
+
+  @override
+  String toString() => '<$name>';
+}
+
+bool _containsFailedArg(Object? value) => _containsMarker(value, _failedArg);
+
+bool _containsPendingArg(Object? value) => _containsMarker(value, _pendingArg);
+
+bool _containsMarker(Object? value, Object marker) {
+  if (identical(value, marker)) return true;
+  if (value is List) return value.any((item) => _containsMarker(item, marker));
+  if (value is Map) {
+    return value.values.any((item) => _containsMarker(item, marker));
+  }
   return false;
+}
+
+/// [value] with each [_failedArg] or [_pendingArg] in it replaced by null.
+Object? _withoutMarkers(Object? value) {
+  if (identical(value, _failedArg) || identical(value, _pendingArg)) {
+    return null;
+  }
+  if (!_containsFailedArg(value) && !_containsPendingArg(value)) return value;
+  if (value is List) {
+    return [for (final Object? item in value) _withoutMarkers(item)];
+  }
+  if (value is Map<String, Object?>) {
+    return <String, Object?>{
+      for (final MapEntry<String, Object?> entry in value.entries)
+        entry.key: _withoutMarkers(entry.value),
+    };
+  }
+  if (value is Map) {
+    return <Object?, Object?>{
+      for (final MapEntry<Object?, Object?> entry in value.entries)
+        entry.key: _withoutMarkers(entry.value),
+    };
+  }
+  return value;
+}
+
+/// A local function that threw, or whose `Future` failed, while an action
+/// ran it, so that the failure is reported as `EXECUTION_ERROR` rather than
+/// as a failed expression.
+class _ExecutionFailure implements Exception {
+  _ExecutionFailure(this.error, this.stackTrace);
+
+  final Object error;
+  final StackTrace stackTrace;
+}
+
+/// The sibling values of one function call, map or list in an action, which
+/// resolve together. Once one fails, the group is aborted: the calls in it
+/// (and in groups nested in it) that have not run yet do not run, and later
+/// failures in it are not reported.
+class _ActionGroup {
+  _ActionGroup(this._parent);
+
+  final _ActionGroup? _parent;
+  bool _aborted = false;
+
+  bool get aborted => _aborted || (_parent?.aborted ?? false);
+
+  void abort() => _aborted = true;
 }
 
 /// One function call sent to the agent on a context's behalf.
@@ -1554,6 +1755,11 @@ class _AgentCall {
 
   /// Whether the call settled with an error.
   bool failed = false;
+
+  /// Whether the call was cancelled, as when its surface was deleted. A
+  /// cancelled call is not a failure: a binding that evaluates again sends
+  /// it again.
+  bool cancelled = false;
 }
 
 /// The agent calls a context and the contexts derived from it have sent,
@@ -1567,30 +1773,6 @@ class _AgentCallCache {
 
   final Map<String, _AgentCall> entries = {};
 
-  /// Bumped whenever a call settles, so a consumer that also needs to know
-  /// about a call completing with null can depend on it.
-  final Signal<int> version = signal<int>(0);
-
-  /// Keys of agent calls whose last attempt failed, oldest first. A call that
-  /// reads one as an argument waits rather than running with a null value.
-  final Set<String> failed = <String>{};
-
-  void markFailed(String key) {
-    if (failed.length >= _maxEntries) failed.remove(failed.first);
-    failed.add(key);
-  }
-
-  /// Whether the last attempt of [call] with [args] failed.
-  bool hasFailed(FunctionCall call, Map<String, dynamic> args) =>
-      DataContext._isPlainJson(args) &&
-      failed.contains(
-        DataContext._agentCallKey(
-          call.call,
-          call.catalogId ?? defaultCatalogId,
-          args,
-        ),
-      );
-
   bool hasPendingFor(String functionName) {
     for (final _AgentCall call in entries.values) {
       if (call.pending && call.functionName == functionName) return true;
@@ -1601,19 +1783,11 @@ class _AgentCallCache {
   /// The entry for [call] with [args], filed under the catalog the call
   /// resolved to: [resolvedCatalogId] when known, otherwise the catalog the
   /// call names, or else [defaultCatalogId].
-  ///
-  /// A [resolvedCatalogId] for a call that names no catalog becomes the
-  /// [defaultCatalogId] when none was set, so that a later lookup without
-  /// one, such as from [DataContext.isPendingAgentCall], finds the same
-  /// entry.
   _AgentCall? lookup(
     FunctionCall call,
     String? resolvedCatalogId,
     Map<String, dynamic> args,
   ) {
-    if (call.catalogId == null && resolvedCatalogId != null) {
-      defaultCatalogId ??= resolvedCatalogId;
-    }
     if (!DataContext._isPlainJson(args)) return null;
     return entries[DataContext._agentCallKey(
       call.call,
@@ -1632,6 +1806,28 @@ class _AgentCallCache {
     }
   }
 }
+
+/// Package-internal: [context] without its agent caller, for evaluations
+/// whose result cannot wait for an agent's answer, such as the `${...}`
+/// parts of a `formatString` template. A function no catalog implements
+/// fails there with `EXPRESSION_ERROR`, as before fallback routing, instead
+/// of being sent; an answer the surface already received is still read.
+DataContext dataContextWithoutAgentCalls(DataContext context) =>
+    DataContext._derived(
+      context.dataModel,
+      context._invoke,
+      context.path,
+      onError: context._onError,
+      protocolVersion: context.protocolVersion,
+      invokerForCatalog: context._invokerForCatalog,
+      isUserActivated: context.isUserActivated,
+      callAgentFunction: null,
+      agentCalls: context._agentCalls,
+      parent: context.parent,
+      index: context._explicitIndex,
+      onMissingData: context._onMissingData,
+      warnedPaths: context._warnedPaths,
+    );
 
 /// Shared [_AgentCallCache] per [SurfaceModel] so all component contexts on a
 /// surface deduplicate in-flight agent calls.
@@ -1660,17 +1856,7 @@ DataContext createSurfaceDataContext(
       invokerForCatalog: (catalogId) =>
           surface.resolveCatalog(catalogId).invoke,
       isUserActivated: false,
-      callAgentFunction: switch (surface.callAgentFunction) {
-        null => null,
-        final AgentFunctionCaller caller => (call) => surface.isDisposed
-            ? Future<Object?>.error(
-                A2uiRpcError(
-                  "Surface '${surface.id}' has been disposed.",
-                  RpcErrorCode.cancelled,
-                ),
-              )
-            : caller(call),
-      },
+      callAgentFunction: surface.callAgentFunction,
       agentCalls: _surfaceAgentCalls[surface] ??=
           _AgentCallCache(defaultCatalogId: surface.defaultCatalog?.id),
       parent: parentDataContext,
@@ -1750,7 +1936,13 @@ extension CatalogInvokerExtension
         details: callArgs,
       );
     }
-    return fn.execute(callArgs, context);
+    if (!context._marksExecutionFailures) return fn.execute(callArgs, context);
+    context._marksExecutionFailures = false;
+    try {
+      return fn.execute(callArgs, context);
+    } catch (error, stackTrace) {
+      throw _ExecutionFailure(error, stackTrace);
+    }
   }
 
   /// The argument schema of [fn] with its references resolved, so that a

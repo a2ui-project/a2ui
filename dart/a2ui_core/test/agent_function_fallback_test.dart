@@ -48,6 +48,9 @@ typedef _AgentCall = ({FunctionCall call, Completer<Object?> completer});
 /// Read by the `live` catalog function, which returns it.
 final Signal<Object?> _live = signal<Object?>('a');
 
+/// How many times the `count` catalog function ran.
+int _countRuns = 0;
+
 Catalog<ComponentApi, FunctionImplementation> _catalog({
   String? protocolVersion = '1.0',
 }) =>
@@ -61,6 +64,8 @@ Catalog<ComponentApi, FunctionImplementation> _catalog({
         _Fn('upper', (args) => (args['value'] as String).toUpperCase()),
         _Fn('gated', (_) => 'opened', requiresUserActivation: true),
         _Fn('nan', (_) => double.nan),
+        _Fn('count', (args) => ++_countRuns),
+        _Fn('boom', (_) => throw StateError('boom failed')),
         _Fn('live', (_) => _live),
         _Fn(
           'agentSide',
@@ -95,6 +100,14 @@ void main() {
     surface.onError.subscribe(clientErrors.add);
     addTearDown(surface.dispose);
     return surface;
+  }
+
+  /// Mounts a binding of [value] on [context], as a rendered component
+  /// does, and returns its current value.
+  Object? mount(DataContext context, Object? value) {
+    final ReadonlySignal<Object?> binding = context.resolveSignal(value);
+    addTearDown(binding.subscribe((_) {}));
+    return binding.value;
   }
 
   setUp(() {
@@ -152,30 +165,30 @@ void main() {
         '@call': 'lookup',
         'args': {'tag': 'a', 'id': 1},
       };
-      expect(context.resolveDynamicValue(call), isNull);
-      expect(context.resolveDynamicValue(call), isNull);
-      expect(context.resolveDynamicValue(reorderedCall), isNull);
+      expect(mount(context, call), isNull);
+      expect(mount(context, call), isNull);
+      expect(mount(context, reorderedCall), isNull);
       expect(context.isPendingAgentCall(reorderedCall), isTrue);
-      expect(context.nested('/x').resolveDynamicValue(call), isNull);
+      expect(mount(context.nested('/x'), call), isNull);
       final childComp = ComponentModel('child', 'Text', {});
       surface.componentsModel.addComponent(childComp);
       expect(
-        ComponentContext(surface, childComp)
-            .dataContext
-            .resolveDynamicValue(call),
+        mount(ComponentContext(surface, childComp).dataContext, call),
         isNull,
       );
       expect(
-        ComponentContext(surface, ComponentModel('root', 'Text', {}))
-            .childContext('child')
-            .dataContext
-            .resolveDynamicValue(call),
+        mount(
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .childContext('child')
+              .dataContext,
+          call,
+        ),
         isNull,
       );
       expect(agentCalls, hasLength(1));
 
       expect(
-        context.resolveDynamicValue({
+        mount(context, {
           '@call': 'lookup',
           'args': {'id': 2},
         }),
@@ -213,7 +226,8 @@ void main() {
 
       // A failed call is evicted so a later retry invokes the agent again.
       expect(
-        context.resolveDynamicValue(
+        mount(
+          context,
           {'@call': 'lookup', 'args': <String, Object?>{}},
         ),
         isNull,
@@ -493,7 +507,8 @@ void main() {
         ComponentModel('root', 'Text', {}),
         onError: errors.add,
       ).dataContext;
-      context.resolveDynamicValue(
+      mount(
+        context,
         {'@call': 'lookup', 'args': <String, Object?>{}},
       );
       final rpcError = A2uiRpcError('timed out', RpcErrorCode.timeout,
@@ -636,7 +651,7 @@ void main() {
       final DataContext context =
           ComponentContext(surface, ComponentModel('root', 'Text', {}))
               .dataContext;
-      context.resolveDynamicValue({
+      mount(context, {
         '@call': 'remote',
         'catalogId': 'cat',
         'args': <String, Object?>{},
@@ -649,7 +664,8 @@ void main() {
       final DataContext context =
           ComponentContext(surface, ComponentModel('root', 'Text', {}))
               .dataContext;
-      context.resolveDynamicValue(
+      mount(
+        context,
         {'@call': 'remote', 'args': <String, Object?>{}},
       );
       expect(agentCalls.single.call.catalogId, 'cat');
@@ -682,8 +698,8 @@ void main() {
         'catalogId': 'cat',
         'args': {'id': 1},
       };
-      expect(context.resolveDynamicValue(implicit), isNull);
-      expect(context.resolveDynamicValue(explicit), isNull);
+      expect(mount(context, implicit), isNull);
+      expect(mount(context, explicit), isNull);
       expect(agentCalls, hasLength(1));
       expect(context.isPendingAgentCall(implicit), isTrue);
       expect(context.isPendingAgentCall(explicit), isTrue);
@@ -706,11 +722,11 @@ void main() {
         '@call': 'lookup',
         'args': {'id': 'pending'},
       };
-      expect(context.resolveDynamicValue(pending), isNull);
+      expect(mount(context, pending), isNull);
 
       // Fill the cache past its limit with calls that are answered.
       for (var i = 0; i < 300; i++) {
-        context.resolveDynamicValue({
+        mount(context, {
           '@call': 'lookup',
           'args': {'id': i},
         });
@@ -835,7 +851,7 @@ void main() {
       final void Function() unsub =
           context.resolveSignalWithPending(call).subscribe((state) {
         if (!state.pending && agentCalls.length == 1) {
-          context.resolveDynamicValue(call);
+          mount(context, call);
         }
       });
       addTearDown(unsub);
@@ -856,7 +872,8 @@ void main() {
         ComponentModel('root', 'Text', {}),
         onError: errors.add,
       ).dataContext;
-      context.resolveDynamicValue(
+      mount(
+        context,
         {'@call': 'lookup', 'args': <String, Object?>{}},
       );
       final action = context.withUserActivation().resolveActionAsync({
@@ -995,12 +1012,11 @@ void main() {
       final void Function() unsub = value.subscribe((_) {});
       addTearDown(unsub);
       expect(value.value, isNull);
-      expect(context.resolveDynamicValue(call), isNull);
       await expectLater(context.evaluateFunctionCall(call), completion(isNull));
       expect(context.isPendingAgentCall(call), isFalse);
       expect(agentCalls, isEmpty);
       await _flush();
-      expect(clientErrors, hasLength(3));
+      expect(clientErrors, hasLength(2));
       expect(clientErrors.map((e) => e.code), everyElement('EXPRESSION_ERROR'));
       expect(
         clientErrors.map((e) => e.message),
@@ -1008,7 +1024,7 @@ void main() {
       );
 
       // A null argument, such as a binding to a missing path, is valid JSON.
-      context.resolveDynamicValue({
+      mount(context, {
         '@call': 'remote',
         'args': {
           'v': {'@path': '/missing'},
@@ -1026,7 +1042,7 @@ void main() {
         '@call': 'remote',
         'args': <String, Object?>{},
       };
-      context.resolveDynamicValue(call);
+      mount(context, call);
       agentCalls.single.completer.complete({
         'items': [1],
       });
@@ -1061,7 +1077,8 @@ void main() {
       expect(surface.isDisposed, isTrue);
 
       expect(
-        context.resolveDynamicValue(
+        mount(
+          context,
           {'@call': 'remote', 'args': <String, Object?>{}},
         ),
         isNull,
@@ -1126,6 +1143,205 @@ void main() {
       _live.value = 'b';
       expect(value.value, 'b');
       expect(seen, [null, 'a', 'b']);
+    });
+
+    test('a settled call re-evaluates only the bindings that read it',
+        () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      _countRuns = 0;
+      mount(context, {'@call': 'remote', 'args': <String, Object?>{}});
+      mount(context, {
+        '@call': 'count',
+        'args': {
+          'v': {'@path': '/v'},
+        },
+      });
+      expect(_countRuns, 1);
+      agentCalls.single.completer.complete('done');
+      await _flush();
+      expect(_countRuns, 1, reason: 'an unrelated settle must not re-run it');
+    });
+
+    test('more mounted calls than the cache holds are each sent once',
+        () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final bindings = <ReadonlySignal<Object?>>[
+        for (var i = 0; i < 300; i++)
+          context.resolveSignal({
+            '@call': 'lookup',
+            'args': {'id': i},
+          }),
+      ];
+      for (final binding in bindings) {
+        addTearDown(binding.subscribe((_) {}));
+      }
+      expect(agentCalls, hasLength(300));
+      for (var i = 0; i < 300; i++) {
+        agentCalls[i].completer.complete(i);
+      }
+      await _flush();
+      mount(context, {'@call': 'other', 'args': <String, Object?>{}});
+      agentCalls.last.completer.complete('x');
+      await _flush();
+      expect(agentCalls, hasLength(301), reason: 'no evicted call is re-sent');
+      expect([for (final b in bindings) b.value],
+          [for (var i = 0; i < 300; i++) i]);
+    });
+
+    test('a cancelled call is sent again when its binding evaluates again',
+        () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      surface.dataModel.set('/obj', {'x': 1});
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      mount(context, {
+        '@call': 'remote',
+        'args': {
+          'obj': {'@path': '/obj'},
+        },
+      });
+      agentCalls.single.completer.completeError(
+        A2uiRpcError('cancelled', RpcErrorCode.cancelled),
+      );
+      await _flush();
+      expect(agentCalls, hasLength(1), reason: 'cancellation is not retried');
+
+      // Equal arguments: a failure would be remembered, a cancellation not.
+      surface.dataModel.set('/obj', {'x': 1});
+      expect(agentCalls, hasLength(2));
+      expect(agentCalls.last.call.args, {
+        'obj': {'x': 1},
+      });
+      await _flush();
+      expect(clientErrors, isEmpty);
+    });
+
+    test('a failed call is not sent again for equal arguments', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      surface.dataModel.set('/obj', {'x': 1});
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      mount(context, {
+        '@call': 'remote',
+        'args': {
+          'obj': {'@path': '/obj'},
+        },
+      });
+      agentCalls.single.completer.completeError(
+        A2uiRpcError('down', RpcErrorCode.timeout),
+      );
+      await _flush();
+      surface.dataModel.set('/obj', {'x': 1});
+      expect(agentCalls, hasLength(1));
+      surface.dataModel.set('/obj', {'x': 2});
+      expect(agentCalls, hasLength(2));
+    });
+
+    test('a one-shot read never sends a call to the agent', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      expect(
+        context.resolveDynamicValue(
+          {'@call': 'remote', 'args': <String, Object?>{}},
+        ),
+        isNull,
+      );
+      expect(agentCalls, isEmpty);
+      await _flush();
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
+    });
+
+    test('a formatString part naming an agent function is not sent', () async {
+      final surface = SurfaceModel<ComponentApi>(
+        'format',
+        defaultCatalog: BasicCatalog.v1_0(),
+        protocolVersion: '1.0',
+        callAgentFunction: callAgent,
+      );
+      surface.onError.subscribe(clientErrors.add);
+      addTearDown(surface.dispose);
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final Object? text = mount(context, {
+        '@call': 'formatString',
+        'args': {r'value': r'Hello ${remote()}!'},
+      });
+      expect(text, 'Hello !');
+      expect(agentCalls, isEmpty);
+      await _flush();
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
+    });
+
+    test('sibling arguments in an action are sent together', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final Future<Object?> result = context.evaluateFunctionCall({
+        '@call': 'outer',
+        'args': {
+          'a': {'@call': 'one', 'args': <String, Object?>{}},
+          'b': {'@call': 'two', 'args': <String, Object?>{}},
+        },
+      });
+      await _flush();
+      expect(agentCalls.map((c) => c.call.call), ['one', 'two']);
+      agentCalls[1].completer.complete(2);
+      agentCalls[0].completer.complete(1);
+      await _flush();
+      expect(agentCalls.last.call.call, 'outer');
+      expect(agentCalls.last.call.args, {'a': 1, 'b': 2});
+      agentCalls.last.completer.complete('done');
+      expect(await result, 'done');
+    });
+
+    test('a failed sibling stops the others and later failures are silent',
+        () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      _countRuns = 0;
+      final Future<Object?> result = context.evaluateFunctionCall({
+        '@call': 'outer',
+        'args': {
+          'a': {'@call': 'one', 'args': <String, Object?>{}},
+          'b': {
+            '@call': 'count',
+            'args': {
+              'v': {'@call': 'three', 'args': <String, Object?>{}},
+            },
+          },
+          'c': {'@call': 'four', 'args': <String, Object?>{}},
+        },
+      });
+      await _flush();
+      expect(agentCalls.map((c) => c.call.call), ['one', 'three', 'four']);
+      agentCalls[0].completer.completeError(
+            A2uiRpcError('one failed', RpcErrorCode.executionError),
+          );
+      await _flush();
+      agentCalls[1].completer.complete('late');
+      agentCalls[2].completer.completeError(
+            A2uiRpcError('four failed', RpcErrorCode.executionError),
+          );
+      expect(await result, isNull);
+      await _flush();
+      expect(_countRuns, 0, reason: 'count waits on an aborted group');
+      expect(agentCalls, hasLength(3), reason: 'outer is never sent');
+      expect(clientErrors, hasLength(1));
+      expect(clientErrors.single.message, contains('one failed'));
     });
 
     test('nested bindings in an action resolve synchronously', () {
@@ -1264,8 +1480,10 @@ void main() {
       expect(binder.resolvedProps.value['isValid'], isFalse);
     });
 
+    var buttons = 0;
+
     Future<void> invokeAction(Map<String, dynamic> action) async {
-      final comp = ComponentModel('b1', 'Button', {
+      final comp = ComponentModel('b${++buttons}', 'Button', {
         'child': 'c2',
         'action': action,
       });
@@ -1366,6 +1584,68 @@ void main() {
       await _flush();
       expect(clientErrors.single.message, contains('requires user activation'));
       expect(agentCalls, isEmpty);
+    });
+
+    test('a local function that throws in an action is an EXECUTION_ERROR',
+        () async {
+      final actions = <A2uiRendererAction>[];
+      surface.onAction.subscribe(actions.add);
+      await invokeAction({
+        'functionCall': {'@call': 'boom', 'args': <String, Object?>{}},
+      });
+      await invokeAction({
+        'event': {
+          'name': 'go',
+          'context': {
+            'v': {'@call': 'boom', 'args': <String, Object?>{}},
+          },
+        },
+      });
+      // A function refused before it runs is still a failed expression.
+      await invokeAction({
+        'functionCall': {'@call': 'agentSide', 'args': <String, Object?>{}},
+      });
+      await _flush();
+      expect(actions, isEmpty);
+      expect(clientErrors.map((e) => e.code), [
+        'EXECUTION_ERROR',
+        'EXECUTION_ERROR',
+        'EXPRESSION_ERROR',
+      ]);
+      expect(clientErrors.first.message, contains('boom failed'));
+      expect(clientErrors.first.surfaceId, 'surf');
+    });
+
+    test('a malformed context value is reported the same way after a wait',
+        () async {
+      final actions = <A2uiRendererAction>[];
+      surface.onAction.subscribe(actions.add);
+      await invokeAction({
+        'event': {
+          'name': 'go',
+          'context': {
+            'bad': {'@bad': 1},
+          },
+        },
+      });
+      final Future<void> later = invokeAction({
+        'event': {
+          'name': 'go',
+          'context': {
+            'first': {'@call': 'remote', 'args': <String, Object?>{}},
+            'bad': {'@bad': 1},
+          },
+        },
+      });
+      await _flush();
+      agentCalls.single.completer.complete('ok');
+      await later;
+      await _flush();
+      expect(actions, isEmpty);
+      expect(clientErrors, hasLength(2));
+      expect(clientErrors.map((e) => e.code), everyElement('EXPRESSION_ERROR'));
+      expect(clientErrors.map((e) => e.surfaceId), everyElement('surf'));
+      expect(clientErrors[0].message, clientErrors[1].message);
     });
 
     test('a functionCall action runs with user activation', () async {

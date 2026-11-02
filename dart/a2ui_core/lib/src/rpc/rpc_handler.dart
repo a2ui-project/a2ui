@@ -461,8 +461,10 @@ class RpcHandler {
               ),
         invokerForCatalog: (catalogId) =>
             surface.resolveCatalog(catalogId).invoke,
+        // No agent caller: an agent-initiated call cannot wait for another
+        // call to the agent, so an argument naming a function the renderer
+        // does not implement fails, as before fallback routing.
         isUserActivated: execution.isUserActivated,
-        callAgentFunction: surface.callAgentFunction,
       );
     }
     return DataContext(
