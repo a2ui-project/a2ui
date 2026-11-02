@@ -63,8 +63,7 @@ public enum ConformanceManifest {
     }
 
     guard
-      let jsonData = try? JSONSerialization.data(withJSONObject: entry, options: [.sortedKeys]),
-      var lineData = String(data: jsonData, encoding: .utf8)?.data(using: .utf8)
+      var lineData = try? JSONSerialization.data(withJSONObject: entry, options: [.sortedKeys])
     else {
       return
     }

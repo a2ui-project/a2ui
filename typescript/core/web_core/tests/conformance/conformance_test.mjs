@@ -309,7 +309,7 @@ function assertKnownKeysRecord(record, allowed, where) {
 function hasNestedKeyPath(obj, dottedPath) {
   let cur = obj;
   for (const segment of dottedPath.split('.')) {
-    if (!cur || typeof cur !== 'object' || !(segment in cur)) return false;
+    if (!cur || typeof cur !== 'object' || !Object.hasOwn(cur, segment)) return false;
     cur = cur[segment];
   }
   return cur !== undefined;

@@ -15,6 +15,7 @@
 import A2UICore
 import BasicCatalog
 import Foundation
+import OrderedCollections
 import OrderedJSON
 import Testing
 

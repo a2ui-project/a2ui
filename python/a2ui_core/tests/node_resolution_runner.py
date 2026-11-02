@@ -358,11 +358,11 @@ def _check_node_identity(
     expected: dict[str, Any],
     reason: str,
 ) -> None:
-    for path in expected.get("same_nodes", ()):
+    for path in expected.get("same_nodes") or ():
         assert _required_node(after, path) is _required_node(
             before, path
         ), f"{reason}: {path} identity"
-    for path in expected.get("replaced_nodes", ()):
+    for path in expected.get("replaced_nodes") or ():
         assert _required_node(after, path) is not _required_node(
             before, path
         ), f"{reason}: {path} replacement"

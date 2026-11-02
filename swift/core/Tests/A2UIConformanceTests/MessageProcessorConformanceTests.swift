@@ -488,7 +488,7 @@ struct MessageProcessorConformanceTests {
     _ step: [String: Any],
     processor: MessageProcessor,
     handler: ConformanceActionCaptureHandler,
-    expectedRuntimeError: ConformanceExpectRendererError?,
+    expectedRuntimeError: ExpectedRuntimeError?,
     name: String
   ) throws {
     let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
