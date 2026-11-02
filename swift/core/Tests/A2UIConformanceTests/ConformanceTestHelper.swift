@@ -644,7 +644,7 @@ public enum ConformanceTestHelper {
     return array.compactMap(parseSingleTestCase)
   }
 
-  private static func parseSingleTestCase(_ dictionary: [String: Any]) -> ConformanceTestCase? {
+  static func parseSingleTestCase(_ dictionary: [String: Any]) -> ConformanceTestCase? {
     guard let name = (dictionary["name"] ?? dictionary["description"]) as? String else {
       return nil
     }
@@ -1114,7 +1114,7 @@ public struct ConformanceCase: Sendable, CustomTestStringConvertible {
   }
 
   public func parsedTestCase() -> ConformanceTestCase? {
-    ConformanceTestHelper.parseTestCases(from: [rawDictionary]).first
+    ConformanceTestHelper.parseSingleTestCase(rawDictionary)
   }
 }
 

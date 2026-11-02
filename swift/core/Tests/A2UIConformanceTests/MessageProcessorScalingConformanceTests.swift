@@ -21,7 +21,7 @@ import Testing
 /// `MessageProcessor.processMessages` on a payload written at two sizes and compares the median
 /// times.
 ///
-/// The cases run only when `A2UI_RUN_TIMING=1`; see ``ConformanceTiming``.
+/// The cases run only when `A2UI_PERFORMANCE=1` or `A2UI_RUN_TIMING=1`; see ``ConformanceTiming``.
 @MainActor
 struct MessageProcessorScalingConformanceTests {
   private static let suite = "core/message_processor_scaling.yaml"
@@ -52,19 +52,22 @@ struct MessageProcessorScalingConformanceTests {
     "validation_config"
   ]
 
-  @Test(.enabled(if: ConformanceTiming.isEnabled, "set A2UI_RUN_TIMING=1 to run timing cases"))
-  func messageProcessorScalingConformance() throws {
-    let rawYAML = try ConformanceTestHelper.loadYAML(filename: Self.suite)
-    let rawCases = try #require(rawYAML as? [[String: Any]], "\(Self.suite) should hold a list")
-    let cases = ConformanceTestHelper.parseTestCases(from: rawYAML)
-    // Cases that don't parse would pair the rest with the wrong raw case.
-    try #require(
-      cases.count == rawCases.count,
-      "\(Self.suite) parsed \(cases.count) of \(rawCases.count) cases"
+  @Test(
+    .enabled(
+      if: ConformanceTiming.isEnabled,
+      "set A2UI_PERFORMANCE=1 or A2UI_RUN_TIMING=1 to run timing cases"
     )
-    #expect(!cases.isEmpty, "\(Self.suite) should hold test cases")
+  )
+  func messageProcessorScalingConformance() throws {
+    let suiteCases = ConformanceTestHelper.cases(Self.suite)
+    #expect(!suiteCases.isEmpty, "\(Self.suite) should hold test cases")
     var executed = 0
-    for (rawCase, testCase) in zip(rawCases, cases) {
+    for conformanceCase in suiteCases {
+      let rawCase = conformanceCase.rawDictionary
+      let testCase = try #require(
+        conformanceCase.parsedTestCase(),
+        "\(Self.suite) failed to parse case '\(conformanceCase.name)'"
+      )
       if !ConformanceTiming.runsCase(named: testCase.name) {
         ConformanceManifest.record(
           suite: Self.suite,
