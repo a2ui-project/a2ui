@@ -24,14 +24,15 @@ Public documentation must read as professional, accurate, and human-authored tec
 
 ---
 
-## 2. Protocol Version Parity in JSON Examples
+## 2. Protocol Version Parity in JSON Examples (v1.0 Primary + v0.9 / v0.9.1)
 
-A2UI actively supports multiple protocol specifications during the transition from v0.9.1 to v1.0:
+Documentation leads with **v1.0 (Candidate)** while clearly explaining differences from **v0.9 / v0.9.1 (Active)** and including concrete **v0.9 / v0.9.1** samples:
 
-- **Always Provide Both v0.9.1 and v1.0 Where Relevant**:
-  Whenever presenting wire format JSON, message payloads (e.g., `createSurface`, `updateDataModel`), or component definitions:
-  - Provide side-by-side or tabbed examples for **v0.9.1** (current published protocol) and **v1.0** (candidate / next stable release).
-  - Explicitly call out version-specific differences, deprecations, or syntax enhancements (e.g. payload envelope evolution, property restructuring).
+- **Provide Tabbed `v1.0` and `v0.9.1` Examples (`syncKey="protocol-version"`)**:
+  Whenever presenting wire format JSON, message payloads (e.g., `createSurface`, `updateDataModel`), transport metadata, or catalog definitions:
+  - Place **v1.0 (Candidate)** in the first tab and **v0.9.1 (Active)** in the second tab using `<Tabs syncKey="protocol-version">`.
+  - Use exact wire `"version"` values: `"1.0"` (no `"v"` prefix) in v1.0 payloads, and `"v0.9"` (or `"v0.9.1"`; standard v0.9.x examples and `$id` URIs use `v0.9` / `v0_9`) in v0.9.1 payloads.
+  - Explicitly call out version-specific renames and structural changes (e.g., `agent_to_renderer` / `renderer_to_agent` vs. `server_to_client` / `client_to_server`, `@path` / `@call` vs. `path` / `call`, and transport metadata keys `a2uiRendererCapabilities` / `a2uiRendererDataModel` under `"1.0"` vs. `a2uiClientCapabilities` / `a2uiClientDataModel` under `"v0.9"`).
 - **Express / Wire Mapping**: When contrasting human-readable inference formats (like Express `.a2ui`) with raw JSON, show the resulting compiled JSON for both versions if there are structural differences.
 
 ---
@@ -75,7 +76,7 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
   </TabItem>
   <TabItem label="Swift">
   ```swift
-  import A2UICore
+  import A2UICore // Target module from SwiftPM product A2UISwiftCore
   // Swift Core state or client-side example
   ```
   </TabItem>
@@ -98,7 +99,7 @@ When documenting client-side UI rendering, catalog registration, or component ad
 ## 5. Single Source of Truth & Spec Inclusions
 
 - **Never Duplicate Specification Text**: Protocol specifications live in `specification/<version>/docs/`. Docs pages in `docs/site/src/content/docs/specification/` must use the include directive `--8<-- "specification/..."` rather than copy-pasting spec markdown.
-- **Link to Concrete Catalogs and Schemas**: Point developers directly to canonical schemas published at `https://a2ui.org/specification/...` and source files under `catalogs/`.
+- **Link to the JSON Schemas Explorer**: In documentation prose, deep-link to schema definitions via the human-browsable JSON Schemas Explorer permalink contract (`/specification/<version>/schemas/#<schema-file>/<json-pointer>` as defined in `docs/site/SITE_OUTLINE.md`), reserving raw `https://a2ui.org/specification/...` URLs for JSON `$id` / `$ref` fields.
 - **Custom Catalogs Disclaimer**: When showing standard or basic catalog components, remind users that A2UI catalogs are flexible and domain-specific—developers can define custom catalogs with their own components.
 
 ---
@@ -107,8 +108,8 @@ When documenting client-side UI rendering, catalog registration, or component ad
 
 To balance visual quality with ease of maintenance, public documentation uses a **hybrid diagram pattern**:
 
-- **Use Themed Mermaid (`starlight-mermaid`) for Protocol Sequences & Lifecycles**:
-  - _When to use_: Message exchange between Agent and Renderer, client/server event lifecycles, handshake flows, and error handling loops (e.g., `Messages and Data`).
+- **Use Themed Mermaid Sequence Diagrams for Protocol Lifecycles**:
+  - _When to use_: Message exchange between Agent and Renderer, client/server event lifecycles, handshake flows, and error handling loops (e.g., `Messages`).
   - _Why_: Sequence diagrams are tedious to create by hand. Plaintext Mermaid blocks are directly diffable in Git and can be updated instantly whenever protocol schemas evolve.
   - _Style_: Ensure diagrams use site typography (`Plus Jakarta Sans` / `JetBrains Mono`) and theme-aware colors matching Starlight's dark/light modes.
 - **Use Bespoke MDX / Astro Visual Components (Tailwind) for Conceptual & Structural Overviews**:

@@ -13,14 +13,14 @@ It is designed to replace the legacy MkDocs Material site (`docs/public/` and `m
 
 ## 1. Architecture & Technology Stack
 
-| Layer                       | Technology                                                    | Purpose                                                                                                                                                                                                           |
-| :-------------------------- | :------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Core Framework**          | **Astro 5** (`astro`)                                         | Static site generation (SSG), file-based routing for custom marketing pages, and Islands Architecture for interactive UI demos.                                                                                   |
-| **Documentation Engine**    | **Starlight** (`@astrojs/starlight`)                          | Sidebar navigation, table of contents, dark/light theme synchronization, i18n-ready docs layout, and **Pagefind** full-text static search.                                                                        |
-| **Styling & Design System** | **Tailwind CSS v4** (`@tailwindcss/vite`) + Custom CSS Tokens | High-contrast, modern developer-tool aesthetic for the bespoke landing page (`src/pages/index.astro`) and unified typography/color tokens across Starlight docs.                                                  |
-| **Interactive Visual Aids** | **Astro Components & Client Scripts**                         | Interactive hero surface, Generative UI Spectrum explorer, Real Use Cases logo & screenshot tabs, Express vs. JSON compiler comparison, `@macro` expansion explorer, and Multi-Platform Native Renderer switcher. |
-| **Code Highlighting**       | **Expressive Code** (built into Starlight)                    | Terminal/editor frames, file tabs, diff markers, copy buttons, and syntax highlighting for **A2UI Express** (`.a2ui`), Python, TypeScript, Swift, Kotlin, and Dart.                                               |
-| **Diagrams & Alerts**       | `remark-github-blockquote-alert` & Remark Include Plugin      | Native rendering of GitHub `> [!NOTE]` alerts and zero-duplication `--8<-- "specification/..."` file inclusions.                                                                                                  |
+| Layer                       | Technology                                                               | Purpose                                                                                                                                                                                                           |
+| :-------------------------- | :----------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Core Framework**          | **Astro 5** (`astro`)                                                    | Static site generation (SSG), file-based routing for custom marketing pages, and Islands Architecture for interactive UI demos.                                                                                   |
+| **Documentation Engine**    | **Starlight** (`@astrojs/starlight`)                                     | Sidebar navigation, table of contents, dark/light theme synchronization, i18n-ready docs layout, and **Pagefind** full-text static search.                                                                        |
+| **Styling & Design System** | **Custom CSS Tokens & Scoped Styles** (with optional Tailwind utilities) | High-contrast, modern developer-tool aesthetic for the bespoke landing page (`src/pages/index.astro`) and unified typography/color tokens across Starlight docs.                                                  |
+| **Interactive Visual Aids** | **Astro Components & Client Scripts**                                    | Interactive hero surface, Generative UI Spectrum explorer, Real Use Cases logo & screenshot tabs, Express vs. JSON compiler comparison, `@macro` expansion explorer, and Multi-Platform Client Renderer switcher. |
+| **Code Highlighting**       | **Expressive Code** (built into Starlight)                               | Terminal/editor frames, file tabs, diff markers, copy buttons, and syntax highlighting for **A2UI Express** (`.a2ui`), Python, TypeScript, Swift, Kotlin, and Dart.                                               |
+| **Includes & Callouts**     | `src/plugins/remark-a2ui-includes.mjs`                                   | Zero-duplication `--8<-- "specification/..."` file inclusions, relative spec link rewriting, and native rendering of GitHub `> [!NOTE]` alerts.                                                                   |
 
 ---
 
@@ -48,25 +48,25 @@ To include every specification version on `a2ui.org` **without duplicating Markd
     ---
     --8<-- "specification/v1_0/docs/a2ui_protocol.md"
     ```
-2. During the Astro build, `src/plugins/remark-a2ui-includes.mjs` expands `--8<-- "<path>"` directly from `<repo_root>/<path>` and rewrites relative inter-spec links (`./a2ui_extension_specification.md`, `../json/*.json`) alongside [`docs/scripts/convert_docs.py`](../scripts/convert_docs.py).
+2. During the Astro build, `src/plugins/remark-a2ui-includes.mjs` expands `--8<-- "<path>"` directly from `<repo_root>/<path>`, converts GitHub blockquote alerts, and rewrites relative inter-spec links (`./a2ui_extension_specification.md`, `../json/*.json`).
 
 ---
 
 ## 4. Preserving Canonical Schema URLs & Deployment to `a2ui.org`
 
 1. **Canonical JSON Schema `$id` Hosting (`scripts/prepare-spec-assets.mjs`)**:
-    - Copies `specification/*` and `catalogs/{basic,mcp}/v1/*` into `docs/site/public/specification/` and flattens `<version>/json/*.json` to `<version>/*.json` before `astro build` runs, ensuring all `https://a2ui.org/specification/...` schema `$id` URLs resolve identically.
-2. **GitHub Pages Deployment (`.github/workflows/docs.yml`)**:
-    - Builds `docs/site/dist/` (including `CNAME` for `a2ui.org` and `.nojekyll`) and deploys to the `gh-pages` branch on `a2ui-project/a2ui`.
+    - Copies `specification/*` and `catalogs/{basic,mcp}/v1/{catalog.json,examples}` (plus `catalogs/mcp/catalog.json` for v0.9) into `docs/site/public/specification/` and flattens `<version>/json/*.json` to `<version>/*.json` before `astro build` runs, so `https://a2ui.org/specification/...` schema `$id` URLs resolve as static JSON.
+2. **GitHub Pages Deployment & Legacy Redirects (`.github/workflows/docs.yml` & `astro.config.mjs`)**:
+    - Builds `docs/site/dist/` (including `CNAME` for `a2ui.org`, `.nojekyll`, and Astro `redirects` for renamed legacy MkDocs paths) and deploys to the `gh-pages` branch on `a2ui-project/a2ui`.
 
 ---
 
 ## 5. Phased Implementation Plan
 
-1. **Phase 1 — Scaffold Astro + Starlight + Tailwind v4 in `docs/site/`**
+1. **Phase 1 — Scaffold Astro + Starlight in `docs/site/`**
     - Initialize `docs/site/package.json`, `astro.config.mjs`, `tsconfig.json`, `src/content.config.ts`, `scripts/prepare-spec-assets.mjs`, and `src/plugins/remark-a2ui-includes.mjs`.
 2. **Phase 2 — Build the Landing Page (`src/pages/index.astro`)**
-    - Implement the landing page following the Part I & Part II outline (_Give your agents UI on every surface_, _The Generative UI Spectrum_, _Real Use Cases_ with JetBrains/Alation/ByteDance/Google Home/Gemini Notebook logos & screenshot tabs, and _Why A2UI_: Express, Macros, Native Rendering).
+    - Implement the landing page following the Part I & Part II outline (_Give your agents UI on every surface_, _The Generative UI Spectrum_, _Real Use Cases_ with JetBrains/Alation/ByteDance/Google Home/Gemini Notebook logos & screenshot tabs, and _Why A2UI_: Express, Macros, Multi-Platform Client Rendering).
     - Visually inspect every section in Light and Dark modes using Playwright screenshots.
 3. **Phase 3 — Pilot Markdown Pages Verification (2 Pilot Pages)**
     - Add **two representative pilot Markdown pages** before migrating the rest of `docs/public/`:
