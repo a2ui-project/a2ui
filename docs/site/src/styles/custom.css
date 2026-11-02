@@ -129,19 +129,48 @@ header.header {
   color: #0f172a;
 }
 
-.sl-markdown-content table {
+.sl-markdown-content table:not(:where(.not-content *)) {
+  display: block;
   width: 100%;
-  border-collapse: collapse;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-collapse: separate;
+  border-spacing: 0;
   border: 1px solid var(--sl-color-hairline-light);
   border-radius: 8px;
-  overflow: hidden;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
-.sl-markdown-content th {
+.sl-markdown-content table:not(:where(.not-content *)) :is(th, td) {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--sl-color-hairline-light);
+  vertical-align: top;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.sl-markdown-content table:not(:where(.not-content *)) tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.sl-markdown-content table:not(:where(.not-content *)) th {
   background: var(--sl-color-bg-sidebar);
   font-weight: 600;
   text-align: left;
+  white-space: nowrap;
+}
+
+.sl-markdown-content table:not(:where(.not-content *)) td:first-child,
+.sl-markdown-content table:not(:where(.not-content *)) code {
+  white-space: nowrap;
+}
+
+.sl-markdown-content table:not(:where(.not-content *)) :is(th, td):last-child {
+  width: 100%;
+  min-width: 14rem;
 }
 
 /* GitHub-flavored alert callouts rendered by remark-a2ui-includes */
