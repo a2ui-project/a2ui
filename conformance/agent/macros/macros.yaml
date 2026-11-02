@@ -482,7 +482,7 @@ tests:
         - "Text"
 
   - id: "19_envelope_attributes_preservation"
-    description: "Macro invocations with component envelope attributes (catalogId, accessibility, metadata) expand cleanly, preserving root envelope fields without stamping standalone macro catalogId onto emitted basic primitives"
+    description: "Macro invocations with component envelope attributes (catalogId, accessibility, metadata) expand cleanly, merging accessibility and metadata onto the expanded root without copying macro catalogId onto emitted primitives"
     golden: "19_envelope_attributes_preservation.json"
     surface_id: "conformance"
     envelope_version: "1.0"

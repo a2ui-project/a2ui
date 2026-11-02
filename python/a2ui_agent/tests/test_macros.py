@@ -752,12 +752,11 @@ def test_macro_envelope_fields_preservation_and_merging():
     comps = result[0].update_components.components
     assert [c["component"] for c in comps] == ["Text", "Text", "Row", "Card"]
 
-    for inner_comp in comps[:-1]:
-        assert "catalogId" not in inner_comp
+    for comp in comps:
+        assert "catalogId" not in comp
 
     root_card = comps[-1]
     assert root_card["id"] == "b1"
-    assert root_card["catalogId"] == basic_cid
     assert root_card["accessibility"] == {
         "label": "Server status badge",
         "description": "Default badge description",
@@ -771,6 +770,31 @@ def test_macro_envelope_fields_preservation_and_merging():
     # Ensure caller inputs were not mutated in-place
     assert a11y_input == {"label": "Server status badge"}
     assert meta_input == {"extensions": {"telemetry": {"traceId": "t1"}}}
+
+    # Explicit catalog_id on a v1.0 builder node is preserved on the wire
+    @macro
+    def ExplicitCidBadge(label: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            catalog_id=basic_cid,
+            child=builder_v1_0.Text(text=label, catalog_id=basic_cid),
+        )
+
+    explicit_out = MacroExpander([ExplicitCidBadge]).transform_to_transport([
+        UpdateComponentsMessageV10(
+            version="1.0",
+            updateComponents=UpdateComponentsV10(
+                surfaceId="main",
+                components=[{
+                    "component": "ExplicitCidBadge",
+                    "id": "b_exp",
+                    "catalogId": "https://example.com/macros.json",
+                    "label": "Explicit",
+                }],
+            ),
+        )
+    ])
+    for comp in explicit_out[0].update_components.components:
+        assert comp["catalogId"] == basic_cid
 
     # Verify nested "parameters" dict with declared accessibility parameter
     @macro
@@ -960,9 +984,59 @@ def test_macro_non_basic_catalog_id_and_to_catalog_default_id():
         [m.model_dump(by_alias=True, exclude_none=True) for m in lowered_custom]
     )
 
-    # 2. v1.0 surface defaulting to to_catalog().catalog_id stamps basic_cid (c010)
-    macro_v10_cat = Catalog.from_json(
-        catalog_schema={**macro_cat.to_json(), "protocolVersion": "1.0"},
+    # 2. v1.0 surface defaulting to to_catalog().catalog_id: unannotated builder nodes
+    #    are NOT auto-stamped with basic_cid; cross-catalog builder nodes declare
+    #    catalog_id=basic_cid explicitly.
+    msgs_macro_surface_unannotated = [
+        CreateSurfaceMessageV10(
+            version="1.0",
+            createSurface=CreateSurfaceV10(
+                surfaceId="s2_unannotated", catalogId=macro_cat.catalog_id
+            ),
+        ),
+        UpdateComponentsMessageV10(
+            version="1.0",
+            updateComponents=UpdateComponentsV10(
+                surfaceId="s2_unannotated",
+                components=[{
+                    "id": "root",
+                    "component": "StatusBadge",
+                    "status": "ok",
+                    "title": "Unannotated",
+                }],
+            ),
+        ),
+    ]
+    lowered_unannotated = expander.transform_to_transport(
+        msgs_macro_surface_unannotated
+    )
+    for c in lowered_unannotated[1].update_components.components:
+        assert "catalogId" not in c
+
+    @macro
+    def CrossCatalogStatusBadge(status: str, title: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            catalog_id=basic_cid,
+            child=builder_v1_0.Row(
+                catalog_id=basic_cid,
+                children=[
+                    builder_v1_0.Text(
+                        text=status.upper(),
+                        variant="caption",
+                        catalog_id=basic_cid,
+                    ),
+                    builder_v1_0.Text(
+                        text=title,
+                        variant="body",
+                        catalog_id=basic_cid,
+                    ),
+                ],
+            ),
+        )
+
+    exp_cross = MacroExpander([CrossCatalogStatusBadge])
+    cross_macro_cat = Catalog.from_json(
+        catalog_schema={**exp_cross.to_catalog().to_json(), "protocolVersion": "1.0"},
         protocol_version="1.0",
         catalog_id=macro_cat.catalog_id,
     )
@@ -979,19 +1053,19 @@ def test_macro_non_basic_catalog_id_and_to_catalog_default_id():
                 surfaceId="s2",
                 components=[{
                     "id": "root",
-                    "component": "StatusBadge",
+                    "component": "CrossCatalogStatusBadge",
                     "status": "ok",
                     "title": "Standalone",
                 }],
             ),
         ),
     ]
-    lowered_macro_surface = expander.transform_to_transport(msgs_macro_surface)
+    lowered_macro_surface = exp_cross.transform_to_transport(msgs_macro_surface)
     for c in lowered_macro_surface[1].update_components.components:
         assert c["catalogId"] == basic_cid
 
     mp_mixed = MessageProcessor(
-        [basic_cat_v10, macro_v10_cat],
+        [basic_cat_v10, cross_macro_cat],
         options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     )
     mp_mixed.process_messages(
@@ -1045,10 +1119,11 @@ def test_macro_mixable_catalogs_scoping_and_same_named_primitive(caplog):
     def BrandText(text: str, variant: str = "body") -> builder_v1_0.Card:
         return builder_v1_0.Card(
             child=BrandBox(
+                catalog_id=brand_cid,
                 child=builder_v1_0.Text(
                     text=f"[Brand] {text}",
                     variant=variant,  # type: ignore[arg-type]
-                )
+                ),
             )
         )
 
@@ -1137,14 +1212,32 @@ def test_macro_mixable_catalogs_scoping_and_same_named_primitive(caplog):
     assert "catalogId" not in by_id["t_brand"]
     brand_box = by_id["t_brand__brandbox_1"]
     assert brand_box["component"] == "BrandBox"
-    # BrandBox belongs to brand_base's base components, so it gets brand_cid
     assert brand_box["catalogId"] == brand_cid
     inner_text = by_id["t_brand__text_1"]
     assert inner_text["component"] == "Text"
     assert inner_text["text"] == "[Brand] Brand title"
     assert "catalogId" not in inner_text
 
-    # 2. Delete surface and re-create with brand_cid as surface default
+    # 2. Delete surface and re-create with brand_cid as surface default:
+    #    cross-catalog basic primitives declare catalog_id=basic_cid explicitly, while
+    #    BrandBox omits catalog_id to resolve against the brand_cid surface default.
+    @macro(name="Text")
+    def BrandSurfaceText(text: str, variant: str = "body") -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            catalog_id=basic_cid,
+            child=BrandBox(
+                child=builder_v1_0.Text(
+                    text=f"[Brand] {text}",
+                    variant=variant,  # type: ignore[arg-type]
+                    catalog_id=basic_cid,
+                )
+            ),
+        )
+
+    brand_surface_expander = MacroExpander(
+        [BrandSurfaceText], base_catalogs=[brand_base]
+    )
+    _ = brand_surface_expander.transform_to_transport(msgs[:1])
     lifecycle_msgs = [
         DeleteSurfaceMessageV10(
             version="1.0",
@@ -1170,7 +1263,9 @@ def test_macro_mixable_catalogs_scoping_and_same_named_primitive(caplog):
             ),
         ),
     ]
-    lowered_brand_surface = expander.transform_to_transport(lifecycle_msgs)
+    lowered_brand_surface = brand_surface_expander.transform_to_transport(
+        lifecycle_msgs
+    )
     brand_surface_comps = lowered_brand_surface[2].update_components.components
     assert [c["component"] for c in brand_surface_comps] == [
         "Text",
@@ -1204,7 +1299,10 @@ def test_macro_mixable_catalogs_scoping_and_same_named_primitive(caplog):
     #    and logs a warning on empty/invalid catalogId (c012, c013)
     @macro
     def BrandBadge(label: str) -> builder_v1_0.Card:
-        return builder_v1_0.Card(child=builder_v1_0.Text(text=f"[Badge] {label}"))
+        return builder_v1_0.Card(
+            catalog_id=basic_cid,
+            child=builder_v1_0.Text(text=f"[Badge] {label}", catalog_id=basic_cid),
+        )
 
     scoped_noncolliding = MacroExpander([BrandBadge], catalog_id=brand_cid)
     _ = scoped_noncolliding.transform_to_inference_catalog(basic_cat_v10)
@@ -1236,7 +1334,7 @@ def test_macro_mixable_catalogs_scoping_and_same_named_primitive(caplog):
         ),
     )
     caplog.clear()
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.DEBUG):
         scoped_out = scoped_expander.transform_to_transport([standalone_msg])
         noncolliding_out = scoped_noncolliding.transform_to_transport([
             UpdateComponentsMessageV10(
@@ -1259,13 +1357,16 @@ def test_macro_mixable_catalogs_scoping_and_same_named_primitive(caplog):
         noncolliding_out[0].update_components.components[0]["component"] == "BrandBadge"
     )
     warning_msgs = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+    debug_msgs = [r.message for r in caplog.records if r.levelno == logging.DEBUG]
     assert any(
         "empty_cid_text" in m and "invalid catalogId ''" in m for m in warning_msgs
     )
     assert any(
         "non_str_cid_badge" in m and "invalid catalogId 123" in m for m in warning_msgs
     )
-    assert any("b_untracked" in m and "untracked_surface" in m for m in warning_msgs)
+    assert not any("b_untracked" in m or "plain_text" in m for m in warning_msgs)
+    assert any("plain_text" in m and "untracked_surface" in m for m in debug_msgs)
+    assert any("b_untracked" in m and "untracked_surface" in m for m in debug_msgs)
 
     # 4. Raw "catalogId": None is treated identically to unset catalogId (c012)
     null_cid_msgs = [
@@ -1306,6 +1407,18 @@ def test_macro_v10_three_catalog_and_defaultless_surfaces():
 
     @macro
     def BrandCard(title: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            catalog_id=basic_cid,
+            child=BrandBox(
+                catalog_id=brand_cid,
+                child=builder_v1_0.Text(
+                    text=title, variant="body", catalog_id=basic_cid
+                ),
+            ),
+        )
+
+    @macro
+    def UnannotatedBrandCard(title: str) -> builder_v1_0.Card:
         return builder_v1_0.Card(
             child=BrandBox(child=builder_v1_0.Text(text=title, variant="body"))
         )
@@ -1443,6 +1556,34 @@ def test_macro_v10_three_catalog_and_defaultless_surfaces():
         [m.model_dump(by_alias=True, exclude_none=True) for m in lowered_defaultless]
     )
 
+    # 3. Unannotated cross-catalog builder nodes are NOT auto-stamped with basic_cid
+    #    or brand_cid even when base_catalogs are registered
+    exp_unannotated = MacroExpander(
+        [UnannotatedBrandCard],
+        catalog_id=brand_cid,
+        base_catalogs=[basic_cat_v10, brand_base],
+    )
+    lowered_unannotated = exp_unannotated.transform_to_transport([
+        CreateSurfaceMessageV10(
+            version="1.0",
+            createSurface=CreateSurfaceV10(surfaceId="s_none"),
+        ),
+        UpdateComponentsMessageV10(
+            version="1.0",
+            updateComponents=UpdateComponentsV10(
+                surfaceId="s_none",
+                components=[{
+                    "id": "root",
+                    "component": "UnannotatedBrandCard",
+                    "catalogId": brand_cid,
+                    "title": "No auto stamping",
+                }],
+            ),
+        ),
+    ])
+    for comp in lowered_unannotated[1].update_components.components:
+        assert "catalogId" not in comp
+
 
 def test_macro_explicit_base_catalogs_and_surface_catalogs_override(caplog):
     basic_cid = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -1451,10 +1592,12 @@ def test_macro_explicit_base_catalogs_and_surface_catalogs_override(caplog):
     @macro(name="Text")
     def BrandText(text: str, variant: str = "body") -> builder_v1_0.Card:
         return builder_v1_0.Card(
+            catalog_id=basic_cid,
             child=builder_v1_0.Text(
                 text=f"[Brand] {text}",
                 variant=variant,  # type: ignore[arg-type]
-            )
+                catalog_id=basic_cid,
+            ),
         )
 
     basic_cat_v10 = Catalog.from_json(
@@ -1579,7 +1722,8 @@ def test_macro_nested_deferred_component_expansion():
     @macro
     def InnerBadgeV10(label: str) -> BrandBox:
         return BrandBox(
-            child=builder_v1_0.Text(text=f"Scoped Badge: {label}", variant="caption")
+            catalog_id=brand_cid,
+            child=builder_v1_0.Text(text=f"Scoped Badge: {label}", variant="caption"),
         )
 
     @macro
@@ -1860,3 +2004,235 @@ def test_macro_custom_catalog_collision_and_same_name_wrapper(caplog):
                 ),
             )
         ])
+
+    # Deferred self-recursion and mutual recursion also raise A2uiRecursionError when
+    # enclosing_catalog_id is non-None across:
+    #   (a) standalone updateComponents (surface_catalog_id is None)
+    #   (b) defaultless v1.0 surface (createSurface without catalogId)
+    #   (c) foreign-default surface when surface catalog's base_catalogs are registered
+    class CycleANode(builder_v1_0.ComponentBuilderNode):
+        component: Literal["CycleA"] = "CycleA"
+        label: str
+
+    class CycleBNode(builder_v1_0.ComponentBuilderNode):
+        component: Literal["CycleB"] = "CycleB"
+        label: str
+
+    @macro
+    def CycleA(label: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(child=CycleBNode(label=label))
+
+    @macro
+    def CycleB(label: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(child=CycleANode(label=label))
+
+    scoped_cycle_expander = MacroExpander(
+        [DeferredCycle, CycleA, CycleB],
+        catalog_id=cat_b_cid,
+        base_catalogs=[basic_cat_v10],
+    )
+    for cyclic_comp in ("DeferredCycle", "CycleA"):
+        # (a) Standalone updateComponents with explicit catalogId
+        with pytest.raises(A2uiRecursionError):
+            scoped_cycle_expander.transform_to_transport([
+                UpdateComponentsMessageV10(
+                    version="1.0",
+                    updateComponents=UpdateComponentsV10(
+                        surfaceId="untracked_cycle",
+                        components=[{
+                            "id": "root",
+                            "component": cyclic_comp,
+                            "catalogId": cat_b_cid,
+                            "label": "loop",
+                        }],
+                    ),
+                )
+            ])
+        # (b) Defaultless v1.0 surface with explicit catalogId
+        with pytest.raises(A2uiRecursionError):
+            scoped_cycle_expander.transform_to_transport([
+                CreateSurfaceMessageV10(
+                    version="1.0",
+                    createSurface=CreateSurfaceV10(surfaceId="defaultless_cycle"),
+                ),
+                UpdateComponentsMessageV10(
+                    version="1.0",
+                    updateComponents=UpdateComponentsV10(
+                        surfaceId="defaultless_cycle",
+                        components=[{
+                            "id": "root",
+                            "component": cyclic_comp,
+                            "catalogId": cat_b_cid,
+                            "label": "loop",
+                        }],
+                    ),
+                ),
+            ])
+        # (c) Foreign-default surface (basic_cid) with registered base_catalogs
+        with pytest.raises(A2uiRecursionError):
+            scoped_cycle_expander.transform_to_transport([
+                CreateSurfaceMessageV10(
+                    version="1.0",
+                    createSurface=CreateSurfaceV10(
+                        surfaceId="foreign_cycle", catalogId=basic_cid
+                    ),
+                ),
+                UpdateComponentsMessageV10(
+                    version="1.0",
+                    updateComponents=UpdateComponentsV10(
+                        surfaceId="foreign_cycle",
+                        components=[{
+                            "id": "root",
+                            "component": cyclic_comp,
+                            "catalogId": cat_b_cid,
+                            "label": "loop",
+                        }],
+                    ),
+                ),
+            ])
+
+    # 4. Non-basic custom catalog same-name primitive collision (@macro(name="Chart")
+    #    scoped to brand.json emitting unannotated Chart on a charts.json surface)
+    charts_cid = "https://example.com/charts.json"
+    brand_cid = "https://example.com/brand.json"
+
+    class ChartNode(builder_v1_0.ComponentBuilderNode):
+        component: Literal["Chart"] = "Chart"
+        series: str
+
+    class ChartCardNode(builder_v1_0.ComponentBuilderNode):
+        component: Literal["ChartCard"] = "ChartCard"
+        child: builder_v1_0.Child
+
+    @macro(name="Chart")
+    def BrandChart(series: str) -> ChartCardNode:
+        return ChartCardNode(child=ChartNode(series=f"[Brand] {series}"))
+
+    charts_cat = Catalog.from_json(
+        catalog_schema={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "protocolVersion": "1.0",
+            "catalogId": charts_cid,
+            "components": {
+                "Chart": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "Chart"},
+                        "id": {"type": "string"},
+                        "series": {"type": "string"},
+                    },
+                    "required": ["component", "id", "series"],
+                },
+                "ChartCard": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "ChartCard"},
+                        "id": {"type": "string"},
+                        "child": {
+                            "$ref": (
+                                "https://a2ui.org/specification/v1_0/json/"
+                                "common_types.json#/$defs/ComponentId"
+                            )
+                        },
+                    },
+                    "required": ["component", "id", "child"],
+                },
+                "ChartGrid": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "ChartGrid"},
+                        "id": {"type": "string"},
+                        "children": {
+                            "$ref": (
+                                "https://a2ui.org/specification/v1_0/json/"
+                                "common_types.json#/$defs/ChildList"
+                            )
+                        },
+                    },
+                    "required": ["component", "id", "children"],
+                },
+            },
+            "$defs": {
+                "anyComponent": {
+                    "oneOf": [
+                        {"$ref": "#/components/Chart"},
+                        {"$ref": "#/components/ChartCard"},
+                        {"$ref": "#/components/ChartGrid"},
+                    ]
+                }
+            },
+        },
+        protocol_version="1.0",
+        catalog_id=charts_cid,
+    )
+    brand_chart_cat = Catalog.from_json(
+        catalog_schema={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "protocolVersion": "1.0",
+            "catalogId": brand_cid,
+            "components": {},
+        },
+        protocol_version="1.0",
+        catalog_id=brand_cid,
+    )
+    chart_msgs = [
+        CreateSurfaceMessageV10(
+            version="1.0",
+            createSurface=CreateSurfaceV10(surfaceId="s_charts", catalogId=charts_cid),
+        ),
+        UpdateComponentsMessageV10(
+            version="1.0",
+            updateComponents=UpdateComponentsV10(
+                surfaceId="s_charts",
+                components=[
+                    {
+                        "id": "root",
+                        "component": "ChartGrid",
+                        "children": ["c_brand", "c_plain"],
+                    },
+                    {
+                        "id": "c_brand",
+                        "component": "Chart",
+                        "catalogId": brand_cid,
+                        "series": "revenue",
+                    },
+                    {
+                        "id": "c_plain",
+                        "component": "Chart",
+                        "series": "latency",
+                    },
+                ],
+            ),
+        ),
+    ]
+
+    for chart_expander in (
+        MacroExpander([BrandChart], catalog_id=brand_cid),
+        MacroExpander([BrandChart], base_catalogs=[charts_cat, brand_chart_cat]),
+    ):
+        lowered_charts = chart_expander.transform_to_transport(chart_msgs)
+        charts_by_id = {
+            c["id"]: c for c in lowered_charts[1].update_components.components
+        }
+        assert charts_by_id["c_plain"] == {
+            "id": "c_plain",
+            "component": "Chart",
+            "series": "latency",
+        }
+        assert charts_by_id["c_brand"] == {
+            "id": "c_brand",
+            "component": "ChartCard",
+            "child": "c_brand__chart_1",
+        }
+        assert charts_by_id["c_brand__chart_1"] == {
+            "id": "c_brand__chart_1",
+            "component": "Chart",
+            "series": "[Brand] revenue",
+        }
+        mp_charts = MessageProcessor(
+            [charts_cat, brand_chart_cat],
+            options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+        )
+        mp_charts.process_messages(
+            [m.model_dump(by_alias=True, exclude_none=True) for m in lowered_charts]
+        )

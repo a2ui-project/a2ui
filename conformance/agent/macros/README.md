@@ -37,5 +37,5 @@ Each case is checked twice:
 - **`07_nested_macro_composition`**: Macro composing another macro within its returned tree, verifying recursive expansion and namespacing.
 - **`08_surface_lifecycle_envelopes`**: Full surface lifecycle message packaging `createSurface` and `updateComponents`.
 - **`09`–`18`**: Error handling, parameter coercion, schema synthesis, `passthrough_components`, and `transform_to_inference` identity cases (see `macros.yaml`).
-- **`19_envelope_attributes_preservation`**: Macro invocations with component envelope attributes (`catalogId`, `accessibility`, `metadata`) expand cleanly, preserving envelope fields on the root component without stamping standalone macro `catalogId`s onto emitted basic primitives.
+- **`19_envelope_attributes_preservation`**: Macro invocations with component envelope attributes (`catalogId`, `accessibility`, `metadata`) expand cleanly, merging `accessibility` and `metadata` onto the expanded root without copying macro `catalogId` onto emitted primitives.
 - **`20_mixable_catalogs_resolution`**: Mixable catalogs resolve macros by effective `catalogId` without colliding with identically named primitives from other catalogs.
