@@ -112,11 +112,7 @@ On the agent server, you load a catalog from a JSON file (or construct one in co
 
 ```typescript
 import {readFileSync} from 'node:fs';
-import {
-  A2uiGenerator,
-  CatalogConfig,
-  ExpressFormatFactory,
-} from '@a2ui/agent';
+import {A2uiGenerator, CatalogConfig, ExpressFormatFactory} from '@a2ui/agent';
 import {Catalog} from '@a2ui/web_core';
 
 // 1. Load a catalog document from JSON
@@ -133,10 +129,7 @@ const checkoutCatalog = travelCatalog.derive({
 
 // 3. Configure the Agent Generator with registered catalogs
 const generator = new A2uiGenerator(
-  [
-    new CatalogConfig(travelCatalog),
-    new CatalogConfig(checkoutCatalog),
-  ],
+  [new CatalogConfig(travelCatalog), new CatalogConfig(checkoutCatalog)],
   undefined,
   new ExpressFormatFactory(),
 );
