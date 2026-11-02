@@ -15,7 +15,7 @@
  */
 
 import * as assert from 'node:assert';
-import {describe, it, before, beforeEach, after} from 'node:test';
+import {describe, it, before, beforeEach, after, afterEach} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../test/dom-setup.js';
 import {css, nothing, render} from 'lit';
 
@@ -121,6 +121,11 @@ describe('A2uiLitElement', () => {
     surface = processor.model.getSurface('test-surface')!;
   });
 
+  afterEach(() => {
+    document.body.innerHTML = '';
+    document.adoptedStyleSheets = [];
+  });
+
   it('defaults to light DOM (createRenderRoot returns this)', () => {
     const el = document.createElement('test-a2ui-element') as any;
     assert.strictEqual(el.createRenderRoot(), el);
@@ -150,7 +155,7 @@ describe('A2uiLitElement', () => {
     assert.strictEqual(el.shadowRoot, null);
     assert.ok((TestLightStyledElement as any)._processedCss?.includes('test-light-styled-element'));
     assert.ok((TestLightStyledElement as any)._adoptedRoots?.has(document));
-    document.body.removeChild(el);
+    assert.strictEqual(document.adoptedStyleSheets.length, 1);
   });
 
   it('does not adopt its styles into the document when it renders into a ShadowRoot', () => {
@@ -176,7 +181,6 @@ describe('A2uiLitElement', () => {
     assert.ok(el.renderRoot instanceof (globalThis as any).ShadowRoot);
     assert.deepStrictEqual(document.adoptedStyleSheets, sheetsBefore);
     assert.strictEqual((TestShadowStyledElement as any)._processedCss, undefined);
-    document.body.removeChild(el);
   });
 
   it('should create controller when context is set', async () => {
