@@ -70,6 +70,8 @@ struct UserActivationActionTests {
         {
           "type": "object",
           "properties": {
+            "label": { "$ref": "\(common)/DynamicString" },
+            "checks": { "type": "array", "items": { "$ref": "\(common)/CheckRule" } },
             "action": { "$ref": "\(common)/Action" }
           }
         }
@@ -244,6 +246,72 @@ struct UserActivationActionTests {
 
     let allowedResult = activeContext.resolveDynamicValue(callExpr)
     #expect(allowedResult == .string("ran-openExternal"))
+    #expect(gatedFn.callCount == 1)
+  }
+
+  @Test func passiveBindingsAndChecksRefuseGatedFunctions() throws {
+    let gatedFn = try SpyUserActivationFunction(
+      name: "openExternal",
+      requiresUserActivation: true
+    )
+    let catalog = try Self.makeButtonCatalog(functions: [gatedFn])
+    let actionHandler = TestProcessorActionHandler()
+    let resolver = NodeResolver(
+      surfaceID: "main",
+      catalogs: ["test-cat": catalog],
+      defaultCatalogID: "test-cat",
+      actionHandler: actionHandler,
+      protocolVersion: .v10
+    )
+    let callExpr: JSONValue = .object([
+      "@call": .string("openExternal"),
+      "args": .object([:]),
+    ])
+    resolver.componentsModel.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Button",
+        properties: [
+          "label": callExpr,
+          "checks": .array([
+            .object([
+              "condition": callExpr,
+              "message": .string("Blocked check"),
+            ])
+          ]),
+        ]
+      )
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(root.string(for: "label") == nil)
+    #expect(root.isValid == false)
+    #expect(gatedFn.callCount == 0)
+    #expect(actionHandler.capturedErrors.count == 2)
+
+    resolver.componentsModel.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Button",
+        properties: [
+          "action": .object([
+            "event": .object([
+              "name": .string("submit"),
+              "context": .object(["urlResult": callExpr]),
+            ])
+          ])
+        ]
+      )
+    )
+
+    let eventRoot = try #require(resolver.resolveTree())
+    let programmaticEvent = try #require(eventRoot.action(for: "action", userActivation: false))
+    programmaticEvent()
+    #expect(gatedFn.callCount == 0)
+    #expect(actionHandler.capturedErrors.count == 3)
+
+    let gestureEvent = try #require(eventRoot.action(for: "action", userActivation: true))
+    gestureEvent()
     #expect(gatedFn.callCount == 1)
   }
 }

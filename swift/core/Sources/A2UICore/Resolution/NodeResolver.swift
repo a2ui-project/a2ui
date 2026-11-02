@@ -1194,7 +1194,7 @@ public final class NodeResolver: Sendable {
     _ value: JSONValue,
     basePath: String?,
     index: Int? = nil,
-    userActivation: Bool = true
+    userActivation: Bool = false
   ) -> JSONValue {
     let currentData = dataModel.data
     let previousReadHook = dataModel.onReadPath
@@ -1214,7 +1214,7 @@ public final class NodeResolver: Sendable {
       index: index,
       userActivation: userActivation
     )
-    return context.resolveDynamicValue(value, userActivation: userActivation)
+    return context.resolveDynamicValue(value)
   }
 
   private func coerceToString(_ value: JSONValue?) -> String? {
@@ -1609,7 +1609,7 @@ public final class NodeResolver: Sendable {
       dataContextPath: basePath,
       rawUserMessage: userMessageValue,
       metadata: actionMetadata,
-      triggerWithMetadata: { [weak self] callMetadata in
+      triggerWithUserActivation: { [weak self] userActivation, callMetadata in
         guard let self else { return }
         guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
           return
@@ -1617,10 +1617,16 @@ public final class NodeResolver: Sendable {
         let resolvedContext = self.evaluateActionContext(
           contextDictionary,
           basePath: basePath,
-          index: index
+          index: index,
+          userActivation: userActivation
         )
         let resolvedUserMessage = userMessageValue.flatMap {
-          self.evaluateDynamicValue($0, basePath: basePath, index: index).stringValue
+          self.evaluateDynamicValue(
+            $0,
+            basePath: basePath,
+            index: index,
+            userActivation: userActivation
+          ).stringValue
         }
         let validatedBase = try MetadataValidator.validate(
           rawMetadata,
@@ -1700,11 +1706,12 @@ public final class NodeResolver: Sendable {
   private func evaluateActionContext(
     _ contextDictionary: [String: JSONValue]?,
     basePath: String?,
-    index: Int?
+    index: Int?,
+    userActivation: Bool = false
   ) -> [String: JSONValue] {
     guard let contextDictionary else { return [:] }
     return contextDictionary.mapValues {
-      evaluateDynamicValue($0, basePath: basePath, index: index)
+      evaluateDynamicValue($0, basePath: basePath, index: index, userActivation: userActivation)
     }
   }
 
