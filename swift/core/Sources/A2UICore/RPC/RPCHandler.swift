@@ -29,6 +29,7 @@ public final class RPCHandler {
   }
 
   private var pendingCalls: [String: PendingCall] = [:]
+  private var isDisposed = false
 
   public init() {}
 
@@ -240,6 +241,9 @@ public final class RPCHandler {
     sendOutbound: @escaping @Sendable (RendererToAgentMessage) -> Void
   ) async throws -> JSONValue {
     let callID = functionCallID ?? UUID().uuidString
+    guard !isDisposed else {
+      throw FunctionError.disposed(callID: callID)
+    }
     let payload = CallFunctionPayload(
       call: functionName,
       catalogID: catalogID,
@@ -323,6 +327,7 @@ public final class RPCHandler {
 
   /// Disposes all active pending calls, throwing `FunctionError.disposed`.
   public func disposeAllPendingCalls() {
+    isDisposed = true
     for (callID, pending) in pendingCalls {
       pending.timeoutTask?.cancel()
       pending.continuation.resume(throwing: FunctionError.disposed(callID: callID))

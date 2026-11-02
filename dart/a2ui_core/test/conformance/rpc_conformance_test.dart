@@ -62,13 +62,16 @@ const Map<String, Set<String>> _knownKeys = {
     'protocolVersion',
   },
   'args:handle_rpc': {
+    'afterCall',
     'catalogId',
     'catalogVersion',
     'dataModel',
     'functionMetadata',
     'inboundResponse',
+    'lateInboundResponse',
     'message',
     'outboundCall',
+    'outboundListener',
     'secondOutboundCall',
     'surfaceId',
     'uiActionFallbackScenario',
@@ -79,6 +82,7 @@ const Map<String, Set<String>> _knownKeys = {
     'correlatedCallId',
     'error',
     'initialValue',
+    'lateResponseIgnored',
     'outboundCall',
     'resolvedValue',
     'response',
@@ -166,7 +170,7 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   final processor = MessageProcessor<ComponentApi>(
     catalogs: catalogs,
     defaultVersion: A2uiProtocolVersion.v1_0,
-    outboundListener: sent.add,
+    outboundListener: args['outboundListener'] == false ? null : sent.add,
   );
   addTearDown(processor.dispose);
 
@@ -196,7 +200,8 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   }
 
   if (outboundCall != null && inboundResponse != null) {
-    final correlatedId = expected!['correlatedCallId']! as String;
+    final correlatedId = (expected!['correlatedCallId'] ??
+        outboundCall['functionCallId'])! as String;
     final response =
         inboundResponse['agentFunctionResponse']! as Map<String, Object?>;
     expect(response['functionCallId'], correlatedId);
@@ -220,10 +225,12 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
     final errorSpec =
         (expected?['error'] ?? expectError)! as Map<String, Object?>;
     await _runOutboundErrorScenario(
+      args,
       outboundCall,
-      args['secondOutboundCall'] as Map<String, Object?>?,
+      expected,
       errorSpec,
       processor,
+      sent,
     );
   }
 
@@ -342,11 +349,28 @@ Future<void> _runInboundMessageScenario(
   }
 }
 
+void _assertLateResponseIgnored(
+  Map<String, Object?> args,
+  Map<String, Object?>? expected,
+  MessageProcessor<ComponentApi> processor,
+  List<RendererToAgentMessage> sent,
+) {
+  final lateResponse = args['lateInboundResponse'] as Map<String, Object?>?;
+  if (lateResponse == null) return;
+  final int beforeSent = sent.length;
+  processor.processMessages(lateResponse);
+  if (expected?['lateResponseIgnored'] == true) {
+    expect(sent.length, beforeSent);
+  }
+}
+
 Future<void> _runOutboundErrorScenario(
+  Map<String, Object?> args,
   Map<String, Object?> outboundCall,
-  Map<String, Object?>? secondCall,
+  Map<String, Object?>? expected,
   Map<String, Object?> errorSpec,
   MessageProcessor<ComponentApi> processor,
+  List<RendererToAgentMessage> sent,
 ) async {
   final code = errorSpec['code'] as String?;
   final Matcher matcher = isA<A2uiRpcError>().having(
@@ -354,6 +378,23 @@ Future<void> _runOutboundErrorScenario(
     'code',
     code ?? anything,
   );
+  final secondCall = args['secondOutboundCall'] as Map<String, Object?>?;
+  final afterCall = args['afterCall'] as String?;
+
+  if (args['outboundListener'] == false) {
+    await expectLater(
+      processor.callAgentFunction(
+        outboundCall['surfaceId']! as String,
+        _functionCall(outboundCall),
+        options: CallOptions(
+          functionCallId: outboundCall['functionCallId'] as String?,
+        ),
+      ),
+      throwsA(matcher),
+    );
+    return;
+  }
+
   if (secondCall != null) {
     final Future<Object?> first = processor.callAgentFunction(
       outboundCall['surfaceId']! as String,
@@ -375,6 +416,46 @@ Future<void> _runOutboundErrorScenario(
     );
     return;
   }
+
+  if (afterCall == 'cancel') {
+    final signal = CancellationSignal();
+    final Future<Object?> pending = processor.callAgentFunction(
+      outboundCall['surfaceId']! as String,
+      _functionCall(outboundCall),
+      options: CallOptions(
+        functionCallId: outboundCall['functionCallId'] as String?,
+        signal: signal,
+      ),
+    );
+    signal.cancel();
+    await expectLater(pending, throwsA(matcher));
+    return;
+  }
+
+  if (afterCall == 'dispose') {
+    final Future<Object?> pending = processor.callAgentFunction(
+      outboundCall['surfaceId']! as String,
+      _functionCall(outboundCall),
+      options: CallOptions(
+        functionCallId: outboundCall['functionCallId'] as String?,
+      ),
+    );
+    processor.dispose();
+    await expectLater(pending, throwsA(isA<A2uiRpcError>()));
+    await expectLater(
+      processor.callAgentFunction(
+        outboundCall['surfaceId']! as String,
+        _functionCall(outboundCall),
+        options: CallOptions(
+          functionCallId: outboundCall['functionCallId'] as String?,
+        ),
+      ),
+      throwsA(matcher),
+    );
+    _assertLateResponseIgnored(args, expected, processor, sent);
+    return;
+  }
+
   final timeoutMs = outboundCall['timeoutMs'] as int?;
   await expectLater(
     processor.callAgentFunction(
@@ -387,6 +468,7 @@ Future<void> _runOutboundErrorScenario(
     ),
     throwsA(matcher),
   );
+  _assertLateResponseIgnored(args, expected, processor, sent);
 }
 
 Future<void> _runUiBindingScenario(

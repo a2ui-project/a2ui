@@ -31,7 +31,8 @@
       {"$ref": "#/$defs/EvaluateFunctionTest"},
       {"$ref": "#/$defs/DispatchActionTest"},
       {"$ref": "#/$defs/DeriveTest"},
-      {"$ref": "#/$defs/RenderSurfaceTest"}
+      {"$ref": "#/$defs/RenderSurfaceTest"},
+      {"$ref": "#/$defs/HandleRpcTest"}
     ]
   },
   "$defs": {
@@ -71,7 +72,6 @@
             "get_extension",
             "get_renderer_capabilities",
             "get_renderer_data_model",
-            "handle_rpc",
             "has_format_content",
             "has_parts",
             "is_a2ui_part",
@@ -305,6 +305,15 @@
           },
           "then": {
             "not": {"anyOf": [{"required": ["expect"]}, {"required": ["expectFile"]}]}
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "handle_rpc"}},
+            "required": ["action"]
+          },
+          "then": {
+            "$ref": "#/$defs/HandleRpcTest"
           }
         }
       ],
@@ -2122,6 +2131,125 @@
             "additionalProperties": false
           }
         }
+      },
+      "additionalProperties": false
+    },
+    "RpcUiScenario": {
+      "type": "object",
+      "description": "UI binding or action fallback scenario for `handle_rpc` conformance cases.",
+      "properties": {
+        "surfaceId": {"type": "string"},
+        "catalogId": {"type": "string"},
+        "component": {"type": "object"},
+        "components": {"type": "array", "items": {"type": "object"}},
+        "actionPayload": {"type": "object"},
+        "observe": {
+          "type": "object",
+          "properties": {
+            "componentId": {"type": "string"},
+            "property": {"type": "string"}
+          },
+          "required": ["componentId", "property"],
+          "additionalProperties": false
+        },
+        "localFunctions": {"type": "object"},
+        "inboundResponseValue": {},
+        "inboundResponseError": {
+          "type": "object",
+          "properties": {
+            "code": {"type": "string"},
+            "message": {"type": "string"}
+          },
+          "required": ["code", "message"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "HandleRpcTest": {
+      "type": "object",
+      "description": "Inbound and outbound RPC function invocation and lifecycle conformance test case.",
+      "required": ["name", "action", "args"],
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "features": {"type": "array", "items": {"type": "string"}},
+        "action": {"const": "handle_rpc"},
+        "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "catalog": {
+          "oneOf": [
+            {"type": "string"},
+            {"$ref": "#/$defs/Catalog"}
+          ]
+        },
+        "catalogs": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {"type": "string"},
+              {"$ref": "#/$defs/Catalog"}
+            ]
+          }
+        },
+        "catalogPaths": {"type": "array", "items": {"type": "string"}},
+        "catalogPath": {"type": "string"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "message": {"type": "object"},
+            "functionMetadata": {"type": "object"},
+            "userActivationPresent": {"type": "boolean"},
+            "catalogId": {"type": "string"},
+            "catalogVersion": {"type": "string"},
+            "surfaceId": {"type": "string"},
+            "dataModel": {"type": "object"},
+            "outboundCall": {"type": "object"},
+            "secondOutboundCall": {"type": "object"},
+            "inboundResponse": {"type": "object"},
+            "afterCall": {
+              "type": "string",
+              "enum": ["cancel", "dispose"],
+              "description": "Lifecycle action applied after registering `outboundCall`."
+            },
+            "outboundListener": {
+              "type": "boolean",
+              "description": "Whether the processor is built with an outbound listener (default true)."
+            },
+            "lateInboundResponse": {
+              "type": "object",
+              "description": "An `agentFunctionResponse` envelope sent after the outbound call has settled."
+            },
+            "uiBindingScenario": {"$ref": "#/$defs/RpcUiScenario"},
+            "uiActionFallbackScenario": {"$ref": "#/$defs/RpcUiScenario"},
+            "request": {"type": "object"},
+            "runnerOutput": {"type": "string"}
+          },
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": "object",
+          "properties": {
+            "response": {"type": ["object", "null"]},
+            "error": {"type": "object"},
+            "correlatedCallId": {"type": "string"},
+            "result": {},
+            "initialValue": {},
+            "outboundCall": {"type": "object"},
+            "resolvedValue": {},
+            "lateResponseIgnored": {
+              "type": "boolean",
+              "description": "When true, asserts that `lateInboundResponse` does not throw, emits no error envelope, and leaves the settled result unchanged."
+            },
+            "siblings": {"type": "object"},
+            "validationResult": {"type": "object"},
+            "dataModel": {"type": "object"},
+            "surfaceError": {"type": "object"},
+            "parts": {"type": "array", "items": {"type": "object"}}
+          },
+          "additionalProperties": false
+        },
+        "expectError": {"$ref": "#/$defs/ExpectError"},
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "additionalProperties": false
     }

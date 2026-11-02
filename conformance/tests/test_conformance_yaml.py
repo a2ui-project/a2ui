@@ -377,3 +377,114 @@ def test_renderer_error_validates_against_spec(valid_renderer_error):
 def test_renderer_error_rejects_spec_violations(invalid_renderer_error):
     with pytest.raises(jsonschema.ValidationError):
         validate_renderer_error_payload(invalid_renderer_error)
+
+
+@pytest.mark.parametrize(
+    "valid_case",
+    [
+        {
+            "name": "rpc_cancelled_case",
+            "action": "handle_rpc",
+            "catalog": "test_rpc_cat_v10",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+                "afterCall": "cancel",
+            },
+            "expectError": {"code": "CANCELLED"},
+        },
+        {
+            "name": "rpc_disposed_late_response_case",
+            "action": "handle_rpc",
+            "catalog": "test_rpc_cat_v10",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+                "afterCall": "dispose",
+                "lateInboundResponse": {
+                    "version": "1.0",
+                    "agentFunctionResponse": {
+                        "functionCallId": "rpc_1",
+                        "value": "late",
+                    },
+                },
+            },
+            "expect": {"lateResponseIgnored": True},
+            "expectError": {"code": "DISPOSED"},
+        },
+        {
+            "name": "rpc_no_listener_case",
+            "action": "handle_rpc",
+            "catalog": "test_rpc_cat_v10",
+            "args": {
+                "outboundListener": False,
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+            },
+            "expectError": {"code": "NO_LISTENER"},
+        },
+    ],
+)
+def test_handle_rpc_lifecycle_schema_accepts_valid_cases(valid_case):
+    jsonschema.validate(instance=[valid_case], schema=SCHEMA)
+
+
+@pytest.mark.parametrize(
+    "invalid_case",
+    [
+        {
+            "name": "rpc_invalid_after_call_enum",
+            "action": "handle_rpc",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+                "afterCall": "abort",
+            },
+        },
+        {
+            "name": "rpc_unknown_args_key",
+            "action": "handle_rpc",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+                "unknownLifecycleFlag": True,
+            },
+        },
+        {
+            "name": "rpc_unknown_expect_key",
+            "action": "handle_rpc",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+            },
+            "expect": {"unknownExpectation": True},
+        },
+        {
+            "name": "rpc_non_bool_late_response_ignored",
+            "action": "handle_rpc",
+            "args": {
+                "outboundCall": {
+                    "surfaceId": "s1",
+                    "call": {"@call": "slowAgentFunction"},
+                },
+            },
+            "expect": {"lateResponseIgnored": "yes"},
+        },
+    ],
+)
+def test_handle_rpc_lifecycle_schema_rejects_invalid_cases(invalid_case):
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(instance=[invalid_case], schema=SCHEMA)
+

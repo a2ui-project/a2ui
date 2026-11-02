@@ -2439,14 +2439,16 @@ _HANDLE_RPC_CASE_KEYS: frozenset[str] = _CASE_METADATA_KEYS | frozenset({
     "protocolVersion",
 })
 _HANDLE_RPC_ARGS_KEYS: frozenset[str] = frozenset({
+    "afterCall",
     "catalogId",
     "catalogVersion",
     "dataModel",
-    "disposeBeforeResponse",
     "functionMetadata",
     "inboundResponse",
+    "lateInboundResponse",
     "message",
     "outboundCall",
+    "outboundListener",
     "secondOutboundCall",
     "surfaceId",
     "uiActionFallbackScenario",
@@ -2457,6 +2459,7 @@ _HANDLE_RPC_EXPECT_KEYS: frozenset[str] = frozenset({
     "correlatedCallId",
     "error",
     "initialValue",
+    "lateResponseIgnored",
     "outboundCall",
     "resolvedValue",
     "response",
@@ -2556,18 +2559,44 @@ def _run_rpc_outbound_success(
     assert fut.result() == expect_dict.get("result")
 
 
+def _assert_late_response_ignored(
+    args: dict[str, Any],
+    expect_dict: dict[str, Any],
+    processor: MessageProcessor,
+    outbound_messages: list[dict[str, Any]],
+    captured_renderer_errors: list[dict[str, Any]],
+) -> None:
+    late_resp = args.get("lateInboundResponse")
+    if not late_resp:
+        return
+    before_outbound = len(outbound_messages)
+    before_errors = len(captured_renderer_errors)
+    processor.process_messages(late_resp)
+    if expect_dict.get("lateResponseIgnored"):
+        assert len(outbound_messages) == before_outbound
+        assert len(captured_renderer_errors) == before_errors
+        assert not processor.rpc._pending_agent_calls
+
+
 def _run_rpc_outbound_error(
     args: dict[str, Any],
     outbound_call: dict[str, Any],
     inbound_response: Any,
     expected_err: dict[str, Any],
+    expect_dict: dict[str, Any],
     processor: MessageProcessor,
+    outbound_messages: list[dict[str, Any]],
+    captured_renderer_errors: list[dict[str, Any]],
 ) -> None:
     import asyncio
 
     from a2ui.core.exceptions import A2uiRpcError
 
-    if "secondOutboundCall" in args:
+    if args.get("outboundListener") is False:
+        with pytest.raises(A2uiRpcError) as exc_info:
+            _start_rpc_outbound_call(processor, outbound_call)
+        assert exc_info.value.code == expected_err.get("code", "NO_LISTENER")
+    elif "secondOutboundCall" in args:
 
         async def _expect_duplicate() -> None:
             pending = _start_rpc_outbound_call(processor, outbound_call)
@@ -2590,23 +2619,49 @@ def _run_rpc_outbound_error(
                 assert expected_err["message"] in str(exc_info.value)
 
         asyncio.run(_expect_inbound_error())
-    elif args.get("disposeBeforeResponse"):
+    elif args.get("afterCall") == "cancel":
 
         async def _expect_cancelled() -> None:
             pending = _start_rpc_outbound_call(processor, outbound_call)
-            processor.rpc.dispose()
-            with pytest.raises((A2uiRpcError, asyncio.CancelledError)) as exc_info:
+            processor.rpc.cancel_surface_calls(outbound_call.get("surfaceId"))
+            with pytest.raises(A2uiRpcError) as exc_info:
                 await pending
-            if isinstance(exc_info.value, A2uiRpcError) and "code" in expected_err:
-                assert exc_info.value.code == expected_err["code"]
+            assert exc_info.value.code == expected_err.get("code", "CANCELLED")
 
         asyncio.run(_expect_cancelled())
+    elif args.get("afterCall") == "dispose":
+
+        async def _expect_disposed() -> None:
+            pending = _start_rpc_outbound_call(processor, outbound_call)
+            processor.rpc.dispose()
+            with pytest.raises(A2uiRpcError) as in_flight_exc:
+                await pending
+            assert in_flight_exc.value.code in ("CANCELLED", "DISPOSED")
+            with pytest.raises(A2uiRpcError) as exc_info:
+                _start_rpc_outbound_call(processor, outbound_call)
+            assert exc_info.value.code == expected_err.get("code", "DISPOSED")
+            _assert_late_response_ignored(
+                args,
+                expect_dict,
+                processor,
+                outbound_messages,
+                captured_renderer_errors,
+            )
+
+        asyncio.run(_expect_disposed())
     elif "timeoutMs" in outbound_call:
 
         async def _expect_timeout() -> None:
             with pytest.raises(A2uiRpcError) as exc_info:
                 await _start_rpc_outbound_call(processor, outbound_call)
             assert exc_info.value.code == expected_err.get("code", "TIMEOUT")
+            _assert_late_response_ignored(
+                args,
+                expect_dict,
+                processor,
+                outbound_messages,
+                captured_renderer_errors,
+            )
 
         asyncio.run(_expect_timeout())
     else:
@@ -2768,10 +2823,13 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
     catalogs = _build_rpc_catalogs(cat_id, cat_version, funcs)
     outbound_messages: list[dict[str, Any]] = []
     captured_renderer_errors: list[dict[str, Any]] = []
+    has_listener = args.get("outboundListener", True) is not False
     processor = MessageProcessor(
         catalogs=catalogs,
         options=MessageProcessorOptions(
-            outbound_listener=lambda msg: outbound_messages.append(msg),
+            outbound_listener=(
+                (lambda msg: outbound_messages.append(msg)) if has_listener else None
+            ),
             error_handler=lambda msg: captured_renderer_errors.append(msg),
         ),
     )
@@ -2793,7 +2851,14 @@ def validate_handle_rpc_case(case: dict[str, Any]) -> None:
     elif outbound_call and has_err:
         expected_err = case.get("expectError") or expect_dict.get("error") or {}
         _run_rpc_outbound_error(
-            args, outbound_call, inbound_response, expected_err, processor
+            args,
+            outbound_call,
+            inbound_response,
+            expected_err,
+            expect_dict,
+            processor,
+            outbound_messages,
+            captured_renderer_errors,
         )
         handled = True
 

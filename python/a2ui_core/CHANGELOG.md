@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Add `RpcHandler.cancel_surface_calls` to cancel pending outbound agent
+  function calls with `RpcErrorCode.CANCELLED`.
 - **BREAKING CHANGE**: `DataContext` refuses a function whose `allowed_callers`
   is `agentOnly`, before running it, so a binding, check or function call
   action that calls one reports an `EXPRESSION_ERROR` instead of running it, as

@@ -47,13 +47,16 @@ struct RPCConformanceTests {
   ]
 
   private static let knownArgsKeys: Set<String> = [
+    "afterCall",
     "catalogId",
     "catalogVersion",
     "dataModel",
     "functionMetadata",
     "inboundResponse",
+    "lateInboundResponse",
     "message",
     "outboundCall",
+    "outboundListener",
     "secondOutboundCall",
     "surfaceId",
     "uiActionFallbackScenario",
@@ -97,6 +100,7 @@ struct RPCConformanceTests {
     "correlatedCallId",
     "error",
     "initialValue",
+    "lateResponseIgnored",
     "outboundCall",
     "resolvedValue",
     "response",
@@ -146,6 +150,7 @@ struct RPCConformanceTests {
       try await runOutboundCallCase(
         testCase: testCase,
         outboundCall: outboundCall,
+        catalogs: catalogs,
         rpcHandler: rpcHandler
       )
     }
@@ -234,6 +239,14 @@ struct RPCConformanceTests {
         inbound,
         Self.knownInboundResponseKeys,
         "rpc_functions.yaml inboundResponse in '\(name)'",
+        allowMetadata: false
+      )
+    }
+    if let lateInbound = args["lateInboundResponse"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        lateInbound,
+        Self.knownInboundResponseKeys,
+        "rpc_functions.yaml lateInboundResponse in '\(name)'",
         allowMetadata: false
       )
     }
@@ -484,6 +497,7 @@ struct RPCConformanceTests {
   private func runOutboundCallCase(
     testCase: ConformanceTestCase,
     outboundCall: JSONValue,
+    catalogs: [String: AnyCatalog],
     rpcHandler: RPCHandler
   ) async throws {
     if let inboundResponse = testCase.args?["inboundResponse"] {
@@ -493,6 +507,12 @@ struct RPCConformanceTests {
         inboundResponse: inboundResponse,
         rpcHandler: rpcHandler
       )
+    } else if testCase.args?["outboundListener"]?.boolValue == false {
+      await runNoListenerOutboundCall(
+        testCase: testCase,
+        outboundCall: outboundCall,
+        catalogs: catalogs
+      )
     } else if let secondCall = testCase.args?["secondOutboundCall"] {
       await runDuplicateOutboundCall(
         testCase: testCase,
@@ -500,8 +520,15 @@ struct RPCConformanceTests {
         secondCall: secondCall,
         rpcHandler: rpcHandler
       )
+    } else if let afterCall = testCase.args?["afterCall"]?.stringValue {
+      try await runAfterCallOutboundCall(
+        testCase: testCase,
+        outboundCall: outboundCall,
+        afterCall: afterCall,
+        rpcHandler: rpcHandler
+      )
     } else {
-      await runTimeoutOutboundCall(
+      try await runTimeoutOutboundCall(
         testCase: testCase,
         outboundCall: outboundCall,
         rpcHandler: rpcHandler
@@ -563,11 +590,112 @@ struct RPCConformanceTests {
     #expect(result == expectedResult, "[\(testCase.name)] Outbound call result mismatch")
   }
 
+  private func assertLateResponseIgnored(
+    testCase: ConformanceTestCase,
+    rpcHandler: RPCHandler
+  ) throws {
+    guard let lateInbound = testCase.args?["lateInboundResponse"] else { return }
+    let respData = try JSONEncoder().encode(lateInbound)
+    let respMsg = try JSONDecoder().decode(AgentToRendererMessage.self, from: respData)
+    if case .agentFunctionResponse(let agentResp) = respMsg {
+      rpcHandler.handleAgentResponse(agentResp)
+    }
+    if testCase.expect?["lateResponseIgnored"]?.boolValue == true {
+      #expect(true)
+    }
+  }
+
+  private func runNoListenerOutboundCall(
+    testCase: ConformanceTestCase,
+    outboundCall: JSONValue,
+    catalogs: [String: AnyCatalog]
+  ) async {
+    let surfaceID = outboundCall["surfaceId"]?.stringValue ?? "s"
+    let fnCallID = outboundCall["functionCallId"]?.stringValue ?? "c"
+    let call =
+      outboundCall["callFunction"]?["@call"]?.stringValue
+      ?? outboundCall["callFunction"]?["call"]?.stringValue ?? ""
+    let processor = MessageProcessor(catalogs: Array(catalogs.values))
+    do {
+      _ = try await processor.callAgentFunction(
+        surfaceID: surfaceID,
+        functionName: call,
+        functionCallID: fnCallID,
+        version: .v10
+      )
+      Issue.record("[\(testCase.name)] Expected NO_LISTENER error")
+    } catch let error as FunctionError {
+      if case .noListener = error {
+        #expect(testCase.expectError?.code == "NO_LISTENER")
+      } else {
+        Issue.record("[\(testCase.name)] Expected FunctionError.noListener, got \(error)")
+      }
+    } catch {
+      Issue.record("[\(testCase.name)] Unexpected error: \(error)")
+    }
+  }
+
+  private func runAfterCallOutboundCall(
+    testCase: ConformanceTestCase,
+    outboundCall: JSONValue,
+    afterCall: String,
+    rpcHandler: RPCHandler
+  ) async throws {
+    let surfaceID = outboundCall["surfaceId"]?.stringValue ?? "s"
+    let fnCallID = outboundCall["functionCallId"]?.stringValue ?? "c"
+    let call =
+      outboundCall["callFunction"]?["@call"]?.stringValue
+      ?? outboundCall["callFunction"]?["call"]?.stringValue ?? ""
+
+    var callTask: Task<JSONValue, any Error>!
+    await withCheckedContinuation { (started: CheckedContinuation<Void, Never>) in
+      callTask = Task {
+        try await rpcHandler.callAgentFunction(
+          surfaceID: surfaceID,
+          functionName: call,
+          functionCallID: fnCallID,
+          version: .v10,
+          timeoutSeconds: 5.0,
+          sendOutbound: { _ in
+            started.resume()
+          }
+        )
+      }
+    }
+
+    if afterCall == "cancel" {
+      rpcHandler.cancelAllPendingCalls()
+      do {
+        _ = try await callTask.value
+        Issue.record("[\(testCase.name)] Expected CANCELLED error")
+      } catch let error as FunctionError {
+        if case .cancelled = error {
+          #expect(testCase.expectError?.code == "CANCELLED")
+        } else {
+          Issue.record("[\(testCase.name)] Expected FunctionError.cancelled, got \(error)")
+        }
+      }
+    } else if afterCall == "dispose" {
+      rpcHandler.disposeAllPendingCalls()
+      do {
+        _ = try await callTask.value
+        Issue.record("[\(testCase.name)] Expected DISPOSED error")
+      } catch let error as FunctionError {
+        if case .disposed = error {
+          #expect(testCase.expectError?.code == "DISPOSED")
+        } else {
+          Issue.record("[\(testCase.name)] Expected FunctionError.disposed, got \(error)")
+        }
+      }
+      try assertLateResponseIgnored(testCase: testCase, rpcHandler: rpcHandler)
+    }
+  }
+
   private func runTimeoutOutboundCall(
     testCase: ConformanceTestCase,
     outboundCall: JSONValue,
     rpcHandler: RPCHandler
-  ) async {
+  ) async throws {
     let surfaceID = outboundCall["surfaceId"]?.stringValue ?? "s"
     let fnCallID = outboundCall["functionCallId"]?.stringValue ?? "c"
     let call =
@@ -594,6 +722,7 @@ struct RPCConformanceTests {
     } catch {
       Issue.record("[\(testCase.name)] Unexpected error: \(error)")
     }
+    try assertLateResponseIgnored(testCase: testCase, rpcHandler: rpcHandler)
   }
 
   private func runDuplicateOutboundCall(

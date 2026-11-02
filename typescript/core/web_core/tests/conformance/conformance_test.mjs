@@ -681,13 +681,16 @@ const RPC_KNOWN_KEYS = {
     'protocolVersion',
   ]),
   args: new Set([
+    'afterCall',
     'catalogId',
     'catalogVersion',
     'dataModel',
     'functionMetadata',
     'inboundResponse',
+    'lateInboundResponse',
     'message',
     'outboundCall',
+    'outboundListener',
     'secondOutboundCall',
     'surfaceId',
     'uiActionFallbackScenario',
@@ -705,6 +708,7 @@ const RPC_KNOWN_KEYS = {
     'correlatedCallId',
     'error',
     'initialValue',
+    'lateResponseIgnored',
     'outboundCall',
     'resolvedValue',
     'response',
@@ -805,14 +809,21 @@ async function validateRpcTestCase(testCase) {
   const cat = new Catalog(catId, catVersion, [], funcs, undefined, undefined);
   let sentOutboundMsg;
   let lastErrorMsg;
+  const outboundMessages = [];
+  const errorMessages = [];
   const rpcCatalogs = cat.id === 'basic' ? [cat] : [cat, v1_0BasicCatalog];
   const processor = new MessageProcessor(rpcCatalogs, undefined, {
     version: '1.0',
-    outboundListener: msg => {
-      sentOutboundMsg = msg;
-    },
+    outboundListener:
+      args.outboundListener === false
+        ? undefined
+        : msg => {
+            sentOutboundMsg = msg;
+            outboundMessages.push(msg);
+          },
     errorHandler: msg => {
       lastErrorMsg = msg;
+      errorMessages.push(msg);
     },
   });
 
@@ -1031,7 +1042,7 @@ async function validateRpcTestCase(testCase) {
   }
 
   if (outboundCall && inboundResponse) {
-    const correlatedId = expect.correlatedCallId;
+    const correlatedId = expect.correlatedCallId ?? outboundCall.functionCallId;
     assert.strictEqual(inboundResponse.agentFunctionResponse.functionCallId, correlatedId);
 
     const callName = outboundCall.callFunction['@call'] ?? outboundCall.callFunction.call;
@@ -1060,7 +1071,40 @@ async function validateRpcTestCase(testCase) {
   } else if (outboundCall && (expect?.error || expectError)) {
     const expectedErr = expect?.error || expectError;
     const callName = outboundCall.callFunction['@call'] ?? outboundCall.callFunction.call;
-    if (args.secondOutboundCall) {
+    const matchesExpectedError = err => {
+      if (expectedErr.code) {
+        return err.code === expectedErr.code || err.message.includes(expectedErr.code);
+      }
+      if (expectedErr.message) {
+        return err.message.includes(expectedErr.message);
+      }
+      return true;
+    };
+    const assertLateResponseIgnored = () => {
+      if (!args.lateInboundResponse) return;
+      const beforeOutbound = outboundMessages.length;
+      const beforeErrors = errorMessages.length;
+      processor.processMessages(args.lateInboundResponse);
+      if (expect?.lateResponseIgnored) {
+        assert.strictEqual(outboundMessages.length, beforeOutbound);
+        assert.strictEqual(errorMessages.length, beforeErrors);
+      }
+    };
+    if (args.outboundListener === false) {
+      await assert.rejects(async () => {
+        await processor.callAgentFunction(
+          outboundCall.surfaceId,
+          {
+            call: callName,
+            catalogId: outboundCall.callFunction.catalogId,
+            args: outboundCall.callFunction.args,
+          },
+          {
+            functionCallId: outboundCall.functionCallId,
+          },
+        );
+      }, matchesExpectedError);
+    } else if (args.secondOutboundCall) {
       processor.callAgentFunction(
         outboundCall.surfaceId,
         {
@@ -1072,59 +1116,87 @@ async function validateRpcTestCase(testCase) {
           functionCallId: outboundCall.functionCallId,
         },
       );
-      await assert.rejects(
-        async () => {
-          const secondCallName =
-            args.secondOutboundCall.callFunction['@call'] ??
-            args.secondOutboundCall.callFunction.call;
-          await processor.callAgentFunction(
-            args.secondOutboundCall.surfaceId,
-            {
-              call: secondCallName,
-              catalogId: args.secondOutboundCall.callFunction.catalogId,
-              args: args.secondOutboundCall.callFunction.args,
-            },
-            {
-              functionCallId: args.secondOutboundCall.functionCallId,
-            },
-          );
+      await assert.rejects(async () => {
+        const secondCallName =
+          args.secondOutboundCall.callFunction['@call'] ??
+          args.secondOutboundCall.callFunction.call;
+        await processor.callAgentFunction(
+          args.secondOutboundCall.surfaceId,
+          {
+            call: secondCallName,
+            catalogId: args.secondOutboundCall.callFunction.catalogId,
+            args: args.secondOutboundCall.callFunction.args,
+          },
+          {
+            functionCallId: args.secondOutboundCall.functionCallId,
+          },
+        );
+      }, matchesExpectedError);
+    } else if (args.afterCall === 'cancel') {
+      const pending = processor.callAgentFunction(
+        outboundCall.surfaceId,
+        {
+          call: callName,
+          catalogId: outboundCall.callFunction.catalogId,
+          args: outboundCall.callFunction.args,
         },
-        err => {
-          if (expectedErr.code) {
-            return err.code === expectedErr.code || err.message.includes(expectedErr.code);
-          }
-          if (expectedErr.message) {
-            return err.message.includes(expectedErr.message);
-          }
-          return true;
+        {
+          functionCallId: outboundCall.functionCallId,
         },
       );
+      processor.rpc.cancelSurfaceCalls(outboundCall.surfaceId);
+      await assert.rejects(async () => {
+        await pending;
+      }, matchesExpectedError);
+    } else if (args.afterCall === 'dispose') {
+      const pending = processor.callAgentFunction(
+        outboundCall.surfaceId,
+        {
+          call: callName,
+          catalogId: outboundCall.callFunction.catalogId,
+          args: outboundCall.callFunction.args,
+        },
+        {
+          functionCallId: outboundCall.functionCallId,
+        },
+      );
+      processor.rpc.dispose();
+      await assert.rejects(
+        async () => {
+          await pending;
+        },
+        err => err.code === 'CANCELLED' || err.code === 'DISPOSED',
+      );
+      await assert.rejects(async () => {
+        await processor.callAgentFunction(
+          outboundCall.surfaceId,
+          {
+            call: callName,
+            catalogId: outboundCall.callFunction.catalogId,
+            args: outboundCall.callFunction.args,
+          },
+          {
+            functionCallId: outboundCall.functionCallId,
+          },
+        );
+      }, matchesExpectedError);
+      assertLateResponseIgnored();
     } else if (outboundCall.timeoutMs !== undefined) {
-      await assert.rejects(
-        async () => {
-          await processor.callAgentFunction(
-            outboundCall.surfaceId,
-            {
-              call: callName,
-              catalogId: outboundCall.callFunction.catalogId,
-              args: outboundCall.callFunction.args,
-            },
-            {
-              functionCallId: outboundCall.functionCallId,
-              timeoutMs: outboundCall.timeoutMs,
-            },
-          );
-        },
-        err => {
-          if (expectedErr.code) {
-            return err.code === expectedErr.code || err.message.includes(expectedErr.code);
-          }
-          if (expectedErr.message) {
-            return err.message.includes(expectedErr.message);
-          }
-          return true;
-        },
-      );
+      await assert.rejects(async () => {
+        await processor.callAgentFunction(
+          outboundCall.surfaceId,
+          {
+            call: callName,
+            catalogId: outboundCall.callFunction.catalogId,
+            args: outboundCall.callFunction.args,
+          },
+          {
+            functionCallId: outboundCall.functionCallId,
+            timeoutMs: outboundCall.timeoutMs,
+          },
+        );
+      }, matchesExpectedError);
+      assertLateResponseIgnored();
     }
   }
 }
