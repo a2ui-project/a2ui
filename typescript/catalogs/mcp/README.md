@@ -2,7 +2,7 @@
 
 > **Experimental.** This package is under active development. Its API and the catalog schema may change between releases without notice.
 
-The A2UI MCP catalog lets A2UI surfaces invoke [Model Context Protocol](https://modelcontextprotocol.io/) tools and render [MCP Apps](https://github.com/modelcontextprotocol/ext-apps). It defines the `callMcpTool` function and the `McpApp` component, allowing agents to emit declarative payloads whose controls and bindings interact with MCP servers directly.
+The A2UI MCP catalog lets A2UI surfaces invoke [Model Context Protocol](https://modelcontextprotocol.io/) tools, write values to the data model, and render [MCP Apps](https://github.com/modelcontextprotocol/ext-apps). It defines the `callMcpTool` function, the `updateDataModel` data function, and the `McpApp` component, allowing agents to emit declarative payloads whose controls and bindings interact with MCP servers directly.
 
 ## Overview
 
@@ -11,6 +11,7 @@ A2UI separates UI layout from backend logic through catalogs. This catalog provi
 - The host supplies one hook, `getMcpClientForTool(toolName)`. The catalog uses the returned client for tool execution, UI resource reads, and tool discovery.
 - Tool results are processed automatically. The catalog fetches and caches UI resources referenced by results, then applies any A2UI messages embedded in the result content.
 - Tool arguments support data bindings, allowing form state to pass directly into tool calls.
+- `updateDataModel` writes path-value pairs to the surface data model, so a payload can update several paths at once from a literal object, a binding or a function call.
 - The `McpApp` component embeds MCP Apps in a sandboxed double-iframe and connects them to the host through `AppBridge`.
 - The catalog works with any A2UI web renderer built on `MessageProcessor`.
 
@@ -29,6 +30,14 @@ The canonical schema lives at [`catalogs/mcp/v1/catalog.json`](../../../catalogs
 Tools are addressed by name only. A2UI payloads never name a server, because multi-server routing is resolved by the host inside `getMcpClientForTool`.
 
 The function returns the raw MCP `CallToolResult`. It throws an `A2uiExpressionError` if the client cannot be resolved, the call returns no result, or the result has `isError: true`.
+
+`updateDataModel` writes path-value pairs to the surface data model:
+
+| Function          | Arguments               | Returns                                                                     |
+| :---------------- | :---------------------- | :-------------------------------------------------------------------------- |
+| `updateDataModel` | `updates: DynamicValue` | Nothing. Writes each key-value pair in `updates` to the surface data model. |
+
+The `updates` argument is required, and a `null` or missing argument is rejected by validation. `updateDataModel` throws an `A2uiExpressionError` for `updates` that are not a non-null plain object, or for a key that is empty or contains a `__proto__`, `constructor` or `prototype` segment. It checks every key before it writes anything, so a rejected key leaves the data model unchanged. Keys starting with `/` are absolute paths and relative keys resolve against the calling data context, such as the current row of a template list. It does not evaluate `@path` or `@call` objects found inside the values it writes: a tool result is data, not an expression.
 
 ## Installation
 
@@ -70,13 +79,13 @@ configureMcpCatalog({
 
 Push every catalog before the first message arrives, since `getClientCapabilities` reports whatever the array holds when it is called.
 
-A surface resolves components through its default catalog, the `catalogId` of its `createSurface` message, unless a component names another registered catalog with its own `catalogId`. A payload that mixes basic components with `McpApp` therefore needs no composed catalog: it creates the surface with the basic catalog id and sets `"catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json"` on the `McpApp` component, as the [catalog examples](../../../catalogs/mcp/v1/examples) do.
+A surface resolves components and function calls through its default catalog, the `catalogId` of its `createSurface` message, unless the component or the `@call` object names another registered catalog with its own `catalogId`. A payload that mixes basic components with `McpApp` and the MCP functions therefore needs no composed catalog: it creates the surface with the basic catalog id and sets `"catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json"` on the `McpApp` component and on each MCP function call, as the [catalog examples](../../../catalogs/mcp/v1/examples) do.
 
 Function calls in expressions (`${...}`, `@call`) are the exception: they always resolve through the surface's default catalog. A payload that calls `callMcpTool` from expressions next to basic components creates its surface with a catalog that carries both; build one under the id the agent uses (`mcpCatalog.id` is the canonical one):
 
 ```typescript
 import {basicCatalog, Catalog, MessageProcessor} from '@a2ui/web_core/v1_0';
-import {CallMcpToolImplementation, configureMcpCatalog, mcpCatalog} from '@a2ui/catalog-mcp';
+import {configureMcpCatalog, mcpCatalog} from '@a2ui/catalog-mcp';
 
 const processor = new MessageProcessor(
   [
@@ -84,13 +93,15 @@ const processor = new MessageProcessor(
       mcpCatalog.id,
       '1.0',
       [...basicCatalog.components.values(), ...mcpCatalog.components.values()],
-      [...basicCatalog.functions.values(), CallMcpToolImplementation],
+      [...basicCatalog.functions.values(), ...mcpCatalog.functions.values()],
     ),
   ],
   onAction,
 );
 configureMcpCatalog({getMcpClientForTool: () => client, processor});
 ```
+
+A host that only wants some of the functions registers the `*Implementation` exports it needs (`CallMcpToolImplementation`, `UpdateDataModelImplementation`) in a catalog of its own instead of `mcpCatalog`.
 
 For multi-server setups, keep a registry of which server advertises each tool, usually built from `listTools()` at connection time, and resolve it in the same hook:
 
@@ -318,10 +329,11 @@ The component owns its bridge: `McpAppBridge` (`src/components/mcp_app_bridge.ts
 | File                                   | Responsibility                                                                                                                                                                       |
 | :------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/catalog.json`                     | Copy of `catalogs/mcp/v1/catalog.json` made by the `copy-catalog` build step                                                                                                         |
-| `src/index.ts`                         | Package entry: `mcpCatalog`, `A2uiMcpApp`, `configureMcpCatalog` and `CallMcpToolImplementation`                                                                                     |
-| `src/catalog.ts`                       | `MCP_CATALOG_ID` and `mcpCatalog`: the `McpApp` component and `callMcpTool`                                                                                                          |
+| `src/index.ts`                         | Package entry: `mcpCatalog`, `A2uiMcpApp`, `configureMcpCatalog` and the `*Api` and `*Implementation` of every function                                                              |
+| `src/catalog.ts`                       | `MCP_CATALOG_ID` and `mcpCatalog`: the `McpApp` component, `callMcpTool` and `updateDataModel`                                                                                       |
 | `src/mcp_catalog_config.ts`            | `configureMcpCatalog`: the host's MCP client resolver, message processor and sandbox location                                                                                        |
 | `src/functions/callMcpTool.ts`         | MCP tool execution, UI resource discovery, caching, and message decoding                                                                                                             |
+| `src/functions/update_data_model.ts`   | `updateDataModel`                                                                                                                                                                    |
 | `src/dynamic-values.ts`                | Resolution of dynamic values nested in literal containers                                                                                                                            |
 | `src/components/mcp_app.ts`            | The `McpApp` universal component and its API                                                                                                                                         |
 | `src/components/mcp_app_bridge.ts`     | `McpAppBridge`: `AppBridge` setup, tool calls, function calls and data model sync                                                                                                    |

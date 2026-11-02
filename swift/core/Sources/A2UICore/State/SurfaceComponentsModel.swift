@@ -27,6 +27,12 @@ public final class SurfaceComponentsModel: ObservableObject {
   let changedIDsSubject = PassthroughSubject<Set<String>, Never>()
   let metadataChangedSubject = PassthroughSubject<(String, [String: JSONValue]?), Never>()
 
+  /// Counts the changes to the components map: each call that stores a map raises it by one.
+  ///
+  /// ``MessageProcessor`` keeps what its last graph check of a surface found only while the
+  /// count is the one it recorded, so a change made outside the processor is checked again.
+  private(set) var revision = 0
+
   /// The current components map.
   public var components: [String: ComponentModel] {
     componentsSubject.value
@@ -55,6 +61,7 @@ public final class SurfaceComponentsModel: ObservableObject {
   ///
   /// - Parameter component: The component model to add.
   public func addComponent(_ component: ComponentModel) {
+    revision += 1
     objectWillChange.send()
     var current = componentsSubject.value
     let old = current[component.id]
@@ -76,6 +83,7 @@ public final class SurfaceComponentsModel: ObservableObject {
   ///
   /// - Parameter id: The component ID to remove.
   public func removeComponent(_ id: String) {
+    revision += 1
     objectWillChange.send()
     var current = componentsSubject.value
     let hadMetadata = current[id]?.metadata != nil
@@ -93,6 +101,7 @@ public final class SurfaceComponentsModel: ObservableObject {
   ///   - removedIDs: Component IDs to remove before inserting new components.
   ///   - added: Component models to insert or replace.
   public func applyBatch(removing removedIDs: [String] = [], adding added: [ComponentModel]) {
+    revision += 1
     objectWillChange.send()
     var current = componentsSubject.value
     var metadataUpdates: [(String, [String: JSONValue]?)] = []
