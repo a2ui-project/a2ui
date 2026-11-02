@@ -79,7 +79,105 @@ export default defineConfig({
         },
         {
           label: 'Getting Started',
-          items: [{label: '5-Minute Quickstart (Pilot)', slug: 'quickstart'}],
+          items: [
+            {
+              label: 'Quick start',
+              slug: 'quickstart',
+            },
+          ],
+        },
+        {
+          label: 'Concepts',
+          items: [
+            {
+              label: 'Overview: How A2UI Works',
+              slug: 'concepts/overview',
+              badge: {text: 'P0', variant: 'danger'},
+            },
+            {
+              label: 'Messages',
+              slug: 'concepts/messages',
+              badge: {text: 'P0', variant: 'danger'},
+            },
+            {
+              label: 'Catalogs, Components and Functions',
+              slug: 'concepts/catalogs',
+              badge: {text: 'P0', variant: 'danger'},
+            },
+            {
+              label: 'Data Model and Data Binding',
+              slug: 'concepts/data-binding',
+              badge: {text: 'P0', variant: 'danger'},
+            },
+            {
+              label: 'Actions and Functions',
+              slug: 'concepts/actions-and-functions',
+              badge: {text: 'P0', variant: 'danger'},
+            },
+            {
+              label: 'Agent SDKs',
+              slug: 'concepts/agent-sdks',
+            },
+            {
+              label: 'Renderer SDKs',
+              slug: 'concepts/renderer-sdks',
+            },
+            {
+              label: 'Swappable Inference Formats',
+              slug: 'concepts/inference-formats',
+            },
+          ],
+        },
+        {
+          label: 'Guides',
+          items: [
+            {
+              label: 'How to Integrate with My Client',
+              slug: 'guides/client-integration',
+            },
+            {
+              label: 'How to Integrate with My Agent Server',
+              slug: 'guides/agent-integration',
+            },
+            {
+              label: 'How to Define a Catalog',
+              slug: 'guides/defining-a-catalog',
+            },
+            {
+              label: 'A2UI over MCP',
+              slug: 'guides/a2ui-over-mcp',
+            },
+            {
+              label: 'MCP Apps in A2UI Surfaces',
+              slug: 'guides/mcp-apps-in-a2ui',
+            },
+            {
+              label: 'A2UI Dynamic Rendering within MCP Applications',
+              slug: 'guides/a2ui-in-mcp-apps',
+            },
+            {
+              label: 'Authoring Universal Web Components',
+              slug: 'guides/authoring-universal-components',
+            },
+          ],
+        },
+        {
+          label: 'Roadmap',
+          items: [
+            {
+              label: 'Roadmap',
+              slug: 'roadmap',
+            },
+          ],
+        },
+        {
+          label: 'Ecosystem',
+          items: [
+            {
+              label: 'Ecosystem Renderers & Tools',
+              slug: 'ecosystem/renderers',
+            },
+          ],
         },
         {
           label: 'Specifications',
