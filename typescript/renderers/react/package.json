@@ -94,7 +94,7 @@
     "@a2ui/markdown-it": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "clsx": "^2.1.1",
-    "markdown-it": "^14.2.0",
+    "markdown-it": "^14.3.3",
     "zod": "^3.25.76"
   },
   "peerDependencies": {
