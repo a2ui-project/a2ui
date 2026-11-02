@@ -127,7 +127,7 @@ export function renderValidationErrors(
 ): TemplateResult | typeof nothing {
   if (hasValidationErrors(props)) {
     return html`
-      <div id="${domId}-error" class="a2ui-validation-errors" role="alert">
+      <div id="${domId}-error" class="a2ui-validation-errors">
         ${props!.validationErrors!.map(
           (msg: string) => html`<div class="a2ui-error-message">${msg}</div>`,
         )}

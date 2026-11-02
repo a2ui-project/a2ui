@@ -236,14 +236,14 @@ describe('Slider Component', () => {
     assert.strictEqual(el.hasAttribute('aria-label'), false);
     const label = el.querySelector('label.a2ui-slider-label');
     const input = el.querySelector('input[type="range"]');
-    const errorAlert = el.querySelector('.a2ui-validation-errors');
+    const errorContainer = el.querySelector('.a2ui-validation-errors');
     assert.notStrictEqual(label, null);
     assert.ok(input?.id);
     assert.strictEqual(label?.getAttribute('for'), input?.id);
     assert.strictEqual(input?.getAttribute('aria-description'), 'Use arrow keys to adjust guests');
     assert.strictEqual(input?.getAttribute('aria-invalid'), 'true');
-    assert.strictEqual(errorAlert?.getAttribute('role'), 'alert');
-    assert.strictEqual(input?.getAttribute('aria-describedby'), errorAlert?.id);
+    assert.strictEqual(errorContainer?.hasAttribute('role'), false);
+    assert.strictEqual(input?.getAttribute('aria-describedby'), errorContainer?.id);
 
     await asyncUpdate(el, e => {
       e.context = new ComponentContext(surface, 'slider_unlabeled');

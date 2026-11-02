@@ -181,13 +181,13 @@ describe('CheckBox Component', () => {
     assert.notStrictEqual(errorDiv, null);
     assert.strictEqual(errorDiv?.textContent?.trim(), 'This is required');
 
-    const errorAlert = el.querySelector('.a2ui-validation-errors');
-    assert.notStrictEqual(errorAlert, null);
-    assert.strictEqual(errorAlert?.getAttribute('role'), 'alert');
+    const errorContainer = el.querySelector('.a2ui-validation-errors');
+    assert.notStrictEqual(errorContainer, null);
+    assert.strictEqual(errorContainer?.hasAttribute('role'), false);
 
     const input = el.querySelector('input[type="checkbox"]');
     assert.strictEqual(input?.getAttribute('aria-invalid'), 'true');
-    assert.strictEqual(input?.getAttribute('aria-describedby'), errorAlert?.id);
+    assert.strictEqual(input?.getAttribute('aria-describedby'), errorContainer?.id);
 
     document.body.removeChild(el);
   });

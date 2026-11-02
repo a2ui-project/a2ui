@@ -174,10 +174,10 @@ describe('TextField Component', () => {
     const input = el.querySelector('input');
     assert.notStrictEqual(input, null);
     assert.strictEqual(input?.classList.contains('a2ui-invalid'), true);
-    const errorAlert = el.querySelector('.a2ui-validation-errors');
-    assert.strictEqual(errorAlert?.getAttribute('role'), 'alert');
+    const errorContainer = el.querySelector('.a2ui-validation-errors');
+    assert.strictEqual(errorContainer?.hasAttribute('role'), false);
     assert.strictEqual(input?.getAttribute('aria-invalid'), 'true');
-    assert.strictEqual(input?.getAttribute('aria-describedby'), errorAlert?.id);
+    assert.strictEqual(input?.getAttribute('aria-describedby'), errorContainer?.id);
   });
 
   it('associates <label for> with <input> and <textarea> using distinct IDs and applies accessibility props', async () => {

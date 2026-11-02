@@ -105,7 +105,7 @@ describe('Basic Catalog accessibility helpers', () => {
     assert.strictEqual(getAccessibilityDescription(undefined), nothing);
   });
 
-  it('computes validation error IDs and renders role="alert" error blocks only when invalid', () => {
+  it('computes validation error IDs and renders error blocks without role="alert" only when invalid', () => {
     const {nothing, render} = litModule;
     const {getValidationErrorId, hasValidationErrors, renderValidationErrors} = a11yModule;
 
@@ -129,10 +129,10 @@ describe('Basic Catalog accessibility helpers', () => {
     document.body.appendChild(mount);
     render(renderValidationErrors('a2ui-n1', invalidProps), mount);
 
-    const alertEl = mount.querySelector('.a2ui-validation-errors');
-    assert.notStrictEqual(alertEl, null);
-    assert.strictEqual(alertEl?.id, 'a2ui-n1-error');
-    assert.strictEqual(alertEl?.getAttribute('role'), 'alert');
+    const errorEl = mount.querySelector('.a2ui-validation-errors');
+    assert.notStrictEqual(errorEl, null);
+    assert.strictEqual(errorEl?.id, 'a2ui-n1-error');
+    assert.strictEqual(errorEl?.hasAttribute('role'), false);
 
     const messages = Array.from(mount.querySelectorAll('.a2ui-error-message')).map(
       el => el.textContent,

@@ -308,14 +308,14 @@ describe('ChoicePicker Component', () => {
     assert.strictEqual(filterInput?.getAttribute('aria-label'), 'Filter options');
 
     const radioGroup = radioEl.querySelector('.a2ui-choice-picker');
-    const errorAlert = radioEl.querySelector('.a2ui-validation-errors');
+    const errorContainer = radioEl.querySelector('.a2ui-validation-errors');
     assert.strictEqual(radioGroup?.getAttribute('role'), 'radiogroup');
     assert.strictEqual(radioGroup?.getAttribute('aria-labelledby'), labelEl?.id);
     assert.strictEqual(radioGroup?.hasAttribute('aria-label'), false);
     assert.strictEqual(radioGroup?.getAttribute('aria-description'), 'Choose one cuisine');
     assert.strictEqual(radioGroup?.getAttribute('aria-invalid'), 'true');
-    assert.strictEqual(errorAlert?.getAttribute('role'), 'alert');
-    assert.strictEqual(radioGroup?.getAttribute('aria-describedby'), errorAlert?.id);
+    assert.strictEqual(errorContainer?.hasAttribute('role'), false);
+    assert.strictEqual(radioGroup?.getAttribute('aria-describedby'), errorContainer?.id);
     document.body.removeChild(radioEl);
 
     const multiEl = document.createElement('a2ui-choicepicker') as A2uiWebComponentElement;
