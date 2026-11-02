@@ -43,6 +43,10 @@ T = TypeVar("T")
 
 OutboundListener = Callable[[dict[str, Any]], Union[None, Awaitable[None]]]
 
+# The response message when a nested argument of an agent-initiated call
+# fails with an error that has no message of its own.
+_UNRESOLVED_ARGUMENT_MESSAGE = "An argument of the function call could not be resolved."
+
 
 @dataclass
 class _PendingAgentCall:
@@ -374,8 +378,7 @@ class RpcHandler:
                     and err.get("code") in ("EXPRESSION_ERROR", "EXECUTION_ERROR")
                 ):
                     expression_error = str(
-                        err.get("message")
-                        or "An error occurred during function execution."
+                        err.get("message") or _UNRESOLVED_ARGUMENT_MESSAGE
                     )
 
             error_sub = on_error.subscribe(_on_expr_err)
@@ -386,7 +389,7 @@ class RpcHandler:
                 k: context.resolve_dynamic_value(v) for k, v in args.items()
             }
         except Exception as e:
-            expression_error = str(e) or "An error occurred during function execution."
+            expression_error = str(e) or _UNRESOLVED_ARGUMENT_MESSAGE
         finally:
             if error_sub is not None and hasattr(error_sub, "unsubscribe"):
                 error_sub.unsubscribe()

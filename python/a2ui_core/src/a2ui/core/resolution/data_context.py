@@ -722,8 +722,9 @@ class DataContext:
         without being evaluated if an earlier value fails.
 
         A malformed value, such as an object with an unknown `@` key, is
-        reported as an `EXPRESSION_ERROR` naming its label, and stops the
-        values after it, whether it is evaluated now or after a pending one.
+        reported as an `EXPRESSION_ERROR` ("Action event context entry '<key>'
+        is invalid: ..."), and stops the values after it, whether it is
+        evaluated now or after a pending one.
 
         Returns:
             The resolved values, which may be pending results, or None if a
@@ -734,7 +735,14 @@ class DataContext:
             try:
                 value = self._resolve_value(item, True, None, keep_failed=True)
             except Exception as e:
-                if self._dispatch_function_error(e, labels[index]):
+                label = labels[index]
+                subject = (
+                    f"Action event context entry '{label.rsplit('.', 1)[-1]}'"
+                    if "context." in label
+                    else "Action event userMessage"
+                )
+                invalid = A2uiExpressionError(f"{subject} is invalid: {e}")
+                if self._dispatch_function_error(invalid, label):
                     return None
                 raise
             if _has_failed_result(value):
@@ -1145,13 +1153,15 @@ class DataContext:
         is a ``CATALOG_ERROR`` and is never routed. Neither is a call whose
         caller can't wait for the answer (``can_wait`` is False), such as a
         one-shot ``resolve_dynamic_value`` read, a ``formatString`` template
-        part or an argument of an agent's ``callRendererFunction``: it is an
-        ``EXPRESSION_ERROR``, and nothing is sent.
+        part or an argument of an agent's ``callRendererFunction``: nothing
+        is sent, it reads the answer the surface already holds for the same
+        call, and without one it is an ``EXPRESSION_ERROR``.
 
-        A local function that raises while an action runs (its
+        A local function that ran and raised while an action runs (its
         ``functionCall``, or an event's ``context`` or ``userMessage``) is an
-        ``EXECUTION_ERROR``; argument and lookup failures are
-        ``EXPRESSION_ERROR``.
+        ``EXECUTION_ERROR``. A refused call (``agentOnly``, missing user
+        activation, invalid arguments, unknown function) is an
+        ``EXPRESSION_ERROR`` everywhere.
 
         A nested call whose result arrives later (an agent function) leaves
         an argument pending. The call then runs once every such argument has
@@ -1207,12 +1217,8 @@ class DataContext:
                         " (allowedCallers is agentOnly)."
                     )
                 if self._routes_to_agent(fn):
-                    if not can_wait:
-                        raise A2uiExpressionError(
-                            f"Function '{name}' is not implemented locally, and"
-                            " its result can't be awaited here, so it was not"
-                            " sent to the agent."
-                        )
+                    # A read that can't wait sends nothing; it gets the answer
+                    # the surface already holds for the same call, if any.
                     return self._call_agent_function(
                         name,
                         raw_args,
@@ -1221,6 +1227,7 @@ class DataContext:
                         abort_signal,
                         is_action=is_action or self._in_action_execution,
                         is_user_activated=effective_user_activated,
+                        settled_only=not can_wait,
                     )
 
                 PayloadValidator(catalog=target_catalog).validate_function(
@@ -1237,12 +1244,13 @@ class DataContext:
                         f"Function '{name}' not found in {catalog_desc}."
                     )
 
-            in_body = True
             # An event action's context and user message are imperative too,
-            # so a function in them needs the action's user activation.
+            # so a function in them needs the action's user activation. A
+            # refusal is not an execution failure.
             self._check_action_user_activation(
                 fn, name, in_action, effective_user_activated
             )
+            in_body = True
             local_fn = fn
             local_catalog = target_catalog
             scope = self._capture_scope(
@@ -1482,8 +1490,13 @@ class DataContext:
         *,
         is_action: bool = False,
         is_user_activated: bool | None = None,
+        settled_only: bool = False,
     ) -> Any:
         """Routes a call to the agent: the v1.0 fallback routing.
+
+        With `settled_only`, for a read that can't wait, nothing is sent: the
+        answer the surface already holds for the same call is returned, and
+        without one the call is an `EXPRESSION_ERROR`.
 
         A declared (schema-only) function's `requires_user_activation` is
         enforced before anything is resolved or sent. Pending arguments
@@ -1543,10 +1556,7 @@ class DataContext:
 
         bypass_cache = is_action or self._in_action_execution
 
-        def _send(resolved_args: Any) -> _PendingResult:
-            if abort_signal is not None and abort_signal.aborted:
-                # A newer evaluation replaced this one: send nothing.
-                return _PendingResult()
+        def _prepare(resolved_args: Any) -> AgentFunctionCall:
             args: dict[str, Any] = (
                 dict(resolved_args) if isinstance(resolved_args, dict) else {}
             )
@@ -1565,7 +1575,25 @@ class DataContext:
                 # Validating against a Pydantic model fills in its defaults,
                 # those of nested models included.
                 args = _merge_parsed_defaults(args, validated)
-            call = AgentFunctionCall(call=name, catalog_id=catalog_id, args=args)
+            return AgentFunctionCall(call=name, catalog_id=catalog_id, args=args)
+
+        if settled_only:
+            resolved = self._resolve_value(
+                raw_args, True, abort_signal, keep_failed=False
+            )
+            found, answer = self.surface.settled_agent_answer(_prepare(resolved))
+            if not found:
+                raise A2uiExpressionError(
+                    f"Function '{name}' is not implemented locally, and its result"
+                    " can't be awaited here, so it was not sent to the agent."
+                )
+            return answer
+
+        def _send(resolved_args: Any) -> _PendingResult:
+            if abort_signal is not None and abort_signal.aborted:
+                # A newer evaluation replaced this one: send nothing.
+                return _PendingResult()
+            call = _prepare(resolved_args)
             key: str | None = (
                 None if bypass_cache or agent_calls is None else agent_call_key(call)
             )

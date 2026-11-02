@@ -433,6 +433,21 @@ class SurfaceModel:
         pending.add_done_callback(_release)
         return _isolated_future(pending)
 
+    def settled_agent_answer(self, call: AgentFunctionCall) -> tuple[bool, Any]:
+        """Returns the answer this surface holds for `call`, without sending it.
+
+        Returns:
+            Whether a settled answer for the same catalog, function and
+            arguments is cached, and a copy of it (None if there is none).
+        """
+        if self._disposed:
+            return False, None
+        key = agent_call_key(call)
+        if key is None or key not in self._settled_agent_calls:
+            return False, None
+        self._settled_agent_calls.move_to_end(key)
+        return True, copy.deepcopy(self._settled_agent_calls[key])
+
     @staticmethod
     def _send_agent_call(
         caller: AgentFunctionCaller,

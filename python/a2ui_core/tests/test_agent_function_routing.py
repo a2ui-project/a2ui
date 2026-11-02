@@ -1483,13 +1483,25 @@ async def test_user_message_resolving_to_none_is_absent() -> None:
 @pytest.mark.asyncio
 async def test_one_shot_peeked_read_is_never_routed() -> None:
     h = _Harness()
-    assert (
-        h.ctx.resolve_dynamic_value({"@call": "fetchFxRate", "args": {"base": "EUR"}})
-        is None
-    )
+    call = {"@call": "fetchFxRate", "args": {"base": "EUR"}}
+    assert h.ctx.resolve_dynamic_value(call) is None
     assert h.outbound == [], "nothing is sent for a read that can't wait"
     assert [e["code"] for e in h.errors] == ["EXPRESSION_ERROR"]
     assert "can't be awaited here" in h.errors[0]["message"]
+
+    # Once a binding has the answer, a one-shot read of the same call gets it.
+    h.errors.clear()
+    _read(h.ctx, call)
+    h.respond(0, value=1.08)
+    await _flush()
+    assert h.ctx.resolve_dynamic_value(call) == 1.08
+    assert len(h.outbound) == 1
+    assert h.errors == []
+
+    # A different call has no answer yet, and is still not sent.
+    assert h.ctx.resolve_dynamic_value({"@call": "fetchFxRate", "args": {}}) is None
+    assert len(h.outbound) == 1
+    assert [e["code"] for e in h.errors] == ["EXPRESSION_ERROR"]
 
 
 def _basic_harness() -> tuple[MessageProcessor, SurfaceModel, list[Any], list[Any]]:
@@ -1550,6 +1562,7 @@ async def test_call_renderer_function_argument_is_not_routed() -> None:
         if isinstance(m, dict) and "rendererFunctionResponse" in m
     ]
     assert replies and "error" in replies[0]
+    assert replies[0]["error"]["code"] == "EXECUTION_ERROR"
     assert "fetchFxRate" in replies[0]["error"]["message"]
 
 
@@ -1774,6 +1787,10 @@ async def test_malformed_context_value_is_reported_the_same_way() -> None:
     assert [e["code"] for e in h.errors] == ["EXPRESSION_ERROR"] * 2
     assert all(e["surfaceId"] == "s1" for e in h.errors)
     assert [e["expression"] for e in h.errors] == ["event.context.bad"] * 2
+    assert all(
+        e["message"].startswith("Action event context entry 'bad' is invalid: ")
+        for e in h.errors
+    )
 
 
 @pytest.mark.asyncio
@@ -1802,3 +1819,55 @@ async def test_setter_replaces_an_equal_but_different_caller() -> None:
         AgentFunctionCall(call="f", catalog_id=FIN_CATALOG_ID, args={})
     )
     assert (len(first.sent), len(second.sent)) == (0, 1)
+
+
+@pytest.mark.asyncio
+async def test_user_activation_refusal_is_an_expression_error_in_actions() -> None:
+    h = _Harness(extra_functions=[_tap_only()])
+    h.ctx.resolve_action(
+        {"functionCall": {"@call": "tapOnly", "args": {}}}, is_user_activated=False
+    )
+    h.ctx.resolve_action(
+        {"event": {"name": "go", "context": {"t": {"@call": "tapOnly", "args": {}}}}},
+        is_user_activated=False,
+    )
+    h.ctx.resolve_action(
+        {"functionCall": {"@call": "confirmOrder", "args": {"order_id": "o"}}},
+        is_user_activated=False,
+    )
+    assert [e["code"] for e in h.errors] == ["EXPRESSION_ERROR"] * 3
+    assert h.outbound == []
+
+
+@pytest.mark.asyncio
+async def test_nested_argument_error_without_message_has_a_fallback() -> None:
+    def _silent(args: Any, ctx: Any, abort: Any = None) -> Any:
+        raise RuntimeError()
+
+    silent = FunctionImplementation(
+        name="silent", return_type="any", schema=_ProbeArgs, execute=_silent
+    )
+    seen: list[tuple[bool, bool]] = []
+    probe = _probe(seen)
+    probe.allowed_callers = "rendererOrAgent"
+    h = _Harness(extra_functions=[probe, silent])
+    responses = h.proc.process_messages([{
+        "version": "1.0",
+        "callRendererFunction": {
+            "functionCallId": "r1",
+            "surfaceId": "s1",
+            "callFunction": {
+                "call": "probe",
+                "catalogId": FIN_CATALOG_ID,
+                "args": {"value": {"@call": "silent", "args": {}}},
+            },
+        },
+    }])
+    replies = [
+        m["rendererFunctionResponse"]
+        for m in [*h.outbound, *(responses or [])]
+        if isinstance(m, dict) and "rendererFunctionResponse" in m
+    ]
+    assert replies[0]["error"]["message"] == (
+        "An argument of the function call could not be resolved."
+    )
