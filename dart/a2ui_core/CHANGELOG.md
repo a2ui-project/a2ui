@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added the portable A2UI regex subset parser, static safety guard, and
+  256-entry LRU-cached compiler (`parseRegexSubset`, `checkRegexSafety`,
+  `analyzeRegex`, `compileGuarded`, `maxRegexPatternCodePoints`,
+  `maxRegexValueCodePoints`). The basic catalog `regex` function now validates
+  patterns against the portable subset and static safety rules, compiles them
+  in Unicode mode, and rejects input values longer than 4,096 code points as
+  non-matching.
 - **Breaking:** (v1_0) The basic catalog `TextField` requires `value`, as
   the other input components do, so a `TextField` without one fails
   validation instead of accepting input that never reaches the data model.

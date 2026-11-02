@@ -18,6 +18,10 @@
 
 ## Unreleased
 
+- `TextField` (v0.9) compiles `validationRegexp` through `compileGuarded` from
+  `package:a2ui_core/a2ui_core.dart`; when the portable regex subset guard
+  rejects a pattern, the regex constraint is disabled and an `EXPRESSION_ERROR`
+  is reported once on the surface error channel.
 - **Breaking:** a component that has not arrived, has an unknown type, or
   repeats one of its ancestors now renders nothing, as does the surface until
   its root arrives. Previously these showed a progress indicator or a red
