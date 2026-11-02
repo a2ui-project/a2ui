@@ -58,7 +58,8 @@ export 'src/processing/processor.dart';
 export 'src/resolution/component_context.dart';
 export 'src/resolution/component_node.dart'
     hide MutableComponentNode, sameValue;
-export 'src/resolution/data_context.dart' hide createSurfaceDataContext;
+export 'src/resolution/data_context.dart'
+    hide createSurfaceDataContext, dataContextWithoutAgentCalls;
 export 'src/resolution/generic_binder.dart';
 export 'src/resolution/node_resolver.dart';
 export 'src/resolution/resolved_binding.dart';

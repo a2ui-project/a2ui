@@ -242,7 +242,8 @@ bool evaluateOr(Object? values, [bool Function(Object?) truthy = isTruthy]) =>
 // formatString
 // ---------------------------------------------------------------------------
 
-/// Interpolates the `${...}` expressions in [template] against [context].
+/// Interpolates the `${...}` expressions in [template] against
+/// [dataContext].
 ///
 /// A non-string [template] is coerced to text first. Returns a string when
 /// the template holds no bindings or calls, and otherwise a signal that
@@ -251,13 +252,18 @@ bool evaluateOr(Object? values, [bool Function(Object?) truthy = isTruthy]) =>
 ///
 /// The parser's `{path}` and `{call, args}` parts are rewritten with
 /// [DataContext.adaptExpressionPart] into the shape the context resolves.
-Object? formatTemplate(Object? template, DataContext context) {
+///
+/// A formatted string cannot wait for part of it, so a part calling a
+/// function no catalog implements is not sent to the agent: it fails with
+/// `EXPRESSION_ERROR` and renders empty.
+Object? formatTemplate(Object? template, DataContext dataContext) {
   final List<Object?> parts = ExpressionParser().parse(
     coerceToString(template),
   );
   if (!parts.any((part) => part is Map)) {
     return parts.map(coerceToString).join();
   }
+  final DataContext context = dataContextWithoutAgentCalls(dataContext);
   final List<Object?> sources = [
     for (final Object? part in parts)
       if (part is Map)
