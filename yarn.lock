@@ -184,6 +184,7 @@ __metadata:
     karma-jasmine: "npm:^5.1.0"
     lit: "npm:^3.3.3"
     prettier: "npm:^3.8.4"
+    redos-detector: "npm:^6.1.4"
     tsx: "npm:^4.22.4"
     typescript: "npm:5.9.3"
     wireit: "npm:^0.15.0-pre.2"

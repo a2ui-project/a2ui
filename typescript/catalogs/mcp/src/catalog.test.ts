@@ -14,19 +14,58 @@
  * limitations under the License.
  */
 
+import textToolResultExample from '../../../../catalogs/mcp/v1/examples/mcp-text-tool-result.json' with {type: 'json'};
 import scene3dExample from '../../../../catalogs/mcp/v1/examples/mcp-app-3d-geometry.json' with {type: 'json'};
 import {
+  DataContext,
   isWebComponentImplementation,
   MessageProcessor,
   type WebComponentImplementation,
 } from '@a2ui/web_core/v1_0';
+import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 import catalogJson from './catalog.json' with {type: 'json'};
 import {MCP_CATALOG_ID, mcpCatalog} from './catalog.js';
 import {A2uiMcpApp} from './components/mcp_app.js';
-import {CallMcpToolImplementation} from './functions/callMcpTool.js';
+import {CallMcpToolImplementation, type McpToolClient} from './functions/callMcpTool.js';
 import {TransformDataImplementation} from './functions/transform_data.js';
+import {RegexCaptureImplementation} from './functions/regex_capture.js';
+import {SplitImplementation} from './functions/split.js';
 import {UpdateDataModelImplementation} from './functions/update_data_model.js';
+import {configureMcpCatalog, resetMcpCatalogConfig} from './mcp_catalog_config.js';
 import {EXAMPLE_CATALOGS, parseExampleMessages} from './testing/frame_test_support.js';
+
+/**
+ * An MCP client whose only tool returns `result`, the shape of a headless tool, recording the calls
+ * it receives.
+ */
+function createToolClient(result: CallToolResult): McpToolClient & {
+  readonly calls: Array<{name: string; arguments: unknown}>;
+} {
+  const calls: Array<{name: string; arguments: unknown}> = [];
+  return {
+    calls,
+    request: (async (request: {params: {name: string; arguments: unknown}}) => {
+      calls.push({name: request.params.name, arguments: request.params.arguments});
+      return result;
+    }) as McpToolClient['request'],
+    readResource: async () => ({contents: []}),
+    listTools: async () => ({tools: []}),
+  };
+}
+
+/** Reads the `action` of the component `id` from the last `updateComponents` of `example`. */
+function actionOf(example: {readonly messages: readonly unknown[]}, id: string): unknown {
+  for (const message of example.messages as ReadonlyArray<{
+    updateComponents?: {components: ReadonlyArray<{id: string; action?: unknown}>};
+  }>) {
+    for (const component of message.updateComponents?.components ?? []) {
+      if (component.id === id) {
+        return component.action;
+      }
+    }
+  }
+  throw new Error(`No component '${id}' in the example.`);
+}
 
 const toolCallExample = {
   messages: [
@@ -131,6 +170,8 @@ describe('mcpCatalog', () => {
     expect(mcpCatalog.functions.get('callMcpTool')).toBe(CallMcpToolImplementation);
     expect(mcpCatalog.functions.get('transformData')).toBe(TransformDataImplementation);
     expect(mcpCatalog.functions.get('updateDataModel')).toBe(UpdateDataModelImplementation);
+    expect(mcpCatalog.functions.get('split')).toBe(SplitImplementation);
+    expect(mcpCatalog.functions.get('regexCapture')).toBe(RegexCaptureImplementation);
   });
 
   it('registers universal components with a2ui- prefixed tag names', () => {
@@ -173,5 +214,57 @@ describe('mcpCatalog', () => {
     expect(surface.componentsModel.get('scene3d_app')?.type).toBe('McpApp');
     expect(surface.componentsModel.get('scene3d_context_text')?.type).toBe('Text');
     surface.dispose();
+  });
+
+  describe('the text tool result example', () => {
+    // The shape of a Tavily search result: a header, then one record per result.
+    const searchOutput = [
+      'Detailed Results:',
+      'Title: A2UI protocol\nURL: https://a2ui.org\nContent: Agent-to-user interface.',
+      'Title: A2UI on GitHub\nURL: https://github.com/a2ui-project/a2ui\nContent: Source code.',
+    ].join('\n\n');
+    let processor: MessageProcessor<WebComponentImplementation>;
+    let client: ReturnType<typeof createToolClient>;
+    let errors: unknown[];
+
+    beforeEach(() => {
+      processor = new MessageProcessor<WebComponentImplementation>([...EXAMPLE_CATALOGS]);
+      client = createToolClient({content: [{type: 'text', text: searchOutput}]});
+      configureMcpCatalog({getMcpClientForTool: () => client, processor});
+      errors = [];
+      processor.processMessages(parseExampleMessages(textToolResultExample));
+      processor.model.getSurface('gallery-mcp-text-tool-result')!.onError.subscribe(error => {
+        errors.push(error);
+      });
+    });
+
+    afterEach(() => {
+      processor.model.getSurface('gallery-mcp-text-tool-result')?.dispose();
+      resetMcpCatalogConfig();
+    });
+
+    it('processes next to the basic catalog, with the list bound to /results', () => {
+      const surface = processor.model.getSurface('gallery-mcp-text-tool-result')!;
+      expect(surface.componentsModel.get('search_button')?.type).toBe('Button');
+      expect(surface.componentsModel.get('result_list')?.type).toBe('Column');
+      expect(surface.dataModel.get('/results')).toEqual([]);
+      expect(errors).toEqual([]);
+    });
+
+    it('runs the button action: the records are split, captured, shaped and written to /results', async () => {
+      const surface = processor.model.getSurface('gallery-mcp-text-tool-result')!;
+      const context = new DataContext(surface, '/');
+
+      await context.resolveAction(
+        actionOf(textToolResultExample, 'search_button') as Record<string, unknown>,
+      );
+
+      expect(client.calls).toEqual([{name: 'tavily-search', arguments: {query: 'A2UI protocol'}}]);
+      expect(surface.dataModel.get('/results')).toEqual([
+        {title: 'A2UI protocol', url: 'https://a2ui.org'},
+        {title: 'A2UI on GitHub', url: 'https://github.com/a2ui-project/a2ui'},
+      ]);
+      expect(errors).toEqual([]);
+    });
   });
 });

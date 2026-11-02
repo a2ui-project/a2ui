@@ -1,7 +1,7 @@
 ## Unreleased
 
 - **BREAKING CHANGE**: `callMcpTool` returns a payload with `toolName`, `toolInput`, `toolResult`, `structuredContent`, `text` and `json` instead of the raw `CallToolResult`, and writes it to `targetDataPath` when set, where the latest call to a path wins. Recommended migration: read the raw result from the `toolResult` field of the returned payload. [#3728](https://github.com/a2ui-project/a2ui/pull/3728)
-- The `transformData` (standard JMESPath) data function shapes the `callMcpTool` payload into data model updates; its `TransformDataApi` and `TransformDataImplementation` are exported for hosts that register functions one by one. [#3736](https://github.com/a2ui-project/a2ui/pull/3736)
+- The `transformData` (standard JMESPath) data function shapes the `callMcpTool` payload into data model updates, and `split` and `regexCapture` turn text results into records, with patterns limited to a portable regular expression subset. Their `*Api` and `*Implementation` are exported for hosts that register functions one by one. [#3736](https://github.com/a2ui-project/a2ui/pull/3736), [#3574](https://github.com/a2ui-project/a2ui/pull/3574)
 
 ## 0.0.1-alpha.2
 
