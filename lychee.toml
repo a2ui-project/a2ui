@@ -47,6 +47,7 @@ exclude = [
   "^https?://go/",
   # Valid Google vanity domains / services that reject or block automated checkers.
   "aistudio\\.google\\.com",
+  "docs\\.google\\.com",
   "opal\\.google",
   "gemini\\.google\\.com",
   # Dynamic badge SVG endpoints on shields.io frequently return 408/5xx when

@@ -129,7 +129,7 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 
 #### Overview: How A2UI Works (`/concepts/overview/`) [P0]
 
-- **Diagram Source of Truth**: Replicate **Slide 25** of [GenUI.pptx](https://docs.google.com/presentation/d/1UOPyN1jz7TqxQsrYugs0qkm4F9v4jmV4/edit?resourcekey=0-9BovZnkNLA3k39KuhaKLHg#slide=id.h16378dc14ad48b5a_2_49) as a rich Astro/Tailwind component (`<ArchitecturePipelineOverview />`):
+- **Diagram Source of Truth**: Replicate **Slide 25** of the GenUI design presentation as a rich Astro/Tailwind component (`<ArchitecturePipelineOverview />`):
     - Demarcate **SERVER · YOUR AGENT** on the left and **CLIENT · YOUR APP** on the right.
     - **Boundary Rule**: The `A2UI AGENT SDK` container strictly encloses the **Skill generator** and **Compiler**. The `Agent` (e.g. Gemini Interactions API / LLM runtime) sits outside the SDK box as user application code that consumes domain skills + generated A2UI skills and feeds model output into the compiler.
     - Include cards for **Component schemas (your catalog)**, **Domain skills**, **A2UI Agent SDK**, **Agent**, **A2UI Protocol JSON** (`updateComponents`), and **Data sent separately** (`updateDataModel`), paired with the client phone mockup ("Berlin to San Francisco today, and two tickets back." and flight cards outlined with _"A2UI renderer draws this part"_).
