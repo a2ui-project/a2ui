@@ -618,7 +618,14 @@ class GenericBinder:
                 )
                 call_name = fc.get("@call") or fc.get("call")
                 if isinstance(call_name, str):
-                    return self.context.data_context.resolve_action(value)
+                    # Runs as an action: a local function that raises is an
+                    # EXECUTION_ERROR, and user activation applies. The
+                    # closure returns the result's current value, None while
+                    # an agent function's answer is pending.
+                    result = self.context.data_context.resolve_action(value)
+                    if hasattr(result, "subscribe") and callable(result.subscribe):
+                        return result.peek() if hasattr(result, "peek") else None
+                    return result
             resolved = self.context.data_context.resolve_action(value)
             return self.context.dispatch_action(resolved, metadata=metadata)
 
@@ -755,7 +762,7 @@ class GenericBinder:
 
                 return on_state
 
-            bound = self.context.data_context._subscribe_dynamic_state(
+            bound = self.context.data_context.subscribe_dynamic_state(
                 condition, make_on_state(idx, explicit_msg, fallback_msg)
             )
             if not is_sync:

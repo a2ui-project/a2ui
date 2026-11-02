@@ -786,7 +786,7 @@ class PayloadValidator:
             if full_check:
                 self.validate_function(fn_name, fn_args)
             else:
-                self._validate_function_identifiers(fn_name, fn_args)
+                self.validate_function_identifiers(fn_name, fn_args)
         except A2uiValidationError as e:
             errors.extend(
                 rebase_function_error_details(
@@ -822,11 +822,14 @@ class PayloadValidator:
                 )
             )
 
-    def _validate_function_identifiers(self, name: str, args: Any) -> None:
+    def validate_function_identifiers(self, name: str, args: Any) -> None:
         """Validates a v1.0+ call's envelope without its catalog.
 
         The function name and argument names must be UAX #31 identifiers, and
         `args`, when present, must be an object.
+
+        Internal: `DataContext` uses it to check a routed call's arguments
+        before they resolve. It is not part of the public API.
         """
         ver = getattr(self.catalog, "protocol_version", None)
         if not (ver and is_at_least_version(ver, ProtocolVersion.V1_0)):
@@ -901,7 +904,7 @@ class PayloadValidator:
                 ],
             )
 
-        self._validate_function_identifiers(name, norm_args)
+        self.validate_function_identifiers(name, norm_args)
 
         fn_def, fn_schema, base_schema = self._find_function_definition(name)
 

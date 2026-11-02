@@ -34,7 +34,7 @@ from ..exceptions import (
 )
 from ..schema import ProtocolVersion
 from ..state.data_model import DataModel
-from ..state.surface_model import AgentFunctionCall, SurfaceModel, _agent_call_key
+from ..state.surface_model import AgentFunctionCall, SurfaceModel, agent_call_key
 from ..validation.payload_validator import (
     MAX_FUNCTION_CALL_ARGS,
     PayloadValidator,
@@ -42,7 +42,7 @@ from ..validation.payload_validator import (
     validate_system_function,
 )
 from .validation_result_coercion import (
-    _json_schema_properties,
+    json_schema_properties,
     coerce_validation_results,
 )
 
@@ -181,8 +181,11 @@ def _is_cancellation(error: BaseException | None) -> bool:
     )
 
 
-class _ValueState(NamedTuple):
-    """A subscribed dynamic value and whether it still waits for a result."""
+class DynamicValueState(NamedTuple):
+    """A subscribed dynamic value and whether it still waits for a result.
+
+    Internal: not part of the package's public API.
+    """
 
     value: Any
     pending: bool
@@ -258,21 +261,79 @@ def _has_local_implementation(fn: Any) -> bool:
     )
 
 
-def _schema_defaults(schema: Any) -> dict[str, Any]:
-    """Returns the `default` of each top-level property of a JSON schema."""
+def _deref_schema(schema: Any, defs: dict[str, Any]) -> Any:
+    """Follows a local `#/$defs/...` reference, if `schema` is one."""
+    seen: set[str] = set()
+    while isinstance(schema, dict):
+        ref = schema.get("$ref")
+        if not (isinstance(ref, str) and ref.startswith("#/$defs/")):
+            break
+        if ref in seen:
+            break
+        seen.add(ref)
+        schema = defs.get(ref[len("#/$defs/") :], schema)
+    return schema
+
+
+def _fill_object_defaults(
+    properties: dict[str, Any], value: dict[str, Any], defs: dict[str, Any]
+) -> dict[str, Any]:
+    """Fills the defaults of `properties` into `value`, at every object level."""
+    filled = dict(value)
+    for key, prop in properties.items():
+        prop = _deref_schema(prop, defs)
+        if not isinstance(prop, dict):
+            continue
+        if key not in filled and "default" in prop:
+            filled[key] = copy.deepcopy(prop["default"])
+        nested = prop.get("properties")
+        if isinstance(nested, dict) and isinstance(filled.get(key), dict):
+            filled[key] = _fill_object_defaults(nested, filled[key], defs)
+    return filled
+
+
+def _with_schema_defaults(schema: Any, args: dict[str, Any]) -> dict[str, Any]:
+    """Returns `args` with the defaults of a function's JSON schema filled in.
+
+    A missing argument gets its property's `default`, and so does a missing
+    property of an object argument, at any depth, as a schema parse fills
+    nested model defaults.
+    """
     if not isinstance(schema, dict):
-        return {}
-    properties = _json_schema_properties(schema)
+        return args
+    properties = json_schema_properties(schema)
     if not isinstance(properties, dict):
-        args = schema.get("args")
-        if isinstance(args, dict):
-            return _schema_defaults(args)
-        return {}
-    return {
-        key: copy.deepcopy(prop["default"])
-        for key, prop in properties.items()
-        if isinstance(prop, dict) and "default" in prop
-    }
+        return args
+    defs = schema.get("$defs")
+    return _fill_object_defaults(
+        properties, args, defs if isinstance(defs, dict) else {}
+    )
+
+
+def _merge_parsed_defaults(args: dict[str, Any], parsed: Any) -> dict[str, Any]:
+    """Adds the values a model parse filled in to `args`, at every level.
+
+    Values that `args` holds are kept as they are; only missing keys, such
+    as defaults of nested models, are taken from `parsed`.
+    """
+    if not isinstance(parsed, dict):
+        return args
+    merged = dict(args)
+    for key, value in parsed.items():
+        if key not in merged:
+            if value is not None:
+                merged[key] = copy.deepcopy(value)
+        elif isinstance(merged[key], dict) and isinstance(value, dict):
+            merged[key] = _merge_parsed_defaults(merged[key], value)
+    return merged
+
+
+def _child_signal(parent: AbortSignal | None) -> AbortSignal:
+    """Returns a signal that aborts when `parent` does, or on its own."""
+    child = AbortSignal()
+    if parent is not None:
+        parent.add_event_listener("abort", child.abort)
+    return child
 
 
 def is_single_at_key(key: str) -> bool:
@@ -335,7 +396,13 @@ def validate_reserved_directives(keys: Any, protocol_version: str | None) -> Non
 
 
 class DataContext:
-    """Headless evaluation scope for resolving A2UI dynamic bindings and expressions."""
+    """Headless evaluation scope for resolving A2UI dynamic bindings and expressions.
+
+    Evaluation is single-threaded: resolve values, subscribe and run actions
+    on the event loop that owns the surface, the thread its agent function
+    answers arrive on. Calls whose arguments were pending resume on that
+    loop, with the state captured when they started.
+    """
 
     def __init__(
         self,
@@ -589,6 +656,7 @@ class DataContext:
                     abort_signal=abort_signal,
                     names_catalog=names_catalog,
                     _keep_failed=keep_failed,
+                    can_wait=not peek or keep_failed,
                 )
                 if isinstance(res, _PendingResult) and res.failed and not keep_failed:
                     return None
@@ -626,7 +694,9 @@ class DataContext:
         # 5. Return static literals directly
         return value
 
-    def _resolve_action_values(self, items: list[Any]) -> list[Any] | None:
+    def _resolve_action_values(
+        self, items: list[Any], labels: list[str]
+    ) -> list[Any] | None:
         """Resolves the context values and user message of an event action.
 
         From v1.0 they are resolved in order, see `_resolve_in_order`.
@@ -637,10 +707,10 @@ class DataContext:
         """
         if not self.at_least_v10:
             return [self.resolve_dynamic_value(item) for item in items]
-        return self._resolve_in_order(items, self._capture_scope())
+        return self._resolve_in_order(items, labels, self._capture_scope())
 
     def _resolve_in_order(
-        self, items: list[Any], scope: _EvaluationScope
+        self, items: list[Any], labels: list[str], scope: _EvaluationScope
     ) -> list[Any] | None:
         """Resolves imperative action values one after another.
 
@@ -651,13 +721,22 @@ class DataContext:
         pending results that settle once they have been evaluated, or fail
         without being evaluated if an earlier value fails.
 
+        A malformed value, such as an object with an unknown `@` key, is
+        reported as an `EXPRESSION_ERROR` naming its label, and stops the
+        values after it, whether it is evaluated now or after a pending one.
+
         Returns:
             The resolved values, which may be pending results, or None if a
             value failed synchronously. A failed value has been reported.
         """
         results: list[Any] = []
         for index, item in enumerate(items):
-            value = self._resolve_value(item, True, None, keep_failed=True)
+            try:
+                value = self._resolve_value(item, True, None, keep_failed=True)
+            except Exception as e:
+                if self._dispatch_function_error(e, labels[index]):
+                    return None
+                raise
             if _has_failed_result(value):
                 return None
             results.append(value)
@@ -671,9 +750,10 @@ class DataContext:
                 def _resume(
                     value: Any = value,
                     rest_items: list[Any] = rest_items,
+                    rest_labels: list[str] = labels[index + 1 :],
                     rest: list[_PendingResult] = rest,
                 ) -> None:
-                    self._resume_in_order(value, rest_items, rest, scope)
+                    self._resume_in_order(value, rest_items, rest_labels, rest, scope)
 
                 _when_all_settled(pending, _resume)
                 return results
@@ -683,6 +763,7 @@ class DataContext:
         self,
         settled: Any,
         items: list[Any],
+        labels: list[str],
         placeholders: list[_PendingResult],
         scope: _EvaluationScope,
     ) -> None:
@@ -694,14 +775,10 @@ class DataContext:
         values: list[Any] | None
         try:
             values = self._run_in_scope(
-                scope, lambda: self._resolve_in_order(items, scope)
+                scope, lambda: self._resolve_in_order(items, labels, scope)
             )
         except Exception as e:
-            if self.surface and hasattr(self.surface, "dispatch_error"):
-                self.surface.dispatch_error({
-                    "code": "EXPRESSION_ERROR",
-                    "message": str(e),
-                })
+            # Only reached when the surface can't report errors.
             values = None
         if values is None:
             for placeholder in placeholders:
@@ -741,9 +818,11 @@ class DataContext:
         keys = list(context) if isinstance(context, dict) else []
         has_user_message = evt.get("userMessage") is not None
         items = [context[k] for k in keys] if isinstance(context, dict) else []
+        labels = [f"event.context.{k}" for k in keys]
         if has_user_message:
             items.append(evt["userMessage"])
-        values = self._resolve_action_values(items)
+            labels.append("event.userMessage")
+        values = self._resolve_action_values(items, labels)
         if values is None:
             return None
         if "context" in evt:
@@ -789,7 +868,18 @@ class DataContext:
     def resolve_action(
         self, action: dict[str, Any], is_user_activated: bool = True
     ) -> Any:
-        """Resolves an action by evaluating its top-level dynamic values."""
+        """Resolves an action by evaluating its top-level dynamic values.
+
+        Returns:
+            For a function call action, the function's result. When it waits
+            for an agent function's answer, that is a `Signal` whose value is
+            None until the answer arrives; a call that fails returns None.
+            For an event action, the action with its `context` and
+            `userMessage` resolved, which `SurfaceModel.dispatch_action`
+            accepts. Values still waiting for an agent answer are signals
+            that `dispatch_action` waits for. None if the action failed
+            and was reported.
+        """
         if not isinstance(action, dict):
             return action
 
@@ -807,9 +897,11 @@ class DataContext:
                 keys = list(context) if isinstance(context, dict) else []
                 has_user_message = action.get("userMessage") is not None
                 items = [context[k] for k in keys] if isinstance(context, dict) else []
+                labels = [f"context.{k}" for k in keys]
                 if has_user_message:
                     items.append(action["userMessage"])
-                values = self._resolve_action_values(items)
+                    labels.append("userMessage")
+                values = self._resolve_action_values(items, labels)
                 if values is None:
                     return None
                 if "context" in action:
@@ -846,27 +938,30 @@ class DataContext:
         until `on_change` delivers the result.
         """
 
-        def _on_state(state: _ValueState, value_changed: bool) -> None:
+        def _on_state(state: DynamicValueState, value_changed: bool) -> None:
             if value_changed:
                 on_change(state.value)
 
-        sub = self._subscribe_dynamic_state(value, _on_state)
+        sub = self.subscribe_dynamic_state(value, _on_state)
         return Subscription(sub.unsubscribe, initial_value=sub.value.value)
 
-    def _subscribe_dynamic_state(
+    def subscribe_dynamic_state(
         self,
         value: Any,
-        on_state: Callable[[_ValueState, bool], None],
+        on_state: Callable[[DynamicValueState, bool], None],
     ) -> Subscription:
         """Subscribes to a dynamic value and to whether it is pending.
 
         Like `subscribe_dynamic_value`, but the subscription's `value` is the
-        initial `_ValueState`, and `on_state` gets each later state together
+        initial `DynamicValueState`, and `on_state` gets each later state together
         with whether its value changed. A pending result that fails, or
         settles to the value it already had, changes only the state.
 
         A call that failed is not sent again when the value is re-evaluated
         because a path it does not depend on changed; see `_AgentCallMemory`.
+
+        Internal: `GenericBinder` uses it for check rules. It is not part of
+        the package's public API.
         """
         paths: set[str] = set()
 
@@ -901,12 +996,12 @@ class DataContext:
         abort_controller: list[AbortSignal] = []
         agent_calls = _AgentCallMemory()
         current_raw: list[Any] = [None]
-        state: list[_ValueState] = [_ValueState(None, False)]
+        state: list[DynamicValueState] = [DynamicValueState(None, False)]
         has_value: list[bool] = [False]
         is_sync: list[bool] = [True]
 
         def _publish(new_val: Any, value_changed: bool = True) -> None:
-            new_state = _ValueState(new_val, _is_pending(current_raw[0]))
+            new_state = DynamicValueState(new_val, _is_pending(current_raw[0]))
             if not value_changed and new_state.pending == state[0].pending:
                 return
             state[0] = new_state
@@ -1023,6 +1118,7 @@ class DataContext:
         _keep_failed: bool = False,
         is_action: bool = False,
         is_user_activated: bool | None = None,
+        can_wait: bool = True,
     ) -> Any:
         """Validates, resolves and runs a function call.
 
@@ -1046,7 +1142,16 @@ class DataContext:
         to a function that the resolved catalog does not implement
         (undeclared, or declared schema-only) is routed to the agent; see
         ``_call_agent_function``. A call whose catalog cannot be resolved
-        is a ``CATALOG_ERROR`` and is never routed.
+        is a ``CATALOG_ERROR`` and is never routed. Neither is a call whose
+        caller can't wait for the answer (``can_wait`` is False), such as a
+        one-shot ``resolve_dynamic_value`` read, a ``formatString`` template
+        part or an argument of an agent's ``callRendererFunction``: it is an
+        ``EXPRESSION_ERROR``, and nothing is sent.
+
+        A local function that raises while an action runs (its
+        ``functionCall``, or an event's ``context`` or ``userMessage``) is an
+        ``EXECUTION_ERROR``; argument and lookup failures are
+        ``EXPRESSION_ERROR``.
 
         A nested call whose result arrives later (an agent function) leaves
         an argument pending. The call then runs once every such argument has
@@ -1060,6 +1165,7 @@ class DataContext:
         effective_user_activated = (
             self.is_user_activated if is_user_activated is None else is_user_activated
         )
+        in_action = is_action or self._in_action_execution
         try:
             if isinstance(raw_args, dict) and len(raw_args) > MAX_FUNCTION_CALL_ARGS:
                 raise A2uiExpressionError(
@@ -1101,6 +1207,12 @@ class DataContext:
                         " (allowedCallers is agentOnly)."
                     )
                 if self._routes_to_agent(fn):
+                    if not can_wait:
+                        raise A2uiExpressionError(
+                            f"Function '{name}' is not implemented locally, and"
+                            " its result can't be awaited here, so it was not"
+                            " sent to the agent."
+                        )
                     return self._call_agent_function(
                         name,
                         raw_args,
@@ -1129,10 +1241,7 @@ class DataContext:
             # An event action's context and user message are imperative too,
             # so a function in them needs the action's user activation.
             self._check_action_user_activation(
-                fn,
-                name,
-                is_action or self._in_action_execution,
-                effective_user_activated,
+                fn, name, in_action, effective_user_activated
             )
             local_fn = fn
             local_catalog = target_catalog
@@ -1148,17 +1257,19 @@ class DataContext:
                     ),
                 )
 
+            args_signal = _child_signal(abort_signal)
             return self._run_when_args_settled(
                 name,
-                self._resolve_value(raw_args, False, abort_signal, keep_failed=True),
+                self._resolve_value(raw_args, False, args_signal, keep_failed=True),
                 _run_local,
                 abort_signal,
-                is_action=is_action,
+                is_action=in_action,
+                args_signal=args_signal,
             )
         except Exception as e:
             if _is_cancellation(e):
                 return _failed_result() if _keep_failed else None
-            err_code = self._resolve_function_error_code(e, is_action, in_body)
+            err_code = self._resolve_function_error_code(e, in_action, in_body)
             if self._dispatch_function_error(e, name, code_override=err_code):
                 if _keep_failed:
                     failed = _PendingResult()
@@ -1249,6 +1360,7 @@ class DataContext:
         *,
         is_action: bool = False,
         in_body: bool = True,
+        args_signal: AbortSignal | None = None,
     ) -> Any:
         """Runs a call once its arguments have settled.
 
@@ -1260,20 +1372,34 @@ class DataContext:
         pending argument failed. The failure of a pending argument has been
         reported already, so the call is not run and its result fails too.
 
+        Sibling arguments are resolved together. As soon as one fails, the
+        call fails and `args_signal`, the signal its arguments were resolved
+        with, is aborted, so siblings still waiting send nothing more and
+        their late answers or failures are dropped silently.
+
         `in_body` says whether an error that `run` raises comes from the
         function's own body, which classifies it for an action.
         """
         pending: list[_PendingResult] = []
         _collect_pending(resolved_args, pending)
+        if _has_failed_result(resolved_args):
+            if pending and args_signal is not None:
+                args_signal.abort()
+            return _failed_result()
         if not pending:
-            if _has_failed_result(resolved_args):
-                return _failed_result()
             return run(self._settled_value(resolved_args))
 
         deferred = _PendingResult()
         remaining = [len(pending)]
 
         def _on_arg_settled() -> None:
+            if deferred.settled:
+                return
+            if _has_failed_result(resolved_args):
+                if args_signal is not None:
+                    args_signal.abort()
+                deferred.fail()
+                return
             remaining[0] -= 1
             if remaining[0] > 0:
                 return
@@ -1364,7 +1490,9 @@ class DataContext:
         settle first. Then a declared function's resolved arguments are
         validated against its schema, and the arguments sent are those a
         local implementation would receive, with the schema's defaults filled
-        in. An undeclared function's arguments are sent as they resolve.
+        in at every object level, as a parse of the schema fills them whether
+        the catalog was defined in code or read from a document. An
+        undeclared function's arguments are sent as they resolve.
         Arguments with no faithful JSON form (such as NaN) are not sent. The
         call always names the catalog it resolved to.
 
@@ -1386,7 +1514,6 @@ class DataContext:
             self.is_user_activated if is_user_activated is None else is_user_activated
         )
         agent_calls = self._agent_calls
-        defaults: dict[str, Any] = {}
         args_schema: Any = None
         if fn is None:
             PayloadValidator(
@@ -1404,7 +1531,7 @@ class DataContext:
             # schema may not admit, so only their envelope is checked here.
             # The schema is checked once they have resolved.
             try:
-                PayloadValidator(catalog=target_catalog)._validate_function_identifiers(
+                PayloadValidator(catalog=target_catalog).validate_function_identifiers(
                     name, raw_args
                 )
             except A2uiValidationError as e:
@@ -1413,7 +1540,6 @@ class DataContext:
                     details=e.details,
                 ) from e
             args_schema = _function_args_schema(target_catalog, fn)
-            defaults = _schema_defaults(args_schema)
 
         bypass_cache = is_action or self._in_action_execution
 
@@ -1426,8 +1552,7 @@ class DataContext:
             )
             if fn is not None:
                 args = coerce_validation_results(args_schema, args)
-                for arg_name, default in defaults.items():
-                    args.setdefault(arg_name, copy.deepcopy(default))
+                args = _with_schema_defaults(args_schema, args)
                 try:
                     validated = PayloadValidator(
                         catalog=target_catalog
@@ -1437,13 +1562,12 @@ class DataContext:
                         f"Validation failed for function '{name}': {e}",
                         details=e.details,
                     ) from e
-                # Validating against a Pydantic model fills in its defaults.
-                for arg_name, parsed in (validated or {}).items():
-                    if parsed is not None and arg_name not in args:
-                        args[arg_name] = copy.deepcopy(parsed)
+                # Validating against a Pydantic model fills in its defaults,
+                # those of nested models included.
+                args = _merge_parsed_defaults(args, validated)
             call = AgentFunctionCall(call=name, catalog_id=catalog_id, args=args)
             key: str | None = (
-                None if bypass_cache or agent_calls is None else _agent_call_key(call)
+                None if bypass_cache or agent_calls is None else agent_call_key(call)
             )
             if key is not None and agent_calls is not None and agent_calls.make(key):
                 # The subscription saw this call fail; it was reported then.
@@ -1487,11 +1611,13 @@ class DataContext:
             future.add_done_callback(_on_response)
             return result
 
+        args_signal = _child_signal(abort_signal)
         return self._run_when_args_settled(
             name,
-            self._resolve_value(raw_args, False, abort_signal, keep_failed=True),
+            self._resolve_value(raw_args, False, args_signal, keep_failed=True),
             _send,
             abort_signal,
             is_action=is_action,
             in_body=False,
+            args_signal=args_signal,
         )

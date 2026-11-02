@@ -17,13 +17,13 @@ from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Sequence
 import copy
 from dataclasses import dataclass, field
+import inspect
 import json
-import math
 from typing import Any
 import warnings
 
 from ..catalog import CatalogApi
-from ..common.event_loop import get_or_create_event_loop
+from ..common.event_loop import get_or_create_event_loop, running_loop
 from ..common.events import AbortSignal, EventSource
 from ..common.metadata import (
     A2uiMetadata,
@@ -69,45 +69,50 @@ class AgentFunctionCall:
 AgentFunctionCaller = Callable[[AgentFunctionCall], Awaitable[Any]]
 """Sends a function call to the agent and resolves with the agent's result.
 
-`MessageProcessor` installs one on each v1.0 surface when it has an
-`outbound_listener`; it dispatches `callAgentFunction` through the processor's
-`RpcHandler`.
+It returns an awaitable (a future, a task or a coroutine) that resolves with
+the agent's answer, or raises with its error. It may also raise
+synchronously: an `A2uiRpcError` with code `CANCELLED` fails the call
+silently, and any other exception is reported as an `EXPRESSION_ERROR`. A
+caller that returns something that is not awaitable, such as None, fails
+the call with an `EXPRESSION_ERROR` saying so.
+
+It is called on the event loop that owns the surface. `MessageProcessor`
+installs one on each v1.0 surface when it has an `outbound_listener`; it
+dispatches `callAgentFunction` through the processor's `RpcHandler`.
 """
 
 
-def _is_plain_json(value: Any) -> bool:
-    """Returns whether `value` has a faithful JSON form.
+def _has_only_string_keys(value: Any) -> bool:
+    """Returns whether every object nested in `value` has string keys.
 
-    That is None, a bool, an int, a finite float, a string, or a list or a
-    dict with string keys of such values. NaN and infinities, non-string
-    keys and other types have none: `json.dumps` would reject them or change
-    them.
+    `json.dumps` turns other keys into strings, which changes the data.
     """
-    value_type = type(value)
-    if value is None or value_type in (bool, int, str):
-        return True
-    if value_type is float:
-        return math.isfinite(value)
-    if value_type is list:
-        return all(_is_plain_json(item) for item in value)
-    if value_type is dict:
+    if isinstance(value, dict):
         return all(
-            type(key) is str and _is_plain_json(item) for key, item in value.items()
+            isinstance(key, str) and _has_only_string_keys(item)
+            for key, item in value.items()
         )
-    return False
+    if isinstance(value, (list, tuple)):
+        return all(_has_only_string_keys(item) for item in value)
+    return True
 
 
-def _agent_call_key(call: AgentFunctionCall) -> str | None:
+def agent_call_key(call: AgentFunctionCall) -> str | None:
     """Builds the key that identifies identical agent function calls.
 
     The key is the canonical JSON form of the catalog, the function name and
     the arguments, with object keys sorted at every level and array order
-    kept.
+    kept. Arguments have a JSON form when `json.dumps(..., allow_nan=False)`
+    accepts them, which includes tuples and `str` or `int` based enums, and
+    every object key is a string.
+
+    Internal: `DataContext` uses it to remember failed calls. It is not part
+    of the public API.
 
     Returns:
         The key, or None if the arguments have no faithful JSON form.
     """
-    if not _is_plain_json(call.args):
+    if not _has_only_string_keys(call.args):
         return None
     try:
         return json.dumps(
@@ -224,7 +229,7 @@ class SurfaceModel:
 
     @agent_function_caller.setter
     def agent_function_caller(self, caller: AgentFunctionCaller | None) -> None:
-        if caller == self._agent_function_caller:
+        if caller is self._agent_function_caller:
             return
         self._agent_function_caller = caller
         self._in_flight_agent_calls.clear()
@@ -354,16 +359,21 @@ class SurfaceModel:
             bypass_cache: When True, bypasses in-flight sharing and settled
                 answer caching (used for imperative action calls).
 
+        Call it on the event loop that owns the surface. Off a running loop,
+        such as from synchronous code or a worker thread, only a cached
+        answer can be read; a call that would have to be sent fails at once,
+        since its answer could never arrive there.
+
         Returns:
-            A future resolving to the agent's result. Callers that are not on
-            a running event loop, such as synchronous code or a worker
-            thread, can still read a cached answer from it right away.
+            A future resolving to the agent's result. A cached answer's future
+            is done already, so code off the loop can read it.
 
         Raises:
             A2uiRpcError: With code `CANCELLED` if the surface is disposed.
-            A2uiExpressionError: If no `agent_function_caller` is set, or the
+            A2uiExpressionError: If no `agent_function_caller` is set, the
                 arguments have no faithful JSON form (such as NaN or an
-                infinity).
+                infinity), the call would have to be sent while no event loop
+                is running, or the caller returns something not awaitable.
         """
         if self._disposed:
             raise A2uiRpcError(
@@ -376,7 +386,7 @@ class SurfaceModel:
                 f"Function '{call.call}' is not implemented locally and surface"
                 f" '{self.id}' cannot call the agent."
             )
-        key = _agent_call_key(call)
+        key = agent_call_key(call)
         if key is None:
             raise A2uiExpressionError(
                 f"Function '{call.call}' arguments are not valid JSON, so the"
@@ -384,15 +394,22 @@ class SurfaceModel:
             )
         if abort_signal is not None and abort_signal.aborted:
             return _settled_future(None)
-        if bypass_cache:
-            return self._send_agent_call(caller, call)
-        if key in self._settled_agent_calls:
+        if not bypass_cache and key in self._settled_agent_calls:
             self._settled_agent_calls.move_to_end(key)
             return _settled_future(copy.deepcopy(self._settled_agent_calls[key]))
+        loop = running_loop()
+        if loop is None:
+            raise A2uiExpressionError(
+                f"Function '{call.call}' was not sent to the agent: no event loop"
+                " is running in this thread, so its answer could never arrive."
+                " Evaluate the surface on the event loop that owns it."
+            )
+        if bypass_cache:
+            return self._send_agent_call(caller, call, loop)
         in_flight = self._in_flight_agent_calls.get(key)
         if in_flight is not None:
             return _isolated_future(in_flight)
-        pending = self._send_agent_call(caller, call)
+        pending = self._send_agent_call(caller, call, loop)
         self._in_flight_agent_calls[key] = pending
 
         def _release(done: asyncio.Future[Any]) -> None:
@@ -418,13 +435,20 @@ class SurfaceModel:
 
     @staticmethod
     def _send_agent_call(
-        caller: AgentFunctionCaller, call: AgentFunctionCall
+        caller: AgentFunctionCaller,
+        call: AgentFunctionCall,
+        loop: asyncio.AbstractEventLoop,
     ) -> asyncio.Future[Any]:
         """Sends `call` through `caller` and returns its result as a future."""
-        sent = caller(call)
+        sent: Any = caller(call)
         if isinstance(sent, asyncio.Future):
             return sent
-        return asyncio.ensure_future(sent, loop=get_or_create_event_loop())
+        if not inspect.isawaitable(sent):
+            raise A2uiExpressionError(
+                f"The agent function caller returned {type(sent).__name__} for"
+                f" function '{call.call}'; it must return an awaitable."
+            )
+        return asyncio.ensure_future(sent, loop=loop)
 
     def dispatch_action(
         self,

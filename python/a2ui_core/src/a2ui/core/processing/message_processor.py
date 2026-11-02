@@ -589,8 +589,9 @@ class MessageProcessor:
             if isinstance(op, InternalCreateSurfaceOp):
                 self._process_create_surface_op(op)
             elif isinstance(op, InternalDeleteSurfaceOp):
+                # Deleting the surface cancels its pending agent calls, through
+                # the on_surface_deleted subscription.
                 self.model.delete_surface(op.surface_id)
-                self.rpc.cancel_surface_calls(op.surface_id)
             elif isinstance(op, InternalUpdateComponentsOp):
                 self._process_update_components_op(op)
             elif isinstance(op, InternalUpdateDataModelOp):

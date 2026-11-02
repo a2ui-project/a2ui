@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import asyncio
+import enum
 import inspect
 import threading
 from typing import Any
@@ -25,6 +26,7 @@ import pytest
 from pydantic import BaseModel, ConfigDict
 
 from a2ui.core import (
+    A2uiExpressionError,
     A2uiRpcError,
     AgentFunctionCall,
     Catalog,
@@ -129,6 +131,24 @@ def _streaming(stream: Signal[Any]) -> FunctionImplementation[Any]:
     )
 
 
+def _read(
+    ctx: DataContext,
+    value: Any,
+    peek: bool = True,
+    abort_signal: Any = None,
+) -> Any:
+    """Resolves `value` the way a caller that can wait for an agent does.
+
+    A one-shot peeked read can't wait for an agent function's answer, so it
+    is never routed. This reads through a pending signal instead and, when
+    `peek` is True, returns its current value.
+    """
+    result = ctx.resolve_dynamic_value(value, peek=False, abort_signal=abort_signal)
+    if peek and isinstance(result, Signal):
+        return result.peek()
+    return result
+
+
 async def _flush() -> None:
     """Lets the event loop run the callbacks of settled futures."""
     for _ in range(5):
@@ -184,9 +204,7 @@ class _Harness:
 @pytest.mark.asyncio
 async def test_sends_undeclared_function_with_resolved_catalog_id() -> None:
     h = _Harness()
-    result = h.ctx.resolve_dynamic_value(
-        {"@call": "fetchFxRate", "args": {"base": "EUR"}}, peek=False
-    )
+    result = _read(h.ctx, {"@call": "fetchFxRate", "args": {"base": "EUR"}}, peek=False)
 
     assert len(h.outbound) == 1
     assert h.outbound[0]["callAgentFunction"]["callFunction"] == {
@@ -206,10 +224,7 @@ async def test_sends_undeclared_function_with_resolved_catalog_id() -> None:
 @pytest.mark.asyncio
 async def test_peeked_value_is_none_while_pending() -> None:
     h = _Harness()
-    assert (
-        h.ctx.resolve_dynamic_value({"@call": "fetchFxRate", "args": {"base": "EUR"}})
-        is None
-    )
+    assert _read(h.ctx, {"@call": "fetchFxRate", "args": {"base": "EUR"}}) is None
     assert len(h.outbound) == 1
 
 
@@ -232,16 +247,15 @@ async def test_binding_subscription_receives_agent_result() -> None:
 async def test_settles_bound_arguments_before_sending() -> None:
     h = _Harness()
     h.surface.data_model.set("/base", "EUR")
-    h.ctx.resolve_dynamic_value(
-        {"@call": "fetchFxRate", "args": {"base": {"@path": "/base"}}}
-    )
+    _read(h.ctx, {"@call": "fetchFxRate", "args": {"base": {"@path": "/base"}}})
     assert h.outbound[0]["callAgentFunction"]["callFunction"]["args"] == {"base": "EUR"}
 
 
 @pytest.mark.asyncio
 async def test_feeds_agent_result_into_local_function() -> None:
     h = _Harness()
-    result = h.ctx.resolve_dynamic_value(
+    result = _read(
+        h.ctx,
         {
             "@call": "upper",
             "args": {"value": {"@call": "fetchGreeting", "args": {}}},
@@ -260,7 +274,8 @@ async def test_feeds_agent_result_into_local_function() -> None:
 @pytest.mark.asyncio
 async def test_feeds_agent_result_into_agent_function() -> None:
     h = _Harness()
-    result = h.ctx.resolve_dynamic_value(
+    result = _read(
+        h.ctx,
         {
             "@call": "convert",
             "args": {"rate": {"@call": "fetchFxRate", "args": {"base": "EUR"}}},
@@ -282,7 +297,8 @@ async def test_feeds_agent_result_into_agent_function() -> None:
 @pytest.mark.asyncio
 async def test_failed_argument_does_not_run_outer_call() -> None:
     h = _Harness()
-    result = h.ctx.resolve_dynamic_value(
+    result = _read(
+        h.ctx,
         {
             "@call": "upper",
             "args": {"value": {"@call": "fetchGreeting", "args": {}}},
@@ -299,15 +315,13 @@ async def test_failed_argument_does_not_run_outer_call() -> None:
 @pytest.mark.asyncio
 async def test_validates_and_parses_schema_only_function_arguments() -> None:
     h = _Harness()
-    h.ctx.resolve_dynamic_value({"@call": "quote", "args": {"symbol": 42}})
+    _read(h.ctx, {"@call": "quote", "args": {"symbol": 42}})
     assert h.outbound == []
     assert len(h.errors) == 1
     assert h.errors[0]["code"] == "EXPRESSION_ERROR"
     assert "Validation failed for function 'quote'" in h.errors[0]["message"]
 
-    result = h.ctx.resolve_dynamic_value(
-        {"@call": "quote", "args": {"symbol": "GOOG"}}, peek=False
-    )
+    result = _read(h.ctx, {"@call": "quote", "args": {"symbol": "GOOG"}}, peek=False)
     assert len(h.outbound) == 1
     assert h.outbound[0]["callAgentFunction"]["callFunction"]["args"] == {
         "symbol": "GOOG",
@@ -321,7 +335,7 @@ async def test_validates_and_parses_schema_only_function_arguments() -> None:
 @pytest.mark.asyncio
 async def test_schema_only_function_requiring_user_activation() -> None:
     h = _Harness()
-    h.ctx.resolve_dynamic_value({"@call": "confirmOrder", "args": {"order_id": "o-1"}})
+    _read(h.ctx, {"@call": "confirmOrder", "args": {"order_id": "o-1"}})
     assert h.outbound == []
     assert len(h.errors) == 1
     assert h.errors[0]["code"] == "EXPRESSION_ERROR"
@@ -336,10 +350,7 @@ async def test_schema_only_function_requiring_user_activation() -> None:
 
 def test_agent_only_function_is_not_routed() -> None:
     h = _Harness()
-    assert (
-        h.ctx.resolve_dynamic_value({"@call": "lookupAccount", "args": {"value": "a"}})
-        is None
-    )
+    assert _read(h.ctx, {"@call": "lookupAccount", "args": {"value": "a"}}) is None
     h.ctx.resolve_action(
         {"functionCall": {"@call": "lookupAccount", "args": {"value": "a"}}}
     )
@@ -353,19 +364,14 @@ def test_agent_only_function_is_not_routed() -> None:
 
 def test_runs_implemented_function_locally() -> None:
     h = _Harness()
-    assert (
-        h.ctx.resolve_dynamic_value({"@call": "upper", "args": {"value": "abc"}})
-        == "ABC"
-    )
+    assert _read(h.ctx, {"@call": "upper", "args": {"value": "abc"}}) == "ABC"
     assert h.outbound == []
 
 
 @pytest.mark.asyncio
 async def test_reports_agent_error_as_expression_error() -> None:
     h = _Harness()
-    result = h.ctx.resolve_dynamic_value(
-        {"@call": "fetchFxRate", "args": {"base": "EUR"}}, peek=False
-    )
+    result = _read(h.ctx, {"@call": "fetchFxRate", "args": {"base": "EUR"}}, peek=False)
     h.respond(
         0,
         error={"code": "UNKNOWN_FUNCTION", "message": "No such function: fetchFxRate"},
@@ -380,9 +386,7 @@ async def test_reports_agent_error_as_expression_error() -> None:
 @pytest.mark.asyncio
 async def test_reports_timeout_as_expression_error() -> None:
     h = _Harness(default_timeout_ms=5)
-    result = h.ctx.resolve_dynamic_value(
-        {"@call": "fetchFxRate", "args": {"base": "EUR"}}, peek=False
-    )
+    result = _read(h.ctx, {"@call": "fetchFxRate", "args": {"base": "EUR"}}, peek=False)
     await asyncio.sleep(0.05)
     await _flush()
     assert result.peek() is None
@@ -395,8 +399,8 @@ async def test_reports_timeout_as_expression_error() -> None:
 async def test_identical_calls_share_request_and_cache_settled_answer() -> None:
     h = _Harness()
     call = {"@call": "fetchFxRate", "args": {"base": "EUR"}}
-    first = h.ctx.resolve_dynamic_value(call, peek=False)
-    second = h.ctx.resolve_dynamic_value(call, peek=False)
+    first = _read(h.ctx, call, peek=False)
+    second = _read(h.ctx, call, peek=False)
     assert len(h.outbound) == 1
 
     h.respond(0, value=1.08)
@@ -404,7 +408,7 @@ async def test_identical_calls_share_request_and_cache_settled_answer() -> None:
     assert (first.peek(), second.peek()) == (1.08, 1.08)
 
     # Once answered, reactive bindings reuse the settled answer from the surface cache.
-    assert h.ctx.resolve_dynamic_value(call) == 1.08
+    assert _read(h.ctx, call) == 1.08
     assert len(h.outbound) == 1
 
 
@@ -441,13 +445,13 @@ async def test_reactive_binding_flips_back_to_cached_answer_without_rpc() -> Non
 async def test_failed_call_is_evicted_so_retry_sends_new_request() -> None:
     h = _Harness()
     call = {"@call": "fetchFxRate", "args": {"base": "EUR"}}
-    first = h.ctx.resolve_dynamic_value(call, peek=False)
+    first = _read(h.ctx, call, peek=False)
     h.respond(0, error={"code": "UNKNOWN_FUNCTION", "message": "temporary error"})
     await _flush()
     assert first.peek() is None
     assert len(h.errors) == 1
 
-    second = h.ctx.resolve_dynamic_value(call, peek=False)
+    second = _read(h.ctx, call, peek=False)
     assert len(h.outbound) == 2
     h.respond(1, value=1.08)
     await _flush()
@@ -459,7 +463,7 @@ async def test_action_calls_never_share_or_cache() -> None:
     h = _Harness()
     call = {"@call": "fetchFxRate", "args": {"base": "EUR"}}
     # Populate the reactive cache first.
-    reactive = h.ctx.resolve_dynamic_value(call, peek=False)
+    reactive = _read(h.ctx, call, peek=False)
     h.respond(0, value=1.08)
     await _flush()
     assert reactive.peek() == 1.08
@@ -532,8 +536,8 @@ async def test_event_action_waiting_for_agent_function_keeps_metadata() -> None:
 @pytest.mark.asyncio
 async def test_different_arguments_send_separate_requests() -> None:
     h = _Harness()
-    h.ctx.resolve_dynamic_value({"@call": "fetchFxRate", "args": {"base": "EUR"}})
-    h.ctx.resolve_dynamic_value({"@call": "fetchFxRate", "args": {"base": "USD"}})
+    _read(h.ctx, {"@call": "fetchFxRate", "args": {"base": "EUR"}})
+    _read(h.ctx, {"@call": "fetchFxRate", "args": {"base": "USD"}})
     assert len(h.outbound) == 2
 
 
@@ -573,11 +577,14 @@ async def test_aborted_evaluation_ignores_response() -> None:
 @pytest.mark.asyncio
 async def test_unavailable_catalog_is_catalog_error() -> None:
     h = _Harness()
-    h.ctx.resolve_dynamic_value({
-        "@call": "fetchFxRate",
-        "catalogId": "https://example.com/unknown.json",
-        "args": {},
-    })
+    _read(
+        h.ctx,
+        {
+            "@call": "fetchFxRate",
+            "catalogId": "https://example.com/unknown.json",
+            "args": {},
+        },
+    )
     assert h.outbound == []
     assert len(h.errors) == 1
     assert h.errors[0]["code"] == "CATALOG_ERROR"
@@ -586,7 +593,7 @@ async def test_unavailable_catalog_is_catalog_error() -> None:
 @pytest.mark.asyncio
 async def test_system_functions_are_never_routed() -> None:
     h = _Harness()
-    h.ctx.resolve_dynamic_value({"@call": "@unknownSystemFunction", "args": {}})
+    _read(h.ctx, {"@call": "@unknownSystemFunction", "args": {}})
     assert h.outbound == []
     assert len(h.errors) == 1
     assert h.errors[0]["code"] == "EXPRESSION_ERROR"
@@ -595,10 +602,7 @@ async def test_system_functions_are_never_routed() -> None:
 def test_keeps_failing_locally_without_outbound_listener() -> None:
     h = _Harness(outbound_listener=False)
     assert h.surface.agent_function_caller is None
-    assert (
-        h.ctx.resolve_dynamic_value({"@call": "fetchFxRate", "args": {"base": "EUR"}})
-        is None
-    )
+    assert _read(h.ctx, {"@call": "fetchFxRate", "args": {"base": "EUR"}}) is None
     assert len(h.errors) == 1
     assert h.errors[0]["code"] == "EXPRESSION_ERROR"
     assert "Unrecognized function 'fetchFxRate'" in h.errors[0]["message"]
@@ -607,7 +611,7 @@ def test_keeps_failing_locally_without_outbound_listener() -> None:
 def test_does_not_route_calls_on_pre_1_0_surface() -> None:
     h = _Harness(version="0.9")
     assert h.surface.agent_function_caller is None
-    h.ctx.resolve_dynamic_value({"call": "fetchFxRate", "args": {}})
+    _read(h.ctx, {"call": "fetchFxRate", "args": {}})
     assert h.outbound == []
     assert len(h.errors) == 1
     assert h.errors[0]["code"] == "EXPRESSION_ERROR"
@@ -681,9 +685,7 @@ async def test_applies_json_schema_defaults_of_schema_only_function() -> None:
     }])
     surface = proc.model.get_surface("s1")
     assert surface is not None
-    DataContext(surface, "/").resolve_dynamic_value(
-        {"@call": "quote", "args": {"symbol": "GOOG"}}
-    )
+    _read(DataContext(surface, "/"), {"@call": "quote", "args": {"symbol": "GOOG"}})
     assert outbound[0]["callAgentFunction"]["callFunction"]["args"] == {
         "symbol": "GOOG",
         "currency": "USD",
@@ -692,24 +694,30 @@ async def test_applies_json_schema_defaults_of_schema_only_function() -> None:
 
 def test_synchronous_nested_argument_failure_stops_enclosing_calls() -> None:
     h = _Harness()
-    res = h.ctx.resolve_dynamic_value({
-        "@call": "formatPrice",
-        "args": {
-            "amount": {"@call": "quote", "args": {"symbol": 123}},
+    res = _read(
+        h.ctx,
+        {
+            "@call": "formatPrice",
+            "args": {
+                "amount": {"@call": "quote", "args": {"symbol": 123}},
+            },
         },
-    })
+    )
     assert res is None
     assert h.outbound == []
     assert len(h.errors) == 1
     assert h.errors[0]["expression"] == "quote"
 
     h.errors.clear()
-    res_agent = h.ctx.resolve_dynamic_value({
-        "@call": "outerAgent",
-        "args": {
-            "nested": {"@call": "quote", "args": {"symbol": 123}},
+    res_agent = _read(
+        h.ctx,
+        {
+            "@call": "outerAgent",
+            "args": {
+                "nested": {"@call": "quote", "args": {"symbol": 123}},
+            },
         },
-    })
+    )
     assert res_agent is None
     assert h.outbound == []
     assert len(h.errors) == 1
@@ -887,19 +895,28 @@ async def test_event_action_honors_user_activation() -> None:
 @pytest.mark.asyncio
 async def test_call_keys_are_canonical() -> None:
     h = _Harness()
-    h.ctx.resolve_dynamic_value({
-        "@call": "fetchFxRate",
-        "args": {"pair": {"base": "EUR", "quote": "USD"}, "days": [1, 2]},
-    })
-    h.ctx.resolve_dynamic_value({
-        "@call": "fetchFxRate",
-        "args": {"days": [1, 2], "pair": {"quote": "USD", "base": "EUR"}},
-    })
+    _read(
+        h.ctx,
+        {
+            "@call": "fetchFxRate",
+            "args": {"pair": {"base": "EUR", "quote": "USD"}, "days": [1, 2]},
+        },
+    )
+    _read(
+        h.ctx,
+        {
+            "@call": "fetchFxRate",
+            "args": {"days": [1, 2], "pair": {"quote": "USD", "base": "EUR"}},
+        },
+    )
     assert len(h.outbound) == 1, "key order does not matter"
-    h.ctx.resolve_dynamic_value({
-        "@call": "fetchFxRate",
-        "args": {"days": [2, 1], "pair": {"quote": "USD", "base": "EUR"}},
-    })
+    _read(
+        h.ctx,
+        {
+            "@call": "fetchFxRate",
+            "args": {"days": [2, 1], "pair": {"quote": "USD", "base": "EUR"}},
+        },
+    )
     assert len(h.outbound) == 2, "array order does"
 
 
@@ -910,9 +927,7 @@ async def test_arguments_that_are_not_json_fail_locally(bad: float) -> None:
     h.surface.data_model.set("/rate", bad)
     for _ in range(2):
         assert (
-            h.ctx.resolve_dynamic_value(
-                {"@call": "convert", "args": {"rate": {"@path": "/rate"}}}
-            )
+            _read(h.ctx, {"@call": "convert", "args": {"rate": {"@path": "/rate"}}})
             is None
         )
     h.ctx.resolve_action(
@@ -929,9 +944,7 @@ async def test_arguments_that_are_not_json_fail_locally(bad: float) -> None:
 @pytest.mark.asyncio
 async def test_null_argument_is_sent() -> None:
     h = _Harness()
-    h.ctx.resolve_dynamic_value(
-        {"@call": "convert", "args": {"rate": {"@path": "/missing"}}}
-    )
+    _read(h.ctx, {"@call": "convert", "args": {"rate": {"@path": "/missing"}}})
     assert h.outbound[0]["callAgentFunction"]["callFunction"]["args"] == {"rate": None}
 
 
@@ -939,10 +952,10 @@ async def test_null_argument_is_sent() -> None:
 async def test_replacing_the_caller_drops_cached_and_in_flight_calls() -> None:
     h = _Harness()
     call = {"@call": "fetchFxRate", "args": {"base": "EUR"}}
-    h.ctx.resolve_dynamic_value(call)
+    _read(h.ctx, call)
     h.respond(0, value=1.08)
     await _flush()
-    assert h.ctx.resolve_dynamic_value(call) == 1.08
+    assert _read(h.ctx, call) == 1.08
 
     loop = asyncio.get_running_loop()
     sent: list[AgentFunctionCall] = []
@@ -954,13 +967,13 @@ async def test_replacing_the_caller_drops_cached_and_in_flight_calls() -> None:
         return answers[-1]
 
     h.surface.agent_function_caller = replacement
-    assert h.ctx.resolve_dynamic_value(call) is None, "the old answer is dropped"
+    assert _read(h.ctx, call) is None, "the old answer is dropped"
     assert len(sent) == 1
 
     # Clearing the caller drops the call in flight too.
     h.surface.agent_function_caller = None
     h.surface.agent_function_caller = replacement
-    h.ctx.resolve_dynamic_value(call)
+    _read(h.ctx, call)
     assert len(sent) == 2
 
 
@@ -991,17 +1004,17 @@ async def test_answer_arriving_after_caller_replacement_is_not_cached() -> None:
 async def test_cached_and_shared_answers_are_copies() -> None:
     h = _Harness()
     call = {"@call": "fetchQuote", "args": {}}
-    first = h.ctx.resolve_dynamic_value(call, peek=False)
-    second = h.ctx.resolve_dynamic_value(call, peek=False)
+    first = _read(h.ctx, call, peek=False)
+    second = _read(h.ctx, call, peek=False)
     h.respond(0, value={"prices": [1]})
     await _flush()
 
     first.peek()["prices"].append(2)
     assert second.peek() == {"prices": [1]}
-    cached = h.ctx.resolve_dynamic_value(call)
+    cached = _read(h.ctx, call)
     assert cached == {"prices": [1]}
     cached["prices"].append(3)
-    assert h.ctx.resolve_dynamic_value(call) == {"prices": [1]}
+    assert _read(h.ctx, call) == {"prices": [1]}
     assert len(h.outbound) == 1
 
 
@@ -1063,8 +1076,8 @@ def test_aborted_evaluation_sends_nothing() -> None:
     h = _Harness()
     signal = AbortSignal()
     signal.abort()
-    result = h.ctx.resolve_dynamic_value(
-        {"@call": "fetchFxRate", "args": {}}, peek=False, abort_signal=signal
+    result = _read(
+        h.ctx, {"@call": "fetchFxRate", "args": {}}, peek=False, abort_signal=signal
     )
     assert result.peek() is None
     assert h.outbound == []
@@ -1143,16 +1156,14 @@ async def test_schema_only_arguments_are_validated_after_they_resolve() -> None:
     surface.data_model.set("/bad", 42)
     ctx = DataContext(surface, "/")
 
-    ctx.resolve_dynamic_value(
-        {"@call": "quote", "args": {"symbol": {"@path": "/symbol"}}}
-    )
+    _read(ctx, {"@call": "quote", "args": {"symbol": {"@path": "/symbol"}}})
     assert errors == [], "a binding in the raw arguments is not rejected"
     assert outbound[0]["callAgentFunction"]["callFunction"]["args"] == {
         "symbol": "GOOG",
         "currency": "USD",
     }
 
-    ctx.resolve_dynamic_value({"@call": "quote", "args": {"symbol": {"@path": "/bad"}}})
+    _read(ctx, {"@call": "quote", "args": {"symbol": {"@path": "/bad"}}})
     assert len(outbound) == 1, "an invalid resolved argument is not sent"
     assert [e["code"] for e in errors] == ["EXPRESSION_ERROR"]
     assert "Validation failed for function 'quote'" in errors[0]["message"]
@@ -1284,7 +1295,7 @@ async def test_failed_call_is_resent_by_a_new_evaluation() -> None:
 
     second = h.ctx.subscribe_dynamic_value(call, lambda _: None)
     assert len(h.outbound) == 2, "a newly mounted binding sends it again"
-    h.ctx.resolve_dynamic_value(call)
+    _read(h.ctx, call)
     assert len(h.outbound) == 2, "the new call is in flight and shared"
     sub.unsubscribe()
     second.unsubscribe()
@@ -1324,7 +1335,8 @@ async def test_failed_nested_argument_in_action_returns_none() -> None:
     })
     assert result is None
     assert (
-        h.ctx.resolve_dynamic_value(
+        _read(
+            h.ctx,
             {
                 "@call": "upper",
                 "args": {"value": {"@call": "quote", "args": {"symbol": 1}}},
@@ -1388,19 +1400,19 @@ def test_cache_hit_works_on_a_worker_thread_and_after_asyncio_run() -> None:
     call = {"@call": "fetchFxRate", "args": {}}
 
     async def _populate() -> None:
-        h.ctx.resolve_dynamic_value(call)
+        _read(h.ctx, call)
         h.respond(0, value=1.08)
         await _flush()
 
     asyncio.run(_populate())
-    assert h.ctx.resolve_dynamic_value(call) == 1.08, "after asyncio.run()"
+    assert _read(h.ctx, call) == 1.08, "after asyncio.run()"
 
     results: list[Any] = []
     errors: list[BaseException] = []
 
     def _worker() -> None:
         try:
-            results.append(h.ctx.resolve_dynamic_value(call))
+            results.append(_read(h.ctx, call))
         except BaseException as e:  # pragma: no cover - reported below
             errors.append(e)
 
@@ -1412,18 +1424,37 @@ def test_cache_hit_works_on_a_worker_thread_and_after_asyncio_run() -> None:
     assert len(h.outbound) == 1
 
 
-def test_coroutine_caller_works_without_a_running_loop() -> None:
+def test_cache_miss_off_the_loop_fails_fast() -> None:
     surface = SurfaceModel("s1", None, protocol_version="1.0")
+    sent: list[AgentFunctionCall] = []
 
     async def caller(call: AgentFunctionCall) -> Any:
+        sent.append(call)
         return 3
 
     surface.agent_function_caller = caller
-    future = surface.call_agent_function(
-        AgentFunctionCall(call="f", catalog_id=FIN_CATALOG_ID, args={})
-    )
-    assert not future.done(), "the coroutine runs when its loop runs"
-    assert future.get_loop().run_until_complete(future) == 3
+    with pytest.raises(A2uiExpressionError, match="no event loop is running"):
+        surface.call_agent_function(
+            AgentFunctionCall(call="f", catalog_id=FIN_CATALOG_ID, args={})
+        )
+    assert sent == []
+
+
+def test_binding_read_off_the_loop_reports_instead_of_hanging() -> None:
+    h = _Harness()
+    assert _read(h.ctx, {"@call": "fetchFxRate", "args": {}}) is None
+    assert h.outbound == []
+    assert [e["code"] for e in h.errors] == ["EXPRESSION_ERROR"]
+    assert "no event loop is running" in h.errors[0]["message"]
+
+
+@pytest.mark.asyncio
+async def test_caller_returning_none_is_an_expression_error() -> None:
+    h = _Harness()
+    h.surface.agent_function_caller = lambda c: None  # type: ignore[arg-type,return-value]
+    _read(h.ctx, {"@call": "fetchFxRate", "args": {}})
+    assert [e["code"] for e in h.errors] == ["EXPRESSION_ERROR"]
+    assert "must return an awaitable" in h.errors[0]["message"]
 
 
 @pytest.mark.asyncio
@@ -1447,3 +1478,327 @@ async def test_user_message_resolving_to_none_is_absent() -> None:
     assert len(dispatched) == 2
     assert all("userMessage" not in action for action in dispatched)
     assert h.errors == []
+
+
+@pytest.mark.asyncio
+async def test_one_shot_peeked_read_is_never_routed() -> None:
+    h = _Harness()
+    assert (
+        h.ctx.resolve_dynamic_value({"@call": "fetchFxRate", "args": {"base": "EUR"}})
+        is None
+    )
+    assert h.outbound == [], "nothing is sent for a read that can't wait"
+    assert [e["code"] for e in h.errors] == ["EXPRESSION_ERROR"]
+    assert "can't be awaited here" in h.errors[0]["message"]
+
+
+def _basic_harness() -> tuple[MessageProcessor, SurfaceModel, list[Any], list[Any]]:
+    outbound: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    catalog = BasicCatalog("1.0")
+    proc = MessageProcessor(
+        [catalog], options=MessageProcessorOptions(outbound_listener=outbound.append)
+    )
+    proc.process_messages([{
+        "version": "1.0",
+        "createSurface": {"surfaceId": "s1", "catalogId": catalog.id},
+    }])
+    surface = proc.model.get_surface("s1")
+    assert surface is not None
+    surface.on_error.subscribe(errors.append)
+    return proc, surface, outbound, errors
+
+
+@pytest.mark.asyncio
+async def test_format_string_part_calling_the_agent_is_refused() -> None:
+    proc, surface, outbound, errors = _basic_harness()
+    changes: list[Any] = []
+    sub = DataContext(surface, "/").subscribe_dynamic_value(
+        {"@call": "formatString", "args": {"value": "Rate: ${fetchFxRate()}"}},
+        changes.append,
+    )
+    assert outbound == [], "a template part is not sent to the agent"
+    assert [e["code"] for e in errors] == ["EXPRESSION_ERROR"]
+    assert "fetchFxRate" in errors[0]["message"]
+    sub.unsubscribe()
+
+
+@pytest.mark.asyncio
+async def test_call_renderer_function_argument_is_not_routed() -> None:
+    seen: list[tuple[bool, bool]] = []
+    probe = _probe(seen)
+    probe.allowed_callers = "rendererOrAgent"
+    h = _Harness(extra_functions=[probe])
+    responses = h.proc.process_messages([{
+        "version": "1.0",
+        "callRendererFunction": {
+            "functionCallId": "r1",
+            "surfaceId": "s1",
+            "callFunction": {
+                "call": "probe",
+                "catalogId": FIN_CATALOG_ID,
+                "args": {"value": {"@call": "fetchFxRate", "args": {}}},
+            },
+        },
+    }])
+    await _flush()
+    assert not [m for m in h.outbound if "callAgentFunction" in m]
+    assert seen == [], "the function doesn't run with a None argument"
+    replies = [
+        m["rendererFunctionResponse"]
+        for m in [*h.outbound, *(responses or [])]
+        if isinstance(m, dict) and "rendererFunctionResponse" in m
+    ]
+    assert replies and "error" in replies[0]
+    assert "fetchFxRate" in replies[0]["error"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_cancelled_call_is_sent_again_on_reevaluation() -> None:
+    h = _Harness()
+    h.surface.data_model.set("/other", 1)
+    sub = h.ctx.subscribe_dynamic_value(
+        {"parts": [{"@call": "fetchFxRate", "args": {}}, {"@path": "/other"}]},
+        lambda _: None,
+    )
+    assert len(h.outbound) == 1
+    h.proc.rpc.cancel_surface_calls("s1")
+    await _flush()
+    h.surface.data_model.set("/other", 2)
+    assert len(h.outbound) == 2, "a cancellation is not remembered as a failure"
+    assert h.errors == []
+    sub.unsubscribe()
+
+
+@pytest.mark.asyncio
+async def test_processor_dispose_cancels_pending_calls_silently() -> None:
+    h = _Harness()
+    proc_errors: list[Any] = []
+    h.proc.model.on_error.subscribe(proc_errors.append)
+    changes: list[Any] = []
+    sub = h.ctx.subscribe_dynamic_value(
+        {"@call": "fetchFxRate", "args": {}}, changes.append
+    )
+    assert len(h.proc.rpc._pending_agent_calls) == 1
+
+    h.proc.dispose()
+    await _flush()
+    assert h.surface.disposed
+    assert h.proc.rpc.disposed
+    assert h.proc.rpc._pending_agent_calls == {}
+    assert h.errors == []
+    assert proc_errors == []
+    assert changes == []
+    sub.unsubscribe()
+
+
+@pytest.mark.asyncio
+async def test_sibling_failure_aborts_the_other_arguments() -> None:
+    h = _Harness()
+    result = _read(
+        h.ctx,
+        {
+            "@call": "combine",
+            "args": {
+                "a": {"@call": "fetchA", "args": {}},
+                "b": {"@call": "fetchB", "args": {}},
+                "c": {"@call": "inner", "args": {"x": {"@call": "fetchC", "args": {}}}},
+            },
+        },
+        peek=False,
+    )
+    assert [_call_name(m) for m in h.outbound] == [
+        "fetchA",
+        "fetchB",
+        "fetchC",
+    ], "siblings are sent together"
+    h.respond(0, error={"code": "UNKNOWN_FUNCTION", "message": "a failed"})
+    await _flush()
+    h.respond(1, error={"code": "UNKNOWN_FUNCTION", "message": "b failed"})
+    h.respond(2, value=1)
+    await _flush()
+
+    assert len(h.errors) == 1, "later sibling failures are silent"
+    assert "a failed" in h.errors[0]["message"]
+    assert [_call_name(m) for m in h.outbound] == [
+        "fetchA",
+        "fetchB",
+        "fetchC",
+    ], "a sibling still waiting sends nothing more"
+    assert result.peek() is None
+
+
+@pytest.mark.asyncio
+async def test_many_bindings_settle_without_resending() -> None:
+    h = _Harness()
+    values: dict[int, list[Any]] = {}
+    subs = []
+    for i in range(300):
+        values[i] = []
+        subs.append(
+            h.ctx.subscribe_dynamic_value(
+                {"@call": "fetchItem", "args": {"id": i}}, values[i].append
+            )
+        )
+    assert len(h.outbound) == 300
+    for i in range(300):
+        h.respond(i, value=i * 2)
+    await _flush()
+    assert len(h.outbound) == 300, "evicted answers don't make bindings resend"
+    assert all(values[i] == [i * 2] for i in range(300))
+    for sub in subs:
+        sub.unsubscribe()
+
+
+class _Currency(str, enum.Enum):
+    USD = "USD"
+    EUR = "EUR"
+
+
+class _Level(enum.IntEnum):
+    LOW = 1
+
+
+class _EnumQuoteArgs(BaseModel):
+    symbol: DynamicString
+    currency: _Currency = _Currency.USD
+
+
+@pytest.mark.asyncio
+async def test_json_gate_accepts_what_json_dumps_accepts() -> None:
+    quote = FunctionApi(name="enumQuote", return_type="number", schema=_EnumQuoteArgs)
+    h = _Harness(extra_functions=[quote])
+    _read(h.ctx, {"@call": "enumQuote", "args": {"symbol": "GOOG"}})
+    assert h.errors == [], "an enum default the SDK fills in is sent"
+    assert h.outbound[0]["callAgentFunction"]["callFunction"]["args"] == {
+        "symbol": "GOOG",
+        "currency": "USD",
+    }
+
+    h.surface.data_model.set("/pair", ("EUR", "USD"))
+    h.surface.data_model.set("/level", _Level.LOW)
+    _read(
+        h.ctx,
+        {
+            "@call": "convert",
+            "args": {"pair": {"@path": "/pair"}, "level": {"@path": "/level"}},
+        },
+    )
+    assert h.errors == []
+    assert len(h.outbound) == 2
+
+    h.surface.data_model.set("/byId", {1: "one"})
+    _read(h.ctx, {"@call": "convert", "args": {"byId": {"@path": "/byId"}}})
+    assert len(h.outbound) == 2, "a non-string key would be changed, so not sent"
+    assert "not valid JSON" in h.errors[0]["message"]
+
+
+class _Window(BaseModel):
+    days: int = 7
+    unit: str = "d"
+
+
+class _HistoryArgs(BaseModel):
+    symbol: DynamicString
+    window: _Window = _Window()
+
+
+@pytest.mark.asyncio
+async def test_nested_defaults_are_filled_for_code_and_document_catalogs() -> None:
+    from_code = FunctionApi(name="history", return_type="any", schema=_HistoryArgs)
+    h = _Harness(extra_functions=[from_code])
+    _read(h.ctx, {"@call": "history", "args": {"symbol": "G", "window": {"days": 1}}})
+    code_args = h.outbound[0]["callAgentFunction"]["callFunction"]["args"]
+
+    from_document = FunctionApi(
+        name="history",
+        return_type="any",
+        schema={
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string"},
+                "window": {
+                    "type": "object",
+                    "properties": {
+                        "days": {"type": "integer", "default": 7},
+                        "unit": {"type": "string", "default": "d"},
+                    },
+                    "default": {},
+                },
+            },
+            "required": ["symbol"],
+        },
+    )
+    outbound: list[dict[str, Any]] = []
+    proc = MessageProcessor(
+        [Catalog(FIN_CATALOG_ID, "1.0", [], [from_document])],
+        options=MessageProcessorOptions(outbound_listener=outbound.append),
+    )
+    proc.process_messages([{
+        "version": "1.0",
+        "createSurface": {"surfaceId": "s1", "catalogId": FIN_CATALOG_ID},
+    }])
+    surface = proc.model.get_surface("s1")
+    assert surface is not None
+    ctx = DataContext(surface, "/")
+    _read(ctx, {"@call": "history", "args": {"symbol": "G", "window": {"days": 1}}})
+    _read(ctx, {"@call": "history", "args": {"symbol": "H"}})
+    document_args = outbound[0]["callAgentFunction"]["callFunction"]["args"]
+
+    assert code_args == {"symbol": "G", "window": {"days": 1, "unit": "d"}}
+    assert document_args == code_args
+    assert outbound[1]["callAgentFunction"]["callFunction"]["args"] == {
+        "symbol": "H",
+        "window": {"days": 7, "unit": "d"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_malformed_context_value_is_reported_the_same_way() -> None:
+    h = _Harness()
+    malformed = {"@bogus": 1}
+    assert (
+        h.ctx.resolve_action({"event": {"name": "go", "context": {"bad": malformed}}})
+        is None
+    ), "no exception escapes"
+    resolved = h.ctx.resolve_action({
+        "event": {
+            "name": "go",
+            "context": {"rate": {"@call": "fetchFxRate", "args": {}}, "bad": malformed},
+        }
+    })
+    h.surface.dispatch_action(resolved, "btn1")
+    h.respond(0, value=1)
+    await _flush()
+
+    assert [e["code"] for e in h.errors] == ["EXPRESSION_ERROR"] * 2
+    assert all(e["surfaceId"] == "s1" for e in h.errors)
+    assert [e["expression"] for e in h.errors] == ["event.context.bad"] * 2
+
+
+@pytest.mark.asyncio
+async def test_setter_replaces_an_equal_but_different_caller() -> None:
+    loop = asyncio.get_running_loop()
+
+    class _Client:
+
+        def __init__(self) -> None:
+            self.sent: list[AgentFunctionCall] = []
+
+        def __eq__(self, other: object) -> bool:
+            return isinstance(other, _Client)
+
+        __hash__ = object.__hash__
+
+        def send(self, call: AgentFunctionCall) -> asyncio.Future[Any]:
+            self.sent.append(call)
+            return loop.create_future()
+
+    first, second = _Client(), _Client()
+    surface = SurfaceModel("s1", None, protocol_version="1.0")
+    surface.agent_function_caller = first.send
+    surface.agent_function_caller = second.send
+    surface.call_agent_function(
+        AgentFunctionCall(call="f", catalog_id=FIN_CATALOG_ID, args={})
+    )
+    assert (len(first.sent), len(second.sent)) == (0, 1)

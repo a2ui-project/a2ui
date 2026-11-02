@@ -17,32 +17,34 @@
 from __future__ import annotations
 
 import asyncio
-import warnings
+import threading
+
+_fallback_loop: asyncio.AbstractEventLoop | None = None
+_fallback_lock = threading.Lock()
+
+
+def running_loop() -> asyncio.AbstractEventLoop | None:
+    """Returns the event loop running in this thread, or None."""
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None
 
 
 def get_or_create_event_loop() -> asyncio.AbstractEventLoop:
     """Returns the event loop that futures created now should belong to.
 
-    That is the running loop if there is one, else the open loop set for the
-    current thread. When there is neither, as on a worker thread or after
-    `asyncio.run()` has closed its loop, a new loop is created and set for
-    the thread.
+    That is the running loop if there is one. Otherwise it is one private
+    fallback loop, shared by every caller and never run, which holds futures
+    that are settled when they are created, such as cached answers, so code
+    off the loop can read them. The fallback loop is never installed as a
+    thread's event loop, so calling this never changes `asyncio` state.
     """
-    try:
-        return asyncio.get_running_loop()
-    except RuntimeError:
-        pass
-    try:
-        with warnings.catch_warnings():
-            # The policy API is deprecated from Python 3.14, but it is the
-            # only way to read the current thread's loop without creating one
-            # on every supported version.
-            warnings.simplefilter("ignore", DeprecationWarning)
-            loop = asyncio.get_event_loop_policy().get_event_loop()
-        if not loop.is_closed():
-            return loop
-    except RuntimeError:
-        pass
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    return loop
+    loop = running_loop()
+    if loop is not None:
+        return loop
+    global _fallback_loop
+    with _fallback_lock:
+        if _fallback_loop is None or _fallback_loop.is_closed():
+            _fallback_loop = asyncio.new_event_loop()
+        return _fallback_loop
