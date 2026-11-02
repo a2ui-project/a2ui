@@ -413,7 +413,7 @@ struct RPCHandlerTests {
 
   @Test func outgoingCallUsesDefaultTimeoutWhenOmitted() async throws {
     let handler = RPCHandler()
-    let box = RPCBox<RendererToAgentMessage>()
+    let (stream, continuation) = AsyncStream<RendererToAgentMessage>.makeStream()
 
     // Omit timeoutSeconds so the default 30.0s parameter is used.
     let task = Task {
@@ -423,13 +423,14 @@ struct RPCHandlerTests {
         functionCallID: "default_timeout_call",
         version: .v10,
         sendOutbound: { msg in
-          box.value = msg
+          continuation.yield(msg)
         }
       )
     }
 
-    try await Task.sleep(nanoseconds: 50_000_000)
-    #expect(box.value != nil)
+    var iterator = stream.makeAsyncIterator()
+    let outboundMsg = await iterator.next()
+    #expect(outboundMsg != nil)
 
     // Call remains pending under the 30s default window (duplicate ID is rejected).
     do {
@@ -459,6 +460,7 @@ struct RPCHandlerTests {
 
   @Test func outgoingCallTaskCancellationRemovesPendingEntry() async throws {
     let handler = RPCHandler()
+    let (stream, continuation) = AsyncStream<Void>.makeStream()
 
     let task = Task {
       try await handler.callAgentFunction(
@@ -466,11 +468,14 @@ struct RPCHandlerTests {
         functionName: "cancellableFn",
         functionCallID: "cancel_cleanup_call",
         version: .v10,
-        sendOutbound: { _ in }
+        sendOutbound: { _ in
+          continuation.yield()
+        }
       )
     }
 
-    try await Task.sleep(nanoseconds: 20_000_000)
+    var iterator = stream.makeAsyncIterator()
+    await iterator.next()
 
     task.cancel()
 
@@ -491,18 +496,23 @@ struct RPCHandlerTests {
       )
     )
 
-    // Because the pending entry was removed on cancellation, reusing the same functionCallID succeeds.
+    let (retryStream, retryContinuation) = AsyncStream<Void>.makeStream()
+    // Because the pending entry was removed on cancellation, reusing the same
+    // functionCallID succeeds.
     let retryTask = Task {
       try await handler.callAgentFunction(
         surfaceID: "surf1",
         functionName: "cancellableFn",
         functionCallID: "cancel_cleanup_call",
         version: .v10,
-        sendOutbound: { _ in }
+        sendOutbound: { _ in
+          retryContinuation.yield()
+        }
       )
     }
 
-    try await Task.sleep(nanoseconds: 20_000_000)
+    var retryIterator = retryStream.makeAsyncIterator()
+    await retryIterator.next()
 
     handler.handleAgentResponse(
       AgentFunctionResponseMessage(
