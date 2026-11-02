@@ -1,5 +1,6 @@
 ## Unreleased
 
+- `regexCapture` now validates patterns with `analyzeRegex` from `@a2ui/web_core` and compiles them in Unicode mode (`new RegExp(pattern, 'u')`), converging on the A2UI regex dialect and static safety guard (allowing lookahead assertions while rejecting lookbehind, backreferences, named groups, `\p{...}`, inline flags, and patterns that risk catastrophic backtracking) and removing the `redos-detector` dependency.
 - **BREAKING CHANGE**: `callMcpTool` returns a payload with `toolName`, `toolInput`, `toolResult`, `structuredContent`, `text` and `json` instead of the raw `CallToolResult`, and writes it to `targetDataPath` when set, where the latest call to a path wins. Recommended migration: read the raw result from the `toolResult` field of the returned payload. [#3728](https://github.com/a2ui-project/a2ui/pull/3728)
 - The `transformData` (standard JMESPath) data function shapes the `callMcpTool` payload into data model updates, and `split` and `regexCapture` turn text results into records, with patterns limited to a portable regular expression subset. Their `*Api` and `*Implementation` are exported for hosts that register functions one by one. [#3736](https://github.com/a2ui-project/a2ui/pull/3736), [#3574](https://github.com/a2ui-project/a2ui/pull/3574)
 

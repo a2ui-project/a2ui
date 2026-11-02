@@ -32,7 +32,7 @@ export const RegexCaptureApi = {
     // Quoted to prevent Google Closure Compiler property renaming.
     'value': DynamicValueSchema.describe('The string or array of strings to match against.'),
     'pattern': DynamicStringSchema.describe(
-      'A regular expression in the portable subset: JavaScript syntax without lookahead, lookbehind or backreferences. Returns an array of capture groups from the first match, or null if there is no match. Unmatched optional groups return empty strings.',
+      'A regular expression in the A2UI regex dialect: a portable subset of ECMAScript pattern syntax in Unicode mode with no flags. Returns an array of capture groups from the first match, or null if there is no match. Unmatched optional groups return empty strings.',
     ),
   }),
   description: 'Extracts capture groups from the first regular expression match.',

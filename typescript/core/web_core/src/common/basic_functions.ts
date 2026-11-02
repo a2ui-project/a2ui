@@ -28,7 +28,7 @@ import {A2uiExpressionError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
 import {withoutAgentRouting} from '../resolution/data-context-internal.js';
 import {isAtLeastVersion} from './semver.js';
-import {isSafeRegex} from '../v0_9/basic_catalog/functions/safe_regex.js';
+import {MAX_REGEX_VALUE_CODE_POINTS, analyzeRegex, countCodePoints} from './regex_subset.js';
 
 export {isSafeRegex, type SafeRegexOptions} from '../v0_9/basic_catalog/functions/safe_regex.js';
 
@@ -114,23 +114,54 @@ export function validateRequired(val: unknown): ValidationResult {
   };
 }
 
-/** Validates that a string value matches a regular expression pattern. */
-export function validateRegex(val: unknown, pattern: string): ValidationResult {
-  if (!isSafeRegex(pattern)) {
+const MAX_REGEX_CACHE_ENTRIES = 256;
+const compiledRegexCache = new Map<string, RegExp>();
+
+function getCompiledRegex(pattern: string): RegExp {
+  const cached = compiledRegexCache.get(pattern);
+  if (cached !== undefined) {
+    compiledRegexCache.delete(pattern);
+    compiledRegexCache.set(pattern, cached);
+    return cached;
+  }
+  const analysis = analyzeRegex(pattern);
+  if (!analysis.ok) {
     throw new A2uiExpressionError(
-      `Unsafe regex pattern (catastrophic backtracking risk): ${pattern}`,
+      `Invalid or unsafe regex pattern (${analysis.reason}): ${pattern}`,
       'regex',
     );
   }
+  let compiled: RegExp;
   try {
-    const isValid = new RegExp(pattern).test(String(val ?? ''));
-    return {
-      valid: isValid,
-      ...(isValid ? {} : {message: 'Value does not match required pattern.'}),
-    };
+    compiled = new RegExp(pattern, 'u');
   } catch (e) {
-    throw new A2uiExpressionError(`Invalid regex pattern: ${pattern}`, 'regex', e);
+    throw new A2uiExpressionError(`Invalid regex pattern (SYNTAX): ${pattern}`, 'regex', e);
   }
+  if (compiledRegexCache.size >= MAX_REGEX_CACHE_ENTRIES) {
+    const oldestKey = compiledRegexCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      compiledRegexCache.delete(oldestKey);
+    }
+  }
+  compiledRegexCache.set(pattern, compiled);
+  return compiled;
+}
+
+/** Validates that a string value matches a regular expression pattern. */
+export function validateRegex(val: unknown, pattern: string): ValidationResult {
+  const compiled = getCompiledRegex(pattern);
+  const strVal = String(val ?? '');
+  if (countCodePoints(strVal) > MAX_REGEX_VALUE_CODE_POINTS) {
+    return {
+      valid: false,
+      message: 'Value exceeds the maximum length for pattern matching.',
+    };
+  }
+  const isValid = compiled.test(strVal);
+  return {
+    valid: isValid,
+    ...(isValid ? {} : {message: 'Value does not match required pattern.'}),
+  };
 }
 
 /** Validates that string or array length falls within an optional range. */

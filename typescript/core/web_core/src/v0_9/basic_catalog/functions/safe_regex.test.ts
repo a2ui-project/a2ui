@@ -72,7 +72,7 @@ describe('isSafeRegex (CWE-1333 ReDoS Safety)', () => {
       assert.strictEqual(isSafeRegex('(?'), false);
       assert.strictEqual(isSafeRegex('*abc'), false);
       assert.strictEqual(isSafeRegex('a{2,1}'), false); // numbers out of order
-      assert.strictEqual(isSafeRegex('a{invalid}'), true); // safely parsed as literal without crash
+      assert.strictEqual(isSafeRegex('a{invalid}'), false); // malformed brace quantifier rejected in Unicode dialect
     });
   });
 
@@ -115,7 +115,7 @@ describe('isSafeRegex (CWE-1333 ReDoS Safety)', () => {
     });
 
     it('allows disjoint delimited lists', () => {
-      assert.strictEqual(isSafeRegex('^[a-z]+(,[a-z]+)*$'), true);
+      assert.strictEqual(isSafeRegex('^[a-z]+(,[a-z]{1,32})*$'), true);
       assert.strictEqual(isSafeRegex('^(\\d{1,3}\\.){3}\\d{1,3}$'), true);
       assert.strictEqual(isSafeRegex('^\\d+(\\.\\d+)?$'), true);
       assert.strictEqual(isSafeRegex('^\\$\\d+(\\.\\d{2})?$'), true);

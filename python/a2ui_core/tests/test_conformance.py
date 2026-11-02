@@ -145,6 +145,66 @@ EXPECTED_FAILURES: dict[str, str] = {
         " MessageProcessor.call_agent_function when a function is not"
         " registered locally."
     ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_dollar_does_not_match_before_trailing_newline": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_digit_class_ascii_only": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_word_class_ascii_only": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_word_boundary_ascii_only": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_braced_unicode_escape": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_backreference": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_lookbehind": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_named_group": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_inline_flag": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_unicode_property": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_nested_quantifier_plus": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_nested_quantifier_bounded_outer": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_overlapping_alternation_prefix": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_overlapping_alternation_class": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_adjacent_overlap_direct": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_adjacent_overlap_across_nullable": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_257_code_point_pattern": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v10_value_exceeding_4096_code_points_returns_invalid": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v09_rejects_nested_quantifier": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
+    "core/functions.yaml#test_evaluate_function_regex_v09_value_exceeding_4096_code_points_returns_false": (
+        "A2UI regex subset and static safety guard not yet implemented in Python."
+    ),
 }
 
 _CASE_METADATA_KEYS: frozenset[str] = frozenset({
@@ -3484,7 +3544,17 @@ def validate_evaluate_function_case(case: dict[str, Any]) -> None:
         with assert_raises(expect_error):
             runner(case)
     else:
-        assert runner(case) == case.get("expect")
+        actual = runner(case)
+        expected = case.get("expect")
+        if (
+            isinstance(expected, dict)
+            and set(expected.keys()) == {"valid"}
+            and isinstance(actual, dict)
+            and "valid" in actual
+        ):
+            assert actual["valid"] == expected["valid"]
+        else:
+            assert actual == expected
 
 
 _ACTION_HANDLERS: dict[str, Callable[[dict[str, Any]], None]] = {

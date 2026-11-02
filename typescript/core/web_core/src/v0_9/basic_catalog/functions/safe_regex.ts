@@ -14,27 +14,28 @@
  * limitations under the License.
  */
 
-import {isSafePattern} from 'redos-detector';
+import {
+  MAX_REGEX_PATTERN_CODE_POINTS,
+  analyzeRegex,
+  countCodePoints,
+} from '../../../common/regex_subset.js';
 
 /**
  * Options for regular expression safety validation.
  */
 export interface SafeRegexOptions {
-  /** Maximum allowable length of the regex pattern string (default: 256). */
+  /** Maximum allowable length of the regex pattern in Unicode code points (default: 256). */
   maxPatternLength?: number;
 }
 
 /**
- * Validates whether a regular expression pattern is safe from catastrophic
- * backtracking (ReDoS - CWE-1333) using `redos-detector`.
- *
- * Both the raw pattern and its anchored form (`^(?:pattern)$`, which is also
- * used by HTML `<input pattern>`) are checked so that unanchored trailing
- * nested quantifiers such as `(a+)+` are detected alongside `(a+)+b`.
+ * Validates whether a regular expression pattern conforms to the A2UI portable
+ * regex subset and passes the static safety check against catastrophic
+ * backtracking (ReDoS - CWE-1333).
  *
  * @param pattern The regular expression pattern string to validate.
  * @param options Optional configuration for pattern length bounds.
- * @returns `true` if the pattern is safe to execute; `false` if unsafe or invalid.
+ * @returns `true` if the pattern is valid and safe to execute; `false` otherwise.
  */
 export function isSafeRegex(pattern: string, options: SafeRegexOptions = {}): boolean {
   if (pattern === null || pattern === undefined || typeof pattern !== 'string') {
@@ -44,16 +45,10 @@ export function isSafeRegex(pattern: string, options: SafeRegexOptions = {}): bo
     return true;
   }
 
-  const maxPatternLength = options.maxPatternLength ?? 256;
-  if (pattern.length > maxPatternLength) {
+  const maxPatternLength = options.maxPatternLength ?? MAX_REGEX_PATTERN_CODE_POINTS;
+  if (countCodePoints(pattern) > maxPatternLength) {
     return false;
   }
 
-  try {
-    // Verify that the pattern is syntactically valid in the host JS RegExp engine.
-    new RegExp(pattern);
-    return isSafePattern(pattern).safe && isSafePattern(`^(?:${pattern})$`).safe;
-  } catch {
-    return false;
-  }
+  return analyzeRegex(pattern).ok;
 }
