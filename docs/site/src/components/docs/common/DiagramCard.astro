@@ -30,16 +30,11 @@ const { title, mermaid } = Astro.props;
     <slot /> <!-- Render rich UI cards or interactive canvas -->
   </div>
 
-  <!-- Agent & Accessibility View: Semantic Details Accordion with Raw Mermaid -->
-  <details class="agent-view border-t bg-muted/40 px-4 py-2 text-xs">
-    <summary class="cursor-pointer text-muted-foreground hover:text-foreground font-mono">
-      View Diagram Source (Mermaid & Machine-Readable Spec)
-    </summary>
-    <div
-      class="mt-2 font-mono whitespace-pre text-xs text-foreground bg-background p-3 rounded border overflow-x-auto"
-      data-agent-content="diagram-spec"
-    >
-      {mermaid.trim()}
-    </div>
-  </details>
+  <!-- Agent & Accessibility View: Machine-readable spec hidden from human UI -->
+  <script
+    type="text/vnd.mermaid"
+    data-agent-diagram="spec"
+    style="display: none;"
+    set:html={mermaid.trim()}
+  />
 </div>

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import DiagramCard from '../common/DiagramCard.astro';
+import DiagramCard from '@components/docs/common/DiagramCard.astro';
 
 const mermaidSpec = `
 flowchart TB
@@ -30,7 +30,8 @@ flowchart TB
     end
     AgentApp["Your agent code + LLM runtime<br/>(outside the SDK)"]
     Catalog --> SkillGen
-    SkillGen -->|"Prompt &amp; grammar rules"| AgentApp
+    Catalog --> Compiler
+    SkillGen -->|"Generated A2UI skill"| AgentApp
     Tools --> AgentApp
     AgentApp -->|"Model output (Express / JSON)"| Compiler
   end
@@ -57,12 +58,12 @@ flowchart TB
 
       <div class="a2-two-col">
         <div class="a2-card">
-          <div class="a2-card-tag">INPUT</div>
+          <div class="a2-card-tag">SDK CONFIG</div>
           <div class="a2-card-title">Component catalog</div>
-          <p class="a2-card-desc"><code>catalog.json</code>: the components, properties, and functions the agent may use.</p>
+          <p class="a2-card-desc"><code>catalog.json</code>: the UI components and functions available to render on the client.</p>
         </div>
         <div class="a2-card">
-          <div class="a2-card-tag">INPUT</div>
+          <div class="a2-card-tag">AGENT INPUT</div>
           <div class="a2-card-title">Domain tools</div>
           <p class="a2-card-desc">Your APIs and data, such as flight search and booking.</p>
         </div>
@@ -76,7 +77,7 @@ flowchart TB
         <div class="a2-two-col">
           <div class="a2-card">
             <div class="a2-card-title">Skill generator</div>
-            <p class="a2-card-desc">Turns the catalog into prompt instructions and grammar rules.</p>
+            <p class="a2-card-desc">Turns the catalog into an A2UI skill with prompt instructions and grammar rules.</p>
           </div>
           <div class="a2-card">
             <div class="a2-card-title">Compiler &amp; validator</div>
@@ -86,7 +87,7 @@ flowchart TB
       </div>
 
       <div class="a2-two-col a2-flow-row" aria-hidden="true">
-        <span class="a2-flow-label">↓ prompt &amp; rules</span>
+        <span class="a2-flow-label">↓ generated A2UI skill</span>
         <span class="a2-flow-label">↑ model output</span>
       </div>
 
@@ -201,6 +202,7 @@ flowchart TB
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    margin: 0.6rem 0 1rem;
     font-size: 0.85rem;
     line-height: 1.45;
   }
