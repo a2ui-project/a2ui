@@ -546,3 +546,10 @@ def test_out_of_corpus_and_other_harness_records_are_ignored(
     assert "| `core/alpha.yaml` | 1 | 0 | 1 | 0 | 2 |" in matrix_text
     assert "| `core/beta.yaml` | 1 | 0 | 0 | 0 | 1 |" in matrix_text
     assert "agent/builder/builder.yaml" not in matrix_text
+
+
+def test_load_records_returns_empty_when_manifest_dir_is_file(tmp_path: Path) -> None:
+    manifest_file = tmp_path / "not_a_dir.jsonl"
+    manifest_file.write_text("{}", encoding="utf-8")
+    assert load_records(manifest_file, "python-core") == []
+

@@ -93,10 +93,6 @@ def _glob_to_regex(pattern: str) -> re.Pattern[str]:
     return re.compile("".join(regex_parts))
 
 
-def _matches_any_glob(suite: str, patterns: Sequence[str]) -> bool:
-    return any(_glob_to_regex(pat).match(suite) is not None for pat in patterns)
-
-
 def _extract_suite_cases(suite_path: Path) -> set[str]:
     data = yaml.safe_load(suite_path.read_text(encoding="utf-8"))
     if isinstance(data, list):
@@ -141,10 +137,11 @@ def load_corpus(
             corpus[rel_suite] = _extract_suite_cases(suite_path)
     if not only:
         return corpus
+    compiled_only = [_glob_to_regex(pat) for pat in only]
     return {
         suite: cases
         for suite, cases in corpus.items()
-        if _matches_any_glob(suite, only)
+        if any(rx.match(suite) is not None for rx in compiled_only)
     }
 
 
@@ -208,7 +205,7 @@ def _parse_manifest_line(
 
 def load_records(manifest_dir: Path, harness: str) -> list[ManifestRecord]:
     """Loads and schema-validates JSONL manifest records for the given harness."""
-    if not manifest_dir.exists():
+    if not manifest_dir.is_dir():
         return []
     records: list[ManifestRecord] = []
     for jsonl_path in sorted(manifest_dir.glob("*.jsonl")):
