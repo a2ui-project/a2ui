@@ -35,6 +35,8 @@ import {
 } from '@a2ui/web_core';
 import {basicCatalog as v1BasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import {A2uiLitElement} from '@a2ui/web_core/universal';
+import {A2uiClientMessageSchema} from '@a2ui/web_core/v0_9';
+import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
 
 import type {A2uiSurface} from '../index.js';
 import type {LitComponentApi} from '../types.js';
@@ -115,6 +117,7 @@ export interface AdapterStep {
   expectSameViewIdentity?: string[];
   expectActions?: ExpectedAction[];
   expectErrors?: ExpectedError[];
+  expectOutbound?: Array<Record<string, unknown>>;
   expectAccessibilityTree?: Record<string, ExpectedAccessibilityNode>;
   expectActiveSubscriptions?: number;
 }
@@ -143,6 +146,9 @@ export interface AdapterSession {
   mountedElements: HTMLElement[];
   recordedActions: ExpectedAction[];
   recordedErrors: Array<{code: string; message: string; surfaceId: string}>;
+  recordedOutbound: Array<Record<string, unknown>>;
+  protocolVersion: string;
+  currentOp?: string;
   priorIdentities: Map<string, HTMLElement>;
 }
 
@@ -186,6 +192,7 @@ export const KNOWN_KEYS = {
     'expectDataModel',
     'expectActions',
     'expectErrors',
+    'expectOutbound',
     'expectSameViewIdentity',
     'expectActiveSubscriptions',
   ]),
@@ -305,6 +312,20 @@ export function assertKnownKeys(
     assert.ok(Array.isArray(step.expectErrors), `${where}.expectErrors: expected array`);
     step.expectErrors.forEach((item, idx) => {
       assertObjectKeys(item, KNOWN_KEYS.expectedError, `${where}.expectErrors[${idx}]`);
+    });
+  }
+  if (step.expectOutbound !== undefined) {
+    assert.ok(Array.isArray(step.expectOutbound), `${where}.expectOutbound: expected array`);
+    step.expectOutbound.forEach((item, idx) => {
+      assert.ok(
+        typeof item === 'object' && item !== null && !Array.isArray(item),
+        `${where}.expectOutbound[${idx}]: expected object`,
+      );
+      assert.equal(
+        typeof (item as Record<string, unknown>).version,
+        'string',
+        `${where}.expectOutbound[${idx}].version: expected string`,
+      );
     });
   }
 }
@@ -808,6 +829,126 @@ function countActiveSurfaceSubscriptions(surface: SurfaceModel<LitComponentApi>)
   return onCreatedSize + onDeletedSize + dataSubsSize;
 }
 
+function frameActionEnvelope(
+  action: Record<string, unknown>,
+  protocolVersion: string,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    name: action.name,
+    surfaceId: action.surfaceId,
+    sourceComponentId: action.sourceComponentId,
+    timestamp: action.timestamp,
+    context: action.context ?? {},
+  };
+  if (action.userMessage !== undefined) {
+    payload.userMessage = action.userMessage;
+  }
+  if (action.metadata !== undefined) {
+    payload.metadata = action.metadata;
+  }
+  return {
+    version: protocolVersion,
+    action: payload,
+  };
+}
+
+function frameErrorEnvelope(
+  err: Record<string, unknown>,
+  surfaceId: string,
+  protocolVersion: string,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    code: err.code,
+    surfaceId: typeof err.surfaceId === 'string' ? err.surfaceId : surfaceId,
+    message: err.message,
+  };
+  if (typeof err.path === 'string') {
+    payload.path = err.path;
+  }
+  if (typeof err.functionCallId === 'string') {
+    payload.functionCallId = err.functionCallId;
+  }
+  return {
+    version: protocolVersion,
+    error: payload,
+  };
+}
+
+function isMatchAny(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const keys = Object.keys(value as Record<string, unknown>);
+  return keys.length === 1 && (value as Record<string, unknown>)['$match'] === 'any';
+}
+
+function assertMatchesExpectedOutbound(actual: unknown, expected: unknown, where: string): void {
+  if (isMatchAny(expected)) {
+    assert.ok(
+      actual !== undefined && actual !== null,
+      `${where}: expected defined non-null value for {$match: "any"}`,
+    );
+    return;
+  }
+  if (Array.isArray(expected)) {
+    assert.ok(Array.isArray(actual), `${where}: expected array`);
+    assert.equal(actual.length, expected.length, `${where}: array length mismatch`);
+    for (let i = 0; i < expected.length; i++) {
+      assertMatchesExpectedOutbound(actual[i], expected[i], `${where}[${i}]`);
+    }
+    return;
+  }
+  if (typeof expected === 'object' && expected !== null) {
+    assert.ok(
+      typeof actual === 'object' && actual !== null && !Array.isArray(actual),
+      `${where}: expected object`,
+    );
+    const actualRecord = actual as Record<string, unknown>;
+    const expectedRecord = expected as Record<string, unknown>;
+    const actualKeys = Object.keys(actualRecord).sort();
+    const expectedKeys = Object.keys(expectedRecord).sort();
+    assert.deepEqual(actualKeys, expectedKeys, `${where}: object keys mismatch`);
+    for (const key of expectedKeys) {
+      assertMatchesExpectedOutbound(actualRecord[key], expectedRecord[key], `${where}.${key}`);
+    }
+    return;
+  }
+  assert.equal(actual, expected, `${where}: value mismatch`);
+}
+
+function validateOutboundEnvelopes(
+  envelopes: Array<Record<string, unknown>>,
+  protocolVersion: string,
+): void {
+  const isV09 = protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9');
+  for (let i = 0; i < envelopes.length; i++) {
+    const env = envelopes[i];
+    const parsed = isV09
+      ? A2uiClientMessageSchema.safeParse(env)
+      : RendererToAgentMessageSchema.safeParse(env);
+    assert.ok(
+      parsed.success,
+      `recordedOutbound[${i}] failed protocol schema validation: ${
+        parsed.success ? '' : JSON.stringify(parsed.error.issues)
+      }`,
+    );
+  }
+}
+
+function assertExpectedOutbound(
+  actual: Array<Record<string, unknown>>,
+  expected: Array<Record<string, unknown>>,
+): void {
+  assert.equal(
+    actual.length,
+    expected.length,
+    `expectOutbound length mismatch: actual=${actual.length}, expected=${expected.length}`,
+  );
+  for (let i = 0; i < expected.length; i++) {
+    assertMatchesExpectedOutbound(actual[i], expected[i], `expectOutbound[${i}]`);
+  }
+}
+
 export async function ensureSurfaceMounted(
   session: AdapterSession,
   mountedElements: HTMLElement[] = session.mountedElements,
@@ -829,6 +970,9 @@ export async function ensureSurfaceMounted(
       sourceComponentId: action.sourceComponentId,
       context: action.context,
     });
+    session.recordedOutbound.push(
+      frameActionEnvelope(action as unknown as Record<string, unknown>, session.protocolVersion),
+    );
   });
   surface.onError.subscribe(err => {
     session.recordedErrors.push({
@@ -836,6 +980,15 @@ export async function ensureSurfaceMounted(
       message: err.message,
       surfaceId: surface.id,
     });
+    if (session.currentOp !== 'programmatic_invoke') {
+      session.recordedOutbound.push(
+        frameErrorEnvelope(
+          err as unknown as Record<string, unknown>,
+          surface.id,
+          session.protocolVersion,
+        ),
+      );
+    }
   });
 
   const el = document.createElement('a2ui-surface') as unknown as A2uiSurface;
@@ -945,6 +1098,10 @@ function verifyStepExpectations(session: AdapterSession, step: AdapterStep): voi
   if (step.expectErrors !== undefined) {
     assertRecordedErrors(session.recordedErrors, step.expectErrors);
   }
+  validateOutboundEnvelopes(session.recordedOutbound, session.protocolVersion);
+  if (step.expectOutbound !== undefined) {
+    assertExpectedOutbound(session.recordedOutbound, step.expectOutbound);
+  }
   if (step.expectAccessibilityTree && session.surfaceEl) {
     for (const [compId, expected] of Object.entries(step.expectAccessibilityTree)) {
       assertAccessibilityNode(session.surfaceEl, compId, expected);
@@ -963,11 +1120,20 @@ export function mountSurface(
     createAugmentedBasicCatalog(),
     ...(caseSpec?.catalogs ?? []).map(buildSecondaryCatalog),
   ];
+  const recordedOutbound: Array<Record<string, unknown>> = [];
+  const protocolVersion = caseSpec?.protocolVersion ?? '1.0';
+  const processor = new MessageProcessor<LitComponentApi>(catalogs, undefined, {
+    outboundListener: msg => {
+      recordedOutbound.push(structuredClone(msg) as unknown as Record<string, unknown>);
+    },
+  });
   return {
-    processor: new MessageProcessor<LitComponentApi>(catalogs),
+    processor,
     mountedElements,
     recordedActions: [],
     recordedErrors: [],
+    recordedOutbound,
+    protocolVersion,
     priorIdentities: new Map(),
   };
 }
@@ -976,6 +1142,8 @@ export async function runStep(session: AdapterSession, step: AdapterStep): Promi
   assertKnownKeys(step);
   session.recordedActions = [];
   session.recordedErrors = [];
+  session.recordedOutbound.length = 0;
+  session.currentOp = step.op;
   session.priorIdentities = snapshotViewIdentities(session.surfaceEl);
 
   if (step.op === 'process_messages' && !session.surfaceEl) {

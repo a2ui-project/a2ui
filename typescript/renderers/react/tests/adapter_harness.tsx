@@ -35,8 +35,9 @@ import {
   type SurfaceModel,
 } from '@a2ui/web_core';
 import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
-import {CommonSchemas} from '@a2ui/web_core/v0_9';
+import {A2uiClientMessageSchema, CommonSchemas} from '@a2ui/web_core/v0_9';
 import type {A2uiWebComponentElement} from '@a2ui/web_core/v0_9/universal';
+import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
 import {A2uiSurface, createComponentImplementation, type ReactCatalogComponent} from '../src';
 
 export interface ExpectedAccessibilityNode {
@@ -126,6 +127,7 @@ export interface AdapterStep {
   expectDataModel?: Record<string, unknown>;
   expectActions?: ExpectedActionEvent[];
   expectErrors?: ExpectedErrorEntry[];
+  expectOutbound?: Array<Record<string, unknown>>;
   expectSameViewIdentity?: string[];
   expectActiveSubscriptions?: number;
 }
@@ -148,6 +150,9 @@ export interface HarnessState {
   unmounted: boolean;
   actions: Array<Record<string, unknown>>;
   errors: Array<Record<string, unknown>>;
+  outbound: Array<Record<string, unknown>>;
+  protocolVersion: string;
+  currentOp?: string;
   previousNodes: Map<string, ComponentNode>;
   previousDomElements: Map<string, HTMLElement>;
 }
@@ -192,6 +197,7 @@ export const KNOWN_KEYS = {
     'expectDataModel',
     'expectActions',
     'expectErrors',
+    'expectOutbound',
     'expectSameViewIdentity',
     'expectActiveSubscriptions',
   ]),
@@ -310,6 +316,21 @@ export function assertKnownKeys(
     expect(Array.isArray(step.expectErrors), `${where}.expectErrors: expected array`).toBe(true);
     (step.expectErrors as unknown[]).forEach((item, idx) => {
       assertObjectKeys(item, KNOWN_KEYS.expectedError, `${where}.expectErrors[${idx}]`);
+    });
+  }
+  if (step.expectOutbound !== undefined) {
+    expect(Array.isArray(step.expectOutbound), `${where}.expectOutbound: expected array`).toBe(
+      true,
+    );
+    (step.expectOutbound as unknown[]).forEach((item, idx) => {
+      expect(
+        typeof item === 'object' && item !== null && !Array.isArray(item),
+        `${where}.expectOutbound[${idx}]: expected object`,
+      ).toBe(true);
+      expect(
+        typeof (item as Record<string, unknown>).version,
+        `${where}.expectOutbound[${idx}].version`,
+      ).toBe('string');
     });
   }
 }
@@ -953,17 +974,143 @@ function mapNodesToDomElements(
   return result;
 }
 
+function frameActionEnvelope(
+  action: Record<string, unknown>,
+  protocolVersion: string,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    name: action.name,
+    surfaceId: action.surfaceId,
+    sourceComponentId: action.sourceComponentId,
+    timestamp: action.timestamp,
+    context: action.context ?? {},
+  };
+  if (action.userMessage !== undefined) {
+    payload.userMessage = action.userMessage;
+  }
+  if (action.metadata !== undefined) {
+    payload.metadata = action.metadata;
+  }
+  return {
+    version: protocolVersion,
+    action: payload,
+  };
+}
+
+function frameErrorEnvelope(
+  err: Record<string, unknown>,
+  surfaceId: string,
+  protocolVersion: string,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    code: err.code,
+    surfaceId: typeof err.surfaceId === 'string' ? err.surfaceId : surfaceId,
+    message: err.message,
+  };
+  if (typeof err.path === 'string') {
+    payload.path = err.path;
+  }
+  if (typeof err.functionCallId === 'string') {
+    payload.functionCallId = err.functionCallId;
+  }
+  return {
+    version: protocolVersion,
+    error: payload,
+  };
+}
+
+function isMatchAny(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const keys = Object.keys(value as Record<string, unknown>);
+  return keys.length === 1 && (value as Record<string, unknown>)['$match'] === 'any';
+}
+
+function assertMatchesExpectedOutbound(actual: unknown, expected: unknown, where: string): void {
+  if (isMatchAny(expected)) {
+    expect(actual !== undefined && actual !== null, `${where}: expected defined non-null`).toBe(
+      true,
+    );
+    return;
+  }
+  if (Array.isArray(expected)) {
+    expect(Array.isArray(actual), `${where}: expected array`).toBe(true);
+    expect((actual as unknown[]).length, `${where}: array length`).toBe(expected.length);
+    for (let i = 0; i < expected.length; i++) {
+      assertMatchesExpectedOutbound((actual as unknown[])[i], expected[i], `${where}[${i}]`);
+    }
+    return;
+  }
+  if (typeof expected === 'object' && expected !== null) {
+    expect(
+      typeof actual === 'object' && actual !== null && !Array.isArray(actual),
+      `${where}: expected object`,
+    ).toBe(true);
+    const actualRecord = actual as Record<string, unknown>;
+    const expectedRecord = expected as Record<string, unknown>;
+    const actualKeys = Object.keys(actualRecord).sort();
+    const expectedKeys = Object.keys(expectedRecord).sort();
+    expect(actualKeys, `${where}: object keys`).toEqual(expectedKeys);
+    for (const key of expectedKeys) {
+      assertMatchesExpectedOutbound(actualRecord[key], expectedRecord[key], `${where}.${key}`);
+    }
+    return;
+  }
+  expect(actual, `${where}: value`).toBe(expected);
+}
+
+function validateOutboundEnvelopes(
+  envelopes: Array<Record<string, unknown>>,
+  protocolVersion: string,
+): void {
+  const isV09 = protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9');
+  for (let i = 0; i < envelopes.length; i++) {
+    const env = envelopes[i];
+    const parsed = isV09
+      ? A2uiClientMessageSchema.safeParse(env)
+      : RendererToAgentMessageSchema.safeParse(env);
+    expect(
+      parsed.success,
+      `outbound[${i}] failed protocol schema validation: ${
+        parsed.success ? '' : JSON.stringify(parsed.error.issues)
+      }`,
+    ).toBe(true);
+  }
+}
+
+function assertExpectedOutbound(
+  actual: Array<Record<string, unknown>>,
+  expected: Array<Record<string, unknown>> | undefined,
+): void {
+  if (expected === undefined) {
+    return;
+  }
+  expect(actual, 'expectOutbound length').toHaveLength(expected.length);
+  for (let i = 0; i < expected.length; i++) {
+    assertMatchesExpectedOutbound(actual[i], expected[i], `expectOutbound[${i}]`);
+  }
+}
+
 export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState {
   const catalogs: Array<Catalog<ReactCatalogComponent>> = [
     createDefaultAdapterCatalog(),
     ...(caseSpec?.catalogs ?? []).map(buildExtraCatalog),
   ];
-  const processor = new MessageProcessor<ReactCatalogComponent>(catalogs);
+  const outbound: Array<Record<string, unknown>> = [];
+  const protocolVersion = caseSpec?.protocolVersion ?? '1.0';
+  const processor = new MessageProcessor<ReactCatalogComponent>(catalogs, undefined, {
+    outboundListener: msg => {
+      outbound.push(structuredClone(msg) as unknown as Record<string, unknown>);
+    },
+  });
   const state: HarnessState = {
     processor,
     unmounted: false,
     actions: [],
     errors: [],
+    outbound,
+    protocolVersion,
     previousNodes: new Map(),
     previousDomElements: new Map(),
   };
@@ -971,9 +1118,21 @@ export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState 
     state.surface = surface;
     surface.onAction.subscribe(action => {
       state.actions.push(action as unknown as Record<string, unknown>);
+      state.outbound.push(
+        frameActionEnvelope(action as unknown as Record<string, unknown>, state.protocolVersion),
+      );
     });
     surface.onError.subscribe(err => {
       state.errors.push(err as unknown as Record<string, unknown>);
+      if (state.currentOp !== 'programmatic_invoke') {
+        state.outbound.push(
+          frameErrorEnvelope(
+            err as unknown as Record<string, unknown>,
+            surface.id,
+            state.protocolVersion,
+          ),
+        );
+      }
     });
   });
   return state;
@@ -983,6 +1142,8 @@ export async function runStep(state: HarnessState, step: AdapterStep): Promise<v
   assertKnownKeys(step);
   state.actions = [];
   state.errors = [];
+  state.outbound.length = 0;
+  state.currentOp = step.op;
   if (step.messages && step.messages.length > 0) {
     await act(async () => {
       state.processor.processMessages(step.messages!);
@@ -1015,6 +1176,8 @@ export async function runStep(state: HarnessState, step: AdapterStep): Promise<v
   }
   assertExpectedActions(state.actions, step.expectActions);
   assertExpectedErrors(state.errors, step.expectErrors);
+  validateOutboundEnvelopes(state.outbound, state.protocolVersion);
+  assertExpectedOutbound(state.outbound, step.expectOutbound);
   assertStepIdentityAndModel(state, step, currentNodes, currentDom);
   state.previousNodes = currentNodes;
   state.previousDomElements = currentDom;

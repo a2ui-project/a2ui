@@ -57,10 +57,12 @@ struct AdapterManifestRecord: Sendable {
   }
 }
 
-/// Captures actions and errors emitted by `MessageProcessor` during a conformance step.
+/// Captures actions, errors, and outbound envelopes emitted by `MessageProcessor` during a step.
 final class AdapterTestActionHandler: ActionHandling, @unchecked Sendable {
   var actions: [(action: ResolvedAction, surfaceID: String)] = []
   var errors: [RendererError] = []
+  var outbound: [[String: Any]] = []
+  var currentOp: String?
 
   func handle(action: ResolvedAction, from surfaceID: String) {
     actions.append((action: action, surfaceID: surfaceID))
@@ -70,9 +72,23 @@ final class AdapterTestActionHandler: ActionHandling, @unchecked Sendable {
     errors.append(error)
   }
 
+  func recordOutbound(_ message: RendererToAgentMessage) {
+    if currentOp == "programmatic_invoke", case .error = message {
+      return
+    }
+    guard
+      let data = try? JSONEncoder().encode(message),
+      let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    else {
+      return
+    }
+    outbound.append(dict)
+  }
+
   func clearStepEvents() {
     actions.removeAll()
     errors.removeAll()
+    outbound.removeAll()
   }
 }
 
@@ -161,6 +177,7 @@ final class MountedSurfaceHarness {
 @MainActor
 final class AdapterSession {
   let caseName: String
+  let protocolVersion: String
   let handler: AdapterTestActionHandler
   let processor: MessageProcessor
   let uiCatalogs: [Catalog<ComponentImplementation>]
@@ -170,11 +187,13 @@ final class AdapterSession {
 
   init(
     caseName: String,
+    protocolVersion: String = "1.0",
     handler: AdapterTestActionHandler,
     processor: MessageProcessor,
     uiCatalogs: [Catalog<ComponentImplementation>]
   ) {
     self.caseName = caseName
+    self.protocolVersion = protocolVersion
     self.handler = handler
     self.processor = processor
     self.uiCatalogs = uiCatalogs
@@ -226,6 +245,7 @@ enum AdapterHarness {
     "expectDataModel",
     "expectActions",
     "expectErrors",
+    "expectOutbound",
     "expectSameViewIdentity",
     "expectActiveSubscriptions",
   ]
@@ -383,6 +403,20 @@ enum AdapterHarness {
           allowed: expectedErrorKnownKeys,
           where: "\(location).expectErrors[\(idx)]"
         )
+      }
+    }
+    if let rawOutbound = obj["expectOutbound"] {
+      guard let outbound = rawOutbound as? [[String: Any]] else {
+        let msg = "\(location).expectOutbound: expected array of objects"
+        Issue.record(Comment(rawValue: msg))
+        throw AdapterConformanceError(msg)
+      }
+      for (idx, item) in outbound.enumerated() {
+        guard item["version"] is String else {
+          let msg = "\(location).expectOutbound[\(idx)].version: expected string"
+          Issue.record(Comment(rawValue: msg))
+          throw AdapterConformanceError(msg)
+        }
       }
     }
   }
@@ -579,15 +613,20 @@ enum AdapterHarness {
   /// Creates an `AdapterSession` configured for `caseSpec`.
   static func mountSurface(_ caseSpec: [String: Any]) throws -> AdapterSession {
     let caseName = caseSpec["name"] as? String ?? "<unnamed>"
+    let protocolVersion = (caseSpec["protocolVersion"] as? String) ?? "1.0"
     let handler = AdapterTestActionHandler()
     let (coreCatalogs, uiCatalogs) = try buildCatalogs(for: caseSpec)
     let processor = MessageProcessor(
       catalogs: coreCatalogs,
       actionHandler: handler,
-      validationConfig: .relaxed
+      validationConfig: .relaxed,
+      outboundListener: { message in
+        handler.recordOutbound(message)
+      }
     )
     return AdapterSession(
       caseName: caseName,
+      protocolVersion: protocolVersion,
       handler: handler,
       processor: processor,
       uiCatalogs: uiCatalogs
@@ -610,6 +649,7 @@ enum AdapterHarness {
     let stepCtx = context ?? session.caseName
     session.handler.clearStepEvents()
     let op = step["op"] as? String ?? "process_messages"
+    session.handler.currentOp = op
     switch op {
     case "process_messages":
       let messages = (step["messages"] as? [[String: Any]]) ?? []
@@ -903,6 +943,18 @@ enum AdapterHarness {
     if let expErrors = step["expectErrors"] as? [[String: Any]] {
       try assertErrorsMatch(session.handler.errors, expected: expErrors, context: context)
     }
+    try validateOutboundEnvelopes(
+      session.handler.outbound,
+      protocolVersion: session.protocolVersion,
+      context: context
+    )
+    if let expOutbound = step["expectOutbound"] as? [[String: Any]] {
+      try assertOutboundMatches(
+        session.handler.outbound,
+        expected: expOutbound,
+        context: context
+      )
+    }
     if let expA11y = step["expectAccessibilityTree"] as? [String: [String: Any]],
       let currentTree = session.currentTree
     {
@@ -1137,6 +1189,133 @@ enum AdapterHarness {
       return (valError.code.rawValue, valError.surfaceID, valError.message)
     case .generic(let genError):
       return (genError.code, genError.surfaceID, genError.message)
+    }
+  }
+
+  private static let v10OutboundSchema: Schema = loadSpecificationSchema(
+    relativePath: "v1_0/json/renderer_to_agent.json"
+  )
+
+  private static let v09OutboundSchema: Schema = loadSpecificationSchema(
+    relativePath: "v0_9_1/json/client_to_server.json"
+  )
+
+  private static func loadSpecificationSchema(relativePath: String) -> Schema {
+    let repoRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    let schemaURL = repoRoot.appendingPathComponent("specification").appendingPathComponent(
+      relativePath
+    )
+    let text = (try? String(contentsOf: schemaURL, encoding: .utf8)) ?? "{}"
+    let rawJSON = (try? JSONValue.parse(text)) ?? .object([:])
+    return try! Schema(rawSchema: rawJSON, context: A2UISchemaRegistry.makeContext())
+  }
+
+  private static func validateOutboundEnvelopes(
+    _ envelopes: [[String: Any]],
+    protocolVersion: String,
+    context: String
+  ) throws {
+    let isV09 = protocolVersion.hasPrefix("v0.9") || protocolVersion.hasPrefix("0.9")
+    let schema = isV09 ? v09OutboundSchema : v10OutboundSchema
+    for (idx, envelope) in envelopes.enumerated() {
+      let jsonValue = toJSONValue(envelope)
+      let result = schema.validate(jsonValue)
+      #expect(
+        result.isValid,
+        "\(context): outbound[\(idx)] failed protocol schema validation"
+      )
+      if !result.isValid {
+        throw AdapterConformanceError(
+          "\(context): outbound[\(idx)] failed protocol schema validation"
+        )
+      }
+    }
+  }
+
+  private static func isMatchAny(_ value: Any) -> Bool {
+    guard let dict = value as? [String: Any], dict.count == 1 else { return false }
+    return (dict["$match"] as? String) == "any"
+  }
+
+  private static func assertMatchesExpectedOutbound(
+    _ actual: Any,
+    expected: Any,
+    where location: String
+  ) throws {
+    if isMatchAny(expected) {
+      let isNonNull = !(actual is NSNull)
+      #expect(isNonNull, "\(location): expected non-null value for {$match: \"any\"}")
+      if !isNonNull {
+        throw AdapterConformanceError("\(location): expected non-null value")
+      }
+      return
+    }
+    if let expArray = expected as? [Any] {
+      guard let actArray = actual as? [Any], actArray.count == expArray.count else {
+        let msg = "\(location): array length mismatch"
+        Issue.record(Comment(rawValue: msg))
+        throw AdapterConformanceError(msg)
+      }
+      for idx in 0..<expArray.count {
+        try assertMatchesExpectedOutbound(
+          actArray[idx],
+          expected: expArray[idx],
+          where: "\(location)[\(idx)]"
+        )
+      }
+      return
+    }
+    if let expDict = expected as? [String: Any] {
+      guard let actDict = actual as? [String: Any] else {
+        let msg = "\(location): expected object"
+        Issue.record(Comment(rawValue: msg))
+        throw AdapterConformanceError(msg)
+      }
+      let actKeys = actDict.keys.sorted()
+      let expKeys = expDict.keys.sorted()
+      #expect(actKeys == expKeys, "\(location): keys mismatch")
+      if actKeys != expKeys {
+        throw AdapterConformanceError("\(location): keys mismatch \(actKeys) vs \(expKeys)")
+      }
+      for key in expKeys {
+        try assertMatchesExpectedOutbound(
+          actDict[key] as Any,
+          expected: expDict[key] as Any,
+          where: "\(location).\(key)"
+        )
+      }
+      return
+    }
+    let actJSON = toJSONValue(actual)
+    let expJSON = toJSONValue(expected)
+    #expect(actJSON == expJSON, "\(location): value mismatch")
+    if actJSON != expJSON {
+      throw AdapterConformanceError("\(location): value mismatch \(actJSON) vs \(expJSON)")
+    }
+  }
+
+  private static func assertOutboundMatches(
+    _ actual: [[String: Any]],
+    expected: [[String: Any]],
+    context: String
+  ) throws {
+    #expect(actual.count == expected.count, "\(context): expectOutbound count mismatch")
+    if actual.count != expected.count {
+      throw AdapterConformanceError(
+        "\(context): expectOutbound count mismatch (\(actual.count) vs \(expected.count))"
+      )
+    }
+    for (idx, exp) in expected.enumerated() where idx < actual.count {
+      try assertMatchesExpectedOutbound(
+        actual[idx],
+        expected: exp,
+        where: "\(context).expectOutbound[\(idx)]"
+      )
     }
   }
 

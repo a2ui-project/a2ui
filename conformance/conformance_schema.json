@@ -2117,13 +2117,45 @@
               "expectActions": {"type": "array", "items": {"type": "object"}},
               "expectErrors": {"type": "array", "items": {"type": "object"}},
               "expectSameViewIdentity": {"type": "array", "items": {"type": "string"}},
-              "expectActiveSubscriptions": {"type": "integer"}
+              "expectActiveSubscriptions": {"type": "integer"},
+              "expectOutbound": {"$ref": "#/$defs/OutboundEnvelopeList"}
             },
             "additionalProperties": false
           }
         }
       },
       "additionalProperties": false
+    },
+    "MatchAny": {
+      "type": "object",
+      "required": ["$match"],
+      "properties": {
+        "$match": {"const": "any"}
+      },
+      "additionalProperties": false
+    },
+    "OutboundEnvelopeList": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["version"],
+        "minProperties": 2,
+        "maxProperties": 2,
+        "properties": {
+          "version": {"$ref": "#/$defs/ProtocolVersion"},
+          "action": {"type": "object"},
+          "callAgentFunction": {"type": "object"},
+          "rendererFunctionResponse": {"type": "object"},
+          "error": {"type": "object"}
+        },
+        "oneOf": [
+          {"required": ["action"]},
+          {"required": ["callAgentFunction"]},
+          {"required": ["rendererFunctionResponse"]},
+          {"required": ["error"]}
+        ],
+        "additionalProperties": false
+      }
     }
   }
 }

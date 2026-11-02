@@ -64,6 +64,7 @@ const Set<String> adapterStepKnownKeys = {
   'expectDataModel',
   'expectActions',
   'expectErrors',
+  'expectOutbound',
   'expectSameViewIdentity',
   'expectActiveSubscriptions',
 };
@@ -212,6 +213,17 @@ void assertKnownKeys(
         expectedErrorKnownKeys,
         '$where.expectErrors[$i]',
       );
+    }
+  }
+  if (obj['expectOutbound'] case final List<Object?> outboundList) {
+    for (var i = 0; i < outboundList.length; i++) {
+      final Object? item = outboundList[i];
+      if (item is! Map<String, Object?>) {
+        fail('Expected object at $where.expectOutbound[$i]');
+      }
+      if (item['version'] is! String) {
+        fail('Expected string at $where.expectOutbound[$i].version');
+      }
     }
   }
 }
@@ -468,7 +480,7 @@ class _IncrementCounterFunction extends FunctionImplementation {
 }
 
 class AdapterHarnessSession {
-  AdapterHarnessSession([this.tester]) {
+  AdapterHarnessSession([this.tester, this.protocolVersion = '1.0']) {
     final CatalogImplementation v10Catalog = _buildV10BasicCatalog(
       renderedNodes: renderedNodes,
       openedUrls: openedUrls,
@@ -479,20 +491,43 @@ class AdapterHarnessSession {
     processor = MessageProcessor<ComponentImplementation>(
       catalogs: [v0_9.basicCatalog(), v10Catalog, customCatalog],
       defaultVersion: A2uiProtocolVersion.v1_0,
+      outboundListener: (msg) {
+        outbound.add(
+          jsonDecode(jsonEncode(msg.toJson())) as Map<String, Object?>,
+        );
+      },
     );
-    processor.model.onAction.subscribe(actions.add);
+    processor.model.onAction.subscribe((action) {
+      actions.add(action);
+      outbound.add(_frameActionEnvelope(action, protocolVersion));
+    });
     processor.model.onSurfaceCreated.subscribe((created) {
       surface = created;
-      created.onError.subscribe(errors.add);
+      created.onError.subscribe((err) {
+        errors.add(err);
+        if (currentOp != 'programmatic_invoke') {
+          outbound.add(
+            jsonDecode(
+                  jsonEncode(
+                    ErrorMessage(version: protocolVersion, error: err).toJson(),
+                  ),
+                )
+                as Map<String, Object?>,
+          );
+        }
+      });
     });
   }
 
   WidgetTester? tester;
+  final String protocolVersion;
+  String? currentOp;
   late final MessageProcessor<ComponentImplementation> processor;
   SurfaceModel<ComponentImplementation>? surface;
   final Map<String, ComponentNode<ComponentImplementation>> renderedNodes = {};
   final List<A2uiRendererAction> actions = [];
   final List<A2uiRendererError> errors = [];
+  final List<Map<String, Object?>> outbound = [];
   final List<String> openedUrls = [];
   final Map<String, Element> savedElements = {};
   final Map<String, ComponentNode<ComponentImplementation>> savedNodes = {};
@@ -537,7 +572,10 @@ class AdapterHarnessSession {
 AdapterHarnessSession mountSurface([
   Map<String, Object?>? caseSpec,
   WidgetTester? tester,
-]) => AdapterHarnessSession(tester);
+]) => AdapterHarnessSession(
+  tester,
+  (caseSpec?['protocolVersion'] as String?) ?? '1.0',
+);
 
 ComponentNode<ComponentImplementation>? extractViewTree(
   AdapterHarnessSession session,
@@ -656,7 +694,9 @@ Future<void> _executeStep(
 ) async {
   harness.actions.clear();
   harness.errors.clear();
+  harness.outbound.clear();
   final op = step['op']! as String;
+  harness.currentOp = op;
   switch (op) {
     case 'process_messages':
       await harness.processMessages(tester, step['messages']! as List<Object?>);
@@ -776,6 +816,10 @@ void _assertStepExpectations(
   }
   if (step['expectErrors'] case final List<Object?> expectedErrors) {
     _assertErrors(harness.errors, expectedErrors);
+  }
+  _validateOutboundEnvelopes(harness.outbound, harness.protocolVersion);
+  if (step['expectOutbound'] case final List<Object?> expectedOutbound) {
+    _assertOutbound(harness.outbound, expectedOutbound);
   }
   if (step['expectAccessibilityTree']
       case final Map<String, Object?> expectedA11y) {
@@ -952,6 +996,165 @@ void _assertErrors(List<A2uiRendererError> actual, List<Object?> expectedList) {
       ),
       isTrue,
       reason: 'Expected error matching $expected in $actual',
+    );
+  }
+}
+
+Map<String, Object?> _loadSpecSchema(String relativePath) {
+  final file = File('../../specification/$relativePath');
+  final decoded = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+  decoded.remove(r'$schema');
+  return decoded;
+}
+
+class _OutboundSchemaOracle {
+  _OutboundSchemaOracle(
+    String versionDir,
+    String baseVersion,
+    String file, {
+    List<String> siblings = const [],
+  }) {
+    final Uri base = Uri.parse('https://a2ui.org/specification/$baseVersion/');
+    sourceUri = base.resolve(file);
+    registry.addSchema(
+      base.resolve('catalog.json'),
+      Schema.fromMap(const {
+        r'$defs': {
+          'anyComponent': <String, Object?>{},
+          'anyFunction': <String, Object?>{},
+          'theme': <String, Object?>{},
+        },
+      }),
+    );
+    for (final sibling in siblings) {
+      registry.addSchema(
+        base.resolve(sibling),
+        Schema.fromMap(_loadSpecSchema('$versionDir/json/$sibling')),
+      );
+    }
+    schema = Schema.fromMap(_loadSpecSchema('$versionDir/json/$file'));
+  }
+
+  final SchemaRegistry registry = SchemaRegistry();
+  late final Uri sourceUri;
+  late final Schema schema;
+
+  List<ValidationError> validate(Map<String, Object?> envelope) => schema
+      .validateSync(envelope, sourceUri: sourceUri, schemaRegistry: registry);
+}
+
+final _OutboundSchemaOracle _v10OutboundOracle = _OutboundSchemaOracle(
+  'v1_0',
+  'v1_0',
+  'renderer_to_agent.json',
+  siblings: const ['common_types.json'],
+);
+
+final _OutboundSchemaOracle _v09OutboundOracle = _OutboundSchemaOracle(
+  'v0_9_1',
+  'v0_9',
+  'client_to_server.json',
+  siblings: const ['common_types.json'],
+);
+
+Map<String, Object?> _frameActionEnvelope(
+  A2uiRendererAction action,
+  String protocolVersion,
+) {
+  final actionMap =
+      jsonDecode(jsonEncode(action.toJson())) as Map<String, Object?>
+        ..remove('catalogId');
+  return <String, Object?>{'version': protocolVersion, 'action': actionMap};
+}
+
+void _validateOutboundEnvelopes(
+  List<Map<String, Object?>> envelopes,
+  String protocolVersion,
+) {
+  final bool isV09 =
+      protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9');
+  final _OutboundSchemaOracle oracle = isV09
+      ? _v09OutboundOracle
+      : _v10OutboundOracle;
+  for (var i = 0; i < envelopes.length; i++) {
+    final List<ValidationError> validationErrors = oracle.validate(
+      envelopes[i],
+    );
+    expect(
+      validationErrors,
+      isEmpty,
+      reason:
+          'outbound[$i] failed protocol schema validation: $validationErrors',
+    );
+  }
+}
+
+bool _isMatchAny(Object? value) =>
+    value is Map && value.length == 1 && value[r'$match'] == 'any';
+
+void _assertMatchesExpectedOutbound(
+  Object? actual,
+  Object? expected,
+  String where,
+) {
+  if (_isMatchAny(expected)) {
+    expect(
+      actual,
+      isNotNull,
+      reason: '$where: expected non-null value for {r"\$match": "any"}',
+    );
+    return;
+  }
+  if (expected is List) {
+    expect(actual, isA<List<Object?>>(), reason: '$where: expected list');
+    final actualList = actual! as List<Object?>;
+    expect(
+      actualList,
+      hasLength(expected.length),
+      reason: '$where: list length mismatch',
+    );
+    for (var i = 0; i < expected.length; i++) {
+      _assertMatchesExpectedOutbound(actualList[i], expected[i], '$where[$i]');
+    }
+    return;
+  }
+  if (expected is Map) {
+    expect(
+      actual,
+      isA<Map<String, Object?>>(),
+      reason: '$where: expected object',
+    );
+    final actualMap = actual! as Map<String, Object?>;
+    final List<String> actualKeys = actualMap.keys.toList()..sort();
+    final List<String> expectedKeys =
+        expected.keys.map((k) => k.toString()).toList()..sort();
+    expect(actualKeys, equals(expectedKeys), reason: '$where: keys mismatch');
+    for (final key in expectedKeys) {
+      _assertMatchesExpectedOutbound(
+        actualMap[key],
+        expected[key],
+        '$where.$key',
+      );
+    }
+    return;
+  }
+  expect(actual, equals(expected), reason: '$where: value mismatch');
+}
+
+void _assertOutbound(
+  List<Map<String, Object?>> actual,
+  List<Object?> expected,
+) {
+  expect(
+    actual,
+    hasLength(expected.length),
+    reason: 'expectOutbound length mismatch',
+  );
+  for (var i = 0; i < expected.length; i++) {
+    _assertMatchesExpectedOutbound(
+      actual[i],
+      expected[i],
+      'expectOutbound[$i]',
     );
   }
 }

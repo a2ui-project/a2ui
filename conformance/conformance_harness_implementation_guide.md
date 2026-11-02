@@ -321,7 +321,7 @@ Each case in `core/adapter_conformance.yaml` (`action: render_surface`) loads `c
 4. `programmatic_invoke` triggers `targetNode`'s action programmatically with `userActivation: false` so functions with `requiresUserActivation: true` are blocked and report an error on the surface error channel.
 5. `unmount_surface` unmounts and disposes the rendered surface view.
 
-After each step settles, check whichever of the seven assertion fields are present on the step:
+After each step settles, check whichever of the eight assertion fields are present on the step:
 
 1. `expectViewTree` checks the rendered hierarchy (`id`, `type`, `state` of `resolved`, `pending`, `unknown-type`, or `cyclic`, rendered `text`, `value`, or custom props, `isValid`, `validationErrors`, `validationResults`, and ordered `children`). This covers single-message inline v1.0 surfaces, progressive placeholder upgrades, `List` repeaters with `${@index()}`, fallback placeholders, and check severity (`error` sets `isValid: false`, whereas `warning` keeps `isValid: true`).
 2. `expectSameViewIdentity` lists node paths (`"root"`, `"root/children/0"`) whose underlying DOM element, widget state, or node instance must keep its identity across updates and list mutations rather than remounting.
@@ -330,6 +330,12 @@ After each step settles, check whichever of the seven assertion fields are prese
 5. `expectErrors` checks surface diagnostics (`code` such as `UNKNOWN_COMPONENT_TYPE` or `CYCLIC_REFERENCE`, `surfaceId`, and `message`).
 6. `expectAccessibilityTree` checks per-component accessibility attributes (`label`, `description`, `live`, `hidden`, `role`), including implicit button label inference from child `Text` and explicit `accessibility.label` overrides.
 7. `expectActiveSubscriptions` checks the remaining reactive listener count held by the mounted surface (`0` after `unmount_surface`).
+8. `expectOutbound` checks the wire-framed renderer-to-agent protocol envelopes emitted during the step:
+   1. Scope: capture every protocol message envelope handed to the renderer's outbound path during the step in emission order, and clear the capture buffer between steps (`expectOutbound: []` asserts that a local `functionCall`, blocked `programmatic_invoke`, or passive render step emits no wire message).
+   2. Framing: record complete wire envelopes (`{version, action}` from `onAction` with renderer-local fields such as `@a2ui/web_core`'s `ActionPayload.catalogId` omitted, `{version, error}` from `onError` or the error handler, and `{version, callAgentFunction}` or `{version, rendererFunctionResponse}` from `MessageProcessor`'s `outboundListener`).
+   3. Schema validation: validate every captured envelope against the target protocol version's outbound schema ([specification/v1_0/json/renderer_to_agent.json](../specification/v1_0/json/renderer_to_agent.json) for `"1.0"` or [specification/v0_9_1/json/client_to_server.json](../specification/v0_9_1/json/client_to_server.json) for `"v0.9"`) before matching expectations.
+   4. Matching: assert that the captured list has the same length as `expectOutbound` and that each captured envelope deep-equals the expected envelope at the same index, except that any field or subtree whose expected value is `{"$match": "any"}` matches any defined non-null actual value (such as generated `timestamp` strings on `action` or `functionCallId` values on `callAgentFunction`).
+   5. Static check: [conformance/tests/test_outbound_envelopes.py](tests/test_outbound_envelopes.py) substitutes sample values for `{"$match": "any"}` wildcards (`"2026-01-01T00:00:00Z"` for `timestamp`, `"call-1"` for `functionCallId`) and validates every expected envelope in `expectOutbound` against the specification JSON schemas.
 
 ### Accessibility tree and axe-core (`core/accessibility.yaml`)
 
