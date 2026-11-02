@@ -19,7 +19,7 @@ import {describe, it} from 'node:test';
 import {promises as fsPromises, readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {z} from 'zod';
-import {A2uiCatalogError} from '../errors.js';
+import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {Catalog} from './types.js';
 import {analyzeChildRefSchema} from './reference-map.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
@@ -958,12 +958,14 @@ describe('Catalog.fromJson & schema_loader', () => {
         accessibility: {label: 'Field label'},
       });
 
-      assert.throws(() =>
-        v1Validator.validateComponent({
-          id: 'field_bad',
-          component: 'FormField',
-          label: 12345,
-        }),
+      assert.throws(
+        () =>
+          v1Validator.validateComponent({
+            id: 'field_bad',
+            component: 'FormField',
+            label: 12345,
+          }),
+        A2uiValidationError,
       );
 
       const v09Catalog = Catalog.fromJson(
@@ -997,6 +999,16 @@ describe('Catalog.fromJson & schema_loader', () => {
         title: {path: '/card/title'},
         accessibility: {label: 'Card'},
       });
+
+      assert.throws(
+        () =>
+          v09Validator.validateComponent({
+            id: 'card_bad',
+            component: 'CustomCard',
+            title: 42,
+          }),
+        A2uiValidationError,
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }
