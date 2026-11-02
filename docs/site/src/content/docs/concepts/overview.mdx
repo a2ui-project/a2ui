@@ -1,11 +1,417 @@
 ---
 title: 'Overview: How A2UI Works'
-description: 'Core architecture, mental model, and separation of concerns in A2UI.'
+description: 'Core architecture, mental model, and end-to-end pipeline of the Agent-to-User Interface protocol.'
 ---
 
-import {Aside} from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import ArchitecturePipelineOverview from '../../../components/docs/overview/ArchitecturePipelineOverview.astro';
 
-<Aside type="note" title="Work in Progress">
-  This page is currently being authored. Refer to the site outline in the repository for the
-  specification and planned content.
-</Aside>
+A2UI (Agent-to-User Interface) is an open protocol and SDK suite that enables AI agents to generate native, interactive, and stateful user interfaces across mobile and web platforms. Instead of streaming raw HTML strings, unstyled webviews, or static Markdown prose, an A2UI agent streams structured JSON messages that construct native UI components and update local reactive state.
+
+The core design principle of A2UI is the **separation of layout and state**. The agent defines the component hierarchy once or when structure changes, while data values update independently through JSON Pointers. This allows client controls to update locally at 60 FPS, allows backends to inject deterministic data without regenerating UI trees, and reduces token consumption during model generation.
+
+---
+
+## Architecture & Pipeline Overview
+
+The following diagram illustrates the complete end-to-end pipeline, from component schemas and model reasoning on the server to native rendering on the client:
+
+<ArchitecturePipelineOverview />
+
+---
+
+## 1. Core Mental Model
+
+The A2UI architecture divides responsibilities across five distinct layers:
+
+### 1. Component Schemas (`catalog.json`)
+
+A component catalog is a JSON Schema file that defines the contract between the agent and the client application. It declares:
+
+- **Component definitions**: Available widgets such as `Card`, `Column`, `Row`, `Text`, `TextField`, `Stepper`, and `Button`.
+- **Property types**: Allowed props for each component (for example, `label`, `variant`, `disabled`), validated via standard JSON Schema keywords.
+- **Slots and child containers**: Where child components can be placed (single child slots or child lists).
+- **Functions and events**: Supported client-side formatting functions (like `formatCurrency`) and user interaction events.
+
+Catalogs can be standardized—such as the official `@a2ui/basic-catalog`—or custom domain catalogs authored specifically for an application.
+
+Learn more in [Catalogs, Components, and Functions](/concepts/catalogs/).
+
+### 2. A2UI Agent SDK
+
+The [A2UI Agent SDK](/concepts/agent-sdks/) is a server-side library available for **TypeScript**, **Python**, and **Dart**. The Agent SDK strictly encloses two core facilities:
+
+1. **Skill Generator**: Reads component catalog schemas and generates system prompt instructions, few-shot examples, and grammar constraints tailored to large language models.
+2. **Compiler & Validator**: Parses streaming model outputs—whether written in concise inference formats like Express (`.a2ui`), Atom, or Direct JSON—and validates them in real time against the catalog's JSON Schema definitions. It then emits type-safe A2UI wire protocol messages.
+
+The Agent SDK handles syntax translation and schema validation so the model runtime does not need to construct raw wire envelopes manually.
+
+Learn more in [Agent SDKs](/concepts/agent-sdks/) and [Inference Formats](/concepts/inference-formats/).
+
+### 3. Agent Application Runtime (User Code)
+
+The agent application code sits **outside** the A2UI Agent SDK boundary. It represents the developer's core orchestration logic and LLM runtime:
+
+- **Frameworks and models**: Developers can use Google Gemini (via the Google GenAI SDK or Interactions API), Google Agent Development Kit (ADK), Agent-to-Agent (A2A), Anthropic Claude, OpenAI, or LangChain.
+- **Domain skills & APIs**: The agent application integrates domain tools—such as flight search databases, authentication services, or reservation systems—alongside the generated A2UI catalog skills.
+- **Execution loop**: When a user submits an intent, the agent invokes domain tools to retrieve business data, reasons over the result, and feeds the desired UI layout and data into the A2UI compiler.
+
+### 4. Decoupled Layout (`updateComponents`) vs. State (`updateDataModel`)
+
+A2UI messages separate the visual component tree from the data values bound to those components:
+
+- **Layout (`updateComponents`)**: Carries a flat array of component objects. Each component specifies its unique `id`, component type name, static properties, and slot references to child components.
+- **State (`updateDataModel`)**: Carries data values organized as a reactive JSON object. Changes are applied via JSON Pointers (such as `/outbound/price` or `/selectedTickets`).
+
+This separation provides three operational advantages:
+
+1. **Zero UI re-rendering for data updates**: The agent or backend can stream updated prices, live status badges, or calculated totals without regenerating or diffing the component tree.
+2. **Local 60 FPS interactions**: Interactive controls (such as sliders, steppers, and text fields) mutate the local client data model directly. The UI updates instantly without waiting for an agent network round-trip.
+3. **Deterministic data injection**: Backend services can write verified database values directly into the data model path, ensuring critical business values (such as transaction IDs and flight fares) match backend records rather than relying on hallucination-prone model generation.
+
+Learn more in [Messages](/concepts/messages/) and [Data Binding](/concepts/data-binding/).
+
+### 5. Client Application & Renderer SDK
+
+The client application embeds an [A2UI Renderer SDK](/concepts/renderer-sdks/), available for **Flutter**, **Web** (Lit, React, Angular), **SwiftUI**, and **Jetpack Compose**:
+
+- **Surface management**: The renderer receives `createSurface` messages and allocates an isolated UI canvas scoped to a `surfaceId`.
+- **Native widget instantiation**: The renderer maps catalog component names to platform-native widgets (for example, mapping `Button` to a Flutter `ElevatedButton`, a Web `<button>`, or a SwiftUI `Button`).
+- **Two-way data binding**: The renderer evaluates data binding paths (`@path` in v1.0 or `path` in v0.9.1) against the local surface data model and refreshes bound properties when values change.
+- **Action dispatch**: When the user clicks an interactive element, the renderer resolves any context bindings against the data model and dispatches an `action` message back to the agent.
+
+Learn more in [Renderer SDKs](/concepts/renderer-sdks/) and [Actions and Functions](/concepts/actions-and-functions/).
+
+---
+
+## 2. End-to-End Architecture Walkthrough
+
+The A2UI pipeline executes across five distinct stages during a conversational interaction:
+
+```
+[Stage 1: Catalog Definition]
+             ↓
+[Stage 2: Skill Generation]
+             ↓
+[Stage 3: Agent Prompting & Reasoning]
+             ↓
+[Stage 4: Parsing, Compilation & Validation]
+             ↓
+[Stage 5: Incremental Client Rendering]
+```
+
+### Stage 1: Catalog Definition
+
+The application author defines the component catalog (`catalog.json`), declaring which widgets the agent is permitted to render. For example, a travel catalog might define `FlightCard`, `PassengerStepper`, and `BookingSummary`.
+
+Each component defines its properties using standard JSON Schema. Because the catalog is versioned and validated at build time, the agent cannot emit arbitrary HTML or unsupported widgets.
+
+### Stage 2: Skill Generation
+
+Before invoking the model, the A2UI Agent SDK reads the catalog and generates natural language skills and grammar rules:
+
+- Describes available components, properties, and constraints in a format optimized for LLM token efficiency.
+- Formulates rules for concise inference formats (such as A2UI Express or Atom).
+- Exports these instructions into the agent's system prompt or tool configuration.
+
+### Stage 3: Agent Prompting & Reasoning
+
+The user provides a prompt in the client application:
+
+> *"Berlin to San Francisco today, and two tickets back on Oct 19."*
+
+The host agent application receives this prompt and begins reasoning:
+
+1. It calls a domain tool (e.g. `searchFlights(from: "BER", to: "SFO", date: "2026-10-12")`) to retrieve available flights and pricing.
+2. It evaluates the user's intent and determines that an interactive form with passenger steppers provides a better user experience than a wall of prose text.
+3. It combines the flight data with the A2UI catalog skill to construct the response.
+
+### Stage 4: Parsing, Compilation & Validation
+
+The model streams its response. Rather than forcing the model to generate verbose wire protocol JSON directly, the model can emit a concise inference format (like Express):
+
+```python
+$/outbound/pax = 1
+$/outbound/price = 455
+$/return/pax = 2
+$/return/price = 970
+
+root = Card(Column([
+  FlightCard(from: "BER", to: "SFO", flight: "LH 454", price: $/outbound/price, pax: $/outbound/pax),
+  FlightCard(from: "SFO", to: "BER", flight: "UA 901", price: $/return/price, pax: $/return/pax),
+  Button(Text("Confirm Booking & Proceed"), action: Event("confirm_booking"))
+]))
+```
+
+The A2UI Agent SDK Compiler processes this stream in real time:
+
+1. **Syntax parsing**: Parses incoming tokens into intermediate representations.
+2. **Schema validation**: Verifies that every component name exists in the active catalog and that all required properties conform to their JSON Schema definitions. If the model attempts to pass an invalid property, the compiler flags the error immediately.
+3. **Wire emission**: Produces canonical wire protocol messages:
+   - `createSurface`: Allocates the surface on the client.
+   - `updateComponents`: Emits the flat array of validated component structures.
+   - `updateDataModel`: Emits the initial state values keyed by JSON Pointers.
+
+#### Wire Protocol Example: Decoupled Messages
+
+The following tabs contrast how `updateComponents` and `updateDataModel` appear over the wire in both protocol versions:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+Layout tree message referencing the candidate schema permalink [`updateComponents`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/updateComponents):
+
+```json
+{
+  "version": "1.0",
+  "updateComponents": {
+    "surfaceId": "flight-booking-surface",
+    "components": [
+      {
+        "id": "root",
+        "component": "Card",
+        "children": ["layout-col"]
+      },
+      {
+        "id": "layout-col",
+        "component": "Column",
+        "children": ["flight-outbound", "flight-return", "submit-btn"]
+      },
+      {
+        "id": "flight-outbound",
+        "component": "FlightCard",
+        "properties": {
+          "flightNumber": "LH 454",
+          "origin": "BER",
+          "destination": "SFO",
+          "price": { "@path": "/outbound/price" },
+          "passengers": { "@path": "/outbound/pax" }
+        }
+      },
+      {
+        "id": "submit-btn",
+        "component": "Button",
+        "properties": {
+          "label": "Confirm Booking & Proceed",
+          "variant": "primary"
+        },
+        "action": {
+          "event": {
+            "name": "confirm_booking",
+            "context": {
+              "outboundPax": { "@path": "/outbound/pax" },
+              "returnPax": { "@path": "/return/pax" }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+State update message referencing [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/updateDataModel):
+
+```json
+{
+  "version": "1.0",
+  "updateDataModel": {
+    "surfaceId": "flight-booking-surface",
+    "path": "/",
+    "value": {
+      "outbound": {
+        "pax": 1,
+        "price": 455
+      },
+      "return": {
+        "pax": 2,
+        "price": 970
+      }
+    }
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Active)">
+
+Layout tree message referencing the active schema permalink [`updateComponents`](/specification/v0.9.1/schemas/#server_to_client.json/$defs/updateComponents):
+
+```json
+{
+  "version": "v0.9",
+  "updateComponents": {
+    "surfaceId": "flight-booking-surface",
+    "components": [
+      {
+        "id": "root",
+        "component": "Card",
+        "children": ["layout-col"]
+      },
+      {
+        "id": "layout-col",
+        "component": "Column",
+        "children": ["flight-outbound", "flight-return", "submit-btn"]
+      },
+      {
+        "id": "flight-outbound",
+        "component": "FlightCard",
+        "properties": {
+          "flightNumber": "LH 454",
+          "origin": "BER",
+          "destination": "SFO",
+          "price": { "path": "/outbound/price" },
+          "passengers": { "path": "/outbound/pax" }
+        }
+      },
+      {
+        "id": "submit-btn",
+        "component": "Button",
+        "properties": {
+          "label": "Confirm Booking & Proceed",
+          "variant": "primary"
+        },
+        "action": {
+          "event": {
+            "name": "confirm_booking",
+            "context": {
+              "outboundPax": { "path": "/outbound/pax" },
+              "returnPax": { "path": "/return/pax" }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+State update message referencing [`updateDataModel`](/specification/v0.9.1/schemas/#server_to_client.json/$defs/updateDataModel):
+
+```json
+{
+  "version": "v0.9",
+  "updateDataModel": {
+    "surfaceId": "flight-booking-surface",
+    "path": "/",
+    "value": {
+      "outbound": {
+        "pax": 1,
+        "price": 455
+      },
+      "return": {
+        "pax": 2,
+        "price": 970
+      }
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+### Stage 5: Incremental Client Rendering
+
+The client application receives the messages over its transport channel (e.g. AG-UI, A2A, MCP, or WebSocket):
+
+1. **Surface instantiation**: The A2UI Renderer SDK creates the visual container corresponding to `surfaceId`.
+2. **Component mounting**: It walks the component array starting at `root`, resolves child IDs in `children`, and instantiates native platform widgets.
+3. **Data binding resolution**: For properties bound to JSON Pointers (such as `@path: "/outbound/pax"` in v1.0 or `path: "/outbound/pax"` in v0.9.1), the renderer subscribes the widget to that path in the local data model.
+4. **Local interaction**: When the user taps the `+` button on a passenger stepper:
+   - The stepper directly increments `/outbound/pax` in the local data model.
+   - Any widget referencing `/outbound/pax` or computed total recalculates instantly at 60 FPS.
+   - No network traffic is sent to the server for intermediate UI state changes.
+5. **Action submission**: When the user taps *"Confirm Booking & Proceed"*, the renderer evaluates the `action.event.context` paths against the current data model values and dispatches an `action` message back to the agent:
+
+```json
+{
+  "version": "1.0",
+  "action": {
+    "surfaceId": "flight-booking-surface",
+    "name": "confirm_booking",
+    "context": {
+      "outboundPax": 2,
+      "returnPax": 2
+    }
+  }
+}
+```
+
+---
+
+## 3. Capabilities & Catalog Negotiation
+
+Before an agent begins generating UI for a client, the two parties negotiate capabilities. This handshake guarantees that the agent only emits components and protocol versions that the client renderer can display.
+
+### Capability Advertisement
+
+The client renderer advertises its supported catalogs and protocol versions in transport metadata:
+
+- In **v1.0 (Candidate)**, the metadata key is [`a2uiRendererCapabilities`](/specification/v1.0/schemas/#renderer_capabilities.json).
+- In **v0.9.1 (Active)**, the metadata key is [`a2uiClientCapabilities`](/specification/v0.9.1/schemas/#client_capabilities.json).
+
+Depending on the underlying transport:
+- In **A2A (Agent-to-Agent)**: The renderer attaches capabilities to the `metadata` property of each turn message.
+- In **MCP (Model Context Protocol)**: Capabilities are passed during session initialization.
+- In **Custom HTTP / WebSocket transports**: Capabilities are transmitted in handshake headers or initial connection payloads.
+
+The following tabs show the exact wire structure of client capability advertisements:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+Client capability advertisement using [`renderer_capabilities.json`](/specification/v1.0/schemas/#renderer_capabilities.json):
+
+```json
+{
+  "a2uiRendererCapabilities": {
+    "1.0": {
+      "supportedCatalogIds": [
+        "https://a2ui.org/catalogs/basic/v1.json",
+        "https://example.com/catalogs/travel/v2.json"
+      ],
+      "inlineCatalogs": []
+    }
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Active)">
+
+Client capability advertisement using [`client_capabilities.json`](/specification/v0.9.1/schemas/#client_capabilities.json):
+
+```json
+{
+  "a2uiClientCapabilities": {
+    "v0.9": {
+      "supportedCatalogIds": [
+        "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "https://example.com/catalogs/travel/v1.json"
+      ],
+      "inlineCatalogs": []
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+### Key Capability Fields
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `supportedCatalogIds` | `string[]` | Array of canonical catalog URIs that the client renderer has registered locally. The renderer can mix components from multiple supported catalogs within a single surface. |
+| `inlineCatalogs` | `object[]` | Optional array of complete catalog definitions transmitted directly in the message. Provided only if the agent declares `acceptsInlineCatalogs: true` in its capabilities. |
+
+### Catalog Resolution Order
+
+When the agent receives the client's capability object, it determines which catalog to use according to the following resolution order:
+
+1. **Domain catalog match**: The agent checks if the client supports the specialized domain catalog required for the task (for example, `https://example.com/catalogs/travel/v2.json`). If supported, the agent loads this catalog and enables domain-specific widgets.
+2. **Basic catalog fallback**: If the domain catalog is not supported, the agent falls back to the standard basic catalog (`https://a2ui.org/catalogs/basic/v1.json` in v1.0 or `https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json` in v0.9.1), composing layouts using universal building blocks like Card, Text, Button, and Column.
+3. **Graceful text degradation**: If the client provides an empty `supportedCatalogIds` list or omits the capability object entirely, the agent does not emit A2UI messages. It falls back to standard plaintext or Markdown responses.
+
+Once catalog negotiation is complete, the agent invokes the Skill Generator for the resolved catalog, ensuring that every component produced during the session renders reliably on the user's device.

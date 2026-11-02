@@ -1,0 +1,1055 @@
+---
+/*
+ * Copyright 2025 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import DiagramCard from '../common/DiagramCard.astro';
+
+const mermaidSpec = `
+flowchart LR
+  subgraph Server["SERVER · YOUR AGENT"]
+    direction TB
+    subgraph Inputs["Agent Inputs"]
+      direction TB
+      Schemas["Component schemas<br/>(catalog.json)"]
+      DomainSkills["Domain skills<br/>(APIs &amp; business tools)"]
+    end
+
+    subgraph AgentSDK["A2UI AGENT SDK"]
+      direction TB
+      SkillGen["Skill generator<br/>(Prompt &amp; grammar rules)"]
+      Compiler["Compiler &amp; Validator<br/>(Streaming parser &amp; validator)"]
+    end
+
+    AgentApp["Agent Application Code<br/>(Gemini, ADK, A2A, LangChain)"]
+
+    Schemas --> SkillGen
+    SkillGen -->|"A2UI Skills"| AgentApp
+    DomainSkills -->|"Domain Skills"| AgentApp
+    AgentApp -->|"Model Output (Express / JSON)"| Compiler
+  end
+
+  subgraph Transport["ASYNCHRONOUS TRANSPORT"]
+    direction TB
+    MsgLayout["Layout JSON<br/><code>updateComponents</code>"]
+    MsgData["Data Model<br/><code>updateDataModel</code>"]
+    MsgAction["User Interactions<br/><code>action</code> events"]
+  end
+
+  subgraph Client["CLIENT · YOUR APP"]
+    direction TB
+    subgraph HostApp["Host Client Application Shell"]
+      direction TB
+      ChatHistory["Chat Stream: 'Berlin to San Francisco...'"]
+      subgraph RendererSDK["A2UI Renderer SDK (Flutter, Web, SwiftUI, Compose)"]
+        direction TB
+        Surface["Rendered Native Surface ('A2UI renderer draws this part')<br/>• Outbound Flight Card (BER → SFO)<br/>• Return Flight Card (SFO → BER)<br/>• Reactive Passenger Steppers"]
+      end
+    end
+  end
+
+  Compiler -->|"UI Layout Tree"| MsgLayout
+  AgentApp -->|"Values &amp; State"| MsgData
+  MsgLayout --> RendererSDK
+  MsgData --> RendererSDK
+  Surface -.->|"User Clicks Steppers / Submit"| MsgAction
+  MsgAction -.-> AgentApp
+`;
+---
+
+<DiagramCard title="A2UI Architecture & Pipeline Overview" mermaid={mermaidSpec}>
+  <div class="a2-pipeline-root">
+    <!-- Subtitle banner -->
+    <div class="a2-pipeline-lead">
+      End-to-end architecture separating server-side skill generation and compilation from client-side native rendering.
+    </div>
+
+    <div class="a2-pipeline-grid">
+      <!-- ================= SERVER SIDE ================= -->
+      <section class="a2-pipeline-col a2-col-server">
+        <header class="a2-col-header">
+          <div class="a2-col-badge a2-badge-server">SERVER · YOUR AGENT</div>
+          <span class="a2-col-subtext">Backend logic &amp; model reasoning</span>
+        </header>
+
+        <!-- Inputs Row -->
+        <div class="a2-inputs-group">
+          <div class="a2-input-card">
+            <div class="a2-card-tag">SCHEMA CONTRACT</div>
+            <h5 class="a2-card-title">Component schemas</h5>
+            <p class="a2-card-desc">Your <code>catalog.json</code> defining typed components, properties, and slots.</p>
+          </div>
+          <div class="a2-input-card">
+            <div class="a2-card-tag">BUSINESS TOOLS</div>
+            <h5 class="a2-card-title">Domain skills</h5>
+            <p class="a2-card-desc">Flight search APIs, passenger booking database, and enterprise tools.</p>
+          </div>
+        </div>
+
+        <!-- Connection Indicator -->
+        <div class="a2-flow-arrow-down">
+          <span>↓ Schemas feed Skill Generator; Domain Skills feed Agent</span>
+        </div>
+
+        <!-- A2UI Agent SDK Container strictly encloses Skill Generator & Compiler -->
+        <div class="a2-sdk-boundary">
+          <div class="a2-sdk-header">
+            <span class="a2-sdk-label">A2UI AGENT SDK</span>
+            <span class="a2-sdk-lang">TypeScript · Python · Dart</span>
+          </div>
+
+          <div class="a2-sdk-content">
+            <!-- Skill generator -->
+            <div class="a2-sdk-box a2-box-skillgen">
+              <div class="a2-box-badge">STAGE 2</div>
+              <h5 class="a2-box-title">Skill generator</h5>
+              <p class="a2-box-desc">
+                Converts component schemas into LLM prompt instructions, catalogs, and grammar constraints.
+              </p>
+            </div>
+
+            <!-- Visual Flow Arrow inside / out of SDK -->
+            <div class="a2-sdk-flow">
+              <span class="a2-flow-chip">Prompt Skill →</span>
+            </div>
+
+            <!-- Compiler & Validator -->
+            <div class="a2-sdk-box a2-box-compiler">
+              <div class="a2-box-badge">STAGE 4</div>
+              <h5 class="a2-box-title">Compiler &amp; Validator</h5>
+              <p class="a2-box-desc">
+                Parses streaming LLM output (Express / Atom / JSON), validates against schemas, and emits wire messages.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Agent Application Code (Outside SDK Boundary Rule) -->
+        <div class="a2-agent-app-box">
+          <div class="a2-agent-app-header">
+            <div class="a2-agent-app-title">Agent Application Code (Your Runtime)</div>
+            <span class="a2-pill-neutral">Outside Agent SDK</span>
+          </div>
+          <p class="a2-agent-app-desc">
+            Your host runtime (e.g. Gemini, Interactions API, ADK, A2A, OpenAI, Anthropic, LangChain) orchestrates user
+            intent, calls domain skills, and feeds raw model output into the A2UI compiler.
+          </p>
+        </div>
+
+        <!-- Transport Messages Emitter -->
+        <div class="a2-server-emits">
+          <div class="a2-emit-card a2-emit-layout">
+            <span class="a2-emit-badge">LAYOUT JSON</span>
+            <code>updateComponents</code>
+            <span class="a2-emit-note">Flat component tree</span>
+          </div>
+          <div class="a2-emit-card a2-emit-data">
+            <span class="a2-emit-badge">DATA SENT SEPARATELY</span>
+            <code>updateDataModel</code>
+            <span class="a2-emit-note">Reactive JSON pointers</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TRANSPORT BRIDGE ================= -->
+      <aside class="a2-pipeline-transport" aria-label="Asynchronous Wire Transport">
+        <div class="a2-transport-line"></div>
+        <div class="a2-transport-badge">
+          <span>ASYNC WIRE PROTOCOL</span>
+          <span class="a2-transport-protocols">AG-UI · A2A · MCP · WebSockets</span>
+        </div>
+        <div class="a2-transport-flow">
+          <div class="a2-transport-item a2-trans-layout">
+            <span class="a2-flow-indicator">→</span>
+            <span><code>updateComponents</code></span>
+          </div>
+          <div class="a2-transport-item a2-trans-data">
+            <span class="a2-flow-indicator">→</span>
+            <span><code>updateDataModel</code></span>
+          </div>
+          <div class="a2-transport-item a2-trans-action">
+            <span class="a2-flow-indicator">←</span>
+            <span><code>action</code> events</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ================= CLIENT SIDE ================= -->
+      <section class="a2-pipeline-col a2-col-client">
+        <header class="a2-col-header">
+          <div class="a2-col-badge a2-badge-client">CLIENT · YOUR APP</div>
+          <span class="a2-col-subtext">Native rendering &amp; local reactive state</span>
+        </header>
+
+        <!-- Phone Device Mockup -->
+        <div class="a2-phone-shell">
+          <!-- Top Speaker / Camera Notch -->
+          <div class="a2-phone-notch"></div>
+          <div class="a2-phone-statusbar">
+            <span>9:41</span>
+            <span class="a2-phone-statusicons">●●● 5G 100%</span>
+          </div>
+
+          <!-- App Topbar -->
+          <div class="a2-app-topbar">
+            <div class="a2-app-title">Flight Assistant</div>
+            <div class="a2-app-avatar">✈️</div>
+          </div>
+
+          <!-- Chat Conversation Scroll -->
+          <div class="a2-chat-body">
+            <!-- User Prompt Message -->
+            <div class="a2-msg-bubble a2-msg-user">
+              <span class="a2-msg-author">You</span>
+              <p>Berlin to San Francisco today, and two tickets back on Oct 19.</p>
+            </div>
+
+            <!-- Agent Assistant Intro -->
+            <div class="a2-msg-bubble a2-msg-agent">
+              <span class="a2-msg-author">Travel Agent</span>
+              <p>I found direct flight options matching your dates. Select ticket quantities below:</p>
+            </div>
+
+            <!-- Highlighted A2UI Surface Section (Slide 25 Outline) -->
+            <div class="a2-renderer-surface">
+              <div class="a2-surface-callout">
+                <span class="a2-sparkle">✨</span>
+                <strong>A2UI renderer draws this part</strong>
+              </div>
+
+              <!-- Flight Option 1: Outbound -->
+              <div class="a2-flight-card">
+                <div class="a2-flight-header">
+                  <span class="a2-flight-tag">OUTBOUND · OCT 12</span>
+                  <span class="a2-flight-id">LH 454</span>
+                </div>
+                <div class="a2-flight-route">
+                  <strong>Berlin (BER)</strong>
+                  <span class="a2-flight-arrow">→</span>
+                  <strong>San Francisco (SFO)</strong>
+                </div>
+                <div class="a2-flight-meta">09:15 – 12:05 · 11h 50m nonstop</div>
+                <div class="a2-flight-controls">
+                  <div class="a2-flight-stepper">
+                    <button type="button" class="a2-btn-step" aria-label="Decrease passenger">−</button>
+                    <span class="a2-step-label">1 Passenger</span>
+                    <button type="button" class="a2-btn-step" aria-label="Increase passenger">+</button>
+                  </div>
+                  <div class="a2-flight-price">€455</div>
+                </div>
+              </div>
+
+              <!-- Flight Option 2: Return -->
+              <div class="a2-flight-card">
+                <div class="a2-flight-header">
+                  <span class="a2-flight-tag">RETURN · OCT 19</span>
+                  <span class="a2-flight-id">UA 901</span>
+                </div>
+                <div class="a2-flight-route">
+                  <strong>San Francisco (SFO)</strong>
+                  <span class="a2-flight-arrow">→</span>
+                  <strong>Berlin (BER)</strong>
+                </div>
+                <div class="a2-flight-meta">13:05 – 10:15 (+1) · 12h 10m nonstop</div>
+                <div class="a2-flight-controls">
+                  <div class="a2-flight-stepper">
+                    <button type="button" class="a2-btn-step" aria-label="Decrease passenger">−</button>
+                    <span class="a2-step-label">2 Passengers</span>
+                    <button type="button" class="a2-btn-step" aria-label="Increase passenger">+</button>
+                  </div>
+                  <div class="a2-flight-price">€970</div>
+                </div>
+              </div>
+
+              <!-- Confirmation Action -->
+              <div class="a2-surface-action">
+                <div class="a2-total-row">
+                  <span>Total (3 tickets)</span>
+                  <strong class="a2-total-price">€1,425</strong>
+                </div>
+                <button type="button" class="a2-btn-primary">
+                  Confirm Booking &amp; Proceed →
+                </button>
+              </div>
+            </div>
+            <!-- End Rendered Surface -->
+          </div>
+
+          <!-- Bottom Phone Chin -->
+          <div class="a2-phone-home-indicator"></div>
+        </div>
+
+        <!-- Renderer SDK Platform Box -->
+        <div class="a2-renderer-sdk-box">
+          <div class="a2-renderer-sdk-header">
+            <span class="a2-sdk-label">A2UI RENDERER SDK</span>
+            <span class="a2-sdk-lang">Flutter · Web · SwiftUI · Compose</span>
+          </div>
+          <p class="a2-renderer-sdk-desc">
+            Binds JSON component schemas directly to native platform widgets. Local state mutations update instantly at
+            60 FPS without server round-trips.
+          </p>
+        </div>
+      </section>
+    </div>
+  </div>
+</DiagramCard>
+
+<style>
+  .a2-pipeline-root {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+
+  .a2-pipeline-lead {
+    font-size: 0.95rem;
+    color: var(--sl-color-gray-2, #94a3b8);
+    border-bottom: 1px solid var(--sl-color-hairline, #1e293b);
+    padding-bottom: 0.75rem;
+  }
+
+  .a2-pipeline-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  @media (min-width: 1024px) {
+    .a2-pipeline-grid {
+      grid-template-columns: 1.15fr auto 0.95fr;
+      gap: 1.25rem;
+    }
+  }
+
+  /* Columns */
+  .a2-pipeline-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    background: var(--sl-color-bg-sidebar, #0c121e);
+    border: 1px solid var(--sl-color-hairline, #1e293b);
+    border-radius: 12px;
+    padding: 1.25rem;
+  }
+
+  :root[data-theme='light'] .a2-pipeline-col {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  .a2-col-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--sl-color-hairline, #1e293b);
+  }
+
+  :root[data-theme='light'] .a2-col-header {
+    border-color: #e2e8f0;
+  }
+
+  .a2-col-badge {
+    font-family: var(--sl-font-mono);
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    padding: 0.25rem 0.65rem;
+    border-radius: 9999px;
+  }
+
+  .a2-badge-server {
+    background: rgba(20, 184, 166, 0.15);
+    color: var(--sl-color-text-accent, #14b8a6);
+    border: 1px solid rgba(20, 184, 166, 0.35);
+  }
+
+  .a2-badge-client {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.35);
+  }
+
+  .a2-col-subtext {
+    font-size: 0.78rem;
+    color: var(--sl-color-gray-3, #64748b);
+  }
+
+  /* Inputs Group */
+  .a2-inputs-group {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  @media (min-width: 640px) {
+    .a2-inputs-group {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .a2-input-card {
+    background: var(--sl-color-bg, #090d16);
+    border: 1px solid var(--sl-color-hairline, #1e293b);
+    border-radius: 8px;
+    padding: 0.75rem;
+  }
+
+  :root[data-theme='light'] .a2-input-card {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .a2-card-tag {
+    font-family: var(--sl-font-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--sl-color-text-accent, #14b8a6);
+    letter-spacing: 0.04em;
+    margin-bottom: 0.25rem;
+  }
+
+  .a2-card-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem 0;
+    color: var(--sl-color-white, #f8fafc);
+  }
+
+  :root[data-theme='light'] .a2-card-title {
+    color: #0f172a;
+  }
+
+  .a2-card-desc {
+    font-size: 0.78rem;
+    color: var(--sl-color-gray-3, #94a3b8);
+    margin: 0;
+  }
+
+  .a2-flow-arrow-down {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--sl-color-gray-3, #64748b);
+    font-family: var(--sl-font-mono);
+  }
+
+  /* SDK Boundary Box */
+  .a2-sdk-boundary {
+    border: 2px dashed rgba(20, 184, 166, 0.45);
+    background: rgba(20, 184, 166, 0.04);
+    border-radius: 10px;
+    padding: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  :root[data-theme='light'] .a2-sdk-boundary {
+    border-color: rgba(13, 148, 136, 0.5);
+    background: rgba(13, 148, 136, 0.03);
+  }
+
+  .a2-sdk-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .a2-sdk-label {
+    font-family: var(--sl-font-mono);
+    font-weight: 800;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    color: var(--sl-color-text-accent, #14b8a6);
+  }
+
+  .a2-sdk-lang {
+    font-family: var(--sl-font-mono);
+    font-size: 0.7rem;
+    color: var(--sl-color-gray-3, #64748b);
+  }
+
+  .a2-sdk-content {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  @media (min-width: 640px) {
+    .a2-sdk-content {
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+    }
+  }
+
+  .a2-sdk-box {
+    background: var(--sl-color-bg, #090d16);
+    border: 1px solid var(--sl-color-hairline, #1e293b);
+    border-radius: 8px;
+    padding: 0.65rem 0.75rem;
+  }
+
+  :root[data-theme='light'] .a2-sdk-box {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .a2-box-badge {
+    font-family: var(--sl-font-mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--sl-color-text-accent, #14b8a6);
+  }
+
+  .a2-box-title {
+    font-size: 0.84rem;
+    font-weight: 700;
+    margin: 0.15rem 0 0.2rem 0;
+    color: var(--sl-color-white, #f8fafc);
+  }
+
+  :root[data-theme='light'] .a2-box-title {
+    color: #0f172a;
+  }
+
+  .a2-box-desc {
+    font-size: 0.75rem;
+    color: var(--sl-color-gray-3, #94a3b8);
+    margin: 0;
+  }
+
+  .a2-sdk-flow {
+    text-align: center;
+  }
+
+  .a2-flow-chip {
+    font-family: var(--sl-font-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    background: rgba(20, 184, 166, 0.12);
+    color: var(--sl-color-text-accent, #14b8a6);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  /* Agent Application Box (Explicitly Outside SDK Boundary) */
+  .a2-agent-app-box {
+    background: var(--sl-color-bg, #090d16);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    border-radius: 10px;
+    padding: 0.85rem;
+  }
+
+  :root[data-theme='light'] .a2-agent-app-box {
+    background: #ffffff;
+    border-color: rgba(147, 51, 234, 0.35);
+  }
+
+  .a2-agent-app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.35rem;
+  }
+
+  .a2-agent-app-title {
+    font-weight: 700;
+    font-size: 0.86rem;
+    color: #c084fc;
+  }
+
+  :root[data-theme='light'] .a2-agent-app-title {
+    color: #7e22ce;
+  }
+
+  .a2-pill-neutral {
+    font-family: var(--sl-font-mono);
+    font-size: 0.68rem;
+    background: rgba(168, 85, 247, 0.15);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+  }
+
+  :root[data-theme='light'] .a2-pill-neutral {
+    background: #f3e8ff;
+    color: #7e22ce;
+    border-color: #d8b4fe;
+  }
+
+  .a2-agent-app-desc {
+    font-size: 0.78rem;
+    color: var(--sl-color-gray-3, #94a3b8);
+    margin: 0;
+  }
+
+  /* Server Emits */
+  .a2-server-emits {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+    margin-top: 0.25rem;
+  }
+
+  .a2-emit-card {
+    background: var(--sl-color-bg, #090d16);
+    border-radius: 8px;
+    padding: 0.65rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  :root[data-theme='light'] .a2-emit-card {
+    background: #ffffff;
+  }
+
+  .a2-emit-layout {
+    border: 1px solid rgba(20, 184, 166, 0.35);
+  }
+
+  .a2-emit-data {
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }
+
+  .a2-emit-badge {
+    font-family: var(--sl-font-mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+  }
+
+  .a2-emit-layout .a2-emit-badge {
+    color: var(--sl-color-text-accent, #14b8a6);
+  }
+
+  .a2-emit-data .a2-emit-badge {
+    color: #f59e0b;
+  }
+
+  .a2-emit-card code {
+    font-size: 0.78rem;
+  }
+
+  .a2-emit-note {
+    font-size: 0.7rem;
+    color: var(--sl-color-gray-3, #64748b);
+  }
+
+  /* Transport Bridge */
+  .a2-pipeline-transport {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+  }
+
+  .a2-transport-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    font-family: var(--sl-font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--sl-color-gray-2, #94a3b8);
+    background: var(--sl-color-bg-sidebar, #0c121e);
+    border: 1px solid var(--sl-color-hairline, #1e293b);
+    padding: 0.35rem 0.75rem;
+    border-radius: 9999px;
+  }
+
+  :root[data-theme='light'] .a2-transport-badge {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #475569;
+  }
+
+  .a2-transport-protocols {
+    font-size: 0.65rem;
+    font-weight: 400;
+    color: var(--sl-color-gray-3, #64748b);
+  }
+
+  .a2-transport-flow {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  @media (min-width: 1024px) {
+    .a2-transport-flow {
+      flex-direction: column;
+    }
+  }
+
+  .a2-transport-item {
+    font-family: var(--sl-font-mono);
+    font-size: 0.72rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    background: var(--sl-color-bg, #090d16);
+    border: 1px solid var(--sl-color-hairline, #1e293b);
+  }
+
+  :root[data-theme='light'] .a2-transport-item {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .a2-trans-layout {
+    color: var(--sl-color-text-accent, #14b8a6);
+  }
+
+  .a2-trans-data {
+    color: #f59e0b;
+  }
+
+  .a2-trans-action {
+    color: #60a5fa;
+  }
+
+  /* Phone Mockup */
+  .a2-phone-shell {
+    background: #030712;
+    border: 3px solid #1f2937;
+    border-radius: 26px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+    padding: 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 420px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  :root[data-theme='light'] .a2-phone-shell {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  }
+
+  .a2-phone-notch {
+    width: 70px;
+    height: 6px;
+    background: #374151;
+    border-radius: 9999px;
+    margin: 0 auto 0.25rem auto;
+  }
+
+  .a2-phone-statusbar {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--sl-font-mono);
+    font-size: 0.65rem;
+    color: #9ca3af;
+    padding: 0 0.5rem;
+  }
+
+  .a2-app-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.35rem 0.5rem 0.5rem 0.5rem;
+    border-bottom: 1px solid #1f2937;
+  }
+
+  :root[data-theme='light'] .a2-app-topbar {
+    border-color: #e2e8f0;
+  }
+
+  .a2-app-title {
+    font-weight: 700;
+    font-size: 0.82rem;
+    color: #f3f4f6;
+  }
+
+  :root[data-theme='light'] .a2-app-title {
+    color: #0f172a;
+  }
+
+  .a2-app-avatar {
+    font-size: 0.9rem;
+  }
+
+  .a2-chat-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 0.35rem;
+  }
+
+  .a2-msg-bubble {
+    border-radius: 12px;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+
+  .a2-msg-author {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    margin-bottom: 0.15rem;
+  }
+
+  .a2-msg-user {
+    align-self: flex-end;
+    background: #1e3a8a;
+    color: #dbeafe;
+    max-width: 88%;
+    border-bottom-right-radius: 2px;
+  }
+
+  :root[data-theme='light'] .a2-msg-user {
+    background: #2563eb;
+    color: #ffffff;
+  }
+
+  .a2-msg-agent {
+    align-self: flex-start;
+    background: #111827;
+    border: 1px solid #1f2937;
+    color: #e5e7eb;
+    max-width: 92%;
+    border-bottom-left-radius: 2px;
+  }
+
+  :root[data-theme='light'] .a2-msg-agent {
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+    color: #1e293b;
+  }
+
+  /* Surface Outline Highlight */
+  .a2-renderer-surface {
+    border: 2px solid var(--sl-color-accent, #14b8a6);
+    background: rgba(20, 184, 166, 0.05);
+    border-radius: 12px;
+    padding: 0.65rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    position: relative;
+  }
+
+  :root[data-theme='light'] .a2-renderer-surface {
+    background: rgba(13, 148, 136, 0.04);
+    border-color: #0d9488;
+  }
+
+  .a2-surface-callout {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--sl-color-text-accent, #14b8a6);
+    background: rgba(20, 184, 166, 0.15);
+    border: 1px solid rgba(20, 184, 166, 0.3);
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    align-self: flex-start;
+  }
+
+  .a2-flight-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  :root[data-theme='light'] .a2-flight-card {
+    background: #ffffff;
+    border-color: #e2e8f0;
+  }
+
+  .a2-flight-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .a2-flight-tag {
+    font-family: var(--sl-font-mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--sl-color-text-accent, #14b8a6);
+  }
+
+  .a2-flight-id {
+    font-family: var(--sl-font-mono);
+    font-size: 0.65rem;
+    color: #94a3b8;
+  }
+
+  .a2-flight-route {
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: #f8fafc;
+  }
+
+  :root[data-theme='light'] .a2-flight-route {
+    color: #0f172a;
+  }
+
+  .a2-flight-arrow {
+    color: var(--sl-color-text-accent, #14b8a6);
+    font-weight: bold;
+  }
+
+  .a2-flight-meta {
+    font-size: 0.7rem;
+    color: #64748b;
+  }
+
+  .a2-flight-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 0.35rem;
+    border-top: 1px dashed #1e293b;
+  }
+
+  :root[data-theme='light'] .a2-flight-controls {
+    border-color: #e2e8f0;
+  }
+
+  .a2-flight-stepper {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: #020617;
+    border: 1px solid #1e293b;
+    border-radius: 6px;
+    padding: 0.15rem 0.35rem;
+  }
+
+  :root[data-theme='light'] .a2-flight-stepper {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+  }
+
+  .a2-btn-step {
+    border: none;
+    background: transparent;
+    color: var(--sl-color-white, #f8fafc);
+    font-weight: 700;
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 0 0.25rem;
+  }
+
+  :root[data-theme='light'] .a2-btn-step {
+    color: #0f172a;
+  }
+
+  .a2-step-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
+  .a2-flight-price {
+    font-family: var(--sl-font-mono);
+    font-weight: 700;
+    font-size: 0.82rem;
+    color: var(--sl-color-text-accent, #14b8a6);
+  }
+
+  .a2-surface-action {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 0.2rem;
+  }
+
+  .a2-total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+    padding: 0 0.2rem;
+  }
+
+  .a2-total-price {
+    font-family: var(--sl-font-mono);
+    font-size: 0.88rem;
+    color: var(--sl-color-text-accent, #14b8a6);
+  }
+
+  .a2-btn-primary {
+    background: var(--sl-color-accent, #14b8a6);
+    color: #042f2e;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    padding: 0.45rem;
+    cursor: pointer;
+    text-align: center;
+  }
+
+  .a2-phone-home-indicator {
+    width: 90px;
+    height: 4px;
+    background: #374151;
+    border-radius: 9999px;
+    margin: 0.25rem auto 0 auto;
+  }
+
+  /* Renderer SDK Platform Box */
+  .a2-renderer-sdk-box {
+    background: var(--sl-color-bg, #090d16);
+    border: 1px solid var(--sl-color-hairline, #1e293b);
+    border-radius: 8px;
+    padding: 0.75rem;
+  }
+
+  :root[data-theme='light'] .a2-renderer-sdk-box {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .a2-renderer-sdk-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+  }
+
+  .a2-renderer-sdk-desc {
+    font-size: 0.75rem;
+    color: var(--sl-color-gray-3, #94a3b8);
+    margin: 0;
+  }
+</style>
