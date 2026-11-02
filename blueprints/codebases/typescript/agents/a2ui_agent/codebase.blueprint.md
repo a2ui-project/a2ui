@@ -3,7 +3,7 @@ codebase_path: typescript/agents/a2ui_agent
 associated_module: a2ui_agent
 module_blueprint_commit: 2e3d9bc434a34ba25498a11e0bfba079b52dcf29
 implemented_features:
-  agent_renderer_app: null
+  agent_renderer_app: 21e8df7f8e67619c30682ede25f17f0a9cfa96f8
   skill_generator: c177173ca12a9d4739e16e56d6eb87b1e0608d85
 local_development:
   test_command: 'yarn test'

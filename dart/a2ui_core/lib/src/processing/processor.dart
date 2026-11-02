@@ -661,10 +661,10 @@ class MessageProcessor<T extends ComponentApi> {
   }) =>
       rpc.callAgentFunction(surfaceId, call, options: options);
 
-  /// Disposes the RPC layer, failing its pending calls, and every surface.
+  /// Disposes every surface and the RPC layer, failing its pending calls.
   void dispose() {
-    rpc.dispose();
     model.dispose();
+    rpc.dispose();
   }
 
   /// The items [payload] carries, each a raw envelope or a parsed message.
@@ -774,6 +774,7 @@ class MessageProcessor<T extends ComponentApi> {
         // An unknown surface id is a no-op, matching the conformance suite
         // and the TypeScript and Python SDKs.
         model.deleteSurface(operation.surfaceId);
+        rpc.cancelSurfaceCalls(operation.surfaceId);
       case CallRendererFunctionOp():
         if (_checksOnly) {
           _checkRendererFunctionCall(operation, isUserActivated);
@@ -975,7 +976,8 @@ class MessageProcessor<T extends ComponentApi> {
       validatorFor(catalog).validateTheme(operation.theme);
     }
 
-    final surface = SurfaceModel<T>(
+    late final SurfaceModel<T> surface;
+    surface = SurfaceModel<T>(
       operation.surfaceId,
       defaultCatalog: catalog,
       availableCatalogs: [
@@ -991,8 +993,24 @@ class MessageProcessor<T extends ComponentApi> {
       protocolVersion: operation.version.jsonValue,
       rootId: _config?.rootId ?? 'root',
       metadata: operation.metadata,
-      callAgentFunction: (call) =>
-          rpc.callAgentFunction(operation.surfaceId, call),
+      // Only a v1.0 surface routes calls to the agent, and only when this
+      // processor can send it messages. Once the surface is deleted, a call
+      // that was waiting on a local argument is cancelled instead of sent.
+      callAgentFunction: _outboundListener != null &&
+              operation.version.isAtLeast(A2uiProtocolVersion.v1_0)
+          ? (call) {
+              if (!identical(model.getSurface(operation.surfaceId), surface)) {
+                return Future<Object?>.error(
+                  A2uiRpcError(
+                    "Surface '${operation.surfaceId}' was deleted before "
+                    "agent function '${call.call}' could be sent.",
+                    RpcErrorCode.cancelled,
+                  ),
+                );
+              }
+              return rpc.callAgentFunction(operation.surfaceId, call);
+            }
+          : null,
     );
 
     _CheckedBatch? batch;
