@@ -78,6 +78,11 @@ export abstract class A2uiLitElement<
   Api extends ComponentApi = ComponentApi,
   Props = ResolveA2uiProps<InferredComponentApiSchemaType<Api>>,
 > extends LitElement {
+  /**
+   * The component context for the node this element renders.
+   *
+   * @deprecated Assign `node` instead.
+   */
   @property({type: Object}) context!: ComponentContext;
 
   /**

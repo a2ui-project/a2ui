@@ -358,6 +358,7 @@ describe('A2uiLitElement', () => {
     // renderNode('child_id') hands the child element the child's own node.
     const childEl = el.querySelector('a2ui-basic-text');
     assert.strictEqual(childEl.node, childNode);
+    await childEl.updateComplete;
     assert.strictEqual(childEl.context, childNode.context);
 
     // Reassigning the same node changes nothing.

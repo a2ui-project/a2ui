@@ -33,13 +33,15 @@ class A2uiElementDirective extends Directive {
   private tagName?: string;
   private element?: A2uiWebComponentElement;
 
-  render(tagName: string, context: ComponentContext, node?: ComponentNode) {
+  render(tagName: string, context?: ComponentContext, node?: ComponentNode) {
     if (!this.element || this.tagName !== tagName) {
       this.tagName = tagName;
       this.element = document.createElement(tagName) as A2uiWebComponentElement;
     }
     this.element.node = node;
-    this.element.context = context;
+    if (!node && context !== undefined) {
+      this.element.context = context;
+    }
     return this.element;
   }
 }
@@ -63,7 +65,7 @@ export function renderA2uiNode(
 ): DirectiveResult | typeof nothing;
 /**
  * Renders a resolved node as its implementation's custom element, handing
- * the element the node and its context.
+ * the element the resolved `ComponentNode`.
  *
  * @param node The resolved node to render.
  * @returns A Lit directive result rendering the component's custom element,
@@ -111,5 +113,5 @@ function renderNode(node: ComponentNode) {
   if (isWebComponentImplementation(implementation)) {
     registerUniversalElement(implementation);
   }
-  return a2uiElement(implementation.tagName, node.context, node);
+  return a2uiElement(implementation.tagName, undefined, node);
 }
