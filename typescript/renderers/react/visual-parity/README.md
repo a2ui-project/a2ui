@@ -181,7 +181,7 @@ export const allFixtures = {
 ### 3. Run the Test
 
 ```bash
-yarn test --grep "myNewFixture"
+yarn test:visual --grep "myNewFixture"
 ```
 
 ## Fixture Format
@@ -210,7 +210,7 @@ Tests run across multiple themes to ensure theme switching works:
 To test a specific theme:
 
 ```bash
-yarn test --grep "Theme: minimal"
+yarn test:visual --grep "Theme: minimal"
 ```
 
 ## Skipped Fixtures
@@ -259,7 +259,7 @@ To debug a specific fixture:
 
 ```bash
 # Run with headed browser
-yarn test --grep "buttonPrimary" --headed
+yarn test:visual --grep "buttonPrimary" --headed
 
 # Or use UI mode
 yarn test:ui
