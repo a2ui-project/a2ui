@@ -19,6 +19,7 @@ import type {ProtocolVersion} from '../processing/adapters/base.js';
 import {DataContext} from '../resolution/data-context.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
+import {A2uiMetadata} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {isThenable, settleDeep} from '../common/settle_deep.js';
 import {SpecVersion} from '../spec_versions.js';
@@ -189,6 +190,9 @@ export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
 
   /** Optional allowed child component types (e.g. ['Text', 'Button']). */
   readonly allowedChildren?: string[];
+
+  /** Optional component-level metadata from the catalog definition. */
+  readonly metadata?: A2uiMetadata;
 }
 
 /**
@@ -920,6 +924,7 @@ function createCatalogInvoker<F extends FunctionApi>(
     if (!fn) {
       throw new A2uiExpressionError(`Function not found in catalog '${catalogId}': ${name}`, name);
     }
+    assertRendererCaller(fn);
     assertUserActivation(fn, ctx);
     const execute = (fn as Partial<FunctionImplementation>).execute;
     if (typeof execute !== 'function') {
@@ -962,6 +967,20 @@ function createCatalogInvoker<F extends FunctionApi>(
       abortSignal?.aborted ? undefined : parseAndExecute(resolvedArgs),
     );
   };
+}
+
+/**
+ * Refuses a function the catalog restricts to agent-initiated
+ * `callRendererFunction` calls. The invoker runs the renderer's own calls
+ * (bindings, checks and actions); `RpcHandler` runs agent calls without it.
+ */
+function assertRendererCaller(fn: FunctionApi): void {
+  if (fn.allowedCallers === 'agentOnly') {
+    throw new A2uiExpressionError(
+      `Function '${fn.name}' cannot be called by renderer (allowedCallers is agentOnly).`,
+      fn.name,
+    );
+  }
 }
 
 function assertUserActivation(fn: FunctionApi, ctx: DataContext | undefined): void {

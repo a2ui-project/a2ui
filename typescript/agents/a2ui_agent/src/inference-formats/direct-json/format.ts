@@ -38,7 +38,6 @@ export interface DirectJsonFormatOptions {
  */
 export class DirectJsonFormat implements InferenceFormat {
   readonly promptGenerator: DirectJsonPromptGenerator;
-  readonly supportsStreaming = true;
 
   private readonly progressiveKeys: readonly string[];
 

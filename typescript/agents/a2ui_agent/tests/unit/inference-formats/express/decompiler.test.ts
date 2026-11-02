@@ -81,8 +81,8 @@ describe('ExpressDecompiler', () => {
       const expected =
         'surface("default")\n$/empty = ""\nsurface("default")\n$/zero = 0\nsurface("default")\n$/off = false\nsurface("default")\n$/none = []\nsurface("default")\n$/nothing = {}';
       expect(decompiler.decompile(messages)).toBe(expected);
-      expect(decompiler.decompile(messages[1])).toBe('surface("default")\n$/zero = 0');
-      expect(decompiler.decompile(messages[4])).toBe('surface("default")\n$/nothing = {}');
+      expect(decompiler.decompile([messages[1]])).toBe('surface("default")\n$/zero = 0');
+      expect(decompiler.decompile([messages[4]])).toBe('surface("default")\n$/nothing = {}');
       expect(new ExpressParser([catalog], 'default', version).compile(expected)).toEqual(messages);
     });
 
@@ -95,7 +95,7 @@ describe('ExpressDecompiler', () => {
         version: '1.0',
         updateDataModel: {surfaceId: 's1', path: '/x'},
       } as unknown as AgentToRendererMessage;
-      const dsl = decompiler.decompile(valueless);
+      const dsl = decompiler.decompile([valueless]);
       expect(dsl).toBe('surface("s1")\n$/x = null');
       expect(parser.compile(dsl)).toEqual([
         {
@@ -108,7 +108,7 @@ describe('ExpressDecompiler', () => {
         version: '1.0',
         updateDataModel: {surfaceId: 's1', path: '/', value: {}},
       } as unknown as AgentToRendererMessage;
-      const emptyRootDsl = decompiler.decompile(emptyRoot);
+      const emptyRootDsl = decompiler.decompile([emptyRoot]);
       expect(emptyRootDsl).toBe('surface("s1")\n$/ = {}');
       expect(parser.compile(emptyRootDsl)).toEqual([emptyRoot]);
     });
@@ -135,7 +135,7 @@ describe('ExpressDecompiler', () => {
         version: 'v0.9',
         updateDataModel: {surfaceId: 'default', path: '/n', value},
       } as unknown as AgentToRendererMessage;
-      const dsl = decompiler.decompile(message);
+      const dsl = decompiler.decompile([message]);
       expect(dsl).toBe(`surface("default")\n$/n = ${text}`);
       const [compiled] = new ExpressParser([catalog], 'default', version).compile(dsl);
       const {updateDataModel} = compiled as {updateDataModel: {path: string; value: number}};
@@ -253,38 +253,19 @@ describe('ExpressDecompiler', () => {
       );
     });
   });
-  describe('2. wrapDecompiledBlocks', () => {
-    it('wraps blocks in sentinel tags', () => {
+  describe('2. wrap', () => {
+    it('wraps text and a2ui parts in sentinel tags', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
-      const blocks = ['surface("s1")', 'root = Text("Hello")'];
-      const wrapped = decompiler.wrapDecompiledBlocks(blocks);
-      expect(wrapped).toBe('<a2ui>\nsurface("s1")\nroot = Text("Hello")\n</a2ui>');
-    });
-
-    it('joins multiple blocks with newlines inside sentinel tags', () => {
-      const {catalog, version} = getCatalogInfo('simplified');
-      const decompiler = new ExpressDecompiler([catalog], version);
-      const blocks = ['surface("s1")', 'root = Text("Hello")', '$/key = 42'];
-      const wrapped = decompiler.wrapDecompiledBlocks(blocks);
-      expect(wrapped).toBe('<a2ui>\nsurface("s1")\nroot = Text("Hello")\n$/key = 42\n</a2ui>');
+      const wrapped = decompiler.wrap([
+        {type: 'text', text: 'Intro.', isFinal: true},
+        {type: 'a2ui', a2uiRaw: 'surface("s1")\nroot = Text("Hello")', isFinal: true},
+      ]);
+      expect(wrapped).toBe('Intro.\n<a2ui>\nsurface("s1")\nroot = Text("Hello")\n</a2ui>');
     });
   });
 
-  describe('3. Single message input and edge cases', () => {
-    it('accepts a single message object instead of array', () => {
-      const {catalog, version} = getCatalogInfo('simplified');
-      const decompiler = new ExpressDecompiler([catalog], version);
-      const msg: AgentToRendererMessage = {
-        version: '1.0',
-        deleteSurface: {
-          surfaceId: 's1',
-        },
-      } as AgentToRendererMessage;
-      const actual = decompiler.decompile(msg);
-      expect(actual).toBe('deleteSurface("s1")');
-    });
-
+  describe('3. Edge cases', () => {
     it('returns empty string for empty message list', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
@@ -308,7 +289,7 @@ describe('ExpressDecompiler', () => {
           ],
         },
       } as AgentToRendererMessage;
-      const actual = decompiler.decompile(msg, true);
+      const actual = decompiler.decompile([msg], true);
       expect(actual).toBe('surface("s1")\nroot = Text(text="Hello")');
     });
   });
@@ -339,7 +320,7 @@ describe('ExpressDecompiler', () => {
           ],
         },
       } as unknown as AgentToRendererMessage;
-      const dsl = decompiler.decompile(msg);
+      const dsl = decompiler.decompile([msg]);
       expect(dsl).toContain(
         'c1 = Card(Event("e1", {"true": 1, "false": 2, "null": 3, valid_key: 4}))',
       );
@@ -362,8 +343,8 @@ describe('ExpressDecompiler', () => {
           ],
         },
       } as unknown as AgentToRendererMessage;
-      expect(() => decompiler.decompile(msg)).toThrow(A2uiValidationError);
-      expect(() => decompiler.decompile(msg)).toThrow(
+      expect(() => decompiler.decompile([msg])).toThrow(A2uiValidationError);
+      expect(() => decompiler.decompile([msg])).toThrow(
         "Component id 'title-heading' must be a valid UAX #31 identifier",
       );
     });
@@ -391,7 +372,7 @@ describe('ExpressDecompiler', () => {
           ],
         },
       } as unknown as AgentToRendererMessage;
-      const dsl = decompiler.decompile(msg);
+      const dsl = decompiler.decompile([msg]);
       expect(dsl).toBe('root = Card(_true)\n_true = Text("Hello", id="true")');
       expect(parser.compile(dsl)).toEqual([msg]);
     });
@@ -467,7 +448,7 @@ describe('ExpressDecompiler', () => {
           ],
         },
       } as unknown as AgentToRendererMessage;
-      const dsl = decompiler.decompile(msg);
+      const dsl = decompiler.decompile([msg]);
       expect(dsl).toBe(
         'surface("s1")\nroot = Column([entête, 見出し_1])\nentête = Text("Bonjour")\n見出し_1 = Text("こんにちは")',
       );
@@ -485,7 +466,7 @@ describe('ExpressDecompiler', () => {
           components: [{id: 'c1', component: 'Card', child: action}],
         },
       } as unknown as AgentToRendererMessage;
-      return decompiler.decompile(msg);
+      return decompiler.decompile([msg]);
     }
 
     it('throws when an event context is a string', () => {
@@ -528,7 +509,7 @@ describe('ExpressDecompiler', () => {
           ],
         },
       } as unknown as AgentToRendererMessage;
-      const notation = new ExpressDecompiler([catalog], version).decompile(msg);
+      const notation = new ExpressDecompiler([catalog], version).decompile([msg]);
       const recompiled = new ExpressParser([catalog], 's1', version).compile(notation);
       const components = (
         recompiled[0] as unknown as {createSurface: {components: Array<Record<string, unknown>>}}
@@ -559,7 +540,7 @@ describe('ExpressDecompiler', () => {
           ],
         },
       } as unknown as AgentToRendererMessage;
-      const notation = new ExpressDecompiler([catalog], version).decompile(msg);
+      const notation = new ExpressDecompiler([catalog], version).decompile([msg]);
       const recompiled = new ExpressParser([catalog], 's1', version).compile(notation);
       const components = (
         recompiled[0] as unknown as {createSurface: {components: Array<Record<string, unknown>>}}
@@ -584,7 +565,7 @@ describe('ExpressDecompiler', () => {
           ],
         },
       } as unknown as AgentToRendererMessage;
-      const notation = new ExpressDecompiler([catalog], version).decompile(msg);
+      const notation = new ExpressDecompiler([catalog], version).decompile([msg]);
       expect(notation).toMatch(/\{event: \{name: .*userMessage: .*\}\}/);
       expect(notation).not.toContain('Event(');
     });
@@ -605,7 +586,7 @@ describe('ExpressDecompiler', () => {
           ],
         },
       } as unknown as AgentToRendererMessage;
-      const notation = new ExpressDecompiler([catalog], version).decompile(msg);
+      const notation = new ExpressDecompiler([catalog], version).decompile([msg]);
       expect(notation).toContain('Event("reply", userMessage=formatString("Hi ${/n}"))');
       const recompiled = new ExpressParser([catalog], 's1', version).compile(notation);
       const components = (
@@ -1023,8 +1004,8 @@ describe('ExpressDecompiler', () => {
           components: [{id: 'root', component: 'Text', text: 'Hi'}],
         },
       } as unknown as AgentToRendererMessage;
-      expect(() => decompiler.decompile(unknownSurfaceCat)).toThrow(ExpressValidationError);
-      expect(() => decompiler.decompile(unknownSurfaceCat)).toThrow(
+      expect(() => decompiler.decompile([unknownSurfaceCat])).toThrow(ExpressValidationError);
+      expect(() => decompiler.decompile([unknownSurfaceCat])).toThrow(
         "Surface 's1' targets unknown catalog 'test/unknown'. Active catalogs: 'test/primary', 'test/secondary'.",
       );
 
@@ -1035,7 +1016,7 @@ describe('ExpressDecompiler', () => {
           components: [{id: 'root', component: 'Text', catalogId: 'test/unknown', text: 'Hi'}],
         },
       } as unknown as AgentToRendererMessage;
-      expect(() => decompiler.decompile(unknownCompCat)).toThrow(
+      expect(() => decompiler.decompile([unknownCompCat])).toThrow(
         "Component 'Text' targets unknown catalog 'test/unknown'. Active catalogs: 'test/primary', 'test/secondary'.",
       );
 
@@ -1053,7 +1034,7 @@ describe('ExpressDecompiler', () => {
           ],
         },
       } as unknown as AgentToRendererMessage;
-      expect(() => decompiler.decompile(wrongCompCat)).toThrow(
+      expect(() => decompiler.decompile([wrongCompCat])).toThrow(
         "Component 'SecondaryCard' is not in catalog 'test/primary'. It is defined in: 'test/secondary'.",
       );
     });
@@ -1103,7 +1084,7 @@ describe('ExpressDecompiler', () => {
         },
       } as unknown as AgentToRendererMessage;
 
-      expect(decompiler.decompile(msg)).toBe(
+      expect(decompiler.decompile([msg])).toBe(
         'surface("s1", sendDataModel=true)\nroot = Text("Hello")',
       );
     });
@@ -1119,7 +1100,9 @@ describe('ExpressDecompiler', () => {
         },
       } as unknown as AgentToRendererMessage;
 
-      expect(decompiler.decompile(msg)).toBe('surface("s1", update=true)\nroot = Text("Updated")');
+      expect(decompiler.decompile([msg])).toBe(
+        'surface("s1", update=true)\nroot = Text("Updated")',
+      );
     });
 
     it('emits functionCallId on callRendererFunction when it is not the default call_<index>', () => {
@@ -1176,11 +1159,11 @@ describe('ExpressDecompiler', () => {
         },
       } as unknown as AgentToRendererMessage;
 
-      expect(decompiler.decompile(msg)).toBe(
+      expect(decompiler.decompile([msg])).toBe(
         'surface("s1")\nroot = TextField("Name", $/name, ?required)',
       );
 
-      const kwDsl = decompiler.decompile(msg, true);
+      const kwDsl = decompiler.decompile([msg], true);
       expect(kwDsl).toBe(
         'surface("s1")\nroot = TextField(label="Name", value=$/name, checks=?required)',
       );
@@ -1221,13 +1204,15 @@ describe('ExpressDecompiler', () => {
           components: [{id: 'root', component: 'NonExistentWidget', text: 'Hi'}],
         },
       } as unknown as AgentToRendererMessage;
-      expect(() => decompiler.decompile(unknownComp)).toThrow(ExpressUnknownComponentError);
+      expect(() => decompiler.decompile([unknownComp])).toThrow(ExpressUnknownComponentError);
 
       const unknownStandaloneFn = {
         version: '1.0',
         callFunction: {'@call': 'nonExistentFn', args: {}},
       } as unknown as AgentToRendererMessage;
-      expect(() => decompiler.decompile(unknownStandaloneFn)).toThrow(ExpressUnknownFunctionError);
+      expect(() => decompiler.decompile([unknownStandaloneFn])).toThrow(
+        ExpressUnknownFunctionError,
+      );
 
       const unknownExprFn = {
         version: '1.0',
@@ -1243,7 +1228,36 @@ describe('ExpressDecompiler', () => {
           ],
         },
       } as unknown as AgentToRendererMessage;
-      expect(() => decompiler.decompile(unknownExprFn)).toThrow(ExpressUnknownFunctionError);
+      expect(() => decompiler.decompile([unknownExprFn])).toThrow(ExpressUnknownFunctionError);
+    });
+
+    it('decompiles and round-trips surface and component metadata.extensions in v1.0 mode', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler([catalog], version);
+      const parser = new ExpressParser([catalog], 's1', version);
+
+      const msg: AgentToRendererMessage = {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          metadata: {extensions: {agui: {mode: 'live'}}},
+          components: [
+            {
+              id: 'root',
+              component: 'Text',
+              text: 'Hello',
+              metadata: {extensions: {annot: {rank: 1}}},
+            },
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+
+      const dsl = decompiler.decompile([msg]);
+      expect(dsl).toBe(
+        'surface("s1", extensions={agui: {mode: "live"}})\nroot = Text("Hello", extensions={annot: {rank: 1}})',
+      );
+      expect(parser.compile(dsl)).toEqual([msg]);
     });
   });
 });

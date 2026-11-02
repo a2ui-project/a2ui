@@ -23,7 +23,9 @@ from a2ui.core.catalog import (
     is_valid_uax31_identifier as is_valid_uax31_identifier,
 )
 from a2ui.core.common import (
+    A2uiMetadata as A2uiMetadata,
     to_protocol_version as to_protocol_version,
+    validate_metadata as validate_metadata,
 )
 from a2ui.core.exceptions import (
     A2uiCatalogError as A2uiCatalogError,
@@ -78,6 +80,7 @@ __all__ = [
     "A2uiErrorDetail",
     "A2uiExpressionError",
     "A2uiIntegrityError",
+    "A2uiMetadata",
     "A2uiParseError",
     "A2uiRecursionError",
     "A2uiRendererCapabilities",
@@ -115,4 +118,5 @@ __all__ = [
     "is_valid_uax31_identifier",
     "map_error_to_renderer_message",
     "to_protocol_version",
+    "validate_metadata",
 ]

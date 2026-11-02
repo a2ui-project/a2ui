@@ -128,10 +128,10 @@ describe('DirectJsonParser', () => {
     expect([...new DirectJsonParser([basicCatalogV10]).progressiveKeys]).toEqual([]);
   });
 
-  it('DirectJsonFormatFactory creates format with supportsStreaming true', () => {
+  it('DirectJsonFormatFactory creates a parser with supportsStreaming true', () => {
     const factory = new DirectJsonFormatFactory();
     const format = factory.createFormat([basicCatalogV10]);
-    expect(format.supportsStreaming).toBe(true);
+    expect(format.createParser().supportsStreaming).toBe(true);
   });
 
   it('gets every active catalog from the format', async () => {

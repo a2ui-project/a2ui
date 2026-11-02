@@ -199,10 +199,10 @@ def test_supports_streaming_property(test_catalog):
     assert direct_json_fmt.supports_streaming is True
     assert direct_json_fmt.create_parser().supports_streaming is True
 
-    # 2. ExpressFormat parser does not support streaming
+    # 2. ExpressFormat parser supports streaming
     express_fmt = ExpressFormat([test_catalog])
-    assert express_fmt.supports_streaming is False
-    assert express_fmt.create_parser().supports_streaming is False
+    assert express_fmt.supports_streaming is True
+    assert express_fmt.create_parser().supports_streaming is True
 
     # 3. ElementalFormat parser does not support streaming
     elemental_fmt = ElementalFormat([test_catalog])
@@ -211,10 +211,10 @@ def test_supports_streaming_property(test_catalog):
 
 
 def test_open_stream_raises_not_implemented(test_catalog):
+    from a2ui.inference_formats.express import ExpressResponseStream
+
     express_parser = ExpressParser([test_catalog])
-    with pytest.raises(NotImplementedError) as exc_info:
-        express_parser.open_stream()
-    assert "Streaming is not supported by ExpressParser" in str(exc_info.value)
+    assert isinstance(express_parser.open_stream(), ExpressResponseStream)
 
     elemental_parser = ElementalParser([test_catalog])
     with pytest.raises(NotImplementedError) as exc_info:

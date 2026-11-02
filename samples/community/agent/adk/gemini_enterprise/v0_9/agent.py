@@ -206,7 +206,12 @@ class A2uiDemoAgent:
             )
             if examples:
                 prompt_parts.append(f"### Examples:\n{examples}")
-            instruction = "\n\n".join(prompt_parts)
+            instruction_text = "\n\n".join(prompt_parts)
+            # ADK reads `{name}` session state templates out of a string
+            # instruction, and the A2UI prompt holds braces that are not state
+            # keys (`${expression}`, data bindings). A callable instruction is
+            # used as it is.
+            instruction = lambda _ctx: instruction_text
         else:
             instruction = get_text_prompt()
 
@@ -228,7 +233,7 @@ class A2uiDemoAgent:
         ui_version: str | None = None,
         use_streaming: bool = True,
     ) -> AsyncIterable[dict[str, Any]]:
-        session_state = {"base_url": self.base_url, "expression": "{expression}"}
+        session_state = {"base_url": self.base_url}
 
         # Always use UI version 0.9
         ui_version = A2UI_VERSION

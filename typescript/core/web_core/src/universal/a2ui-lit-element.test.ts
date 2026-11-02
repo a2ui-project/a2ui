@@ -17,7 +17,7 @@
 import * as assert from 'node:assert';
 import {describe, it, before, beforeEach, after} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../test/dom-setup.js';
-import {nothing, render} from 'lit';
+import {css, nothing, render} from 'lit';
 
 import {ComponentContext} from '../resolution/component-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';
@@ -128,6 +128,29 @@ describe('A2uiLitElement', () => {
       el.createRenderRoot() instanceof (globalThis as any).ShadowRoot ||
         el.createRenderRoot() !== el,
     );
+  });
+
+  it('does not adopt its styles into the document when it renders into a ShadowRoot', () => {
+    class TestShadowStyledElement extends A2uiLitElement<any> {
+      static override styles = css`
+        .title {
+          color: red;
+        }
+      `;
+      override createController() {
+        return {dispose: () => {}} as any;
+      }
+    }
+    customElements.define('test-shadow-styled-element', TestShadowStyledElement);
+
+    const sheetsBefore = [...document.adoptedStyleSheets];
+    const el = document.createElement('test-shadow-styled-element') as TestShadowStyledElement;
+    document.body.appendChild(el);
+
+    assert.ok(el.renderRoot instanceof (globalThis as any).ShadowRoot);
+    assert.deepStrictEqual(document.adoptedStyleSheets, sheetsBefore);
+    assert.strictEqual((TestShadowStyledElement as any)._processedCss, undefined);
+    document.body.removeChild(el);
   });
 
   it('should create controller when context is set', async () => {

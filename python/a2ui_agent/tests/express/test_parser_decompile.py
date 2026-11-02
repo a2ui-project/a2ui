@@ -258,6 +258,42 @@ class TestExpressParser(unittest.TestCase):
         comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
         self.assertEqual(comps["root"]["weight"], 1e-7)
 
+    def test_v10_extensions_round_trip(self):
+        """Verifies surface and component metadata.extensions round-trip through Express decompile and compile."""
+        compiler = ExpressCompiler([self.catalog], version="1.0")
+        decompiler = ExpressParser([self.catalog])
+        dsl = (
+            'surface("main", extensions={surfaceTheme: "dark"})\n'
+            'root = Text("Hello", extensions={badge: 1})'
+        )
+        compiled = compiler.compile(dsl)
+        decompiled = decompiler.decompile(compiled)
+        self.assertIn("extensions={surfaceTheme:", decompiled)
+        self.assertIn("extensions={badge: 1}", decompiled)
+        recompiled = to_message_dicts(compiler.compile(decompiled))
+        self.assertEqual(recompiled, to_message_dicts(compiled))
+
+    def test_v10_empty_extensions_round_trip(self):
+        """Verifies empty extensions={} on surface and component are preserved across compile and decompile."""
+        compiler = ExpressCompiler([self.catalog], version="1.0")
+        decompiler = ExpressParser([self.catalog])
+        dsl = 'surface("main", extensions={})\nroot = Text("Hello", extensions={})'
+        compiled = compiler.compile(dsl)
+        compiled_dicts = to_message_dicts(compiled)
+        self.assertEqual(
+            compiled_dicts[0]["createSurface"]["metadata"],
+            {"extensions": {}},
+        )
+        self.assertEqual(
+            compiled_dicts[0]["createSurface"]["components"][0]["metadata"],
+            {"extensions": {}},
+        )
+        decompiled = decompiler.decompile(compiled)
+        self.assertIn('surface("main", extensions={})', decompiled)
+        self.assertIn('root = Text("Hello", extensions={})', decompiled)
+        recompiled = to_message_dicts(compiler.compile(decompiled))
+        self.assertEqual(recompiled, compiled_dicts)
+
 
 class TestExpressDecompileEventAndNestedActions(unittest.TestCase):
     """Covers writing `Event` keyword arguments and nested action slots back out."""

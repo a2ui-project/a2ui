@@ -28,6 +28,7 @@ export 'src/core/component_model.dart';
 // State management.
 export 'src/core/data_model.dart';
 export 'src/core/messages.dart';
+export 'src/core/metadata.dart' hide mergeActionMetadata, sameJsonValue;
 export 'src/core/renderer_capabilities.dart';
 export 'src/core/surface_group_model.dart';
 export 'src/core/surface_model.dart';

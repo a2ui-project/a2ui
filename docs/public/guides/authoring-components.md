@@ -142,6 +142,8 @@ export const ChartApi = {
 } satisfies ComponentApi;
 ```
 
+The API can also restrict where the component appears, with `allowedParents` and `allowedChildren` lists of component names. The message processor then rejects a payload that places the component under another parent with `UNALLOWED_PARENT`, or gives it a child of another type with `UNALLOWED_CHILD`. A root component's parent is `Surface`. Only properties declared with `CommonSchemas.ComponentId` or `CommonSchemas.ChildList` hold children, so an id in a plain `z.string()` property is not checked against `allowedChildren`.
+
 Now implement the Angular component:
 
 ```typescript
@@ -254,6 +256,18 @@ agent.tools = [
         a2ui_processor=processors.get,
     )
 ]
+```
+
+An agent that writes A2UI in its text response instead of a tool call puts the processor's prompt in its instruction with [A2uiInstruction](../../../python/a2ui_adk/src/a2ui/adk/instruction.py), wired to the same store, and pairs it with the `A2uiEventConverter` of the next section. A string instruction would not do: ADK reads `{name}` session state templates out of it, and the A2UI prompt holds braces that are not state keys.
+
+```python
+from a2ui.adk import A2uiInstruction
+
+agent.instruction = A2uiInstruction(
+    AGENT_INSTRUCTION,
+    a2ui_enabled=processors.is_enabled,
+    a2ui_processor=processors.get,
+)
 ```
 
 ### 4.3 Tool Execution

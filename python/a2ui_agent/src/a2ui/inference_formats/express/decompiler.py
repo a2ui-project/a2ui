@@ -532,14 +532,29 @@ class ExpressDecompiler:
         )
 
         send_data_model = create_surface.get("sendDataModel")
+        metadata = create_surface.get("metadata") if self._v1 else None
+        surface_extensions = (
+            metadata.get("extensions")
+            if isinstance(metadata, dict)
+            and isinstance(metadata.get("extensions"), dict)
+            else None
+        )
         dsl_lines = []
         if not (
-            is_first and surface_id == _DEFAULT_SURFACE_ID and send_data_model is None
+            is_first
+            and surface_id == _DEFAULT_SURFACE_ID
+            and send_data_model is None
+            and surface_extensions is None
         ):
             header = self._surface_header(surface_id)
             if send_data_model is not None:
                 flag = "true" if send_data_model else "false"
                 header = f"{header[:-1]}, sendDataModel={flag})"
+            if surface_extensions is not None:
+                ext_str = self._decompile_value(
+                    surface_extensions, {}, False, catalog_id
+                )
+                header = f"{header[:-1]}, extensions={ext_str})"
             dsl_lines.append(header)
 
         components = create_surface.get("components", [])
@@ -692,6 +707,15 @@ class ExpressDecompiler:
                 args_reprs.append(f"catalogId={_decompile_string(write_cat_id)}")
             if var_name != comp_id:
                 args_reprs.append(f"id={_decompile_string(comp_id)}")
+            if self._v1:
+                comp_meta = c.get("metadata")
+                if isinstance(comp_meta, dict) and isinstance(
+                    comp_meta.get("extensions"), dict
+                ):
+                    ext_str = self._decompile_value(
+                        comp_meta["extensions"], var_names, False, surface_cat_id
+                    )
+                    args_reprs.append(f"extensions={ext_str}")
 
             dsl_lines.append(f"{var_name} = {comp_name}({', '.join(args_reprs)})")
         return dsl_lines

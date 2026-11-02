@@ -538,6 +538,8 @@ class DataContext:
         whatever its value. From v1.0 a reserved ``@`` system function belongs
         to no catalog, so a call to one that names a catalog is a malformed
         expression: it is reported as an ``EXPRESSION_ERROR`` and not run.
+        A function whose ``allowedCallers`` is ``agentOnly`` is reported the
+        same way and not run.
         """
         in_body = False
         try:
@@ -585,6 +587,15 @@ class DataContext:
                     raise A2uiExpressionError(
                         f"Function '{name}' not found in {catalog_desc}."
                     )
+
+            # Bindings, checks and actions are renderer calls. An agentOnly
+            # function runs only for an agent's callRendererFunction, which
+            # RpcHandler executes without going through this method.
+            if getattr(fn, "allowed_callers", None) == "agentOnly":
+                raise A2uiExpressionError(
+                    f"Function '{name}' cannot be called by renderer"
+                    " (allowedCallers is agentOnly)."
+                )
 
             in_body = True
             self._check_action_user_activation(fn, name, is_action, is_user_activated)

@@ -348,7 +348,7 @@ class GenericBinder:
         self.listeners: set[Callable[[dict[str, Any]], None]] = set()
         self.current_props: dict[str, Any] = {}
         self.comp_unsub: Callable[[], None] | None = None
-        self._action_closures: dict[str, tuple[Any, Callable[[], Any]]] = {}
+        self._action_closures: dict[str, tuple[Any, Callable[..., Any]]] = {}
 
         resolved_schema = schema
         cat = context.component_model.catalog
@@ -378,9 +378,19 @@ class GenericBinder:
         sub = self.context.component_model.on_updated.subscribe(
             lambda _: self._rebuild_all_bindings()
         )
-        self.comp_unsub = lambda: sub.unsubscribe()
+        self.comp_unsub = sub.unsubscribe
 
         self._rebuild_all_bindings()
+
+    @property
+    def metadata(self) -> dict[str, Any] | None:
+        """Returns the component's metadata object (defensive copy), or None."""
+        return self.context.metadata
+
+    @property
+    def extensions(self) -> dict[str, Any] | None:
+        """Returns the component's metadata extensions dictionary (defensive copy), or None."""
+        return self.context.extensions
 
     @property
     def snapshot(self) -> dict[str, Any]:
@@ -593,13 +603,13 @@ class GenericBinder:
             bound.unsubscribe()
         return bound.value
 
-    def _bind_action(self, value: Any, path: list[str]) -> Callable[[], Any]:
+    def _bind_action(self, value: Any, path: list[str]) -> Callable[..., Any]:
         cache_key = "/".join(path)
         cached = self._action_closures.get(cache_key)
         if cached is not None and cached[0] == value:
             return cached[1]
 
-        def closure() -> Any:
+        def closure(metadata: dict[str, Any] | None = None) -> Any:
             if isinstance(value, dict):
                 fc = (
                     value["functionCall"]
@@ -610,7 +620,7 @@ class GenericBinder:
                 if isinstance(call_name, str):
                     return self.context.data_context.resolve_dynamic_value(fc)
             resolved = self.context.data_context.resolve_action(value)
-            return self.context.dispatch_action(resolved)
+            return self.context.dispatch_action(resolved, metadata=metadata)
 
         self._action_closures[cache_key] = (value, closure)
         return closure
@@ -711,33 +721,51 @@ class GenericBinder:
 
         for idx, rule in enumerate(rules):
             condition = rule
-            explicit_msg: str | None = None
+            rule_msg: str | None = None
             if isinstance(rule, dict):
                 condition = rule.get("condition", rule)
                 if isinstance(rule.get("message"), str):
-                    explicit_msg = rule["message"]
+                    rule_msg = rule["message"]
 
-            rule_results[idx]["message"] = explicit_msg or "Validation failed"
+            # An explicit rule message overrides the message a condition
+            # function returns. A path-bound check reads a result the agent or
+            # application wrote, whose message carries the finding, so there
+            # the rule message is only the fallback.
+            explicit_msg = None if self._is_path_bound(condition) else rule_msg
+            fallback_msg = rule_msg or "Validation failed"
+            rule_results[idx]["message"] = fallback_msg
 
-            def make_on_change(i: int, exp_msg: str | None) -> Callable[[Any], None]:
+            def make_on_change(
+                i: int, exp_msg: str | None, fb_msg: str
+            ) -> Callable[[Any], None]:
                 def on_change(new_val: Any) -> None:
-                    rule_results[i] = self._process_rule_val(new_val, exp_msg)
+                    rule_results[i] = self._process_rule_val(new_val, exp_msg, fb_msg)
                     _apply_validation_state(reactive=True)
 
                 return on_change
 
             bound = self.context.data_context.subscribe_dynamic_value(
-                condition, make_on_change(idx, explicit_msg)
+                condition, make_on_change(idx, explicit_msg, fallback_msg)
             )
             if not is_sync:
                 self.data_listeners.append(bound)
             else:
                 bound.unsubscribe()
 
-            rule_results[idx] = self._process_rule_val(bound.value, explicit_msg)
+            rule_results[idx] = self._process_rule_val(
+                bound.value, explicit_msg, fallback_msg
+            )
 
         _apply_validation_state(reactive=False)
         return value
+
+    def _is_path_bound(self, condition: Any) -> bool:
+        """Whether a check condition is a data binding rather than a call."""
+        if not isinstance(condition, dict):
+            return False
+        if self.context.data_context.at_least_v10:
+            return isinstance(condition.get("@path"), str) and "@call" not in condition
+        return isinstance(condition.get("path"), str) and "call" not in condition
 
     def _notify(self) -> None:
         for listener in list(self.listeners):

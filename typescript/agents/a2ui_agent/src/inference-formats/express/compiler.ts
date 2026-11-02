@@ -329,6 +329,248 @@ function asAgentToRendererMessage(msg: Record<string, unknown>): AgentToRenderer
   return msg as unknown as AgentToRendererMessage;
 }
 
+function classifySchemaRef(ref: unknown): 'Child' | 'ChildList' | 'Action' | undefined {
+  if (typeof ref !== 'string') {
+    return undefined;
+  }
+  if (ref.includes('ChildList')) {
+    return 'ChildList';
+  }
+  if (ref.includes('Child') || ref.includes('ComponentId')) {
+    return 'Child';
+  }
+  if (ref.includes('Action')) {
+    return 'Action';
+  }
+  return undefined;
+}
+
+function crawlPropertyType(schema: unknown): 'Child' | 'ChildList' | 'Action' | undefined {
+  if (!schema || typeof schema !== 'object') {
+    return undefined;
+  }
+  const s = schema as Record<string, unknown>;
+  const direct = classifySchemaRef(s.$ref);
+  if (direct) {
+    return direct;
+  }
+  for (const k of ['oneOf', 'anyOf', 'allOf'] as const) {
+    const subList = s[k];
+    if (!Array.isArray(subList)) {
+      continue;
+    }
+    for (const sub of subList) {
+      const res = crawlPropertyType(sub);
+      if (res) {
+        return res;
+      }
+    }
+  }
+  return undefined;
+}
+
+function resolvePropertyType(
+  compHelper: CatalogSchemaHelper,
+  propName: string,
+  propSchema: Record<string, unknown> | undefined,
+): 'Child' | 'ChildList' | 'Action' | undefined {
+  const fromSchema = crawlPropertyType(propSchema);
+  if (fromSchema) {
+    return fromSchema;
+  }
+  if (!compHelper.commonTypesLoaded) {
+    if (propName === 'child') {
+      return 'Child';
+    }
+    if (propName === 'children') {
+      return 'ChildList';
+    }
+  }
+  return undefined;
+}
+
+const OPEN_SENTINEL_RE = /<a2ui(?:\s[^>]*)?>/iy;
+const CLOSE_SENTINEL_RE = /<\/a2ui\s*>/iy;
+
+function matchSentinelAt(
+  dslText: string,
+  pos: number,
+): {kind: 'open' | 'close'; end: number} | undefined {
+  if (dslText[pos] !== '<') {
+    return undefined;
+  }
+  OPEN_SENTINEL_RE.lastIndex = pos;
+  const openMatch = OPEN_SENTINEL_RE.exec(dslText);
+  if (openMatch) {
+    return {kind: 'open', end: OPEN_SENTINEL_RE.lastIndex};
+  }
+  CLOSE_SENTINEL_RE.lastIndex = pos;
+  const closeMatch = CLOSE_SENTINEL_RE.exec(dslText);
+  if (closeMatch) {
+    return {kind: 'close', end: CLOSE_SENTINEL_RE.lastIndex};
+  }
+  return undefined;
+}
+
+function advanceCommentInSentinelScan(dslText: string, pos: number): number | undefined {
+  const n = dslText.length;
+  if (dslText.startsWith('//', pos) || dslText[pos] === '#' || dslText.startsWith('--', pos)) {
+    const nl = dslText.indexOf('\n', pos);
+    const end = nl < 0 ? n : nl;
+    let j = pos + (dslText[pos] === '#' ? 1 : 2);
+    while (j < end) {
+      if (dslText[j] === '<' && matchSentinelAt(dslText, j)?.kind === 'close') {
+        return j;
+      }
+      j += 1;
+    }
+    return end;
+  }
+  if (dslText.startsWith('/*', pos)) {
+    const end = dslText.indexOf('*/', pos + 2);
+    return end < 0 ? n : end + 2;
+  }
+  return undefined;
+}
+
+function advanceStringInSentinelScan(dslText: string, pos: number): number | undefined {
+  const n = dslText.length;
+  let isRaw = false;
+  let qPos = pos;
+  if (
+    (dslText[pos] === 'r' || dslText[pos] === 'R') &&
+    pos + 1 < n &&
+    dslText[pos + 1] === '"' &&
+    (pos === 0 || !/[a-zA-Z0-9_]/.test(dslText[pos - 1]))
+  ) {
+    isRaw = true;
+    qPos = pos + 1;
+  } else if (dslText[pos] !== '"') {
+    return undefined;
+  }
+  const triple = dslText.startsWith('"""', qPos);
+  let i = qPos + (triple ? 3 : 1);
+  while (i < n) {
+    if (!isRaw && dslText[i] === '\\') {
+      i += 2;
+      continue;
+    }
+    if (triple && dslText.startsWith('"""', i)) {
+      return i + 3;
+    }
+    if (!triple && dslText[i] === '"') {
+      return i + 1;
+    }
+    i += 1;
+  }
+  return n;
+}
+
+function stripSentinelTags(dslText: string): string {
+  let hasOpenSentinel = false;
+  let scanPos = 0;
+  const n = dslText.length;
+  while (scanPos < n) {
+    const strEnd = advanceStringInSentinelScan(dslText, scanPos);
+    if (strEnd !== undefined) {
+      scanPos = strEnd;
+      continue;
+    }
+    const cmtEnd = advanceCommentInSentinelScan(dslText, scanPos);
+    if (cmtEnd !== undefined) {
+      scanPos = cmtEnd;
+      continue;
+    }
+    const m = matchSentinelAt(dslText, scanPos);
+    if (m?.kind === 'open') {
+      hasOpenSentinel = true;
+      break;
+    }
+    scanPos += 1;
+  }
+
+  const out: string[] = [];
+  let insideA2ui = !hasOpenSentinel;
+  let i = 0;
+  let segStart = insideA2ui ? 0 : -1;
+  while (i < n) {
+    const strEnd = advanceStringInSentinelScan(dslText, i);
+    if (strEnd !== undefined) {
+      i = strEnd;
+      continue;
+    }
+    const cmtEnd = advanceCommentInSentinelScan(dslText, i);
+    if (cmtEnd !== undefined) {
+      i = cmtEnd;
+      continue;
+    }
+    const m = matchSentinelAt(dslText, i);
+    if (m) {
+      if (m.kind === 'open') {
+        if (insideA2ui && segStart >= 0) {
+          out.push(dslText.slice(segStart, i));
+        }
+        insideA2ui = true;
+        segStart = m.end;
+      } else {
+        if (insideA2ui && segStart >= 0) {
+          out.push(dslText.slice(segStart, i));
+        }
+        insideA2ui = false;
+        segStart = -1;
+      }
+      i = m.end;
+      continue;
+    }
+    i += 1;
+  }
+  if (insideA2ui && segStart >= 0 && segStart < n) {
+    out.push(dslText.slice(segStart));
+  }
+  return out.join('');
+}
+
+const CONTINUATION_OPERATORS = new Set([
+  '+',
+  '-',
+  '*',
+  '/',
+  '%',
+  '=',
+  '<',
+  '>',
+  '!',
+  '&',
+  '|',
+  '.',
+  ',',
+  ':',
+]);
+
+function isValidPrefixBoundary(dslText: string, prefixLen: number): boolean {
+  if (prefixLen <= 0 || prefixLen >= dslText.length) {
+    return true;
+  }
+  const rest = dslText.slice(prefixLen).trimStart();
+  if (!rest) {
+    return true;
+  }
+  if (rest.startsWith('//') || rest.startsWith('/*') || rest.startsWith('--')) {
+    return true;
+  }
+  return !CONTINUATION_OPERATORS.has(rest[0]);
+}
+
+/**
+ * Raised during streaming when an expression references an undefined value variable.
+ */
+export class PendingVariableError extends Error {
+  constructor(readonly varName: string) {
+    super(`Pending variable '${varName}'.`);
+    this.name = 'PendingVariableError';
+  }
+}
+
 /**
  * Holds mutable state for a single compiler execution pass (compiler.py:166-173).
  */
@@ -336,14 +578,19 @@ class CompileContext {
   extraComponents: Record<string, unknown>[] = [];
   generatedIds: Set<string> = new Set();
   inlineCounter = 0;
+  callCounter = 0;
   /** Compiled data bindings of the component being compiled, by property name. */
   activeBoundPaths: Map<string, Record<string, unknown>> = new Map();
   /** The variables whose values are being compiled, to catch a variable whose value refers back to it. */
   readonly resolving: Set<string> = new Set();
+  /** Variable names referenced while compiling a single node or data path. */
+  readonly referencedVars: Set<string> = new Set();
   readonly keys: ReservedKeys;
+  readonly allowPending: boolean;
 
-  constructor(keys: ReservedKeys) {
+  constructor(keys: ReservedKeys, allowPending = false) {
     this.keys = keys;
+    this.allowPending = allowPending;
   }
 }
 
@@ -352,15 +599,25 @@ class CompileContext {
  */
 class SurfaceScope {
   readonly surfaceId: string;
+  readonly hasSurfaceDirective: boolean;
   readonly sendDataModel?: boolean;
   readonly update: boolean;
+  readonly rawExtensions?: ExpressValue;
   readonly rawSymbols: Record<string, unknown> = {};
   readonly dataPathAssignments: Record<string, unknown> = {};
 
-  constructor(surfaceId: string, sendDataModel?: boolean, update = false) {
+  constructor(
+    surfaceId: string,
+    sendDataModel?: boolean,
+    update = false,
+    hasSurfaceDirective = false,
+    rawExtensions?: ExpressValue,
+  ) {
     this.surfaceId = surfaceId;
     this.sendDataModel = sendDataModel;
     this.update = update;
+    this.hasSurfaceDirective = hasSurfaceDirective;
+    this.rawExtensions = rawExtensions;
   }
 }
 
@@ -368,6 +625,638 @@ type CompilationUnit =
   | {kind: 'scope'; scope: SurfaceScope}
   | {kind: 'delete'; surfaceId: string}
   | {kind: 'call'; stmt: ExpressCallNode; scope: SurfaceScope | null};
+
+interface CachedComponentEntry {
+  ast: unknown;
+  comps: Record<string, unknown>[];
+  deps: Map<string, [unknown, string | undefined]>;
+  startInline: number;
+  inlineDelta: number;
+  generatedIds: string[];
+}
+
+interface CachedDataEntry {
+  ast: unknown;
+  val: unknown;
+  deps: Map<string, [unknown, string | undefined]>;
+}
+
+interface ScopeStreamState {
+  surfaceId: string;
+  surfaceCreated: boolean;
+  emittedComponents: Map<string, string>;
+  emittedDataPaths: Map<string, string>;
+  varIds: Map<string, string>;
+  compiledCache: Map<string, CachedComponentEntry>;
+  dataCache: Map<string, CachedDataEntry>;
+}
+
+/**
+ * Options for initializing an `ExpressScopeSession`.
+ */
+export interface ExpressScopeSessionOptions {
+  surfaceId?: string;
+  version?: string;
+}
+
+/**
+ * Tracks incremental statement compilation across chunks of an `<a2ui>` block.
+ */
+export class ExpressScopeSession {
+  readonly compiler: ExpressCompiler;
+  readonly surfaceId: string;
+  readonly version: string;
+  hasEmitted = false;
+  supersededComponents: Array<[string, string]> = [];
+  private scopeStates = new Map<number, ScopeStreamState>();
+  private emittedUnits = new Set<number>();
+  private cachedPrefix = '';
+  private cachedStatements: ExpressStatement[] = [];
+
+  constructor(compiler: ExpressCompiler, options: ExpressScopeSessionOptions = {}) {
+    this.compiler = compiler;
+    this.surfaceId = options.surfaceId ?? 'default_surface';
+    this.version = options.version
+      ? resolveExpressVersion(compiler.catalogs, options.version)
+      : compiler.version;
+  }
+
+  /**
+   * Captures a copy of the session's emitted state so a speculative step can roll back.
+   */
+  snapshot(): {
+    hasEmitted: boolean;
+    supersededComponents: Array<[string, string]>;
+    scopeStates: Map<number, ScopeStreamState>;
+    emittedUnits: Set<number>;
+    cachedPrefix: string;
+    cachedStatements: ExpressStatement[];
+  } {
+    const scopeStates = new Map<number, ScopeStreamState>();
+    for (const [k, st] of this.scopeStates.entries()) {
+      scopeStates.set(k, {
+        surfaceId: st.surfaceId,
+        surfaceCreated: st.surfaceCreated,
+        emittedComponents: new Map(st.emittedComponents),
+        emittedDataPaths: new Map(st.emittedDataPaths),
+        varIds: new Map(st.varIds),
+        compiledCache: new Map(st.compiledCache),
+        dataCache: new Map(st.dataCache),
+      });
+    }
+    return {
+      hasEmitted: this.hasEmitted,
+      supersededComponents: [...this.supersededComponents],
+      scopeStates,
+      emittedUnits: new Set(this.emittedUnits),
+      cachedPrefix: this.cachedPrefix,
+      cachedStatements: [...this.cachedStatements],
+    };
+  }
+
+  /**
+   * Restores a snapshot captured by `snapshot()`.
+   */
+  restore(saved: ReturnType<ExpressScopeSession['snapshot']>): void {
+    this.hasEmitted = saved.hasEmitted;
+    this.supersededComponents = saved.supersededComponents;
+    this.scopeStates = saved.scopeStates;
+    this.emittedUnits = saved.emittedUnits;
+    this.cachedPrefix = saved.cachedPrefix;
+    this.cachedStatements = saved.cachedStatements;
+  }
+
+  /**
+   * Compiles any newly ready statements from `dslText` into delta messages.
+   */
+  compileStep(
+    dslText: string,
+    options: {isFinal: boolean; existingSurfaces: ReadonlySet<string>; cachePrefix?: boolean},
+  ): AgentToRendererMessage[] {
+    this.supersededComponents = [];
+    const vNums = parseVersionNumbers(this.version);
+    const targetMajorMinor: [number, number] = [vNums[0] ?? 0, vNums[1] ?? 0];
+    if (this.compiler.catalogs.length > 1 && targetMajorMinor[0] < 1) {
+      throw new A2uiCatalogError(
+        `Several catalogs need A2UI v1.0 or later, where components and function calls carry their own catalogId, but got '${this.version}'.`,
+      );
+    }
+    const defaultKeys: ReservedKeys =
+      targetMajorMinor[0] >= 1 ? {path: '@path', call: '@call'} : {path: 'path', call: 'call'};
+    const ctx = new CompileContext(defaultKeys, !options.isFinal);
+    const statements = this.parseIncrementalStatements(
+      dslText,
+      options.isFinal,
+      options.cachePrefix ?? true,
+    );
+    const units = this.compiler.buildUnits(statements, this.surfaceId, targetMajorMinor);
+    if (units.length === 0) {
+      if (options.isFinal) {
+        throw new ExpressUndefinedRootError('root');
+      }
+      return [];
+    }
+
+    const activeSurfaces = new Set(options.existingSurfaces);
+    const resultMessages: AgentToRendererMessage[] = [];
+    for (let idx = 0; idx < units.length; idx++) {
+      resultMessages.push(
+        ...this.compileUnit(
+          idx,
+          units[idx],
+          ctx,
+          targetMajorMinor,
+          options.isFinal,
+          activeSurfaces,
+        ),
+      );
+    }
+    return resultMessages;
+  }
+
+  private parseIncrementalStatements(
+    dslText: string,
+    _isFinal: boolean,
+    cachePrefix: boolean,
+  ): ExpressStatement[] {
+    if (
+      this.cachedPrefix &&
+      dslText.startsWith(this.cachedPrefix) &&
+      isValidPrefixBoundary(dslText, this.cachedPrefix.length)
+    ) {
+      const tail = dslText.slice(this.cachedPrefix.length);
+      const tailStatements = tail.trim() ? this.compiler.parseStatements(tail, true, false) : [];
+      const statements = [...this.cachedStatements, ...tailStatements];
+      if (cachePrefix) {
+        this.cachedPrefix = dslText;
+        this.cachedStatements = statements;
+      }
+      return statements;
+    }
+    const statements = this.compiler.parseStatements(dslText, true, false);
+    if (cachePrefix) {
+      this.cachedPrefix = dslText;
+      this.cachedStatements = statements;
+    }
+    return statements;
+  }
+
+  private compileUnit(
+    idx: number,
+    unit: CompilationUnit,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+    isFinal: boolean,
+    activeSurfaces: Set<string>,
+  ): AgentToRendererMessage[] {
+    if (unit.kind === 'delete') {
+      activeSurfaces.delete(unit.surfaceId);
+      if (this.emittedUnits.has(idx)) {
+        return [];
+      }
+      this.emittedUnits.add(idx);
+      this.hasEmitted = true;
+      return [
+        asAgentToRendererMessage({
+          version: this.version,
+          [SurfaceOperation.DELETE]: {surfaceId: unit.surfaceId},
+        }),
+      ];
+    }
+    if (unit.kind === 'call') {
+      return this.compileCallUnit(idx, unit.stmt, unit.scope, ctx, targetMajorMinor);
+    }
+    let state = this.scopeStates.get(idx);
+    if (!state) {
+      state = {
+        surfaceId: unit.scope.surfaceId,
+        surfaceCreated: false,
+        emittedComponents: new Map(),
+        emittedDataPaths: new Map(),
+        varIds: new Map(),
+        compiledCache: new Map(),
+        dataCache: new Map(),
+      };
+      this.scopeStates.set(idx, state);
+    } else {
+      state.surfaceId = unit.scope.surfaceId;
+    }
+    const surfaceExists = activeSurfaces.has(unit.scope.surfaceId);
+    const messages = this.compileScopeDelta(
+      unit.scope,
+      state,
+      ctx,
+      targetMajorMinor,
+      isFinal,
+      surfaceExists,
+    );
+    if (surfaceExists || state.surfaceCreated) {
+      activeSurfaces.add(unit.scope.surfaceId);
+    }
+    return messages;
+  }
+
+  private compileCallUnit(
+    idx: number,
+    stmt: ExpressCallNode,
+    scope: SurfaceScope | null,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+  ): AgentToRendererMessage[] {
+    if (this.emittedUnits.has(idx)) {
+      return [];
+    }
+    try {
+      const msg = this.compiler.compileStandaloneCall(
+        stmt,
+        scope,
+        ctx,
+        this.version,
+        targetMajorMinor,
+      );
+      this.emittedUnits.add(idx);
+      this.hasEmitted = true;
+      return [msg];
+    } catch (e) {
+      if (e instanceof PendingVariableError) {
+        return [];
+      }
+      throw e;
+    }
+  }
+
+  private compileScopeDelta(
+    scope: SurfaceScope,
+    state: ScopeStreamState,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+    isFinal: boolean,
+    surfaceExists: boolean,
+  ): AgentToRendererMessage[] {
+    const compIds = this.compiler.collectComponentIds(scope, targetMajorMinor);
+    const {compiled: compiledComponents, hasPending} = this.collectReadyComponents(
+      scope,
+      state,
+      compIds,
+      ctx,
+      targetMajorMinor,
+    );
+    const compiledData = this.collectReadyData(scope, state, compIds, ctx, targetMajorMinor);
+    const hasRoot = compiledComponents.some(c => c.id === 'root');
+    const needsCreate =
+      !scope.update &&
+      !state.surfaceCreated &&
+      (!surfaceExists || hasRoot || scope.rawExtensions !== undefined);
+    if (needsCreate) {
+      return this.compileInitialCreate(
+        scope,
+        state,
+        compiledComponents,
+        compiledData,
+        isFinal,
+        compIds,
+        ctx,
+        targetMajorMinor,
+      );
+    }
+    return this.compileIncrementalUpdates(
+      scope,
+      state,
+      compiledComponents,
+      compiledData,
+      isFinal,
+      hasPending,
+      surfaceExists,
+    );
+  }
+
+  private compileInitialCreate(
+    scope: SurfaceScope,
+    state: ScopeStreamState,
+    compiledComponents: Record<string, unknown>[],
+    compiledData: Map<string, unknown>,
+    isFinal: boolean,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+  ): AgentToRendererMessage[] {
+    const hasRoot = compiledComponents.some(c => c.id === 'root');
+    if (!hasRoot) {
+      if (!isFinal) {
+        return [];
+      }
+      if (scope.rawExtensions !== undefined) {
+        throw new ExpressValidationError(
+          'surface() extensions require a surface-creating scope with a root component.',
+        );
+      }
+      if (compiledData.size > 0 && compiledComponents.length === 0) {
+        return this.compileIncrementalUpdates(
+          scope,
+          state,
+          compiledComponents,
+          compiledData,
+          true,
+          false,
+          false,
+        );
+      }
+      throw new ExpressUndefinedRootError('root');
+    }
+    let metadata: Record<string, unknown> | undefined;
+    try {
+      metadata = this.compiler.compileSurfaceMetadata(scope, compIds, ctx, targetMajorMinor);
+    } catch (e) {
+      // Defer creation until the variables the extensions reference arrive.
+      if (e instanceof PendingVariableError && !isFinal) {
+        return [];
+      }
+      throw e;
+    }
+    const dataModel: Record<string, unknown> = {};
+    for (const [pathName, val] of compiledData.entries()) {
+      setNestedPath(dataModel, pathName, val);
+      state.emittedDataPaths.set(pathName, JSON.stringify(val));
+    }
+    for (const comp of compiledComponents) {
+      state.emittedComponents.set(String(comp.id), JSON.stringify(comp));
+    }
+    state.surfaceCreated = true;
+    this.hasEmitted = true;
+    return this.compiler.buildCreateMessages(
+      scope,
+      compiledComponents,
+      dataModel,
+      this.version,
+      metadata,
+    );
+  }
+
+  private compileIncrementalUpdates(
+    scope: SurfaceScope,
+    state: ScopeStreamState,
+    compiledComponents: Record<string, unknown>[],
+    compiledData: Map<string, unknown>,
+    isFinal: boolean,
+    hasPending: boolean,
+    surfaceExists = false,
+  ): AgentToRendererMessage[] {
+    const deltaComponents = compiledComponents.filter(
+      c => state.emittedComponents.get(String(c.id)) !== JSON.stringify(c),
+    );
+    for (const comp of deltaComponents) {
+      state.emittedComponents.set(String(comp.id), JSON.stringify(comp));
+    }
+    const dataUpdates = this.buildDataUpdates(scope, state, compiledData);
+    if (
+      isFinal &&
+      state.emittedComponents.size === 0 &&
+      state.emittedDataPaths.size === 0 &&
+      !hasPending
+    ) {
+      throw new ExpressUndefinedRootError('root');
+    }
+
+    const messages: AgentToRendererMessage[] = [];
+    if (deltaComponents.length > 0) {
+      if (!scope.hasSurfaceDirective && !state.surfaceCreated && !surfaceExists) {
+        throw new ExpressUndefinedRootError('root');
+      }
+      messages.push(
+        asAgentToRendererMessage({
+          version: this.version,
+          [SurfaceOperation.UPDATE_COMPONENTS]: {
+            surfaceId: scope.surfaceId,
+            components: deltaComponents,
+          },
+        }),
+      );
+    }
+    messages.push(...dataUpdates);
+    if (messages.length > 0) {
+      this.hasEmitted = true;
+    }
+    return messages;
+  }
+
+  private earlierScopeComponent(
+    currentState: ScopeStreamState,
+    surfaceId: string,
+    compId: string,
+  ): Record<string, unknown> | undefined {
+    let foundJson: string | undefined;
+    for (const st of this.scopeStates.values()) {
+      if (st === currentState) {
+        break;
+      }
+      if (st.surfaceId === surfaceId && st.emittedComponents.has(compId)) {
+        foundJson = st.emittedComponents.get(compId);
+      }
+    }
+    return foundJson !== undefined ? (JSON.parse(foundJson) as Record<string, unknown>) : undefined;
+  }
+
+  private collectReadyComponents(
+    scope: SurfaceScope,
+    state: ScopeStreamState,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+  ): {compiled: Record<string, unknown>[]; hasPending: boolean} {
+    ctx.generatedIds.clear();
+    const topLevelIds = new Set(compIds.values());
+    const compiled: Record<string, unknown>[] = [];
+    const extras: Record<string, unknown>[] = [];
+    const superseded: string[] = [];
+    let hasPending = false;
+    for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
+      const cached = state.compiledCache.get(varName);
+      if (cached && cached.ast === ast) {
+        let depsUnchanged = true;
+        for (const [dep, [depAst, depId]] of cached.deps.entries()) {
+          if (scope.rawSymbols[dep] !== depAst || compIds.get(dep) !== depId) {
+            depsUnchanged = false;
+            break;
+          }
+        }
+        if (
+          depsUnchanged &&
+          (cached.inlineDelta === 0 || cached.startInline === ctx.inlineCounter) &&
+          cached.generatedIds.every(
+            gid =>
+              !ctx.generatedIds.has(gid) &&
+              !topLevelIds.has(gid) &&
+              !Object.hasOwn(scope.rawSymbols, gid),
+          )
+        ) {
+          ctx.inlineCounter += cached.inlineDelta;
+          for (const gid of cached.generatedIds) {
+            ctx.generatedIds.add(gid);
+          }
+          if (cached.comps.length > 0) {
+            const compDict = cached.comps[0];
+            const compId = String(compDict.id);
+            const prevId = state.varIds.get(varName);
+            if (prevId !== undefined && prevId !== compId) {
+              superseded.push(prevId);
+            }
+            state.varIds.set(varName, compId);
+            compiled.push(compDict);
+            extras.push(...cached.comps.slice(1));
+          }
+          continue;
+        }
+      }
+      const prevInlineCounter = ctx.inlineCounter;
+      const prevGeneratedIds = new Set(ctx.generatedIds);
+      ctx.referencedVars.clear();
+      try {
+        const compDict = this.compiler.compileAstNodeForSession(
+          varName,
+          ast,
+          scope.rawSymbols,
+          compIds,
+          ctx,
+          targetMajorMinor,
+        );
+        const deps = new Map<string, [unknown, string | undefined]>();
+        for (const dep of ctx.referencedVars) {
+          deps.set(dep, [scope.rawSymbols[dep], compIds.get(dep)]);
+        }
+        const newGeneratedIds = [...ctx.generatedIds].filter(gid => !prevGeneratedIds.has(gid));
+        const inlineDelta = ctx.inlineCounter - prevInlineCounter;
+        if (compDict) {
+          const compId = String(compDict.id);
+          const prevId = state.varIds.get(varName);
+          if (prevId !== undefined && prevId !== compId) {
+            superseded.push(prevId);
+          }
+          state.varIds.set(varName, compId);
+          const nodeExtras = [...ctx.extraComponents];
+          ctx.extraComponents = [];
+          state.compiledCache.set(varName, {
+            ast,
+            comps: [compDict, ...nodeExtras],
+            deps,
+            startInline: prevInlineCounter,
+            inlineDelta,
+            generatedIds: newGeneratedIds,
+          });
+          compiled.push(compDict);
+          extras.push(...nodeExtras);
+        } else {
+          state.compiledCache.set(varName, {
+            ast,
+            comps: [],
+            deps,
+            startInline: prevInlineCounter,
+            inlineDelta,
+            generatedIds: newGeneratedIds,
+          });
+        }
+      } catch (e) {
+        if (e instanceof PendingVariableError) {
+          ctx.extraComponents = [];
+          ctx.inlineCounter = prevInlineCounter;
+          ctx.generatedIds = prevGeneratedIds;
+          hasPending = true;
+          continue;
+        }
+        throw e;
+      }
+    }
+    compiled.push(...extras);
+    if (superseded.length > 0) {
+      const activeIds = new Set(compiled.map(c => String(c.id)));
+      for (const oldId of superseded) {
+        if (!activeIds.has(oldId)) {
+          state.emittedComponents.delete(oldId);
+          const earlierComp = this.earlierScopeComponent(state, scope.surfaceId, oldId);
+          if (earlierComp !== undefined) {
+            compiled.push(earlierComp);
+          } else {
+            this.supersededComponents.push([scope.surfaceId, oldId]);
+          }
+        }
+      }
+    }
+    return {compiled, hasPending};
+  }
+
+  private collectReadyData(
+    scope: SurfaceScope,
+    state: ScopeStreamState,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+  ): Map<string, unknown> {
+    const compiled = new Map<string, unknown>();
+    for (const [pathName, astVal] of Object.entries(scope.dataPathAssignments)) {
+      const cached = state.dataCache.get(pathName);
+      if (cached && cached.ast === astVal) {
+        let depsUnchanged = true;
+        for (const [dep, [depAst, depId]] of cached.deps.entries()) {
+          if (scope.rawSymbols[dep] !== depAst || compIds.get(dep) !== depId) {
+            depsUnchanged = false;
+            break;
+          }
+        }
+        if (depsUnchanged) {
+          compiled.set(pathName, cached.val);
+          continue;
+        }
+      }
+      ctx.referencedVars.clear();
+      try {
+        const val = this.compiler.compileDataValue(scope, astVal, compIds, ctx, targetMajorMinor);
+        const deps = new Map<string, [unknown, string | undefined]>();
+        for (const dep of ctx.referencedVars) {
+          deps.set(dep, [scope.rawSymbols[dep], compIds.get(dep)]);
+        }
+        state.dataCache.set(pathName, {ast: astVal, val, deps});
+        compiled.set(pathName, val);
+      } catch (e) {
+        if (e instanceof PendingVariableError) {
+          continue;
+        }
+        throw e;
+      }
+    }
+    return compiled;
+  }
+
+  private buildDataUpdates(
+    scope: SurfaceScope,
+    state: ScopeStreamState,
+    compiledData: Map<string, unknown>,
+  ): AgentToRendererMessage[] {
+    const updates: AgentToRendererMessage[] = [];
+    for (const [pathName, val] of compiledData.entries()) {
+      const serialized = JSON.stringify(val);
+      if (state.emittedDataPaths.get(pathName) === serialized) {
+        continue;
+      }
+      const pointer = toJsonPointer(pathName);
+      if (pointer === '/' && (!val || typeof val !== 'object' || Array.isArray(val))) {
+        throw new ExpressValidationError(
+          "Cannot assign a non-map value to the root data path '$/'.",
+        );
+      }
+      state.emittedDataPaths.set(pathName, serialized);
+      updates.push(
+        asAgentToRendererMessage({
+          version: this.version,
+          [SurfaceOperation.UPDATE_DATA]: {
+            surfaceId: scope.surfaceId,
+            path: pointer,
+            value: val,
+          },
+        }),
+      );
+    }
+    return updates;
+  }
+}
 
 /**
  * Compilation pipeline for A2UI Express.
@@ -465,11 +1354,15 @@ export class ExpressCompiler {
   /**
    * Parses and validates a `surface(...)` statement.
    */
-  private parseSurfaceCall(callVal: ExpressCallNode): {
+  private parseSurfaceCall(
+    callVal: ExpressCallNode,
+    targetMajorMinor: [number, number],
+  ): {
     surfaceId: string;
     catalogId: string;
     sendDataModel?: boolean;
     update: boolean;
+    rawExtensions?: ExpressValue;
   } {
     const args = callVal.args;
     const kwargs = callVal.kwargs;
@@ -506,6 +1399,7 @@ export class ExpressCompiler {
 
     let sendDataModel: boolean | undefined;
     let update = false;
+    let rawExtensions: ExpressValue | undefined;
 
     for (const [k, val] of Object.entries(kwargs)) {
       if (k === 'catalogId') {
@@ -525,9 +1419,20 @@ export class ExpressCompiler {
           throw new ExpressValidationError('The update argument to surface() must be a boolean.');
         }
         update = val;
+      } else if (k === 'extensions') {
+        if (targetMajorMinor[0] < 1) {
+          throw new ExpressValidationError(
+            'extensions on surface() is only supported in A2UI v1.0 or later.',
+          );
+        }
+        rawExtensions = val;
       } else {
         throw new ExpressValidationError(`Unknown keyword argument '${k}' in surface().`);
       }
+    }
+
+    if (update && rawExtensions !== undefined) {
+      throw new ExpressValidationError('surface() with update=true does not accept extensions.');
     }
 
     if (catalogId) {
@@ -541,7 +1446,409 @@ export class ExpressCompiler {
       }
     }
 
-    return {surfaceId, catalogId, sendDataModel, update};
+    return {surfaceId, catalogId, sendDataModel, update, rawExtensions};
+  }
+
+  private resolveAstVar(
+    node: unknown,
+    rawSymbols: Record<string, unknown>,
+    ctx: CompileContext,
+    seen: Set<string>,
+  ): unknown {
+    let cur = node;
+    while (isExpressNode(cur, 'variable')) {
+      const refName = cur.name;
+      ctx.referencedVars.add(refName);
+      if (seen.has(refName)) {
+        throw new ExpressValidationError(
+          `Variable '${refName}' refers to itself through its own value.`,
+        );
+      }
+      if (!Object.hasOwn(rawSymbols, refName)) {
+        if (ctx.allowPending) {
+          throw new PendingVariableError(refName);
+        }
+        throw new ExpressValidationError(`Undefined variable '${refName}'.`);
+      }
+      seen.add(refName);
+      cur = rawSymbols[refName];
+    }
+    return cur;
+  }
+
+  private checkExtensionsAst(
+    node: unknown,
+    rawSymbols: Record<string, unknown>,
+    ctx: CompileContext,
+    subject: string,
+    seen: Set<string>,
+  ): void {
+    const resolved = this.resolveAstVar(node, rawSymbols, ctx, new Set(seen));
+    if (isExpressNode(resolved, 'map')) {
+      for (const v of Object.values(resolved.entries)) {
+        this.checkExtensionsAst(v, rawSymbols, ctx, subject, seen);
+      }
+    } else if (Array.isArray(resolved)) {
+      for (const item of resolved) {
+        this.checkExtensionsAst(item, rawSymbols, ctx, subject, seen);
+      }
+    } else if (isExpressNode(resolved, 'call')) {
+      const catId = resolved.kwargs.catalogId;
+      if (this.definesComponent(resolved.name, catId)) {
+        throw new ExpressValidationError(
+          `extensions on ${subject} cannot contain component '${resolved.name}'.`,
+        );
+      }
+      if (
+        catId === undefined &&
+        (resolved.name === 'Event' ||
+          resolved.name === '_template' ||
+          resolved.name === 'surface' ||
+          resolved.name === 'deleteSurface')
+      ) {
+        throw new ExpressValidationError(
+          `extensions on ${subject} cannot contain '${resolved.name}()'.`,
+        );
+      }
+      for (const arg of resolved.args) {
+        this.checkExtensionsAst(arg, rawSymbols, ctx, subject, seen);
+      }
+      for (const kwVal of Object.values(resolved.kwargs)) {
+        this.checkExtensionsAst(kwVal, rawSymbols, ctx, subject, seen);
+      }
+    }
+  }
+
+  /**
+   * Compiles and validates an `extensions=` keyword argument into a UAX #31-keyed map.
+   */
+  private compileExtensionsMap(
+    rawExt: ExpressValue,
+    rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+    subject: string,
+  ): Record<string, unknown> {
+    const top = this.resolveAstVar(rawExt, rawSymbols, ctx, new Set());
+    if (!isExpressNode(top, 'map')) {
+      throw new ExpressValidationError(`extensions on ${subject} must be a map.`);
+    }
+    this.checkExtensionsAst(top, rawSymbols, ctx, subject, new Set());
+    const compiled = this._compileValue(rawExt, rawSymbols, compIds, ctx, targetMajorMinor, false);
+    if (!compiled || typeof compiled !== 'object' || Array.isArray(compiled)) {
+      throw new ExpressValidationError(`extensions on ${subject} must be a map.`);
+    }
+    const record = compiled as Record<string, unknown>;
+    for (const extKey of Object.keys(record)) {
+      if (!isValidUax31Identifier(extKey)) {
+        throw new ExpressValidationError(
+          `Extension key '${extKey}' on ${subject} is not a valid UAX 31 identifier.`,
+        );
+      }
+    }
+    return record;
+  }
+
+  /**
+   * Strips sentinel tags and parses the DSL body into statements.
+   */
+  parseStatements(dslText: string, isFinal: boolean, stripSentinels = true): ExpressStatement[] {
+    const dslBody = stripSentinels ? stripSentinelTags(dslText) : dslText;
+    try {
+      const parsed = parseExpress(dslBody);
+      if (isFinal && parsed.errors.length > 0) {
+        const [line, col, msg, isLexer] = parsed.errors[0];
+        throw new ExpressSyntaxError(
+          `Syntax error at line ${line}:${col}: ${msg}`,
+          line,
+          col,
+          isLexer,
+        );
+      }
+      return parsed.statements;
+    } catch (e: unknown) {
+      if (!isFinal) {
+        return [];
+      }
+      if (e instanceof ExpressSyntaxError && e.isLexer) {
+        throw e;
+      }
+      const innerMsg = formatErrorMessage(e);
+      const parseErr = new ExpressParseError(`Failed to parse expression: ${innerMsg}`);
+      (parseErr as unknown as {cause?: unknown}).cause = e;
+      throw parseErr;
+    }
+  }
+
+  /**
+   * Groups parsed AST statements into surface scopes, deletes, and standalone calls.
+   */
+  buildUnits(
+    statements: ExpressStatement[],
+    surfaceId: string,
+    targetMajorMinor: [number, number],
+  ): CompilationUnit[] {
+    const units: CompilationUnit[] = [];
+    let currentScope: SurfaceScope | null = null;
+
+    for (const stmt of statements) {
+      const [stmtType, ...stmtArgs] = stmt;
+      if (stmtType === 'EXPR') {
+        currentScope = this.appendExprUnit(stmtArgs[0], currentScope, units, targetMajorMinor);
+      } else if (stmtType === 'ASSIGN') {
+        const [varName, parsedVal] = stmtArgs as [string, ExpressValue];
+        if (currentScope === null) {
+          currentScope = new SurfaceScope(surfaceId);
+          units.push({kind: 'scope', scope: currentScope});
+        }
+        this.assignToScope(currentScope, varName, parsedVal);
+      }
+    }
+    return units;
+  }
+
+  private appendExprUnit(
+    parsedVal: unknown,
+    currentScope: SurfaceScope | null,
+    units: CompilationUnit[],
+    targetMajorMinor: [number, number],
+  ): SurfaceScope | null {
+    if (!isExpressNode(parsedVal, 'call')) {
+      return currentScope;
+    }
+    if (parsedVal.name === 'surface') {
+      const parsed = this.parseSurfaceCall(parsedVal, targetMajorMinor);
+      const nextScope = new SurfaceScope(
+        parsed.surfaceId,
+        parsed.sendDataModel,
+        parsed.update,
+        true,
+        parsed.rawExtensions,
+      );
+      units.push({kind: 'scope', scope: nextScope});
+      return nextScope;
+    }
+    if (parsedVal.name === 'deleteSurface') {
+      units.push({kind: 'delete', surfaceId: this.parseDeleteSurfaceId(parsedVal)});
+      return currentScope;
+    }
+    units.push({kind: 'call', stmt: parsedVal, scope: currentScope});
+    return currentScope;
+  }
+
+  private assignToScope(scope: SurfaceScope, varName: string, parsedVal: ExpressValue): void {
+    if (varName.startsWith('$')) {
+      delete scope.dataPathAssignments[varName];
+      scope.dataPathAssignments[varName] = parsedVal;
+    } else {
+      setOwnEntry(scope.rawSymbols, varName, parsedVal);
+    }
+  }
+
+  private parseDeleteSurfaceId(parsedVal: ExpressCallNode): string {
+    const args = parsedVal.args;
+    const kwargs = parsedVal.kwargs;
+    if (args.length > 0 && typeof args[0] === 'string') {
+      return args[0];
+    }
+    if (typeof kwargs.surfaceId === 'string') {
+      return kwargs.surfaceId;
+    }
+    throw new ExpressValidationError('deleteSurface() requires the id of the surface to delete.');
+  }
+
+  /**
+   * Compiles a standalone function call into a `callRendererFunction` message.
+   */
+  compileStandaloneCall(
+    stmt: ExpressCallNode,
+    scope: SurfaceScope | null,
+    ctx: CompileContext,
+    targetVersion: string,
+    targetMajorMinor: [number, number],
+  ): AgentToRendererMessage {
+    if (targetMajorMinor[0] === 0 && targetMajorMinor[1] <= 9) {
+      throw new ExpressValidationError('Standalone function calls are not supported in A2UI v0.9');
+    }
+    ctx.callCounter += 1;
+    const rawSyms = scope ? scope.rawSymbols : {};
+    const [compiledVal, explicitCallId] = this.compileFunctionCall(
+      stmt,
+      rawSyms,
+      new Map(),
+      ctx,
+      targetMajorMinor,
+      false,
+      true,
+    );
+    const callFunction: Record<string, unknown> = {
+      catalogId: (compiledVal.catalogId as string | undefined) ?? this.catalogs[0].id,
+      ...compiledVal,
+    };
+    return asAgentToRendererMessage({
+      version: targetVersion,
+      callRendererFunction: {
+        functionCallId: explicitCallId ?? `call_${ctx.callCounter}`,
+        callFunction,
+      },
+    });
+  }
+
+  /**
+   * Collects the resolved component ID for every component variable in `scope`.
+   */
+  collectComponentIds(
+    scope: SurfaceScope,
+    targetMajorMinor: [number, number],
+  ): Map<string, string> {
+    const compIds = new Map<string, string>();
+    const seenIds = new Set<string>();
+    for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
+      if (!isExpressNode(ast, 'call')) {
+        continue;
+      }
+      const compName = ast.name;
+      const explicitId = ast.kwargs.id;
+      if (explicitId !== undefined) {
+        if (typeof explicitId !== 'string' || explicitId.length === 0) {
+          throw new ExpressValidationError(
+            `id on component '${compName}' must be a non-empty string.`,
+          );
+        }
+        if (targetMajorMinor[0] >= 1 && !isValidUax31Identifier(explicitId)) {
+          throw new ExpressValidationError(
+            `Component id '${explicitId}' on '${compName}' is not a valid UAX 31 identifier.`,
+          );
+        }
+      }
+      if (this.definesComponent(compName, ast.kwargs.catalogId)) {
+        const resolvedId = (explicitId as string | undefined) ?? varName;
+        if (seenIds.has(resolvedId)) {
+          throw new ExpressIdCollisionError(resolvedId);
+        }
+        seenIds.add(resolvedId);
+        compIds.set(varName, resolvedId);
+      }
+    }
+    return compIds;
+  }
+
+  /**
+   * Compiles the `surface(extensions=...)` argument of `scope` into
+   * `createSurface.metadata`, or returns undefined when none was given.
+   */
+  compileSurfaceMetadata(
+    scope: SurfaceScope,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+  ): Record<string, unknown> | undefined {
+    if (scope.rawExtensions === undefined) {
+      return undefined;
+    }
+    const extensions = this.compileExtensionsMap(
+      scope.rawExtensions,
+      scope.rawSymbols,
+      compIds,
+      ctx,
+      targetMajorMinor,
+      `surface '${scope.surfaceId}'`,
+    );
+    return {extensions};
+  }
+
+  /**
+   * Builds the `createSurface` message(s) for a surface creation scope.
+   */
+  buildCreateMessages(
+    scope: SurfaceScope,
+    compiledComponents: Record<string, unknown>[],
+    dataModel: Record<string, unknown>,
+    targetVersion: string,
+    metadata?: Record<string, unknown>,
+  ): AgentToRendererMessage[] {
+    const scopeSurfId = scope.surfaceId;
+    const catalogId = surfaceCatalogId(this.catalogs);
+    const createPayload: Record<string, unknown> = {
+      surfaceId: scopeSurfId,
+    };
+    if (catalogId !== undefined) {
+      createPayload.catalogId = catalogId;
+    }
+    if (scope.sendDataModel !== undefined) {
+      createPayload.sendDataModel = scope.sendDataModel;
+    }
+
+    if (isAtLeastVersion(targetVersion, 'v1.0')) {
+      createPayload.components = compiledComponents;
+      if (Object.keys(dataModel).length > 0) {
+        createPayload.dataModel = dataModel;
+      }
+      if (metadata !== undefined) {
+        createPayload.metadata = metadata;
+      }
+      return [
+        asAgentToRendererMessage({
+          version: targetVersion,
+          [SurfaceOperation.CREATE]: createPayload,
+        }),
+      ];
+    }
+
+    const resultMessages: AgentToRendererMessage[] = [
+      asAgentToRendererMessage({
+        version: targetVersion,
+        [SurfaceOperation.CREATE]: createPayload,
+      }),
+      asAgentToRendererMessage({
+        version: targetVersion,
+        [SurfaceOperation.UPDATE_COMPONENTS]: {
+          surfaceId: scopeSurfId,
+          components: compiledComponents,
+        },
+      }),
+    ];
+    if (Object.keys(dataModel).length > 0) {
+      resultMessages.push(
+        asAgentToRendererMessage({
+          version: targetVersion,
+          [SurfaceOperation.UPDATE_DATA]: {
+            surfaceId: scopeSurfId,
+            path: '/',
+            value: dataModel,
+          },
+        }),
+      );
+    }
+    return resultMessages;
+  }
+
+  /**
+   * Compiles a single variable's AST node for an incremental `ExpressScopeSession`.
+   */
+  compileAstNodeForSession(
+    varName: string,
+    ast: unknown,
+    rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+  ): Record<string, unknown> | null {
+    return this._compileAstNode(varName, ast, rawSymbols, compIds, ctx, targetMajorMinor);
+  }
+
+  /**
+   * Compiles a data path value for an incremental `ExpressScopeSession`.
+   */
+  compileDataValue(
+    scope: SurfaceScope,
+    astVal: unknown,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+  ): unknown {
+    return this._compileValue(astVal, scope.rawSymbols, compIds, ctx, targetMajorMinor, false);
   }
 
   /**
@@ -571,121 +1878,13 @@ export class ExpressCompiler {
     const defaultKeys: ReservedKeys =
       targetMajorMinor[0] >= 1 ? {path: '@path', call: '@call'} : {path: 'path', call: 'call'};
     const ctx = new CompileContext(defaultKeys);
-
-    // Sentinel tag stripping (compiler.py:235-254; load-bearing per plan §9)
-    const hasSentinels = dslText.includes('<a2ui>');
-    const lines: string[] = [];
-    let insideA2ui = !hasSentinels;
-    for (const line of dslText.split(/\r?\n/)) {
-      let curLine = line;
-      let trimmed = curLine.trim();
-      if (trimmed.includes('<a2ui>')) {
-        insideA2ui = true;
-        curLine = curLine.replace('<a2ui>', '');
-        trimmed = curLine.trim();
-      }
-      if (trimmed.includes('</a2ui>')) {
-        insideA2ui = false;
-        curLine = curLine.split('</a2ui>')[0];
-        if (curLine.trim()) {
-          lines.push(curLine);
-        }
-        continue;
-      }
-      if (insideA2ui) {
-        lines.push(curLine);
-      }
-    }
-
-    const dslBody = lines.join('\n');
-
-    // ANTLR parsing and AST construction (compiler.py:256-291)
-    let statements: ExpressStatement[] = [];
-    try {
-      const parsed = parseExpress(dslBody);
-      if (isFinal && parsed.errors.length > 0) {
-        const [line, col, msg, isLexer] = parsed.errors[0];
-        const err = new ExpressSyntaxError(
-          `Syntax error at line ${line}:${col}: ${msg}`,
-          line,
-          col,
-          isLexer,
-        );
-        throw err;
-      }
-      statements = parsed.statements;
-    } catch (e: unknown) {
-      if (!isFinal) {
-        // Sanctioned swallow (compiler.py:286): when isFinal is false, syntax errors
-        // during visitor execution are suppressed and statements becomes [].
-        statements = [];
-      } else {
-        if (e instanceof ExpressSyntaxError && e.isLexer) {
-          throw e;
-        }
-        const innerMsg = formatErrorMessage(e);
-        const parseErr = new ExpressParseError(`Failed to parse expression: ${innerMsg}`);
-        // Set ES2022 cause after construction matching Python's `raise ... from e`
-        (parseErr as unknown as {cause?: unknown}).cause = e;
-        throw parseErr;
-      }
-    }
-
-    const units: CompilationUnit[] = [];
-    let currentScope: SurfaceScope | null = null;
-
-    for (const stmt of statements) {
-      const [stmtType, ...stmtArgs] = stmt;
-      if (stmtType === 'EXPR') {
-        const parsedVal = stmtArgs[0];
-        if (isExpressNode(parsedVal, 'call') && parsedVal.name === 'surface') {
-          const parsed = this.parseSurfaceCall(parsedVal);
-          currentScope = new SurfaceScope(parsed.surfaceId, parsed.sendDataModel, parsed.update);
-          units.push({kind: 'scope', scope: currentScope});
-        } else if (isExpressNode(parsedVal, 'call') && parsedVal.name === 'deleteSurface') {
-          const args = parsedVal.args;
-          const kwargs = parsedVal.kwargs;
-          let targetDeleteSurfaceId: string | null = null;
-          if (args.length > 0 && typeof args[0] === 'string') {
-            targetDeleteSurfaceId = args[0];
-          } else if (typeof kwargs.surfaceId === 'string') {
-            targetDeleteSurfaceId = kwargs.surfaceId;
-          }
-          if (!targetDeleteSurfaceId) {
-            throw new ExpressValidationError(
-              'deleteSurface() requires the id of the surface to delete.',
-            );
-          }
-          units.push({kind: 'delete', surfaceId: targetDeleteSurfaceId});
-        } else if (isExpressNode(parsedVal, 'call')) {
-          units.push({
-            kind: 'call',
-            stmt: parsedVal,
-            scope: currentScope,
-          });
-        }
-      } else if (stmtType === 'ASSIGN') {
-        const [varName, parsedVal] = stmtArgs as [string, ExpressValue];
-        if (currentScope === null) {
-          currentScope = new SurfaceScope(surfaceId);
-          units.push({kind: 'scope', scope: currentScope});
-        }
-        if (varName.startsWith('$')) {
-          delete currentScope.dataPathAssignments[varName];
-          currentScope.dataPathAssignments[varName] = parsedVal;
-        } else {
-          setOwnEntry(currentScope.rawSymbols, varName, parsedVal);
-        }
-      }
-    }
-
+    const statements = this.parseStatements(dslText, isFinal);
+    const units = this.buildUnits(statements, surfaceId, targetMajorMinor);
     if (units.length === 0) {
       throw new ExpressUndefinedRootError('root');
     }
 
     const resultMessages: AgentToRendererMessage[] = [];
-    let callCounter = 0;
-
     for (const unit of units) {
       if (unit.kind === 'delete') {
         resultMessages.push(
@@ -695,34 +1894,8 @@ export class ExpressCompiler {
           }),
         );
       } else if (unit.kind === 'call') {
-        if (targetMajorMinor[0] === 0 && targetMajorMinor[1] <= 9) {
-          throw new ExpressValidationError(
-            'Standalone function calls are not supported in A2UI v0.9',
-          );
-        }
-        callCounter += 1;
-        const rawSyms = unit.scope ? unit.scope.rawSymbols : {};
-        const [compiledVal, explicitCallId] = this.compileFunctionCall(
-          unit.stmt,
-          rawSyms,
-          new Map(),
-          ctx,
-          targetMajorMinor,
-          false,
-          true,
-        );
-        const callFunction: Record<string, unknown> = {
-          catalogId: (compiledVal.catalogId as string | undefined) ?? this.catalogs[0].id,
-          ...compiledVal,
-        };
         resultMessages.push(
-          asAgentToRendererMessage({
-            version: targetVersion,
-            callRendererFunction: {
-              functionCallId: explicitCallId ?? `call_${callCounter}`,
-              callFunction,
-            },
-          }),
+          this.compileStandaloneCall(unit.stmt, unit.scope, ctx, targetVersion, targetMajorMinor),
         );
       } else {
         resultMessages.push(...this.compileScope(unit.scope, ctx, targetVersion, targetMajorMinor));
@@ -741,31 +1914,8 @@ export class ExpressCompiler {
     targetVersion: string,
     targetMajorMinor: [number, number],
   ): AgentToRendererMessage[] {
-    const scopeSurfId = scope.surfaceId;
-    const catalogId = surfaceCatalogId(this.catalogs);
-
-    const compIds = new Map<string, string>();
-    for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
-      if (isExpressNode(ast, 'call')) {
-        const compName = ast.name;
-        const explicitId = ast.kwargs.id;
-        if (explicitId !== undefined) {
-          if (typeof explicitId !== 'string' || explicitId.length === 0) {
-            throw new ExpressValidationError(
-              `id on component '${compName}' must be a non-empty string.`,
-            );
-          }
-          if (targetMajorMinor[0] >= 1 && !isValidUax31Identifier(explicitId)) {
-            throw new ExpressValidationError(
-              `Component id '${explicitId}' on '${compName}' is not a valid UAX 31 identifier.`,
-            );
-          }
-        }
-        if (this.definesComponent(compName, ast.kwargs.catalogId)) {
-          compIds.set(varName, (explicitId as string | undefined) ?? varName);
-        }
-      }
-    }
+    ctx.generatedIds.clear();
+    const compIds = this.collectComponentIds(scope, targetMajorMinor);
 
     const compiledComponents: Record<string, unknown>[] = [];
     for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
@@ -785,57 +1935,22 @@ export class ExpressCompiler {
     compiledComponents.push(...ctx.extraComponents);
     ctx.extraComponents = [];
 
-    const resultMessages: AgentToRendererMessage[] = [];
     const hasRootComponent = compiledComponents.some(c => c.id === 'root');
 
     if (scope.update || !hasRootComponent) {
-      const dataUpdates: AgentToRendererMessage[] = [];
-      for (const [pathName, astVal] of Object.entries(scope.dataPathAssignments)) {
-        const pointer = toJsonPointer(pathName);
-        const compiledVal = this._compileValue(
-          astVal,
-          scope.rawSymbols,
-          compIds,
-          ctx,
-          targetMajorMinor,
-          false,
-        );
-        if (
-          pointer === '/' &&
-          (!compiledVal || typeof compiledVal !== 'object' || Array.isArray(compiledVal))
-        ) {
-          throw new ExpressValidationError(
-            "Cannot assign a non-map value to the root data path '$/'.",
-          );
-        }
-        dataUpdates.push(
-          asAgentToRendererMessage({
-            version: targetVersion,
-            [SurfaceOperation.UPDATE_DATA]: {
-              surfaceId: scopeSurfId,
-              path: pointer,
-              value: compiledVal,
-            },
-          }),
+      if (scope.rawExtensions !== undefined) {
+        throw new ExpressValidationError(
+          'surface() extensions require a surface-creating scope with a root component.',
         );
       }
-      if (compiledComponents.length === 0) {
-        if (dataUpdates.length > 0) {
-          return dataUpdates;
-        }
-        throw new ExpressUndefinedRootError('root');
-      }
-      resultMessages.push(
-        asAgentToRendererMessage({
-          version: targetVersion,
-          [SurfaceOperation.UPDATE_COMPONENTS]: {
-            surfaceId: scopeSurfId,
-            components: compiledComponents,
-          },
-        }),
-        ...dataUpdates,
+      return this.compileUpdateScope(
+        scope,
+        compiledComponents,
+        compIds,
+        ctx,
+        targetVersion,
+        targetMajorMinor,
       );
-      return resultMessages;
     }
 
     const dataModel: Record<string, unknown> = {};
@@ -851,55 +1966,64 @@ export class ExpressCompiler {
       setNestedPath(dataModel, pathName, compiledVal);
     }
 
-    const createPayload: Record<string, unknown> = {
-      surfaceId: scopeSurfId,
-    };
-    if (catalogId !== undefined) {
-      createPayload.catalogId = catalogId;
-    }
-    if (scope.sendDataModel !== undefined) {
-      createPayload.sendDataModel = scope.sendDataModel;
-    }
+    const metadata = this.compileSurfaceMetadata(scope, compIds, ctx, targetMajorMinor);
+    return this.buildCreateMessages(scope, compiledComponents, dataModel, targetVersion, metadata);
+  }
 
-    if (isAtLeastVersion(targetVersion, 'v1.0')) {
-      createPayload.components = compiledComponents;
-      if (Object.keys(dataModel).length > 0) {
-        createPayload.dataModel = dataModel;
-      }
-      resultMessages.push(
-        asAgentToRendererMessage({
-          version: targetVersion,
-          [SurfaceOperation.CREATE]: createPayload,
-        }),
+  private compileUpdateScope(
+    scope: SurfaceScope,
+    compiledComponents: Record<string, unknown>[],
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetVersion: string,
+    targetMajorMinor: [number, number],
+  ): AgentToRendererMessage[] {
+    const dataUpdates: AgentToRendererMessage[] = [];
+    for (const [pathName, astVal] of Object.entries(scope.dataPathAssignments)) {
+      const pointer = toJsonPointer(pathName);
+      const compiledVal = this._compileValue(
+        astVal,
+        scope.rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        false,
       );
-    } else {
-      resultMessages.push(
+      if (
+        pointer === '/' &&
+        (!compiledVal || typeof compiledVal !== 'object' || Array.isArray(compiledVal))
+      ) {
+        throw new ExpressValidationError(
+          "Cannot assign a non-map value to the root data path '$/'.",
+        );
+      }
+      dataUpdates.push(
         asAgentToRendererMessage({
           version: targetVersion,
-          [SurfaceOperation.CREATE]: createPayload,
-        }),
-        asAgentToRendererMessage({
-          version: targetVersion,
-          [SurfaceOperation.UPDATE_COMPONENTS]: {
-            surfaceId: scopeSurfId,
-            components: compiledComponents,
+          [SurfaceOperation.UPDATE_DATA]: {
+            surfaceId: scope.surfaceId,
+            path: pointer,
+            value: compiledVal,
           },
         }),
       );
-      if (Object.keys(dataModel).length > 0) {
-        resultMessages.push(
-          asAgentToRendererMessage({
-            version: targetVersion,
-            [SurfaceOperation.UPDATE_DATA]: {
-              surfaceId: scopeSurfId,
-              path: '/',
-              value: dataModel,
-            },
-          }),
-        );
-      }
     }
-    return resultMessages;
+    if (compiledComponents.length === 0) {
+      if (dataUpdates.length > 0) {
+        return dataUpdates;
+      }
+      throw new ExpressUndefinedRootError('root');
+    }
+    return [
+      asAgentToRendererMessage({
+        version: targetVersion,
+        [SurfaceOperation.UPDATE_COMPONENTS]: {
+          surfaceId: scope.surfaceId,
+          components: compiledComponents,
+        },
+      }),
+      ...dataUpdates,
+    ];
   }
 
   /**
@@ -969,12 +2093,32 @@ export class ExpressCompiler {
 
     const compId = (explicitId as string | undefined) ?? compIds.get(varName) ?? varName;
     const properties = compHelper.getComponentProperties(compName);
+    const rawExtensions = !properties.includes('extensions') ? rawKwargs.extensions : undefined;
+    if (!properties.includes('extensions')) {
+      delete rawKwargs.extensions;
+    }
     const compDict: Record<string, unknown> = {
       id: compId,
       component: compName,
     };
     if (resolvedCatalogId !== undefined) {
       compDict.catalogId = resolvedCatalogId;
+    }
+    if (rawExtensions !== undefined) {
+      if (targetMajorMinor[0] < 1) {
+        throw new ExpressValidationError(
+          `extensions on component '${compName}' is only supported in A2UI v1.0 or later.`,
+        );
+      }
+      const compiledExt = this.compileExtensionsMap(
+        rawExtensions,
+        rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        `component '${compName}'`,
+      );
+      compDict.metadata = {extensions: compiledExt};
     }
 
     // Sanctioned departure §5.2 item 4: check-rule property
@@ -1089,6 +2233,7 @@ export class ExpressCompiler {
       }
 
       const propSchema = compHelper.getPropertySchema(compName, propName);
+      const propType = resolvePropertyType(compHelper, propName, propSchema);
       // Sanctioned departure §5.2 item 1: action slot via isActionSlot
       const isAction = isActionSlot(propSchema);
 
@@ -1103,6 +2248,8 @@ export class ExpressCompiler {
           parentId: compId,
           property: propName,
         },
+        propType === 'Child',
+        propType === 'ChildList' && Array.isArray(arg),
         {schema: propSchema, helper: compHelper},
       );
 
@@ -1500,6 +2647,8 @@ export class ExpressCompiler {
    * @param targetMajorMinor Target major and minor protocol version numbers.
    * @param isAction Whether this value lies inside a component Action field.
    * @param inlineCtx Position used to derive deterministic ids for inline components.
+   * @param allowComponentRef Whether an undefined variable in this slot is a forward component ID reference.
+   * @param allowListComponentRefs Whether elements of a list in this slot are forward component ID references.
    * @param slot The catalog schema declared at this position, when known. Array items
    *   and map entries resolve their own sub-schema from it, so an `Action` slot nested
    *   inside a list item (e.g. `items: [{label, action}]`) is compiled as an action too.
@@ -1513,12 +2662,21 @@ export class ExpressCompiler {
     targetMajorMinor: [number, number],
     isAction = false,
     inlineCtx?: {parentId: string; property: string; index?: number},
+    allowComponentRef = false,
+    allowListComponentRefs = false,
     slot?: ValueSlot,
   ): unknown {
     if (Array.isArray(val)) {
       // Resolved once for the array, since every item shares the schema.
       const itemsSlot = itemSlot(slot);
       const itemIsAction = isAction || isActionSlot(itemsSlot?.schema);
+      const itemPropType = itemsSlot
+        ? resolvePropertyType(
+            itemsSlot.helper,
+            '',
+            itemsSlot.schema as Record<string, unknown> | undefined,
+          )
+        : undefined;
       return val.map((item, index) =>
         this._compileValue(
           item,
@@ -1528,33 +2686,23 @@ export class ExpressCompiler {
           targetMajorMinor,
           itemIsAction,
           inlineCtx ? {...inlineCtx, index} : undefined,
+          allowListComponentRefs || itemPropType === 'Child',
+          itemPropType === 'ChildList' && Array.isArray(item),
           itemsSlot,
         ),
       );
     }
 
     if (isExpressNode(val, 'map')) {
-      // A map literal is always data, whatever its keys are.
-      const dictRes: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(val.entries)) {
-        const entrySlot = propertySlot(slot, k);
-        const entryIsAction = isAction || isActionSlot(entrySlot?.schema);
-        setOwnEntry(
-          dictRes,
-          k,
-          this._compileValue(
-            v,
-            rawSymbols,
-            compIds,
-            ctx,
-            targetMajorMinor,
-            entryIsAction,
-            undefined,
-            entrySlot,
-          ),
-        );
-      }
-      return dictRes;
+      return this.compileMapLiteral(
+        val.entries,
+        rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        isAction,
+        slot,
+      );
     }
 
     if (isExpressNode(val, 'path')) {
@@ -1562,33 +2710,17 @@ export class ExpressCompiler {
     }
 
     if (isExpressNode(val, 'variable')) {
-      const refName = val.name;
-      if (compIds.has(refName)) {
-        return compIds.get(refName)!;
-      }
-      if (Object.hasOwn(rawSymbols, refName)) {
-        if (ctx.resolving.has(refName)) {
-          throw new ExpressValidationError(
-            `Variable '${refName}' refers to itself through its own value.`,
-          );
-        }
-        ctx.resolving.add(refName);
-        try {
-          return this._compileValue(
-            rawSymbols[refName],
-            rawSymbols,
-            compIds,
-            ctx,
-            targetMajorMinor,
-            isAction,
-            undefined,
-            slot,
-          );
-        } finally {
-          ctx.resolving.delete(refName);
-        }
-      }
-      return refName;
+      return this.compileVariableRef(
+        val.name,
+        rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        isAction,
+        allowComponentRef,
+        allowListComponentRefs,
+        slot,
+      );
     }
 
     if (isExpressNode(val, 'skipped')) {
@@ -1608,101 +2740,244 @@ export class ExpressCompiler {
     }
 
     if (isExpressNode(val, 'call')) {
-      const callVal = val;
-      const fnName = callVal.name;
-      const fnArgs = callVal.args;
-      const fnKwargs = callVal.kwargs;
+      return this.compileCallValue(
+        val,
+        rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        isAction,
+        inlineCtx,
+      );
+    }
 
-      // 1. Is it a reserved _template signature?
-      if (fnName === '_template') {
-        if (fnArgs.length < 2) {
-          throw new ExpressParseError(
-            '_template helper requires exactly 2 arguments: path and templateComponent.',
-          );
-        }
-        const pathVal = this._compileValue(
-          fnArgs[0],
+    return val;
+  }
+
+  private compileMapLiteral(
+    entries: Record<string, ExpressValue>,
+    rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+    isAction: boolean,
+    slot?: ValueSlot,
+  ): Record<string, unknown> {
+    // A map literal is always data, whatever its keys are.
+    const dictRes: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(entries)) {
+      const entrySlot = propertySlot(slot, k);
+      const entryIsAction = isAction || isActionSlot(entrySlot?.schema);
+      const entryPropType = entrySlot
+        ? resolvePropertyType(
+            entrySlot.helper,
+            k,
+            entrySlot.schema as Record<string, unknown> | undefined,
+          )
+        : undefined;
+      setOwnEntry(
+        dictRes,
+        k,
+        this._compileValue(
+          v,
+          rawSymbols,
+          compIds,
+          ctx,
+          targetMajorMinor,
+          entryIsAction,
+          undefined,
+          entryPropType === 'Child',
+          entryPropType === 'ChildList' && Array.isArray(v),
+          entrySlot,
+        ),
+      );
+    }
+    return dictRes;
+  }
+
+  private compileVariableRef(
+    refName: string,
+    rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+    isAction: boolean,
+    allowComponentRef: boolean,
+    allowListComponentRefs: boolean,
+    slot?: ValueSlot,
+  ): unknown {
+    ctx.referencedVars.add(refName);
+    if (compIds.has(refName)) {
+      return compIds.get(refName)!;
+    }
+    if (Object.hasOwn(rawSymbols, refName)) {
+      if (ctx.resolving.has(refName)) {
+        throw new ExpressValidationError(
+          `Variable '${refName}' refers to itself through its own value.`,
+        );
+      }
+      ctx.resolving.add(refName);
+      try {
+        return this._compileValue(
+          rawSymbols[refName],
           rawSymbols,
           compIds,
           ctx,
           targetMajorMinor,
           isAction,
+          undefined,
+          allowComponentRef,
+          allowListComponentRefs,
+          slot,
         );
-        if (!pathVal || typeof pathVal !== 'object' || !(ctx.keys.path in pathVal)) {
-          throw new ExpressParseError(
-            `The first argument to _template must be a dynamic data binding path (prefixed by $), got: ${formatValue(fnArgs[0])}`,
-          );
-        }
-        const compIdVal = this._compileValue(
-          fnArgs[1],
-          rawSymbols,
-          compIds,
-          ctx,
-          targetMajorMinor,
-          isAction,
-        );
-        // A template's path is a plain property of ChildList, not a data binding, so it
-        // keeps the unprefixed name in every version.
-        return {
-          path: (pathVal as Record<string, unknown>)[ctx.keys.path],
-          componentId: compIdVal,
-        };
+      } finally {
+        ctx.resolving.delete(refName);
       }
-
-      // 2. Is it a reserved Event signature?
-      if (fnName === 'Event') {
-        return this.compileEventCall(callVal, rawSymbols, compIds, ctx, targetMajorMinor);
+    }
+    if (!allowComponentRef) {
+      if (ctx.allowPending) {
+        throw new PendingVariableError(refName);
       }
+      throw new ExpressValidationError(`Variable '${refName}' is not assigned in surface.`);
+    }
+    return refName;
+  }
 
-      // 3. Is it an inline component constructor?
-      if (this.definesComponent(fnName, fnKwargs.catalogId)) {
-        ctx.inlineCounter += 1;
-        const inlineId = inlineCtx
-          ? inlineCtx.index !== undefined
-            ? `${inlineCtx.parentId}_${inlineCtx.property}_${inlineCtx.index}`
-            : `${inlineCtx.parentId}_${inlineCtx.property}`
-          : `_inline_${ctx.inlineCounter}`;
-        if (
-          Object.hasOwn(rawSymbols, inlineId) ||
-          Array.from(compIds.values()).includes(inlineId) ||
-          ctx.generatedIds.has(inlineId)
-        ) {
-          throw new ExpressIdCollisionError(inlineId);
-        }
-        ctx.generatedIds.add(inlineId);
-        const extraStartIndex = ctx.extraComponents.length;
-        const compiledInline = this._compileAstNode(
-          inlineId,
-          val,
-          rawSymbols,
-          compIds,
-          ctx,
-          targetMajorMinor,
-        );
-        if (compiledInline) {
-          ctx.extraComponents.splice(extraStartIndex, 0, compiledInline);
-          return compiledInline.id as string;
-        }
-        return inlineId;
-      }
+  private compileCallValue(
+    callVal: ExpressCallNode,
+    rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+    isAction: boolean,
+    inlineCtx?: {parentId: string; property: string; index?: number},
+  ): unknown {
+    const fnName = callVal.name;
+    const fnArgs = callVal.args;
+    const fnKwargs = callVal.kwargs;
 
-      // 4. Regular catalog function call
-      const [compiledFn] = this.compileFunctionCall(
+    if (fnName === '_template') {
+      return this.compileTemplateHelper(
+        fnArgs,
+        rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        isAction,
+      );
+    }
+
+    if (fnName === 'Event') {
+      return this.compileEventCall(callVal, rawSymbols, compIds, ctx, targetMajorMinor);
+    }
+
+    if (this.definesComponent(fnName, fnKwargs.catalogId)) {
+      return this.compileInlineComponent(
         callVal,
         rawSymbols,
         compIds,
         ctx,
         targetMajorMinor,
-        false,
-        false,
+        inlineCtx,
       );
-      if (isAction) {
-        return {functionCall: compiledFn};
-      }
-      return compiledFn;
     }
 
-    return val;
+    const [compiledFn] = this.compileFunctionCall(
+      callVal,
+      rawSymbols,
+      compIds,
+      ctx,
+      targetMajorMinor,
+      false,
+      false,
+    );
+    if (isAction) {
+      return {functionCall: compiledFn};
+    }
+    return compiledFn;
+  }
+
+  private compileTemplateHelper(
+    fnArgs: ExpressValue[],
+    rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+    isAction: boolean,
+  ): {path: unknown; componentId: unknown} {
+    if (fnArgs.length < 2) {
+      throw new ExpressParseError(
+        '_template helper requires exactly 2 arguments: path and templateComponent.',
+      );
+    }
+    const pathVal = this._compileValue(
+      fnArgs[0],
+      rawSymbols,
+      compIds,
+      ctx,
+      targetMajorMinor,
+      isAction,
+    );
+    if (!pathVal || typeof pathVal !== 'object' || !(ctx.keys.path in pathVal)) {
+      throw new ExpressParseError(
+        `The first argument to _template must be a dynamic data binding path (prefixed by $), got: ${formatValue(fnArgs[0])}`,
+      );
+    }
+    const compIdVal = this._compileValue(
+      fnArgs[1],
+      rawSymbols,
+      compIds,
+      ctx,
+      targetMajorMinor,
+      isAction,
+      undefined,
+      true,
+      false,
+    );
+    return {
+      path: (pathVal as Record<string, unknown>)[ctx.keys.path],
+      componentId: compIdVal,
+    };
+  }
+
+  private compileInlineComponent(
+    callVal: ExpressCallNode,
+    rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+    inlineCtx?: {parentId: string; property: string; index?: number},
+  ): string {
+    ctx.inlineCounter += 1;
+    const inlineId = inlineCtx
+      ? inlineCtx.index !== undefined
+        ? `${inlineCtx.parentId}_${inlineCtx.property}_${inlineCtx.index}`
+        : `${inlineCtx.parentId}_${inlineCtx.property}`
+      : `_inline_${ctx.inlineCounter}`;
+    const actualId =
+      typeof callVal.kwargs.id === 'string' && callVal.kwargs.id ? callVal.kwargs.id : inlineId;
+    if (
+      Object.hasOwn(rawSymbols, actualId) ||
+      Array.from(compIds.values()).includes(actualId) ||
+      ctx.generatedIds.has(actualId)
+    ) {
+      throw new ExpressIdCollisionError(actualId);
+    }
+    ctx.generatedIds.add(actualId);
+    const extraStartIndex = ctx.extraComponents.length;
+    const compiledInline = this._compileAstNode(
+      inlineId,
+      callVal,
+      rawSymbols,
+      compIds,
+      ctx,
+      targetMajorMinor,
+    );
+    if (compiledInline) {
+      ctx.extraComponents.splice(extraStartIndex, 0, compiledInline);
+      return compiledInline.id as string;
+    }
+    return inlineId;
   }
 
   /**

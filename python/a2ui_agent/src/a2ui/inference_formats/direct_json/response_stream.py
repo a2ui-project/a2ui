@@ -40,7 +40,7 @@ from a2ui.parser import A2uiPart
 from a2ui.parser import ErrorPart
 from a2ui.parser import ResponseStream
 from a2ui.parser import StreamPart
-from a2ui.parser import TextPart
+from a2ui.parser import TextRun
 from a2ui.utils import RendererState
 
 from .blocks import BlockScanner
@@ -153,8 +153,7 @@ class DirectJsonResponseStream(ResponseStream[PartT], Generic[PartT]):
         self._held = ""
         self._held_backticks = ""
         self._strip_close_backticks = False
-        self._run_started = False
-        self._held_space = ""
+        self._text = TextRun()
         # The open block.
         self._in_block = not wrapped
         self._block = ""
@@ -219,10 +218,10 @@ class DirectJsonResponseStream(ResponseStream[PartT], Generic[PartT]):
             self._fail(e, parts)
             raise
         if self._held_backticks:
-            self._emit_text(parts, self._held_backticks)
+            self._text.emit(parts, self._held_backticks)
             self._held_backticks = ""
         if self._held:
-            self._emit_text(parts, self._held)
+            self._text.emit(parts, self._held)
             self._held = ""
         return cast("list[PartT]", parts)
 
@@ -334,9 +333,8 @@ class DirectJsonResponseStream(ResponseStream[PartT], Generic[PartT]):
                 text_before = input_str[: open_match.start()]
                 if text_before.endswith("`"):
                     text_before = text_before.rstrip("`")
-                self._emit_text(parts, text_before)
-                self._run_started = False
-                self._held_space = ""
+                self._text.emit(parts, text_before)
+                self._text.reset()
                 self._held_backticks = ""
                 self._in_block = True
                 input_str = input_str[open_match.end() :]
@@ -354,18 +352,7 @@ class DirectJsonResponseStream(ResponseStream[PartT], Generic[PartT]):
                 if m:
                     self._held_backticks = m.group(0)
                     text_to_emit = text_to_emit[: m.start()]
-            self._emit_text(parts, text_to_emit)
-
-    def _emit_text(self, parts: list[StreamPart], text: str) -> None:
-        body = (text if self._run_started else text.lstrip()).rstrip()
-        if not body:
-            if self._run_started:
-                self._held_space += text
-            return
-        start = 0 if self._run_started else text.find(body)
-        parts.append(TextPart(text=f"{self._held_space}{body}"))
-        self._held_space = text[start + len(body) :]
-        self._run_started = True
+            self._text.emit(parts, text_to_emit)
 
     def _read(self, end: int) -> list[tuple[Any, bool]] | None:
         """Reads the open block up to `end`, going on from the previous read.

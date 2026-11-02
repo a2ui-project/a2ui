@@ -82,5 +82,45 @@ void main() {
         );
       }
     });
+
+    test('explicitMessage overrides default function ValidationResult message',
+        () {
+      const fnResult = ValidationResult(
+        valid: false,
+        code: 'INVALID_EMAIL',
+        message: 'Must be a valid email address.',
+      );
+      final overridden = ValidationResult.fromEvaluation(
+        fnResult,
+        explicitMessage: 'Custom rule message.',
+      );
+      expect(overridden.valid, isFalse);
+      expect(overridden.code, 'INVALID_EMAIL');
+      expect(overridden.message, 'Custom rule message.');
+
+      final preserved = ValidationResult.fromEvaluation(fnResult);
+      expect(preserved.message, 'Must be a valid email address.');
+    });
+
+    test('a valid result keeps its message and ignores explicitMessage', () {
+      const note = ValidationResult(valid: true, message: 'Looks good.');
+      expect(
+        ValidationResult.fromEvaluation(note, explicitMessage: 'Rule').message,
+        'Looks good.',
+      );
+      expect(
+        ValidationResult.fromEvaluation(
+          {'valid': true, 'message': 'Looks good.'},
+          explicitMessage: 'Rule',
+        ).message,
+        'Looks good.',
+      );
+      expect(
+        ValidationResult.fromEvaluation({'valid': true},
+                explicitMessage: 'Rule')
+            .message,
+        isNull,
+      );
+    });
   });
 }

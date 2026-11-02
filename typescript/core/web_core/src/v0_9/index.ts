@@ -24,7 +24,25 @@
 export * from '../catalog/function_invoker.js';
 export * from '../catalog/types.js';
 export * from '../common/events.js';
+export {
+  validateMetadata,
+  cloneMetadata,
+  metadataEquals,
+  type A2uiMetadata,
+  type Extensions,
+  type ActionDispatchOptions,
+} from '../common/metadata.js';
 export * from '../processing/message-processor.js';
+export {
+  mapErrorToRendererMessage,
+  extractEnvelopeErrorContext,
+  normalizeJsonPointer,
+  type RendererErrorMessage,
+  type A2uiRendererError,
+  type ValidationFailedErrorBody,
+  type GenericErrorBody,
+  type ErrorEnvelopeContext,
+} from '../processing/message-error-mapper.js';
 export * from '../resolution/index.js';
 export * from './schema/index.js';
 export * from './standard_defs.js';

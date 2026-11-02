@@ -33,10 +33,14 @@ const Map<String, String> _reservedKeysExpectedFailures = {};
 /// Cases in `core/validation_result.yaml` expected to fail.
 const Map<String, String> _validationResultExpectedFailures = {};
 
+/// Cases in `core/error_responses.yaml` expected to fail.
+const Map<String, String> _errorResponsesExpectedFailures = {};
+
 /// Runs the shared validator suites against [MessageProcessor.processMessages],
 /// the entry point for checking a payload on its own: the `validate` cases of
 /// `core/validator_v0_9.yaml`, `core/validator_v1_0.yaml`,
-/// `core/reserved_keys.yaml` and `core/validation_result.yaml`. The cases of
+/// `core/reserved_keys.yaml`, `core/validation_result.yaml` and
+/// `core/error_responses.yaml`. The cases of
 /// `core/composition_constraints.yaml` are all `process_messages` cases, which
 /// the message-processor harness runs.
 ///
@@ -58,6 +62,10 @@ void main() {
   _registerValidatorSuite(
     'core/validation_result.yaml',
     expectedFailures: _validationResultExpectedFailures,
+  );
+  _registerValidatorSuite(
+    'core/error_responses.yaml',
+    expectedFailures: _errorResponsesExpectedFailures,
   );
 }
 
@@ -451,67 +459,23 @@ Matcher _matchesError(
   final Map<String, Object?> expected =
       (expectError! as Map).cast<String, Object?>();
   final matchers = <Matcher>[
-    _categoryMatches(expected['category'] as String?),
+    categoryMatches(expected['category'] as String?),
     if (expected['message'] case final String message) _messageMatches(message),
     matchesErrorFields(
       expected,
       rawMessage: rawMessage,
       defaultVersion: defaultVersion,
-      capturedErrorMessage:
-          emittedErrors.isNotEmpty ? emittedErrors.last : null,
+      emittedErrors: emittedErrors,
     ),
   ];
   return allOf(matchers);
 }
-
-Matcher _categoryMatches(String? category) => switch (category) {
-      'ParseError' => isA<A2uiParseError>(),
-      'ValidationError' => anyOf(
-          isA<A2uiValidationError>(),
-          isA<A2uiIntegrityError>(),
-          isA<A2uiRecursionError>(),
-          isA<A2uiCatalogError>(),
-        ),
-      'CatalogError' => isA<A2uiCatalogError>(),
-      'IntegrityError' => isA<A2uiIntegrityError>(),
-      'RecursionError' => anyOf(
-          isA<A2uiRecursionError>(),
-          isA<A2uiIntegrityError>(),
-        ),
-      'DataError' => isA<A2uiDataError>(),
-      'StateError' => isA<A2uiStateError>(),
-      _ => isA<A2uiError>(),
-    };
 
 Matcher _messageMatches(String pattern) => isA<A2uiError>().having(
       (e) => e.message,
       'message',
       anyOf(
         contains(pattern),
-        matches(RegExp(_align(pattern), caseSensitive: false)),
+        matches(RegExp(alignErrorPattern(pattern), caseSensitive: false)),
       ),
     );
-
-/// Widens a case's expected message to the wording this SDK uses.
-///
-/// The suite spells some messages the way the Python SDK's JSON Schema
-/// library reports them. The reference harness does the same alignment for
-/// Pydantic's wording; this is the Dart column of the same table.
-String _align(String pattern) {
-  if (pattern.contains('is not of type')) {
-    return '($pattern|is not of type)';
-  }
-  if (pattern.contains('is not reachable from')) {
-    return '($pattern|Unreachable components)';
-  }
-  if (pattern.contains('Dangling reference')) {
-    return '($pattern|references non-existent component)';
-  }
-  if (pattern.contains('Circular component reference')) {
-    return '($pattern|Circular reference detected)';
-  }
-  if (pattern.contains('Self-referencing component')) {
-    return '($pattern|Self-reference detected)';
-  }
-  return pattern;
-}

@@ -90,6 +90,7 @@ const Set<String> _fromJsonExpectKeys = {
   'catalogId',
   'protocolVersion',
   'components',
+  'componentMetadata',
   'functions',
   'theme',
   'matchesBuiltinCatalog',
@@ -170,6 +171,17 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
         jsonEncode(schemaValue),
         isNot(contains(r'"$ref":"#/$defs/')),
         reason: '$name: local \$defs inlined in resolved $compName',
+      );
+    }
+  }
+  if (expected['componentMetadata']
+      case final Map<Object?, Object?> expectedMeta) {
+    for (final MapEntry<Object?, Object?> entry in expectedMeta.entries) {
+      final compName = entry.key! as String;
+      expect(
+        catalog.components[compName]?.metadata,
+        equals(entry.value),
+        reason: '$name: componentMetadata.$compName',
       );
     }
   }

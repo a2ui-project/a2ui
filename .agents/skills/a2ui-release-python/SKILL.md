@@ -169,7 +169,10 @@ python3 .github/scripts/release_version.py plan --package "${PACKAGE}" --bump "$
 > `a2ui-agent-sdk` declares a range such as `a2ui-core>=0.3.0,<0.4.0` in
 > [a2ui_agent/pyproject.toml](../../../python/a2ui_agent/pyproject.toml). If
 > the proposed `a2ui-core` version falls outside it, widen the pin in its own
-> pull request and **merge it to `main` before dispatching**. The workflow
+> pull request and **merge it to `main` before dispatching**. When doing so,
+> also update `tool.hatch.version.fallback-version` in the dependency's
+> `pyproject.toml` (and any co-released packages) so tagless checkouts and
+> shallow CI clones (`fetch-depth: 1`) satisfy the new constraint. The workflow
 > releases `main` as it is and cannot change package files during the run.
 > Step 3 rejects the release until this is done.
 >

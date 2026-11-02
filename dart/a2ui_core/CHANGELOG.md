@@ -8,6 +8,7 @@
   now `'1.0'`), while accepting `'v1.0'` in `A2uiProtocolVersion.tryParseSemVer`
   and `Catalog.fromJson` ([#3097](https://github.com/a2ui-project/a2ui/issues/3097),
   [#3726](https://github.com/a2ui-project/a2ui/pull/3726)).
+- Added extension metadata APIs across `SurfaceModel` (`metadata`, `extensions`, `metadataSignal`, `onMetadataChanged`, `setExtension`, `removeExtension`), `ComponentModel` (`metadata`, `extensions`, `onMetadataChanged`, `setExtension`, `removeExtension`), `ComponentNode` (`metadata: ReadonlySignal<A2uiMetadata?>`), `ComponentApi` (`metadata` parsed and serialized by `Catalog.fromJson()` / `Catalog.toJson()`), and `SurfaceModel.dispatchAction(..., {A2uiMetadata? metadata})` / `NodeAction([ActionDispatchOptions? options])` ([#3103](https://github.com/a2ui-project/a2ui/issues/3103), [#3468](https://github.com/a2ui-project/a2ui/issues/3468), [#3469](https://github.com/a2ui-project/a2ui/issues/3469), [#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)).
 - (v1_0) Factored `weight` in the v1.0 basic catalog into `#/$defs/Weight`.
   Component schemas in `BasicCatalog.v1_0`, `Catalog.fromJson` (for leaf
   catalog `$defs`), and `Catalog.resolvedComponentSchemas` inline catalog-local
@@ -24,6 +25,11 @@
   exceptions into structured wire-format `ErrorMessage` envelopes, and
   populated structured `A2uiErrorDetail` entries on `PayloadValidator`
   component and function validation failures.
+- `GenericBinder` and `ValidationResult.fromEvaluation` (`explicitMessage`) now
+  apply an explicit `CheckRule.message` on an evaluated check over the default
+  message of a failing `ValidationResult` returned by a check function, while
+  preserving `ValidationResult.message` on path-bound checks
+  ([#3583](https://github.com/a2ui-project/a2ui/pull/3583)).
 - `MessageProcessor.processMessages` and `processMessagesAsync` take a
   `validationConfig` for one call, which replaces the processor's own while
   the call checks and applies its messages. An agent that checks its messages

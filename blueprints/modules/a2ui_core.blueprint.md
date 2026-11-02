@@ -287,6 +287,18 @@ interface ComponentApi {
   readonly name: string;
   /** The technical definition used for validation and generating renderer capabilities. */
   readonly schema: Schema;
+  /**
+   * Static 'ComponentDefinition.metadata' from the catalog document (v1.0+), with every
+   * 'extensions' key validated as a UAX #31 identifier at load. Round-trips through
+   * 'Catalog.fromJson' and 'Catalog.toJson'. The catalog document root carries no
+   * 'metadata'; only component definitions do.
+   */
+  readonly metadata?: A2uiMetadata;
+}
+
+/** Matches 'metadata' containers in the v1.0 wire schemas: '{ extensions?: Extensions }'. */
+interface A2uiMetadata {
+  readonly extensions?: Readonly<Record<string, unknown>>;
 }
 ```
 
@@ -1030,7 +1042,7 @@ export class RpcHandler {
      A call with no `catalogId` should not reach this step. The schema requires `catalogId` on `callRendererFunction`, so inbound parsing should reject the message with `A2uiValidationError` and no `rendererFunctionResponse` will be sent. Agents should check this field against the schema before sending the message.
 
    - **Function Resolution & Argument Coercion**: Look up the function in the resolved catalog. If it is absent, or argument validation fails, return `RpcErrorCode.INVALID_FUNCTION_CALL`. Execute with the coerced arguments returned by `validateFunction`, never the raw payload.
-   - **Permission & Activation Boundaries**: Verifies execution permissions. If a function requires user activation (e.g., audio playback or clipboard write), execution checks that `isUserActivated === true`.
+   - **Permission & Activation Boundaries**: Verifies execution permissions. The function's `allowedCallers` must be `rendererOrAgent` or `agentOnly`; a `rendererOnly` function, including one that declares no `allowedCallers`, returns `RpcErrorCode.INVALID_FUNCTION_CALL`. If a function requires user activation (e.g., audio playback or clipboard write), execution checks that `isUserActivated === true`.
    - **Headless Fallback Context**: If called without an active DOM view context, provisions a headless `DataContext` backed by the surface or root data model so dynamic value resolutions and data path updates resolve cleanly without null reference errors.
    - **Execution Error Trapping**: Catches any unhandled exceptions during execution, converts them to structured error messages with `RpcErrorCode.EXECUTION_ERROR`, and emits `RendererFunctionResponseMessage`.
 
@@ -1155,11 +1167,31 @@ interface A2uiRendererAction {
    * actions contributed by different catalogs on the same surface.
    */
   catalogId?: string;
+  /** Optional 'action.metadata' envelope ('{ extensions }') attached at dispatch time. */
+  metadata?: A2uiMetadata;
 }
 
 type ActionListener = (action: A2uiRendererAction) => void | Promise<void>;
 
-class SurfaceModel<T extends ComponentApi> {
+/**
+ * Shared metadata contract of SurfaceModel and ComponentModel. Every write validates
+ * 'extensions' keys as UAX #31 identifiers (A2uiValidationError otherwise), stores a
+ * defensive deep copy, and is a no-op when the new value is structurally equal to the
+ * stored one. Removing the last extension key clears 'metadata' to undefined.
+ */
+interface MetadataHolder {
+  /** Synchronous snapshot of the current metadata envelope; assigning validates and updates reactively. */
+  metadata: A2uiMetadata | undefined;
+  /** Convenience view of 'metadata.extensions'. */
+  readonly extensions: Readonly<Record<string, unknown>> | undefined;
+  /** Fires after a write changes the stored value, from the wire or from a local mutation. */
+  readonly onMetadataChanged: EventSource<A2uiMetadata | undefined>;
+  /** Sets one extension key. 'null' is a stored value, not a deletion. */
+  setExtension(key: string, value: unknown): void;
+  removeExtension(key: string): void;
+}
+
+class SurfaceModel<T extends ComponentApi> implements MetadataHolder {
   readonly id: string;
 ...
   /**
@@ -1195,13 +1227,28 @@ class SurfaceModel<T extends ComponentApi> {
   /** If true, the renderer should send the full data model with actions. */
   readonly sendDataModel: boolean;
 
+  /**
+   * 'createSurface.metadata' (v1.0+), mutable locally through the 'metadata'
+   * property setter and 'setExtension'/'removeExtension' methods. Also exposed
+   * as a read-only reactive signal because adapter views reach the surface
+   * through ambient context rather than through a node.
+   */
+  metadata: A2uiMetadata | undefined;
+  readonly metadataSignal: ReadonlySignal<A2uiMetadata | undefined>;
+
   readonly onAction: EventSource<A2uiRendererAction>;
   /**
    * Dispatches an action from this surface.
    * @param payload The raw action event from the component.
    * @param sourceComponentId The ID of the component that triggered the action.
+   * @param metadata Optional 'action.metadata' envelope; its 'extensions' keys are
+   *   validated as UAX #31 identifiers and the copy is attached to the emitted action.
    */
-  dispatchAction(payload: Record<string, any>, sourceComponentId: string): Promise<void>;
+  dispatchAction(
+    payload: Record<string, any>,
+    sourceComponentId: string,
+    metadata?: A2uiMetadata,
+  ): Promise<void>;
 }
 ```
 
@@ -1274,7 +1321,7 @@ class SurfaceComponentsModel {
   readonly onDeleted: EventSource<string>;
 }
 
-class ComponentModel {
+class ComponentModel implements MetadataHolder {
   readonly id: string;
   readonly type: string; // Component name (e.g. 'Button')
 
@@ -1293,9 +1340,25 @@ class ComponentModel {
   get properties(): Record<string, any>;
   set properties(newProps: Record<string, any>);
 
+  /**
+   * 'ComponentCommon.metadata' (v1.0+), kept apart from 'properties' so a schema
+   * property named 'metadata' never collides with the envelope. An
+   * 'updateComponents' entry replaces the definition in full: the processor
+   * assigns 'metadata' with the incoming value (undefined when omitted), so stale
+   * metadata never survives an update. The model exposes no public metadata
+   * signal; resolved nodes derive 'ComponentNode.metadata' from the model (see the
+   * node resolution feature blueprint), and 'onMetadataChanged' serves non-signal
+   * consumers. In languages where ComponentModel is a value type or property setters
+   * cannot throw (e.g. Swift), throwing mutators live on ComponentModel and
+   * SurfaceComponentsModel (e.g. 'setMetadata(metadata, forComponentId)').
+   */
+  metadata: A2uiMetadata | undefined;
+
   readonly onUpdated: EventSource<ComponentModel>;
 }
 ```
+
+The processor applies an `updateComponents` entry to an existing component inside one reactive batch, so property and metadata signal writes coalesce for signal consumers. `onUpdated` fires only when `properties` changed; a metadata-only update fires `onMetadataChanged` alone and never re-emits resolved `props`.
 
 ##### `DataModel`
 
@@ -1361,6 +1424,8 @@ class DataContext {
 _Per-call catalog dispatch._ A `FunctionCall` may carry a `catalogId`. `DataContext` resolves the target catalog per call with `SurfaceModel.resolveCatalog`: the named catalog from the surface's `availableCatalogs`, else `defaultCatalog`, with no other fallback. A `catalogId` naming a catalog outside `availableCatalogs`, or no `catalogId` on a surface with no default, raises `A2uiCatalogError`. It MUST NOT capture a single catalog's invoker at construction: a context built for a surface outlives any one call, and a captured invoker cannot reach a function the call explicitly asked for by catalog. Reserved `@` system functions such as `@index` need no catalog. Before v1.0 a call's `catalogId` is ignored and every call runs in the surface catalog.
 
 This depends on `catalogId` surviving deserialization. If the `FunctionCall` model used at runtime is the pre-v1.0 shape (`call`, `args`, `returnType`), a strict schema library strips `catalogId` before resolution ever sees it, and every call silently resolves against the default catalog. Version-specific schema models must be selected by the surface's protocol version rather than aliased back to a legacy definition.
+
+_Renderer callers._ Every call `DataContext` evaluates is a renderer call: a property binding, a check, a `functionCall` action, or a call nested in the arguments of any of them. A function whose `allowedCallers` is `agentOnly` runs only for an agent-initiated `callRendererFunction`, which `RpcHandler` executes without going through `DataContext`'s function invocation. `DataContext` therefore refuses an `agentOnly` function with `A2uiExpressionError`, before the user activation check and before running it, and reports it as an `EXPRESSION_ERROR` on the surface. A function that declares no `allowedCallers` is `rendererOnly` and runs.
 
 _Recursion into nested containers._ `resolveDynamicValue` recurses into plain objects and arrays, resolving bindings at any depth. Returning a plain object unresolved means a nested binding such as `{"style": {"color": {"@path": "/accent"}}}` reaches the renderer as a raw pointer object. Recovering that only through a higher-level schema walk leaves direct `DataContext` callers, including conformance harnesses, with different results from the framework path.
 

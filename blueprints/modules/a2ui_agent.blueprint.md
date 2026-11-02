@@ -342,11 +342,10 @@ class Parser(ABC):
     def supports_streaming(self) -> bool:
         """Whether this parser can read a response incrementally through open_stream.
 
-        A format can only stream if a partial block already means something. Direct JSON
-        can, because an unfinished object can be healed and re-read as it grows. Express
-        cannot: its notation resolves references across the whole block, so a block is
-        read once it is closed and not before. A parser that returns False here buffers
-        the response and is parsed whole through parse_response.
+        Direct JSON and Express both stream incrementally: Direct JSON heals partial JSON
+        objects as they arrive, and Express compiles complete top-level statements and
+        heals progressive string literals as chunks arrive. A parser that returns False
+        here buffers the response and is parsed whole through parse_response.
         """
         return False
 
@@ -964,25 +963,45 @@ The Express format package under `a2ui/inference_formats/express/` contains:
 
 - `format`: `ExpressFormatFactory` (subclassing `InferenceFormatFactory`) and `ExpressFormat` (subclassing `InferenceFormat`).
 - `prompt_generator`: `ExpressPromptGenerator` (subclassing `PromptGenerator`), rendering compact positional signatures for catalog components and functions into prompt instructions.
-- `compiler`: `ExpressCompiler`, lexing and parsing the DSL expressions found between `<a2ui>` tags into standard `AgentToRendererMessage` list structures.
+- `compiler`: `ExpressCompiler`, lexing and parsing the DSL expressions found between `<a2ui>` tags into standard `AgentToRendererMessage` list structures, both in single-shot mode and incrementally across streaming chunks.
 - `decompiler`: `ExpressDecompiler`, converting `AgentToRendererMessage` payload lists back into Express DSL string format.
-- `parser`: `ExpressParser` (subclassing `Parser`), delegating compilation and decompilation to `ExpressCompiler` and `ExpressDecompiler`.
+- `parser`: `ExpressParser` (subclassing `Parser`), delegating compilation and decompilation to `ExpressCompiler` and `ExpressDecompiler`, and opening `ExpressResponseStream` sessions via `open_stream()`.
+- `response_stream`: `ExpressResponseStream` (subclassing `ResponseStream`), incrementally unwrapping `<a2ui>` blocks, scanning statement boundaries, healing progressive string properties, and emitting delta surface messages.
 
 ```python
+DEFAULT_EXPRESS_PROGRESSIVE_KEYS: frozenset[str] = frozenset({"text"})
+
 class ExpressFormatFactory(InferenceFormatFactory):
     """Factory for instantiating ExpressFormat strategies bound to active catalogs."""
 
-    def __init__(self, allowed_messages: Optional[Sequence[str]] = None):
+    def __init__(
+        self,
+        allowed_messages: Optional[Sequence[str]] = None,
+        progressive_keys: Optional[Set[str]] = DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
+    ):
         """Initializes ExpressFormatFactory.
 
         Args:
             allowed_messages: Optional list of allowed payload envelope names. The
                 prompt teaches only the statements that compile to them.
+            progressive_keys: String property keys whose partial values are healed
+                while streaming (defaults to {"text"}).
         """
         self.allowed_messages = allowed_messages
+        self.progressive_keys = progressive_keys
 ```
 
-Express does not stream. `ExpressParser.supports_streaming` is False and it does not implement `open_stream`: an Express block resolves references across its whole body, so a partial block names components that are not yet defined and cannot be compiled into anything. An agent using Express buffers the response and parses it whole.
+#### Incremental Streaming (`ExpressResponseStream`)
+
+`ExpressFormat.supports_streaming` and `ExpressParser.supports_streaming` are `True`. Calling `ExpressParser.open_stream(wrapped=True, state=None)` returns an `ExpressResponseStream` that processes incoming token chunks under five rules:
+
+1. **Statement-Level Boundary Scanning**: Inside an `<a2ui>` block, complete statements (assignments, `surface(...)`, `deleteSurface(...)`, and standalone function calls) are split at top-level statement boundaries outside strings, comments, and nested delimiters, and compiled as soon as they arrive.
+2. **Progressive String Healing (`progressive_keys`)**: When the trailing incomplete fragment of an open `<a2ui>` block is inside an unclosed string literal for a component argument whose property name is in `progressive_keys` (such as `Text("partial...` or `Text(text="partial...`), or for a data path assignment whose last segment is in `progressive_keys` (such as `$/text = "partial...` or `$/items/0/text = "partial...`), the stream heals the unclosed string literal and parentheses on a scratch copy and emits the updated component or data path value immediately. The healed value is always a string prefix of the final value, and the full value replaces it when the string closes. Any other data path assignment waits for its statement to complete, as a Direct JSON value under a key outside `progressive_keys` does. URL prefixes (`http://`, `https://`, `data:`) are never closed early.
+3. **Pre-`root` Gating on New Surfaces**: For a surface not yet present in `RendererState` (and without `update=true`), `$/path` assignments and bottom-up child component definitions appearing before `root = ...` are compiled into the scope session and held until `root = ...` arrives, then flushed together with `root` in the initial surface creation batch.
+4. **Hybrid v1.0 Envelope & Delta Updates**: When an `<a2ui>` block opens and closes within a single `feed()` call, it emits the single-shot `createSurface(components, dataModel)` message. When a block spans multiple chunks, the first ready batch on a new surface emits `createSurface` (or in v0.9: `[createSurface, updateComponents, updateDataModel(path="/", value=...)]` in that chunk's `A2uiPart`), and subsequent chunks emit delta `updateComponents` (containing only newly compiled or mutated components) and per-path `updateDataModel` messages.
+5. **Forward Component References vs. Value Variables**: Forward component ID references in `ComponentId` and `ChildList` slots emit immediately using the variable name as the provisional ID (re-emitting the parent component if the referenced child later declares an explicit `id="..."`). Components that reference an undefined value variable (`Event`, function call, `_template`, check, map, or primitive) wait until that variable is defined. At `</a2ui>`, any still-undefined reference or broken topology raises `A2uiCompilationValidationError` inside a `RendererState` transaction. Unlike one-shot `parse_response`, which checks topology after all blocks in the response have been applied and can recover a single block whose opening `<a2ui>` tag was omitted, `open_stream` requires the opening `<a2ui>` sentinel tag in `wrapped=True` mode, strips Markdown fences and inline backticks placed either inside or immediately outside `<a2ui>` and `</a2ui>`, and checks surface topology as each block closes.
+
+For protocol v1.0 and later, `surface(...)` and every component call accept one reserved keyword argument, `extensions=`, that compiles to the envelope's `metadata: {extensions: ...}` container (`createSurface.metadata` or `ComponentCommon.metadata`). The compiler validates each key as a UAX #31 identifier and rejects the block otherwise, and the decompiler emits `extensions=` back for any envelope that carries `metadata.extensions`. The keyword is catalog-agnostic and is never listed in the default prompt instructions, so an agent that does not use extensions spends no prompt tokens on it. There is no `metadata=` keyword: the v1.0 common envelope already appears as a `metadata` property on every component schema, so a `metadata=` keyword would be ambiguous between the property and the envelope.
 
 #### Data Model Compilation and Decompilation
 
@@ -1043,11 +1062,12 @@ The suites covering this document live under `conformance/agent/`:
 | `<format>/decompiler.yaml`            | `Parser.decompile`: how messages are written back into that format                              |
 | `<format>/response_parser.yaml`       | `Parser.wrap`, `unwrap` and `parse_response`: where a payload begins and ends                   |
 | `<format>/prompt_generator.yaml`      | `PromptGenerator.generate`: what the system prompt snippet has to tell the model                |
-| `direct_json/response_streaming.yaml` | `Parser.open_stream` and `ResponseStream`, for the one format that streams                      |
+| `direct_json/response_streaming.yaml` | `Parser.open_stream` and `ResponseStream`, for incremental Direct JSON streaming                |
+| `express/response_streaming.yaml`     | `Parser.open_stream` and `ResponseStream`, for incremental Express DSL streaming                |
 | `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                    |
 | `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs` |
 
-There is no `express/response_streaming.yaml`, because Express does not stream. Suites under `conformance/agent/legacy/` describe the earlier interface still implemented by `python/a2ui_agent` and `kotlin/agent_sdk_legacy`, and stay until those SDKs move to the interface above.
+Suites under `conformance/agent/legacy/` describe the earlier interface still implemented by `python/a2ui_agent` and `kotlin/agent_sdk_legacy`, and stay until those SDKs move to the interface above.
 
 Where a suite fixes something this document leaves open, the decision is stated in that suite's header rather than left for a reader to infer from the cases.
 
