@@ -14,6 +14,7 @@
 # limitations under the License.
 
 set -euo pipefail
+unset BASH_ENV ENV
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALLER="$SCRIPT_DIR/public/install_cli.sh"
@@ -354,5 +355,50 @@ if ls -A "$MOCK_INSTALL_DIR_7" | grep -q '^\.a2ui\.tmp'; then
   exit 1
 fi
 echo "✓ Test 7 passed"
+
+# Test 8: Unsupported architecture fails cleanly
+echo "Test 8: Unsupported architecture fails cleanly"
+set +e
+OUTPUT_ARCH=$(PATH="$STUB_BIN:$PATH" MOCK_UNAME_M="i686" /bin/sh "$INSTALLER" 2>&1)
+RC_8=$?
+set -e
+if [ "$RC_8" -eq 0 ]; then
+  echo "FAIL: Expected non-zero exit code for unsupported architecture"
+  exit 1
+fi
+if [[ "$OUTPUT_ARCH" != *"Unsupported architecture 'i686'"* ]]; then
+  echo "FAIL: Expected unsupported architecture error, got:"
+  echo "$OUTPUT_ARCH"
+  exit 1
+fi
+echo "✓ Test 8 passed"
+
+# Test 9: Version tag normalization (0.9.9, v0.9.9, cli-v0.9.9)
+echo "Test 9: Version tag normalization"
+for V_INPUT in "$VERSION" "v$VERSION" "cli-v$VERSION"; do
+  MOCK_INSTALL_DIR_9="$TEST_TMP/bin_norm_${V_INPUT}"
+  mkdir -p "$MOCK_INSTALL_DIR_9"
+
+  NORM_OUTPUT=$(
+    PATH="$STUB_BIN:$PATH" \
+    MOCK_ARCHIVE_FILE="$MOCK_ASSETS_DIR/$ARCHIVE_NAME" \
+    MOCK_CHECKSUMS_FILE="$MOCK_ASSETS_DIR/checksums.txt" \
+    A2UI_VERSION="$V_INPUT" \
+    A2UI_INSTALL_DIR="$MOCK_INSTALL_DIR_9" \
+    /bin/sh "$INSTALLER" 2>&1
+  )
+
+  if [ ! -x "$MOCK_INSTALL_DIR_9/a2ui" ]; then
+    echo "FAIL: a2ui was not installed for version input '$V_INPUT'"
+    echo "$NORM_OUTPUT"
+    exit 1
+  fi
+  if [[ "$NORM_OUTPUT" != *"cli-v${VERSION}"* ]]; then
+    echo "FAIL: Expected normalized tag cli-v${VERSION} for input '$V_INPUT', got:"
+    echo "$NORM_OUTPUT"
+    exit 1
+  fi
+done
+echo "✓ Test 9 passed"
 
 echo "=== All A2UI CLI Installer tests passed successfully! ==="

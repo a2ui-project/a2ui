@@ -26,7 +26,7 @@
 
     $Repo = if ($env:A2UI_REPO) { $env:A2UI_REPO } else { "a2ui-project/a2ui" }
     $InstallDir = if ($env:A2UI_INSTALL_DIR) {
-        $env:A2UI_INSTALL_DIR.TrimEnd("\/")
+        $env:A2UI_INSTALL_DIR -replace '[\\/]+$', ''
     } else {
         Join-Path $env:LOCALAPPDATA "Programs\a2ui\bin"
     }
@@ -42,11 +42,22 @@
     if (-not $Version -or $Version -eq "latest") {
         Write-Host "Resolving latest A2UI CLI release from https://github.com/$Repo..."
         try {
-            $ReleaseUri = "https://api.github.com/repos/$Repo/releases?per_page=100"
-            $Releases = Invoke-RestMethod -Uri $ReleaseUri -Headers @{ "Accept" = "application/vnd.github+json" }
-            $CliRelease = $Releases | Where-Object { $_.tag_name -like "cli-v*" -and -not $_.prerelease -and -not $_.draft } | Select-Object -First 1
-            if ($CliRelease) {
-                $Tag = $CliRelease.tag_name
+            $Page = 1
+            $Tag = $null
+            while ($Page -le 5 -and -not $Tag) {
+                $ReleaseUri = "https://api.github.com/repos/$Repo/releases?per_page=100&page=$Page"
+                $Releases = Invoke-RestMethod -Uri $ReleaseUri -Headers @{ "Accept" = "application/vnd.github+json" }
+                if (-not $Releases -or $Releases.Count -eq 0) {
+                    break
+                }
+                $CliRelease = $Releases | Where-Object { $_.tag_name -like "cli-v*" -and -not $_.prerelease -and -not $_.draft } | Select-Object -First 1
+                if ($CliRelease) {
+                    $Tag = $CliRelease.tag_name
+                }
+                $Page++
+            }
+            if ($Tag) {
+                # Found tag
             } else {
                 throw "No eligible 'cli-v*' release found in repository $Repo."
             }

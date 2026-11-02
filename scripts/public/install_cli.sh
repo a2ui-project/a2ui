@@ -67,26 +67,39 @@ TARGET="${TARGET_OS}-${TARGET_ARCH}"
 VERSION="${A2UI_VERSION:-}"
 if [ -z "$VERSION" ] || [ "$VERSION" = "latest" ]; then
   echo "Resolving latest A2UI CLI release from https://github.com/$REPO..."
-  RELEASE_DATA="$(curl -sSfL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/releases?per_page=100" 2>/dev/null || true)"
-  if [ -n "$RELEASE_DATA" ]; then
+  PAGE=1
+  TAG=""
+  QUERY_FAILED=0
+  while [ "$PAGE" -le 5 ] && [ -z "$TAG" ]; do
+    RELEASE_DATA="$(curl -sSfL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/releases?per_page=100&page=$PAGE" 2>/dev/null || true)"
+    if [ -z "$RELEASE_DATA" ] || [ "$RELEASE_DATA" = "[]" ]; then
+      if [ "$PAGE" -eq 1 ]; then
+        QUERY_FAILED=1
+      fi
+      break
+    fi
     TAG="$(printf '%s\n' "$RELEASE_DATA" \
-      | grep -o -E '"(tag_name|prerelease)": *("[^"]*"|true|false)' \
-      | awk -F': *' '
-          $1 == "\"tag_name\"" { gsub(/"/, "", $2); tag = $2; next }
-          $1 == "\"prerelease\"" && $2 == "false" && tag ~ /^cli-v/ { print tag; exit }
+      | grep -o -E '"tag_name": *"[^"]*"|"draft": *(true|false)|"prerelease": *(true|false)' \
+      | awk -F'"' '
+          function check() { if (tag ~ /^cli-v/ && seen_d && seen_p && !skip) { print tag; found=1; exit } }
+          /^"tag_name"/ { check(); tag=$4; skip=0; seen_d=0; seen_p=0 }
+          /^"draft": *true/ { if (!seen_d) { skip=1; seen_d=1 } }
+          /^"draft": *false/ { if (!seen_d) { seen_d=1 } }
+          /^"prerelease": *true/ { if (!seen_p) { skip=1; seen_p=1 } }
+          /^"prerelease": *false/ { if (!seen_p) { seen_p=1 } }
+          END { if (!found) check() }
         ' || true)"
-  else
-    TAG=""
-  fi
+    PAGE=$((PAGE + 1))
+  done
 
   if [ -z "$TAG" ]; then
-    if [ -z "$RELEASE_DATA" ]; then
+    if [ "$QUERY_FAILED" -eq 1 ]; then
       echo "Error: Could not query the GitHub releases API (possibly rate limited or network failure)." >&2
     else
       echo "Error: No eligible stable 'cli-v*' release found in repository '$REPO'." >&2
     fi
     echo "Please specify the version explicitly, e.g.:" >&2
-    echo "  curl -sSL https://raw.githubusercontent.com/$REPO/main/scripts/public/install_cli.sh | A2UI_VERSION=0.1.0 sh" >&2
+    echo "  curl -fsSL https://raw.githubusercontent.com/$REPO/main/scripts/public/install_cli.sh | A2UI_VERSION=0.1.0 sh" >&2
     exit 1
   fi
 else
@@ -98,11 +111,17 @@ else
 fi
 
 RAW_VERSION="${TAG#cli-v}"
-# Validate version format
+# Validate version format (reject path traversal or regex metacharacters)
+case "$RAW_VERSION" in
+  ""|*[!0-9A-Za-z.-]*|*..*)
+    echo "Error: Invalid CLI version '$RAW_VERSION'." >&2
+    exit 1
+    ;;
+esac
 case "$RAW_VERSION" in
   [0-9]*.[0-9]*.[0-9]*) ;;
   *)
-    echo "Error: Invalid version format '$RAW_VERSION'." >&2
+    echo "Error: Invalid semantic version format '$RAW_VERSION'." >&2
     exit 1
     ;;
 esac
