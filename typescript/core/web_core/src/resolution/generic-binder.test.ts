@@ -953,6 +953,58 @@ describe('GenericBinder Checkable Trait', () => {
     assert.deepStrictEqual(binder.snapshot.validationErrors, []);
   });
 
+  it('treats a check waiting on an agent call as pending, then valid or invalid when it settles', async () => {
+    const catalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', catalog);
+    const answers: Array<{resolve: (v: unknown) => void; reject: (e: Error) => void}> = [];
+    surface.agentFunctionCaller = () =>
+      new Promise((resolve, reject) => answers.push({resolve, reject}));
+    surface.dataModel.set('/val', 'a');
+    const schema = z.object({
+      field: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c_remote',
+        'Input',
+        {
+          field: 'val',
+          checks: [
+            {
+              condition: {'@call': 'remoteCheck', args: {value: {'@path': '/val'}}},
+              message: 'Rejected by the agent',
+            },
+          ],
+        },
+        catalog,
+      ),
+    );
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c_remote'), schema);
+    let notifications = 0;
+    binder.subscribe(() => notifications++);
+    const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(binder.snapshot.isValid, true, 'a pending check is not a failure');
+    await flush();
+    assert.strictEqual(answers.length, 1);
+    answers[0].resolve(false);
+    await flush();
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Rejected by the agent']);
+    assert.ok(notifications > 0);
+
+    surface.dataModel.set('/val', 'b');
+    assert.strictEqual(binder.snapshot.isValid, true, 'pending again while the new call runs');
+    await flush();
+    const before = notifications;
+    answers[1].reject(new Error('agent down'));
+    await flush();
+    assert.strictEqual(binder.snapshot.isValid, false, 'a failed call makes the rule invalid');
+    assert.ok(notifications > before, 'pending to failed notifies subscribers');
+    binder.dispose();
+  });
+
   it('should reset custom message to fallback message when subsequent evaluation returns boolean or no custom message', async () => {
     const mockCatalog = new Catalog('test', '1.0', [], []);
     const surface = new SurfaceModel('s1', mockCatalog);
