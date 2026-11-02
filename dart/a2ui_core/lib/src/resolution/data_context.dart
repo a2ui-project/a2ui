@@ -1844,7 +1844,8 @@ class _AgentCallCache {
 /// whose result cannot wait for an agent's answer, such as the `${...}`
 /// parts of a `formatString` template. A function no catalog implements
 /// fails there with `EXPRESSION_ERROR`, as before fallback routing, instead
-/// of being sent; an answer the surface already received is still read.
+/// of being sent, even when the surface already holds its answer: the
+/// context does not share the surface's agent calls.
 DataContext dataContextWithoutAgentCalls(DataContext context) =>
     DataContext._derived(
       context.dataModel,
@@ -1855,7 +1856,7 @@ DataContext dataContextWithoutAgentCalls(DataContext context) =>
       invokerForCatalog: context._invokerForCatalog,
       isUserActivated: context.isUserActivated,
       callAgentFunction: null,
-      agentCalls: context._agentCalls,
+      agentCalls: _AgentCallCache(),
       parent: context.parent,
       index: context._explicitIndex,
       onMissingData: context._onMissingData,

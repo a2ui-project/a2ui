@@ -1292,6 +1292,41 @@ void main() {
       expect(clientErrors.single.code, 'EXPRESSION_ERROR');
     });
 
+    test('a formatString part is refused even when the answer is held',
+        () async {
+      final surface = SurfaceModel<ComponentApi>(
+        'format-cached',
+        defaultCatalog: BasicCatalog.v1_0(),
+        protocolVersion: '1.0',
+        callAgentFunction: callAgent,
+      );
+      surface.onError.subscribe(clientErrors.add);
+      addTearDown(surface.dispose);
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      mount(context, {'@call': 'remote', 'args': <String, Object?>{}});
+      agentCalls.single.completer.complete('cached');
+      await _flush();
+      expect(
+        context.resolveDynamicValue(
+          {'@call': 'remote', 'args': <String, Object?>{}},
+        ),
+        'cached',
+        reason: 'a one-shot read may read the held answer',
+      );
+
+      final Object? text = mount(context, {
+        '@call': 'formatString',
+        'args': {r'value': r'Hello ${remote()}!'},
+      });
+      expect(text, 'Hello !');
+      expect(agentCalls, hasLength(1));
+      await _flush();
+      expect(clientErrors.single.code, 'EXPRESSION_ERROR');
+      expect(clientErrors.single.message, contains('remote'));
+    });
+
     test('sibling arguments in an action are sent together', () async {
       final SurfaceModel<ComponentApi> surface = makeSurface();
       final DataContext context =
