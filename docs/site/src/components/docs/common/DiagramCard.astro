@@ -31,7 +31,10 @@ const { title, mermaid } = Astro.props;
   </div>
 
   <!-- Agent & Accessibility View: Machine-readable spec hidden from human UI -->
-  <script type="text/vnd.mermaid" data-agent-diagram="spec" style="display: none;">
-    {mermaid.trim()}
-  </script>
+  <script
+    type="text/vnd.mermaid"
+    data-agent-diagram="spec"
+    style="display: none;"
+    set:html={mermaid.trim()}
+  />
 </div>
