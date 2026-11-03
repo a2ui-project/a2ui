@@ -51,7 +51,10 @@ def _normalize(value: Any, path: str) -> Any:
     if is_component_node(value):
         return {"node": path}
     if isinstance(value, ResolvedBinding):
-        return {"value": _normalize(value.value, path), "writable": is_writable(value)}
+        return {
+            "value": _normalize(value.value, path),
+            "writable": is_writable(value),
+        }
     if callable(value):
         return {"action": True}
     if isinstance(value, list):
@@ -217,7 +220,9 @@ def _build_recording_catalog(
 
 
 def _watch_nodes(
-    nodes: dict[str, ComponentNode], watches: dict[ComponentNode, _Watch]
+    nodes: dict[str, ComponentNode],
+    watches: dict[ComponentNode, _Watch],
+    on_props_updated: Callable[[], None] | None = None,
 ) -> None:
     for path, node in nodes.items():
         existing = watches.get(node)
@@ -229,6 +234,8 @@ def _watch_nodes(
         def on_props(props: dict[str, Any], watch: _Watch = w) -> None:
             watch.emissions += 1
             watch.last_props = _normalize(props, watch.path)
+            if on_props_updated is not None:
+                on_props_updated()
 
         def on_meta(meta: dict[str, Any] | None, watch: _Watch = w) -> None:
             watch.metadata_emissions += 1
@@ -246,6 +253,26 @@ def _watch_nodes(
             sd.unsubscribe(),
         )
         watches[node] = w
+
+
+def _watch_created_nodes(
+    resolver: NodeResolver | None,
+    created_emissions: dict[ComponentNode, int],
+    created_stops: list[Callable[[], None]],
+) -> None:
+    if resolver is None:
+        return
+    for node in _mounted_nodes(resolver).values():
+        if node in created_emissions:
+            continue
+        created_emissions[node] = 0
+
+        def on_created_props(_props: dict[str, Any], n: ComponentNode = node) -> None:
+            created_emissions[n] = created_emissions.get(n, 0) + 1
+            _watch_created_nodes(resolver, created_emissions, created_stops)
+
+        sub = node.on_updated.subscribe(on_created_props)
+        created_stops.append(sub.unsubscribe)
 
 
 def _collect_watch_counts(
@@ -292,9 +319,10 @@ def _check_errors(
 
 
 def _check_step_state(
-    resolver: NodeResolver,
-    surface: SurfaceModel,
+    resolver: NodeResolver | None,
+    surface: SurfaceModel | None,
     watches: dict[ComponentNode, _Watch],
+    created_emissions: dict[ComponentNode, int],
     events: list[dict[str, Any]],
     functions: list[dict[str, Any]],
     errors: list[dict[str, Any]],
@@ -302,15 +330,26 @@ def _check_step_state(
     before: dict[str, ComponentNode],
     reason: str,
 ) -> None:
-    after = _mounted_nodes(resolver)
+    after = _mounted_nodes(resolver) if resolver is not None else {}
     _check_nodes(after, expected, reason)
+    before_nodes = set(before.values())
     emissions, metadata_emissions, destroyed = _collect_watch_counts(
         watches, set(after.values()), reason
     )
-    assert emissions == (expected.get("emissions") or {}), (
-        f"{reason}: emissions expected {expected.get('emissions') or {}}, got"
-        f" {emissions}"
-    )
+    exp_emissions = expected.get("emissions") or {}
+    assert (
+        emissions == exp_emissions
+    ), f"{reason}: emissions expected {exp_emissions}, got {emissions}"
+    if "created_emissions" in expected:
+        actual_created = {
+            path: created_emissions.get(node, 0)
+            for path, node in after.items()
+            if node not in before_nodes
+        }
+        exp_created = expected.get("created_emissions") or {}
+        assert (
+            actual_created == exp_created
+        ), f"{reason}: created_emissions expected {exp_created}, got {actual_created}"
     if "metadata_emissions" in expected:
         assert metadata_emissions == (expected.get("metadata_emissions") or {}), (
             f"{reason}: metadata_emissions expected"
@@ -329,6 +368,7 @@ def _check_step_state(
             before, path
         ), f"{reason}: {path} replacement"
     for path, val in (expected.get("data") or {}).items():
+        assert surface is not None, f"{reason}: no surface for data check {path}"
         assert (
             _normalize(surface.data_model.get(path), path) == val
         ), f"{reason}: data {path}"
@@ -345,18 +385,21 @@ def _check_step_state(
 def _execute_step_op(
     step: dict[str, Any],
     before: dict[str, ComponentNode],
-    surface: SurfaceModel,
+    surface: SurfaceModel | None,
     catalog: Catalog,
     processor: MessageProcessor,
-    resolver: NodeResolver,
+    resolver: NodeResolver | None,
     reason: str,
 ) -> None:
     op = step["op"]
     if op == "set_data":
+        assert surface is not None, f"{reason}: no surface"
         surface.data_model.set(step["path"], step["value"])
     elif op == "update_components":
+        assert surface is not None, f"{reason}: no surface"
         _update_components(surface, catalog, step["components"])
     elif op == "remove_component":
+        assert surface is not None, f"{reason}: no surface"
         surface.components_model.remove_component(step["component_id"])
     elif op == "process_messages":
         processor.process_messages(step["messages"])
@@ -376,6 +419,7 @@ def _execute_step_op(
 
             asyncio.run(res)
     elif op == "dispose":
+        assert resolver is not None, f"{reason}: no resolver"
         resolver.dispose()
     else:
         raise AssertionError(f"Unknown node operation: {op}")
@@ -391,40 +435,63 @@ def run_node_resolution_case(test_case: dict[str, Any], conformance_root: Path) 
     errors: list[dict[str, Any]] = []
 
     catalog = _build_recording_catalog(conformance_root / fixture["catalog"], functions)
-    surface = SurfaceModel(
-        surface_id="s",
-        default_catalog=catalog,
-        available_catalogs={catalog.catalog_id: catalog},
-        protocol_version=catalog.protocol_version,
-    )
-    surface.data_model.set("/", fixture.get("data") or {})
-    _update_components(surface, catalog, fixture.get("components") or [])
-
     processor = MessageProcessor([catalog])
-    processor.model.add_surface(surface)
-
-    resolver = NodeResolver(surface, catalog)
     watches: dict[ComponentNode, _Watch] = {}
+    created_emissions: dict[ComponentNode, int] = {}
+    created_stops: list[Callable[[], None]] = []
+    surface: SurfaceModel | None = None
+    resolver: NodeResolver | None = None
+    cleanup_callbacks: list[Callable[[], None]] = []
 
-    stop_actions = surface.on_action.subscribe(
-        lambda action: events.append({
-            "name": action.get("name"),
-            "source_component_id": action.get("sourceComponentId"),
-            "context": _normalize(action.get("context") or {}, ""),
-            **(
-                {"metadata": copy.deepcopy(action["metadata"])}
-                if action.get("metadata") is not None
-                else {}
-            ),
-        })
-    )
-    stop_errors = surface.on_error.subscribe(lambda err: errors.append(dict(err)))
+    def attach_surface(s: SurfaceModel) -> None:
+        nonlocal surface, resolver
+        if s.id != "s" or resolver is not None:
+            return
+        surface = s
+        resolver = NodeResolver(s, catalog)
+        r = resolver
+        sub_root = r.on_root_replaced.subscribe(
+            lambda _: _watch_created_nodes(r, created_emissions, created_stops)
+        )
+        sub_actions = s.on_action.subscribe(
+            lambda action: events.append({
+                "name": action.get("name"),
+                "source_component_id": action.get("sourceComponentId"),
+                "context": _normalize(action.get("context") or {}, ""),
+                **(
+                    {"metadata": copy.deepcopy(action["metadata"])}
+                    if action.get("metadata") is not None
+                    else {}
+                ),
+            })
+        )
+        sub_errors = s.on_error.subscribe(lambda err: errors.append(dict(err)))
+        cleanup_callbacks.extend([
+            sub_root.unsubscribe,
+            sub_actions.unsubscribe,
+            sub_errors.unsubscribe,
+        ])
+
+    sub_surface_created = processor.model.on_surface_created.subscribe(attach_surface)
+    cleanup_callbacks.append(sub_surface_created.unsubscribe)
+
+    if fixture.get("surface", True):
+        seeded = SurfaceModel(
+            surface_id="s",
+            default_catalog=catalog,
+            available_catalogs={catalog.catalog_id: catalog},
+            protocol_version=catalog.protocol_version,
+        )
+        seeded.data_model.set("/", fixture.get("data") or {})
+        _update_components(seeded, catalog, fixture.get("components") or [])
+        processor.model.add_surface(seeded)
 
     try:
         _check_step_state(
             resolver,
             surface,
             watches,
+            created_emissions,
             events,
             functions,
             errors,
@@ -435,14 +502,24 @@ def run_node_resolution_case(test_case: dict[str, Any], conformance_root: Path) 
         for index, step in enumerate(test_case.get("steps") or []):
             op = step["op"]
             reason = f"{test_case['name']} step {index} ({op})"
-            before = _mounted_nodes(resolver)
-            _watch_nodes(before, watches)
+            before = _mounted_nodes(resolver) if resolver is not None else {}
+            _watch_nodes(
+                before,
+                watches,
+                lambda: _watch_created_nodes(
+                    resolver, created_emissions, created_stops
+                ),
+            )
             for w in watches.values():
                 w.emissions = 0
                 w.metadata_emissions = 0
                 w.destroyed = 0
                 w.last_props = None
                 w.last_metadata = None
+            for stop in created_stops:
+                stop()
+            created_stops.clear()
+            created_emissions.clear()
             events.clear()
             functions.clear()
             errors.clear()
@@ -456,6 +533,7 @@ def run_node_resolution_case(test_case: dict[str, Any], conformance_root: Path) 
                 resolver,
                 surface,
                 watches,
+                created_emissions,
                 events,
                 functions,
                 errors,
@@ -468,9 +546,13 @@ def run_node_resolution_case(test_case: dict[str, Any], conformance_root: Path) 
                     _normalize(binding.value, "") == saved_val
                 ), f"{reason}: prior binding snapshot changed"
     finally:
-        resolver.dispose()
-        surface.dispose()
+        for stop in created_stops:
+            stop()
+        if resolver is not None:
+            resolver.dispose()
+        if surface is not None:
+            surface.dispose()
         for w in watches.values():
             w.stop()
-        stop_actions.unsubscribe()
-        stop_errors.unsubscribe()
+        for cb in cleanup_callbacks:
+            cb()

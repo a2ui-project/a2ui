@@ -39,7 +39,7 @@ This is a web-specific feature; non-web adapters (such as Flutter and SwiftUI) d
 ### **4. Rendering a node as an element**
 
 - A function, `renderA2uiNode(node)`, renders a resolved node as its implementation's custom element: it registers the element if needed, creates one element per child position, assigns `node`, and returns the element to the host framework.
-- A placeholder node (`isPlaceholder`), a disposed node, or a node whose implementation is not universal renders nothing from this path. The adapter's own dispatcher handles those cases as the module blueprint describes.
+- A placeholder node (`isPlaceholder`) has no `context`, so the caller passes the surface and its own type: the surface element for the root, and `A2uiLitElement.renderNode` for children. Before the root arrives there is no `ComponentNode` at all (`resolver.rootNode` is `undefined`), so the surface element calls the per-surface fallback renderer directly with `{componentId: surface.rootId}`. Once `rootNode` is present, including an `unknown-type` placeholder, it delegates to `renderA2uiNode(root, {surface})`. `renderA2uiNode` then asks the adapter's per-surface fallback renderer (module blueprint §4.4) for the node's category and `info`, and renders what it returns, or nothing when no fallback is set or the builder returns nothing. `renderNode` must not return early for a child that hasn't arrived yet; it has to reach this path. A disposed node, or a node whose implementation is not universal, renders nothing from this path; the adapter's own dispatcher handles those cases as the module blueprint describes.
 - A parent re-render reuses the element at each child position. The element is replaced only when the tag name at that position changes.
 
 ### **5. Hosting framework-native implementations**
@@ -51,6 +51,7 @@ A web adapter whose implementations are not custom elements (React function comp
 - When the adapter's own dispatcher creates a host element, the node's content renders as the element's children in the usual way.
 - When a universal element creates a host element (a universal `Column` rendering a native `Badge`), the host registers itself with its surface's **host registry** under the nearest adapter-rendered element above it in the DOM. That ancestor's view mounts the node's content into the host. The adapter tree then nests like the DOM, so ambient context, error boundaries, and events pass through a universal element in between.
 - A host that is disconnected and reconnected within one task keeps its registration and its mounted state.
+- The host element maps the node's `accessibility` attributes, so native implementations get them without code of their own. It sets `aria-live`, `aria-hidden`, and `inert` on itself. It puts `aria-label` and `aria-description` on the inner element the implementation designates (in React, the element given `accessibilityRef`; in Angular, the element marked `a2uiAccessibilityTarget`), or, when there is none, on itself with `role="group"` unless it already has a `role`. The designated element also gets `aria-invalid` while a check fails, and `aria-describedby` pointing at the element the implementation designates for validation errors (in React, the element given `validationErrorsRef`; in Angular, the element marked `a2uiValidationErrors`) while there are errors. It adds that element's `id` to any ids already in `aria-describedby`. An attribute the implementation set itself is kept: the host replaces it only while it has a value of its own to set, and then restores it.
 - The adapter prepares every catalog on the surface this way, `defaultCatalog` and each entry of `availableCatalogs`, before it renders the first node. A native entry in a secondary catalog that was not wrapped cannot be rendered by a universal container.
 
 ### **6. Styling**
@@ -64,7 +65,7 @@ A web adapter whose implementations are not custom elements (React function comp
 ### **7. Shared basic catalog**
 
 - The basic catalog ships once, as universal elements in the shared web layer, with one `WebComponentImplementation` per element per supported protocol version. Web framework packages register these entries; they do not reimplement the basic catalog.
-- The shared base element applies cross-cutting rules for every element that extends it: the `accessibility` attribute mapping (`aria-label`, `aria-description`, `aria-live`, `aria-hidden`) and the rendering of validation messages. A custom element that extends the base gets both without extra work.
+- Custom elements are responsible for mapping `accessibility` attributes and rendering validation messages on their own semantic DOM elements. In the shared basic catalog, the base element applies only the host-level `aria-live` and `aria-hidden` attributes, while each component binds `accessibility.label`, `accessibility.description`, and validation messages onto its inner control (or `role="group"` container host).
 
 ### **8. Lifecycle**
 
@@ -88,7 +89,7 @@ flowchart TD
         WCI["WebComponentImplementation<br/>(name, schema, tagName, element)"]
         REG["registerUniversalElement<br/>(lazy, idempotent)"]
         RN["renderA2uiNode(node)"]
-        BASE["Base element<br/>(node binding, a11y, validation, styles)"]
+        BASE["Base element<br/>(node binding, styles)"]
         BASIC["Basic catalog elements<br/>(v0.9 + v1.0 entries)"]
         BASIC --> BASE
     end
@@ -137,8 +138,11 @@ function isWebComponentImplementation(entry: unknown): entry is WebComponentImpl
 /** Defines the element in `customElements` once; throws if `tagName` is taken by another class. */
 function registerUniversalElement(impl: WebComponentImplementation): void;
 
-/** Renders a resolved node as its custom element, or nothing for a placeholder or non-universal node. */
-function renderA2uiNode(node: ComponentNode): unknown;
+/** Renders a resolved node as its custom element. A placeholder renders the surface's fallback for its state (Requirement 4), using the surface and parent type the caller passes, or nothing; a non-universal node renders nothing. */
+function renderA2uiNode(
+  node: ComponentNode,
+  fallbackContext?: {surface: SurfaceModel; parentComponentType?: string},
+): unknown;
 
 /** The property every universal custom element accepts from the renderer that creates it. */
 interface A2uiWebComponentElement extends HTMLElement {
@@ -155,7 +159,7 @@ function toWebComponent(
 
 1. **Implementation kinds.** A web catalog may hold native entries and universal entries side by side. The dispatcher branches on `isWebComponentImplementation(node.impl)`.
 2. **Preparation covers every catalog.** The module blueprint already requires this; here it is load-bearing, because a universal container renders children by tag name and cannot fall back to the adapter's dispatcher.
-3. **Shared element behaviors.** Accessibility attribute mapping and validation message rendering for universal elements live once in the shared base element rather than in each web adapter.
+3. **Element-owned behaviors.** Universal custom elements map their own accessibility attributes and render their own validation messages rather than delegating them to each web adapter.
 
 ---
 
@@ -180,7 +184,7 @@ These cases run in each web adapter that implements the feature. They are framew
   - Rendering two nodes of one type defines the element once.
   - Registering a different class under a taken tag name throws.
 - **Rendering**
-  - A placeholder node renders no element; when the component arrives, the element appears at the same position.
+  - A placeholder node renders its fallback, or no element when there is none; when the component arrives, the element appears at the same position.
   - A parent re-render keeps the same element object at each child position.
 - **Hosting**
   - A universal container whose child is a native implementation renders the child inside the container's element.
@@ -189,9 +193,9 @@ These cases run in each web adapter that implements the feature. They are framew
   - A host moved within the DOM in one task keeps its mounted state.
 - **Styling**
   - Two different elements with the same internal selector do not style each other.
-  - A `createSurface` at v1.0 or later with a `theme` object renders exactly as one without it.
+  - A v1.0 `createSurface` accepted under relaxed validation with a `theme` object renders exactly as one without it.
 - **Shared basic catalog**
-  - `accessibility.label` on a basic catalog component appears as `aria-label` on the element.
+  - `accessibility.label` on a basic catalog component appears as `aria-label` on its inner semantic control (or on a `role="group"` container host).
   - A failed check with severity `error` renders its message; the element's action is disabled.
 - **Lifecycle**
   - Disconnecting an element and not reconnecting it releases its node subscriptions.
@@ -201,8 +205,8 @@ These cases run in each web adapter that implements the feature. They are framew
 
 ## **Implementation Steps**
 
-1. **Shared layer.** Define `WebComponentImplementation`, `toWebComponentImplementation`, `isWebComponentImplementation`, `registerUniversalElement`, and `renderA2uiNode`. Define the base element with `node` binding, light DOM styling, accessibility mapping, and validation rendering.
-2. **Basic catalog.** Implement the basic catalog elements on the base element and publish one entry set per supported protocol version.
+1. **Shared layer.** Define `WebComponentImplementation`, `toWebComponentImplementation`, `isWebComponentImplementation`, `registerUniversalElement`, and `renderA2uiNode`. Define the base element with `node` binding and light DOM styling.
+2. **Basic catalog.** Implement the basic catalog elements on the base element (each mapping its own accessibility attributes and validation messages, with shared helpers for host-level `aria-live`/`aria-hidden` and error rendering) and publish one entry set per supported protocol version.
 3. **Adapter hosting.** In each web framework adapter, implement `toWebComponent`, the host element, the per-surface host registry, and the preparation pass over `defaultCatalog` and `availableCatalogs`.
 4. **Dispatcher.** Branch the node dispatcher on the implementation kind and route universal nodes through `renderA2uiNode`.
 5. **Tests.** Cover the cases above in each web adapter, and record the feature in the adapter's codebase blueprint under `implemented_features`.

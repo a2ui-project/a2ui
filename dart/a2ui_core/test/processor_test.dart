@@ -1222,7 +1222,9 @@ void main() {
             initial = false;
             return;
           }
-          rootValues.add(value);
+          rootValues.add(
+            Map<String, Object?>.of(value! as Map<String, Object?>),
+          );
           events.add(
             'data: components=${surface.componentsModel.all.length}',
           );
@@ -1258,10 +1260,14 @@ void main() {
       expect(events, [
         'created: data={} components=0 metadata={extensions: {trace: true}}',
         'data: components=0',
+        'data: components=0',
         'component root',
         'component t',
       ]);
       expect(rootValues, [
+        {
+          'user': {'name': 'Ada'},
+        },
         {
           'user': {'name': 'Ada'},
           'count': 2,
@@ -1525,5 +1531,80 @@ void main() {
       expect(processor.catalogs, [catalog]);
       expect(() => processor.catalogs.add(catalog), throwsUnsupportedError);
     });
+  });
+
+  group('createSurface inline dataModel per-key writes', () {
+    test(
+      'notifies root subscriber once per key, escapes RFC 6901 keys, '
+      'and emits no missing-binding warning',
+      () async {
+        final Catalog<ComponentApi, FunctionImplementation> catalog =
+            Catalog.fromJson({
+          'catalogId': 'https://a2ui.org/test-inline-data',
+          'protocolVersion': '1.0',
+          'components': {
+            'Counter': {
+              'type': 'object',
+              'properties': {
+                'count': {
+                  r'$ref': r'common_types.json#/$defs/DynamicNumber',
+                },
+              },
+              'required': ['count'],
+            },
+          },
+        }).withFunctions(const []);
+        final processor = MessageProcessor<ComponentApi>(catalogs: [catalog]);
+
+        var rootNotifications = 0;
+        final warnings = <A2uiWarning>[];
+        final errors = <A2uiRendererError>[];
+        NodeResolver<ComponentApi>? resolver;
+
+        processor.model.onSurfaceCreated.subscribe((surface) {
+          surface.dataModel.subscribe<Object?>('/', (_) {
+            rootNotifications++;
+          });
+          surface.onWarning.subscribe(warnings.add);
+          surface.onError.subscribe(errors.add);
+          resolver = NodeResolver<ComponentApi>(surface, catalog: catalog);
+        });
+
+        processor.processMessages([
+          {
+            'version': '1.0',
+            'createSurface': {
+              'surfaceId': 's1',
+              'catalogId': catalog.id,
+              'dataModel': {
+                'a': 1,
+                'x/y~z': {'c': 2},
+              },
+              'components': [
+                {
+                  'id': 'root',
+                  'component': 'Counter',
+                  'count': {'@path': '/x~1y~0z/c'},
+                },
+              ],
+            },
+          },
+        ]);
+
+        await Future<void>.delayed(Duration.zero);
+
+        final SurfaceModel<ComponentApi> surface = processor.model.getSurface(
+          's1',
+        )!;
+        expect(rootNotifications, 2);
+        expect(surface.dataModel.get('/x~1y~0z/c'), 2);
+        expect(warnings, isEmpty);
+        expect(errors, isEmpty);
+        final countBinding = resolver?.rootNode.value?.props.value['count']
+            as ResolvedBinding<Object?>?;
+        expect(countBinding?.value, 2);
+        resolver?.dispose();
+      },
+    );
   });
 }

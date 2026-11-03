@@ -16,10 +16,10 @@
 
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
-import {readFileSync} from 'node:fs';
+import {promises as fsPromises, readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {z} from 'zod';
-import {A2uiCatalogError} from '../errors.js';
+import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {Catalog} from './types.js';
 import {analyzeChildRefSchema} from './reference-map.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
@@ -593,6 +593,62 @@ describe('Catalog.fromJson & schema_loader', () => {
     assert.strictEqual(holder.safeParse({}).success, false);
   });
 
+  it('applies the default of an optional function argument that is missing', () => {
+    const catalog = Catalog.fromJson({
+      catalogId: 'https://example.com/fn_defaults_catalog.json',
+      protocolVersion: '1.0',
+      components: {},
+      functions: {
+        quote: {
+          type: 'object',
+          properties: {
+            '@call': {const: 'quote'},
+            args: {
+              type: 'object',
+              properties: {
+                symbol: {type: 'string'},
+                currency: {type: 'string', default: 'USD'},
+                options: {
+                  type: 'object',
+                  properties: {
+                    extendedHours: {type: 'boolean', default: false},
+                  },
+                  additionalProperties: false,
+                },
+                legs: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      side: {type: 'string', default: 'buy'},
+                    },
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ['symbol'],
+              additionalProperties: false,
+            },
+          },
+          required: ['@call', 'args'],
+        },
+      },
+    });
+    const schema = catalog.functions.get('quote')!.schema;
+
+    assert.deepStrictEqual(schema.parse({symbol: 'GOOG'}), {symbol: 'GOOG', currency: 'USD'});
+    assert.deepStrictEqual(
+      schema.parse({symbol: 'GOOG', currency: 'EUR', options: {}, legs: [{}]}),
+      {
+        symbol: 'GOOG',
+        currency: 'EUR',
+        options: {extendedHours: false},
+        legs: [{side: 'buy'}],
+      },
+    );
+    assert.strictEqual(schema.safeParse({currency: 'EUR'}).success, false);
+  });
+
   it('applies passthrough on function argument schemas when unevaluatedProperties is true or a schema object', () => {
     const catalogJson = {
       catalogId: 'https://example.com/fn_uneval_props_catalog.json',
@@ -910,5 +966,107 @@ describe('Catalog.fromJson & schema_loader', () => {
         }),
       /UAX #?31/,
     );
+  });
+
+  it('resolves common_types.json $refs and validates components without network or disk I/O', t => {
+    const originalFetch = globalThis.fetch;
+    t.mock.method(fsPromises, 'readFile', () => {
+      throw new Error('Unexpected fs.promises.readFile during schema resolution');
+    });
+    globalThis.fetch = (() => {
+      throw new Error('Unexpected globalThis.fetch during schema resolution');
+    }) as typeof fetch;
+
+    try {
+      const v1Catalog = Catalog.fromJson({
+        catalogId: 'https://example.com/network_free_v1_0.json',
+        protocolVersion: '1.0',
+        $defs: {
+          Tone: {type: 'string', enum: ['info', 'warning']},
+        },
+        components: {
+          FormField: {
+            type: 'object',
+            allOf: [{$ref: 'common_types.json#/$defs/Checkable'}],
+            properties: {
+              component: {const: 'FormField'},
+              label: {$ref: 'common_types.json#/$defs/DynamicString'},
+              count: {
+                $ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicNumber',
+              },
+              child: {$ref: 'common_types.json#/$defs/Child'},
+              tone: {$ref: '#/$defs/Tone'},
+            },
+            required: ['component', 'label'],
+          },
+        },
+      });
+
+      const v1Validator = new PayloadValidator(v1Catalog, STRICT_VALIDATION);
+      v1Validator.validateComponent({
+        id: 'field_1',
+        component: 'FormField',
+        label: {'@path': '/form/label'},
+        count: 5,
+        child: 'child_1',
+        tone: 'info',
+        checks: [{condition: true, message: 'Valid'}],
+        accessibility: {label: 'Field label'},
+      });
+
+      assert.throws(
+        () =>
+          v1Validator.validateComponent({
+            id: 'field_bad',
+            component: 'FormField',
+            label: 12345,
+          }),
+        A2uiValidationError,
+      );
+
+      const v09Catalog = Catalog.fromJson(
+        {
+          catalogId: 'https://example.com/network_free_v0_9.json',
+          components: {
+            CustomCard: {
+              type: 'object',
+              allOf: [
+                {
+                  $ref: 'https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon',
+                },
+              ],
+              properties: {
+                component: {const: 'CustomCard'},
+                title: {
+                  $ref: 'https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString',
+                },
+              },
+              required: ['component', 'title'],
+            },
+          },
+        },
+        '0.9',
+      );
+
+      const v09Validator = new PayloadValidator(v09Catalog, STRICT_VALIDATION);
+      v09Validator.validateComponent({
+        id: 'card_1',
+        component: 'CustomCard',
+        title: {path: '/card/title'},
+        accessibility: {label: 'Card'},
+      });
+
+      assert.throws(
+        () =>
+          v09Validator.validateComponent({
+            id: 'card_bad',
+            component: 'CustomCard',
+            title: 42,
+          }),
+        A2uiValidationError,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

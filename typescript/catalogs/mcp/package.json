@@ -1,7 +1,7 @@
 {
   "name": "@a2ui/catalog-mcp",
-  "version": "0.0.1-alpha.2",
-  "description": "(experimental) A2UI MCP catalog: calls MCP tools and applies the A2UI messages found in their results and UI resources.",
+  "version": "0.0.3",
+  "description": "A2UI MCP catalog: calls MCP tools and applies the A2UI messages found in their results and UI resources.",
   "homepage": "https://a2ui.org/",
   "repository": {
     "directory": "typescript/catalogs/mcp",
@@ -200,6 +200,8 @@
     "@modelcontextprotocol/ext-apps": "^1.7.4",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ajv": "^8.17.1",
+    "jmespath": "^0.16.0",
+    "redos-detector": "^6.1.4",
     "zod": "^3.25.76"
   },
   "peerDependencies": {
@@ -209,6 +211,7 @@
   "devDependencies": {
     "@a2ui/web_core": "workspace:*",
     "@types/jasmine": "^6.0.0",
+    "@types/jmespath": "^0.15.2",
     "@types/node": "^25.9.3",
     "esbuild": "^0.28.1",
     "eslint": "^10.4.1",

@@ -23,11 +23,11 @@ interface Props {
 const { title, mermaid } = Astro.props;
 ---
 
-<div class="diagram-card border rounded-xl overflow-hidden my-6 not-content">
-  <!-- Human View: Rich Tailwind / Visual Card Layout -->
-  <div class="human-view p-6 bg-card text-card-foreground">
-    <h4 class="text-lg font-semibold mb-4">{title}</h4>
-    <slot /> <!-- Render rich UI cards or interactive canvas -->
+<div class="diagram-card not-content">
+  <!-- Human View: Rich Visual Card Layout -->
+  <div class="human-view">
+    <h4 class="diagram-title">{title}</h4>
+    <slot />
   </div>
 
   <!-- Agent & Accessibility View: Machine-readable spec hidden from human UI -->
@@ -35,6 +35,28 @@ const { title, mermaid } = Astro.props;
     type="text/vnd.mermaid"
     data-agent-diagram="spec"
     style="display: none;"
-    set:html={mermaid.trim()}
+    set:html={mermaid.trim().replace(/<\//g, '<\\/')}
   />
 </div>
+
+<style>
+  .diagram-card {
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 1.5rem 0;
+    background: var(--sl-color-bg-sidebar);
+  }
+
+  .human-view {
+    padding: 1.5rem;
+  }
+
+  .diagram-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: var(--sl-color-white);
+  }
+</style>

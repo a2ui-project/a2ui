@@ -204,6 +204,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private readonly defaultVersion?: ProtocolVersion;
   private readonly errorHandler?: (error: RendererErrorMessage) => void;
   private readonly reportErrorsOnly: boolean;
+  /** Whether outbound messages, and so `callAgentFunction`, can reach the agent. */
+  private readonly hasOutboundListener: boolean;
   /**
    * What the last check of each surface's components found, under a config
    * that defers the reference and reachability checks, with the number of
@@ -234,12 +236,16 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       outboundListener: options?.outboundListener,
       defaultTimeoutMs: options?.defaultTimeoutMs,
     });
+    this.hasOutboundListener = Boolean(options?.outboundListener);
     this.validationConfig = options?.validationConfig
       ? withStrictDefaults(options.validationConfig)
       : undefined;
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
+    this.model.onSurfaceDeleted.subscribe(surfaceId => {
+      this.rpc.cancelSurfaceCalls(surfaceId);
+    });
   }
 
   /** The catalogs the processor was created with, in priority order. */
@@ -267,6 +273,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Disposes the MessageProcessor, tearing down active surfaces and rejecting pending RPC calls.
    */
   dispose(): void {
+    this.model.dispose();
     this.rpc.dispose();
   }
 
@@ -1078,26 +1085,71 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       op.metadata,
       surfaceVersion,
     );
+    // From v1.0, a function the renderer does not implement runs on the agent.
+    // Without an outbound listener there is no way to reach it, so such calls
+    // keep failing locally.
+    if (this.hasOutboundListener && isAtLeastVersion(surface.protocolVersion, '1.0')) {
+      // A call that resumes after the surface was deleted (for example, an
+      // action that awaited an argument) is cancelled instead of being sent.
+      surface.agentFunctionCaller = call =>
+        this.model.getSurface(surfaceId) === surface
+          ? this.rpc.callAgentFunction(surfaceId, call, {version: surface.protocolVersion})
+          : Promise.reject(
+              new A2uiRpcError(
+                `Pending calls for surface '${surfaceId}' were cancelled.`,
+                RpcErrorCode.CANCELLED,
+              ),
+            );
+    }
     this.model.addSurface(surface);
 
-    if (dataModel) {
-      // Assign the whole object at the root rather than building a pointer per
-      // key. Key names are literal property names, so a key containing '/' or
-      // '~' would otherwise be misread as a nested path.
-      surface.dataModel.set('/', dataModel);
-    }
+    try {
+      if (dataModel) {
+        for (const [key, value] of Object.entries(dataModel)) {
+          const escapedKey = key.replace(/~/g, '~0').replace(/\//g, '~1');
+          const path = `/${escapedKey}`;
+          try {
+            if (key === '') {
+              const currentRoot = (surface.dataModel.get('/') ?? {}) as Record<string, unknown>;
+              const nextRoot = {...currentRoot};
+              if (
+                value === undefined ||
+                (value === null && isAtLeastVersion(surface.protocolVersion, '1.0'))
+              ) {
+                delete nextRoot[''];
+              } else {
+                nextRoot[''] = value;
+              }
+              surface.dataModel.set('/', nextRoot);
+            } else {
+              surface.dataModel.set(path, value);
+            }
+          } catch (err: unknown) {
+            if (err instanceof A2uiDataError && !err.surfaceId) {
+              err.surfaceId = surfaceId;
+            }
+            throw err;
+          }
+        }
+      }
 
-    if (components && components.length > 0) {
-      this.processUpdateComponentsOp({
-        type: 'updateComponents',
-        surfaceId,
-        components,
-      });
+      if (components && components.length > 0) {
+        this.processUpdateComponentsOp({
+          type: 'updateComponents',
+          surfaceId,
+          components,
+        });
+      }
+    } catch (err: unknown) {
+      this.model.deleteSurface(surfaceId);
+      throw err;
     }
   }
 
   private processDeleteSurfaceOp(op: InternalDeleteSurfaceOp): void {
     if (!op.surfaceId) return;
+    // Deleting the surface cancels its pending calls through the
+    // `onSurfaceDeleted` subscription set up in the constructor.
     this.model.deleteSurface(op.surfaceId);
   }
 

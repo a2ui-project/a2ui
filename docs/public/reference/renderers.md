@@ -14,20 +14,20 @@ You have a lot of flexibility, to bring custom components to a renderer, or buil
 
 ### Web
 
-| Renderer                 | Platform           | v0.8      | v0.9.1    | v1.0       | Links                                                                                |
-| ------------------------ | ------------------ | --------- | --------- | ---------- | ------------------------------------------------------------------------------------ |
-| **React**                | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](../../../typescript/renderers/react)                                          |
-| **Lit (Web Components)** | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](../../../typescript/renderers/lit)                                            |
-| **Angular**              | Web                | ✅ Stable | ✅ Stable | 🚧 Planned | [Code](../../../typescript/renderers/angular)                                        |
-| **Flutter (GenUI SDK)**  | Mobile/Desktop/Web | ✅ Stable | ✅ Stable | 🚧 Planned | [Docs](https://docs.flutter.dev/ai/genui) · [Code](https://github.com/flutter/genui) |
+| Renderer                     | Platform           | v0.8      | v0.9.1    | v1.0      | Links                                         |
+| ---------------------------- | ------------------ | --------- | --------- | --------- | --------------------------------------------- |
+| **React**                    | Web                | ✅ Stable | ✅ Stable | ✅ Stable | [Code](../../../typescript/renderers/react)   |
+| **Lit (Web Components)**     | Web                | ✅ Stable | ✅ Stable | ✅ Stable | [Code](../../../typescript/renderers/lit)     |
+| **Angular**                  | Web                | ✅ Stable | ✅ Stable | ✅ Stable | [Code](../../../typescript/renderers/angular) |
+| **Flutter (`a2ui_flutter`)** | Mobile/Desktop/Web | —         | ✅ Alpha  | ✅ Alpha  | [Code](../../../dart/a2ui_flutter)            |
 
 ### Mobile
 
-| Renderer                | Platform           | v0.8      | v0.9.1    | v1.0       | Links                                                                                                                                                        |
-| ----------------------- | ------------------ | --------- | --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Flutter (GenUI SDK)** | Mobile/Desktop/Web | ✅ Stable | ✅ Stable | 🚧 Planned | [Docs](https://docs.flutter.dev/ai/genui) · [Code](https://github.com/flutter/genui)                                                                         |
-| **SwiftUI**             | iOS/macOS          | —         | ✅ Alpha  | ✅ Alpha   | [Code](../../../swift/swiftui)                                                                                                                               |
-| **Jetpack Compose**     | Android            | —         | ✅ Alpha  | 🚧 Planned | [Docs](https://developer.android.com/develop/ui/compose/agentic) · [Code](https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:a2ui/) |
+| Renderer                     | Platform           | v0.8 | v0.9.1   | v1.0       | Links                                                                                                                                                        |
+| ---------------------------- | ------------------ | ---- | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Flutter (`a2ui_flutter`)** | Mobile/Desktop/Web | —    | ✅ Alpha | ✅ Alpha   | [Code](../../../dart/a2ui_flutter)                                                                                                                           |
+| **SwiftUI**                  | iOS/macOS          | —    | ✅ Alpha | ✅ Alpha   | [Code](../../../swift/swiftui)                                                                                                                               |
+| **Jetpack Compose**          | Android            | —    | ✅ Alpha | 🚧 Planned | [Docs](https://developer.android.com/develop/ui/compose/agentic) · [Code](https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:a2ui/) |
 
 Check the [Roadmap](../roadmap.md) for more.
 
@@ -35,6 +35,7 @@ Check the [Roadmap](../roadmap.md) for more.
 
 The community is building A2UI renderers for additional platforms:
 
+- **[Flutter (GenUI SDK)](https://github.com/flutter/genui)**: Flutter's GenUI SDK for rendering A2UI surfaces on mobile, desktop, and web ([Docs](https://docs.flutter.dev/ai/genui), v0.8, v0.9.1)
 - **[json-render](https://json-render.dev/docs/a2ui)** — Vercel's React library for rendering A2UI catalogs via Zod schemas ([comparison](https://dipjyotimetia.medium.com/vercels-json-render-vs-google-s-a2ui-the-head-to-head-6f213cf1a23b))
 - **[A2UI-Android](https://github.com/lmee/A2UI-Android)** — Community Jetpack Compose renderer, 20+ components (~15 ⭐, v0.8)
 - **[a2ui-react-native](https://github.com/sivamrudram-eng/a2ui-react-native)** — React Native renderer for iOS/Android (~9 ⭐, v0.8)
@@ -59,7 +60,7 @@ Get started integrating A2UI into your application by following the setup guide 
 - **[React](../guides/client-setup.md#react)**
 - **[Lit (Web Components)](../guides/client-setup.md#web-components-lit)**
 - **[Angular](../guides/client-setup.md#angular)**
-- **[Flutter (GenUI SDK)](../guides/client-setup.md#flutter-genui-sdk)**
+- **[Flutter (`a2ui_flutter`)](../../../dart/a2ui_flutter)**
 
 ## Building a Renderer
 

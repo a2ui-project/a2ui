@@ -24,8 +24,10 @@
 import {ExpressionParser} from '../expressions/expression_parser.js';
 import {computed, isSignal, getValue, Signal} from '../reactivity/signals.js';
 import {createFunctionImplementation, FunctionImplementation} from '../catalog/types.js';
+import {coerceDynamicBoolean} from '../catalog/validation_result_coercion.js';
 import {A2uiExpressionError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
+import {withoutAgentRouting} from '../resolution/data-context-internal.js';
 import {isAtLeastVersion} from './semver.js';
 import {isSafeRegex} from '../v0_9/basic_catalog/functions/safe_regex.js';
 
@@ -385,23 +387,12 @@ export type TruthyFn = (value: unknown) => boolean;
 export const isTruthy: TruthyFn = value => !!value;
 
 /**
- * Truthiness that reads a ValidationResult by its validity.
- *
- * In v1.0 the validators return a ValidationResult object rather than a
- * boolean, so a nested `and(required(...), or(...))` receives objects. An
- * object with a boolean `valid` member is truthy when `valid` is true; any
- * other value follows JavaScript truthiness.
+ * Truthiness that coerces any value according to the `DynamicBoolean` rules.
  */
-export const isTruthyOrValid: TruthyFn = value => {
-  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    const valid = (value as {valid?: unknown}).valid;
-    if (typeof valid === 'boolean') return valid;
-  }
-  return !!value;
-};
+export const isTruthyOrValid: TruthyFn = coerceDynamicBoolean;
 
 /** Evaluates logical AND across an array of values. */
-export function executeAnd(values: unknown[], truthy: TruthyFn = isTruthy): boolean {
+export function executeAnd(values: unknown[], truthy: TruthyFn = coerceDynamicBoolean): boolean {
   if (!Array.isArray(values) || values.length < 2) {
     throw new A2uiExpressionError('and requires at least 2 values', 'and');
   }
@@ -409,7 +400,7 @@ export function executeAnd(values: unknown[], truthy: TruthyFn = isTruthy): bool
 }
 
 /** Evaluates logical OR across an array of values. */
-export function executeOr(values: unknown[], truthy: TruthyFn = isTruthy): boolean {
+export function executeOr(values: unknown[], truthy: TruthyFn = coerceDynamicBoolean): boolean {
   if (!Array.isArray(values) || values.length < 2) {
     throw new A2uiExpressionError('or requires at least 2 values', 'or');
   }
@@ -417,7 +408,7 @@ export function executeOr(values: unknown[], truthy: TruthyFn = isTruthy): boole
 }
 
 /** Evaluates logical NOT on a single value. */
-export function executeNot(value: unknown, truthy: TruthyFn = isTruthy): boolean {
+export function executeNot(value: unknown, truthy: TruthyFn = coerceDynamicBoolean): boolean {
   return !truthy(value);
 }
 
@@ -454,12 +445,16 @@ export function executeFormatString(
     context.surface?.protocolVersion ?? context.surface?.defaultCatalog?.protocolVersion,
     '1.0',
   );
+  // A template part never waits for the agent: from v1.0, a part that calls
+  // a function the renderer does not implement fails with an
+  // `EXPRESSION_ERROR` naming it, sends nothing, and renders empty.
+  const partContext = atLeastV10 ? withoutAgentRouting(context) : context;
   const dynamicParts = parts.map(part => {
     if (typeof part !== 'object' || part === null || Array.isArray(part)) {
       return part;
     }
     const adapted = atLeastV10 ? adaptAstPartForV10(part) : part;
-    return context.resolveSignal(adapted);
+    return partContext.resolveSignal(adapted);
   });
 
   return computed(() => {
@@ -618,30 +613,28 @@ export function executeOpenUrl(urlInput: unknown): void {
 /** Options for the logical function implementations. */
 export interface LogicalFunctionOptions {
   /**
-   * The truthiness rule for operands. Defaults to JavaScript truthiness; the
-   * v1.0 catalog passes `isTruthyOrValid` so ValidationResult operands count
-   * by their validity.
+   * The truthiness rule for operands. Defaults to `coerceDynamicBoolean`.
    */
   truthy?: TruthyFn;
 }
 
 export function createAndImplementation(
   api: any,
-  {truthy = isTruthy}: LogicalFunctionOptions = {},
+  {truthy = coerceDynamicBoolean}: LogicalFunctionOptions = {},
 ): FunctionImplementation {
   return createFunctionImplementation(api, args => executeAnd(args.values, truthy));
 }
 
 export function createOrImplementation(
   api: any,
-  {truthy = isTruthy}: LogicalFunctionOptions = {},
+  {truthy = coerceDynamicBoolean}: LogicalFunctionOptions = {},
 ): FunctionImplementation {
   return createFunctionImplementation(api, args => executeOr(args.values, truthy));
 }
 
 export function createNotImplementation(
   api: any,
-  {truthy = isTruthy}: LogicalFunctionOptions = {},
+  {truthy = coerceDynamicBoolean}: LogicalFunctionOptions = {},
 ): FunctionImplementation {
   return createFunctionImplementation(api, args => executeNot(args.value, truthy));
 }

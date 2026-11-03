@@ -30,6 +30,7 @@
       {"$ref": "#/$defs/CreateProcessorTest"},
       {"$ref": "#/$defs/EvaluateFunctionTest"},
       {"$ref": "#/$defs/DispatchActionTest"},
+      {"$ref": "#/$defs/RouteAgentFunctionTest"},
       {"$ref": "#/$defs/DeriveTest"},
       {"$ref": "#/$defs/RenderSurfaceTest"}
     ]
@@ -886,6 +887,257 @@
       "required": ["name", "action", "actionPayload"],
       "additionalProperties": false
     },
+    "RouteAgentFunctionTest": {
+      "type": "object",
+      "description": "Evaluates function calls on surface `main`, created through a message processor, and answers the `callAgentFunction` messages the processor sends, to check the fallback routing of calls to the agent. After each step the harness lets pending asynchronous work run, then checks the step's expectations.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "action": {
+          "const": "route_agent_function"
+        },
+        "protocolVersion": {
+          "$ref": "#/$defs/ProtocolVersion"
+        },
+        "catalogs": {
+          "type": "array",
+          "description": "The catalogs the processor holds, each built for protocolVersion.",
+          "items": {
+            "$ref": "#/$defs/RoutingCatalog"
+          },
+          "minItems": 1
+        },
+        "surface": {
+          "type": "object",
+          "properties": {
+            "catalogId": {
+              "type": "string",
+              "description": "The surface default catalog, one of `catalogs`. Omit it for a surface without a default catalog."
+            },
+            "outboundListener": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether the processor has a way to send outbound messages. Without one, no call is routed."
+            }
+          },
+          "additionalProperties": false
+        },
+        "dataModel": {
+          "type": "object",
+          "description": "Initial data model of the surface."
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RoutingStep"
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["name", "action", "protocolVersion", "catalogs", "surface", "steps"],
+      "additionalProperties": false
+    },
+    "RoutingCatalog": {
+      "type": "object",
+      "properties": {
+        "catalogId": {
+          "type": "string"
+        },
+        "localFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Functions the catalog implements, taken from the SDK's basic catalog for protocolVersion."
+        },
+        "agentFunctions": {
+          "type": "object",
+          "description": "Functions the catalog declares without an implementation (schema-only), by name. An SDK that cannot declare such a function lists the cases that use them as known divergences.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "args": {
+                "type": "object",
+                "description": "JSON Schema of the function's args."
+              },
+              "returnType": {
+                "type": "string",
+                "enum": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "array",
+                  "object",
+                  "validationResult",
+                  "any",
+                  "void"
+                ],
+                "default": "any"
+              },
+              "allowedCallers": {
+                "type": "string",
+                "enum": ["rendererOnly", "agentOnly", "rendererOrAgent"],
+                "description": "Which side may call the function, as the allowedCallers of a catalog function definition."
+              },
+              "requiresUserActivation": {
+                "type": "boolean"
+              }
+            },
+            "required": ["args"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["catalogId"],
+      "additionalProperties": false
+    },
+    "RoutingStep": {
+      "type": "object",
+      "description": "One operation, `evaluate`, `respond`, `updateData`, `cancelSurfaceCalls` or `deleteSurface`, and what must hold once it has settled. Omitting expectOutbound, expectErrors or expectActions means the step sends no callAgentFunction, reports no error or dispatches no action.",
+      "properties": {
+        "evaluate": {
+          "type": "object",
+          "description": "A FunctionCall to evaluate on the surface's root data context or, when `as` is `event`, the `event` object of an action."
+        },
+        "as": {
+          "enum": ["binding", "check", "action", "event"],
+          "default": "binding",
+          "description": "How the call is evaluated: as a component binding, as the condition of a check rule, as the functionCall of an action that runs with user activation, or, for `event`, as an event action that runs with user activation and is dispatched once its context and userMessage resolve."
+        },
+        "updateData": {
+          "type": "object",
+          "description": "Sets `value` at JSON Pointer `path` in the surface data model.",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "value": {}
+          },
+          "required": ["path", "value"],
+          "additionalProperties": false
+        },
+        "cancelSurfaceCalls": {
+          "const": true,
+          "description": "Cancels the pending agent calls of surface `main` with RPC code CANCELLED, as the RPC handler does when a surface is deleted, while the surface stays live."
+        },
+        "deleteSurface": {
+          "const": true,
+          "description": "Processes a deleteSurface message for surface `main`. Later steps can no longer read values from it."
+        },
+        "respond": {
+          "type": "object",
+          "description": "An agentFunctionResponse to the callAgentFunction at index `call` among those the case has sent, with a `value` or an `error`.",
+          "properties": {
+            "call": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "value": {},
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": ["code", "message"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["call"],
+          "oneOf": [
+            {
+              "required": ["value"]
+            },
+            {
+              "required": ["error"]
+            }
+          ],
+          "additionalProperties": false
+        },
+        "outboundInAnyOrder": {
+          "type": "boolean",
+          "default": false,
+          "description": "Compare expectOutbound without regard to order, for calls that are sent concurrently, such as sibling arguments of one function."
+        },
+        "expectOutbound": {
+          "type": "array",
+          "description": "The callFunction payloads of the callAgentFunction messages the step sent, in order. Every message names surface `main`; functionCallId is not compared.",
+          "items": {
+            "type": "object"
+          }
+        },
+        "expectErrors": {
+          "type": "array",
+          "description": "The errors the surface reported during the step, in order. `message` is a substring of the reported message.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["code"],
+            "additionalProperties": false
+          }
+        },
+        "expectValues": {
+          "type": "array",
+          "description": "The current value of every binding and check evaluated so far, in order, with null for a pending binding. A check's value is whether its rule passes, and a rule waiting on the agent passes."
+        },
+        "expectActions": {
+          "type": "array",
+          "description": "The actions the surface dispatched during the step, in order, by `name`, `context` and `userMessage`. An action dispatched without a userMessage omits it.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "context": {
+                "type": "object"
+              },
+              "userMessage": {
+                "type": "string"
+              }
+            },
+            "required": ["name", "context"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "dependentRequired": {
+        "as": ["evaluate"]
+      },
+      "oneOf": [
+        {
+          "required": ["evaluate"]
+        },
+        {
+          "required": ["respond"]
+        },
+        {
+          "required": ["updateData"]
+        },
+        {
+          "required": ["cancelSurfaceCalls"]
+        },
+        {
+          "required": ["deleteSurface"]
+        }
+      ],
+      "additionalProperties": false
+    },
     "NodeResolutionFixture": {
       "type": "object",
       "properties": {
@@ -893,6 +1145,10 @@
           "type": "string",
           "minLength": 1,
           "description": "Catalog JSON path relative to the conformance directory."
+        },
+        "surface": {
+          "type": "boolean",
+          "description": "Whether the runner seeds surface s before the initial expectation. When false, the runner attaches the resolver when surface s is created."
         },
         "data": {"type": "object"},
         "components": {"$ref": "#/$defs/NodeResolutionComponents"}
@@ -956,6 +1212,14 @@
           "additionalProperties": {"$ref": "#/$defs/NodeResolutionNode"}
         },
         "emissions": {"$ref": "#/$defs/NodeResolutionCounts"},
+        "created_emissions": {
+          "type": "object",
+          "description": "Post-creation props-callback counts for nodes created during the step.",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
         "metadata_emissions": {
           "$ref": "#/$defs/NodeResolutionCounts",
           "description": "Node paths whose metadata signal emitted during the step, with counts. Omitted paths must not emit."

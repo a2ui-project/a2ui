@@ -27,9 +27,24 @@ import {
 import {childRefKindOf} from '../types/child-ref-helpers.js';
 import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
+import {
+  coerceDynamicBoolean,
+  isDynamicBooleanSchema,
+} from '../catalog/validation_result_coercion.js';
 import {ActionDispatchOptions} from '../common/metadata.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
+import {resolveSignalKeepingPending} from './data-context-internal.js';
 import {isAtLeastVersion} from '../common/semver.js';
+import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
+import {effect, getValue, peekValue} from '../reactivity/signals.js';
+
+/** The outcome of one check rule. */
+interface CheckRuleResult {
+  valid: boolean;
+  message: string;
+  code?: string;
+  severity: 'error' | 'warning' | 'info';
+}
 
 // --- Schema Scraping ---
 
@@ -54,7 +69,7 @@ import {isAtLeastVersion} from '../common/semver.js';
  * - OBJECT / ARRAY: Recursive traversal nodes for complex nested schemas.
  */
 export type BehaviorNode =
-  | {type: 'DYNAMIC'}
+  | {type: 'DYNAMIC'; isBoolean?: boolean}
   | {type: 'ACTION'}
   | {type: 'STRUCTURAL'}
   | {type: 'CHECKABLE'}
@@ -233,7 +248,16 @@ function isDynamicDef(defName: string, typeName?: string): boolean {
 
 function matchUnionBehavior(options: z.ZodTypeAny[]): BehaviorNode | undefined {
   if (options.some(isActionOption)) return {type: 'ACTION'};
-  if (options.some(isDynamicOption)) return {type: 'DYNAMIC'};
+  if (options.some(isDynamicOption)) {
+    const literalOptions = options.filter(opt => !isDynamicOption(opt));
+    const isBoolean =
+      literalOptions.length > 0 &&
+      literalOptions.every(opt => {
+        const typeName = (unwrapZodSchema(opt) as any)?._def?.typeName;
+        return typeName === 'ZodBoolean' || typeName === 'ZodNull' || typeName === 'ZodUndefined';
+      });
+    return isBoolean ? {type: 'DYNAMIC', isBoolean: true} : {type: 'DYNAMIC'};
+  }
   if (options.some(isChildListOption)) return {type: 'STRUCTURAL'};
   return undefined;
 }
@@ -270,13 +294,19 @@ function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
   }
 
   if (isDynamicDef(defName, current._def?.typeName)) {
-    return {type: 'DYNAMIC'};
+    return isDynamicBooleanSchema(type) || defName === 'DynamicBoolean'
+      ? {type: 'DYNAMIC', isBoolean: true}
+      : {type: 'DYNAMIC'};
   }
 
   // Structural matching for A2UI primitives using typeName to avoid dual-module instanceof issues
   if (current._def.typeName === 'ZodUnion') {
     const unionBehavior = matchUnionBehavior(current._def.options as z.ZodTypeAny[]);
-    if (unionBehavior) return unionBehavior;
+    if (unionBehavior) {
+      return unionBehavior.type === 'DYNAMIC' && isDynamicBooleanSchema(type)
+        ? {type: 'DYNAMIC', isBoolean: true}
+        : unionBehavior;
+    }
   }
 
   // Recursive array scraping
@@ -507,10 +537,8 @@ export class GenericBinder<T> {
 
   private resolveInitialProps() {
     const props = this.context.componentModel.properties;
-    const resolved = this.resolveAndBind(props, this.behaviorTree, [], true) as
-      | Record<string, unknown>
-      | undefined;
-    this.currentProps = {...this.currentProps, ...(resolved || {})} as Partial<T>;
+    const resolved = this.resolveAndBind(props, this.behaviorTree, [], true);
+    this.currentProps = mergeBindingState(this.currentProps, resolved ?? {}) as Partial<T>;
   }
 
   private connect() {
@@ -529,17 +557,25 @@ export class GenericBinder<T> {
 
     const props = this.context.componentModel.properties;
 
-    const resolved = this.resolveAndBind(props, this.behaviorTree, [], false) as
-      | Record<string, unknown>
-      | undefined;
-    this.currentProps = {...this.currentProps, ...(resolved || {})} as Partial<T>;
+    // Rebuild from an empty snapshot, so a property the update removed is
+    // gone. Check bindings write `isValid` and its siblings into it while
+    // binding.
+    this.currentProps = {};
+    const resolved = this.resolveAndBind(props, this.behaviorTree, [], false);
+    this.currentProps = mergeBindingState(this.currentProps, resolved ?? {}) as Partial<T>;
 
     this.notify();
   }
 
-  private bindDynamicValue(value: unknown, path: string[], isSync: boolean): unknown {
+  private bindDynamicValue(
+    value: unknown,
+    path: string[],
+    isSync: boolean,
+    isBoolean?: boolean,
+  ): unknown {
+    const coerce = isBoolean ? coerceDynamicBoolean : (v: unknown) => v;
     const bound = this.context.dataContext.subscribeDynamicValue(value, newVal => {
-      this.updateDeepValue(path, newVal);
+      this.updateDeepValue(path, coerce(newVal));
       this.notify();
     });
 
@@ -548,7 +584,7 @@ export class GenericBinder<T> {
     } else {
       bound.unsubscribe();
     }
-    return bound.value;
+    return coerce(bound.value);
   }
 
   /**
@@ -600,10 +636,16 @@ export class GenericBinder<T> {
         });
         return;
       }
-      const resolved = this.context.dataContext.resolveAction(
+      let resolved = this.context.dataContext.resolveAction(
         value as Action | Record<string, unknown>,
         {userActivation: true},
       );
+      // An event action whose entries wait on asynchronous calls resolves to
+      // a Promise, which settles to `undefined` when an entry failed. A
+      // synchronous one is dispatched without waiting.
+      if (isThenable(resolved)) {
+        resolved = await resolved;
+      }
       if (resolved === undefined) {
         return;
       }
@@ -737,6 +779,20 @@ export class GenericBinder<T> {
       const fallbackMessage = ruleMessage ?? 'Validation failed';
       ruleResults[index].message = fallbackMessage;
 
+      if (this.context.dataContext.atLeastV10) {
+        this.bindCheckCondition(
+          condition,
+          isSync,
+          result => {
+            ruleResults[index] = result;
+          },
+          updateValidationState,
+          explicitMessage,
+          fallbackMessage,
+        );
+        return;
+      }
+
       const bound = this.context.dataContext.subscribeDynamicValue(condition, newVal => {
         ruleResults[index] = this.extractValidationResult(newVal, explicitMessage, fallbackMessage);
         updateValidationState();
@@ -759,6 +815,86 @@ export class GenericBinder<T> {
     applyValidationState();
 
     return value;
+  }
+
+  /**
+   * Binds the condition of one check rule on a v1.0 surface.
+   *
+   * While the condition waits on an asynchronous call, such as a function
+   * call routed to the agent, the rule is pending and counts as valid. When
+   * the call settles the rule is evaluated; if the call failed the rule is
+   * invalid. Either way subscribers are notified.
+   *
+   * @param condition The rule's condition.
+   * @param isSync Whether the binding is resolved once, without subscriptions.
+   * @param setResult Stores the rule's result.
+   * @param onUpdate Recomputes the validation state and notifies subscribers.
+   * @param explicitMessage Message that overrides the one the condition returns.
+   * @param fallbackMessage Message used when the condition returns none.
+   */
+  private bindCheckCondition(
+    condition: unknown,
+    isSync: boolean,
+    setResult: (result: CheckRuleResult) => void,
+    onUpdate: () => void,
+    explicitMessage: string | undefined,
+    fallbackMessage: string,
+  ): void {
+    const sig = resolveSignalKeepingPending(this.context.dataContext, condition);
+    let active = !isSync;
+    let current: unknown;
+    const apply = (value: unknown, notify: boolean) => {
+      current = value;
+      const settled = settleDeep(value);
+      if (isThenable(settled)) {
+        setResult({valid: true, message: fallbackMessage, severity: 'error'});
+        Promise.resolve(settled).then(
+          settledValue => {
+            if (!active || current !== value) return;
+            setResult(this.checkResultOf(settledValue, explicitMessage, fallbackMessage));
+            onUpdate();
+          },
+          () => {
+            if (!active || current !== value) return;
+            setResult({valid: false, message: fallbackMessage, severity: 'error'});
+            onUpdate();
+          },
+        );
+      } else {
+        setResult(this.checkResultOf(settled, explicitMessage, fallbackMessage));
+      }
+      if (notify) onUpdate();
+    };
+
+    if (isSync) {
+      apply(peekValue(sig), false);
+      sig.unsubscribe?.();
+      return;
+    }
+    let initial = true;
+    const dispose = effect(() => {
+      const value = getValue(sig);
+      if (!initial) apply(value, true);
+    });
+    initial = false;
+    apply(peekValue(sig), false);
+    this.dataListeners.push(() => {
+      active = false;
+      dispose();
+      sig.unsubscribe?.();
+    });
+  }
+
+  /** The result of a check rule whose condition settled to `value`. */
+  private checkResultOf(
+    value: unknown,
+    explicitMessage: string | undefined,
+    fallbackMessage: string,
+  ): CheckRuleResult {
+    if (findFailedArgument(value)) {
+      return {valid: false, message: fallbackMessage, severity: 'error'};
+    }
+    return this.extractValidationResult(value, explicitMessage, fallbackMessage);
   }
 
   /** Whether a check condition is a data binding rather than a function call. */
@@ -814,11 +950,16 @@ export class GenericBinder<T> {
     path: string[],
     isSync: boolean,
   ): unknown {
-    if (value === undefined || value === null) return value;
+    if (
+      value === undefined ||
+      (value === null && !(behavior.type === 'DYNAMIC' && behavior.isBoolean))
+    ) {
+      return value;
+    }
 
     switch (behavior.type) {
       case 'DYNAMIC':
-        return this.bindDynamicValue(value, path, isSync);
+        return this.bindDynamicValue(value, path, isSync, behavior.isBoolean);
 
       case 'ACTION':
         return this.bindAction(value, path);
@@ -912,6 +1053,36 @@ export class GenericBinder<T> {
   get snapshot() {
     return this.currentProps as T;
   }
+}
+
+/**
+ * Merges resolved props over the state bindings wrote while binding, at any
+ * depth. A check writes `isValid`, `validationErrors` and `validationResults`
+ * next to its `checks`, which can be inside a nested object.
+ *
+ * @param written The props that bindings wrote while binding.
+ * @param resolved The props that binding resolved.
+ * @returns `resolved`, with the values from `written` that it lacks.
+ */
+function mergeBindingState(written: unknown, resolved: unknown): unknown {
+  if (resolved === undefined) return written;
+  if (Array.isArray(written) && Array.isArray(resolved)) {
+    return resolved.map((item, index) => mergeBindingState(written[index], item));
+  }
+  if (isPlainObject(written) && isPlainObject(resolved)) {
+    const merged: Record<string, unknown> = {...written};
+    for (const [key, value] of Object.entries(resolved)) {
+      merged[key] = mergeBindingState(written[key], value);
+    }
+    return merged;
+  }
+  return resolved;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 /**

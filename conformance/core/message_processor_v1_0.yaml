@@ -198,6 +198,49 @@
       supportedCatalogIds:
         - "cat-v10"
 
+- name: test_v10_get_renderer_capabilities_inline_catalogs
+  description: >-
+    Tests that v1.0 inline catalogs list each component as a plain schema, without the v0.9
+    ComponentCommon allOf envelope, because v1.0 applies ComponentCommon at the message envelope.
+  action: get_renderer_capabilities
+  catalogs:
+    - catalogId: cat-v10
+      protocolVersion: "1.0"
+      components:
+        Button:
+          type: object
+          properties:
+            component:
+              const: Button
+            label:
+              type: string
+              description: The button label
+          required:
+            - component
+            - label
+  args:
+    includeInlineCatalogs: true
+    version: "1.0"
+  expect:
+    "1.0":
+      supportedCatalogIds:
+        - "cat-v10"
+      inlineCatalogs:
+        - catalogId: "cat-v10"
+          protocolVersion: "1.0"
+          components:
+            Button:
+              type: "object"
+              properties:
+                component:
+                  const: "Button"
+                label:
+                  type: "string"
+                  description: "The button label"
+              required:
+                - "component"
+                - "label"
+
 - name: test_multiple_update_types_error
   description: Tests that sending a single message envelope containing multiple update actions raises a ValidationError.
   action: process_messages
@@ -3201,3 +3244,21 @@
               - id: "root"
                 component: "Column"
                 children: ["mid_card"]
+
+- name: test_v10_create_surface_theme_rejected_strict
+  description: >-
+    Tests that a v1.0 createSurface message carrying a theme property is rejected with a ValidationError in strict mode.
+  action: process_messages
+  protocolVersion: "1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        theme:
+          primaryColor: "#ff0000"
+  expectError:
+    category: "ValidationError"

@@ -17,6 +17,7 @@ import JSONSchema
 import OrderedJSON
 import Testing
 
+@MainActor
 struct NodeTests {
 
   // MARK: - Initialization
