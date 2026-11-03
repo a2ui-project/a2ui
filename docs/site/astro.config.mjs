@@ -18,18 +18,20 @@
 import {defineConfig} from 'astro/config';
 import starlight from '@astrojs/starlight';
 import {remarkA2uiIncludes} from './src/plugins/remark-a2ui-includes.mjs';
+import {rehypeWrapTables} from './src/plugins/rehype-wrap-tables.mjs';
 
 export default defineConfig({
   site: process.env.ASTRO_SITE || 'https://a2ui.org',
   base: process.env.ASTRO_BASE || undefined,
   markdown: {
     remarkPlugins: [remarkA2uiIncludes],
+    rehypePlugins: [rehypeWrapTables],
   },
   integrations: [
     starlight({
       title: 'A2UI',
       description:
-        'The open Agent-to-UI protocol and SDK suite for native, stateful generative user interfaces.',
+        'The open A2UI (Agent to User Interface) protocol and SDK suite for native, stateful generative user interfaces.',
       logo: {
         light: './src/assets/A2UI_dark.svg',
         dark: './src/assets/A2UI_light.svg',
@@ -80,7 +82,7 @@ export default defineConfig({
           items: [
             {
               label: '← Back to Overview',
-              link: `${(process.env.ASTRO_BASE || '').replace(/\/$/, '')}/`,
+              link: '/',
             },
           ],
         },
@@ -107,7 +109,7 @@ export default defineConfig({
               badge: {text: 'P0', variant: 'danger'},
             },
             {
-              label: 'Catalogs, Components and Functions',
+              label: 'Catalogs',
               slug: 'concepts/catalogs',
               badge: {text: 'P0', variant: 'danger'},
             },

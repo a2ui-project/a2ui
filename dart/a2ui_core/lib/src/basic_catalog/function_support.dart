@@ -78,15 +78,8 @@ bool isTruthy(Object? value) => switch (value) {
       _ => true,
     };
 
-/// [isTruthy], except that a [ValidationResult], or a map carrying a `valid`
-/// key, is truthy when it is valid, as read by [ValidationResult.validityOf].
-///
-/// The v1.0 logic functions use this so `and`, `or` and `not` agree with the
-/// binder's `checks` evaluation when they wrap a validation rule. The v0.9
-/// functions keep [isTruthy]: their validation rules return `bool`, and a
-/// data-model object that happens to carry a `valid` key is an object.
-bool isTruthyOrValid(Object? value) =>
-    ValidationResult.validityOf(value) ?? isTruthy(value);
+/// Coerces [value] to a `bool` according to the `DynamicBoolean` rules.
+bool isTruthyOrValid(Object? value) => coerceDynamicBoolean(value);
 
 /// Reads [value] as a number, or `NaN` when it is not one.
 ///
@@ -230,12 +223,18 @@ List<Object?> _logicOperands(String name, Object? values) {
 
 /// Whether every entry of [values] is truthy by [truthy]. Throws
 /// [A2uiExpressionError] for fewer than two values.
-bool evaluateAnd(Object? values, [bool Function(Object?) truthy = isTruthy]) =>
+bool evaluateAnd(
+  Object? values, [
+  bool Function(Object?) truthy = coerceDynamicBoolean,
+]) =>
     _logicOperands('and', values).every(truthy);
 
 /// Whether any entry of [values] is truthy by [truthy]. Throws
 /// [A2uiExpressionError] for fewer than two values.
-bool evaluateOr(Object? values, [bool Function(Object?) truthy = isTruthy]) =>
+bool evaluateOr(
+  Object? values, [
+  bool Function(Object?) truthy = coerceDynamicBoolean,
+]) =>
     _logicOperands('or', values).any(truthy);
 
 // ---------------------------------------------------------------------------

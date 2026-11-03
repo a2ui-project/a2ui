@@ -28,7 +28,7 @@ Map<String, BasicFunctionBody> basicFunctionBodiesV0_9({
   final String intlLocale = resolveIntlLocale(locale);
   return basicFunctionBodies(
     validator: (result) => result.valid,
-    truthy: isTruthy,
+    truthy: isTruthyOrValid,
     formatNumber: (value, args) => formatNumber(
       value,
       decimals: args['decimals'],

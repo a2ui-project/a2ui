@@ -117,21 +117,25 @@ describe('Common Basic Functions', () => {
       assert.strictEqual(executeNot(true), false);
       assert.strictEqual(executeNot(false), true);
       assert.strictEqual(executeNot(0), true);
-      assert.strictEqual(executeNot('text'), false);
+      assert.strictEqual(executeNot('text'), true);
+      assert.strictEqual(executeNot('True'), false);
     });
 
-    it('treats a {valid} object as truthy by default', () => {
-      assert.strictEqual(executeNot({valid: false}), false);
-      assert.strictEqual(executeAnd([{valid: false}, {valid: false}]), true);
+    it('coerces a {valid} object by its validity by default', () => {
+      assert.strictEqual(executeNot({valid: false}), true);
+      assert.strictEqual(executeAnd([{valid: false}, {valid: false}]), false);
+      assert.strictEqual(executeAnd([{valid: true}, {valid: true}]), true);
     });
 
-    it('reads a {valid} object by its validity with isTruthyOrValid', () => {
+    it('coerces values with isTruthyOrValid according to DynamicBoolean rules', () => {
       assert.strictEqual(isTruthyOrValid({valid: true}), true);
       assert.strictEqual(isTruthyOrValid({valid: false, message: 'Required'}), false);
-      assert.strictEqual(isTruthyOrValid({valid: 'yes'}), true);
-      assert.strictEqual(isTruthyOrValid({other: 1}), true);
-      assert.strictEqual(isTruthyOrValid([]), true);
+      assert.strictEqual(isTruthyOrValid({valid: 'yes'}), false);
+      assert.strictEqual(isTruthyOrValid({other: 1}), false);
+      assert.strictEqual(isTruthyOrValid([]), false);
       assert.strictEqual(isTruthyOrValid(''), false);
+      assert.strictEqual(isTruthyOrValid('True'), true);
+      assert.strictEqual(isTruthyOrValid('false'), false);
       assert.strictEqual(isTruthyOrValid(null), false);
 
       assert.strictEqual(executeNot({valid: false}, isTruthyOrValid), true);
