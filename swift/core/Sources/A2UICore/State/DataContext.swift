@@ -134,7 +134,17 @@ public final class DataContext {
   ///
   /// Recursively evaluates data bindings (`path` / `@path`), function calls
   /// (`call` / `@call`), arrays, and nested plain objects.
-  public func resolveDynamicValue(_ value: JSONValue) -> JSONValue {
+  public func resolveDynamicValue(_ value: JSONValue, userActivation: Bool? = nil) -> JSONValue {
+    if let userActivation, userActivation != isUserActivated, let handler = functionHandler {
+      return DataContext(
+        dataModel: dataModel,
+        path: path,
+        functionHandler: handler,
+        protocolVersion: protocolVersion,
+        index: index,
+        isUserActivated: userActivation
+      ).resolveDynamicValue(value)
+    }
     switch value {
     case .array(let arr):
       return .array(arr.map { resolveDynamicValue($0) })
@@ -211,6 +221,14 @@ public final class DataContext {
         functionName: callName
       )
       recordFailedCall()
+      return .null
+    }
+
+    guard !function.api.requiresUserActivation || isUserActivated else {
+      functionHandler?.handleFunctionError(
+        FunctionError.userActivationRequired(name: callName),
+        functionName: callName
+      )
       return .null
     }
 
