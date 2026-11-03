@@ -126,7 +126,7 @@ class Case:
     expander_catalog_id: str | None = None
     macro_version: str | None = None
     empty_macros: bool = False
-    to_catalog_version: str | None = None
+    expander_protocol_version: str | None = None
     base_catalogs: Optional[list[str]] = None
     validation_catalogs: Optional[list[str]] = None
     surface_catalogs: Optional[dict[str, Optional[str]]] = None
@@ -178,7 +178,7 @@ def load_cases() -> list[Case]:
             expander_catalog_id=raw.get("expander_catalog_id"),
             macro_version=raw.get("macro_version"),
             empty_macros=raw.get("empty_macros", False),
-            to_catalog_version=raw.get("to_catalog_version"),
+            expander_protocol_version=raw.get("expander_protocol_version"),
             base_catalogs=raw.get("base_catalogs"),
             validation_catalogs=raw.get("validation_catalogs"),
             surface_catalogs=raw.get("surface_catalogs"),
@@ -724,6 +724,7 @@ def get_v1_0_suite_macros() -> list[Any]:
                 children=[
                     builder_v1_0.TextField(
                         label=label,
+                        value=builder_v1_0.DataBinding(path="/form/email"),
                         placeholder=placeholder,
                         checks=list(checks),
                     ),
@@ -917,6 +918,7 @@ def _build_expander(case: Case) -> MacroExpander:
         passthrough_components=case.passthrough_components,
         catalog_id=exp_cid,
         base_catalogs=base_cats,
+        protocol_version=case.expander_protocol_version,
         on_error=case.on_error,
     )
 
@@ -925,7 +927,7 @@ def run_case(case: Case) -> Any:
     """Runs a conformance case through MacroExpander."""
     if case.action == "to_catalog":
         expander = _build_expander(case)
-        return expander.to_catalog(protocol_version=case.to_catalog_version)
+        return expander.to_catalog()
 
     if case.action == "transform_catalog":
         expander = _build_expander(case)

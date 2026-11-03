@@ -15,6 +15,9 @@
           "component": "TextField",
           "id": "root__textfield_1",
           "label": "Work Email",
+          "value": {
+            "@path": "/form/email"
+          },
           "placeholder": {
             "@path": "/form/emailPlaceholder"
           },

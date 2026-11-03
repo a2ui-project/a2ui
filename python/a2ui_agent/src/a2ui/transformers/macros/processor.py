@@ -16,12 +16,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence as AbcSequence
-from enum import Enum
+from collections.abc import Mapping, Sequence as AbcSequence
 import types
 from typing import (
     Any,
-    Literal,
     Sequence,
     Union,
     get_args,
@@ -108,33 +106,18 @@ def _is_check_rule_sequence_type(t: Any) -> bool:
 
 def _is_dict_only_type(t: Any) -> bool:
     t = _unwrap_annotated(t)
+    if t is builder_v1_0.Extensions:
+        return True
     origin = get_origin(t)
     if origin in (Union, types.UnionType):
         non_none = [a for a in get_args(t) if a is not type(None)]
         return bool(non_none) and all(_is_dict_only_type(a) for a in non_none)
-    return t is dict or origin is dict or (isinstance(t, type) and issubclass(t, dict))
-
-
-def _rejects_dict_value(t: Any) -> bool:
-    """Returns True when annotation ``t`` exclusively permits scalar, slot, or sequence values (never a dict)."""
-    t = _unwrap_annotated(t)
-    if t is Any or t is object:
-        return False
-    origin = get_origin(t)
-    if origin in (Union, types.UnionType):
-        non_none = [a for a in get_args(t) if a is not type(None)]
-        return bool(non_none) and all(_rejects_dict_value(a) for a in non_none)
-    if origin is Literal:
-        return all(not isinstance(arg, dict) for arg in get_args(t))
-    if origin in (list, Sequence, AbcSequence, tuple, set) or (
-        isinstance(origin, type) and issubclass(origin, (list, tuple, set, AbcSequence))
-    ):
-        return True
-    if t in (list, Sequence, AbcSequence, tuple, set):
-        return True
-    if _is_single_child_slot_type(t):
-        return True
-    return isinstance(t, type) and issubclass(t, (bool, int, float, str, Enum))
+    return (
+        t in (dict, Mapping)
+        or origin in (dict, Mapping)
+        or (isinstance(t, type) and issubclass(t, Mapping))
+        or (isinstance(origin, type) and issubclass(origin, Mapping))
+    )
 
 
 def _coerce_action(
@@ -208,6 +191,37 @@ def _sequence_element_type(t: Any) -> Any | None:
     return None
 
 
+def _dict_value_type(t: Any) -> Any | None:
+    """Extracts the value type ``V`` from ``dict[str, V]`` / ``Mapping[str, V]`` (or an Optional/Union containing one)."""
+    t = _unwrap_annotated(t)
+    if t is builder_v1_0.Extensions or t in (dict, Mapping):
+        return Any
+    origin = get_origin(t)
+    args = get_args(t)
+    if origin in (Union, types.UnionType):
+        val_types: list[Any] = []
+        for branch in args:
+            if branch is type(None):
+                continue
+            val_t = _dict_value_type(branch)
+            if val_t is not None:
+                if _unwrap_annotated(val_t) is Any:
+                    return Any
+                val_types.append(val_t)
+        if not val_types:
+            return None
+        if len(val_types) == 1:
+            return val_types[0]
+        return Union[tuple(val_types)]
+    if origin in (dict, Mapping) or (
+        isinstance(origin, type) and issubclass(origin, Mapping)
+    ):
+        if len(args) == 2 and _unwrap_annotated(args[0]) is str:
+            return args[1]
+        return Any
+    return None
+
+
 def _structured_model_branches(t: Any) -> list[type[BaseModel]]:
     """Returns non-dedicated Pydantic ``BaseModel`` branches (such as ``TabItem`` or ``IconNameSvgPath``)."""
     t = _unwrap_annotated(t)
@@ -228,16 +242,21 @@ def _structured_model_branches(t: Any) -> list[type[BaseModel]]:
 
 
 def _union_permits_arbitrary_dict(t: Any) -> bool:
-    """Returns True if ``t`` or any of its union branches admits a plain ``dict`` / ``LiteralObject``."""
+    """Returns True if ``t`` or any of its union branches admits a ``dict`` / ``Mapping`` / ``Extensions``."""
     t = _unwrap_annotated(t)
-    if t is Any or t is object:
+    if t is Any or t is object or t is builder_v1_0.Extensions:
         return True
     origin = get_origin(t)
     if origin in (Union, types.UnionType):
         return any(
             _union_permits_arbitrary_dict(b) for b in get_args(t) if b is not type(None)
         )
-    return t is dict or origin is dict or (isinstance(t, type) and issubclass(t, dict))
+    return (
+        t in (dict, Mapping)
+        or origin in (dict, Mapping)
+        or (isinstance(t, type) and issubclass(t, Mapping))
+        or (isinstance(origin, type) and issubclass(origin, Mapping))
+    )
 
 
 def _coerce_base_model(
@@ -412,7 +431,7 @@ def _coerce_value(
     if isinstance(p_val, dict):
         model_branches = _structured_model_branches(raw_t)
         if model_branches and not isinstance(p_val, tuple(model_branches)):
-            last_err: ValidationError | None = None
+            last_err: ValidationError | TypeError | None = None
             for branch_cls in model_branches:
                 try:
                     return _coerce_base_model(
@@ -422,7 +441,7 @@ def _coerce_value(
                         param_name=param_name,
                         macro_name=macro_name,
                     )
-                except ValidationError as err:
+                except (ValidationError, TypeError) as err:
                     last_err = err
             if last_err is not None and not _union_permits_arbitrary_dict(raw_t):
                 raise last_err
@@ -442,7 +461,22 @@ def _coerce_value(
                 for idx, item in enumerate(p_val)
             ]
 
-    if isinstance(p_val, dict) and _rejects_dict_value(raw_t):
+    # 11. Recursively coerce typed string-keyed dictionaries (e.g. dict[str, Child], dict[str, DynamicString])
+    if isinstance(p_val, dict):
+        val_t = _dict_value_type(raw_t)
+        if val_t is not None and _unwrap_annotated(val_t) is not Any:
+            return {
+                k: _coerce_value(
+                    v,
+                    val_t,
+                    use_v1_0=use_v1_0,
+                    param_name=f"{param_name}[{k!r}]",
+                    macro_name=macro_name,
+                )
+                for k, v in p_val.items()
+            }
+
+    if isinstance(p_val, dict) and not _union_permits_arbitrary_dict(raw_t):
         raise TypeError(
             f"Parameter '{param_name}' of macro '{macro_name}' expects {t}, got dict."
         )

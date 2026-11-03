@@ -16,7 +16,7 @@ suite: "a2ui_macros_conformance"
 
 # Protocol-agnostic macro conformance suite covering A2UI v0.9/v0.9.1 and v1.0.
 # Individual cases declare envelope_version (defaulting to "v0.9") and optional
-# macro_version / to_catalog_version overrides.
+# macro_version / expander_protocol_version overrides.
 #
 # Macro definitions specify the signature and declarative builder AST returned
 # by each macro. Runners can inspect these templates to synthesize or verify
@@ -462,6 +462,7 @@ macros:
         children:
           - component: "TextField"
             label: {$param: "label"}
+            value: {"@path": "/form/email"}
             placeholder: {$param: "placeholder"}
             checks: {$param: "checks"}
           - component: "List"
@@ -1285,10 +1286,10 @@ tests:
           component: {const: "StatusBadge"}
 
   - id: "29_to_catalog_v1_0_empty"
-    description: "Exporting an empty MacroExpander with protocol_version 1.0 produces a valid empty v1.0 catalog definition"
+    description: "Exporting an empty MacroExpander configured with protocol_version 1.0 produces a valid empty v1.0 catalog definition"
     action: "to_catalog"
     empty_macros: true
-    to_catalog_version: "1.0"
+    expander_protocol_version: "1.0"
     expect:
       catalog_id: "https://a2ui.org/catalogs/macros"
       protocol_version: "1.0"
@@ -1893,10 +1894,10 @@ tests:
       category: "RecursionError"
 
   - id: "40a_error_export_v0_9_macros_as_v1_0_to_catalog"
-    description: "Exporting v0.9 macros via to_catalog with protocol_version 1.0 raises ValidationError"
+    description: "Constructing a MacroExpander with v0.9 macros and protocol_version 1.0 raises ValidationError"
     action: "to_catalog"
     macro_version: "v0.9"
-    to_catalog_version: "1.0"
+    expander_protocol_version: "1.0"
     expect_error:
       category: "ValidationError"
 

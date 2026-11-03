@@ -18,12 +18,13 @@ Cross-language macro expansion, parameter coercion, schema synthesis, catalog
 scoping, and error semantics are covered by ``conformance/agent/macros/macros.yaml``.
 """
 
+from collections.abc import Mapping
 import copy
 from enum import Enum
 import logging
 from typing import Annotated, Any, Literal, Optional, Sequence
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 import pytest
 
 from a2ui.builder import v1_0 as builder_v1_0
@@ -724,7 +725,9 @@ def test_python_version_detection_mixing_and_decorator_name_validation(caplog):
         return title
 
     with pytest.raises(A2uiValidationError, match="reserved"):
-        MacroExpander([NeutralSurface]).to_catalog(protocol_version="1.0")
+        MacroExpander([NeutralSurface], protocol_version="1.0")
+    with pytest.raises(A2uiValidationError, match="reserved"):
+        MacroExpander([NeutralSurface], base_catalogs=[v10_base])
 
     # Caller frame variable must not leak into enclosing @macro annotation resolution
     CallerFrameShadowType = int  # noqa: F841
@@ -1443,3 +1446,469 @@ def test_macro_edge_cases_parameters_name_any_dict_and_single_root():
                 ),
             ),
         ])
+
+
+def test_v10_unannotated_primitives_across_third_and_macro_default_surfaces():
+    basic_cid = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    brand_cid = "https://example.com/brand.json"
+    theme_cid = "https://example.com/theme.json"
+    charts_cid = "https://example.com/charts.json"
+
+    basic_cat = Catalog.from_json(
+        catalog_schema=BasicCatalog("1.0").validation_schema,
+        protocol_version="1.0",
+        catalog_id=basic_cid,
+    )
+    brand_cat = Catalog.from_json(
+        catalog_schema={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "protocolVersion": "1.0",
+            "catalogId": brand_cid,
+            "components": {
+                "BrandBox": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "BrandBox"},
+                        "id": {"type": "string"},
+                        "child": {
+                            "$ref": (
+                                "https://a2ui.org/specification/v1_0/json/"
+                                "common_types.json#/$defs/Child"
+                            )
+                        },
+                    },
+                    "required": ["component", "id", "child"],
+                }
+            },
+            "$defs": {
+                "anyComponent": {
+                    "oneOf": [{"$ref": "#/components/BrandBox"}],
+                    "discriminator": {"propertyName": "component"},
+                },
+                "anyFunction": {"not": {}},
+            },
+        },
+        protocol_version="1.0",
+        catalog_id=brand_cid,
+    )
+    theme_cat = Catalog.from_json(
+        catalog_schema={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "protocolVersion": "1.0",
+            "catalogId": theme_cid,
+            "components": {
+                "ThemeShell": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "ThemeShell"},
+                        "id": {"type": "string"},
+                        "child": {
+                            "$ref": (
+                                "https://a2ui.org/specification/v1_0/json/"
+                                "common_types.json#/$defs/Child"
+                            )
+                        },
+                    },
+                    "required": ["component", "id", "child"],
+                }
+            },
+            "$defs": {
+                "anyComponent": {
+                    "oneOf": [{"$ref": "#/components/ThemeShell"}],
+                    "discriminator": {"propertyName": "component"},
+                },
+                "anyFunction": {"not": {}},
+            },
+        },
+        protocol_version="1.0",
+        catalog_id=theme_cid,
+    )
+    charts_cat = Catalog.from_json(
+        catalog_schema={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "protocolVersion": "1.0",
+            "catalogId": charts_cid,
+            "components": {
+                "SparkChart": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "SparkChart"},
+                        "id": {"type": "string"},
+                        "series": {"type": "string"},
+                    },
+                    "required": ["component", "id", "series"],
+                }
+            },
+            "$defs": {
+                "anyComponent": {
+                    "oneOf": [{"$ref": "#/components/SparkChart"}],
+                    "discriminator": {"propertyName": "component"},
+                },
+                "anyFunction": {"not": {}},
+            },
+        },
+        protocol_version="1.0",
+        catalog_id=charts_cid,
+    )
+
+    class BrandBox(builder_v1_0.ComponentBuilderNode):
+        component: Literal["BrandBox"] = "BrandBox"
+        child: builder_v1_0.Child
+
+    class InnerBadgeScopedNode(builder_v1_0.ComponentBuilderNode):
+        component: Literal["InnerBadgeScoped"] = "InnerBadgeScoped"
+        label: str
+
+    @macro(name="Text")
+    def BrandText(text: str, variant: str = "body") -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            child=BrandBox(
+                child=builder_v1_0.Text(
+                    text=f"[Brand] {text}",
+                    variant=variant,  # type: ignore[arg-type]
+                )
+            )
+        )
+
+    @macro
+    def InnerBadgeScoped(label: str) -> BrandBox:
+        return BrandBox(
+            child=builder_v1_0.Text(text=f"Scoped Badge: {label}", variant="caption")
+        )
+
+    @macro
+    def OuterPanelScoped(title: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            child=builder_v1_0.Column(
+                children=[
+                    builder_v1_0.Text(text=title, variant="body"),
+                    InnerBadgeScopedNode(label=title, catalog_id=brand_cid),
+                ]
+            )
+        )
+
+    @macro
+    def UnannotatedBrandCard(title: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(child=BrandBox(child=builder_v1_0.Text(text=title)))
+
+    scoped_exp = MacroExpander(
+        [BrandText, InnerBadgeScoped, OuterPanelScoped, UnannotatedBrandCard],
+        catalog_id=brand_cid,
+        on_error="raise",
+    )
+    inf_cats = scoped_exp.transform_catalogs([basic_cat, brand_cat, theme_cat])
+    assert len(inf_cats) == 3
+
+    mp = MessageProcessor(
+        [basic_cat, brand_cat, theme_cat],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+
+    # 1. Third-catalog default surface (s_theme): unannotated primitives do not recurse
+    lowered_theme = scoped_exp.transform_to_transport([
+        CreateSurfaceMessageV10(
+            version="1.0",
+            createSurface=CreateSurfaceV10(surfaceId="s_theme", catalogId=theme_cid),
+        ),
+        UpdateComponentsMessageV10(
+            version="1.0",
+            updateComponents=UpdateComponentsV10(
+                surfaceId="s_theme",
+                components=[{
+                    "id": "root",
+                    "component": "OuterPanelScoped",
+                    "catalogId": brand_cid,
+                    "title": "ThemeTitle",
+                }],
+            ),
+        ),
+    ])
+    theme_comps = lowered_theme[1].update_components.components
+    assert [c["component"] for c in theme_comps] == [
+        "Text",
+        "Text",
+        "BrandBox",
+        "Column",
+        "Card",
+    ]
+    assert not any(str(c.get("text", "")).startswith("[Brand]") for c in theme_comps)
+    mp.process_messages(
+        [m.model_dump(by_alias=True, exclude_none=True) for m in lowered_theme]
+    )
+
+    # 2. Macro-catalog default surface (s_brand): top-level BrandText and UnannotatedBrandCard expand cleanly
+    lowered_brand = scoped_exp.transform_to_transport([
+        CreateSurfaceMessageV10(
+            version="1.0",
+            createSurface=CreateSurfaceV10(surfaceId="s_brand", catalogId=brand_cid),
+        ),
+        UpdateComponentsMessageV10(
+            version="1.0",
+            updateComponents=UpdateComponentsV10(
+                surfaceId="s_brand",
+                components=[
+                    {
+                        "id": "root",
+                        "component": "Column",
+                        "catalogId": basic_cid,
+                        "children": ["t1", "c1"],
+                    },
+                    {
+                        "id": "t1",
+                        "component": "Text",
+                        "text": "BrandDefault",
+                    },
+                    {
+                        "id": "c1",
+                        "component": "UnannotatedBrandCard",
+                        "title": "UnannotatedCard",
+                    },
+                ],
+            ),
+        ),
+    ])
+    brand_by_id = {c["id"]: c for c in lowered_brand[1].update_components.components}
+    assert brand_by_id["t1"]["component"] == "Card"
+    assert brand_by_id["t1"]["catalogId"] == basic_cid
+    assert brand_by_id["t1__text_1"]["text"] == "[Brand] BrandDefault"
+    assert brand_by_id["c1"]["component"] == "Card"
+    mp.process_messages(
+        [m.model_dump(by_alias=True, exclude_none=True) for m in lowered_brand]
+    )
+
+    # 3. Unscoped sidecar macro catalog on non-basic default surface (s_charts)
+    class InnerSidecarNode(builder_v1_0.ComponentBuilderNode):
+        component: Literal["InnerSidecar"] = "InnerSidecar"
+        label: str
+
+    @macro
+    def InnerSidecar(label: str) -> builder_v1_0.Text:
+        return builder_v1_0.Text(text=f"Sidecar: {label}")
+
+    @macro
+    def OuterSidecar(title: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            child=builder_v1_0.Column(
+                children=[
+                    builder_v1_0.Text(text=title),
+                    InnerSidecarNode(label=title),
+                ]
+            )
+        )
+
+    @macro(name="Text")
+    def SidecarText(text: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(child=builder_v1_0.Text(text=f"[Sidecar] {text}"))
+
+    sidecar_exp = MacroExpander(
+        [SidecarText, InnerSidecar, OuterSidecar],
+        on_error="raise",
+    )
+    sidecar_inf = sidecar_exp.transform_catalogs([basic_cat, charts_cat])
+    assert len(sidecar_inf) == 3
+
+    lowered_charts = sidecar_exp.transform_to_transport([
+        CreateSurfaceMessageV10(
+            version="1.0",
+            createSurface=CreateSurfaceV10(surfaceId="s_charts", catalogId=charts_cid),
+        ),
+        UpdateComponentsMessageV10(
+            version="1.0",
+            updateComponents=UpdateComponentsV10(
+                surfaceId="s_charts",
+                components=[{
+                    "id": "root",
+                    "component": "OuterSidecar",
+                    "catalogId": sidecar_exp.macro_catalog_id,
+                    "title": "Revenue",
+                }],
+            ),
+        ),
+    ])
+    charts_comps = lowered_charts[1].update_components.components
+    assert [c["component"] for c in charts_comps] == ["Text", "Text", "Column", "Card"]
+    assert all(c["catalogId"] == basic_cid for c in charts_comps)
+    mp_charts = MessageProcessor(
+        [basic_cat, charts_cat],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+    mp_charts.process_messages(
+        [m.model_dump(by_alias=True, exclude_none=True) for m in lowered_charts]
+    )
+
+    # 4. Bare scoped same-name macro without base_catalogs expands cleanly at depth 0
+    bare_scoped = MacroExpander([SidecarText], catalog_id=brand_cid, on_error="raise")
+    lowered_bare = bare_scoped.transform_to_transport([
+        UpdateComponentsMessageV10(
+            version="1.0",
+            updateComponents=UpdateComponentsV10(
+                surfaceId="s_bare",
+                components=[{
+                    "id": "root",
+                    "component": "Text",
+                    "catalogId": brand_cid,
+                    "text": "NoBaseCatalogs",
+                }],
+            ),
+        )
+    ])
+    assert [c["component"] for c in lowered_bare[0].update_components.components] == [
+        "Text",
+        "Card",
+    ]
+
+
+def test_v10_extensions_schema_and_coercion():
+    class ExtSubModel(BaseModel):
+        title: str
+        ext: builder_v1_0.Extensions | None = None
+
+    @macro
+    def ExtCard(
+        ext: Annotated[
+            builder_v1_0.Extensions | None, Field(description="Optional extension map")
+        ] = None,
+        nested: ExtSubModel | None = None,
+    ) -> builder_v1_0.Card:
+        label = "none"
+        if ext and "ns" in ext:
+            label = str(ext["ns"])
+        elif nested and nested.ext and "ns" in nested.ext:
+            label = f"{nested.title}:{nested.ext['ns']}"
+        return builder_v1_0.Card(
+            child=builder_v1_0.Text(text=label),
+            extensions=ext,
+        )
+
+    assert ExtCard.__a2ui_macro__.target_version == "1.0"
+
+    @macro
+    def ExtensionsOnlyMacro(ext: builder_v1_0.Extensions):
+        return builder_v1_0.Card(child=builder_v1_0.Text(text="ext"), extensions=ext)
+
+    assert ExtensionsOnlyMacro.__a2ui_macro__.target_version == "1.0"
+    exp = MacroExpander([ExtCard, ExtensionsOnlyMacro], on_error="raise")
+    cat = exp.to_catalog()
+    assert cat.protocol_version == "1.0"
+    props = cat.to_json()["components"]["ExtCard"]["properties"]
+    assert props["ext"] == {
+        "$ref": "common_types.json#/$defs/Extensions",
+        "description": "Optional extension map",
+    }
+    assert props["nested"]["properties"]["ext"] == {
+        "$ref": "common_types.json#/$defs/Extensions"
+    }
+    val_props = cat.validation_schema["components"]["ExtCard"]["properties"]
+    assert val_props["ext"]["$ref"] == "#/$defs/Extensions"
+    assert "Extensions" in cat.validation_schema["$defs"]
+
+    raw_ext = {"ns": {"@path": "/uncoerced_in_extension"}}
+    out = exp.processor.expand(
+        "ExtCard",
+        {"ext": raw_ext},
+        instance_id="e1",
+        protocol_version="1.0",
+    )
+    assert out[-1]["metadata"]["extensions"] == raw_ext
+
+    out_nested = exp.processor.expand(
+        "ExtCard",
+        {"nested": {"title": "Sub", "ext": {"ns": {"flag": True}}}},
+        instance_id="e2",
+        protocol_version="1.0",
+    )
+    assert out_nested[0]["text"] == "Sub:{'flag': True}"
+
+
+def test_v10_union_branch_type_error_fallback_and_typed_dict_coercion():
+    class ScalarBranch(BaseModel):
+        payload: int
+
+    class DictBranch(BaseModel):
+        payload: dict[str, builder_v1_0.DynamicString]
+
+    @macro
+    def UnionAndDictMacro(
+        choice: ScalarBranch | DictBranch,
+        fallback_tab: builder_v1_0.TabItem | dict[str, Any],
+        slots: dict[str, builder_v1_0.Child],
+        labels: dict[str, builder_v1_0.DynamicString],
+        actions: Mapping[str, builder_v1_0.Action],
+        tabs: dict[str, builder_v1_0.TabItem],
+    ) -> builder_v1_0.Card:
+        assert isinstance(choice, DictBranch)
+        assert isinstance(choice.payload["headline"], builder_v1_0.DataBinding)
+        assert isinstance(slots["primary"], builder_v1_0.ComponentRef)
+        assert labels["static"] == "Ready"
+        assert isinstance(labels["bound"], builder_v1_0.DataBinding)
+        assert isinstance(actions["go"], builder_v1_0.Action)
+        assert actions["go"].event is not None
+        assert actions["go"].event.name == "submit"
+        assert isinstance(tabs["main"], builder_v1_0.TabItem)
+        assert isinstance(tabs["main"].child, builder_v1_0.ComponentRef)
+        return builder_v1_0.Card(
+            child=builder_v1_0.Column(
+                children=[
+                    slots["primary"],
+                    tabs["main"].child,
+                    builder_v1_0.Text(
+                        text=choice.payload["headline"],
+                    ),
+                    builder_v1_0.Text(
+                        text=str(type(fallback_tab).__name__),
+                    ),
+                ]
+            )
+        )
+
+    exp = MacroExpander([UnionAndDictMacro], on_error="raise")
+    cat_props = exp.to_catalog().to_json()["components"]["UnionAndDictMacro"][
+        "properties"
+    ]
+    assert cat_props["actions"] == {
+        "type": "object",
+        "additionalProperties": {
+            "$ref": "common_types.json#/$defs/Action",
+        },
+    }
+
+    # ScalarBranch.payload raises TypeError on a dict; DictBranch succeeds cleanly
+    expanded = exp.processor.expand(
+        "UnionAndDictMacro",
+        {
+            "choice": {"payload": {"headline": {"@path": "/headline"}}},
+            "fallback_tab": {"title": {"not_a_string": 1}, "custom": True},
+            "slots": {"primary": "ext_slot_1"},
+            "labels": {"static": "Ready", "bound": {"@path": "/status"}},
+            "actions": {"go": "submit"},
+            "tabs": {"main": {"title": "Overview", "child": "ext_tab_body"}},
+        },
+        instance_id="u1",
+        protocol_version="1.0",
+    )
+    assert expanded[0]["text"] == {"@path": "/headline"}
+    assert expanded[1]["text"] == "dict"
+
+    # Invalid / wrong-version dicts passed to DataBinding, FunctionCall, or DynamicString raise TypeError
+    @macro
+    def StrictDynamicMacro(
+        label: builder_v1_0.DynamicString,
+        binding: builder_v1_0.DataBinding | None = None,
+        fn_call: builder_v1_0.FunctionCall | None = None,
+    ) -> builder_v1_0.Text:
+        return builder_v1_0.Text(text=label)
+
+    strict_exp = MacroExpander([StrictDynamicMacro], on_error="raise")
+    for bad_args in (
+        {"label": {"foo": "bar"}},
+        {"label": {"path": "/v09_style_binding"}},
+        {"label": "ok", "binding": {"path": "/v09_style_binding"}},
+        {"label": "ok", "fn_call": {"call": "v09_style_call"}},
+    ):
+        with pytest.raises(TypeError, match="got dict"):
+            strict_exp.processor.expand(
+                "StrictDynamicMacro",
+                bad_args,
+                instance_id="s1",
+                protocol_version="1.0",
+            )

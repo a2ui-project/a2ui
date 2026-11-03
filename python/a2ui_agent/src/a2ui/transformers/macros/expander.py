@@ -262,7 +262,7 @@ class MacroExpander:
         surface defaults automatically:
         - In v0.9, augments the sole catalog in place via ``transform_to_inference_catalog``.
         - In v1.0, optionally prunes base catalog components via ``passthrough_components``
-          and appends ``to_catalog("1.0")`` as a sidecar catalog (or augments in place when
+          and appends ``to_catalog()`` as a sidecar catalog (or augments in place when
           ``self.catalog_id`` matches one of ``catalogs``).
         """
         for catalog in catalogs:
@@ -289,7 +289,7 @@ class MacroExpander:
                 else:
                     out.append(c)
             if not has_matching_catalog_id and self.macros:
-                out.append(self.to_catalog(protocol_version="1.0"))
+                out.append(self.to_catalog())
             return out
 
         if len(catalogs) != 1:
@@ -409,37 +409,18 @@ class MacroExpander:
             catalog_id=base_catalog.catalog_id,
         )
 
-    def to_catalog(
-        self,
-        protocol_version: str | ProtocolVersion | None = None,
-    ) -> CatalogApi:
+    def to_catalog(self) -> CatalogApi:
         """Exports a standalone Catalog containing exclusively the macro component schemas.
 
-        Args:
-            protocol_version: Optional protocol version for the exported catalog.
-                If omitted, uses the expander's configured version (from
-                ``protocol_version=``, ``base_catalogs=``, or ``transform_catalogs``)
-                or infers ``"1.0"`` when registered macros target ``a2ui.builder.v1_0``,
-                defaulting to ``"0.9.1"`` otherwise. Standalone v1.0 macros that use
-                only version-neutral annotations (such as ``Child``) without
-                ``base_catalogs`` should pass ``protocol_version="1.0"``.
+        Infers the catalog's protocol version from the expander's configured
+        ``protocol_version``, registered ``base_catalogs``, or v1.0 macro
+        annotations, defaulting to ``"0.9.1"`` otherwise.
 
         Returns:
             A Catalog instance ready to be used by inference formats and prompt generators.
         """
         # catalog_definition.json writes the version without the leading "v".
-        if protocol_version is not None:
-            version = to_version_number(protocol_version)
-            requested_family = _normalize_version_family(version)
-            if (
-                self._target_family is not None
-                and self._target_family != requested_family
-            ):
-                raise _MacroProtocolError(
-                    f"Cannot export v{self._target_family} macros as a v{version}"
-                    " catalog."
-                )
-        elif self._explicit_protocol_version is not None:
+        if self._explicit_protocol_version is not None:
             version = self._explicit_protocol_version
         elif self._target_family == "1.0":
             version = to_version_number(ProtocolVersion.V1_0)

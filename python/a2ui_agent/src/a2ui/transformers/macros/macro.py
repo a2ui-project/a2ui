@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence as AbcSequence
+from collections.abc import Callable, Mapping, Sequence as AbcSequence
 from dataclasses import dataclass, field
 from enum import Enum
 import inspect
@@ -198,6 +198,8 @@ def _validate_v1_0_macro_name(name: str) -> None:
 
 def _type_version_family(t: Any) -> MacroVersionFamily | None:
     """Returns the A2UI builder protocol family for a type object, if any."""
+    if t is builder_v1_0.Extensions:
+        return "1.0"
     if not isinstance(t, type):
         return None
     if issubclass(t, builder_v1_0.ComponentBuilderNode) or issubclass(
@@ -602,6 +604,11 @@ def _map_type_hint_to_schema(
         if param_desc:
             schema["description"] = param_desc
         return schema
+    if t is builder_v1_0.Extensions:
+        schema = {"$ref": f"{ref_prefix}Extensions"}
+        if param_desc:
+            schema["description"] = param_desc
+        return schema
     if _is_child_list_slot_type(t):
         schema = {"$ref": f"{ref_prefix}ChildList"}
         if param_desc:
@@ -699,10 +706,18 @@ def _map_type_hint_to_schema(
             schema["description"] = param_desc
         return schema
 
-    if t is dict or origin is dict or (isinstance(t, type) and issubclass(t, dict)):
+    if (
+        t in (dict, Mapping)
+        or origin in (dict, Mapping)
+        or (isinstance(t, type) and issubclass(t, Mapping))
+        or (isinstance(origin, type) and issubclass(origin, Mapping))
+    ):
         schema = {"type": "object"}
         if (
-            origin is dict
+            (
+                origin in (dict, Mapping)
+                or (isinstance(origin, type) and issubclass(origin, Mapping))
+            )
             and len(args) == 2
             and _unwrap_annotated(args[0]) is str
             and _unwrap_annotated(args[1]) is not Any
@@ -716,6 +731,15 @@ def _map_type_hint_to_schema(
         if param_desc:
             schema["description"] = param_desc
         return schema
+
+    if type(t).__name__ == "TypeAliasType" and hasattr(t, "__value__"):
+        return _map_type_hint_to_schema(
+            t.__value__,
+            param_desc,
+            ref_prefix=ref_prefix,
+            use_v1_0=use_v1_0,
+            _seen=_seen,
+        )
 
     schema = {"type": "string"}
     if param_desc:
