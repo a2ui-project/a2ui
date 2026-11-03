@@ -15,19 +15,19 @@ This roadmap outlines the current state and future plans for the A2UI project. T
 
 ### Renderers
 
-| Client libraries                                           | Status      | Platform             | Notes                                                               |
-| ---------------------------------------------------------- | ----------- | -------------------- | ------------------------------------------------------------------- |
-| **Web Core Lib**                                           | ✅ Stable   | Web                  | Shared core lib for all web renderers                               |
-| **Web Components (Lit)**                                   | ✅ Stable   | Web                  | Framework-agnostic, works anywhere                                  |
-| **Angular**                                                | ✅ Stable   | Web                  | Full Angular integration                                            |
-| **Flutter (GenUI SDK)**                                    | ✅ Stable   | Multi-platform       | Works on mobile, web, desktop                                       |
-| **React**                                                  | ✅ Stable   | Web                  | Official React renderer                                             |
-| [**Lynx**](https://lynxjs.org/next/react/genui/a2ui.html)  | ✅ Stable   | Mobile, Web, Desktop | ReactLynx renderer for A2UI v0.9                                    |
-| **SwiftUI**                                                | ✅ Alpha    | iOS/macOS            | v0.9, v0.9.1 and v1.0, see [code](../../swift/swiftui)              |
-| **Jetpack Compose**                                        | 📋 Planned  | Android              | Planned for Q2 2026                                                 |
-| **Vue**                                                    | 💡 Proposed | Web                  | Community interest                                                  |
-| [**Svelte/Kit**](https://svelte.dev/docs/kit/introduction) | 💡 Proposed | Web                  | [Community interest](https://news.ycombinator.com/item?id=46287728) |
-| **ShadCN (React)**                                         | 💡 Proposed | Web                  | Community interest                                                  |
+| Client libraries                                           | Status      | Platform             | Notes                                                                                    |
+| ---------------------------------------------------------- | ----------- | -------------------- | ---------------------------------------------------------------------------------------- |
+| **Web Core Lib**                                           | ✅ Stable   | Web                  | Shared core lib for all web renderers                                                    |
+| **Web Components (Lit)**                                   | ✅ Stable   | Web                  | Framework-agnostic, works anywhere                                                       |
+| **Angular**                                                | ✅ Stable   | Web                  | Full Angular integration                                                                 |
+| **Flutter (GenUI SDK)**                                    | ✅ Stable   | Multi-platform       | Works on mobile, web, desktop                                                            |
+| **React**                                                  | ✅ Stable   | Web                  | Official React renderer                                                                  |
+| [**Lynx**](https://lynxjs.org/next/react/genui/a2ui.html)  | ✅ Stable   | Mobile, Web, Desktop | ReactLynx renderer for A2UI v0.9                                                         |
+| **SwiftUI**                                                | ✅ Alpha    | iOS/macOS            | v0.9, v0.9.1 and v1.0, see [code](../../swift/swiftui)                                   |
+| **Jetpack Compose**                                        | ✅ Alpha    | Android              | v0.9.1 in androidx, see [docs](https://developer.android.com/develop/ui/compose/agentic) |
+| **Vue**                                                    | 💡 Proposed | Web                  | Community interest                                                                       |
+| [**Svelte/Kit**](https://svelte.dev/docs/kit/introduction) | 💡 Proposed | Web                  | [Community interest](https://news.ycombinator.com/item?id=46287728)                      |
+| **ShadCN (React)**                                         | 💡 Proposed | Web                  | Community interest                                                                       |
 
 ### Transports
 

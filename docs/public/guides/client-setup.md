@@ -4,13 +4,13 @@ Integrate A2UI into your application using the renderer for your platform.
 
 ## Renderers
 
-| Renderer                                                      | Platform           | v0.8 | v0.9 | Status             |
-| ------------------------------------------------------------- | ------------------ | ---- | ---- | ------------------ |
-| **[React](../../../typescript/renderers/react)**              | Web                | ✅   | ✅   | ✅ Stable          |
-| **[Lit (Web Components)](../../../typescript/renderers/lit)** | Web                | ✅   | ✅   | ✅ Stable          |
-| **[Angular](../../../typescript/renderers/angular)**          | Web                | ✅   | ✅   | ✅ Stable          |
-| **[Flutter (GenUI SDK)](https://docs.flutter.dev/ai/genui)**  | Mobile/Desktop/Web | ✅   | ✅   | ✅ Stable          |
-| **Jetpack Compose**                                           | Android            | —    | —    | 🚧 Planned Q2 2026 |
+| Renderer                                                                        | Platform           | v0.8 | v0.9 | Status    |
+| ------------------------------------------------------------------------------- | ------------------ | ---- | ---- | --------- |
+| **[React](../../../typescript/renderers/react)**                                | Web                | ✅   | ✅   | ✅ Stable |
+| **[Lit (Web Components)](../../../typescript/renderers/lit)**                   | Web                | ✅   | ✅   | ✅ Stable |
+| **[Angular](../../../typescript/renderers/angular)**                            | Web                | ✅   | ✅   | ✅ Stable |
+| **[Flutter (GenUI SDK)](https://docs.flutter.dev/ai/genui)**                    | Mobile/Desktop/Web | ✅   | ✅   | ✅ Stable |
+| **[Jetpack Compose](https://developer.android.com/develop/ui/compose/agentic)** | Android            | —    | ✅   | 🧪 Alpha  |
 
 For more see all [A2UI Renderers](../reference/renderers.md) and [Community A2UI Renderers](../ecosystem/renderers.md).
 
@@ -131,10 +131,14 @@ The React renderer provides:
 ## Flutter (GenUI SDK)
 
 ```bash
-flutter pub add flutter_genui
+# GenUI SDK (built on a2ui_core), plus the connector for a remote A2A agent
+flutter pub add genui genui_a2a
 ```
 
-Flutter uses the GenUI SDK which provides native A2UI rendering.
+Flutter uses the GenUI SDK (`genui`), which renders A2UI natively: GenUI **is** A2UI on Flutter.
+Use `genui_a2a` when your agent runs remotely over A2A; for calling an LLM directly from the app,
+`genui` alone is enough. The older `flutter_genui` and `genui_a2ui` packages are discontinued.
+A lower-level Flutter adapter, [`a2ui_flutter`](https://pub.dev/packages/a2ui_flutter), is in early alpha.
 
 **Docs:** [GenUI SDK](https://docs.flutter.dev/ai/genui) | [GitHub](https://github.com/flutter/genui) | [README in GenUI Flutter Package](https://github.com/flutter/genui/blob/main/packages/genui/README.md#getting-started-with-genui)
 
