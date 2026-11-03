@@ -1,5 +1,12 @@
 ## Unreleased
 
+- Add `get_a2ui_messages`, which returns the A2UI messages in an A2A message's
+  A2UI parts, and `create_a2ui_parts`, which wraps A2UI messages, such as the
+  replies that `RendererMessageRouter.dispatch` returns, as A2UI parts.
+  Models are serialized with `model_dump(by_alias=True, exclude_unset=True)`,
+  so an `agentFunctionResponse` keeps a `value` of `None`.
+  [#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
 - `create_a2ui_part` labels a part with the message's own `version` field when
   no `version` is passed, so a v0.9.1 or v1.0 message gets the current A2UI MIME
   type. [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
