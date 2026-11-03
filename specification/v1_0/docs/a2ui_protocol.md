@@ -1354,7 +1354,7 @@ Before any matching, the renderer applies a static safety check and rejects the 
 
 1. It is longer than 256 code points.
 2. A quantifier whose upper bound is above 1 applies to a subexpression that contains an unbounded quantifier (`*`, `+`, `{n,}`).
-3. An unbounded quantifier applies to an alternation two of whose branches can start with the same character.
+3. An unbounded quantifier applies to an alternation where two branches can start with the same character.
 4. Two unbounded-quantified atoms with overlapping character sets are adjacent in one concatenation, where only zero-width assertions or items that can match the empty string lie between them.
 
 `?` and `{0,1}` count as upper bound 1. Counted bounds such as `{1,1000}` are bounded. A group whose only content is one quantified atom counts as that atom. Rule 3 compares the first-character sets of the branches after unwrapping groups.
