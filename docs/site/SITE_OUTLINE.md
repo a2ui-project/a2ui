@@ -94,7 +94,7 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 
 1. **Hero: Give your agents UI on every surface**
     - Headline & value proposition: Chat is a great input, but walls of prose are a poor output. Give your agents stateful, interactive UI across mobile, desktop, and web.
-    - Interactive visual aid contrasting raw LLM prose against a stateful A2UI surface bound to `dataModel`.
+    - Interactive visual aid (`HeroChatGeneration.astro`) showing an agent incrementally streaming declarative UI (Express DSL or v1.0 JSON) into a mobile chat thread over ~5 seconds, mounting a stateful native surface bound two-way to `dataModel`.
 2. **The Generative UI Spectrum**
     - Interactive spectrum explorer showing how one A2UI environment spans:
         1. **Fully Controlled**: Deterministic server-driven UI & fixed schemas.

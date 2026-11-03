@@ -14,6 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import HeroChatGeneration from '../components/HeroChatGeneration.astro';
+
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 <!doctype html>
@@ -64,8 +66,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         --blue-soft: rgba(56, 189, 248, 0.14);
         --amber: #fbbf24;
         --amber-soft: rgba(251, 191, 36, 0.14);
-        --danger: #f87171;
-        --danger-soft: rgba(248, 113, 113, 0.12);
         --success: #34d399;
         --success-soft: rgba(52, 211, 153, 0.14);
         --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
@@ -96,8 +96,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         --blue-soft: rgba(2, 132, 199, 0.1);
         --amber: #d97706;
         --amber-soft: rgba(217, 119, 6, 0.1);
-        --danger: #dc2626;
-        --danger-soft: rgba(220, 38, 38, 0.08);
         --success: #059669;
         --success-soft: rgba(5, 150, 105, 0.12);
         --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
@@ -351,78 +349,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         margin-right: auto;
       }
 
-      /* --- Workbench (Prose vs Interactive Surface) --- */
-      .a2-workbench {
-        background: var(--surface);
-        border: 1px solid var(--border-strong);
-        border-radius: 12px;
-        box-shadow: var(--shadow-lg);
-        overflow: hidden;
-      }
-
-      .a2-workbench__promptbar {
-        background: var(--code-header);
-        color: #f8fafc;
-        padding: 14px 20px;
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      }
-
-      .a2-prompt-tag {
-        font-family: var(--font-mono);
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        padding: 3px 8px;
-        border-radius: 4px;
-        background: rgba(20, 184, 166, 0.22);
-        color: #5eead4;
-      }
-
-      .a2-workbench__split {
-        display: grid;
-        grid-template-columns: 1fr 1.18fr;
-      }
-
-      @media (max-width: 960px) {
-        .a2-workbench__split {
-          grid-template-columns: 1fr;
-        }
-      }
-
-      .a2-pane {
-        padding: 24px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-      }
-
-      .a2-pane--prose {
-        background: var(--surface-subtle);
-        border-right: 1px solid var(--border);
-      }
-
-      .a2-pane__header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 16px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .a2-pane__title {
-        font-size: 12.5px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--text-muted);
-      }
-
+      /* --- Shared Status & Flight Badges --- */
       .a2-status-tag {
         font-family: var(--font-mono);
         font-size: 11px;
@@ -431,62 +358,9 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         border-radius: 4px;
       }
 
-      .a2-status-tag--bad {
-        background: var(--danger-soft);
-        color: var(--danger);
-      }
-
       .a2-status-tag--good {
         background: var(--success-soft);
         color: var(--success);
-      }
-
-      .a2-prose-bubble {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 16px 18px;
-        font-size: 13.5px;
-        line-height: 1.65;
-        color: var(--text-secondary);
-      }
-
-      .a2-prose-bubble p {
-        margin: 0 0 10px 0;
-      }
-
-      .a2-prose-bubble p:last-child {
-        margin-bottom: 0;
-      }
-
-      .a2-prose-highlight {
-        background: var(--danger-soft);
-        color: var(--danger);
-        padding: 1px 5px;
-        border-radius: 3px;
-        font-weight: 600;
-      }
-
-      .a2-travel-card {
-        background: var(--surface-raised);
-        border: 1px solid var(--border-strong);
-        border-radius: 10px;
-        padding: 18px;
-      }
-
-      .a2-flight-leg {
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 12px 14px;
-        margin-bottom: 10px;
-        background: var(--surface-subtle);
-      }
-
-      .a2-flight-leg__top {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 8px;
       }
 
       .a2-flight-badge {
@@ -497,77 +371,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         border-radius: 4px;
         background: var(--blue-soft);
         color: var(--blue);
-      }
-
-      .a2-flight-leg__controls {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding-top: 8px;
-        border-top: 1px dashed var(--border);
-      }
-
-      .a2-stepper {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        background: var(--surface);
-        border: 1px solid var(--border-strong);
-        border-radius: 6px;
-        padding: 3px 6px;
-      }
-
-      .a2-stepper__btn {
-        width: 24px;
-        height: 24px;
-        border-radius: 4px;
-        border: 1px solid var(--border);
-        background: var(--bg-alt);
-        color: var(--text);
-        font-weight: 700;
-        cursor: pointer;
-      }
-
-      .a2-stepper__label {
-        font-size: 13px;
-        font-weight: 600;
-        min-width: 90px;
-        text-align: center;
-      }
-
-      .a2-chip-toggle {
-        font-size: 12.5px;
-        font-weight: 600;
-        padding: 5px 11px;
-        border-radius: 6px;
-        border: 1px solid var(--border-strong);
-        background: var(--surface);
-        color: var(--text-secondary);
-        cursor: pointer;
-      }
-
-      .a2-chip-toggle.is-active {
-        background: var(--accent-soft);
-        border-color: var(--accent);
-        color: var(--accent-strong);
-      }
-
-      .a2-datamodel-bar {
-        margin-top: 12px;
-        background: var(--code-bg);
-        color: #94a3b8;
-        border-radius: 6px;
-        padding: 8px 12px;
-        font-family: var(--font-mono);
-        font-size: 11.5px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-      }
-
-      .a2-datamodel-bar code {
-        color: #5eead4;
       }
 
       /* --- Section 2: Generative UI Spectrum --- */
@@ -1320,112 +1123,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
             </div>
           </div>
 
-          <!-- Interactive Wall of Prose vs. Stateful A2UI Surface -->
-          <div class="a2-workbench" id="hero-workbench">
-            <div class="a2-workbench__promptbar">
-              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <span class="a2-prompt-tag">User Prompt</span>
-                <span style="font-size: 14px;">“Book a flight from Berlin to San Francisco on Oct 12, and two tickets back on Oct 19.”</span>
-              </div>
-              <span class="a2-code-window__badge">Click the steppers &amp; options on the right →</span>
-            </div>
-
-            <div class="a2-workbench__split">
-              <!-- Left: Wall of Text -->
-              <div class="a2-pane a2-pane--prose">
-                <div>
-                  <div class="a2-pane__header">
-                    <span class="a2-pane__title">Standard Agent · Text Output</span>
-                    <span class="a2-status-tag a2-status-tag--bad">WALL OF TEXT · HIGH COGNITIVE LOAD</span>
-                  </div>
-                  <div class="a2-prose-bubble">
-                    <p>I found the following flight options for your trip from Berlin (BER) to San Francisco (SFO):</p>
-                    <p>
-                      <strong>1. Outbound (Mon, Oct 12):</strong> Lufthansa LH 454 departing BER at 09:15 and arriving SFO at 12:05 (11h 50m nonstop). The fare is €455 per adult in Economy.
-                      <span class="a2-prose-highlight">Please clarify if you want 1 or 2 outbound tickets.</span>
-                    </p>
-                    <p>
-                      <strong>2. Return (Mon, Oct 19):</strong> United UA 901 departing SFO at 13:05 and arriving BER at 09:10+1 for 2 adults at €498 each (€996 subtotal).
-                    </p>
-                    <p>
-                      Would you like to upgrade to Premium Economy (+€280/ticket) or add checked bags (+€65)?
-                      <span class="a2-prose-highlight">Type your selection and passenger counts to continue.</span>
-                    </p>
-                  </div>
-                </div>
-                <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 14px;">
-                  ⚠️ Forces users to read 4 paragraphs and type another prompt just to adjust passenger count or cabin.
-                </div>
-              </div>
-
-              <!-- Right: Interactive A2UI Surface -->
-              <div class="a2-pane">
-                <div class="a2-pane__header">
-                  <span class="a2-pane__title">A2UI Agent · Stateful Native Surface</span>
-                  <span class="a2-status-tag a2-status-tag--good">60FPS DATAMODEL · CLICK TO INTERACT</span>
-                </div>
-
-                <div class="a2-travel-card">
-                  <div class="a2-flight-leg">
-                    <div class="a2-flight-leg__top">
-                      <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px;">
-                        <span class="a2-flight-badge">OUTBOUND · OCT 12</span>
-                        <span>Berlin (BER) → San Francisco (SFO)</span>
-                      </div>
-                      <span style="font-size: 12px; color: var(--text-muted);">LH 454 · 09:15 – 12:05</span>
-                    </div>
-                    <div class="a2-flight-leg__controls">
-                      <div class="a2-stepper">
-                        <button type="button" class="a2-stepper__btn" data-action="out-dec" aria-label="Decrease outbound passengers">−</button>
-                        <span class="a2-stepper__label" id="out-pax-label">1 Passenger</span>
-                        <button type="button" class="a2-stepper__btn" data-action="out-inc" aria-label="Increase outbound passengers">+</button>
-                      </div>
-                      <strong style="font-family: var(--font-mono); font-size: 14px;" id="out-price">€455</strong>
-                    </div>
-                  </div>
-
-                  <div class="a2-flight-leg">
-                    <div class="a2-flight-leg__top">
-                      <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px;">
-                        <span class="a2-flight-badge">RETURN · OCT 19</span>
-                        <span>San Francisco (SFO) → Berlin (BER)</span>
-                      </div>
-                      <span style="font-size: 12px; color: var(--text-muted);">UA 901 · 13:05 – 09:10+1</span>
-                    </div>
-                    <div class="a2-flight-leg__controls">
-                      <div class="a2-stepper">
-                        <button type="button" class="a2-stepper__btn" data-action="ret-dec" aria-label="Decrease return passengers">−</button>
-                        <span class="a2-stepper__label" id="ret-pax-label">2 Passengers</span>
-                        <button type="button" class="a2-stepper__btn" data-action="ret-inc" aria-label="Increase return passengers">+</button>
-                      </div>
-                      <strong style="font-family: var(--font-mono); font-size: 14px;" id="ret-price">€996 (€498 × 2)</strong>
-                    </div>
-                  </div>
-
-                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0;">
-                    <div style="display: flex; gap: 8px;">
-                      <button type="button" class="a2-chip-toggle" id="toggle-premium" data-action="toggle-premium">Upgrade Premium (+€280/pax)</button>
-                      <button type="button" class="a2-chip-toggle is-active" id="toggle-bags" data-action="toggle-bags">✓ Checked Bag (+€65)</button>
-                    </div>
-                    <span style="font-size: 12px; color: var(--text-muted);">Bound to <code>dataModel</code></span>
-                  </div>
-
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border);">
-                    <div>
-                      <span style="font-size: 12px; color: var(--text-muted); display: block;">Total Trip Price</span>
-                      <strong style="font-size: 20px; font-family: var(--font-mono);" id="travel-total">€1,516</strong>
-                    </div>
-                    <button type="button" class="a2-btn a2-btn--primary" id="book-btn" data-action="book-trip">Confirm &amp; Book Trip →</button>
-                  </div>
-
-                  <div class="a2-datamodel-bar">
-                    <span>LIVE DATA MODEL:</span>
-                    <code id="datamodel-code">$/outbound/pax = 1  ·  $/return/pax = 2  ·  $/cabin = "economy"  ·  $/totalEur = 1516</code>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <!-- First Visual Aid: Incremental UI Generation in Mobile Chat -->
+          <HeroChatGeneration />
         </div>
       </section>
 
@@ -2008,6 +1707,7 @@ struct AgentSurfaceScreen: View &#123;
 
         document.querySelectorAll('[role="tablist"]').forEach((tablist) => {
           tablist.addEventListener('keydown', (e) => {
+            if (e.defaultPrevented) return;
             if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
             const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
             const idx = tabs.indexOf(document.activeElement);
@@ -2019,47 +1719,7 @@ struct AgentSurfaceScreen: View &#123;
           });
         });
 
-        // 2. Travel Booking Interactive Surface
-        const state = { outPax: 1, retPax: 2, premium: false, bags: true, booked: false };
-        function renderTravel() {
-          const outUnit = state.premium ? 455 + 280 : 455;
-          const retUnit = state.premium ? 498 + 280 : 498;
-          const outSub = outUnit * state.outPax;
-          const retSub = retUnit * state.retPax;
-          const total = outSub + retSub + (state.bags ? 65 : 0);
-
-          document.getElementById('out-pax-label').textContent = state.outPax + (state.outPax === 1 ? ' Passenger' : ' Passengers');
-          document.getElementById('ret-pax-label').textContent = state.retPax + (state.retPax === 1 ? ' Passenger' : ' Passengers');
-          document.getElementById('out-price').textContent = '€' + outSub.toLocaleString();
-          document.getElementById('ret-price').textContent = '€' + retSub.toLocaleString() + ' (€' + retUnit + ' × ' + state.retPax + ')';
-          document.getElementById('travel-total').textContent = '€' + total.toLocaleString();
-          document.getElementById('datamodel-code').textContent =
-            `$/outbound/pax = ${state.outPax}  ·  $/return/pax = ${state.retPax}  ·  $/cabin = "${state.premium ? 'premium' : 'economy'}"  ·  $/totalEur = ${total}`;
-        }
-
-        document.addEventListener('click', (e) => {
-          const btn = e.target.closest('[data-action]');
-          if (!btn) return;
-          const act = btn.getAttribute('data-action');
-          if (act === 'out-inc') state.outPax = Math.min(6, state.outPax + 1);
-          if (act === 'out-dec') state.outPax = Math.max(1, state.outPax - 1);
-          if (act === 'ret-inc') state.retPax = Math.min(6, state.retPax + 1);
-          if (act === 'ret-dec') state.retPax = Math.max(1, state.retPax - 1);
-          if (act === 'toggle-premium') {
-            state.premium = !state.premium;
-            btn.classList.toggle('is-active', state.premium);
-          }
-          if (act === 'toggle-bags') {
-            state.bags = !state.bags;
-            btn.classList.toggle('is-active', state.bags);
-          }
-          if (act === 'book-trip') {
-            btn.textContent = '✓ Confirmed (actionResponse #A2UI-849)';
-          }
-          renderTravel();
-        });
-
-        // 3. Generative UI Spectrum Switcher
+        // 2. Generative UI Spectrum Switcher
         const bands = {
           prebuilt: {
             title: 'Band 1: Prebuilt UIs & Fixed Schema (Deterministic SDUI)',
@@ -2149,7 +1809,7 @@ root = Card(Column([
           });
         });
 
-        // 4. Placeholder App Examples Tabs (Scrubbed Names + Placeholder UIs)
+        // 3. Placeholder App Examples Tabs (Scrubbed Names + Placeholder UIs)
         function buildPlaceholderHtml(label, assetFile) {
           return `<div class="a2-ui-placeholder-frame">
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -2268,7 +1928,7 @@ root = Card(Column([
           });
         });
 
-        // 5. Consolidated "Why A2UI?" 3-Pillar Switcher
+        // 4. Consolidated "Why A2UI?" 3-Pillar Switcher
         document.querySelectorAll('[data-why-tab]').forEach((card) => {
           card.addEventListener('click', () => {
             const target = card.getAttribute('data-why-tab');
@@ -2283,7 +1943,7 @@ root = Card(Column([
           });
         });
 
-        // 6. Native Platform Renderer Switcher
+        // 5. Native Platform Renderer Switcher
         const platforms = {
           swiftui: {
             chrome: 'iOS 18 / macOS Sequoia · Native SwiftUI Views',
