@@ -622,12 +622,61 @@ def test_surface_model_dispatch_action_payload_handling():
 def test_surface_model_disposal():
     cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", default_catalog=cat)
+    comp = ComponentModel("c1", "Text", cat, {"text": "initial"})
+    surface.components_model.add_component(comp)
 
-    def on_act(_: Any) -> None:
-        pass
+    actions: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    metadata_events: list[Any] = []
+    data_events: list[Any] = []
+    comp_updates: list[ComponentModel] = []
+    created_events: list[ComponentModel] = []
+    deleted_events: list[str] = []
 
-    surface.on_action.subscribe(on_act)
+    surface.on_action.subscribe(lambda a: actions.append(a))
+    surface.on_error.subscribe(lambda e: errors.append(e))
+    surface.on_warning.subscribe(lambda w: warnings.append(w))
+    surface.on_metadata_changed.subscribe(lambda m: metadata_events.append(m))
+    surface.data_model.subscribe("/key", lambda v: data_events.append(v))
+    comp.on_updated.subscribe(lambda c: comp_updates.append(c))
+    surface.components_model.on_created.subscribe(lambda c: created_events.append(c))
+    surface.components_model.on_deleted.subscribe(
+        lambda cid: deleted_events.append(cid)
+    )
+
     surface.dispose()
+
+    assert len(surface.components_model) == 0
+    assert deleted_events == ["c1"]
+    deleted_events.clear()
+
+    # Dispatches after dispose() must not reach any pre-disposal subscriber.
+    surface.dispatch_action({"name": "click"}, "c1")
+    surface.dispatch_error({"code": "ERR", "message": "boom"})
+    surface.dispatch_warning({"code": "WARN", "message": "careful"})
+    surface.set_extension("theme", "dark")
+    surface.data_model.set("/key", "updated")
+    comp.properties = {"text": "changed"}
+    surface.components_model.add_component(ComponentModel("c2", "Text", cat, {}))
+    surface.components_model.remove_component("c2")
+    surface.components_model.remove_component("c1")
+
+    assert actions == []
+    assert errors == []
+    assert warnings == []
+    assert metadata_events == []
+    assert data_events == []
+    assert comp_updates == []
+    assert created_events == []
+    assert deleted_events == []
+
+    # Subscriptions registered after disposal can be unsubscribed cleanly.
+    post_actions: list[dict[str, Any]] = []
+    sub = surface.on_action.subscribe(lambda a: post_actions.append(a))
+    sub.unsubscribe()
+    surface.dispatch_action({"name": "after_unsub"}, "c1")
+    assert post_actions == []
 
 
 def test_surface_components_model_membership_and_storage():
