@@ -417,7 +417,7 @@ export const TextFieldApi = {
         ),
         'value': DynamicStringSchema.describe(
           'REF:#/$defs/DynamicString|The value of the text field.',
-        ).optional(),
+        ),
         'placeholder': DynamicStringSchema.describe(
           'REF:#/$defs/DynamicString|The placeholder text for the input field.',
         ).optional(),

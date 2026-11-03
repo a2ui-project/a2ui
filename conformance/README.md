@@ -56,7 +56,7 @@ Each folder is self-contained. A rule that holds for both formats has a case in 
 
 #### Legacy agent suites (`agent/legacy/`)
 
-`agent/legacy/` holds the suites for the earlier agent interface, the one implemented by `python/a2ui_agent` and `kotlin/agent_sdk_legacy`. They stay until those SDKs move to the blueprint interface. New cases belong in the suites above.
+`agent/legacy/` holds the suites for the earlier agent interface of `kotlin/agent_sdk_legacy`, which runs them. `python/a2ui_agent` implements the current blueprint interface and runs none of them, and the TypeScript agent harness runs the subset of `legacy/parser.yaml` and `legacy/inference_format.yaml` that the current suites do not supersede ([`loader.ts`](../typescript/agents/a2ui_agent/tests/conformance/loader.ts)). New cases belong in the suites above.
 
 - `agent/legacy/streaming_parser.yaml`: Streaming parser cases, verifying chunk buffering, incremental yielding, and edge cases like cut tokens.
 - `agent/legacy/parser.yaml`: Non-streaming parsing and payload fixing.
@@ -102,6 +102,8 @@ Every conformance test runner must declare two top-level configuration variables
 
 1. **`SUPPORTED_PROTOCOL_VERSIONS`**: A set/list of A2UI protocol versions supported by the SDK or harness (e.g. `{'0.8', '0.9', '1.0'}`). Test cases specifying a version outside this set are skipped cleanly.
 2. **`SKIP_TEST_NAMES`**: A transition skip list containing test case names to temporarily skip during active feature transitions. At the start of a feature migration, test names for unimplemented features are added to this set and progressively removed as feature implementations complete. Skipped tests are logged as `[SKIPPED]` without marking test runs as failures.
+
+When `A2UI_CONFORMANCE_MANIFEST_DIR` is set in CI, each harness writes one JSON Lines record per executed or skipped case to that directory, validated against [`executed_case_manifest.schema.json`](executed_case_manifest.schema.json), and [`scripts/check_executed_cases.py`](scripts/check_executed_cases.py) compares the recorded cases against the suite globs in [`manifest_corpora.json`](manifest_corpora.json). See [Executed-case manifest](conformance_harness_implementation_guide.md#5-executed-case-manifest) in the harness implementation guide for the record format, strict dispatch rules, and comparer flags.
 
 Client-side implementations run these suites too:
 
