@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'fs';
+import {tmpdir} from 'os';
+import {dirname, join, resolve} from 'path';
 
-import {describe, expect, test} from 'vitest';
+import {expect} from 'vitest';
 
 import {
   CatalogConfig,
@@ -31,7 +31,7 @@ import {
 import {CatalogApi} from '../../src/internal/web-core.js';
 import {loadBasicCatalog, REPO_ROOT} from '../helpers/basic-catalogs.js';
 import {classify, KNOWN_FAILURES, loadCases, LoadedCase} from './loader.js';
-import {conformancePath, errorClassFor} from './suite-helpers.js';
+import {conformancePath, describeSuite, errorClassFor} from './suite-helpers.js';
 
 const basicCatalogV10 = loadBasicCatalog('1.0');
 
@@ -46,7 +46,7 @@ function buildSkillContext(testCase: LoadedCase): SkillCaseContext {
   const catRelPath = args.catalog as string | undefined;
   let catalog: CatalogApi | undefined;
   if (catRelPath) {
-    const absCatPath = path.resolve(REPO_ROOT, catRelPath);
+    const absCatPath = resolve(REPO_ROOT, catRelPath);
     const catConfig = CatalogConfig.fromPath(absCatPath);
     catalog = catConfig.transformedCatalog;
   }
@@ -64,7 +64,7 @@ function runFromFormatCase(testCase: LoadedCase, {args, generator}: SkillCaseCon
   const monoName = (args.name as string | undefined) ?? 'a2ui';
   const skillObj = generator.generateSkill({name: monoName});
   const expectedRel = testCase.expected_file as string;
-  const expectedContent = fs.readFileSync(path.resolve(REPO_ROOT, expectedRel), 'utf-8');
+  const expectedContent = readFileSync(resolve(REPO_ROOT, expectedRel), 'utf-8');
   expect(skillObj.toMarkdown()).toBe(expectedContent);
 }
 
@@ -72,14 +72,14 @@ function runCoreSyntaxCase(testCase: LoadedCase, {args, generator}: SkillCaseCon
   const coreName = (args.name as string | undefined) ?? 'a2ui-core';
   const skillObj = generator.generateCoreSkill({name: coreName});
   const expectedRel = testCase.expected_file as string;
-  const expectedContent = fs.readFileSync(path.resolve(REPO_ROOT, expectedRel), 'utf-8');
+  const expectedContent = readFileSync(resolve(REPO_ROOT, expectedRel), 'utf-8');
   expect(skillObj.toMarkdown()).toBe(expectedContent);
 }
 
 function runFromCatalogCase(testCase: LoadedCase, {catalog, generator}: SkillCaseContext): void {
   const skillObj = generator.generateCatalogSkill({catalog});
   const expectedRel = testCase.expected_file as string;
-  const expectedContent = fs.readFileSync(path.resolve(REPO_ROOT, expectedRel), 'utf-8');
+  const expectedContent = readFileSync(resolve(REPO_ROOT, expectedRel), 'utf-8');
   expect(skillObj.toMarkdown()).toBe(expectedContent);
 }
 
@@ -92,7 +92,7 @@ function runSkillSetCase(testCase: LoadedCase, {generator}: SkillCaseContext): v
   }
   const expectedFiles = (testCase.expected_skill_files as Record<string, string>) || {};
   for (const [k, goldenRel] of Object.entries(expectedFiles)) {
-    const golden = fs.readFileSync(path.resolve(REPO_ROOT, goldenRel), 'utf-8');
+    const golden = readFileSync(resolve(REPO_ROOT, goldenRel), 'utf-8');
     expect(dict[k], `content of ${k}`).toBe(golden);
   }
 }
@@ -110,12 +110,12 @@ interface LiteralSkill {
  */
 function runExportToDirectoryCase(testCase: LoadedCase): void {
   const args = (testCase.args as Record<string, unknown>) || {};
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-skill-export-'));
+  const tempDir = mkdtempSync(join(tmpdir(), 'a2ui-skill-export-'));
   try {
     for (const rel of (args.pre_existing_files as string[] | undefined) ?? []) {
-      const abs = path.join(tempDir, rel);
-      fs.mkdirSync(path.dirname(abs), {recursive: true});
-      fs.writeFileSync(abs, 'pre-existing', 'utf-8');
+      const abs = join(tempDir, rel);
+      mkdirSync(dirname(abs), {recursive: true});
+      writeFileSync(abs, 'pre-existing', 'utf-8');
     }
 
     const run = () => {
@@ -132,13 +132,13 @@ function runExportToDirectoryCase(testCase: LoadedCase): void {
     }
 
     for (const rel of (testCase.expected_files as string[] | undefined) ?? []) {
-      expect(fs.existsSync(path.join(tempDir, rel)), `expected ${rel} to exist`).toBe(true);
+      expect(existsSync(join(tempDir, rel)), `expected ${rel} to exist`).toBe(true);
     }
     for (const rel of (testCase.expected_absent_files as string[] | undefined) ?? []) {
-      expect(fs.existsSync(path.join(tempDir, rel)), `expected ${rel} to be removed`).toBe(false);
+      expect(existsSync(join(tempDir, rel)), `expected ${rel} to be removed`).toBe(false);
     }
   } finally {
-    fs.rmSync(tempDir, {recursive: true, force: true});
+    rmSync(tempDir, {recursive: true, force: true});
   }
 }
 
@@ -152,33 +152,29 @@ const SKILL_ACTION_HANDLERS: Record<
   skill_set: runSkillSetCase,
 };
 
-describe('Conformance: skill.yaml', () => {
-  for (const testCase of loadCases([conformancePath('agent/skill.yaml')])) {
-    const verdict = classify(testCase);
-    const {action, name} = testCase;
-    const testName = `${action} · ${name}`;
-
-    const testFn = async () => {
-      if (action === 'export_to_directory') {
-        runExportToDirectoryCase(testCase);
-        return;
-      }
-      const handler = Object.hasOwn(SKILL_ACTION_HANDLERS, action)
-        ? SKILL_ACTION_HANDLERS[action]
-        : undefined;
-      if (!handler) {
-        throw new Error(`Unhandled conformance action: ${action}`);
-      }
-      const ctx = buildSkillContext(testCase);
-      await handler(testCase, ctx);
-    };
-
-    if (!verdict.runnable) {
-      test.skip(`${testName} (${verdict.reason})`, testFn);
-    } else if (KNOWN_FAILURES.has(name)) {
-      test.fails(`${testName} (known gap: ${KNOWN_FAILURES.get(name)})`, testFn);
-    } else {
-      test(testName, testFn);
+describeSuite(
+  'Conformance: skill.yaml',
+  loadCases([conformancePath('agent/skill.yaml')]),
+  async testCase => {
+    const {action} = testCase;
+    if (action === 'export_to_directory') {
+      runExportToDirectoryCase(testCase);
+      return;
     }
-  }
-});
+    const handler = Object.hasOwn(SKILL_ACTION_HANDLERS, action)
+      ? SKILL_ACTION_HANDLERS[action]
+      : undefined;
+    if (!handler) {
+      throw new Error(`Unhandled conformance action: ${action}`);
+    }
+    const ctx = buildSkillContext(testCase);
+    await handler(testCase, ctx);
+  },
+  {
+    knownFailures: KNOWN_FAILURES,
+    skipReason: testCase => {
+      const verdict = classify(testCase);
+      return verdict.runnable ? undefined : verdict.reason;
+    },
+  },
+);

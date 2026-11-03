@@ -14,9 +14,12 @@
 
 """Tests that the A2A helpers accept every protocol version in every form."""
 
+import json
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from a2a.server.agent_execution import RequestContext
+import jsonschema
 import pytest
 
 from a2ui.a2a import (
@@ -99,3 +102,60 @@ def test_activation_skips_versions_this_sdk_does_not_define():
     version, context = _activate([known, unknown], [known, unknown])
     assert version is ProtocolVersion.V1_0
     context.add_activated_extension.assert_called_once_with(known)
+
+
+_AGENT_CAPABILITIES_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "specification"
+    / "v1_0"
+    / "json"
+    / "agent_capabilities.json"
+)
+
+
+@pytest.mark.parametrize(
+    "accepts_inline_catalogs, supported_catalog_ids",
+    [
+        (False, []),
+        (True, []),
+        (False, ["a"]),
+        (True, ["a", "b"]),
+    ],
+)
+def test_v1_0_params_match_agent_capabilities_schema(
+    accepts_inline_catalogs: bool,
+    supported_catalog_ids: list[str],
+) -> None:
+    schema = json.loads(_AGENT_CAPABILITIES_SCHEMA_PATH.read_text(encoding="utf-8"))
+    v1_0_schema = {
+        **schema["properties"]["1.0"],
+        "additionalProperties": False,
+    }
+
+    ext = get_a2ui_agent_extension(
+        ProtocolVersion.V1_0,
+        accepts_inline_catalogs=accepts_inline_catalogs,
+        supported_catalog_ids=supported_catalog_ids,
+    )
+    jsonschema.Draft202012Validator(v1_0_schema).validate(ext.params or {})
+
+
+@pytest.mark.parametrize(
+    "accepts_inline_catalogs, supported_catalog_ids",
+    [
+        (False, []),
+        (True, []),
+        (False, ["a"]),
+        (True, ["a", "b"]),
+    ],
+)
+def test_v1_0_params_are_not_version_keyed(
+    accepts_inline_catalogs: bool,
+    supported_catalog_ids: list[str],
+) -> None:
+    ext = get_a2ui_agent_extension(
+        ProtocolVersion.V1_0,
+        accepts_inline_catalogs=accepts_inline_catalogs,
+        supported_catalog_ids=supported_catalog_ids,
+    )
+    assert "1.0" not in (ext.params or {})

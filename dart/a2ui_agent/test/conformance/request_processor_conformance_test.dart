@@ -24,25 +24,70 @@ import 'suites.dart';
 ///
 /// Lowered to v0.9, capabilities, examples and responses are lowered, and
 /// parsed messages lifted back, as `suites.dart` describes.
+const Map<String, Set<String>> _knownKeys = {
+  'case:create_format': {...caseMetadataKeys, 'args', 'expect', 'expect_error'},
+  'case:create_processor': {
+    ...caseMetadataKeys,
+    'args',
+    'expect',
+    'expect_error',
+    'then_parse',
+  },
+  'args:create_format': {'catalogs', 'examples', 'format', 'probe_chunks'},
+  'args:create_processor': {
+    'catalogs',
+    'examples',
+    'format',
+    'format_override',
+    'renderer_capabilities',
+  },
+  'expect:create_format': {
+    'parser_state_isolated',
+    'parsers_are_distinct',
+    'prompt_snippet_absent',
+    'prompt_snippet_contains',
+  },
+  'expect:create_processor': {
+    'active_catalog_ids',
+    'catalogs',
+    'generator_catalogs_unchanged',
+    'prompt_snippet_absent',
+    'prompt_snippet_contains',
+  },
+  'then_parse': {'expect', 'expect_error', 'input'},
+};
+
 void main() {
   const path = 'agent/request_processor.yaml';
+  final allCaseNames = <String>{};
   for (final SuiteVersion version in SuiteVersion.values) {
     group('conformance $path ${version.label}', () {
       final List<Map<String, Object?>> cases = loadSuite(path);
       test('suite is not empty', () => expect(cases, isNotEmpty));
       for (final testCase in cases) {
-        test(
-          testCase['name']! as String,
-          skip: _skipReason(testCase, version),
-          () => switch (testCase['action']) {
-            'create_format' => _createFormat(testCase, version),
-            'create_processor' => _createProcessor(testCase, version),
-            _ => throw UnsupportedError('Unknown action ${testCase['action']}'),
-          },
-        );
+        final name = testCase['name']! as String;
+        allCaseNames.add(name);
+        test(name, () {
+          if (_skipReason(testCase, version) case final String reason) {
+            markTestSkipped(reason);
+            return;
+          }
+          switch (testCase['action']) {
+            case 'create_format':
+              _createFormat(testCase, version);
+            case 'create_processor':
+              _createProcessor(testCase, version);
+            default:
+              throw UnsupportedError('Unknown action ${testCase['action']}');
+          }
+        });
       }
     });
   }
+  verifyNoUnusedEntries('request_processor', allCaseNames, [
+    ..._v1OnlyCases.keys,
+    'test_express_create_format_rejects_several_v0_9_catalogs',
+  ]);
 }
 
 /// Cases v0.9 cannot state, with the reason for each.
@@ -91,7 +136,17 @@ List<List<AgentToRendererMessage>> _examples(
 ];
 
 void _createFormat(Map<String, Object?> testCase, SuiteVersion version) {
+  assertKnownKeys(
+    testCase,
+    _knownKeys['case:create_format']!,
+    'case:create_format',
+  );
   final args = testCase['args']! as Map<String, Object?>;
+  assertKnownKeys(
+    args,
+    _knownKeys['args:create_format']!,
+    'args:create_format',
+  );
   InferenceFormat create() => _factory(
     args['format'],
   ).createFormat(version.catalogs(args), examples: _examples(args, version));
@@ -101,6 +156,11 @@ void _createFormat(Map<String, Object?> testCase, SuiteVersion version) {
   }
   final InferenceFormat format = create();
   final expected = testCase['expect']! as Map<String, Object?>;
+  assertKnownKeys(
+    expected,
+    _knownKeys['expect:create_format']!,
+    'expect:create_format',
+  );
   expectSnippet(format.promptGenerator.generate(), expected);
   if (expected['parsers_are_distinct'] == true) {
     expect(format.createParser(), isNot(same(format.createParser())));
@@ -126,7 +186,17 @@ void _createFormat(Map<String, Object?> testCase, SuiteVersion version) {
 }
 
 void _createProcessor(Map<String, Object?> testCase, SuiteVersion version) {
+  assertKnownKeys(
+    testCase,
+    _knownKeys['case:create_processor']!,
+    'case:create_processor',
+  );
   final args = testCase['args']! as Map<String, Object?>;
+  assertKnownKeys(
+    args,
+    _knownKeys['args:create_processor']!,
+    'args:create_processor',
+  );
   final List<CatalogConfig> configs = [
     for (final Object? entry in args['catalogs']! as List<Object?>)
       version.catalogConfig(entry),
@@ -157,6 +227,11 @@ void _createProcessor(Map<String, Object?> testCase, SuiteVersion version) {
   }
   final A2uiRequestProcessor processor = create();
   final expected = testCase['expect']! as Map<String, Object?>;
+  assertKnownKeys(
+    expected,
+    _knownKeys['expect:create_processor']!,
+    'expect:create_processor',
+  );
   if (expected['active_catalog_ids'] case final List<Object?> ids) {
     expect(processor.activeCatalogs.map((c) => c.id), ids);
   }
@@ -173,6 +248,7 @@ void _createProcessor(Map<String, Object?> testCase, SuiteVersion version) {
   }
 
   if (testCase['then_parse'] case final Map<String, Object?> parse) {
+    assertKnownKeys(parse, _knownKeys['then_parse']!, 'then_parse');
     List<Object?> parseResponse() => version.partsJson(
       processor.parseResponse(version.text(parse['input']! as String)),
     );
