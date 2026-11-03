@@ -6,9 +6,9 @@ description: 'Asynchronous bidirectional JSON message types and transport metada
 import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 import SchemaChips from '../../../components/docs/common/SchemaChips.astro';
 
-A2UI agents and client renderers communicate by exchanging explicit, asynchronous JSON messages in both directions: agents send messages to create surfaces, update component trees, update data models, and call renderer functions, while renderers send messages back to report user actions and invoke or respond to function calls. These message types can be sent over a variety of transports, including [AG-UI](https://docs.ag-ui.com/introduction), [Agent-to-Agent (A2A)](https://a2a-protocol.org), [Model Context Protocol (MCP)](https://modelcontextprotocol.io), WebSockets, and Server-Sent Events (SSE).
+A2UI agents and client renderers communicate by exchanging asynchronous JSON messages in both directions to manage UI surfaces and handle user interactions. These message types can be sent over a variety of transports, including [Agent-to-Agent (A2A)](https://a2a-protocol.org) and [Model Context Protocol (MCP)](https://modelcontextprotocol.io).
 
-Alongside explicit A2UI messages, implementations can optionally use [metadata](#metadata) when renderer context needs to piggyback onto requests triggered for other purposes. For example, when a user sends a text prompt, the renderer can attach its supported catalogs (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1) or synchronized surface state (`a2uiRendererDataModel` / `a2uiClientDataModel`) to the outgoing request; implementations that agree on catalogs in advance do not need to use this metadata mechanism.
+Alongside explicit A2UI messages, implementations can use [metadata](#metadata) when renderer context needs to piggyback onto requests triggered for other purposes. For example, when a user sends a text prompt, the renderer can attach its supported catalogs or synchronized surface state to the outgoing request.
 
 ---
 
