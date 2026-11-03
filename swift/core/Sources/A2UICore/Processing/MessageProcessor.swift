@@ -26,7 +26,21 @@ public final class MessageProcessor: ObservableObject {
   public let surfaceGroupModel: SurfaceGroupModel
 
   /// Listener for outbound messages destined to the agent.
-  public var outboundListener: (@Sendable (RendererToAgentMessage) -> Void)?
+  ///
+  /// While it is set, each v1.0 surface sends calls to functions the renderer does not implement
+  /// to the agent with `callAgentFunction` (see ``SurfaceViewModel/agentFunctionCaller``).
+  /// Without it there is no way to reach the agent, so such calls keep failing locally.
+  public var outboundListener: (@Sendable (RendererToAgentMessage) -> Void)? {
+    didSet {
+      for surface in surfaceGroupModel.surfacesMap.values {
+        installAgentFunctionCaller(on: surface)
+      }
+    }
+  }
+
+  /// The maximum time, in seconds, that a surface waits for the agent to answer a function call
+  /// that it routes to the agent. Defaults to 30 seconds.
+  public var agentFunctionTimeoutSeconds: TimeInterval = 30.0
 
   /// The validation configuration controlling strictness.
   public let validationConfig: ValidationConfig
@@ -873,6 +887,7 @@ public final class MessageProcessor: ObservableObject {
       sendDataModel: op.sendDataModel,
       protocolVersion: op.version ?? targetCatalog?.a2uiProtocolVersion
     )
+    installAgentFunctionCaller(on: vm)
 
     if let dataModel = op.dataModel {
       for (key, value) in dataModel {
@@ -977,6 +992,35 @@ public final class MessageProcessor: ObservableObject {
     )
   }
 
+  /// Lets a v1.0 surface send calls to functions the renderer does not implement to the agent,
+  /// while this processor has an ``outboundListener``; otherwise removes that ability.
+  ///
+  /// The caller dispatches `callAgentFunction` through ``RPCHandler``, waiting up to
+  /// ``agentFunctionTimeoutSeconds`` for the agent's response.
+  private func installAgentFunctionCaller(on surface: SurfaceViewModel) {
+    guard outboundListener != nil, surface.protocolVersion.isAtLeastV10 else {
+      surface.agentFunctionCaller = nil
+      return
+    }
+    let surfaceID = surface.surfaceID
+    let version = surface.protocolVersion
+    surface.agentFunctionCaller = { [weak self, weak surface] call in
+      guard let self else { throw FunctionError.noListener(name: call.name) }
+      // A call resumed after the surface was deleted sends nothing.
+      guard let surface, self.surfaceGroupModel[surfaceID] === surface else {
+        throw FunctionError.surfaceCallsCancelled(surfaceID: surfaceID)
+      }
+      return try await self.callAgentFunction(
+        surfaceID: surfaceID,
+        functionName: call.name,
+        catalogID: call.catalogID,
+        args: call.args,
+        version: version,
+        timeoutSeconds: self.agentFunctionTimeoutSeconds
+      )
+    }
+  }
+
   private func payloadValidator(
     for catalog: AnyCatalog,
     config: ValidationConfig
@@ -1051,6 +1095,7 @@ public final class MessageProcessor: ObservableObject {
     }
     graphBounds[op.surfaceID] = nil
     surfaceGroupModel.removeSurface(id: op.surfaceID)
+    rpcHandler.cancelPendingCalls(forSurfaceID: op.surfaceID)
   }
 
   private func validateComponentsBatch(
@@ -1572,11 +1617,11 @@ public final class MessageProcessor: ObservableObject {
       task.cancel()
     }
     activeRPCTasks.removeAll()
-    rpcHandler.disposeAllPendingCalls()
     graphBounds.removeAll()
     for surfaceID in Array(surfaceGroupModel.surfacesMap.keys) {
       surfaceGroupModel.removeSurface(id: surfaceID)
     }
+    rpcHandler.disposeAllPendingCalls()
   }
 
   private func resolveRPCDataContext(surfaceID: String?) -> (DataContext?, String?) {

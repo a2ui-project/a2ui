@@ -130,12 +130,25 @@ jobs:
         run: dart run tool/generate_express_parser.dart --check
       - name: Run tests
         working-directory: ${{ matrix.package.path }}
+        env:
+          A2UI_CONFORMANCE_MANIFEST_DIR: ${{ matrix.package.path == 'dart/a2ui_core' && format('{0}/a2ui-manifest', runner.temp) || '' }}
         run: |
           if [ -d "test" ]; then
             flutter test --test-randomize-ordering-seed=random
           else
             echo "No 'test' directory found in ${{ matrix.package.path }}, skipping tests."
           fi
+      - name: Set up Python for conformance manifest check
+        if: matrix.package.path == 'dart/a2ui_core'
+        uses: ./.github/actions/setup-python
+      - name: Check executed conformance cases
+        if: matrix.package.path == 'dart/a2ui_core'
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness dart-core \
+            --corpus core \
+            --exclude "core/message_processor_scaling.yaml=performance: runs with -P performance"
 
   # The e2e_test packages are excluded from the matrix above because their
   # tests call a live Gemini model, which needs credentials and quota that are

@@ -24,49 +24,108 @@ import 'conformance_harness.dart';
 typedef _Node = ComponentNode<ComponentApi>;
 typedef _Json = Map<String, Object?>;
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:resolve_nodes': {
+    ...caseMetadataKeys,
+    'expect',
+    'fixture',
+    'steps',
+  },
+  'step:resolve_nodes': {
+    'component_id',
+    'components',
+    'description',
+    'expect',
+    'messages',
+    'metadata',
+    'node',
+    'op',
+    'path',
+    'property',
+    'value',
+  },
+  'expect:resolve_nodes': {
+    'data',
+    'destroyed',
+    'emissions',
+    'errors',
+    'events',
+    'functions',
+    'metadata_emissions',
+    'nodes',
+    'replaced_nodes',
+    'same_nodes',
+  },
+  'node:resolve_nodes': {
+    'component_id',
+    'data_path',
+    'isValid',
+    'metadata',
+    'props',
+    'state',
+    'type',
+    'validationErrors',
+    'validationResults',
+  },
+};
+
 void main() {
   final List<_Json> cases = loadConformanceSuite('core/node_resolution.yaml');
   group('conformance core/node_resolution.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
-    for (final testCase in cases) {
-      test(testCase['name']! as String, () async {
-        final fixture = normalizeYaml(
-          loadYaml(
-            File(
-              resolveConformancePath(testCase['fixture']! as String),
-            ).readAsStringSync(),
-          ),
-        )! as _Json;
-        final runner = _Runner(fixture);
-        addTearDown(runner.close);
-        runner.check(testCase['expect']! as _Json, {}, 'initial');
-        final steps = testCase['steps']! as List<Object?>;
-        for (var i = 0; i < steps.length; i++) {
-          final step = steps[i]! as _Json;
-          final Map<String, _Node> before = runner.nodes();
-          final bindings = Map<ResolvedBinding<Object?>, Object?>.identity();
-          for (final _Node node in before.values) {
-            _collectBindings(node.props.peek(), bindings);
-          }
-          runner.beginStep(before);
-          await runner.apply(step, before);
-          runner.check(
-            step['expect']! as _Json,
-            before,
-            'step $i (${step['op']})',
-          );
-          for (final MapEntry<ResolvedBinding<Object?>, Object?> entry
-              in bindings.entries) {
-            expect(
-              entry.key.value,
-              entry.value,
-              reason: 'step $i: old binding snapshot',
-            );
-          }
-        }
-      });
-    }
+    runConformanceSuite(
+      cases,
+      _runCase,
+      suite: 'core/node_resolution.yaml',
+    );
   });
+}
+
+Future<void> _runCase(_Json testCase) async {
+  assertKnownKeys(
+    testCase,
+    _knownKeys['case:resolve_nodes']!,
+    'case:resolve_nodes',
+  );
+  final fixture = normalizeYaml(
+    loadYaml(
+      File(
+        resolveConformancePath(testCase['fixture']! as String),
+      ).readAsStringSync(),
+    ),
+  )! as _Json;
+  final runner = _Runner(fixture);
+  addTearDown(runner.close);
+  runner.check(testCase['expect']! as _Json, {}, 'initial');
+  final steps = testCase['steps']! as List<Object?>;
+  for (var i = 0; i < steps.length; i++) {
+    final step = steps[i]! as _Json;
+    assertKnownKeys(
+      step,
+      _knownKeys['step:resolve_nodes']!,
+      'step:resolve_nodes',
+    );
+    final Map<String, _Node> before = runner.nodes();
+    final bindings = Map<ResolvedBinding<Object?>, Object?>.identity();
+    for (final _Node node in before.values) {
+      _collectBindings(node.props.peek(), bindings);
+    }
+    runner.beginStep(before);
+    await runner.apply(step, before);
+    runner.check(
+      step['expect']! as _Json,
+      before,
+      'step $i (${step['op']})',
+    );
+    for (final MapEntry<ResolvedBinding<Object?>, Object?> entry
+        in bindings.entries) {
+      expect(
+        entry.key.value,
+        entry.value,
+        reason: 'step $i: old binding snapshot',
+      );
+    }
+  }
 }
 
 Object? _copy(Object? value) => jsonDecode(jsonEncode(value));
@@ -334,6 +393,11 @@ class _Runner {
   }
 
   void check(_Json expected, Map<String, _Node> before, String reason) {
+    assertKnownKeys(
+      expected,
+      _knownKeys['expect:resolve_nodes']!,
+      'expect:resolve_nodes',
+    );
     final Map<String, _Node> current = nodes();
     final assertions = expected['nodes']! as _Json;
     expect(
@@ -445,6 +509,11 @@ class _Runner {
     _Json nodeAssertions,
     String reason,
   ) {
+    assertKnownKeys(
+      nodeAssertions,
+      _knownKeys['node:resolve_nodes']!,
+      'node:resolve_nodes',
+    );
     final Map<String, Object?> rawProps = node.props.peek();
     final String nodeType =
         node.state == NodeState.cyclic && node.type == placeholderType

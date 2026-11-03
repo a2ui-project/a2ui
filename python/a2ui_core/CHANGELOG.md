@@ -6,6 +6,16 @@
   Recommended migration: bind `value` to a data model path, such as
   `{"@path": "/form/email"}`. The path does not have to exist yet
   ([#3830](https://github.com/a2ui-project/a2ui/issues/3830), [#3868](https://github.com/a2ui-project/a2ui/pull/3868)).
+- **BREAKING CHANGE**: `DynamicBoolean` properties and function arguments now
+  coerce any resolved value to a boolean according to the protocol
+  specification: booleans are kept as is, `ValidationResult` objects coerce to
+  `valid`, strings coerce to `True` only when case-insensitively equal to
+  `"true"` (and `False` for `"false"` and all other strings), numbers coerce to
+  `value != 0` (`NaN` is `False`), and `None`, absent values, other objects,
+  and arrays coerce to `False`. Recommended migration: pass explicit booleans,
+  non-zero/zero numbers, `"true"`/`"false"` strings, or `ValidationResult`
+  dicts rather than relying on Python truthiness or `None` pass-through
+  ([#3850](https://github.com/a2ui-project/a2ui/pull/3850)).
 - (v1_0) The basic catalog `regex` function's `pattern` description now names
   the A2UI regex dialect and its safety limits
   ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
@@ -493,7 +503,6 @@
   **Unshimmed Internal Modules & Renames:**
 
   Internal modules were moved without shims; callers should import from the new paths directly:
-
   - `a2ui.core.rendering` (and `.component_context`, `.data_context`, `.generic_binder`): moved to `a2ui.core.resolution` (and matching submodules).
   - `a2ui.core.validating` (and `.integrity_checker`, `.topology_analyzer`): moved to `a2ui.core.validation` (and `a2ui.core.state.validation_helpers`).
   - `validate_component_integrity`: moved to `a2ui.core.validation` as `(components: dict[str, ComponentModel], root_id: str = ROOT_ID, config: ValidationConfig | None = None) -> None`.

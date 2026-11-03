@@ -1359,10 +1359,7 @@ class DataContext:
         """Runs a function on the renderer with its resolved arguments."""
         if resolved_args is None:
             resolved_args = {}
-        elif self.at_least_v10 and isinstance(resolved_args, dict):
-            # From v1.0 a `DynamicBoolean` argument may resolve to the
-            # `ValidationResult` a validation function returns; it is read
-            # by its validity, as the specification defines the type.
+        elif isinstance(resolved_args, dict):
             resolved_args = coerce_validation_results(
                 _function_args_schema(target_catalog, fn), resolved_args
             )
