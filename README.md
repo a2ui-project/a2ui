@@ -1,6 +1,6 @@
 # A2UI: Agent-to-User Interface
 
-A2UI is an open-source project, complete with a format
+A2UI is an open-source generative UI framework, complete with a format
 optimized for representing updatable agent-generated
 UIs and an initial set of renderers, that allows agents
 to generate or populate rich user interfaces.
@@ -44,8 +44,10 @@ This approach ensures that agent-generated UIs are
   your own components; an LLM toolkit alone may be enough. A2UI fits once you add
   platforms or remote agents.
 
-Install the web core plus the renderer for your framework, for example
-`npm install @a2ui/web_core @a2ui/react` (or `@a2ui/angular`, `@a2ui/lit`). See the
+Install the renderer for your framework, for example `npm install @a2ui/react`
+(or `@a2ui/angular`, `@a2ui/lit`). It depends on `@a2ui/web_core`; add
+`@a2ui/web_core` explicitly too if your app imports from it directly (e.g. the
+message processor or basic catalog). See the
 [Client Setup guide](https://a2ui.org/guides/client-setup/) for each platform.
 
 ## High-level philosophy
