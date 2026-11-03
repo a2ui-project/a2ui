@@ -20,7 +20,7 @@ The agent sends **declarative JSON** (surfaces, components from a catalog, a dat
 model). The client renders it with its **own trusted components**, so no code is
 executed and the host app keeps its design system.
 
-- Docs: https://a2ui.org (LLM index: https://a2ui.org/llms.txt)
+- Docs: https://a2ui.org (LLM index: `https://a2ui.org/llms.txt`)
 - Repo: https://github.com/a2ui-project/a2ui
 - Current protocol: **v0.9.1** (v1.0 is a release candidate; v0.8 is legacy).
 
@@ -42,7 +42,7 @@ A2UI is young and has several protocol versions (v0.8 / v0.9 / v0.9.1 / v1.0) wi
 different message names. Your training data is likely outdated.
 
 1. Read the installed package's README and docs (e.g. `node_modules/@a2ui/react/README.md`).
-2. Otherwise read https://a2ui.org/llms.txt and the linked page for your framework.
+2. Otherwise read `https://a2ui.org/llms.txt` and the linked page for your framework.
 3. Use versioned import paths (e.g. `@a2ui/react/v0_9`, `@a2ui/web_core/v0_9`).
 4. If something isn't in the docs, say so. Don't guess message or field names.
 
