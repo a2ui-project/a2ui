@@ -426,9 +426,10 @@ export declare interface CatalogInterface<
  * bundles it, so `Catalog.fromJson(doc).toJson()` equals `doc`, and `toJson`
  * of a built-in basic catalog equals its published document.
  */
-export class Catalog<T extends ComponentApi, F extends FunctionApi = FunctionImplementation>
-  implements CatalogInterface<T, F>
-{
+export class Catalog<
+  T extends ComponentApi,
+  F extends FunctionApi = FunctionImplementation,
+> implements CatalogInterface<T, F> {
   /** Unique identifier for the catalog. */
   readonly id: string;
 

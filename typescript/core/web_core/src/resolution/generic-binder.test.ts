@@ -32,6 +32,7 @@ import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
 import {
   CommonSchemas,
+  DataBindingSchema,
   type ChildList,
   type DataBinding,
   type DynamicString,

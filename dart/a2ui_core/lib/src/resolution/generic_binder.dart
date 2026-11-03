@@ -602,9 +602,9 @@ class GenericBinder {
       bool isDynamicBranch(Map<String, Object?> s) {
         final Object? props = s['properties'];
         if (props is! Map) return false;
-        final bool isBinding = props['componentId'] == null &&
+        final isBinding = props['componentId'] == null &&
             (atLeastV10 ? props['@path'] != null : props['path'] != null);
-        final bool isCall =
+        final isCall =
             atLeastV10 ? props['@call'] != null : props['call'] != null;
         return isBinding || isCall;
       }
