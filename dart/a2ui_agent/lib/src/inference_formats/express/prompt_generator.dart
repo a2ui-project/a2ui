@@ -403,8 +403,7 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 ## Grammar Rules''';
 
-const String _componentsRule =
-    '''Component constructors can be assigned to variables or nested inline inside parent component arguments:
+const String _componentsRule = '''Component constructors can be assigned to variables or nested inline inside parent component arguments:
 header = ComponentA(prop1="val1")
 root = ComponentB([header, ComponentC("Click", action=Event("submit"))])
 
@@ -444,14 +443,12 @@ Event("save_deal", {rep: $/form/rep})''',
 const String _dataModelRule =
     r'Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.';
 
-const String _templateRule =
-    r'''Dynamic list templates: If a component expects a template child list, represent it using the _template helper:
+const String _templateRule = r'''Dynamic list templates: If a component expects a template child list, represent it using the _template helper:
 _template($/path/to/list, itemTemplate)
 And define the template component variable on another line, utilizing relative path references prefixed with $:
 itemTemplate = Image($url)''';
 
-const String _deleteSurfaceRule =
-    '''To delete a user interface surface, output the standalone `deleteSurface(surfaceId)` command (no variable assignment):
+const String _deleteSurfaceRule = '''To delete a user interface surface, output the standalone `deleteSurface(surfaceId)` command (no variable assignment):
 deleteSurface("dashboard-surface-1")''';
 
 String _rendererCallRule(List<String> callable) =>
@@ -467,6 +464,5 @@ const List<String> _argumentRules = [
   '''Required actions: Parameters named 'action' (or annotated in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.''',
 ];
 
-const String _surfaceRule =
-    '''Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
+const String _surfaceRule = '''Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
 surface("dashboard-surface-1")''';

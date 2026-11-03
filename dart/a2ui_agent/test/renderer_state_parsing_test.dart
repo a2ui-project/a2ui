@@ -58,9 +58,9 @@ void main() {
     for (final AgentToRendererMessage m in emittedMessages(parts)) m.toJson(),
   ];
 
-  String textOf(List<ResponsePart> parts) => [
-    for (final TextPart part in parts.whereType<TextPart>()) part.text,
-  ].join();
+  String textOf(List<ResponsePart> parts) =>
+      [for (final TextPart part in parts.whereType<TextPart>()) part.text]
+          .join();
 
   Set<String> componentIds(RendererState state) =>
       state.getSurface('s')!.componentsModel.keys.toSet();
@@ -452,9 +452,8 @@ void main() {
 
     test('every version a stream emitted rebuilds its state', () {
       final state = RendererState([basic]);
-      final DirectJsonResponseStream stream = parser(
-        progressiveKeys: {'text'},
-      ).openStream(state: state);
+      final DirectJsonResponseStream stream = parser(progressiveKeys: {'text'})
+          .openStream(state: state);
       final Map<String, Object?> longText = {
         'id': 'a',
         'component': 'Text',

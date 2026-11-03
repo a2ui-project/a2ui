@@ -115,9 +115,7 @@ class ContactAgent:
         """Creates an A2uiRequestProcessor negotiated for the client's capabilities."""
         if not client_ui_capabilities:
             return self._processors[version]
-        return self._generators[version].create_processor(
-            dict(client_ui_capabilities)
-        )
+        return self._generators[version].create_processor(dict(client_ui_capabilities))
 
     def resolve_catalogs(
         self, version: str, client_ui_capabilities: Mapping[str, Any] | None

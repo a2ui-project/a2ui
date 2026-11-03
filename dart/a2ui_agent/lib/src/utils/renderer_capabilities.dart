@@ -34,7 +34,7 @@ Map<String, Object?>? readRendererCapabilities(
 ]) {
   if (metadata == null) return null;
 
-  final String metadataKey = version == A2uiProtocolVersion.v1_0
+  final metadataKey = version == A2uiProtocolVersion.v1_0
       ? a2uiRendererCapabilitiesKey
       : a2uiClientCapabilitiesKey;
   if (!metadata.containsKey(metadataKey) || metadata[metadataKey] == null) {
@@ -48,7 +48,7 @@ Map<String, Object?>? readRendererCapabilities(
     );
   }
 
-  final String entryKey = version == A2uiProtocolVersion.v1_0 ? '1.0' : 'v0.9';
+  final entryKey = version == A2uiProtocolVersion.v1_0 ? '1.0' : 'v0.9';
   if (!raw.containsKey(entryKey) || raw[entryKey] == null) {
     return null;
   }

@@ -212,9 +212,8 @@ Map<String, Object?> _pruneMessagesSchema(
   final messageDefNames = <String>{
     if (a2rSchema['oneOf'] case final List<Object?> oneOf)
       for (final Object? item in oneOf)
-        if (item case {
-          r'$ref': final String ref,
-        } when ref.startsWith(_defsRefPrefix))
+        if (item case {r'$ref': final String ref}
+            when ref.startsWith(_defsRefPrefix))
           ref.substring(_defsRefPrefix.length),
   };
   final validMessageTypes = <String>{};
