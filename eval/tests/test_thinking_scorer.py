@@ -22,7 +22,6 @@ import pytest
 
 from a2ui_eval.shared.utils import THINKING_KEY, visible_thinking
 from a2ui_eval.thinking_scorer import (
-    a2ui_sentences,
     a2ui_share,
     free_of_a2ui,
     thinking_scorer,
@@ -41,37 +40,24 @@ def _state(thinking: str | None) -> TaskState:
     )
 
 
-def test_a2ui_sentences_picks_protocol_talk() -> None:
-    sentences, about_a2ui = a2ui_sentences(
-        "**Weighing the options**\n"
-        "A 60 cm gap is a key constraint. I'm checking the JSON schema."
-        " Next I'll set the surfaceId and the root component!"
+@pytest.mark.asyncio
+async def test_thinking_scorer_scores_the_share_the_sdk_would_hide() -> None:
+    score = await thinking_scorer()(
+        _state("The user cooks daily. I'll add a createSurface."),
+        Target(""),
     )
-    assert sentences == [
-        "**Weighing the options**",
-        "A 60 cm gap is a key constraint.",
-        "I'm checking the JSON schema.",
-        "Next I'll set the surfaceId and the root component!",
-    ]
-    assert about_a2ui == sentences[2:]
-
-
-def test_a2ui_sentences_leaves_everyday_words_alone() -> None:
-    _, about_a2ui = a2ui_sentences(
-        "The countertop surface is narrow. A quiet dishwasher component matters."
-    )
-    assert about_a2ui == []
+    assert score.value == pytest.approx(22 / 40)
+    assert score.metadata == {"characters": 40, "shown_characters": 18}
+    assert score.explanation.endswith("\n\nThe user cooks daily.")
 
 
 @pytest.mark.asyncio
-async def test_thinking_scorer_scores_the_share_of_a2ui_sentences() -> None:
+async def test_thinking_scorer_scores_zero_for_thinking_about_the_request() -> None:
     score = await thinking_scorer()(
-        _state("The user cooks daily. I'll validate the createSurface message."),
+        _state("The countertop surface is narrow. A quiet pump matters."),
         Target(""),
     )
-    assert score.value == 0.5
-    assert score.metadata == {"sentences": 2, "a2ui_sentences": 1}
-    assert "createSurface" in (score.explanation or "")
+    assert score.value == 0
 
 
 @pytest.mark.asyncio
