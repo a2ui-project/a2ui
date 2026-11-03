@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) The `TextField` builder in
+  `a2ui.builder.v1_0.catalogs.basic` requires `value`, following the basic
+  catalog. Recommended migration: pass `value`, such as
+  `value=DataBinding(path="/form/email")`. The path does not have to exist yet
+  ([#3830](https://github.com/a2ui-project/a2ui/issues/3830),
+  [#3868](https://github.com/a2ui-project/a2ui/pull/3868)).
 - Add incremental streaming support for the Express inference format via `ExpressResponseStream` (`ExpressFormat.supports_streaming` and `ExpressParser.supports_streaming` now return `True`). `ExpressFormatFactory`, `ExpressFormat`, and `ExpressParser` accept `progressive_keys` (defaulting to `DEFAULT_EXPRESS_PROGRESSIVE_KEYS = frozenset({"text"})`) to heal unclosed string literals in matching component properties and data path assignments as chunks arrive, while gating initial `createSurface` emission on `root = ...` for new surfaces, emitting delta `updateComponents` and per-path `updateDataModel` messages on subsequent chunks, and holding statements with unresolved value variables until defined ([#2896](https://github.com/a2ui-project/a2ui/issues/2896)).
 - **BREAKING CHANGE**: Use `'1.0'` (without a `'v'` prefix) as the `version`
   field on v1.0 protocol messages and capabilities in inference format
