@@ -189,7 +189,7 @@ These cases run in each web adapter that implements the feature. They are framew
   - A host moved within the DOM in one task keeps its mounted state.
 - **Styling**
   - Two different elements with the same internal selector do not style each other.
-  - A `createSurface` at v1.0 or later with a `theme` object renders exactly as one without it.
+  - A v1.0 `createSurface` accepted under relaxed validation with a `theme` object renders exactly as one without it.
 - **Shared basic catalog**
   - `accessibility.label` on a basic catalog component appears as `aria-label` on its inner semantic control (or on a `role="group"` container host).
   - A failed check with severity `error` renders its message; the element's action is disabled.
