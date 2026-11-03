@@ -315,7 +315,7 @@ async def test_message_processor_call_renderer_function_async_coroutine():
     assert resp[0]["rendererFunctionResponse"]["functionCallId"] == "async_call_1"
 
 
-def test_message_processor_disposal_cancels_pending_calls(mock_catalog):
+def test_rpc_handler_disposal_cancels_pending_calls(mock_catalog):
     from a2ui.core.exceptions import A2uiRpcError, RpcErrorCode
 
     options = MessageProcessorOptions(outbound_listener=lambda msg: None)
