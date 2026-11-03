@@ -52,25 +52,61 @@ def _extract_case_identity(item: pytest.Item) -> tuple[str, str] | None:
     return None
 
 
+_MANIFEST_RECORDS: dict[tuple[str, str], dict[str, tuple[str, str | None]]] = {}
+
+
+def _combine_outcomes(
+    outcomes: dict[str, tuple[str, str | None]],
+) -> tuple[str, str | None]:
+    """Combines per-version outcomes into a single `(status, reason)` pair."""
+    for target in ("failed", "xfailed"):
+        for status, reason in outcomes.values():
+            if status == target:
+                return status, reason
+    if any(status == "passed" for status, _ in outcomes.values()):
+        return "passed", None
+    for _, reason in outcomes.values():
+        if reason:
+            return "skipped", reason
+    return "skipped", "skipped"
+
+
+def _extract_version_key(item: pytest.Item) -> str:
+    callspec = getattr(item, "callspec", None)
+    params = getattr(callspec, "params", None)
+    if isinstance(params, dict) and isinstance(params.get("version"), str):
+        return params["version"]
+    return "default"
+
+
 def _append_manifest_record(
-    suite: str, case_name: str, status: str, reason: str | None = None
+    suite: str,
+    case_name: str,
+    status: str,
+    reason: str | None = None,
+    version_key: str = "default",
 ) -> None:
-    """Appends one executed-case record when `A2UI_CONFORMANCE_MANIFEST_DIR` is set."""
+    """Records one executed-case outcome when `A2UI_CONFORMANCE_MANIFEST_DIR` is set."""
     manifest_dir = os.environ.get("A2UI_CONFORMANCE_MANIFEST_DIR")
     if not manifest_dir:
         return
     os.makedirs(manifest_dir, exist_ok=True)
     manifest_path = Path(manifest_dir) / f"python-agent-{os.getpid()}.jsonl"
-    record: dict[str, str] = {
-        "harness": "python-agent",
-        "suite": suite,
-        "case": case_name,
-        "status": status,
-    }
-    if reason:
-        record["reason"] = reason
-    with manifest_path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(record) + "\n")
+    case_outcomes = _MANIFEST_RECORDS.setdefault((suite, case_name), {})
+    case_outcomes[version_key] = (status, reason)
+    lines: list[str] = []
+    for (rec_suite, rec_case), outcomes in _MANIFEST_RECORDS.items():
+        merged_status, merged_reason = _combine_outcomes(outcomes)
+        record: dict[str, str] = {
+            "harness": "python-agent",
+            "suite": rec_suite,
+            "case": rec_case,
+            "status": merged_status,
+        }
+        if merged_reason:
+            record["reason"] = merged_reason
+        lines.append(json.dumps(record))
+    manifest_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _extract_skip_reason(report: pytest.TestReport) -> str:
@@ -121,7 +157,13 @@ def pytest_runtest_makereport(
     if identity is None:
         return
     status, reason = _report_status_and_reason(report)
-    _append_manifest_record(identity[0], identity[1], status, reason)
+    _append_manifest_record(
+        identity[0],
+        identity[1],
+        status,
+        reason,
+        version_key=_extract_version_key(item),
+    )
 
 
 def pytest_deselected(items: Sequence[pytest.Item]) -> None:

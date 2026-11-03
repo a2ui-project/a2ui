@@ -45,6 +45,7 @@ import {
 } from '../../src/index.js';
 import {CatalogApi} from '../../src/internal/web-core.js';
 import {CONFORMANCE_ROOT, LoadedCase} from './loader.js';
+import {SUITE_VERSIONS, SuiteVersion, v09SkipReason} from './lowering.js';
 import {recordCase, registerAfterEachManifestRecorder, setActiveCase} from './manifest.js';
 
 /** Error categories the suites name, mapped to the SDK's error classes. */
@@ -153,10 +154,11 @@ export function registerCase(
   knownFailures: ReadonlyMap<string, string>,
   run: () => void | Promise<void>,
   skipReason?: string,
+  versionKey = 'default',
 ): void {
   const title = `${testCase.action} · ${testCase.name}`;
   if (skipReason) {
-    recordCase(testCase.sourceFile, testCase.name, 'skipped', skipReason);
+    recordCase(testCase.sourceFile, testCase.name, 'skipped', skipReason, versionKey);
     test.skip(`${title} (${skipReason})`, () => {});
     return;
   }
@@ -166,6 +168,7 @@ export function registerCase(
       suite: testCase.sourceFile,
       name: testCase.name,
       knownFailure,
+      version: versionKey,
     });
     await run();
   };
@@ -178,7 +181,7 @@ export function registerCase(
 
 export interface DescribeSuiteOptions {
   knownFailures?: ReadonlyMap<string, string>;
-  skipReason?: (testCase: LoadedCase) => string | undefined;
+  skipReason?: (testCase: LoadedCase, version?: SuiteVersion) => string | undefined;
 }
 
 /**
@@ -199,4 +202,28 @@ export function describeSuite(
       registerCase(testCase, knownFailures, () => run(testCase), reason);
     }
   });
+}
+
+/**
+ * Runs a conformance suite across both `v1.0` and `v0.9-lowered` protocol versions,
+ * merging manifest records per `(suite, case)`.
+ */
+export function forEachSuiteVersion(
+  suiteTitle: string,
+  cases: readonly LoadedCase[],
+  run: (testCase: LoadedCase, version: SuiteVersion) => void | Promise<void>,
+  options: DescribeSuiteOptions = {},
+): void {
+  const knownFailures = options.knownFailures ?? new Map<string, string>();
+  for (const version of SUITE_VERSIONS) {
+    describe(`${suiteTitle} (${version})`, () => {
+      registerAfterEachManifestRecorder();
+      for (const testCase of cases) {
+        const reason =
+          options.skipReason?.(testCase, version) ??
+          (version === 'v0.9-lowered' ? v09SkipReason(testCase) : undefined);
+        registerCase(testCase, knownFailures, () => run(testCase, version), reason, version);
+      }
+    });
+  }
 }
