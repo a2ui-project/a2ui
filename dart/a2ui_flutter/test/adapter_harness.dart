@@ -67,6 +67,9 @@ const Set<String> adapterStepKnownKeys = {
   'expectErrors',
   'expectOutbound',
   'expectSameViewIdentity',
+  'expectNewViewIdentity',
+  'expectDisposedNodes',
+  'expectSurfaceRemoved',
   'expectThemeAbsent',
   'expectActiveSubscriptions',
 };
@@ -526,6 +529,11 @@ class AdapterHarnessSession {
         }
       });
     });
+    processor.model.onSurfaceDeleted.subscribe((deletedId) {
+      if (surface?.id == deletedId) {
+        surfaceDeleted = true;
+      }
+    });
   }
 
   WidgetTester? tester;
@@ -542,6 +550,7 @@ class AdapterHarnessSession {
   final Map<String, Element> savedElements = {};
   final Map<String, ComponentNode<ComponentImplementation>> savedNodes = {};
   bool mounted = false;
+  bool surfaceDeleted = false;
 
   ComponentNode<ComponentImplementation>? get rootNode =>
       renderedNodes[surface?.rootId ?? 'root'];
@@ -558,7 +567,11 @@ class AdapterHarnessSession {
         },
     ];
     processor.processMessages(messages);
-    if (!mounted && surface != null) {
+    if (surfaceDeleted && mounted) {
+      mounted = false;
+      renderedNodes.clear();
+      await activeTester.pumpWidget(const SizedBox());
+    } else if (!mounted && surface != null && !surfaceDeleted) {
       mounted = true;
       await activeTester.pumpWidget(
         MaterialApp(
@@ -819,6 +832,34 @@ void _assertStepExpectations(
       expect(current[key]?.$2, same(harness.savedElements[key]));
     }
   }
+  if (step['expectNewViewIdentity'] case final List<Object?> keys) {
+    final Map<String, (ComponentNode<ComponentImplementation>, Element?)>
+        current = _collectIdentityMap(tester, harness.rootNode);
+    for (final rawKey in keys) {
+      final key = rawKey! as String;
+      expect(current[key]?.$1, isNotNull);
+      expect(harness.savedNodes[key], isNotNull);
+      expect(current[key]?.$1, isNot(same(harness.savedNodes[key])));
+      expect(current[key]?.$2, isNotNull);
+      expect(harness.savedElements[key], isNotNull);
+      expect(current[key]?.$2, isNot(same(harness.savedElements[key])));
+    }
+  }
+  if (step['expectDisposedNodes'] case final List<Object?> ids) {
+    for (final rawId in ids) {
+      final id = rawId! as String;
+      final ComponentNode<ComponentImplementation>? saved =
+          harness.savedNodes[id];
+      expect(saved, isNotNull);
+      expect(saved!.disposed, isTrue);
+      expect(_findNodeView(id), findsNothing);
+    }
+  }
+  if (step['expectSurfaceRemoved'] == true) {
+    expect(harness.processor.model.getSurface(harness.surface!.id), isNull);
+    expect(harness.surface!.isDisposed, isTrue);
+    expect(find.byType(A2uiSurface), findsNothing);
+  }
   if (step['expectDataModel'] case final Map<String, Object?> expectedData) {
     expect(harness.surface!.dataModel.get('/'), equals(expectedData));
   }
@@ -882,7 +923,16 @@ Map<String, (ComponentNode<ComponentImplementation>, Element?)>
     Finder? ancestor,
   ) {
     final Finder finder = _findNodeView(node.instanceId, ancestor);
-    final Iterable<Element> elements = finder.evaluate();
+    final Iterable<Element> implElements = find
+        .descendant(
+          of: finder,
+          matching: find.byWidgetPredicate(
+            (w) => w is KeyedSubtree && w.key == ObjectKey(node.impl),
+          ),
+        )
+        .evaluate();
+    final Iterable<Element> elements =
+        implElements.isNotEmpty ? implElements : finder.evaluate();
     final Element? elem = elements.isEmpty ? null : elements.first;
     result[node.instanceId] = (node, elem);
     result[path] = (node, elem);

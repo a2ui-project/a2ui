@@ -2118,6 +2118,9 @@
               "expectActions": {"type": "array", "items": {"type": "object"}},
               "expectErrors": {"type": "array", "items": {"type": "object"}},
               "expectSameViewIdentity": {"type": "array", "items": {"type": "string"}},
+              "expectNewViewIdentity": {"type": "array", "items": {"type": "string"}},
+              "expectDisposedNodes": {"type": "array", "items": {"type": "string"}},
+              "expectSurfaceRemoved": {"type": "boolean"},
               "expectThemeAbsent": {"type": "boolean"},
               "expectActiveSubscriptions": {"type": "integer"},
               "expectOutbound": {"$ref": "#/$defs/OutboundEnvelopeList"}

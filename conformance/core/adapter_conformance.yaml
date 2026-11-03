@@ -696,3 +696,153 @@
             text: "Mounted"
     - op: unmount_surface
       expectActiveSubscriptions: 0
+
+- name: delete_surface_unmounts_view
+  description: Verifies that processing a deleteSurface message removes the surface from the group, unmounts the rendered view, and releases all active reactive subscriptions.
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              status: "Active"
+            components:
+              - id: "root"
+                component: "Card"
+                child: "status_text"
+              - id: "status_text"
+                component: "Text"
+                text:
+                  "@path": "/status"
+      expectViewTree:
+        id: "root"
+        type: "Card"
+        children:
+          - id: "status_text"
+            type: "Text"
+            text: "Active"
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          deleteSurface:
+            surfaceId: "adapter_surface"
+      expectSurfaceRemoved: true
+      expectActiveSubscriptions: 0
+
+- name: type_change_under_same_id_resets_view_state
+  description: Verifies that replacing a component with a different type under the same id creates a new view identity rather than reusing the prior component's stateful view.
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              note: "Initial"
+            components:
+              - id: "root"
+                component: "Card"
+                child: "field"
+              - id: "field"
+                component: "TextField"
+                label: "Note"
+                value:
+                  "@path": "/note"
+      expectViewTree:
+        id: "root"
+        type: "Card"
+        children:
+          - id: "field"
+            type: "TextField"
+            value: "Initial"
+    - op: user_input
+      targetNode: "field"
+      inputValue: "Typed in TextField"
+      expectDataModel:
+        note: "Typed in TextField"
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "adapter_surface"
+            components:
+              - id: "field"
+                component: "Text"
+                text: "Now a static label"
+      expectNewViewIdentity:
+        - "root/children/0"
+      expectViewTree:
+        id: "root"
+        type: "Card"
+        children:
+          - id: "field"
+            type: "Text"
+            text: "Now a static label"
+
+- name: removed_components_release_subscriptions
+  description: Verifies that when a parent component removes a child from its children list, the unreferenced child node is disposed and releases its data model subscriptions.
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              kept: "Kept"
+              old: "Old"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["kept_child", "old_child"]
+              - id: "kept_child"
+                component: "Text"
+                text:
+                  "@path": "/kept"
+              - id: "old_child"
+                component: "Text"
+                text:
+                  "@path": "/old"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "kept_child"
+            type: "Text"
+            text: "Kept"
+          - id: "old_child"
+            type: "Text"
+            text: "Old"
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "adapter_surface"
+            components:
+              - id: "root"
+                component: "Column"
+                children: ["kept_child"]
+      expectDisposedNodes:
+        - "old_child"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "kept_child"
+            type: "Text"
+            text: "Kept"

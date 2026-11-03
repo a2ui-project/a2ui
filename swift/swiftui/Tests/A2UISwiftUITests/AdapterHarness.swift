@@ -248,6 +248,9 @@ enum AdapterHarness {
     "expectErrors",
     "expectOutbound",
     "expectSameViewIdentity",
+    "expectNewViewIdentity",
+    "expectDisposedNodes",
+    "expectSurfaceRemoved",
     "expectThemeAbsent",
     "expectActiveSubscriptions",
   ]
@@ -639,8 +642,8 @@ enum AdapterHarness {
 
   /// Extracts the current resolved view tree from `session`.
   static func extractViewTree(_ session: AdapterSession) -> AdapterViewNode? {
-    guard let surface = session.mountedHarness?.surface else { return nil }
-    return resolveViewTree(for: surface)
+    guard let harness = session.mountedHarness, harness.isMounted else { return nil }
+    return resolveViewTree(for: harness.surface)
   }
 
   /// Executes a single adapter conformance `step` against `session` and verifies expectations.
@@ -801,7 +804,11 @@ enum AdapterHarness {
     session: AdapterSession
   ) throws {
     try session.processor.processMessages(toJSONValue(messages))
-    if session.mountedHarness == nil,
+    if let harness = session.mountedHarness,
+      session.processor.surfaceGroupModel.surfacesMap[harness.surface.surfaceID] == nil
+    {
+      harness.unmount()
+    } else if session.mountedHarness == nil,
       let vm = session.processor.surfaceGroupModel.surfacesMap["adapter_surface"]
         ?? session.processor.surfaceGroupModel.surfacesMap.values.first
     {
@@ -940,6 +947,26 @@ enum AdapterHarness {
         currentTree: session.currentTree,
         context: context
       )
+    }
+    if let expNewIDs = step["expectNewViewIdentity"] as? [String] {
+      try assertNewViewIdentities(
+        expNewIDs,
+        previousTree: session.previousTree,
+        currentTree: session.currentTree,
+        context: context
+      )
+    }
+    if let expDisposedIDs = step["expectDisposedNodes"] as? [String] {
+      try assertDisposedNodes(
+        expDisposedIDs,
+        previousTree: session.previousTree,
+        currentTree: session.currentTree,
+        surface: session.mountedHarness?.surface,
+        context: context
+      )
+    }
+    if (step["expectSurfaceRemoved"] as? Bool) == true {
+      try assertSurfaceRemoved(session: session, context: context)
     }
     if let expActions = step["expectActions"] as? [[String: Any]] {
       try assertActionsMatch(session.handler.actions, expected: expActions, context: context)
@@ -1099,14 +1126,97 @@ enum AdapterHarness {
       let prevNode = findViewNode(atPath: path, in: previousTree)
       let currNode = findViewNode(atPath: path, in: currentTree)
       #expect(prevNode != nil && currNode != nil, "\(context): missing node at \(path)")
-      #expect(
-        prevNode?.instanceID == currNode?.instanceID,
-        "\(context): identity changed at \(path)"
-      )
-      if prevNode == nil || currNode == nil || prevNode?.instanceID != currNode?.instanceID {
+      let sameIdentity =
+        prevNode?.instanceID == currNode?.instanceID
+        && prevNode?.node?.box === currNode?.node?.box
+      #expect(sameIdentity, "\(context): identity changed at \(path)")
+      if prevNode == nil || currNode == nil || !sameIdentity {
         throw AdapterConformanceError("\(context): identity mismatch at \(path)")
       }
     }
+  }
+
+  private static func assertNewViewIdentities(
+    _ paths: [String],
+    previousTree: AdapterViewNode?,
+    currentTree: AdapterViewNode?,
+    context: String
+  ) throws {
+    for path in paths {
+      let prevNode = findViewNode(atPath: path, in: previousTree)
+      let currNode = findViewNode(atPath: path, in: currentTree)
+      #expect(prevNode != nil && currNode != nil, "\(context): missing node at \(path)")
+      let identityChanged =
+        prevNode?.instanceID != currNode?.instanceID
+        || prevNode?.node?.box !== currNode?.node?.box
+      #expect(identityChanged, "\(context): expected new identity at \(path)")
+      if prevNode == nil || currNode == nil || !identityChanged {
+        throw AdapterConformanceError("\(context): expected new identity at \(path)")
+      }
+    }
+  }
+
+  private static func assertDisposedNodes(
+    _ nodeIDs: [String],
+    previousTree: AdapterViewNode?,
+    currentTree: AdapterViewNode?,
+    surface: Surface?,
+    context: String
+  ) throws {
+    for nodeID in nodeIDs {
+      let prevNode = findViewNodeByID(nodeID, in: previousTree)
+      let currNode = findViewNodeByID(nodeID, in: currentTree)
+      #expect(prevNode != nil, "\(context): expected previous node '\(nodeID)'")
+      #expect(currNode == nil, "\(context): expected node '\(nodeID)' to be unmounted")
+      var emissions = 0
+      var cancellable: AnyCancellable?
+      if let box = prevNode?.node?.box {
+        cancellable = box.objectWillChange.sink { _ in emissions += 1 }
+      }
+      if let dm = surface?.viewModel.dataModel,
+        let currentVal = dm.get("/removedText")
+      {
+        dm.set("/removedText", value: currentVal)
+      }
+      withExtendedLifetime(cancellable) {}
+      #expect(emissions == 0, "\(context): disposed node '\(nodeID)' still emitted")
+      if prevNode == nil || currNode != nil || emissions != 0 {
+        throw AdapterConformanceError("\(context): disposed node check failed for '\(nodeID)'")
+      }
+    }
+  }
+
+  private static func assertSurfaceRemoved(
+    session: AdapterSession,
+    context: String
+  ) throws {
+    guard let harness = session.mountedHarness else {
+      throw AdapterConformanceError("\(context): no mounted harness")
+    }
+    let sid = harness.surface.surfaceID
+    let inGroup = session.processor.surfaceGroupModel.surfacesMap[sid] != nil
+    #expect(!inGroup, "\(context): surface '\(sid)' still in surfaceGroupModel")
+    #expect(!harness.isMounted, "\(context): surface harness still mounted")
+    #expect(session.currentTree == nil, "\(context): expected nil currentTree")
+    if inGroup || harness.isMounted || session.currentTree != nil {
+      throw AdapterConformanceError("\(context): expectSurfaceRemoved failed")
+    }
+  }
+
+  private static func findViewNodeByID(
+    _ id: String,
+    in root: AdapterViewNode?
+  ) -> AdapterViewNode? {
+    guard let root else { return nil }
+    if root.id == id || root.instanceID == id {
+      return root
+    }
+    for child in root.children {
+      if let match = findViewNodeByID(id, in: child) {
+        return match
+      }
+    }
+    return nil
   }
 
   private static func findViewNode(

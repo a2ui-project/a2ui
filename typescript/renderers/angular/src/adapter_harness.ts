@@ -132,6 +132,9 @@ export interface AdapterStep {
   expectErrors?: ExpectedErrorEntry[];
   expectOutbound?: Array<Record<string, unknown>>;
   expectSameViewIdentity?: string[];
+  expectNewViewIdentity?: string[];
+  expectDisposedNodes?: string[];
+  expectSurfaceRemoved?: boolean;
   expectThemeAbsent?: boolean;
   expectActiveSubscriptions?: number;
 }
@@ -211,6 +214,9 @@ export const KNOWN_KEYS = {
     'expectErrors',
     'expectOutbound',
     'expectSameViewIdentity',
+    'expectNewViewIdentity',
+    'expectDisposedNodes',
+    'expectSurfaceRemoved',
     'expectThemeAbsent',
     'expectActiveSubscriptions',
   ]),
@@ -608,6 +614,7 @@ function collectMountedNodes(root: ComponentNode | undefined): Map<string, Compo
   }
   const visit = (node: ComponentNode, nodePath: string): void => {
     nodes.set(nodePath, node);
+    nodes.set(node.componentId, node);
     const props = peekValue(node.props);
     if (Array.isArray(props['children'])) {
       props['children'].forEach((child, i) => {
@@ -617,6 +624,7 @@ function collectMountedNodes(root: ComponentNode | undefined): Map<string, Compo
       });
     } else if (isComponentNode(props['child'])) {
       visit(props['child'], `${nodePath}/child`);
+      visit(props['child'], `${nodePath}/children/0`);
     }
   };
   visit(root, 'root');
@@ -998,6 +1006,33 @@ function assertStepIdentityAndModel(
       expect(currEl).toBe(prevEl);
     }
   }
+  if (step.expectNewViewIdentity) {
+    for (const nodePath of step.expectNewViewIdentity) {
+      const prevNode = state.previousNodes.get(nodePath);
+      const currNode = currentNodes.get(nodePath);
+      expect(prevNode).withContext(`Previous node at ${nodePath}`).toBeDefined();
+      expect(currNode).withContext(`Current node at ${nodePath}`).toBeDefined();
+      expect(currNode).not.toBe(prevNode);
+      const prevEl = state.previousDomElements.get(nodePath);
+      const currEl = currentDom.get(nodePath);
+      expect(prevEl).withContext(`Previous DOM element for ${nodePath}`).toBeDefined();
+      expect(currEl).withContext(`Current DOM element for ${nodePath}`).toBeDefined();
+      expect(currEl).not.toBe(prevEl);
+    }
+  }
+  if (step.expectDisposedNodes) {
+    for (const nodeId of step.expectDisposedNodes) {
+      const prevNode = state.previousNodes.get(nodeId);
+      expect(prevNode).withContext(`Previous node for ${nodeId}`).toBeDefined();
+      expect((prevNode as unknown as { disposed?: boolean })?.disposed).toBe(true);
+      expect(currentNodes.has(nodeId)).toBe(false);
+    }
+  }
+  if (step.expectSurfaceRemoved) {
+    expect(state.rendererService.surfaceGroup.getSurface(state.surface!.id)).toBeUndefined();
+    expect((state.surface as unknown as { disposed?: boolean })?.disposed).toBe(true);
+    expect(state.unmounted).toBe(true);
+  }
   if (step.expectDataModel !== undefined) {
     expect(state.surface!.dataModel.get('/')).toEqual(step.expectDataModel);
   }
@@ -1220,6 +1255,12 @@ export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState 
         );
       }
     });
+  });
+  rendererService.surfaceGroup.onSurfaceDeleted.subscribe((deletedId) => {
+    if (state.surface?.id === deletedId && !state.unmounted) {
+      state.fixture?.destroy();
+      state.unmounted = true;
+    }
   });
   return state;
 }

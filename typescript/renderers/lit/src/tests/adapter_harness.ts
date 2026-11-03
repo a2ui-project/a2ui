@@ -115,6 +115,9 @@ export interface AdapterStep {
   expectViewTree?: ExpectedViewNode;
   expectDataModel?: Record<string, unknown>;
   expectSameViewIdentity?: string[];
+  expectNewViewIdentity?: string[];
+  expectDisposedNodes?: string[];
+  expectSurfaceRemoved?: boolean;
   expectActions?: ExpectedAction[];
   expectErrors?: ExpectedError[];
   expectOutbound?: Array<Record<string, unknown>>;
@@ -152,6 +155,7 @@ export interface AdapterSession {
   protocolVersion: string;
   currentOp?: string;
   priorIdentities: Map<string, HTMLElement>;
+  priorNodes: Map<string, ComponentNode<LitComponentApi>>;
 }
 
 export interface ManifestRecord {
@@ -197,6 +201,9 @@ export const KNOWN_KEYS = {
     'expectErrors',
     'expectOutbound',
     'expectSameViewIdentity',
+    'expectNewViewIdentity',
+    'expectDisposedNodes',
+    'expectSurfaceRemoved',
     'expectThemeAbsent',
     'expectActiveSubscriptions',
   ]),
@@ -609,6 +616,25 @@ function snapshotViewIdentities(surfaceEl: A2uiSurface | undefined): Map<string,
       map.set(`root/children/${index}`, childEl);
     }
   });
+  return map;
+}
+
+function snapshotNodes(
+  surfaceEl: A2uiSurface | undefined,
+): Map<string, ComponentNode<LitComponentApi>> {
+  const map = new Map<string, ComponentNode<LitComponentApi>>();
+  if (!surfaceEl?.rootNode) {
+    return map;
+  }
+  const visit = (node: ComponentNode<LitComponentApi>, path: string): void => {
+    map.set(path, node);
+    map.set(node.componentId, node);
+    const children = getDirectChildNodes(node);
+    children.forEach((child, idx) => {
+      visit(child, `${path}/children/${idx}`);
+    });
+  };
+  visit(surfaceEl.rootNode, 'root');
   return map;
 }
 
@@ -1065,6 +1091,31 @@ function assertSameViewIdentities(session: AdapterSession, identityPaths: string
   }
 }
 
+function assertNewViewIdentities(session: AdapterSession, identityPaths: string[]): void {
+  assert.ok(session.surfaceEl, 'Expected mounted surfaceEl for new view identity check');
+  for (const idPath of identityPaths) {
+    const beforeEl = session.priorIdentities.get(idPath);
+    const afterEl = resolveIdentityElement(session.surfaceEl, idPath);
+    assert.ok(beforeEl && afterEl, `Missing view identity for "${idPath}"`);
+    assert.notEqual(afterEl, beforeEl, `Expected new view identity for "${idPath}"`);
+  }
+}
+
+function assertDisposedNodes(session: AdapterSession, nodeIds: string[]): void {
+  for (const nodeId of nodeIds) {
+    const prevNode = session.priorNodes.get(nodeId);
+    assert.ok(prevNode, `Expected prior node "${nodeId}"`);
+    assert.equal(prevNode.disposed, true, `Expected node "${nodeId}" to be disposed`);
+    if (session.surfaceEl) {
+      assert.equal(
+        findDomElementByComponentId(session.surfaceEl, nodeId),
+        undefined,
+        `Expected node "${nodeId}" DOM element to be unmounted`,
+      );
+    }
+  }
+}
+
 function assertRecordedErrors(
   actualErrors: Array<{code: string; message: string; surfaceId: string}>,
   expectedErrors: ExpectedError[],
@@ -1095,6 +1146,18 @@ function verifyStepExpectations(session: AdapterSession, step: AdapterStep): voi
   }
   if (step.expectSameViewIdentity) {
     assertSameViewIdentities(session, step.expectSameViewIdentity);
+  }
+  if (step.expectNewViewIdentity) {
+    assertNewViewIdentities(session, step.expectNewViewIdentity);
+  }
+  if (step.expectDisposedNodes) {
+    assertDisposedNodes(session, step.expectDisposedNodes);
+  }
+  if (step.expectSurfaceRemoved) {
+    assert.ok(session.surface, 'Expected prior surface for expectSurfaceRemoved');
+    assert.equal(session.processor.model.getSurface(session.surface.id), undefined);
+    assert.equal(session.surface.disposed, true);
+    assert.ok(!session.surfaceEl?.isConnected || session.surfaceEl.children.length === 0);
   }
   if (step.expectActions !== undefined) {
     assert.deepEqual(session.recordedActions, step.expectActions);
@@ -1157,7 +1220,7 @@ export function mountSurface(
       recordedOutbound.push(structuredClone(msg) as unknown as Record<string, unknown>);
     },
   });
-  return {
+  const session: AdapterSession = {
     processor,
     mountedElements,
     recordedActions: [],
@@ -1165,7 +1228,14 @@ export function mountSurface(
     recordedOutbound,
     protocolVersion,
     priorIdentities: new Map(),
+    priorNodes: new Map(),
   };
+  processor.model.onSurfaceDeleted.subscribe(deletedId => {
+    if (session.surface?.id === deletedId) {
+      session.surfaceEl?.remove();
+    }
+  });
+  return session;
 }
 
 export async function runStep(session: AdapterSession, step: AdapterStep): Promise<void> {
@@ -1175,6 +1245,7 @@ export async function runStep(session: AdapterSession, step: AdapterStep): Promi
   session.recordedOutbound.length = 0;
   session.currentOp = step.op;
   session.priorIdentities = snapshotViewIdentities(session.surfaceEl);
+  session.priorNodes = snapshotNodes(session.surfaceEl);
 
   if (step.op === 'process_messages' && !session.surfaceEl) {
     for (const msg of step.messages ?? []) {

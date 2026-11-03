@@ -408,3 +408,51 @@ def test_render_surface_strict_mode_and_expect_theme_absent_schema():
                 }
             ]
         )
+
+
+def test_render_surface_teardown_step_expectations_schema():
+    valid_case = {
+        "name": "teardown_checks",
+        "action": "render_surface",
+        "protocolVersion": "1.0",
+        "steps": [
+            {
+                "op": "process_messages",
+                "messages": [],
+                "expectSurfaceRemoved": True,
+                "expectNewViewIdentity": ["root/children/0"],
+                "expectDisposedNodes": ["old_child"],
+            }
+        ],
+    }
+    VALIDATOR.validate([valid_case])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate(
+            [
+                {
+                    **valid_case,
+                    "steps": [{**valid_case["steps"][0], "expectSurfaceRemoved": "yes"}],
+                }
+            ]
+        )
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate(
+            [
+                {
+                    **valid_case,
+                    "steps": [{**valid_case["steps"][0], "expectNewViewIdentity": "root/children/0"}],
+                }
+            ]
+        )
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate(
+            [
+                {
+                    **valid_case,
+                    "steps": [{**valid_case["steps"][0], "expectDisposedNodes": "old_child"}],
+                }
+            ]
+        )
