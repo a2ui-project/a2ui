@@ -18,16 +18,14 @@
 const mermaidSpec = `
 sequenceDiagram
   actor User as Mobile Chat User
-  participant App as Mobile Renderer SDK (SwiftUI / Compose / Flutter)
+  participant App as Mobile Renderer SDK
   participant Agent as Agent + A2UI Agent SDK
-  App->>Agent: Advertise a2uiRendererCapabilities (supportedCatalogIds) + chat prompt
-  Agent-->>App: createSurface (surfaceId: "kyoto_trip", catalogId: ".../basic/catalog.json")
-  Agent-->>App: Incremental updateComponents (root first) + updateDataModel (~5s stream)
-  App-->>User: Progressively mounts interactive native UI cards inside chat
-  User->>App: Adjusts cabin, guests slider, onsen checkbox (0ms local dataModel sync)
+  User->>Agent: "Plan a weekend in Kyoto for 2 with bullet train and a ryokan stay."
+  Agent-->>App: Stream <a2ui> Express (surface "kyoto_trip": hero, options, summary)
+  App-->>User: Progressively mounts native UI cards bound to local dataModel
+  User->>App: Adjusts cabin chips, Guests slider, Private Onsen checkbox (0ms local dataModel sync)
   User->>App: Taps Hold Itinerary
-  App->>Agent: action (name: "confirm_trip", context from local dataModel)
-  Agent-->>App: updateDataModel (path: "/trip/estUsd")
+  App->>Agent: Event("confirm_trip", {guests, cabin, onsen})
 `;
 ---
 
@@ -35,183 +33,116 @@ sequenceDiagram
   class="hc-shell"
   id="hero-chat-visual"
   role="region"
-  aria-label="How A2UI generates interactive mobile chat interfaces"
+  aria-label="How A2UI streams interactive mobile chat interfaces"
 >
-  <!-- Top 3-Step Summary Bar: Explains in a nutshell how UI gets generated -->
-  <div class="hc-nutshell">
-    <div class="hc-step">
-      <span class="hc-step__num">1</span>
-      <div class="hc-step__text">
-        <strong>Shared component catalog</strong>
-        <span>Your mobile app registers native views; the Agent SDK turns schemas into model instructions.</span>
-      </div>
-    </div>
-    <span class="hc-step__arrow" aria-hidden="true">→</span>
-    <div class="hc-step">
-      <span class="hc-step__num">2</span>
-      <div class="hc-step__text">
-        <strong>Agent streams declarative UI</strong>
-        <span>Triggered in chat, the agent emits layout and data updates incrementally—never executable code.</span>
-      </div>
-    </div>
-    <span class="hc-step__arrow" aria-hidden="true">→</span>
-    <div class="hc-step">
-      <span class="hc-step__num">3</span>
-      <div class="hc-step__text">
-        <strong>Native widgets render in chat</strong>
-        <span>The Renderer SDK mounts stateful host controls bound two-way to a local <code>dataModel</code>.</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Main Interactive Stage: Agent Stream + Local State -> Protocol Wire -> Mobile Device -->
   <div class="hc-stage">
-    <!-- LEFT COLUMN: Agent Server Stream + Client Local Surface State -->
+    <!-- LEFT: Quiet, Soft-Toned A2UI Express Stream + Single-Line Local dataModel Strip -->
     <div class="hc-left-col">
       <div class="hc-agent">
         <div class="hc-agent__head">
           <div class="hc-agent__title-group">
             <span class="hc-live-dot" data-hc-el="agent-dot" aria-hidden="true"></span>
-            <span class="hc-agent__badge">AGENT SERVER</span>
-            <span class="hc-agent__title">LLM + A2UI Agent SDK</span>
+            <span class="hc-agent__title">A2UI Express stream</span>
             <code class="hc-surface-id">kyoto_trip</code>
           </div>
 
-          <div class="hc-fmt-tabs" role="tablist" aria-label="Agent output format">
-            <button
-              type="button"
-              role="tab"
-              id="hc-fmt-tab-express"
-              aria-selected="true"
-              aria-controls="hc-code-express"
-              tabindex="0"
-              class="hc-fmt-tab is-active"
-              data-hc-fmt="express"
+          <button
+            type="button"
+            class="hc-restart-btn"
+            id="hc-restart-btn"
+            title="Restart stream"
+            aria-label="Restart UI generation stream"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
             >
-              Express (LLM)
-            </button>
-            <button
-              type="button"
-              role="tab"
-              id="hc-fmt-tab-json"
-              aria-selected="false"
-              aria-controls="hc-code-json"
-              tabindex="-1"
-              class="hc-fmt-tab"
-              data-hc-fmt="json"
-            >
-              v1.0 JSON
-            </button>
-          </div>
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+          </button>
         </div>
 
-        <!-- Streaming Code Viewport (Fixed height to prevent page layout shift) -->
+        <!-- Streaming Express Viewport -->
         <div class="hc-stream-viewport" data-hc-el="stream-viewport">
-          <!-- Format 1: A2UI Express (Default compact LLM output) -->
           <pre
             class="hc-code"
             id="hc-code-express"
-            role="tabpanel"
             tabindex="0"
-            aria-labelledby="hc-fmt-tab-express"
+            aria-label="A2UI Express stream"
           ><span class="hc-chunk" data-chunk="0"><span class="hc-kw">&lt;a2ui&gt;</span>
-<span class="hc-c"># 1. Surface root &amp; Kyoto hero banner</span>
 <span class="hc-fn">surface</span>(<span class="hc-str">"kyoto_trip"</span>)
-<span class="hc-comp">hero_card</span> = <span class="hc-fn">Card</span>(<span class="hc-fn">Column</span>([<span class="hc-fn">Image</span>(<span class="hc-str">"https://example.com/kyoto.jpg"</span>, variant=<span class="hc-str">"header"</span>), <span class="hc-fn">Text</span>(<span class="hc-str">"Kyoto Weekend Escape"</span>)]))
-<span class="hc-comp">root</span> = <span class="hc-fn">Column</span>([<span class="hc-comp">hero_card</span>, <span class="hc-comp">train_card</span>, <span class="hc-comp">stay_card</span>, <span class="hc-comp">summary_card</span>])
-</span><span class="hc-chunk" data-chunk="1"><span class="hc-c"># 2. Shinkansen route &amp; cabin ChoicePicker</span>
-<span class="hc-path">$/train/cabin</span> = [<span class="hc-str">"reserved"</span>]
-<span class="hc-comp">train_card</span> = <span class="hc-fn">Card</span>(<span class="hc-fn">Column</span>([
-  <span class="hc-fn">Row</span>([<span class="hc-fn">Icon</span>(<span class="hc-str">"arrowForward"</span>), <span class="hc-fn">Text</span>(<span class="hc-str">"Nozomi 27 · 08:30 → 10:42"</span>)]),
-  <span class="hc-fn">ChoicePicker</span>(options=[&#123;label: <span class="hc-str">"Reserved"</span>, value: <span class="hc-str">"reserved"</span>&#125;, &#123;label: <span class="hc-str">"Green Car"</span>, value: <span class="hc-str">"green"</span>&#125;], value=<span class="hc-path">$/train/cabin</span>, displayStyle=<span class="hc-str">"chips"</span>)
+<span class="hc-comp">root</span> = <span class="hc-fn">Column</span>([<span class="hc-comp">hero</span>, <span class="hc-comp">options</span>, <span class="hc-comp">summary</span>])
+
+<span class="hc-comp">hero</span> = <span class="hc-fn">Card</span>(<span class="hc-fn">Column</span>([
+  <span class="hc-fn">Image</span>(<span class="hc-str">"https://example.com/kyoto.jpg"</span>, variant=<span class="hc-str">"header"</span>),
+  <span class="hc-fn">Text</span>(<span class="hc-str">"Kyoto Weekend Escape · Oct 16–18"</span>)
 ]))
-</span><span class="hc-chunk" data-chunk="2"><span class="hc-c"># 3. Kaede Ryokan stay, guest Slider &amp; CheckBox</span>
-<span class="hc-path">$/trip/guests</span> = <span class="hc-num">2</span>
-<span class="hc-path">$/stay/onsen</span> = <span class="hc-num">true</span>
-<span class="hc-comp">stay_card</span> = <span class="hc-fn">Card</span>(<span class="hc-fn">Column</span>([
-  <span class="hc-fn">Text</span>(<span class="hc-str">"Kaede Higashiyama · 2 Nights"</span>),
-  <span class="hc-fn">Slider</span>(label=<span class="hc-str">"Guests"</span>, min=<span class="hc-num">1</span>, max=<span class="hc-num">4</span>, steps=<span class="hc-num">3</span>, value=<span class="hc-path">$/trip/guests</span>),
-  <span class="hc-fn">CheckBox</span>(<span class="hc-str">"Private Onsen &amp; Kaiseki Breakfast (+$95)"</span>, <span class="hc-path">$/stay/onsen</span>)
+</span><span class="hc-chunk" data-chunk="1"><span class="hc-path">$/cabin</span> = [<span class="hc-str">"reserved"</span>]
+<span class="hc-path">$/guests</span> = <span class="hc-num">2</span>
+<span class="hc-path">$/onsen</span> = <span class="hc-num">true</span>
+<span class="hc-comp">options</span> = <span class="hc-fn">Card</span>(<span class="hc-fn">Column</span>([
+  <span class="hc-fn">Row</span>([<span class="hc-fn">Icon</span>(<span class="hc-str">"arrowForward"</span>), <span class="hc-fn">Text</span>(<span class="hc-str">"Shinkansen · Tokyo → Kyoto"</span>)]),
+  <span class="hc-fn">ChoicePicker</span>(
+    options=[
+      &#123;label: <span class="hc-str">"Reserved"</span>, value: <span class="hc-str">"reserved"</span>&#125;,
+      &#123;label: <span class="hc-str">"Green Car"</span>, value: <span class="hc-str">"green"</span>&#125;
+    ],
+    value=<span class="hc-path">$/cabin</span>, displayStyle=<span class="hc-str">"chips"</span>
+  ),
+  <span class="hc-fn">Slider</span>(<span class="hc-str">"Guests"</span>, <span class="hc-num">1</span>, <span class="hc-num">4</span>, <span class="hc-path">$/guests</span>, <span class="hc-num">3</span>),
+  <span class="hc-fn">CheckBox</span>(<span class="hc-str">"Private Onsen (+$95)"</span>, <span class="hc-path">$/onsen</span>)
 ]))
-</span><span class="hc-chunk" data-chunk="3"><span class="hc-c"># 4. Live estimate &amp; Hold Itinerary action</span>
-<span class="hc-path">$/trip/estUsd</span> = <span class="hc-num">1090</span>
-<span class="hc-comp">hold_btn</span> = <span class="hc-fn">Button</span>(<span class="hc-fn">Text</span>(<span class="hc-str">"Hold Itinerary"</span>), <span class="hc-str">"primary"</span>, <span class="hc-kw">Event</span>(<span class="hc-str">"confirm_trip"</span>, &#123;guests: <span class="hc-path">$/trip/guests</span>, cabin: <span class="hc-path">$/train/cabin</span>, onsen: <span class="hc-path">$/stay/onsen</span>&#125;))
-<span class="hc-comp">summary_card</span> = <span class="hc-fn">Card</span>(<span class="hc-fn">Column</span>([<span class="hc-fn">Row</span>([<span class="hc-fn">Text</span>(<span class="hc-str">"Initial Estimate"</span>), <span class="hc-fn">Text</span>(<span class="hc-fn">formatCurrency</span>(<span class="hc-path">$/trip/estUsd</span>, <span class="hc-str">"USD"</span>, <span class="hc-num">0</span>))], <span class="hc-str">"spaceBetween"</span>), <span class="hc-comp">hold_btn</span>]))
+</span><span class="hc-chunk" data-chunk="2"><span class="hc-path">$/total</span> = <span class="hc-num">1090</span>
+<span class="hc-comp">summary</span> = <span class="hc-fn">Card</span>(<span class="hc-fn">Column</span>([
+  <span class="hc-fn">Row</span>(
+    [<span class="hc-fn">Text</span>(<span class="hc-str">"Estimated Total"</span>), <span class="hc-fn">Text</span>(<span class="hc-fn">formatCurrency</span>(<span class="hc-path">$/total</span>, <span class="hc-str">"USD"</span>, <span class="hc-num">0</span>))],
+    <span class="hc-str">"spaceBetween"</span>
+  ),
+  <span class="hc-fn">Button</span>(
+    <span class="hc-fn">Text</span>(<span class="hc-str">"Hold Itinerary"</span>), <span class="hc-str">"primary"</span>,
+    <span class="hc-kw">Event</span>(<span class="hc-str">"confirm_trip"</span>, &#123;guests: <span class="hc-path">$/guests</span>, cabin: <span class="hc-path">$/cabin</span>, onsen: <span class="hc-path">$/onsen</span>&#125;)
+  )
+]))
 <span class="hc-kw">&lt;/a2ui&gt;</span></span><span class="hc-caret" data-hc-el="caret-express" aria-hidden="true"></span></pre>
-
-          <!-- Format 2: Equivalent Incremental A2UI v1.0 JSONL Envelopes -->
-          <pre
-            class="hc-code hc-code--jsonl"
-            id="hc-code-json"
-            role="tabpanel"
-            tabindex="0"
-            aria-labelledby="hc-fmt-tab-json"
-            hidden
-          ><span class="hc-chunk" data-chunk="0"><span class="hc-c">// 1. createSurface + root &amp; Kyoto hero card</span>
-&#123;<span class="hc-path">"version"</span>: <span class="hc-str">"1.0"</span>, <span class="hc-path">"createSurface"</span>: &#123;<span class="hc-path">"surfaceId"</span>: <span class="hc-str">"kyoto_trip"</span>, <span class="hc-path">"catalogId"</span>: <span class="hc-str">"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"</span>, <span class="hc-path">"sendDataModel"</span>: <span class="hc-num">true</span>&#125;&#125;
-&#123;<span class="hc-path">"version"</span>: <span class="hc-str">"1.0"</span>, <span class="hc-path">"updateComponents"</span>: &#123;<span class="hc-path">"surfaceId"</span>: <span class="hc-str">"kyoto_trip"</span>, <span class="hc-path">"components"</span>: [&#123;<span class="hc-path">"id"</span>: <span class="hc-str">"hero_img"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Image"</span>, <span class="hc-path">"url"</span>: <span class="hc-str">"https://example.com/kyoto.jpg"</span>, <span class="hc-path">"variant"</span>: <span class="hc-str">"header"</span>&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"hero_txt"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Text"</span>, <span class="hc-path">"text"</span>: <span class="hc-str">"Kyoto Weekend Escape"</span>&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"hero_col"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Column"</span>, <span class="hc-path">"children"</span>: [<span class="hc-str">"hero_img"</span>, <span class="hc-str">"hero_txt"</span>]&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"hero_card"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Card"</span>, <span class="hc-path">"child"</span>: <span class="hc-str">"hero_col"</span>&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"root"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Column"</span>, <span class="hc-path">"children"</span>: [<span class="hc-str">"hero_card"</span>]&#125;]&#125;&#125;
-</span><span class="hc-chunk" data-chunk="1"><span class="hc-c">// 2. Shinkansen ChoicePicker + /train/cabin binding</span>
-&#123;<span class="hc-path">"version"</span>: <span class="hc-str">"1.0"</span>, <span class="hc-path">"updateDataModel"</span>: &#123;<span class="hc-path">"surfaceId"</span>: <span class="hc-str">"kyoto_trip"</span>, <span class="hc-path">"path"</span>: <span class="hc-str">"/train/cabin"</span>, <span class="hc-path">"value"</span>: [<span class="hc-str">"reserved"</span>]&#125;&#125;
-&#123;<span class="hc-path">"version"</span>: <span class="hc-str">"1.0"</span>, <span class="hc-path">"updateComponents"</span>: &#123;<span class="hc-path">"surfaceId"</span>: <span class="hc-str">"kyoto_trip"</span>, <span class="hc-path">"components"</span>: [&#123;<span class="hc-path">"id"</span>: <span class="hc-str">"rail_ico"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Icon"</span>, <span class="hc-path">"name"</span>: <span class="hc-str">"arrowForward"</span>&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"rail_txt"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Text"</span>, <span class="hc-path">"text"</span>: <span class="hc-str">"Nozomi 27 · 08:30 → 10:42"</span>&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"rail_row"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Row"</span>, <span class="hc-path">"children"</span>: [<span class="hc-str">"rail_ico"</span>, <span class="hc-str">"rail_txt"</span>]&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"cabin_pick"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"ChoicePicker"</span>, <span class="hc-path">"displayStyle"</span>: <span class="hc-str">"chips"</span>, <span class="hc-path">"options"</span>: [&#123;<span class="hc-path">"label"</span>: <span class="hc-str">"Reserved"</span>, <span class="hc-path">"value"</span>: <span class="hc-str">"reserved"</span>&#125;, &#123;<span class="hc-path">"label"</span>: <span class="hc-str">"Green Car"</span>, <span class="hc-path">"value"</span>: <span class="hc-str">"green"</span>&#125;], <span class="hc-path">"value"</span>: &#123;<span class="hc-path">"@path"</span>: <span class="hc-str">"/train/cabin"</span>&#125;&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"train_col"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Column"</span>, <span class="hc-path">"children"</span>: [<span class="hc-str">"rail_row"</span>, <span class="hc-str">"cabin_pick"</span>]&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"train_card"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Card"</span>, <span class="hc-path">"child"</span>: <span class="hc-str">"train_col"</span>&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"root"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Column"</span>, <span class="hc-path">"children"</span>: [<span class="hc-str">"hero_card"</span>, <span class="hc-str">"train_card"</span>]&#125;]&#125;&#125;
-</span><span class="hc-chunk" data-chunk="2"><span class="hc-c">// 3. Kaede Ryokan Slider + CheckBox bindings</span>
-&#123;<span class="hc-path">"version"</span>: <span class="hc-str">"1.0"</span>, <span class="hc-path">"updateDataModel"</span>: &#123;<span class="hc-path">"surfaceId"</span>: <span class="hc-str">"kyoto_trip"</span>, <span class="hc-path">"path"</span>: <span class="hc-str">"/trip/guests"</span>, <span class="hc-path">"value"</span>: <span class="hc-num">2</span>&#125;&#125;
-&#123;<span class="hc-path">"version"</span>: <span class="hc-str">"1.0"</span>, <span class="hc-path">"updateDataModel"</span>: &#123;<span class="hc-path">"surfaceId"</span>: <span class="hc-str">"kyoto_trip"</span>, <span class="hc-path">"path"</span>: <span class="hc-str">"/stay/onsen"</span>, <span class="hc-path">"value"</span>: <span class="hc-num">true</span>&#125;&#125;
-&#123;<span class="hc-path">"version"</span>: <span class="hc-str">"1.0"</span>, <span class="hc-path">"updateComponents"</span>: &#123;<span class="hc-path">"surfaceId"</span>: <span class="hc-str">"kyoto_trip"</span>, <span class="hc-path">"components"</span>: [&#123;<span class="hc-path">"id"</span>: <span class="hc-str">"stay_txt"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Text"</span>, <span class="hc-path">"text"</span>: <span class="hc-str">"Kaede Higashiyama · 2 Nights"</span>&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"guest_sldr"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Slider"</span>, <span class="hc-path">"label"</span>: <span class="hc-str">"Guests"</span>, <span class="hc-path">"min"</span>: <span class="hc-num">1</span>, <span class="hc-path">"max"</span>: <span class="hc-num">4</span>, <span class="hc-path">"steps"</span>: <span class="hc-num">3</span>, <span class="hc-path">"value"</span>: &#123;<span class="hc-path">"@path"</span>: <span class="hc-str">"/trip/guests"</span>&#125;&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"onsen_chk"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"CheckBox"</span>, <span class="hc-path">"label"</span>: <span class="hc-str">"Private Onsen &amp; Kaiseki Breakfast (+$95)"</span>, <span class="hc-path">"value"</span>: &#123;<span class="hc-path">"@path"</span>: <span class="hc-str">"/stay/onsen"</span>&#125;&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"stay_col"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Column"</span>, <span class="hc-path">"children"</span>: [<span class="hc-str">"stay_txt"</span>, <span class="hc-str">"guest_sldr"</span>, <span class="hc-str">"onsen_chk"</span>]&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"stay_card"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Card"</span>, <span class="hc-path">"child"</span>: <span class="hc-str">"stay_col"</span>&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"root"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Column"</span>, <span class="hc-path">"children"</span>: [<span class="hc-str">"hero_card"</span>, <span class="hc-str">"train_card"</span>, <span class="hc-str">"stay_card"</span>]&#125;]&#125;&#125;
-</span><span class="hc-chunk" data-chunk="3"><span class="hc-c">// 4. formatCurrency estimate + confirm_trip Button</span>
-&#123;<span class="hc-path">"version"</span>: <span class="hc-str">"1.0"</span>, <span class="hc-path">"updateDataModel"</span>: &#123;<span class="hc-path">"surfaceId"</span>: <span class="hc-str">"kyoto_trip"</span>, <span class="hc-path">"path"</span>: <span class="hc-str">"/trip/estUsd"</span>, <span class="hc-path">"value"</span>: <span class="hc-num">1090</span>&#125;&#125;
-&#123;<span class="hc-path">"version"</span>: <span class="hc-str">"1.0"</span>, <span class="hc-path">"updateComponents"</span>: &#123;<span class="hc-path">"surfaceId"</span>: <span class="hc-str">"kyoto_trip"</span>, <span class="hc-path">"components"</span>: [&#123;<span class="hc-path">"id"</span>: <span class="hc-str">"est_lbl"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Text"</span>, <span class="hc-path">"text"</span>: <span class="hc-str">"Initial Estimate"</span>&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"est_val"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Text"</span>, <span class="hc-path">"text"</span>: &#123;<span class="hc-path">"@call"</span>: <span class="hc-str">"formatCurrency"</span>, <span class="hc-path">"args"</span>: &#123;<span class="hc-path">"value"</span>: &#123;<span class="hc-path">"@path"</span>: <span class="hc-str">"/trip/estUsd"</span>&#125;, <span class="hc-path">"currency"</span>: <span class="hc-str">"USD"</span>, <span class="hc-path">"decimals"</span>: <span class="hc-num">0</span>&#125;&#125;&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"est_row"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Row"</span>, <span class="hc-path">"children"</span>: [<span class="hc-str">"est_lbl"</span>, <span class="hc-str">"est_val"</span>], <span class="hc-path">"justify"</span>: <span class="hc-str">"spaceBetween"</span>&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"hold_lbl"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Text"</span>, <span class="hc-path">"text"</span>: <span class="hc-str">"Hold Itinerary"</span>&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"hold_btn"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Button"</span>, <span class="hc-path">"variant"</span>: <span class="hc-str">"primary"</span>, <span class="hc-path">"child"</span>: <span class="hc-str">"hold_lbl"</span>, <span class="hc-path">"action"</span>: &#123;<span class="hc-path">"event"</span>: &#123;<span class="hc-path">"name"</span>: <span class="hc-str">"confirm_trip"</span>, <span class="hc-path">"context"</span>: &#123;<span class="hc-path">"guests"</span>: &#123;<span class="hc-path">"@path"</span>: <span class="hc-str">"/trip/guests"</span>&#125;, <span class="hc-path">"cabin"</span>: &#123;<span class="hc-path">"@path"</span>: <span class="hc-str">"/train/cabin"</span>&#125;, <span class="hc-path">"onsen"</span>: &#123;<span class="hc-path">"@path"</span>: <span class="hc-str">"/stay/onsen"</span>&#125;&#125;&#125;&#125;&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"sum_col"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Column"</span>, <span class="hc-path">"children"</span>: [<span class="hc-str">"est_row"</span>, <span class="hc-str">"hold_btn"</span>]&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"summary_card"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Card"</span>, <span class="hc-path">"child"</span>: <span class="hc-str">"sum_col"</span>&#125;, &#123;<span class="hc-path">"id"</span>: <span class="hc-str">"root"</span>, <span class="hc-path">"component"</span>: <span class="hc-str">"Column"</span>, <span class="hc-path">"children"</span>: [<span class="hc-str">"hero_card"</span>, <span class="hc-str">"train_card"</span>, <span class="hc-str">"stay_card"</span>, <span class="hc-str">"summary_card"</span>]&#125;]&#125;&#125;</span><span class="hc-caret" data-hc-el="caret-json" aria-hidden="true"></span></pre>
         </div>
-      </div>
 
-      <!-- Client-Side Local Reactive DataModel Card -->
-      <div class="hc-datamodel" id="hc-datamodel-box">
-        <div class="hc-datamodel__head">
-          <div class="hc-datamodel__title-group">
-            <span class="hc-client-badge">CLIENT STATE</span>
-            <span class="hc-datamodel__title">Local <code>dataModel</code></span>
+        <!-- Subtle Single-Line Local dataModel Footer -->
+        <div class="hc-datamodel" id="hc-datamodel-box" aria-label="Local client dataModel">
+          <span class="hc-datamodel__label">dataModel</span>
+          <div class="hc-datamodel__pills">
+            <span class="hc-dm-kv" data-dm-stage="1" id="hc-dm-cabin">
+              <code>/cabin</code>: <strong id="hc-dm-cabin-val">["reserved"]</strong>
+            </span>
+            <span class="hc-dm-kv" data-dm-stage="1" id="hc-dm-guests">
+              <code>/guests</code>: <strong id="hc-dm-guests-val">2</strong>
+            </span>
+            <span class="hc-dm-kv" data-dm-stage="1" id="hc-dm-onsen">
+              <code>/onsen</code>: <strong id="hc-dm-onsen-val">true</strong>
+            </span>
+            <span class="hc-dm-kv hc-dm-kv--accent" data-dm-stage="2" id="hc-dm-total">
+              <code>/total</code>: <strong id="hc-dm-total-val">1090</strong>
+            </span>
           </div>
-          <span class="hc-datamodel__hint" id="hc-dm-status" role="status" aria-live="polite">
-            Two-way bound in 0ms · sent to agent on action
-          </span>
-        </div>
-        <div class="hc-datamodel__pills">
-          <span class="hc-dm-kv" data-dm-stage="1" id="hc-dm-cabin">
-            <code>/train/cabin</code>: <strong id="hc-dm-cabin-val">["reserved"]</strong>
-          </span>
-          <span class="hc-dm-kv" data-dm-stage="2" id="hc-dm-guests">
-            <code>/trip/guests</code>: <strong id="hc-dm-guests-val">2</strong>
-          </span>
-          <span class="hc-dm-kv" data-dm-stage="2" id="hc-dm-onsen">
-            <code>/stay/onsen</code>: <strong id="hc-dm-onsen-val">true</strong>
-          </span>
-          <span class="hc-dm-kv hc-dm-kv--accent" data-dm-stage="3" id="hc-dm-total">
-            <code>/trip/estUsd</code>: <strong id="hc-dm-total-val">1090</strong>
-          </span>
         </div>
       </div>
     </div>
 
-    <!-- CENTER: Protocol Stream Conduit -->
+    <!-- CENTER: Slim, Minimal Stream Connector -->
     <div class="hc-bridge" aria-hidden="true">
-      <div class="hc-bridge__card">
-        <div class="hc-bridge__label">A2UI v1.0 WIRE</div>
-        <div class="hc-wire-pill" data-hc-el="wire-create">
-          <span class="hc-wire-pill__name">createSurface</span>
+      <div class="hc-bridge__pills">
+        <div class="hc-wire-pill" data-hc-el="wire-stream">
+          <span class="hc-wire-pill__name">stream</span>
           <span class="hc-wire-pill__dir hc-dir-desk">→</span>
           <span class="hc-wire-pill__dir hc-dir-stack">↑</span>
         </div>
-        <div class="hc-wire-pill" data-hc-el="wire-comps">
-          <span class="hc-wire-pill__name">updateComponents</span>
-          <span class="hc-wire-pill__count" data-hc-el="wire-comp-count">4/4</span>
-          <span class="hc-wire-pill__dir hc-dir-desk">→</span>
-          <span class="hc-wire-pill__dir hc-dir-stack">↑</span>
-        </div>
-        <div class="hc-wire-pill" data-hc-el="wire-data">
-          <span class="hc-wire-pill__name">updateDataModel</span>
-          <span class="hc-wire-pill__dir hc-dir-desk">→</span>
-          <span class="hc-wire-pill__dir hc-dir-stack">↑</span>
-        </div>
-        <div class="hc-bridge__divider"></div>
         <div class="hc-wire-pill hc-wire-pill--return" data-hc-el="wire-action">
           <span class="hc-wire-pill__dir hc-dir-desk">←</span>
           <span class="hc-wire-pill__dir hc-dir-stack">↓</span>
@@ -220,55 +151,21 @@ sequenceDiagram
       </div>
     </div>
 
-    <!-- RIGHT: Mobile Device Rendering Chat UI Incrementally -->
+    <!-- RIGHT: Spacious, Prominent Mobile Chat UI (100% 1-to-1 with Express) -->
     <div class="hc-device-col">
       <div class="hc-phone">
-        <!-- Hardware side buttons -->
-        <span class="hc-hw-btn hc-hw-btn--vol1" aria-hidden="true"></span>
-        <span class="hc-hw-btn hc-hw-btn--vol2" aria-hidden="true"></span>
-        <span class="hc-hw-btn hc-hw-btn--pwr" aria-hidden="true"></span>
-
         <div class="hc-phone__screen">
-          <!-- Mobile Status Bar -->
-          <div class="hc-statusbar" aria-hidden="true">
-            <span class="hc-statusbar__time">9:41</span>
-            <div class="hc-island">
-              <span class="hc-island__dot" data-hc-el="island-dot"></span>
-              <span class="hc-island__cam"></span>
-            </div>
-            <div class="hc-statusbar__icons">
-              <svg width="13" height="10" viewBox="0 0 13 10" fill="currentColor">
-                <rect x="0" y="6" width="2.2" height="4" rx="0.6" />
-                <rect x="3.4" y="4.2" width="2.2" height="5.8" rx="0.6" />
-                <rect x="6.8" y="2.2" width="2.2" height="7.8" rx="0.6" />
-                <rect x="10.2" y="0" width="2.2" height="10" rx="0.6" />
-              </svg>
-              <svg width="18" height="10" viewBox="0 0 20 11" fill="none">
-                <rect x="0.7" y="1" width="16" height="9" rx="2.2" stroke="currentColor" stroke-width="1.2" />
-                <rect x="2.3" y="2.6" width="12.8" height="5.8" rx="1" fill="currentColor" />
-                <path d="M18.2 3.8v3.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-              </svg>
-            </div>
-          </div>
-
-          <!-- Mobile Chat App Bar -->
+          <!-- Minimal Chat Header -->
           <div class="hc-appbar">
-            <div class="hc-appbar__left">
-              <span class="hc-appbar__back" aria-hidden="true">‹</span>
-              <div class="hc-appbar__avatar" aria-hidden="true">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                  <path d="M12 3l2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2L12 3z" />
-                </svg>
-              </div>
-              <div>
-                <div class="hc-appbar__name">Travel Concierge</div>
-                <div class="hc-appbar__sub">A2UI Mobile Renderer</div>
-              </div>
+            <div class="hc-appbar__avatar" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M12 3l2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2L12 3z" />
+              </svg>
             </div>
-            <span class="hc-stream-pill" id="hc-phone-status">Interactive · 5.0s</span>
+            <div class="hc-appbar__name">Travel Concierge</div>
           </div>
 
-          <!-- Chat Thread Inside Mobile App -->
+          <!-- Chat Conversation -->
           <div class="hc-chat">
             <!-- User Prompt Bubble -->
             <div class="hc-msg-user">
@@ -277,114 +174,74 @@ sequenceDiagram
               </div>
             </div>
 
-            <!-- Agent Chat Response + Streamed A2UI Surface -->
+            <!-- Agent Response + 1-to-1 Streamed A2UI Surface -->
             <div class="hc-msg-agent" id="hc-agent-reply">
               <div class="hc-msg-agent__lead" data-hc-el="agent-lead">
                 Here's a customizable weekend itinerary:
               </div>
 
-              <!-- A2UI Native Surface Mounted Inside Chat -->
+              <!-- Root Column([hero, options, summary]) -->
               <div class="hc-surface" data-hc-el="surface-card">
-                <!-- STAGE 1: Hero Kyoto Card -->
-                <div class="hc-ui-stage" data-ui-stage="0">
-                  <div class="hc-hero-banner">
+                <!-- CARD 1: hero = Card(Column([Image(..., variant="header"), Text("Kyoto Weekend Escape · Oct 16–18")])) -->
+                <div class="hc-ui-stage hc-card hc-card--hero" data-ui-stage="0">
+                  <div class="hc-hero-img" aria-hidden="true">
                     <svg
                       class="hc-hero-art"
-                      viewBox="0 0 360 88"
+                      viewBox="0 0 400 94"
                       preserveAspectRatio="xMaxYMid slice"
-                      aria-hidden="true"
                     >
                       <defs>
                         <linearGradient id="hc-kyoto-sky" x1="0" y1="0" x2="1" y2="1">
-                          <stop offset="0%" stop-color="#0b1f35" />
-                          <stop offset="58%" stop-color="#19364f" />
-                          <stop offset="100%" stop-color="#7c4332" />
+                          <stop offset="0%" stop-color="#0f253e" />
+                          <stop offset="58%" stop-color="#1e3f5a" />
+                          <stop offset="100%" stop-color="#8b4c39" />
                         </linearGradient>
                         <linearGradient id="hc-sun-glow" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.82" />
+                          <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.75" />
                           <stop offset="100%" stop-color="#f59e0b" stop-opacity="0" />
                         </linearGradient>
-                        <linearGradient id="hc-text-scrim" x1="0" y1="0" x2="1" y2="0">
-                          <stop offset="0%" stop-color="#06101e" stop-opacity="0.88" />
-                          <stop offset="56%" stop-color="#06101e" stop-opacity="0.52" />
-                          <stop offset="100%" stop-color="#06101e" stop-opacity="0.08" />
-                        </linearGradient>
                       </defs>
-                      <rect width="360" height="88" fill="url(#hc-kyoto-sky)" />
-                      <circle cx="290" cy="34" r="22" fill="url(#hc-sun-glow)" />
-                      <circle cx="290" cy="30" r="9" fill="#fde68a" opacity="0.85" />
-                      <!-- Distant Higashiyama hills -->
+                      <rect width="400" height="94" fill="url(#hc-kyoto-sky)" />
+                      <circle cx="318" cy="36" r="24" fill="url(#hc-sun-glow)" />
+                      <circle cx="318" cy="32" r="10" fill="#fde68a" opacity="0.88" />
                       <path
-                        d="M0 66 Q55 40 118 56 T245 50 T360 58 L360 88 L0 88 Z"
-                        fill="#13253a"
-                        opacity="0.78"
+                        d="M0 70 Q65 42 135 58 T275 52 T400 60 L400 94 L0 94 Z"
+                        fill="#152a42"
+                        opacity="0.82"
                       />
                       <path
-                        d="M0 74 Q90 54 175 68 T360 62 L360 88 L0 88 Z"
-                        fill="#0b1726"
+                        d="M0 78 Q100 58 195 72 T400 66 L400 94 L0 94 Z"
+                        fill="#0c192a"
                       />
                       <!-- Pagoda silhouette -->
-                      <g fill="#08111d" transform="translate(248, 22)">
+                      <g fill="#081220" transform="translate(268, 22)">
                         <rect x="11" y="0" width="2" height="9" />
                         <path d="M3 12 L12 7 L21 12 Z" />
                         <path d="M1 20 L12 14 L23 20 Z" />
                         <path d="M-1 29 L12 22 L25 29 Z" />
-                        <rect x="7" y="29" width="10" height="22" />
+                        <rect x="7" y="29" width="10" height="24" />
                       </g>
-                      <!-- Vermilion Torii gate inset cleanly from right edge -->
-                      <g transform="translate(296, 36)">
+                      <!-- Torii gate -->
+                      <g transform="translate(326, 38)">
                         <path d="M2 8 Q18 4 34 8 L33 12 Q18 9 3 12 Z" fill="#dc2626" />
                         <rect x="6" y="15" width="24" height="3" rx="1" fill="#ef4444" />
-                        <rect x="9" y="11" width="3.2" height="32" fill="#dc2626" />
-                        <rect x="23.8" y="11" width="3.2" height="32" fill="#dc2626" />
+                        <rect x="9" y="11" width="3.2" height="34" fill="#dc2626" />
+                        <rect x="23.8" y="11" width="3.2" height="34" fill="#dc2626" />
                       </g>
-                      <circle cx="278" cy="70" r="1.7" fill="#fbbf24" />
-                      <circle cx="336" cy="72" r="1.7" fill="#fcd34d" />
-                      <rect width="360" height="88" fill="url(#hc-text-scrim)" />
                     </svg>
-                    <div class="hc-hero-banner__top">
-                      <span class="hc-glass-pill">OCT 16–18 · 2 NIGHTS</span>
-                      <span class="hc-glass-pill">21°C · Clear</span>
-                    </div>
-                    <div class="hc-hero-banner__bottom">
-                      <div class="hc-hero-banner__title">Kyoto Weekend Escape</div>
-                      <div class="hc-hero-banner__sub">Higashiyama &amp; Arashiyama</div>
-                    </div>
                   </div>
+                  <div class="hc-hero-title">Kyoto Weekend Escape · Oct 16–18</div>
                 </div>
 
-                <!-- STAGE 2: Shinkansen Bullet Train + Cabin ChoicePicker -->
+                <!-- CARD 2: options = Card(Column([Row([Icon("arrowForward"), Text(...)]), ChoicePicker(...), Slider(...), CheckBox(...)])) -->
                 <div class="hc-ui-stage hc-card" data-ui-stage="1">
-                  <div class="hc-card__row">
-                    <div class="hc-card__title-wrap">
-                      <span class="hc-icon-badge hc-icon-badge--blue" aria-hidden="true">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
-                          <path d="M4 15h16M6 6h11l3 5v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" />
-                          <circle cx="8.5" cy="17.5" r="1.5" />
-                          <circle cx="15.5" cy="17.5" r="1.5" />
-                        </svg>
-                      </span>
-                      <span class="hc-card__title">Nozomi 27 · Shinkansen</span>
-                    </div>
-                    <span class="hc-card__meta">Tokyo → Kyoto</span>
+                  <!-- Row([Icon("arrowForward"), Text("Shinkansen · Tokyo → Kyoto")]) -->
+                  <div class="hc-row-inline">
+                    <span class="hc-icon-arrow" aria-hidden="true">→</span>
+                    <span class="hc-card__title">Shinkansen · Tokyo → Kyoto</span>
                   </div>
 
-                  <div class="hc-route-line">
-                    <div class="hc-route-stop">
-                      <strong>08:30</strong>
-                      <span>TYO</span>
-                    </div>
-                    <div class="hc-route-track" aria-hidden="true">
-                      <span class="hc-route-dot"></span>
-                      <span class="hc-route-dur">2h 12m nonstop</span>
-                      <span class="hc-route-dot"></span>
-                    </div>
-                    <div class="hc-route-stop">
-                      <strong>10:42</strong>
-                      <span>KYO</span>
-                    </div>
-                  </div>
-
+                  <!-- ChoicePicker(options=[...], value=$/cabin, displayStyle="chips") -->
                   <div class="hc-chips" role="radiogroup" aria-label="Shinkansen cabin class">
                     <button
                       type="button"
@@ -394,7 +251,7 @@ sequenceDiagram
                       class="hc-chip is-selected"
                       data-cabin="reserved"
                     >
-                      Reserved · $135/guest
+                      Reserved
                     </button>
                     <button
                       type="button"
@@ -405,31 +262,15 @@ sequenceDiagram
                       data-cabin="green"
                       id="hc-green-chip"
                     >
-                      Green Car · +$32/guest
+                      Green Car
                     </button>
                   </div>
-                </div>
 
-                <!-- STAGE 3: Kaede Ryokan + Guest Slider + CheckBox -->
-                <div class="hc-ui-stage hc-card" data-ui-stage="2">
-                  <div class="hc-stay-top">
-                    <div class="hc-stay-thumb" aria-hidden="true">
-                      <svg viewBox="0 0 40 40" width="32" height="32">
-                        <rect width="40" height="40" rx="8" fill="#132f2c" />
-                        <path d="M5 24 L20 12 L35 24 Z" fill="#14b8a6" opacity="0.85" />
-                        <rect x="10" y="24" width="20" height="10" rx="1.5" fill="#0f766e" />
-                        <rect x="17" y="26" width="6" height="8" fill="#fde68a" opacity="0.9" />
-                      </svg>
-                    </div>
-                    <div class="hc-stay-info">
-                      <div class="hc-card__title">Kaede Higashiyama · 2 Nights</div>
-                      <div class="hc-stay-sub">★ 4.9 · Cedar Suite · Higashiyama</div>
-                    </div>
-                  </div>
-
+                  <!-- Slider("Guests", 1, 4, $/guests, 3) -->
                   <div class="hc-slider-row">
                     <label class="hc-slider-row__lbl" for="hc-guest-slider">
-                      Guests: <strong id="hc-guests-label">2 Guests</strong>
+                      <span>Guests</span>
+                      <strong id="hc-guests-label">2</strong>
                     </label>
                     <input
                       type="range"
@@ -439,10 +280,11 @@ sequenceDiagram
                       max="4"
                       step="1"
                       value="2"
-                      aria-valuetext="2 guests"
+                      aria-valuetext="2"
                     />
                   </div>
 
+                  <!-- CheckBox("Private Onsen (+$95)", $/onsen) -->
                   <button
                     type="button"
                     role="checkbox"
@@ -451,122 +293,37 @@ sequenceDiagram
                     id="hc-onsen-btn"
                   >
                     <span class="hc-checkbox__box" aria-hidden="true">✓</span>
-                    <span class="hc-checkbox__label">
-                      Private Onsen &amp; Kaiseki Breakfast (+$95)
-                    </span>
+                    <span class="hc-checkbox__label">Private Onsen (+$95)</span>
                   </button>
                 </div>
 
-                <!-- STAGE 4: Live Estimate + Hold Itinerary Primary CTA -->
-                <div class="hc-ui-stage hc-card hc-card--summary" data-ui-stage="3">
-                  <div class="hc-budget">
-                    <div class="hc-budget__bar" aria-hidden="true">
-                      <span class="hc-budget__seg hc-budget__seg--stay" data-hc-el="bar-stay" style="flex: 820"></span>
-                      <span class="hc-budget__seg hc-budget__seg--rail" data-hc-el="bar-rail" style="flex: 270"></span>
-                    </div>
-                    <div class="hc-budget__foot">
-                      <span class="hc-budget__legend" id="hc-budget-legend">
-                        Initial Estimate · Stay $820 · Rail $270
-                      </span>
-                      <span class="hc-budget__total">
-                        <strong id="hc-total-price">$1,090</strong>
-                      </span>
-                    </div>
+                <!-- CARD 3: summary = Card(Column([Row([Text("Estimated Total"), Text(formatCurrency(...))], "spaceBetween"), Button(...)])) -->
+                <div class="hc-ui-stage hc-card hc-card--summary" data-ui-stage="2">
+                  <div class="hc-total-row">
+                    <span class="hc-total-row__label">Estimated Total</span>
+                    <strong class="hc-total-row__val" id="hc-total-price">$1,090</strong>
                   </div>
 
-                  <div class="hc-actions">
-                    <button type="button" class="hc-cta-btn" id="hc-hold-btn">
-                      <span id="hc-hold-btn-label">Hold Itinerary</span>
-                    </button>
-                    <button
-                      type="button"
-                      class="hc-icon-action"
-                      id="hc-reset-state-btn"
-                      title="Reset selections"
-                      aria-label="Reset itinerary selections"
-                    >
-                      ↺
-                    </button>
-                  </div>
+                  <button type="button" class="hc-cta-btn" id="hc-hold-btn">
+                    <span id="hc-hold-btn-label">Hold Itinerary</span>
+                  </button>
                 </div>
 
-                <!-- Streaming Skeleton Placeholder (Visible while surface is progressively streaming) -->
+                <!-- Streaming Skeleton Placeholder -->
                 <div class="hc-skeleton" data-hc-el="skeleton" hidden aria-hidden="true">
                   <div class="hc-skeleton__bar hc-skeleton__bar--w60"></div>
                   <div class="hc-skeleton__bar hc-skeleton__bar--w90"></div>
                 </div>
               </div>
 
-              <!-- Action Feedback Status Inside Chat (Appears when user clicks Hold Itinerary) -->
+              <!-- Subtle Action Sent Pill (Appears when Hold Itinerary is clicked) -->
               <div class="hc-chat-confirm" id="hc-chat-confirm" hidden>
-                ✓ Sent <code>action &#123; name: "confirm_trip" &#125;</code> → Held #KYT-409 (<span
-                  data-hc-el="confirm-total"
-                >$1,090</span>)
+                ✓ Sent <code>confirm_trip</code> (<span data-hc-el="confirm-total">$1,090</span>)
               </div>
             </div>
           </div>
-
-          <!-- Bottom Mobile Chat Input Composer -->
-          <div class="hc-composer" aria-hidden="true">
-            <span class="hc-composer__plus">+</span>
-            <span class="hc-composer__placeholder">Ask a follow-up or tap widgets above...</span>
-            <span class="hc-composer__send">↑</span>
-          </div>
-
-          <!-- Home Indicator -->
-          <div class="hc-homebar" aria-hidden="true">
-            <span></span>
-          </div>
         </div>
       </div>
-    </div>
-  </div>
-
-  <!-- Bottom 5-Second Playback & Stage Scrubber Bar (Single Unified Row) -->
-  <div class="hc-controls">
-    <div class="hc-controls__left">
-      <button
-        type="button"
-        class="hc-play-btn"
-        id="hc-play-btn"
-        aria-label="Replay 5-second UI generation"
-      >
-        <span id="hc-play-icon" aria-hidden="true">↻</span>
-        <span id="hc-play-label">Replay</span>
-      </button>
-      <span class="hc-timer" id="hc-timer">5.0s / 5.0s</span>
-    </div>
-
-    <input
-      type="range"
-      min="0"
-      max="5000"
-      value="5000"
-      step="25"
-      class="hc-scrubber"
-      id="hc-scrubber"
-      aria-label="Scrub incremental UI generation timeline from 0 to 5 seconds"
-      aria-valuetext="5.0 of 5.0 seconds"
-    />
-
-    <div class="hc-stage-jumps" role="group" aria-label="Jump to generation stage">
-      <button type="button" class="hc-stage-jump is-done" data-jump-ms="1150">
-        1 · Hero
-      </button>
-      <button type="button" class="hc-stage-jump is-done" data-jump-ms="2400">
-        2 · Train
-      </button>
-      <button type="button" class="hc-stage-jump is-done" data-jump-ms="3700">
-        3 · Ryokan
-      </button>
-      <button
-        type="button"
-        class="hc-stage-jump is-done"
-        data-jump-ms="5000"
-        aria-current="step"
-      >
-        4 · Confirm
-      </button>
     </div>
   </div>
 
@@ -581,17 +338,28 @@ sequenceDiagram
 
 <style>
   .hc-shell {
-    --hc-phone-bg: #0b1324;
-    --hc-phone-card: #121e36;
-    --hc-phone-card-subtle: #0e182c;
-    --hc-phone-border: #223252;
+    --hc-phone-bg: #0c1527;
+    --hc-phone-card: #132038;
+    --hc-phone-card-subtle: #0f1a2f;
+    --hc-phone-border: #243554;
     --hc-phone-text: #f8fafc;
     --hc-phone-muted: #94a3b8;
-    --hc-phone-chip-bg: #172542;
+    --hc-phone-chip-bg: #182744;
+
+    /* Calm, softer code surface and muted syntax tokens */
+    --hc-code-bg: #0c1424;
+    --hc-code-head: #101a2e;
+    --hc-syn-base: #94a3b8;
+    --hc-syn-comp: #cbd5e1;
+    --hc-syn-fn: #5eead4;
+    --hc-syn-kw: #7dd3fc;
+    --hc-syn-path: #93c5fd;
+    --hc-syn-str: #cbd5e1;
+    --hc-syn-num: #6ee7b7;
 
     background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: 16px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
     box-shadow: var(--shadow-lg);
     overflow: hidden;
     text-align: left;
@@ -605,6 +373,16 @@ sequenceDiagram
     --hc-phone-text: #0f172a;
     --hc-phone-muted: #475569;
     --hc-phone-chip-bg: #eef2f7;
+
+    --hc-code-bg: #f8fafc;
+    --hc-code-head: #f1f5f9;
+    --hc-syn-base: #64748b;
+    --hc-syn-comp: #334155;
+    --hc-syn-fn: #0f766e;
+    --hc-syn-kw: #0369a1;
+    --hc-syn-path: #0284c7;
+    --hc-syn-str: #475569;
+    --hc-syn-num: #059669;
   }
 
   .hc-shell [hidden] {
@@ -616,278 +394,165 @@ sequenceDiagram
     outline-offset: 2px;
   }
 
-  .hc-agent :is(button, [tabindex='0']):focus-visible {
-    outline-color: #5eead4;
-  }
-
-  /* --- Top 3-Step Summary Bar --- */
-  .hc-nutshell {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr auto 1fr;
-    align-items: center;
-    gap: 14px;
-    padding: 14px 22px;
-    background: var(--surface-subtle);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .hc-step {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    min-width: 0;
-  }
-
-  .hc-step__num {
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
-    background: var(--accent-soft);
-    border: 1px solid var(--accent-border);
-    color: var(--accent-strong);
-    font-family: var(--font-mono);
-    font-size: 11.5px;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-
-  .hc-step__text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .hc-step__text strong {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--text);
-    line-height: 1.3;
-  }
-
-  .hc-step__text span {
-    font-size: 12px;
-    color: var(--text-secondary);
-    line-height: 1.42;
-  }
-
-  .hc-step__text code {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--accent-strong);
-  }
-
-  .hc-step__arrow {
-    color: var(--accent-strong);
-    font-family: var(--font-mono);
-    font-weight: 700;
-    font-size: 15px;
-    user-select: none;
-  }
-
-  /* --- Main Split Stage --- */
+  /* --- Main Stage: Compact Code Left · Slim Bridge · Prominent Mobile UI Right --- */
   .hc-stage {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) 186px 384px;
+    grid-template-columns: minmax(0, 1fr) 86px 444px;
     gap: 16px;
-    padding: 20px 22px;
-    align-items: stretch;
+    padding: 22px 24px;
+    align-items: center;
   }
 
-  /* --- Left Column: Agent Server + Client State --- */
+  /* --- Left Column: Quiet Express Stream + Single-Line dataModel Footer --- */
   .hc-left-col {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    height: 696px;
     min-width: 0;
   }
 
   .hc-agent {
-    background: var(--code-bg);
-    border: 1px solid var(--border-strong);
-    border-radius: 12px;
+    background: var(--hc-code-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
     display: flex;
     flex-direction: column;
-    flex: 1 1 0;
-    min-height: 0;
-    min-width: 0;
     overflow: hidden;
   }
 
   .hc-agent__head {
-    padding: 10px 14px;
-    background: var(--code-header);
-    color: #f8fafc;
+    padding: 9px 14px;
+    background: var(--hc-code-head);
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    flex-wrap: wrap;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--border);
   }
 
   .hc-agent__title-group {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-wrap: wrap;
   }
 
   .hc-live-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
-    background: #14b8a6;
-    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.22);
-    transition: background-color 0.2s ease;
+    background: var(--accent);
+    opacity: 0.75;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
   }
 
   .hc-live-dot.is-streaming {
-    background: #fbbf24;
-    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.25);
-  }
-
-  .hc-agent__badge {
-    font-family: var(--font-mono);
-    font-size: 10.5px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    padding: 2px 7px;
-    border-radius: 4px;
-    background: rgba(20, 184, 166, 0.22);
-    color: #5eead4;
+    background: var(--amber);
+    opacity: 1;
+    box-shadow: 0 0 0 3px var(--amber-soft);
   }
 
   .hc-agent__title {
-    font-size: 13px;
-    font-weight: 700;
-    color: #f1f5f9;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
   }
 
   .hc-surface-id {
     font-family: var(--font-mono);
     font-size: 10.5px;
-    padding: 1.5px 6px;
+    padding: 1px 6px;
     border-radius: 4px;
-    background: rgba(30, 41, 59, 0.85);
-    color: #5eead4;
-    border: 1px solid rgba(45, 212, 191, 0.35);
+    background: var(--surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
   }
 
-  .hc-fmt-tabs {
+  .hc-restart-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
     display: inline-flex;
-    background: rgba(2, 6, 23, 0.55);
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    border-radius: 6px;
-    padding: 2px;
-    gap: 2px;
-  }
-
-  .hc-fmt-tab {
-    border: 0;
-    background: transparent;
-    color: #cbd5e1;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 600;
-    min-height: 26px;
-    padding: 4px 9px;
-    border-radius: 4px;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
-    transition: color 0.15s ease, background-color 0.15s ease;
+    transition: color 0.15s ease, border-color 0.15s ease, transform 0.2s ease;
   }
 
-  .hc-fmt-tab:hover {
-    color: #f8fafc;
+  .hc-restart-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
   }
 
-  .hc-fmt-tab.is-active {
-    background: rgba(20, 184, 166, 0.26);
-    color: #5eead4;
+  .hc-restart-btn:active {
+    transform: rotate(-45deg);
   }
 
-  /* Fixed-height code stream box prevents page height shifts during 5s stream */
   .hc-stream-viewport {
     position: relative;
-    background: var(--code-bg);
-    flex: 1 1 0;
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 11px 13px;
+    padding: 12px 14px;
+    min-height: 446px;
+    display: flex;
+    align-items: flex-start;
   }
 
   .hc-code {
     margin: 0;
+    width: 100%;
     font-family: var(--font-mono);
-    font-size: 11.1px;
+    font-size: 10.4px;
     line-height: 1.44;
-    color: #e2e8f0;
+    color: var(--hc-syn-base);
     white-space: pre-wrap;
     word-break: break-word;
   }
 
-  .hc-code--jsonl {
-    font-size: 10.6px;
-    line-height: 1.42;
-    overflow-wrap: anywhere;
-    word-break: normal;
-  }
-
   .hc-chunk {
     display: block;
-    padding: 3.5px 9px;
-    margin-bottom: 5px;
-    border-left: 2px solid rgba(71, 85, 105, 0.7);
-    border-radius: 0 6px 6px 0;
+    padding: 3px 8px;
+    margin-bottom: 4px;
+    border-left: 2px solid transparent;
+    border-radius: 0 5px 5px 0;
     transition: border-color 0.2s ease, background-color 0.2s ease;
   }
 
   .hc-chunk.is-streaming {
-    border-left-color: #2dd4bf;
-    background: rgba(20, 184, 166, 0.1);
+    border-left-color: var(--accent);
+    background: var(--accent-soft);
   }
 
   .hc-chunk.is-done {
-    border-left-color: rgba(45, 212, 191, 0.48);
+    border-left-color: var(--border-strong);
   }
 
-  .hc-c {
-    color: #94a3b8;
-  }
   .hc-kw {
-    color: #38bdf8;
-    font-weight: 700;
+    color: var(--hc-syn-kw);
+    font-weight: 600;
   }
   .hc-fn {
-    color: #2dd4bf;
-    font-weight: 600;
+    color: var(--hc-syn-fn);
+    font-weight: 500;
   }
   .hc-comp {
-    color: #f8fafc;
-    font-weight: 600;
+    color: var(--hc-syn-comp);
+    font-weight: 500;
   }
   .hc-path {
-    color: #7dd3fc;
+    color: var(--hc-syn-path);
   }
   .hc-str {
-    color: #fcd34d;
+    color: var(--hc-syn-str);
   }
   .hc-num {
-    color: #34d399;
-    font-weight: 600;
+    color: var(--hc-syn-num);
   }
 
   .hc-caret {
     display: none;
-    width: 7px;
-    height: 14px;
-    background: #2dd4bf;
+    width: 6px;
+    height: 13px;
+    background: var(--accent);
     vertical-align: text-bottom;
     margin-left: 2px;
     animation: hc-blink 0.8s steps(2, start) infinite;
@@ -903,89 +568,55 @@ sequenceDiagram
     }
   }
 
-  /* Client-Side Local Reactive DataModel Card (Theme-aware) */
+  /* Quiet Single-Line Local dataModel Strip */
   .hc-datamodel {
-    background: var(--surface-subtle);
-    border: 1px solid var(--border-strong);
-    border-radius: 12px;
-    padding: 10px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-
-  .hc-datamodel__head {
+    padding: 9px 14px;
+    background: var(--hc-code-head);
+    border-top: 1px solid var(--border);
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
     flex-wrap: wrap;
   }
 
-  .hc-datamodel__title-group {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    flex-wrap: wrap;
-  }
-
-  .hc-client-badge {
+  .hc-datamodel__label {
     font-family: var(--font-mono);
     font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: var(--blue-soft);
-    color: var(--blue);
-  }
-
-  .hc-datamodel__title {
-    font-family: var(--font-mono);
-    font-size: 11.5px;
-    font-weight: 700;
-    color: var(--text);
-  }
-
-  .hc-datamodel__title code {
-    color: var(--accent-strong);
-  }
-
-  .hc-datamodel__hint {
-    font-size: 11px;
+    font-weight: 600;
     color: var(--text-muted);
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
   }
 
   .hc-datamodel__pills {
     display: flex;
     flex-wrap: wrap;
-    gap: 5px;
+    gap: 6px;
   }
 
   .hc-dm-kv {
     font-family: var(--font-mono);
     font-size: 10px;
-    padding: 3px 6.5px;
-    border-radius: 6px;
+    padding: 2.5px 7px;
+    border-radius: 5px;
     background: var(--surface);
-    border: 1px solid var(--border-strong);
-    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
     white-space: nowrap;
-    transition: opacity 0.25s ease, border-color 0.25s ease, background-color 0.25s ease;
+    transition: opacity 0.25s ease, border-color 0.2s ease, background-color 0.2s ease;
   }
 
   .hc-dm-kv.is-pending {
-    opacity: 0.32;
+    opacity: 0.35;
   }
 
   .hc-dm-kv code {
-    color: var(--blue);
+    color: var(--hc-syn-path);
   }
 
   .hc-dm-kv strong {
-    color: var(--text);
-    font-weight: 700;
+    color: var(--text-secondary);
+    font-weight: 600;
   }
 
   .hc-dm-kv--accent {
@@ -1002,83 +633,47 @@ sequenceDiagram
     background: var(--amber-soft);
   }
 
-  /* --- Center Column: Wire Stream Conduit --- */
+  /* --- Center Column: Slim Wire Connector --- */
   .hc-bridge {
     position: relative;
     display: flex;
-    flex-direction: column;
-    align-items: stretch;
+    align-items: center;
     justify-content: center;
-    width: 186px;
   }
 
   .hc-bridge::before {
     content: '';
     position: absolute;
-    left: -16px;
-    right: -16px;
+    left: -14px;
+    right: -14px;
     top: 50%;
     height: 1px;
     border-top: 1.5px dashed var(--border-strong);
     z-index: 0;
   }
 
-  .hc-bridge__card {
+  .hc-bridge__pills {
     position: relative;
     z-index: 1;
-    background: var(--surface-subtle);
-    border: 1px solid var(--border-strong);
-    border-radius: 12px;
-    padding: 12px 10px;
     display: flex;
     flex-direction: column;
-    gap: 7px;
-    box-shadow: var(--shadow-sm);
-  }
-
-  .hc-bridge__label {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
-    text-align: center;
-    margin-bottom: 2px;
+    gap: 6px;
+    width: 100%;
   }
 
   .hc-wire-pill {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 5px;
-    padding: 6px 8px;
-    border-radius: 7px;
-    background: var(--surface);
+    justify-content: center;
+    gap: 4px;
+    padding: 5px 8px;
+    border-radius: 999px;
+    background: var(--surface-subtle);
     border: 1px solid var(--border);
     font-family: var(--font-mono);
-    font-size: 10.4px;
+    font-size: 10px;
     color: var(--text-muted);
     transition: all 0.2s ease;
-  }
-
-  .hc-wire-pill__name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .hc-wire-pill__count {
-    font-size: 9.5px;
-    padding: 1px 4px;
-    border-radius: 3px;
-    background: var(--accent-soft);
-    color: var(--accent-strong);
-    font-weight: 700;
-  }
-
-  .hc-wire-pill__dir {
-    font-weight: 700;
-    flex-shrink: 0;
   }
 
   .hc-dir-stack {
@@ -1108,13 +703,7 @@ sequenceDiagram
     color: #92400e;
   }
 
-  .hc-bridge__divider {
-    height: 1px;
-    background: var(--border);
-    margin: 2px 0;
-  }
-
-  /* --- Right Column: Mobile Phone Frame --- */
+  /* --- Right Column: Prominent, Airy Mobile Chat UI --- */
   .hc-device-col {
     display: flex;
     justify-content: center;
@@ -1124,15 +713,14 @@ sequenceDiagram
   .hc-phone {
     position: relative;
     width: 100%;
-    max-width: 384px;
-    height: 696px;
-    border-radius: 38px;
+    max-width: 444px;
+    border-radius: 32px;
     padding: 9px;
     background: linear-gradient(155deg, #334155 0%, #0f172a 55%, #1e293b 100%);
     border: 1.5px solid #475569;
     box-shadow:
-      0 22px 44px -12px rgba(0, 0, 0, 0.55),
-      inset 0 1px 1px rgba(255, 255, 255, 0.22);
+      0 24px 48px -12px rgba(0, 0, 0, 0.55),
+      inset 0 1px 1px rgba(255, 255, 255, 0.2);
     display: flex;
     flex-direction: column;
   }
@@ -1141,130 +729,29 @@ sequenceDiagram
     background: linear-gradient(155deg, #e2e8f0 0%, #cbd5e1 55%, #94a3b8 100%);
     border-color: #94a3b8;
     box-shadow:
-      0 20px 40px -12px rgba(15, 23, 42, 0.16),
+      0 22px 44px -12px rgba(15, 23, 42, 0.16),
       inset 0 1px 1px rgba(255, 255, 255, 0.8);
-  }
-
-  .hc-hw-btn {
-    position: absolute;
-    background: #475569;
-    border-radius: 2px;
-  }
-
-  :global(:root[data-theme='light']) .hc-hw-btn {
-    background: #94a3b8;
-  }
-
-  .hc-hw-btn--vol1 {
-    left: -3px;
-    top: 102px;
-    width: 3px;
-    height: 28px;
-  }
-
-  .hc-hw-btn--vol2 {
-    left: -3px;
-    top: 138px;
-    width: 3px;
-    height: 28px;
-  }
-
-  .hc-hw-btn--pwr {
-    right: -3px;
-    top: 118px;
-    width: 3px;
-    height: 42px;
   }
 
   .hc-phone__screen {
     background: var(--hc-phone-bg);
     color: var(--hc-phone-text);
-    border-radius: 30px;
+    border-radius: 24px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    flex: 1;
-    border: 1px solid rgba(15, 23, 42, 0.25);
+    min-height: 556px;
+    border: 1px solid rgba(15, 23, 42, 0.2);
   }
 
-  /* Phone Status Bar */
-  .hc-statusbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 18px 5px;
-    font-size: 11.5px;
-    font-weight: 700;
-    color: var(--hc-phone-text);
-  }
-
-  .hc-statusbar__time {
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
-  }
-
-  .hc-island {
-    width: 78px;
-    height: 19px;
-    border-radius: 999px;
-    background: #020617;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 7px;
-  }
-
-  .hc-island__dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #14b8a6;
-    opacity: 0.4;
-    transition: opacity 0.2s ease, background-color 0.2s ease;
-  }
-
-  .hc-island__dot.is-streaming {
-    background: #fbbf24;
-    opacity: 1;
-  }
-
-  .hc-island__cam {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #1e293b;
-  }
-
-  .hc-statusbar__icons {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    opacity: 0.88;
-  }
-
-  /* Mobile Chat App Bar */
+  /* Minimal Chat App Bar */
   .hc-appbar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 6px 12px 8px;
+    gap: 9px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--hc-phone-border);
     background: var(--hc-phone-card-subtle);
-  }
-
-  .hc-appbar__left {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    min-width: 0;
-  }
-
-  .hc-appbar__back {
-    font-size: 19px;
-    line-height: 1;
-    color: var(--accent-strong);
-    font-weight: 600;
   }
 
   .hc-appbar__avatar {
@@ -1281,48 +768,18 @@ sequenceDiagram
   }
 
   .hc-appbar__name {
-    font-size: 12px;
+    font-size: 13.5px;
     font-weight: 700;
-    line-height: 1.15;
     color: var(--hc-phone-text);
-  }
-
-  .hc-appbar__sub {
-    font-size: 10px;
-    color: var(--hc-phone-muted);
-    line-height: 1.2;
-  }
-
-  .hc-stream-pill {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    padding: 2px 7px;
-    border-radius: 999px;
-    background: var(--accent-soft);
-    color: var(--accent-strong);
-    border: 1px solid var(--accent-border);
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .hc-stream-pill.is-streaming {
-    background: var(--amber-soft);
-    color: var(--amber);
-    border-color: rgba(251, 191, 36, 0.42);
-  }
-
-  :global(:root[data-theme='light']) .hc-stream-pill.is-streaming {
-    color: #92400e;
   }
 
   /* Chat Area Inside Phone */
   .hc-chat {
     flex: 1;
-    padding: 10px 11px;
+    padding: 14px 16px 16px;
     display: flex;
     flex-direction: column;
-    gap: 7px;
+    gap: 12px;
   }
 
   .hc-msg-user {
@@ -1331,27 +788,27 @@ sequenceDiagram
   }
 
   .hc-msg-user__bubble {
-    max-width: 88%;
+    max-width: 85%;
     background: #0f766e;
     color: #ffffff;
-    font-size: 11.5px;
+    font-size: 13px;
     font-weight: 500;
-    line-height: 1.38;
-    padding: 7px 11px;
-    border-radius: 14px 14px 3px 14px;
-    box-shadow: 0 2px 6px rgba(15, 118, 110, 0.24);
+    line-height: 1.42;
+    padding: 9px 13px;
+    border-radius: 16px 16px 4px 16px;
+    box-shadow: 0 2px 6px rgba(15, 118, 110, 0.22);
   }
 
   .hc-msg-agent {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
 
   .hc-msg-agent__lead {
-    font-size: 11.3px;
+    font-size: 12.5px;
     color: var(--hc-phone-muted);
-    padding: 0 3px;
+    padding: 0 2px;
     transition: opacity 0.25s ease, transform 0.25s ease;
   }
 
@@ -1365,11 +822,11 @@ sequenceDiagram
   .hc-surface {
     background: var(--hc-phone-card-subtle);
     border: 1px solid var(--hc-phone-border);
-    border-radius: 14px;
-    padding: 7px;
+    border-radius: 16px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 10px;
     transition: opacity 0.25s ease, border-color 0.25s ease;
   }
 
@@ -1405,195 +862,69 @@ sequenceDiagram
     }
   }
 
-  /* Stage 1: Hero Kyoto Card */
-  .hc-hero-banner {
-    position: relative;
-    height: 82px;
-    border-radius: 10px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 8px 10px;
-    color: #ffffff;
-  }
-
-  .hc-hero-art {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 0;
-  }
-
-  .hc-hero-banner__top,
-  .hc-hero-banner__bottom {
-    position: relative;
-    z-index: 1;
-  }
-
-  .hc-hero-banner__top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .hc-glass-pill {
-    font-family: var(--font-mono);
-    font-size: 9.5px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    padding: 1.5px 6.5px;
-    border-radius: 999px;
-    background: rgba(8, 15, 29, 0.68);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #f8fafc;
-    backdrop-filter: blur(4px);
-  }
-
-  .hc-hero-banner__title {
-    font-size: 14px;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    line-height: 1.15;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
-  }
-
-  .hc-hero-banner__sub {
-    font-size: 10.5px;
-    color: #f1f5f9;
-    line-height: 1.2;
-  }
-
-  /* Shared Inner Mobile Cards */
+  /* Shared Inner Mobile Cards (Airier, Less Dense) */
   .hc-card {
     background: var(--hc-phone-card);
     border: 1px solid var(--hc-phone-border);
-    border-radius: 10px;
-    padding: 8px 10px;
+    border-radius: 12px;
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 10px;
   }
 
-  .hc-card__row {
+  /* Stage 0: Hero Card (1-to-1: Header Image stacked above Text) */
+  .hc-card--hero {
+    padding: 0;
+    overflow: hidden;
+    gap: 0;
+  }
+
+  .hc-hero-img {
+    height: 84px;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .hc-hero-art {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .hc-hero-title {
+    padding: 11px 14px;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--hc-phone-text);
+    letter-spacing: -0.01em;
+  }
+
+  /* Stage 1: Options Card (Row + ChoicePicker + Slider + CheckBox) */
+  .hc-row-inline {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 6px;
+    gap: 8px;
   }
 
-  .hc-card__title-wrap {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-  }
-
-  .hc-icon-badge {
-    width: 20px;
-    height: 20px;
-    border-radius: 5px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .hc-icon-badge--blue {
-    background: var(--blue-soft);
-    color: var(--blue);
+  .hc-icon-arrow {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent-strong);
+    line-height: 1;
   }
 
   .hc-card__title {
-    font-size: 11.6px;
+    font-size: 13.5px;
     font-weight: 700;
     color: var(--hc-phone-text);
-    line-height: 1.2;
-  }
-
-  .hc-card__meta {
-    font-family: var(--font-mono);
-    font-size: 10.5px;
-    font-weight: 600;
-    color: var(--hc-phone-muted);
-    white-space: nowrap;
-  }
-
-  /* Stage 2: Route Line & Cabin Radio Chips */
-  .hc-route-line {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 1px 2px;
-  }
-
-  .hc-route-stop {
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-
-  .hc-route-stop strong {
-    font-family: var(--font-mono);
-    font-size: 11.4px;
-    color: var(--hc-phone-text);
-  }
-
-  .hc-route-stop span {
-    font-size: 10.2px;
-    color: var(--hc-phone-muted);
-  }
-
-  .hc-route-track {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: relative;
-    font-size: 9.8px;
-    color: var(--hc-phone-muted);
-    min-width: 0;
-  }
-
-  .hc-route-track::before {
-    content: '';
-    position: absolute;
-    left: 4px;
-    right: 4px;
-    top: 50%;
-    height: 1px;
-    background: var(--hc-phone-border);
-    z-index: 0;
-  }
-
-  .hc-route-dur {
-    position: relative;
-    z-index: 1;
-    background: var(--hc-phone-card);
-    padding: 0 5px;
-    font-family: var(--font-mono);
-    font-size: 9.4px;
-    white-space: nowrap;
-  }
-
-  .hc-route-dot {
-    position: relative;
-    z-index: 1;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--blue);
-    flex-shrink: 0;
   }
 
   .hc-chips {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 6px;
+    gap: 8px;
   }
 
   .hc-chip {
@@ -1601,11 +932,11 @@ sequenceDiagram
     background: var(--hc-phone-chip-bg);
     color: var(--hc-phone-muted);
     font-family: var(--font-sans);
-    font-size: 10.5px;
+    font-size: 12px;
     font-weight: 600;
-    min-height: 27px;
-    padding: 4px 7px;
-    border-radius: 6px;
+    min-height: 34px;
+    padding: 6px 10px;
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.14s ease;
     text-align: center;
@@ -1622,54 +953,38 @@ sequenceDiagram
     color: var(--accent-strong);
   }
 
-  /* Stage 3: Ryokan Stay + Slider + CheckBox */
-  .hc-stay-top {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .hc-stay-thumb {
-    flex-shrink: 0;
-    display: flex;
-  }
-
-  .hc-stay-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .hc-stay-sub {
-    font-size: 10.2px;
-    color: var(--hc-phone-muted);
-    line-height: 1.25;
-  }
-
   .hc-slider-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 12px;
     background: var(--hc-phone-chip-bg);
     border: 1px solid var(--hc-phone-border);
-    border-radius: 6px;
-    padding: 3px 9px;
-    min-height: 28px;
+    border-radius: 8px;
+    padding: 6px 12px;
+    min-height: 36px;
   }
 
   .hc-slider-row__lbl {
-    font-size: 10.6px;
-    color: var(--hc-phone-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--hc-phone-text);
     white-space: nowrap;
   }
 
   .hc-slider-row__lbl strong {
-    color: var(--hc-phone-text);
-    font-weight: 700;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--accent-strong);
+    min-width: 14px;
+    text-align: center;
   }
 
   .hc-guest-slider {
-    width: 128px;
+    width: 160px;
     min-height: 24px;
     margin: 0;
     accent-color: var(--accent);
@@ -1679,16 +994,16 @@ sequenceDiagram
   .hc-checkbox {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 9px;
     width: 100%;
-    min-height: 29px;
-    padding: 4px 8px;
-    border-radius: 6px;
+    min-height: 36px;
+    padding: 6px 12px;
+    border-radius: 8px;
     border: 1px solid var(--hc-phone-border);
     background: var(--hc-phone-chip-bg);
     color: var(--hc-phone-text);
     font-family: var(--font-sans);
-    font-size: 10.5px;
+    font-size: 12.5px;
     cursor: pointer;
     text-align: left;
     transition: border-color 0.14s ease, background-color 0.14s ease;
@@ -1700,14 +1015,14 @@ sequenceDiagram
   }
 
   .hc-checkbox__box {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     border-radius: 4px;
     border: 1.5px solid var(--hc-phone-muted);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 9.5px;
+    font-size: 10.5px;
     font-weight: 800;
     color: transparent;
     flex-shrink: 0;
@@ -1730,83 +1045,44 @@ sequenceDiagram
     font-weight: 600;
   }
 
-  /* Stage 4: Live Estimate + Primary CTA */
+  /* Stage 2: Summary Card (Row spaceBetween + Primary Button) */
   .hc-card--summary {
-    gap: 8px;
+    gap: 10px;
   }
 
-  .hc-budget {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
-
-  .hc-budget__bar {
-    height: 5px;
-    border-radius: 999px;
-    overflow: hidden;
-    display: flex;
-    gap: 2px;
-    background: var(--hc-phone-chip-bg);
-  }
-
-  .hc-budget__seg {
-    height: 100%;
-    border-radius: 999px;
-    transition: flex-grow 0.25s ease;
-  }
-
-  .hc-budget__seg--stay {
-    background: #14b8a6;
-  }
-  .hc-budget__seg--rail {
-    background: #38bdf8;
-  }
-
-  .hc-budget__foot {
+  .hc-total-row {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 6px;
+    gap: 8px;
   }
 
-  .hc-budget__legend {
-    font-size: 10px;
+  .hc-total-row__label {
+    font-size: 13px;
+    font-weight: 600;
     color: var(--hc-phone-muted);
   }
 
-  .hc-budget__total {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 4px;
+  .hc-total-row__val {
     font-family: var(--font-mono);
-    flex-shrink: 0;
-  }
-
-  .hc-budget__total strong {
-    font-size: 13.5px;
+    font-size: 16px;
     font-weight: 800;
     color: var(--hc-phone-text);
   }
 
-  .hc-actions {
-    display: flex;
-    gap: 6px;
-  }
-
   .hc-cta-btn {
-    flex: 1;
+    width: 100%;
     border: 0;
     border-radius: 9px;
-    min-height: 34px;
-    padding: 7px 12px;
+    min-height: 38px;
+    padding: 8px 14px;
     background: #14b8a6;
     color: #042f2e;
     font-family: var(--font-sans);
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 800;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(13, 148, 136, 0.28);
+    box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25);
     transition: background-color 0.15s ease, transform 0.1s ease;
   }
 
@@ -1835,36 +1111,19 @@ sequenceDiagram
     color: #ffffff;
   }
 
-  .hc-icon-action {
-    width: 34px;
-    min-height: 34px;
-    border-radius: 9px;
-    border: 1px solid var(--hc-phone-border);
-    background: var(--hc-phone-chip-bg);
-    color: var(--hc-phone-muted);
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  .hc-icon-action:hover {
-    color: var(--hc-phone-text);
-    border-color: var(--accent);
-  }
-
   /* Streaming Skeleton Card */
   .hc-skeleton {
     background: var(--hc-phone-card);
     border: 1px dashed var(--hc-phone-border);
-    border-radius: 9px;
-    padding: 9px 10px;
+    border-radius: 10px;
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 7px;
   }
 
   .hc-skeleton__bar {
-    height: 7px;
+    height: 8px;
     border-radius: 4px;
     background: linear-gradient(
       90deg,
@@ -1893,8 +1152,8 @@ sequenceDiagram
   }
 
   .hc-chat-confirm {
-    font-size: 10.3px;
-    padding: 4.5px 9px;
+    font-size: 11.5px;
+    padding: 6px 10px;
     border-radius: 8px;
     background: var(--success-soft);
     border: 1px solid rgba(52, 211, 153, 0.35);
@@ -1909,7 +1168,7 @@ sequenceDiagram
 
   .hc-chat-confirm code {
     font-family: var(--font-mono);
-    font-size: 9.8px;
+    font-size: 10.5px;
     padding: 1px 4px;
     margin: 0 2px;
     border-radius: 3px;
@@ -1920,186 +1179,13 @@ sequenceDiagram
     background: rgba(6, 95, 70, 0.1);
   }
 
-  /* Bottom Chat Input & Home Bar */
-  .hc-composer {
-    margin: 0 11px;
-    padding: 5.5px 9px;
-    border-radius: 999px;
-    background: var(--hc-phone-card);
-    border: 1px solid var(--hc-phone-border);
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 10.5px;
-    color: var(--hc-phone-muted);
-  }
-
-  .hc-composer__plus {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--hc-phone-chip-bg);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-  }
-
-  .hc-composer__placeholder {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .hc-composer__send {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #0f766e;
-    color: #ffffff;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: 800;
-  }
-
-  .hc-homebar {
-    display: flex;
-    justify-content: center;
-    padding: 6px 0 5px;
-  }
-
-  .hc-homebar span {
-    width: 98px;
-    height: 4px;
-    border-radius: 999px;
-    background: var(--hc-phone-muted);
-    opacity: 0.45;
-  }
-
-  /* --- Bottom 5-Second Playback & Timeline Scrubber (Single Unified Row) --- */
-  .hc-controls {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    flex-wrap: wrap;
-    padding: 11px 22px;
-    background: var(--surface-subtle);
-    border-top: 1px solid var(--border);
-  }
-
-  .hc-controls__left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-shrink: 0;
-  }
-
-  .hc-play-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 30px;
-    padding: 5px 12px;
-    border-radius: 7px;
-    border: 1px solid var(--accent-border);
-    background: var(--accent-soft);
-    color: var(--accent-strong);
-    font-family: var(--font-sans);
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-
-  .hc-play-btn:hover {
-    background: #2dd4bf;
-    color: #042f2e;
-  }
-
-  :global(:root[data-theme='light']) .hc-play-btn:hover {
-    background: #0f766e;
-    color: #ffffff;
-  }
-
-  .hc-timer {
-    font-family: var(--font-mono);
-    font-size: 11.5px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    font-variant-numeric: tabular-nums;
-    min-width: 78px;
-  }
-
-  .hc-scrubber {
-    flex: 1;
-    min-width: 160px;
-    min-height: 24px;
-    accent-color: var(--accent);
-    cursor: pointer;
-    margin: 0;
-  }
-
-  .hc-stage-jumps {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    flex-shrink: 0;
-  }
-
-  .hc-stage-jump {
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-    font-size: 10.5px;
-    font-weight: 600;
-    min-height: 26px;
-    padding: 3px 9px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-
-  :global(:root[data-theme='light']) .hc-stage-jump {
-    color: #475569;
-  }
-
-  .hc-stage-jump:hover {
-    border-color: var(--accent);
-    color: var(--text);
-  }
-
-  .hc-stage-jump.is-active {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-    color: var(--accent-strong);
-  }
-
-  .hc-stage-jump.is-done {
-    color: var(--text-secondary);
-  }
-
   /* --- Responsive Breakpoints --- */
-  @media (max-width: 1120px) {
-    .hc-nutshell {
-      grid-template-columns: 1fr;
-      gap: 10px;
-    }
-
-    .hc-step__arrow {
-      display: none;
-    }
-
+  @media (max-width: 1060px) {
     .hc-stage {
       grid-template-columns: 1fr;
       gap: 14px;
     }
 
-    /* Show mobile chat first on narrow viewports so mobile visitors see the phone UI immediately */
     .hc-device-col {
       order: 1;
     }
@@ -2113,15 +1199,12 @@ sequenceDiagram
       display: none;
     }
 
-    .hc-bridge__card {
+    .hc-bridge__pills {
       flex-direction: row;
-      flex-wrap: wrap;
       justify-content: center;
-      padding: 8px 10px;
+      gap: 10px;
     }
 
-    .hc-bridge__label,
-    .hc-bridge__divider,
     .hc-dir-desk {
       display: none;
     }
@@ -2130,64 +1213,32 @@ sequenceDiagram
       display: inline;
     }
 
-    .hc-wire-pill.is-pulsing {
-      transform: translateY(-2px);
-    }
-
-    .hc-wire-pill--return.is-pulsing {
-      transform: translateY(2px);
-    }
-
     .hc-left-col {
       order: 3;
-      height: auto;
-    }
-
-    .hc-agent {
-      flex: none;
     }
 
     .hc-stream-viewport {
-      flex: none;
-      height: 310px;
+      min-height: 0;
     }
   }
 
   @media (max-width: 480px) {
     .hc-stage {
-      padding: 12px;
-    }
-
-    .hc-nutshell,
-    .hc-controls {
-      padding: 12px 14px;
+      padding: 14px;
     }
 
     .hc-phone {
-      border-radius: 30px;
+      border-radius: 28px;
       padding: 7px;
-      height: auto;
-      min-height: 696px;
     }
 
     .hc-phone__screen {
-      border-radius: 24px;
+      border-radius: 22px;
+      min-height: 520px;
     }
 
-    .hc-fmt-tab,
-    .hc-chip,
-    .hc-stage-jump {
-      min-height: 30px;
-    }
-
-    .hc-checkbox {
-      min-height: 32px;
-    }
-
-    .hc-stage-jumps {
-      width: 100%;
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
+    .hc-guest-slider {
+      width: 130px;
     }
   }
 
@@ -2205,14 +1256,13 @@ sequenceDiagram
     const root = document.getElementById('hero-chat-visual');
     if (!root) return;
 
-    const DURATION_MS = 5000;
+    const DURATION_MS = 4200;
 
-    // 4 synchronized stages: each UI card mounts once its streaming chunk completes
+    // 3 synchronized stages matching the 3 Express cards (hero, options, summary)
     const STAGES = [
-      { idx: 0, codeStart: 80, codeEnd: 1120, uiAppear: 1120 },
-      { idx: 1, codeStart: 1200, codeEnd: 2360, uiAppear: 2360 },
-      { idx: 2, codeStart: 2440, codeEnd: 3660, uiAppear: 3660 },
-      { idx: 3, codeStart: 3740, codeEnd: 4940, uiAppear: 4940 },
+      { idx: 0, codeStart: 80, codeEnd: 1250, uiAppear: 1250 },
+      { idx: 1, codeStart: 1350, codeEnd: 2850, uiAppear: 2850 },
+      { idx: 2, codeStart: 2950, codeEnd: 4120, uiAppear: 4120 },
     ];
 
     function q(sel) {
@@ -2223,7 +1273,6 @@ sequenceDiagram
       return Array.from(root.querySelectorAll(sel));
     }
 
-    // Index text nodes per chunk for syntax-highlighted character-by-character streaming
     function indexCodeContainer(preEl) {
       return Array.from(preEl.querySelectorAll('.hc-chunk')).map((chunkEl) => {
         const nodes = [];
@@ -2240,40 +1289,24 @@ sequenceDiagram
       });
     }
 
-    const streamViewport = q('[data-hc-el="stream-viewport"]');
     const expressPre = q('#hc-code-express');
-    const jsonPre = q('#hc-code-json');
     const expressChunks = indexCodeContainer(expressPre);
-    const jsonChunks = indexCodeContainer(jsonPre);
 
     const caretExpress = q('[data-hc-el="caret-express"]');
-    const caretJson = q('[data-hc-el="caret-json"]');
     const agentDot = q('[data-hc-el="agent-dot"]');
-    const islandDot = q('[data-hc-el="island-dot"]');
-    const phoneStatus = q('#hc-phone-status');
     const agentLead = q('[data-hc-el="agent-lead"]');
     const surfaceCard = q('[data-hc-el="surface-card"]');
     const skeleton = q('[data-hc-el="skeleton"]');
-    const scrubber = q('#hc-scrubber');
-    const timerEl = q('#hc-timer');
-    const playBtn = q('#hc-play-btn');
-    const playIcon = q('#hc-play-icon');
-    const playLabel = q('#hc-play-label');
+    const restartBtn = q('#hc-restart-btn');
     const chatConfirm = q('#hc-chat-confirm');
-    const dmStatus = q('#hc-dm-status');
 
-    const wireCreate = q('[data-hc-el="wire-create"]');
-    const wireComps = q('[data-hc-el="wire-comps"]');
-    const wireCompCount = q('[data-hc-el="wire-comp-count"]');
-    const wireData = q('[data-hc-el="wire-data"]');
+    const wireStream = q('[data-hc-el="wire-stream"]');
     const wireAction = q('[data-hc-el="wire-action"]');
 
     const uiStageEls = qa('[data-ui-stage]');
-    const stageJumpBtns = qa('[data-jump-ms]');
     const dmEls = qa('[data-dm-stage]');
 
     const INITIAL_EST_USD = 1090;
-    const INITIAL_BREAKDOWN = { stayCost: 820, railCost: 270, total: INITIAL_EST_USD };
     const model = {
       guests: 2,
       cabin: 'reserved',
@@ -2281,15 +1314,11 @@ sequenceDiagram
       estUsd: INITIAL_EST_USD,
       held: false,
     };
-    let hasAgentRepriced = false;
-    let lastQuotedSpecs = { guests: 2, cabin: 'reserved', onsen: true };
-    let lastQuotedBreakdown = { ...INITIAL_BREAKDOWN };
 
     const flashTimers = new Map();
     let actionPulseTimer = 0;
 
-    // Track previously visible stages so newly mounted cards animate cleanly once
-    const visibleUiSet = new Set([0, 1, 2, 3]);
+    const visibleUiSet = new Set([0, 1, 2]);
 
     let elapsedMs = DURATION_MS;
     let isPlaying = false;
@@ -2297,40 +1326,12 @@ sequenceDiagram
     let rafId = 0;
     let lastTs = 0;
 
-    function computeTripBreakdown() {
+    function computeTotalUsd() {
       const railPerGuest = model.cabin === 'green' ? 167 : 135;
       const railCost = railPerGuest * model.guests;
       const extraGuestStay = Math.max(0, model.guests - 2) * 140;
       const stayCost = 725 + extraGuestStay + (model.onsen ? 95 : 0);
-      const total = railCost + stayCost;
-      return { railCost, stayCost, total };
-    }
-
-    function isSelectionModified() {
-      return (
-        model.guests !== lastQuotedSpecs.guests ||
-        model.cabin !== lastQuotedSpecs.cabin ||
-        model.onsen !== lastQuotedSpecs.onsen
-      );
-    }
-
-    function syncStreamScroll() {
-      if (!streamViewport) return;
-      const activePre = expressPre.hidden ? jsonPre : expressPre;
-      const visibleChunks = Array.from(activePre.querySelectorAll('.hc-chunk')).filter(
-        (c) => !c.hidden,
-      );
-      if (visibleChunks.length === 0) {
-        streamViewport.scrollTop = 0;
-        return;
-      }
-      const lastChunk = visibleChunks[visibleChunks.length - 1];
-      const targetBottom = lastChunk.offsetTop + lastChunk.offsetHeight + 12;
-      if (targetBottom > streamViewport.clientHeight) {
-        streamViewport.scrollTop = targetBottom - streamViewport.clientHeight;
-      } else {
-        streamViewport.scrollTop = 0;
-      }
+      return railCost + stayCost;
     }
 
     function applyCodeProgress(chunks, caretEl, ms) {
@@ -2372,7 +1373,7 @@ sequenceDiagram
     }
 
     function syncActionFeedback(clamped) {
-      const showHeld = model.held && clamped >= STAGES[3].uiAppear;
+      const showHeld = model.held && clamped >= STAGES[2].uiAppear;
       chatConfirm.hidden = !showHeld;
       wireAction.classList.toggle('is-sent', showHeld);
       if (!showHeld) {
@@ -2380,54 +1381,23 @@ sequenceDiagram
       }
     }
 
-    function renderTimeline(ms, shouldScrollCode = true) {
+    function renderTimeline(ms) {
       const clamped = Math.max(0, Math.min(DURATION_MS, ms));
       const streaming = clamped < DURATION_MS;
-      const secs = (clamped / 1000).toFixed(1);
-
-      scrubber.value = String(Math.round(clamped));
-      scrubber.setAttribute('aria-valuetext', `${secs} of 5.0 seconds`);
-      timerEl.textContent = `${secs}s / 5.0s`;
-
-      if (isPlaying) {
-        playIcon.textContent = '⏸';
-        playLabel.textContent = 'Pause';
-        playBtn.setAttribute('aria-label', 'Pause 5-second UI generation');
-      } else if (clamped >= DURATION_MS) {
-        playIcon.textContent = '↻';
-        playLabel.textContent = 'Replay';
-        playBtn.setAttribute('aria-label', 'Replay 5-second UI generation');
-      } else {
-        playIcon.textContent = '▶';
-        playLabel.textContent = 'Resume';
-        playBtn.setAttribute('aria-label', 'Resume 5-second UI generation');
-      }
 
       agentDot.classList.toggle('is-streaming', streaming && isPlaying);
-      islandDot.classList.toggle('is-streaming', streaming && isPlaying);
-      phoneStatus.classList.toggle('is-streaming', streaming);
-      phoneStatus.textContent = streaming ? `Streaming · ${secs}s` : 'Interactive · 5.0s';
 
-      // Code streams
       applyCodeProgress(expressChunks, caretExpress, clamped);
-      applyCodeProgress(jsonChunks, caretJson, clamped);
-      if (shouldScrollCode) {
-        syncStreamScroll();
-      }
 
-      // Lead text & surface container
       agentLead.classList.toggle('is-hidden-stage', clamped < 120);
       surfaceCard.classList.toggle('is-hidden-stage', clamped < 240);
       surfaceCard.classList.toggle('is-streaming', streaming && clamped >= 240);
 
-      // Mobile UI incremental cards
-      let mountedCount = 0;
       uiStageEls.forEach((el) => {
         const idx = Number(el.getAttribute('data-ui-stage'));
         const cfg = STAGES[idx];
         const show = clamped >= cfg.uiAppear;
         if (show) {
-          mountedCount++;
           el.classList.remove('is-hidden-stage');
           if (!visibleUiSet.has(idx)) {
             visibleUiSet.add(idx);
@@ -2442,53 +1412,18 @@ sequenceDiagram
         }
       });
 
-      // Show incoming shimmer card while surface is building
-      skeleton.hidden = !(clamped >= 240 && clamped < STAGES[3].uiAppear);
+      skeleton.hidden = !(clamped >= 240 && clamped < STAGES[2].uiAppear);
 
-      // DataModel progressive population
       dmEls.forEach((el) => {
         const reqStage = Number(el.getAttribute('data-dm-stage'));
         const ready = clamped >= STAGES[reqStage].codeEnd;
         el.classList.toggle('is-pending', !ready);
       });
 
-      // Wire stream indicators
-      wireCreate.classList.toggle('is-pulsing', clamped >= 80 && clamped < 600);
-      wireCreate.classList.toggle('is-sent', clamped >= 80);
-
-      wireCompCount.textContent = `${mountedCount}/4`;
-      wireComps.classList.toggle('is-pulsing', streaming && clamped >= 300);
-      wireComps.classList.toggle('is-sent', clamped >= 300);
-
-      const dataActive =
-        (clamped >= 1200 && clamped < 1750) ||
-        (clamped >= 2440 && clamped < 3000) ||
-        (clamped >= 3740 && clamped < 4300);
-      wireData.classList.toggle('is-pulsing', dataActive);
-      wireData.classList.toggle('is-sent', clamped >= 1200);
+      wireStream.classList.toggle('is-pulsing', streaming && clamped >= 80);
+      wireStream.classList.toggle('is-sent', clamped >= 80);
 
       syncActionFeedback(clamped);
-
-      // Stage jump pill highlights + aria-current="step"
-      let currentStageIdx = -1;
-      for (let i = STAGES.length - 1; i >= 0; i--) {
-        if (clamped >= STAGES[i].codeStart) {
-          currentStageIdx = i;
-          break;
-        }
-      }
-      stageJumpBtns.forEach((btn, i) => {
-        const cfg = STAGES[i];
-        const active = i === currentStageIdx && streaming;
-        const done = clamped >= cfg.uiAppear;
-        btn.classList.toggle('is-active', active);
-        btn.classList.toggle('is-done', done && !active);
-        if (i === currentStageIdx) {
-          btn.setAttribute('aria-current', 'step');
-        } else {
-          btn.removeAttribute('aria-current');
-        }
-      });
     }
 
     function tick(now) {
@@ -2512,9 +1447,6 @@ sequenceDiagram
       model.onsen = true;
       model.estUsd = INITIAL_EST_USD;
       model.held = false;
-      hasAgentRepriced = false;
-      lastQuotedSpecs = { guests: 2, cabin: 'reserved', onsen: true };
-      lastQuotedBreakdown = { ...INITIAL_BREAKDOWN };
       if (actionPulseTimer) {
         clearTimeout(actionPulseTimer);
         actionPulseTimer = 0;
@@ -2523,104 +1455,23 @@ sequenceDiagram
       flashTimers.clear();
       dmEls.forEach((el) => el.classList.remove('is-flash'));
       wireAction.classList.remove('is-pulsing', 'is-sent');
-      wireData.classList.remove('is-pulsing');
-      dmStatus.textContent = 'Two-way bound in 0ms · sent to agent on action';
       renderMobileDataModel();
     }
 
-    function seekTo(targetMs) {
-      hasUserOrAutoStarted = true;
-      isPlaying = false;
-      cancelAnimationFrame(rafId);
-      elapsedMs = Math.max(0, Math.min(DURATION_MS, targetMs));
-      if (elapsedMs < STAGES[3].uiAppear && (model.held || hasAgentRepriced)) {
-        resetModelState();
-      }
-      renderTimeline(elapsedMs, true);
-    }
-
-    function startPlayback(fromStart) {
+    function startPlayback() {
       hasUserOrAutoStarted = true;
       cancelAnimationFrame(rafId);
-      if (fromStart) {
-        resetModelState();
-        elapsedMs = 0;
-        visibleUiSet.clear();
-      }
+      resetModelState();
+      elapsedMs = 0;
+      visibleUiSet.clear();
       isPlaying = true;
       lastTs = 0;
-      renderTimeline(elapsedMs, true);
+      renderTimeline(elapsedMs);
       rafId = requestAnimationFrame(tick);
     }
 
-    function pausePlayback() {
-      hasUserOrAutoStarted = true;
-      isPlaying = false;
-      cancelAnimationFrame(rafId);
-      renderTimeline(elapsedMs, false);
-    }
-
-    playBtn.addEventListener('click', () => {
-      if (isPlaying) {
-        pausePlayback();
-      } else if (elapsedMs >= DURATION_MS) {
-        startPlayback(true);
-      } else {
-        startPlayback(false);
-      }
-    });
-
-    scrubber.addEventListener('input', () => {
-      seekTo(Number(scrubber.value));
-    });
-
-    stageJumpBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const jumpMs = Number(btn.getAttribute('data-jump-ms'));
-        seekTo(jumpMs);
-      });
-    });
-
-    // Self-contained WAI-ARIA tablist keyboard navigation (ArrowLeft/Right, Home, End)
-    qa('[role="tablist"]').forEach((tablist) => {
-      tablist.addEventListener('keydown', (e) => {
-        if (
-          e.key !== 'ArrowRight' &&
-          e.key !== 'ArrowLeft' &&
-          e.key !== 'Home' &&
-          e.key !== 'End'
-        ) {
-          return;
-        }
-        const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
-        const idx = tabs.indexOf(document.activeElement);
-        if (idx === -1) return;
-        e.preventDefault();
-        let nextIdx = idx;
-        if (e.key === 'ArrowRight') nextIdx = (idx + 1) % tabs.length;
-        else if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + tabs.length) % tabs.length;
-        else if (e.key === 'Home') nextIdx = 0;
-        else if (e.key === 'End') nextIdx = tabs.length - 1;
-        tabs[nextIdx].focus();
-        tabs[nextIdx].click();
-      });
-    });
-
-    // Format Tab Switcher (Express vs v1.0 JSON)
-    qa('[data-hc-fmt]').forEach((tab) => {
-      tab.addEventListener('click', () => {
-        const fmt = tab.getAttribute('data-hc-fmt');
-        qa('[data-hc-fmt]').forEach((t) => {
-          const active = t === tab;
-          t.classList.toggle('is-active', active);
-          t.setAttribute('aria-selected', String(active));
-          t.tabIndex = active ? 0 : -1;
-        });
-        const showExpress = fmt === 'express';
-        expressPre.hidden = !showExpress;
-        jsonPre.hidden = showExpress;
-        syncStreamScroll();
-      });
+    restartBtn.addEventListener('click', () => {
+      startPlayback();
     });
 
     function flashDataModelPill(id) {
@@ -2642,12 +1493,8 @@ sequenceDiagram
     function renderMobileDataModel() {
       const guestSlider = q('#hc-guest-slider');
       guestSlider.value = String(model.guests);
-      guestSlider.setAttribute(
-        'aria-valuetext',
-        `${model.guests} ${model.guests === 1 ? 'guest' : 'guests'}`,
-      );
-      q('#hc-guests-label').textContent =
-        `${model.guests} ${model.guests === 1 ? 'Guest' : 'Guests'}`;
+      guestSlider.setAttribute('aria-valuetext', String(model.guests));
+      q('#hc-guests-label').textContent = String(model.guests);
 
       const onsenBtn = q('#hc-onsen-btn');
       onsenBtn.classList.toggle('is-checked', model.onsen);
@@ -2660,36 +1507,16 @@ sequenceDiagram
         btn.tabIndex = sel ? 0 : -1;
       });
 
-      // Only update /trip/estUsd when the agent sends updateDataModel (initial stream or Hold roundtrip)
-      const displayBreakdown = lastQuotedBreakdown;
-
-      q('[data-hc-el="bar-stay"]').style.flex = String(displayBreakdown.stayCost);
-      q('[data-hc-el="bar-rail"]').style.flex = String(displayBreakdown.railCost);
-
-      if (model.held) {
-        q('#hc-budget-legend').textContent =
-          `Confirmed · Stay $${displayBreakdown.stayCost} · Rail $${displayBreakdown.railCost}`;
-      } else if (isSelectionModified()) {
-        q('#hc-budget-legend').textContent = hasAgentRepriced
-          ? 'Last agent quote · tap Hold Itinerary to reprice'
-          : 'Initial Estimate · tap Hold Itinerary to reprice';
-      } else {
-        const quotePrefix = hasAgentRepriced ? 'Last agent quote' : 'Initial Estimate';
-        q('#hc-budget-legend').textContent =
-          `${quotePrefix} · Stay $${displayBreakdown.stayCost} · Rail $${displayBreakdown.railCost}`;
-      }
+      model.estUsd = computeTotalUsd();
       q('#hc-total-price').textContent = `$${model.estUsd.toLocaleString('en-US')}`;
 
       const holdBtn = q('#hc-hold-btn');
       const holdLbl = q('#hc-hold-btn-label');
       holdBtn.classList.toggle('is-confirmed', model.held);
-      holdLbl.textContent = model.held
-        ? `✓ Held (#KYT-409) · $${model.estUsd.toLocaleString('en-US')}`
-        : 'Hold Itinerary';
+      holdLbl.textContent = model.held ? '✓ Itinerary Held' : 'Hold Itinerary';
 
       syncActionFeedback(elapsedMs);
 
-      // Sync Client Local Surface dataModel
       q('#hc-dm-guests-val').textContent = String(model.guests);
       q('#hc-dm-cabin-val').textContent = `["${model.cabin}"]`;
       q('#hc-dm-onsen-val').textContent = String(model.onsen);
@@ -2703,13 +1530,11 @@ sequenceDiagram
         actionPulseTimer = 0;
       }
       wireAction.classList.remove('is-pulsing', 'is-sent');
-      wireData.classList.remove('is-pulsing');
-      dmStatus.textContent = 'Updated in 0ms · tap Hold to sync with agent';
       renderMobileDataModel();
       flashDataModelPill(pillId);
+      flashDataModelPill('hc-dm-total');
     }
 
-    // Radio group keyboard helper (ArrowLeft/Up/Right/Down)
     qa('[role="radiogroup"]').forEach((group) => {
       group.addEventListener('keydown', (e) => {
         if (
@@ -2731,7 +1556,6 @@ sequenceDiagram
       });
     });
 
-    // Interactive Mobile Widget Listeners
     qa('[data-cabin]').forEach((btn) => {
       btn.addEventListener('click', () => {
         model.cabin = btn.getAttribute('data-cabin');
@@ -2750,37 +1574,20 @@ sequenceDiagram
     });
 
     q('#hc-hold-btn').addEventListener('click', () => {
-      const breakdown = computeTripBreakdown();
       model.held = true;
-      model.estUsd = breakdown.total;
-      hasAgentRepriced = true;
-      lastQuotedSpecs = {
-        guests: model.guests,
-        cabin: model.cabin,
-        onsen: model.onsen,
-      };
-      lastQuotedBreakdown = breakdown;
       renderMobileDataModel();
       flashDataModelPill('hc-dm-total');
-      q('[data-hc-el="confirm-total"]').textContent = `$${breakdown.total.toLocaleString('en-US')}`;
+      q('[data-hc-el="confirm-total"]').textContent = `$${model.estUsd.toLocaleString('en-US')}`;
       if (actionPulseTimer) clearTimeout(actionPulseTimer);
       wireAction.classList.add('is-pulsing', 'is-sent');
-      wireData.classList.add('is-pulsing');
-      dmStatus.textContent = 'Sent action · agent updated /trip/estUsd';
       actionPulseTimer = setTimeout(() => {
         wireAction.classList.remove('is-pulsing');
-        wireData.classList.remove('is-pulsing');
         actionPulseTimer = 0;
       }, 900);
     });
 
-    q('#hc-reset-state-btn').addEventListener('click', () => {
-      resetModelState();
-    });
-
     renderMobileDataModel();
 
-    // Auto-play the 5-second realistic incremental build when visible unless reduced-motion is preferred
     const prefersReducedMotion =
       typeof window.matchMedia === 'function' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -2794,7 +1601,7 @@ sequenceDiagram
             if (entry.isIntersecting) {
               observer.disconnect();
               if (!hasUserOrAutoStarted) {
-                startPlayback(true);
+                startPlayback();
               }
             }
           });
@@ -2803,7 +1610,7 @@ sequenceDiagram
       );
       observer.observe(root);
     } else {
-      startPlayback(true);
+      startPlayback();
     }
   })();
 </script>
