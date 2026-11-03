@@ -1,0 +1,31 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "A2UI (Agent-to-User Interface)",
+  "description": "Open protocol and renderers for agent-generated UI: agents stream declarative JSON, apps render it with native React, Angular, Lit, Flutter (GenUI), SwiftUI and Jetpack Compose components.",
+  "folders": [
+    "docs/public",
+    "typescript/renderers",
+    "typescript/agents",
+    "python/a2ui_agent",
+    "dart/a2ui_core",
+    "samples/client",
+    "samples/agent",
+    "skills"
+  ],
+  "excludeFolders": [
+    "docs/public/specification/v0.8",
+    "samples/community",
+    "docs/contributing",
+    "docs/proposals",
+    "eval",
+    "conformance",
+    ".agents"
+  ],
+  "excludeFiles": ["CHANGELOG.md"],
+  "rules": [
+    "Current protocol is v0.9.1 (v1.0 is a release candidate, v0.8 is legacy). Use versioned imports such as @a2ui/react/v0_9 and @a2ui/web_core/v0_9.",
+    "On Flutter, use the GenUI SDK: `flutter pub add genui` plus `genui_a2a` for a remote A2A agent. flutter_genui and genui_a2ui are discontinued.",
+    "Web renderers need @a2ui/web_core plus one of @a2ui/react, @a2ui/angular or @a2ui/lit.",
+    "Agents send declarative JSON that references components from the client's catalog; never generate executable UI code."
+  ]
+}
