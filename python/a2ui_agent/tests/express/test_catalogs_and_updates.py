@@ -889,10 +889,12 @@ def test_pre_v1_0_prompt_rules_omit_event_user_message(version: str) -> None:
 def test_prompt_rules_normalize_crlf_line_endings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    module = sys.modules[ExpressPromptGenerator.__module__]
+    monkeypatch.setattr(module, "EXPRESS_RULES", EXPRESS_RULES.replace("\n", "\r\n"))
     monkeypatch.setattr(
-        sys.modules[ExpressPromptGenerator.__module__],
-        "EXPRESS_RULES",
-        EXPRESS_RULES.replace("\n", "\r\n"),
+        module,
+        "_EXPRESS_RULES_PRE_V1_0",
+        module._EXPRESS_RULES_PRE_V1_0.replace("\n", "\r\n"),
     )
     fmt_v09 = ExpressFormat([_primary(version="v0.9.1")])
     rules_v09 = fmt_v09.prompt_generator.generate_base_rules()

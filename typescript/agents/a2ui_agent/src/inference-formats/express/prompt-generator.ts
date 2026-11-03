@@ -37,7 +37,7 @@ const EVENT_RULE_V10 = `8. Action events: represent server-side actions using th
 const EVENT_RULE_PRE_V10 = `8. Action events: represent server-side actions using the Event helper:
    Event("save_deal", {rep: $/form/rep})`;
 
-export const EXPRESS_RULES = `# A2UI Express DSL Output Contract
+const EXPRESS_RULES_PREFIX = `# A2UI Express DSL Output Contract
 
 You must output the user interface using A2UI Express.
 
@@ -73,11 +73,9 @@ The host compiler will compile your A2UI Express output into the correct JSON en
    Prefix relative list scopes with '$', e.g., $firstName.
    A lone '$' represents an empty relative path which resolves to the root of the current context (e.g. inside a template, representing the entire item itself).
 
-7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").
+7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").`;
 
-${EVENT_RULE_V10}
-
-9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
+const EXPRESS_RULES_SUFFIX = `9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
 
 10. Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.
 
@@ -96,6 +94,10 @@ ${EVENT_RULE_V10}
 15. Surface targeting: Output \`surface(surfaceId)\` to specify or target a user interface surface:
     surface("dashboard-surface-1")
     root = ComponentA(...)`;
+
+export const EXPRESS_RULES = `${EXPRESS_RULES_PREFIX}\n\n${EVENT_RULE_V10}\n\n${EXPRESS_RULES_SUFFIX}`;
+
+const EXPRESS_RULES_PRE_V10 = `${EXPRESS_RULES_PREFIX}\n\n${EVENT_RULE_PRE_V10}\n\n${EXPRESS_RULES_SUFFIX}`;
 
 /**
  * Rule 15's example line. `generateBaseRules` replaces its placeholder name with a
@@ -360,10 +362,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
    */
   generateBaseRules(): string {
     const allowedMessages = this.allowedMessages;
-    let rules = EXPRESS_RULES;
-    if (!isAtLeastVersion(this.version, '1.0')) {
-      rules = rules.replace(EVENT_RULE_V10, EVENT_RULE_PRE_V10);
-    }
+    let rules = isAtLeastVersion(this.version, '1.0') ? EXPRESS_RULES : EXPRESS_RULES_PRE_V10;
     let wantsComponentsOrData = true;
 
     if (allowedMessages) {

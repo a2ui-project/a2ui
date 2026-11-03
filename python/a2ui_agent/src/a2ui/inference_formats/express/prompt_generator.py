@@ -63,7 +63,7 @@ _EVENT_RULE_PRE_V1_0 = (
     '   Event("save_deal", {rep: $/form/rep})'
 )
 
-EXPRESS_RULES = r'''# A2UI Express DSL Output Contract
+_EXPRESS_RULES_PREFIX = r'''# A2UI Express DSL Output Contract
 
 You must output the user interface using A2UI Express.
 
@@ -99,15 +99,9 @@ The host compiler will compile your A2UI Express output into the correct JSON en
    Prefix relative list scopes with '$', e.g., $firstName.
    A lone '$' represents an empty relative path which resolves to the root of the current context (e.g. inside a template, representing the entire item itself).
 
-7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").
+7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").'''
 
-8. Action events: represent server-side actions using the Event helper, `Event(name, context?, userMessage=...)`:
-   Event("save_deal", {rep: $/form/rep})
-   Event("reply", userMessage="Replying now")
-   Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)
-   The context map is optional. Pass `userMessage=` as a keyword argument (a string, `$path` binding, or function call) to set the message shown on the user's behalf when the event fires.
-
-9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
+_EXPRESS_RULES_SUFFIX = r"""9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
 
 10. Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.
 
@@ -125,7 +119,15 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 15. Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
     surface("dashboard-surface-1")
-    root = ComponentA(...)'''
+    root = ComponentA(...)"""
+
+EXPRESS_RULES = (
+    f"{_EXPRESS_RULES_PREFIX}\n\n{_EVENT_RULE_V1_0}\n\n{_EXPRESS_RULES_SUFFIX}"
+).replace("\r\n", "\n")
+
+_EXPRESS_RULES_PRE_V1_0 = (
+    f"{_EXPRESS_RULES_PREFIX}\n\n{_EVENT_RULE_PRE_V1_0}\n\n{_EXPRESS_RULES_SUFFIX}"
+).replace("\r\n", "\n")
 
 # Rule 15's example line. `generate_base_rules` replaces its placeholder name
 # with a component the active catalogs define.
@@ -356,9 +358,11 @@ class ExpressPromptGenerator(PromptGenerator):
         effective_allowed = (
             allowed_messages if allowed_messages is not None else self._allowed_messages
         )
-        source_rules = EXPRESS_RULES.replace("\r\n", "\n")
-        if not is_at_least_version(self._version, ProtocolVersion.V1_0):
-            source_rules = source_rules.replace(_EVENT_RULE_V1_0, _EVENT_RULE_PRE_V1_0)
+        source_rules = (
+            EXPRESS_RULES
+            if is_at_least_version(self._version, ProtocolVersion.V1_0)
+            else _EXPRESS_RULES_PRE_V1_0
+        ).replace("\r\n", "\n")
         base = (
             source_rules
             if effective_allowed is None
