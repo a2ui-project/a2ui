@@ -35,6 +35,7 @@ The native Swift runtime processing engine and state model implementation for A2
   name to keep (`.keep`, or a string literal) and a new entry (`.add`). A Swift catalog has no
   `$id`, title, description or instructions, so `derive` takes no instructions and has nothing
   else to drop.
+- **Renderer fallback routing**: Fallback routing to the agent is implemented as the module blueprint's RPC layer describes, with `MessageProcessor.agentFunctionTimeoutSeconds` as the routed call timeout. `module_blueprint_commit` stays at its older pin because the codebase has not caught up with earlier module changes, such as the per-call `ExecutionContext` (`isUserActivated`) of `processMessages`.
 - **No agent**: The Swift SDK is a renderer only, so it does not implement the optional
   `agent_renderer_app` feature.
 
