@@ -51,13 +51,34 @@ export const A2uiSandboxMessageType = {
 } as const;
 
 /**
- * Sandbox flags of the inner iframe. `allow-same-origin` is omitted so the content runs in an
- * opaque origin with no access to the host's cookies or storage; `allow-top-navigation` and
- * `allow-top-navigation-by-user-activation` are omitted so embedded scripts cannot redirect the
- * host window (frame busting); `allow-popups` and `allow-popups-to-escape-sandbox` are omitted so a
- * click on an attacker-built link cannot open a new window and exfiltrate data through its URL.
+ * Sandbox flags of the inner iframe when the host does not provide its own. `allow-same-origin`
+ * is omitted so the content runs in an opaque origin with no access to the host's cookies or
+ * storage; `allow-top-navigation` and `allow-top-navigation-by-user-activation` are omitted so
+ * embedded scripts cannot redirect the host window (frame busting); `allow-popups` and
+ * `allow-popups-to-escape-sandbox` are omitted so a click on an attacker-built link cannot open a
+ * new window and exfiltrate data through its URL.
  */
 export const DEFAULT_INNER_SANDBOX = 'allow-scripts allow-forms allow-modals';
+
+/**
+ * Resolves the `sandbox` attribute of the inner iframe for a resource. Without a host-provided
+ * value the frame gets {@link DEFAULT_INNER_SANDBOX}, so a resource that omits `sandbox` never
+ * keeps the flags of a previous one. A host-provided value is kept as is, except that
+ * `allow-same-origin` is dropped for inline HTML: a `srcdoc` frame with that flag inherits the
+ * proxy's origin and can reach the proxy window.
+ */
+export function resolveInnerSandbox(sandbox: string | undefined, isSrcdoc: boolean): string {
+  if (sandbox === undefined) {
+    return DEFAULT_INNER_SANDBOX;
+  }
+  if (!isSrcdoc) {
+    return sandbox;
+  }
+  return sandbox
+    .split(/\s+/)
+    .filter(flag => flag.toLowerCase() !== 'allow-same-origin')
+    .join(' ');
+}
 
 /** Sensitive capabilities the inner frame never gets unless the host delegates them explicitly. */
 export const SENSITIVE_PERMISSIONS = [
@@ -423,13 +444,7 @@ export function startSandboxProxy(env: SandboxProxyEnvironment): void {
         const {html, url, sandbox, permissions, csp} = readResourcePayload(
           isMcpResourceReady ? data['params'] : data,
         );
-        if (sandbox !== undefined) {
-          const safeSandbox = sandbox
-            .split(/\s+/)
-            .filter(flag => flag.toLowerCase() !== 'allow-same-origin')
-            .join(' ');
-          inner.setAttribute('sandbox', safeSandbox);
-        }
+        inner.setAttribute('sandbox', resolveInnerSandbox(sandbox, html !== undefined));
         inner.setAttribute('allow', buildPermissionsPolicy(buildAllowAttribute(permissions)));
 
         const sendInit = () => {

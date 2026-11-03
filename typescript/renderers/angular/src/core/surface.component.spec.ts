@@ -110,4 +110,36 @@ describe('SurfaceComponent', () => {
     expect(resolver.resolverFor(surface)).toBe(resolver.resolverFor(surface));
     expect(fixture.nativeElement.textContent).toContain('Hello');
   });
+
+  it('should dispose the previous NodeResolver when swapping surface models', () => {
+    const catalog = surface.defaultCatalog!;
+    const secondSurface = new SurfaceModel('second-surface', catalog);
+    secondSurface.componentsModel.addComponent(
+      new ComponentModel('root', 'Text', {text: 'Second Surface'}, catalog),
+    );
+    mockRendererService.surfaceGroup.getSurface.and.callFake((id: string) =>
+      id === 'second-surface' ? secondSurface : surface,
+    );
+
+    const preMountListeners = (
+      surface.componentsModel.onCreated as unknown as {listeners: Set<unknown>}
+    ).listeners.size;
+
+    fixture.componentRef.setInput('surfaceId', 'test-surface');
+    fixture.detectChanges();
+
+    expect(
+      (surface.componentsModel.onCreated as unknown as {listeners: Set<unknown>}).listeners.size,
+    ).toBeGreaterThan(preMountListeners);
+    expect(fixture.nativeElement.textContent).toContain('Hello');
+
+    fixture.componentRef.setInput('surfaceId', 'second-surface');
+    fixture.detectChanges();
+
+    expect(
+      (surface.componentsModel.onCreated as unknown as {listeners: Set<unknown>}).listeners.size,
+    ).toBe(preMountListeners);
+    expect(fixture.nativeElement.textContent).not.toContain('Hello');
+    expect(fixture.nativeElement.textContent).toContain('Second Surface');
+  });
 });
