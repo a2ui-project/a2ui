@@ -27,9 +27,9 @@ try:
     from conformance.scripts.e2e_outcome import outcome_of
 except ImportError:
     try:
-        from scripts.e2e_outcome import outcome_of
+        from scripts.e2e_outcome import outcome_of  # type: ignore[import-not-found,no-redef]
     except ImportError:
-        from e2e_outcome import outcome_of
+        from e2e_outcome import outcome_of  # type: ignore[import-not-found,no-redef]
 
 
 def _load_scenario_file(path_str: str) -> list[dict[str, Any]]:
