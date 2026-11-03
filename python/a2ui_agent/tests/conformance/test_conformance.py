@@ -186,6 +186,7 @@ _CREATE_PROCESSOR_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
     "expect",
     "expect_error",
     "then_parse",
+    "then_stream",
 })
 _CREATE_PROCESSOR_EXPECT_KEYS = frozenset({
     "active_catalog_ids",
@@ -195,6 +196,8 @@ _CREATE_PROCESSOR_EXPECT_KEYS = frozenset({
     "prompt_snippet_absent",
 })
 _THEN_PARSE_KEYS = frozenset({"input", "expect", "expect_error"})
+_THEN_STREAM_KEYS = frozenset({"steps", "expect_close", "expect_error"})
+_THEN_STREAM_STEP_KEYS = frozenset({"input", "expect", "expect_error"})
 _CATALOG_EXPECT_KEYS = frozenset({
     "catalog_id",
     "components",
@@ -1286,6 +1289,36 @@ def run_create_processor_case(test_case, tmp_path):
             assert_parts_match(
                 processor.parse_response(parse["input"]), parse["expect"]
             )
+
+    streamed = test_case.get("then_stream")
+    if streamed is not None:
+        _run_then_stream(processor, streamed)
+
+
+def _run_then_stream(processor, streamed):
+    """Feeds `then_stream` steps through a stream the processor opened.
+
+    Each step states the parts its chunk yields, or the error feeding it
+    raises, which ends the case. After the last step the stream is closed:
+    `expect_close` states the parts that yields, `expect_error` the error it
+    raises.
+    """
+    assert_known_keys(streamed, _THEN_STREAM_KEYS, "then_stream")
+    stream = processor.open_stream()
+    for step in streamed["steps"]:
+        assert_known_keys(step, _THEN_STREAM_STEP_KEYS, "then_stream step")
+        if "expect_error" in step:
+            with assert_raises(step["expect_error"]):
+                stream.feed(step["input"])
+            return
+        assert_parts_match(stream.feed(step["input"]), step["expect"])
+    if "expect_error" in streamed:
+        with assert_raises(streamed["expect_error"]):
+            stream.close()
+        return
+    closed = stream.close()
+    if "expect_close" in streamed:
+        assert_parts_match(closed, streamed["expect_close"])
 
 
 @pytest.mark.parametrize("suite, test_case", cases_request_processor)

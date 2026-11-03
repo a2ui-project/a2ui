@@ -2031,6 +2031,39 @@
           "required": ["input"],
           "additionalProperties": false
         },
+        "then_stream": {
+          "type": "object",
+          "description": "A response read chunk by chunk through a stream the processor opened, for rules about what each chunk yields once negotiation has narrowed the catalogs. `steps` are fed in order through `open_stream`, each stating the parts its chunk yields; then the stream is closed, and either `expect_close` states the parts closing yields or `expect_error` states the error closing raises, as for a block still open when the response ends.",
+          "properties": {
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "input": {"type": "string"},
+                  "expect": {
+                    "type": "array",
+                    "items": {"$ref": "#/$defs/ResponsePart"}
+                  },
+                  "expect_error": {
+                    "$ref": "#/$defs/ExpectError",
+                    "description": "The error feeding this chunk raises. It is the last step the case runs; the stream is not closed after it."
+                  }
+                },
+                "required": ["input"],
+                "additionalProperties": false
+              },
+              "minItems": 1
+            },
+            "expect_close": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/ResponsePart"}
+            },
+            "expect_error": {"$ref": "#/$defs/ExpectError"}
+          },
+          "required": ["steps"],
+          "additionalProperties": false
+        },
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["action", "args"]

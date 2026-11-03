@@ -78,6 +78,72 @@ def test_messages_are_emitted_as_they_arrive():
     assert [part.root.data for part in parts] == [_CREATE]
 
 
+class _TokenStreamFailed(Exception):
+    """The error a token stream raises mid-way in the tests below."""
+
+
+async def _tokens_then_fail(*tokens: str) -> AsyncIterator[str]:
+    for token in tokens:
+        yield token
+    raise _TokenStreamFailed()
+
+
+def _read_until_failure(*tokens: str) -> list[Part]:
+    """Streams tokens that end in a failure, returning the parts seen first.
+
+    The token stream's own error is expected to reach the consumer.
+    """
+
+    async def collect() -> list[Part]:
+        stream = DirectJsonParser([_BASIC]).open_stream()
+        seen: list[Part] = []
+        with pytest.raises(_TokenStreamFailed):
+            async for part in stream_response_to_parts(
+                stream, _tokens_then_fail(*tokens)
+            ):
+                seen.append(part)
+        return seen
+
+    return asyncio.run(collect())
+
+
+def test_parts_read_before_the_token_stream_fails_reach_the_consumer():
+    """A failure mid-stream does not take back what was already yielded."""
+    parts = _read_until_failure(
+        "Here. ", "<a2ui-json>", json.dumps([_CREATE]), "</a2ui-json>"
+    )
+
+    assert parts[0].root.text == "Here."
+    assert [part.root.data for part in parts[1:]] == [_CREATE]
+
+
+def test_the_token_stream_failure_propagates_over_an_open_block():
+    """The token stream's error wins: the stream is not closed after it, so the
+    block it left open is not reported as a parse error in its place."""
+    parts = _read_until_failure("Before ", "<a2ui-json>", "[")
+
+    assert [part.root.text for part in parts] == ["Before"]
+
+
+def test_a_block_left_open_by_a_completed_token_stream_raises_at_close():
+    """Once the tokens run out cleanly, closing reports the open block, after
+    the parts before it were yielded."""
+
+    async def collect() -> list[Part]:
+        stream = DirectJsonParser([_BASIC]).open_stream()
+        seen: list[Part] = []
+        with pytest.raises(A2uiParseError, match="ended inside"):
+            async for part in stream_response_to_parts(
+                stream, _tokens("Before ", "<a2ui-json>", "[")
+            ):
+                seen.append(part)
+        return seen
+
+    parts = asyncio.run(collect())
+
+    assert [part.root.text for part in parts] == ["Before"]
+
+
 def test_to_a2a_parts_splits_messages_and_drops_empty_text():
     parts = to_a2a_parts(
         [TextPart(text="Here."), TextPart(text=""), A2uiPart(a2ui=[_CREATE])],

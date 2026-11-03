@@ -27,11 +27,18 @@
 #
 # A response the case wants read is written in `then_parse`, beside `expect`
 # rather than inside it, because parsing is a call made on the processor and not
-# a property read off it. The pair of cases at the end of this file is the only
-# use of it: one shows that a response using the negotiated catalog parses, the
-# other that a response reaching past it does not. Parsing as such belongs to
-# the per-format `response_parser.yaml`, `compiler.yaml` and `decompiler.yaml`
-# suites, which need no negotiation to state their rules.
+# a property read off it. One case shows that a response using the negotiated
+# catalog parses, another that a response reaching past it does not. Parsing as
+# such belongs to the per-format `response_parser.yaml`, `compiler.yaml` and
+# `decompiler.yaml` suites, which need no negotiation to state their rules.
+#
+# `then_stream` is the chunked counterpart of `then_parse`: its `steps` are fed
+# in order through a stream the processor opened with `open_stream`, each
+# stating the parts its chunk yields, and the stream is then closed.
+# `expect_close` states what closing yields, and `expect_error` the error
+# closing raises, as when the response ends inside a block. The stream reads
+# against the catalogs negotiation left active, like `then_parse`; how chunks
+# split is the business of the per-format `response_streaming.yaml` suites.
 #
 # Capability negotiation requires the renderer to declare its capabilities:
 # create_processor cannot be called without them. A request with a present but
@@ -345,6 +352,89 @@
     input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Chart", "values": [1, 2, 3]}]}}]</a2ui-json>'
     expect_error:
       category: ValidationError
+
+- name: test_processor_streams_a_response_within_the_active_catalogs
+  description: A stream the processor opened yields each chunk's text and messages as they close, reading against the negotiated catalog, and closing after the last chunk yields nothing more.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+  then_stream:
+    steps:
+      - input: 'Here is a greeting.<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},'
+        expect:
+          - text: "Here is a greeting."
+          - a2ui:
+              - version: "1.0"
+                createSurface:
+                  surfaceId: "s1"
+                  catalogId: "conformance/simplified"
+      - input: ' {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}'
+        expect:
+          - a2ui:
+              - version: "1.0"
+                updateComponents:
+                  surfaceId: "s1"
+                  components:
+                    - id: "root"
+                      component: "Text"
+                      text: "Hello"
+      - input: "]</a2ui-json>\nThat is your surface."
+        expect:
+          - text: "That is your surface."
+    expect_close: []
+
+- name: test_processor_stream_rejects_a_response_outside_the_active_catalogs
+  description: A stream the processor opened checks components against the catalogs negotiation left active, so a chunk closing a component from a catalog the agent registered but the renderer did not ask for raises as it closes.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    renderer_capabilities:
+      "1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+  then_stream:
+    steps:
+      - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},'
+        expect:
+          - a2ui:
+              - version: "1.0"
+                createSurface:
+                  surfaceId: "s1"
+                  catalogId: "conformance/simplified"
+      - input: ' {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Chart", "values": [1, 2, 3]}]}}]</a2ui-json>'
+        expect_error:
+          category: ValidationError
+
+- name: test_processor_stream_closed_inside_a_block_raises
+  description: Closing a stream the processor opened while a block is still open raises a ParseError, after the text before the block was yielded.
+  action: create_processor
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+  then_stream:
+    steps:
+      - input: "Text <a2ui-json>["
+        expect:
+          - text: "Text"
+    expect_error:
+      category: ParseError
 
 - name: test_express_format_binds_multiple_catalogs_and_examples
   description: An Express format bound to two catalogs renders both catalog schemas and decompiles examples belonging to each catalog into Express notation.

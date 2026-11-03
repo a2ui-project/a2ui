@@ -32,6 +32,7 @@ const Map<String, Set<String>> _knownKeys = {
     'expect',
     'expect_error',
     'then_parse',
+    'then_stream',
   },
   'args:create_format': {'catalogs', 'examples', 'format', 'probe_chunks'},
   'args:create_processor': {
@@ -55,6 +56,8 @@ const Map<String, Set<String>> _knownKeys = {
     'prompt_snippet_contains',
   },
   'then_parse': {'expect', 'expect_error', 'input'},
+  'then_stream': {'expect_close', 'expect_error', 'steps'},
+  'then_stream:step': {'expect', 'expect_error', 'input'},
 };
 
 void main() {
@@ -257,6 +260,43 @@ void _createProcessor(Map<String, Object?> testCase, SuiteVersion version) {
     } else {
       expect(parseResponse(), parse['expect']);
     }
+  }
+
+  if (testCase['then_stream'] case final Map<String, Object?> streamed) {
+    _thenStream(processor, streamed, version);
+  }
+}
+
+/// Feeds `then_stream` steps through a stream [processor] opened. Each step
+/// states the parts its chunk yields, or the error feeding it throws, which
+/// ends the case. After the last step the stream is closed: `expect_close`
+/// states the parts that yields, `expect_error` the error it throws.
+void _thenStream(
+  A2uiRequestProcessor processor,
+  Map<String, Object?> streamed,
+  SuiteVersion version,
+) {
+  assertKnownKeys(streamed, _knownKeys['then_stream']!, 'then_stream');
+  final ResponseStream stream = processor.openStream();
+  for (final Object? entry in streamed['steps']! as List<Object?>) {
+    final step = entry! as Map<String, Object?>;
+    assertKnownKeys(step, _knownKeys['then_stream:step']!, 'then_stream:step');
+    final String chunk = version.text(step['input']! as String);
+    List<Object?> feed() => version.partsJson(stream.feed(chunk));
+    if (step['expect_error'] case final Object error) {
+      expectThrowsCategory(feed, error);
+      return;
+    }
+    expect(feed(), step['expect']);
+  }
+  List<Object?> close() => version.partsJson(stream.close());
+  if (streamed['expect_error'] case final Object error) {
+    expectThrowsCategory(close, error);
+    return;
+  }
+  final List<Object?> closed = close();
+  if (streamed['expect_close'] case final List<Object?> expected) {
+    expect(closed, expected);
   }
 }
 
