@@ -1,0 +1,193 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-movie-card",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["poster", "content"]
+              }
+            }
+          }
+        },
+        {
+          "id": "poster",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/poster"
+              },
+              "fit": "cover"
+            }
+          }
+        },
+        {
+          "id": "content",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title-row", "genre", "rating-row", "runtime"]
+              }
+            }
+          }
+        },
+        {
+          "id": "title-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["movie-title", "year"]
+              },
+              "alignment": "start"
+            }
+          }
+        },
+        {
+          "id": "movie-title",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/title"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "year",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/year"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "genre",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/genre"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "rating-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["star-icon", "rating-value"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "star-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "star"
+              }
+            }
+          }
+        },
+        {
+          "id": "rating-value",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/rating"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "runtime",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["time-icon", "runtime-text"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "time-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "calendarToday"
+              }
+            }
+          }
+        },
+        {
+          "id": "runtime-text",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/runtime"
+              },
+              "usageHint": "caption"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-movie-card",
+      "contents": [
+        {
+          "key": "poster",
+          "valueString": "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=200&h=300&fit=crop"
+        },
+        {
+          "key": "title",
+          "valueString": "Interstellar"
+        },
+        {
+          "key": "year",
+          "valueString": "(2014)"
+        },
+        {
+          "key": "genre",
+          "valueString": "Sci-Fi \u2022 Adventure \u2022 Drama"
+        },
+        {
+          "key": "rating",
+          "valueString": "8.7/10"
+        },
+        {
+          "key": "runtime",
+          "valueString": "2h 49min"
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-movie-card",
+      "root": "root"
+    }
+  }
+]

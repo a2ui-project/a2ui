@@ -1,0 +1,213 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-restaurant-card",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["restaurant-image", "content"]
+              }
+            }
+          }
+        },
+        {
+          "id": "restaurant-image",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/image"
+              },
+              "fit": "cover"
+            }
+          }
+        },
+        {
+          "id": "content",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["name-row", "cuisine", "rating-row", "details-row"]
+              }
+            }
+          }
+        },
+        {
+          "id": "name-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["restaurant-name", "price-range"]
+              },
+              "distribution": "spaceBetween",
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "restaurant-name",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/name"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "price-range",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/priceRange"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "cuisine",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/cuisine"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "rating-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["star-icon", "rating", "reviews"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "star-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "star"
+              }
+            }
+          }
+        },
+        {
+          "id": "rating",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/rating"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "reviews",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/reviewCount"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "details-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["distance", "delivery-time"]
+              }
+            }
+          }
+        },
+        {
+          "id": "distance",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/distance"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "delivery-time",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/deliveryTime"
+              },
+              "usageHint": "caption"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-restaurant-card",
+      "contents": [
+        {
+          "key": "image",
+          "valueString": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=300&h=150&fit=crop"
+        },
+        {
+          "key": "name",
+          "valueString": "The Italian Kitchen"
+        },
+        {
+          "key": "priceRange",
+          "valueString": "$$$"
+        },
+        {
+          "key": "cuisine",
+          "valueString": "Italian \u2022 Pasta \u2022 Wine Bar"
+        },
+        {
+          "key": "rating",
+          "valueString": "4.8"
+        },
+        {
+          "key": "reviewCount",
+          "valueString": "(2,847 reviews)"
+        },
+        {
+          "key": "distance",
+          "valueString": "0.8 mi"
+        },
+        {
+          "key": "deliveryTime",
+          "valueString": "25-35 min"
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-restaurant-card",
+      "root": "root"
+    }
+  }
+]

@@ -1,0 +1,135 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-stats-card",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["header", "value", "trend-row"]
+              }
+            }
+          }
+        },
+        {
+          "id": "header",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["metric-icon", "metric-name"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "metric-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "path": "/icon"
+              }
+            }
+          }
+        },
+        {
+          "id": "metric-name",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/metricName"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "value",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/value"
+              },
+              "usageHint": "h1"
+            }
+          }
+        },
+        {
+          "id": "trend-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["trend-icon", "trend-text"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "trend-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "path": "/trendIcon"
+              }
+            }
+          }
+        },
+        {
+          "id": "trend-text",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/trendText"
+              },
+              "usageHint": "body"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-stats-card",
+      "contents": [
+        {
+          "key": "icon",
+          "valueString": "trending_up"
+        },
+        {
+          "key": "metricName",
+          "valueString": "Monthly Revenue"
+        },
+        {
+          "key": "value",
+          "valueString": "$48,294"
+        },
+        {
+          "key": "trendIcon",
+          "valueString": "arrow_upward"
+        },
+        {
+          "key": "trendText",
+          "valueString": "+12.5% from last month"
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-stats-card",
+      "root": "root"
+    }
+  }
+]

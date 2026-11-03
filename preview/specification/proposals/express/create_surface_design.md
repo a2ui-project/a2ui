@@ -1,0 +1,227 @@
+# Express DSL `surface()` Design
+
+## Summary
+
+A2UI Express DSL is a compact declarative syntax designed for generative user interface models. The `surface("surface_id")` top-level statement allows an LLM to explicitly declare, target, or update a specific surface, while `deleteSurface("surface_id")` destroys an existing surface.
+
+---
+
+## Design Principles
+
+1. **Unified Surface Targeting**: `surface("surface_id")` is the single directive used to declare a new surface or target an existing surface for updates.
+   - By default, a scope that defines `root` compiles to a `createSurface` message, while a scope that defines components without `root` compiles to an `updateComponents` message.
+   - An explicit `update=true` argument (e.g. `surface("surface_id", update=true)`) forces the scope to compile to an `updateComponents` message even when redefining or updating the `root` component.
+2. **Multi-Surface Support**: A single `<a2ui>` DSL block can target or switch between multiple surfaces using sequential `surface("id")` calls.
+3. **Backward Compatibility**: If `surface()` is omitted from a DSL block, the compiler uses the default `surface_id` parameter (default `"default_surface"`).
+4. **Protocol Verbs**: `deleteSurface("id")` remains an explicit standalone command for destroying a surface.
+5. **Catalogs**: With a single catalog, `createSurface` carries that catalog's `catalogId`. With multiple catalogs, `createSurface` omits `catalogId` and each component and function call carries its own `catalogId`, resolved by name across active catalogs or via an explicit `catalogId` override.
+6. **Model Simplicity**: Generative models only need to know which surface they are targeting (`surface("id")`). By inferring `createSurface` vs `updateComponents` structurally from the presence of `root` (with `update=true` available for explicit root updates), the DSL eliminates the need for models to track complex session state.
+
+---
+
+## Grammar & Syntax
+
+`surface` is a top-level statement with positional or keyword parameters:
+
+```ebnf
+surfaceStatement = "surface(" surfaceId [ "," [ catalogId ] ] [ "," [ "update=" Boolean ] ] [ "," [ "sendDataModel=" Boolean ] ] ")" ;
+```
+
+### Signatures
+
+- `surface(surfaceId)`
+- `surface(surfaceId, catalogId)` (single-catalog mode only)
+- `surface(surfaceId, update=true)`
+- `surface(surfaceId="id", catalogId="uri")` (single-catalog mode only)
+- `surface(surfaceId="id", update=true)`
+
+### Parameters
+
+| Parameter       | Type    | Required | Description                                                                                                                                              |
+| :-------------- | :------ | :------- | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `surfaceId`     | String  | Yes      | Unique string identifier for the target surface.                                                                                                         |
+| `catalogId`     | String  | No       | Optional ID of the sole active catalog in single-catalog mode. Rejected when multiple catalogs exist.                                                    |
+| `update`        | Boolean | No       | If `true`, the scope compiles to an `updateComponents` payload even if `root` is defined, allowing updates to the root container of an existing surface. |
+| `sendDataModel` | Boolean | No       | Optional flag for `createSurface` messages indicating whether the data model should be sent.                                                             |
+
+---
+
+## Usage Examples
+
+### Single Surface Declaration
+
+```express
+<a2ui>
+surface("dashboard-surface-1")
+root = Card(main_column)
+main_column = Column([title, metric_card])
+title = Text("Sales Dashboard", "h2")
+metric_card = Card(Text("$12,450"))
+</a2ui>
+```
+
+#### Compiled Output (Initial Render -> A2UI v1.0 `createSurface` Payload)
+
+```json
+[
+  {
+    "version": "v1.0",
+    "createSurface": {
+      "surfaceId": "dashboard-surface-1",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "main_column"
+        },
+        {
+          "id": "main_column",
+          "component": "Column",
+          "children": ["title", "metric_card"]
+        },
+        {
+          "id": "title",
+          "component": "Text",
+          "text": "Sales Dashboard",
+          "variant": "h2"
+        },
+        {
+          "id": "metric_card",
+          "component": "Card",
+          "child": "Text_inline_1"
+        },
+        {
+          "id": "Text_inline_1",
+          "component": "Text",
+          "text": "$12,450"
+        }
+      ]
+    }
+  }
+]
+```
+
+### Subsequent Turn / Component Update
+
+If a subsequent turn outputs DSL updating the components (including `root`) on an existing surface ID, it specifies `update=true`:
+
+```express
+<a2ui>
+surface("dashboard-surface-1", update=true)
+root = Card(main_column)
+main_column = Column([title, metric_card, status_text])
+title = Text("Sales Dashboard", "h2")
+metric_card = Card(Text("$15,800"))
+status_text = Text("Updated 1m ago", "caption")
+</a2ui>
+```
+
+#### Compiled Output (Active Surface -> A2UI v1.0 `updateComponents` Payload)
+
+```json
+[
+  {
+    "version": "v1.0",
+    "updateComponents": {
+      "surfaceId": "dashboard-surface-1",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "main_column"
+        },
+        {
+          "id": "main_column",
+          "component": "Column",
+          "children": ["title", "metric_card", "status_text"]
+        },
+        {
+          "id": "title",
+          "component": "Text",
+          "text": "Sales Dashboard",
+          "variant": "h2"
+        },
+        {
+          "id": "metric_card",
+          "component": "Card",
+          "child": "Text_inline_1"
+        },
+        {
+          "id": "Text_inline_1",
+          "component": "Text",
+          "text": "$15,800"
+        },
+        {
+          "id": "status_text",
+          "component": "Text",
+          "text": "Updated 1m ago",
+          "variant": "caption"
+        }
+      ]
+    }
+  }
+]
+```
+
+### Multi-Surface Output in a Single DSL Block
+
+```express
+<a2ui>
+surface("header-surface")
+root = Row([app_title])
+app_title = Text("Analytics Portal", "h1")
+
+surface("sidebar-surface")
+root = Column([nav_home, nav_reports])
+nav_home = Button(Text("Home"))
+nav_reports = Button(Text("Reports"))
+</a2ui>
+```
+
+---
+
+## Compiler Architecture & Execution Pipeline
+
+```mermaid
+flowchart TD
+    DSL["A2UI Express Stream"] --> AST["Parser & AST Visitor"]
+    AST --> Statement{"Statement Type"}
+
+    Statement -->|"surface('id')"| ScopeSwitch["Set Active Surface Scope ('id')"]
+    Statement -->|"var = Component(...)"| CompAssign["Assign Component to Active Scope"]
+    Statement -->|"$/path = val"| DataAssign["Assign Data Path to Active Scope"]
+    Statement -->|"deleteSurface('id')"| DeleteStmt["Emit deleteSurface Payload"]
+
+    CompAssign --> CheckState{"Is Surface New in Session?"}
+    CheckState -->|Yes| EmitCreate["Emit createSurface Payload"]
+    CheckState -->|No / Update Mode| EmitUpdate["Emit updateComponents Payload"]
+    DataAssign --> EmitData["Emit updateDataModel Payload"]
+```
+
+### Surface Scope Partitioning
+
+1. **Scope Initialization**: A `surface("id")` statement opens a surface scope for `"id"`.
+2. **Scope Termination**: A scope ends when another `surface("id")` call, a `deleteSurface("id")` call, or the end of the DSL block is reached.
+3. **Protocol Mapping**:
+   - If the scope specifies `update=true`, it compiles to an `updateComponents` envelope (even if `root` is defined).
+   - Otherwise, if the scope defines `root`, it compiles to a `createSurface` envelope (or for v0.9/v0.9.1 targets, `createSurface` followed by `updateComponents`).
+   - If the scope defines components without `root` (and without `update=true`), it compiles to an `updateComponents` envelope targeting the existing surface.
+   - If the scope contains only data path assignments (`$/...`), it compiles to an `updateDataModel` envelope.
+4. **Backward Compatibility**: If no `surface()` call is present before variable assignments begin, the compiler creates an implicit scope using the default `surface_id` compiler parameter (`"default_surface"`).
+
+---
+
+## Implementation Checklist
+
+1. **Compiler Updates** (`compiler.py`):
+   - Update ANTLR visitor to handle `surface(surfaceId, catalogId?)` calls.
+   - Implement `SurfaceScope` context management.
+   - Integrate session / compiler flag to toggle between `createSurface` and `updateComponents` protocol envelopes.
+2. **Decompiler Updates** (`decompiler.py`):
+   - Update `decompile()` to output `surface("surfaceId")` statements when decompiling `createSurface` or `updateComponents` envelopes.
+3. **Prompt Generator & Documentation** (`prompt_generator.py`, `a2ui_express.md`):
+   - Add system prompt rule documenting `surface("surface_id")`.
+   - Update `a2ui_express.md` specification text.
+4. **Test Suite** (`test_compiler.py`, `test_parser_decompile.py`, `test_integration.py`):
+   - Add unit and integration tests for `surface()` compilation and decompilation.

@@ -1,0 +1,272 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-contact-card",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "avatar-image",
+                  "name",
+                  "title",
+                  "divider",
+                  "contact-info",
+                  "actions"
+                ]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "avatar-image",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/avatar"
+              },
+              "fit": "cover",
+              "usageHint": "avatar"
+            }
+          }
+        },
+        {
+          "id": "name",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/name"
+              },
+              "usageHint": "h2"
+            }
+          }
+        },
+        {
+          "id": "title",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/title"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "divider",
+          "component": {
+            "Divider": {}
+          }
+        },
+        {
+          "id": "contact-info",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["phone-row", "email-row", "location-row"]
+              }
+            }
+          }
+        },
+        {
+          "id": "phone-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["phone-icon", "phone-text"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "phone-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "phone"
+              }
+            }
+          }
+        },
+        {
+          "id": "phone-text",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/phone"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "email-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["email-icon", "email-text"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "email-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "mail"
+              }
+            }
+          }
+        },
+        {
+          "id": "email-text",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/email"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "location-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["location-icon", "location-text"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "location-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "locationOn"
+              }
+            }
+          }
+        },
+        {
+          "id": "location-text",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/location"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "actions",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["call-btn", "message-btn"]
+              }
+            }
+          }
+        },
+        {
+          "id": "call-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Call"
+              }
+            }
+          }
+        },
+        {
+          "id": "call-btn",
+          "component": {
+            "Button": {
+              "child": "call-btn-text",
+              "action": {
+                "name": "call",
+                "context": []
+              }
+            }
+          }
+        },
+        {
+          "id": "message-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Message"
+              }
+            }
+          }
+        },
+        {
+          "id": "message-btn",
+          "component": {
+            "Button": {
+              "child": "message-btn-text",
+              "action": {
+                "name": "message",
+                "context": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-contact-card",
+      "contents": [
+        {
+          "key": "avatar",
+          "valueString": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop"
+        },
+        {
+          "key": "name",
+          "valueString": "David Park"
+        },
+        {
+          "key": "title",
+          "valueString": "Engineering Manager"
+        },
+        {
+          "key": "phone",
+          "valueString": "+1 (555) 234-5678"
+        },
+        {
+          "key": "email",
+          "valueString": "david.park@company.com"
+        },
+        {
+          "key": "location",
+          "valueString": "San Francisco, CA"
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-contact-card",
+      "root": "root"
+    }
+  }
+]

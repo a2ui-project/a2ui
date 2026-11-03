@@ -1,0 +1,166 @@
+{
+  "name": "Calendar Day",
+  "description": "Example of calendar day demonstrating dynamic templating, relative paths, and date formatting.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-calendar-day",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-calendar-day",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main-column"
+          },
+          {
+            "id": "main-column",
+            "component": "Column",
+            "children": ["header-row", "divider", "actions"]
+          },
+          {
+            "id": "header-row",
+            "component": "Row",
+            "children": ["date-col", "events-col"]
+          },
+          {
+            "id": "date-col",
+            "component": "Column",
+            "children": ["day-name", "day-number"],
+            "align": "start"
+          },
+          {
+            "id": "day-name",
+            "component": "Text",
+            "text": {
+              "call": "formatDate",
+              "args": {
+                "value": {
+                  "path": "/date"
+                },
+                "format": "EEEE"
+              },
+              "returnType": "string"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "day-number",
+            "component": "Text",
+            "text": {
+              "call": "formatDate",
+              "args": {
+                "value": {
+                  "path": "/date"
+                },
+                "format": "d"
+              },
+              "returnType": "string"
+            },
+            "variant": "h1"
+          },
+          {
+            "id": "events-col",
+            "component": "Column",
+            "children": {
+              "path": "/events",
+              "componentId": "event-template"
+            }
+          },
+          {
+            "id": "event-template",
+            "component": "Column",
+            "children": ["event-title", "event-time"]
+          },
+          {
+            "id": "event-title",
+            "component": "Text",
+            "text": {
+              "path": "title"
+            },
+            "variant": "body"
+          },
+          {
+            "id": "event-time",
+            "component": "Text",
+            "text": {
+              "path": "time"
+            },
+            "variant": "caption"
+          },
+          {
+            "id": "divider",
+            "component": "Divider"
+          },
+          {
+            "id": "actions",
+            "component": "Row",
+            "children": ["add-btn", "discard-btn"]
+          },
+          {
+            "id": "add-btn-text",
+            "component": "Text",
+            "text": "Add to calendar"
+          },
+          {
+            "id": "add-btn",
+            "component": "Button",
+            "child": "add-btn-text",
+            "action": {
+              "event": {
+                "name": "add",
+                "context": {}
+              }
+            }
+          },
+          {
+            "id": "discard-btn-text",
+            "component": "Text",
+            "text": "Discard"
+          },
+          {
+            "id": "discard-btn",
+            "component": "Button",
+            "child": "discard-btn-text",
+            "action": {
+              "event": {
+                "name": "discard",
+                "context": {}
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-calendar-day",
+        "value": {
+          "date": "2025-12-28",
+          "events": [
+            {
+              "title": "Lunch",
+              "time": "12:00 - 12:45 PM"
+            },
+            {
+              "title": "Q1 roadmap review",
+              "time": "1:00 - 2:00 PM"
+            },
+            {
+              "title": "Team standup",
+              "time": "3:30 - 4:00 PM"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

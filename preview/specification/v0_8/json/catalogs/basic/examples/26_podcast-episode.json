@@ -1,0 +1,179 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-podcast-episode",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-row"
+            }
+          }
+        },
+        {
+          "id": "main-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["artwork", "content"]
+              },
+              "alignment": "start"
+            }
+          }
+        },
+        {
+          "id": "artwork",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/artwork"
+              },
+              "fit": "cover"
+            }
+          }
+        },
+        {
+          "id": "content",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": [
+                  "show-name",
+                  "episode-title",
+                  "meta-row",
+                  "description",
+                  "play-btn"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "show-name",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/showName"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "episode-title",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/episodeTitle"
+              },
+              "usageHint": "h4"
+            }
+          }
+        },
+        {
+          "id": "meta-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["duration", "date"]
+              }
+            }
+          }
+        },
+        {
+          "id": "duration",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/duration"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "date",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/date"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "description",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/description"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "play-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Play Episode"
+              }
+            }
+          }
+        },
+        {
+          "id": "play-btn",
+          "component": {
+            "Button": {
+              "child": "play-btn-text",
+              "action": {
+                "name": "play",
+                "context": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-podcast-episode",
+      "contents": [
+        {
+          "key": "artwork",
+          "valueString": "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=100&h=100&fit=crop"
+        },
+        {
+          "key": "showName",
+          "valueString": "Tech Talk Daily"
+        },
+        {
+          "key": "episodeTitle",
+          "valueString": "The Future of AI in Product Design"
+        },
+        {
+          "key": "duration",
+          "valueString": "45 min"
+        },
+        {
+          "key": "date",
+          "valueString": "Dec 15, 2024"
+        },
+        {
+          "key": "description",
+          "valueString": "How AI is transforming the way we design and build products."
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-podcast-episode",
+      "root": "root"
+    }
+  }
+]

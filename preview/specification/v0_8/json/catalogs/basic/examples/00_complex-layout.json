@@ -1,0 +1,89 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-complex-layout",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["header", "form_row", "footer"]
+              },
+              "distribution": "spaceBetween",
+              "alignment": "stretch"
+            }
+          }
+        },
+        {
+          "id": "header",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "User Profile Form"
+              },
+              "usageHint": "h1"
+            }
+          }
+        },
+        {
+          "id": "form_row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["first_name", "last_name"]
+              },
+              "distribution": "start",
+              "alignment": "start"
+            }
+          }
+        },
+        {
+          "id": "first_name",
+          "weight": 1,
+          "component": {
+            "TextField": {
+              "label": {
+                "literalString": "First Name"
+              },
+              "text": {
+                "path": "/firstName"
+              }
+            }
+          }
+        },
+        {
+          "id": "last_name",
+          "weight": 1,
+          "component": {
+            "TextField": {
+              "label": {
+                "literalString": "Last Name"
+              },
+              "text": {
+                "path": "/lastName"
+              }
+            }
+          }
+        },
+        {
+          "id": "footer",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Please fill out all fields."
+              },
+              "usageHint": "caption"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-complex-layout",
+      "root": "root"
+    }
+  }
+]

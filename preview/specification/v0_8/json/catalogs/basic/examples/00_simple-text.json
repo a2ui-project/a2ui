@@ -1,0 +1,26 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-simple-text",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Hello, Minimal Catalog!"
+              },
+              "usageHint": "h1"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-simple-text",
+      "root": "root"
+    }
+  }
+]
