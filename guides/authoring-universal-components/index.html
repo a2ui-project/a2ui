@@ -3129,7 +3129,8 @@
 </span></code></pre></div>
 <p>If the agent bound <code>value</code> to a data model path (for example, <code>{"path": "/user/name"}</code>), calling <code>props.setValue()</code> updates that path and automatically triggers re-renders for any other components bound to the same data.</p>
 <h3 id="styling-and-theming">Styling and theming<a class="headerlink" href="#styling-and-theming" title="Permanent link">&para;</a></h3>
-<p>Like any <code>LitElement</code>, an <code>A2uiLitElement</code> renders into a Shadow Root by default, so its <code>static styles</code> are encapsulated. CSS custom properties still inherit through the shadow boundary, which lets the host application theme the component without reaching inside it:</p>
+<p>Unlike a standard <code>LitElement</code>, <code>A2uiLitElement</code> renders into the Light DOM by default (<code>createRenderRoot()</code> returns <code>this</code>) so the host application's global stylesheet, design system, and utility classes apply directly inside the component. <code>A2uiLitElement</code> still applies your <code>static styles</code> in the Light DOM by rewriting <code>:host</code> to the element's tag name, scoping the remaining selectors under it, and adopting the resulting stylesheet into the document (or the enclosing shadow root) once per tag.</p>
+<p>You can theme the component from the host application using CSS custom properties:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="2:3"><input checked="checked" id="angular_1" name="__tabbed_2" type="radio" /><input id="react_1" name="__tabbed_2" type="radio" /><input id="lit_1" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="angular_1">Angular</label><label for="react_1">React</label><label for="lit_1">Lit</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
@@ -3168,12 +3169,11 @@
 </div>
 </div>
 </div>
-<p>If you want the host application's global stylesheet, design system, or utility classes (such as Tailwind or Bootstrap) to apply inside your component, opt into the Light DOM by overriding <code>createRenderRoot()</code>:</p>
+<p>If your component requires style encapsulation or <code>&lt;slot&gt;</code> projection, opt into Shadow DOM by overriding <code>createRenderRoot()</code>:</p>
 <div class="language-typescript highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kd">override</span><span class="w"> </span><span class="nx">createRenderRoot</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="k">this</span><span class="p">;</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">attachShadow</span><span class="p">({</span><span class="nx">mode</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;open&#39;</span><span class="p">});</span>
 </span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="p">}</span>
 </span></code></pre></div>
-<p><code>A2uiLitElement</code> still applies your <code>static styles</code> in the Light DOM. It rewrites <code>:host</code> to the element's tag name, scopes the remaining selectors under it, and adopts the resulting stylesheet into the document (or the enclosing shadow root) once per tag.</p>
 <h3 id="writing-a-component-without-lit">Writing a component without Lit<a class="headerlink" href="#writing-a-component-without-lit" title="Permanent link">&para;</a></h3>
 <p>Lit simplifies data binding and event handling, but it is not required. You can achieve the same result using standard Web Components.</p>
 <p>To build a universal component without Lit, your custom element must:</p>

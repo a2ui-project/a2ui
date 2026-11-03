@@ -2675,7 +2675,17 @@ Because <code>formatString</code> contains dynamic expressions embedded <em>with
 <p><strong>Logic:</strong> Return <code>true</code> if <code>args.value</code> is strictly not <code>null</code>, not <code>undefined</code>, not an empty string <code>""</code>, and not an empty array <code>[]</code>. Otherwise, return <code>false</code>.</p>
 <h3 id="regex"><code>regex</code><a class="headerlink" href="#regex" title="Permanent link">&para;</a></h3>
 <p><strong>Description:</strong> Validates a value against a regular expression.</p>
-<p><strong>Logic:</strong> Instantiate a regular expression using <code>args.pattern</code>. Test the <code>args.value</code> string against it. Return <code>true</code> if it matches, <code>false</code> otherwise.</p>
+<p><strong>Logic:</strong> Parse and validate <code>args.pattern</code> against the <strong>A2UI regex dialect</strong> before matching it against <code>args.value</code> (see <a href="https://github.com/a2ui-project/a2ui/blob/main/specification/v1_0/docs/a2ui_protocol.md#the-regex-function">The <code>regex</code> function</a>):</p>
+<ul>
+<li><strong>Dialect:</strong> A portable subset of ECMAScript <code>Pattern</code> syntax evaluated in Unicode mode (<code>u</code>) with no other flags. Matching is case-sensitive, <code>.</code> excludes line terminators (U+000A, U+000D, U+2028, U+2029), <code>^</code> and <code>$</code> match only at the start and end of the value (<code>$</code> does not match before a trailing newline), <code>\d</code>, <code>\w</code>, and <code>\b</code> are ASCII-only, and matching uses search semantics (<code>RegExp.prototype.test</code>). Backreferences (<code>\1</code>-<code>\9</code>, <code>\k&lt;name&gt;</code>), lookbehind (<code>(?&lt;=</code>, <code>(?&lt;!</code>), named groups (<code>(?&lt;name&gt;</code>), Unicode property escapes (<code>\p{...}</code>, <code>\P{...}</code>), <code>\cX</code>, legacy octal escapes, and inline flags are not allowed and fail with <code>EXPRESSION_ERROR</code>.</li>
+<li><strong>Safety rules (rejected with <code>EXPRESSION_ERROR</code> before matching):</strong></li>
+<li>Pattern length exceeds 256 code points.</li>
+<li>A quantifier whose upper bound is above 1 (<code>?</code> and <code>{0,1}</code> have upper bound 1) applies to a subexpression containing an unbounded quantifier (<code>*</code>, <code>+</code>, <code>{n,}</code>).</li>
+<li>An unbounded quantifier applies to an alternation where two branches can start with the same character (after unwrapping groups).</li>
+<li>Two unbounded-quantified atoms with overlapping character sets are adjacent in one concatenation, with only zero-width assertions or items that can match the empty string between them (a group whose only content is one quantified atom counts as that atom).</li>
+<li><strong>Value length cap:</strong> If <code>args.value</code> exceeds 4,096 code points, return <code>{"valid": false}</code> (or <code>false</code> in v0.9) without evaluating the pattern or reporting an error.</li>
+<li><strong>Return value:</strong> Otherwise, test <code>args.value</code> against the compiled pattern and return <code>{"valid": true}</code> if it matches or <code>{"valid": false}</code> if it does not (or <code>true</code> / <code>false</code> in v0.9).</li>
+</ul>
 <h3 id="length"><code>length</code><a class="headerlink" href="#length" title="Permanent link">&para;</a></h3>
 <p><strong>Description:</strong> Validates string length constraints.</p>
 <p><strong>Logic:</strong> Ensure the length of the string <code>args.value</code> is <code>&gt;= args.min</code> (if <code>min</code> is provided) and <code>&lt;= args.max</code> (if <code>max</code> is provided).</p>

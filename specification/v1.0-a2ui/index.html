@@ -4437,7 +4437,7 @@ While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 
 <ol>
 <li>It is longer than 256 code points.</li>
 <li>A quantifier whose upper bound is above 1 applies to a subexpression that contains an unbounded quantifier (<code>*</code>, <code>+</code>, <code>{n,}</code>).</li>
-<li>An unbounded quantifier applies to an alternation two of whose branches can start with the same character.</li>
+<li>An unbounded quantifier applies to an alternation where two branches can start with the same character.</li>
 <li>Two unbounded-quantified atoms with overlapping character sets are adjacent in one concatenation, where only zero-width assertions or items that can match the empty string lie between them.</li>
 </ol>
 <p><code>?</code> and <code>{0,1}</code> count as upper bound 1. Counted bounds such as <code>{1,1000}</code> are bounded. A group whose only content is one quantified atom counts as that atom. Rule 3 compares the first-character sets of the branches after unwrapping groups.</p>
