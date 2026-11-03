@@ -167,6 +167,11 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
       _version(testCase) ?? A2uiProtocolVersion.v0_9;
 
   if (testCase['expectError'] case final Map<Object?, Object?> expectError) {
+    assertKnownKeys(
+      expectError.cast<String, Object?>(),
+      knownExpectErrorKeys,
+      'expectError',
+    );
     final String? message = _messageWordedDifferently.contains(name)
         ? null
         : expectError['message'] as String?;
@@ -195,12 +200,7 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
   );
   final Map<String, Object?> expected =
       (testCase['expect'] as Map?)?.cast<String, Object?>() ?? const {};
-  final Set<String> unknown = expected.keys.toSet().difference(
-        _fromJsonExpectKeys,
-      );
-  if (unknown.isNotEmpty) {
-    fail('$name: unsupported from_json expectations $unknown');
-  }
+  assertKnownKeys(expected, _fromJsonExpectKeys, 'expect:from_json');
 
   if (expected['catalogId'] case final String expectedId) {
     expect(catalog.id, expectedId, reason: '$name: catalogId');
@@ -285,8 +285,9 @@ List<Object?> _list(Object? value) => value is List ? value : const <Object?>[];
 void _checkMatchesBuiltinCatalog(CatalogApi loaded, String name) {
   final CatalogApi? builtin = _builtinCatalogs[loaded.id];
   if (builtin == null) {
-    markTestSkipped('a2ui_core has no built-in catalog ${loaded.id}.');
-    return;
+    throw SkipConformanceCaseException(
+      'a2ui_core has no built-in catalog ${loaded.id}.',
+    );
   }
   expect(
     loaded.protocolVersion,
@@ -361,7 +362,12 @@ void _runValidationSchemaCase(Map<String, Object?> testCase) {
   final Map<String, Object?> source = _document(
     testCase['catalog'] ?? testCase['catalogPath'],
   );
-  if (testCase['expectError'] != null) {
+  if (testCase['expectError'] case final Map<Object?, Object?> expectError) {
+    assertKnownKeys(
+      expectError.cast<String, Object?>(),
+      knownExpectErrorKeys,
+      'expectError',
+    );
     expect(
       () => _load(testCase, source).validationSchema,
       throwsA(isA<A2uiError>()),
@@ -533,11 +539,10 @@ void _runToJsonCase(Map<String, Object?> testCase) {
       _version(testCase),
     );
     if (implemented == null) {
-      markTestSkipped(
+      throw SkipConformanceCaseException(
         'a2ui_core has no built-in $builtin catalog for '
         '${testCase['protocolVersion']}.',
       );
-      return;
     }
     catalog = implemented;
   } else {
@@ -627,6 +632,11 @@ void _runDeriveCase(Map<String, Object?> testCase) {
       );
 
   if (testCase['expectError'] case final Map<Object?, Object?> expectError) {
+    assertKnownKeys(
+      expectError.cast<String, Object?>(),
+      knownExpectErrorKeys,
+      'expectError',
+    );
     expect(
       derive,
       throwsA(
@@ -643,12 +653,7 @@ void _runDeriveCase(Map<String, Object?> testCase) {
 
   final Map<String, Object?> expected =
       (testCase['expect']! as Map).cast<String, Object?>();
-  final Set<String> unknown = expected.keys.toSet().difference(
-        _deriveExpectKeys,
-      );
-  if (unknown.isNotEmpty) {
-    fail('$name: unsupported derive expectations $unknown');
-  }
+  assertKnownKeys(expected, _deriveExpectKeys, 'expect:derive');
   final CatalogApi derived = derive();
   final Map<String, Object?> document = derived.toJson();
   if (expected['catalogId'] case final String id) {

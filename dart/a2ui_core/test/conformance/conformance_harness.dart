@@ -202,6 +202,19 @@ String? caseVersion(ConformanceTestCase testCase) {
   return null;
 }
 
+/// Thrown inside a conformance test body to skip the case and record it as
+/// `'skipped'` in the executed-case manifest.
+final class SkipConformanceCaseException implements Exception {
+  /// Creates a [SkipConformanceCaseException] with [reason].
+  const SkipConformanceCaseException(this.reason);
+
+  /// Why the case is skipped.
+  final String reason;
+
+  @override
+  String toString() => 'SkipConformanceCaseException: $reason';
+}
+
 /// Executes a single conformance [testCase] [body], applying [expectedFailures]
 /// and [unsupported] semantics when the case name is listed, and recording the
 /// outcome to the executed-case manifest when [suite] is provided.
@@ -231,7 +244,7 @@ Future<void> runConformanceCase(
 
   final String? reason = expectedFailures[name];
   if (reason == null) {
-    await _runStandardCase(body, suite, name, manifestDir);
+    await _runStandardCase(body, suite, name, onSkip, manifestDir);
     return;
   }
 
@@ -261,10 +274,15 @@ Future<void> _runStandardCase(
   FutureOr<void> Function() body,
   String? suite,
   String name,
+  void Function(String message) onSkip,
   String? manifestDir,
 ) async {
   try {
     await body();
+  } on SkipConformanceCaseException catch (error) {
+    _recordIfSuite(suite, name, 'skipped', error.reason, manifestDir);
+    onSkip(error.reason);
+    return;
   } catch (error) {
     _recordIfSuite(suite, name, 'failed', '$error', manifestDir);
     rethrow;
@@ -406,6 +424,7 @@ String? extractErrorCode(A2uiError error) {
 /// and `RecursionError` accept the sibling types the SDKs raise for the same
 /// condition.
 Matcher categoryMatches(String? category) => switch (category) {
+      null => isA<A2uiError>(),
       'ParseError' => isA<A2uiParseError>(),
       'ValidationError' => anyOf(
           isA<A2uiValidationError>(),
@@ -421,7 +440,10 @@ Matcher categoryMatches(String? category) => switch (category) {
         ),
       'DataError' => isA<A2uiDataError>(),
       'StateError' => isA<A2uiStateError>(),
-      _ => isA<A2uiError>(),
+      'ExpressionError' => isA<A2uiExpressionError>(),
+      _ => throw UnknownConformanceKeyError(
+          'Unknown expectError.category "$category".',
+        ),
     };
 
 /// Matches `code` and `path` expectations declared in an `expectError` block
