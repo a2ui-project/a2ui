@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 0.0.3
+
+- Remove the experimental status markers from the package metadata and README. [#3873](https://github.com/a2ui-project/a2ui/pull/3873)
+
 ## 0.0.2
 
 - **BREAKING CHANGE**: `callMcpTool` returns a payload with `toolName`, `toolInput`, `toolResult`, `structuredContent`, `text` and `json` instead of the raw `CallToolResult`, and writes it to `targetDataPath` when set, where the latest call to a path wins. Recommended migration: read the raw result from the `toolResult` field of the returned payload. [#3728](https://github.com/a2ui-project/a2ui/pull/3728)
