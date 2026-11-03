@@ -213,6 +213,24 @@ void main() {
       expect(processor.promptSnippet, endsWith('Examples: 1.'));
     });
 
+    test('ends the prompt with the thinking rule when asked to', () {
+      final focused = A2uiGenerator(
+        catalogs: [CatalogConfig(a)],
+        inferenceFormatFactory: const _TextFormatFactory(),
+        userFocusedThinking: true,
+      );
+      final capabilities = A2uiRendererCapabilities.forCatalogIds([a.id]);
+      final String plain = generator(
+        format: const _TextFormatFactory(),
+      ).createProcessor(capabilities).promptSnippet;
+      final A2uiRequestProcessor processor = focused.createProcessor(
+        capabilities,
+      );
+      expect(processor.userFocusedThinking, isTrue);
+      expect(plain, isNot(contains('In your thoughts')));
+      expect(processor.promptSnippet, startsWith('$plain\n\n## Thinking:\n'));
+    });
+
     test('rejects an example the active catalogs cannot render', () {
       final A2uiGenerator withExample = generator(
         transformers: [

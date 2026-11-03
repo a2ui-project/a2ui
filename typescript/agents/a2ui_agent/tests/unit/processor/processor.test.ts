@@ -41,6 +41,16 @@ describe('A2uiRequestProcessor', () => {
     expect(parts[0].type).toBe('a2ui');
   });
 
+  test('ends the prompt snippet with the thinking rule when asked to', () => {
+    const plain = new A2uiRequestProcessor([basicCatalogV10]);
+    const focused = new A2uiRequestProcessor([basicCatalogV10], undefined, undefined, {
+      userFocusedThinking: true,
+    });
+
+    expect(plain.promptSnippet).not.toContain('In your thoughts');
+    expect(focused.promptSnippet.startsWith(`${plain.promptSnippet}\n\n## Thinking:\n`)).toBe(true);
+  });
+
   test('defensively copies catalogs on construction and in the catalogs getter', () => {
     const input = [basicCatalogV10];
     const processor = new A2uiRequestProcessor(input);

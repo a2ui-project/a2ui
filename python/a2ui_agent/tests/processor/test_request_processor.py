@@ -44,6 +44,17 @@ def test_generator_and_processor_default_to_express_format():
     assert "<a2ui>" in processor.prompt_snippet
 
 
+def test_processor_ends_the_snippet_with_the_thinking_rule():
+    basic = BasicCatalog("1.0")
+    plain = A2uiRequestProcessor(catalogs=[basic])
+    focused = A2uiRequestProcessor(catalogs=[basic], user_focused_thinking=True)
+
+    assert "In your thoughts" not in plain.prompt_snippet
+    assert focused.prompt_snippet.startswith(
+        plain.prompt_snippet + "\n\n## Thinking:\n"
+    )
+
+
 def test_generator_rejects_none_capabilities():
     generator = A2uiGenerator(catalogs=[CatalogConfig(BasicCatalog("1.0"))])
     with pytest.raises(A2uiCatalogError, match="Renderer capabilities are required"):

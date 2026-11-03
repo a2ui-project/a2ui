@@ -39,6 +39,7 @@ from .subagent_tool import (
 STRATEGY_OPTION_KEYS: tuple[str, ...] = (
     "max_validation_retries",
     "subagent_format",
+    "user_focused_thinking",
 )
 
 
@@ -50,6 +51,7 @@ def _format_strategy(format_name: str) -> Callable[..., list[Solver]]:
             format_name,
             version,
             max_validation_retries=options.get("max_validation_retries", 0),
+            user_focused_thinking=options.get("user_focused_thinking", False),
         )
 
     return build
@@ -87,8 +89,9 @@ def get_solver(strategy: str, version: str, **options: Any) -> list[Solver]:
     Args:
         strategy: A key of `STRATEGIES`.
         version: The protocol version the solvers target.
-        **options: Any of `STRATEGY_OPTION_KEYS`: `max_validation_retries` and
-            `subagent_format`.
+        **options: Any of `STRATEGY_OPTION_KEYS`: `max_validation_retries`,
+            `subagent_format` and `user_focused_thinking`. Only the strategies
+            that are one inference format use `user_focused_thinking`.
 
     Raises:
         ValueError: If the strategy is unknown or an option name is not

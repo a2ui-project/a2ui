@@ -13,11 +13,32 @@
 # limitations under the License.
 
 import time
+from inspect_ai.model import ChatMessageAssistant, ContentReasoning
 from inspect_ai.solver import Solver, solver, TaskState, Generate
 from inspect_ai.model._model import sample_model_usage
 from pathlib import Path
 
 GIT_ROOT = (Path(__file__).resolve().parent / "../../..").resolve()
+
+# Metadata key for the thinking the model showed with its first answer.
+THINKING_KEY = "thinking"
+
+
+def visible_thinking(message: ChatMessageAssistant) -> str:
+    """The thinking an app could show for `message`, as one text.
+
+    This is the text of each reasoning block, or its summary when the
+    provider redacts the reasoning itself, as Gemini does once it attaches a
+    thought signature. A message without reasoning gives an empty string.
+    """
+    if isinstance(message.content, str):
+        return ""
+    texts = [
+        (block.summary or "") if block.redacted else block.reasoning
+        for block in message.content
+        if isinstance(block, ContentReasoning)
+    ]
+    return "\n\n".join(t for t in texts if t)
 
 
 @solver

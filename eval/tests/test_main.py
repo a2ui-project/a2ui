@@ -311,6 +311,7 @@ def test_main_cloud_profile_defaults() -> None:
         "tags",
         "max_validation_retries",
         "subagent_format",
+        "user_focused_thinking",
     ):
         assert key not in task_kwargs
 
@@ -374,6 +375,16 @@ def test_main_forwards_tier_retries_and_subagent_format() -> None:
         assert task_kwargs["tags"] == "smoke"
         assert task_kwargs["max_validation_retries"] == 2
         assert task_kwargs["subagent_format"] == "express"
+
+
+def test_main_forwards_user_focused_thinking() -> None:
+    _, mock_v1_eval, _ = _run_main([
+        "--strategies",
+        "direct,express",
+        "--user-focused-thinking",
+    ])
+    for task_kwargs in _task_kwargs(mock_v1_eval):
+        assert task_kwargs["user_focused_thinking"] is True
 
 
 def test_main_tags_flag_takes_precedence_over_tier() -> None:

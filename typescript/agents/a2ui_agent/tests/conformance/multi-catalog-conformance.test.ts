@@ -375,7 +375,9 @@ function runFormatCase(testCase: LoadedCase): void {
       ? makeFactory(args.format_override as string)
       : undefined;
 
-    const generator = new A2uiGenerator(configs, examples, baseFactory);
+    const generator = new A2uiGenerator(configs, examples, baseFactory, {
+      userFocusedThinking: args.user_focused_thinking as boolean | undefined,
+    });
 
     const capabilities = args.renderer_capabilities as
       | Record<string, RendererCapabilities>
@@ -420,6 +422,9 @@ function runFormatCase(testCase: LoadedCase): void {
       expected.prompt_snippet_contains as string[] | undefined,
       expected.prompt_snippet_absent as string[] | undefined,
     );
+    if (typeof expected.prompt_snippet_ends_with === 'string') {
+      expect(snippet.endsWith(expected.prompt_snippet_ends_with)).toBe(true);
+    }
     if (expected.generator_catalogs_unchanged) {
       expect(describeConfigs(configs)).toEqual(before);
     }

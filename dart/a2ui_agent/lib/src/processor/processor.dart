@@ -22,6 +22,12 @@ import '../parser/response_stream.dart';
 import '../utils/renderer_state.dart';
 import '../utils/validation.dart';
 
+const String _userFocusedThinkingRule =
+    '## Thinking:\n'
+    "In your thoughts, reason about the user's request and what they need. "
+    'Write the UI without thinking aloud about the A2UI format, JSON, schemas, '
+    'or component and surface IDs.';
+
 /// The per-request facade: the catalogs negotiated with one renderer, the
 /// prompt snippet describing them, and parsing of the LLM's response.
 ///
@@ -51,6 +57,11 @@ class A2uiRequestProcessor {
   /// The renderer state bound to this processor, if any.
   final RendererState? state;
 
+  /// Whether [promptSnippet] ends with a rule asking the model to think about
+  /// the user's request rather than the format, for an app that shows the
+  /// model's thinking.
+  final bool userFocusedThinking;
+
   final InferenceFormat _format;
 
   /// Checks each of [examples] on its own with [validatePayload], and then
@@ -74,6 +85,7 @@ class A2uiRequestProcessor {
     this.examples = const [],
     this.formatFactory = const ExpressFormatFactory(),
     this.state,
+    this.userFocusedThinking = false,
   }) : _format = formatFactory.createFormat(
          activeCatalogs,
          examples: examples,
@@ -93,9 +105,15 @@ class A2uiRequestProcessor {
   /// The system prompt snippet teaching the LLM the format, the components
   /// and functions of [activeCatalogs], and [examples].
   ///
-  /// The agent adds its own role and workflow instructions around it.
-  String get promptSnippet =>
-      _promptSnippet ??= _format.promptGenerator.generate();
+  /// The agent adds its own role and workflow instructions around it. With
+  /// [userFocusedThinking], the snippet ends with the thinking rule.
+  String get promptSnippet {
+    final String snippet = _promptSnippet ??= _format.promptGenerator
+        .generate();
+    return userFocusedThinking
+        ? '$snippet\n\n$_userFocusedThinkingRule'
+        : snippet;
+  }
 
   /// The parser for the format, bound to [activeCatalogs].
   ///

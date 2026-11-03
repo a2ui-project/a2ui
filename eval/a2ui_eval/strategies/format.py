@@ -39,7 +39,7 @@ from ..runner import (
     runner_options_from_metadata,
     validate_format,
 )
-from ..shared.utils import GIT_ROOT, measured_generate
+from ..shared.utils import GIT_ROOT, THINKING_KEY, measured_generate, visible_thinking
 
 _SURFACE_ID_PATTERN = re.compile(
     r"<(a2ui|body)\b[^>]*\bid\s*=\s*['\"]([^'\"]+)['\"]", re.IGNORECASE
@@ -65,8 +65,14 @@ def _set_completion(state: TaskState, content: str) -> None:
 
 
 @solver
-def format_system_prompt(format_name: str, version: str) -> Solver:
-    """Injects system prompt instructions using the selected format strategy."""
+def format_system_prompt(
+    format_name: str, version: str, user_focused_thinking: bool = False
+) -> Solver:
+    """Injects system prompt instructions using the selected format strategy.
+
+    With `user_focused_thinking`, the SDK's snippet ends with its rule asking
+    the model to think about the user's request rather than the format.
+    """
     validate_format(format_name)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
@@ -80,6 +86,7 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
             version,
             resolved_catalog_path,
             options=options,
+            user_focused_thinking=user_focused_thinking,
         )
 
         role_description = state.metadata.get("protocol_role") or state.metadata.get(
@@ -228,7 +235,9 @@ def compile_format_payload(
     `state.metadata["compiled_messages"]` so the scorer does not parse the
     completion again. With `max_validation_retries > 0`, a failed attempt
     sends the validation error back to the model and retries. `pass_at_1`,
-    `pass_at_k` and `validation_retries_used` are recorded in the metadata.
+    `pass_at_k` and `validation_retries_used` are recorded in the metadata,
+    and so is the thinking the model showed for its first answer, under
+    `THINKING_KEY`, before a retry asks it about the payload.
 
     Args:
         format_name: The name of the format to compile from.
@@ -254,6 +263,7 @@ def compile_format_payload(
             allowed_surface_ids=state.metadata.get("allowed_surface_ids", ["main"]),
         )
 
+        state.metadata[THINKING_KEY] = visible_thinking(state.output.message)
         completion = state.output.completion.strip()
         result = await _attempt_compile(ctx, completion)
         state.metadata["pass_at_1"] = result.ok
@@ -299,6 +309,7 @@ def format_solver(
     version: str,
     *,
     max_validation_retries: int = 0,
+    user_focused_thinking: bool = False,
 ) -> list[Solver]:
     """Assembles the solver chain for the specified evaluation strategy.
 
@@ -308,7 +319,7 @@ def format_solver(
     """
     validate_format(format_name)
     return [
-        format_system_prompt(format_name, version),
+        format_system_prompt(format_name, version, user_focused_thinking),
         measured_generate(),
         compile_format_payload(
             format_name,

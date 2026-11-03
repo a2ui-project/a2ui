@@ -1955,7 +1955,12 @@
               "description": "A format passed when the processor is created, overriding the generator's own."
             },
             "renderer_capabilities": {"type": "object"},
-            "accepts_inline_catalogs": {"type": "boolean", "default": false}
+            "accepts_inline_catalogs": {"type": "boolean", "default": false},
+            "user_focused_thinking": {
+              "type": "boolean",
+              "default": false,
+              "description": "The generator's `user_focused_thinking` option, which ends the prompt snippet with a rule asking the model to think about the user's request rather than about the format."
+            }
           },
           "required": ["catalogs"],
           "additionalProperties": false
@@ -1971,6 +1976,10 @@
             },
             "prompt_snippet_contains": {"type": "array", "items": {"type": "string"}},
             "prompt_snippet_absent": {"type": "array", "items": {"type": "string"}},
+            "prompt_snippet_ends_with": {
+              "type": "string",
+              "description": "Text the prompt snippet ends with, for a rule whose place in the snippet is part of the contract."
+            },
             "generator_catalogs_unchanged": {
               "type": "boolean",
               "description": "The generator's own catalogs are the same after the processor was created as before, so one renderer's negotiation cannot affect the next."

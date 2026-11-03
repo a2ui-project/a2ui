@@ -47,7 +47,7 @@ from a2ui.catalog_transformers import (
 from a2ui.core import CatalogApi
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import AgentToRendererMessage
-from a2ui.inference_format import InferenceFormat
+from a2ui.inference_format import InferenceFormat, InferenceFormatFactory
 from a2ui.inference_formats import (
     AtomFormat,
     DirectJsonFormat,
@@ -64,7 +64,7 @@ from a2ui.parser import (
     TextPart,
     normalize_prompt_example_messages,
 )
-from a2ui.processor import CatalogConfig
+from a2ui.processor import A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import RendererState
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -828,6 +828,20 @@ def _get_default_pool() -> _WorkerPool:
         return _default_pool
 
 
+class _BoundFormatFactory(InferenceFormatFactory):
+    """Hands a processor a format the runner already built."""
+
+    def __init__(self, inference_format: InferenceFormat) -> None:
+        self._format = inference_format
+
+    def create_format(
+        self,
+        catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
+    ) -> InferenceFormat:
+        return self._format
+
+
 def generate_prompt(
     format_name: str,
     version: str,
@@ -835,6 +849,7 @@ def generate_prompt(
     surface_id: str = "main",
     *,
     options: RunnerOptions | None = None,
+    user_focused_thinking: bool = False,
 ) -> str:
     """Generates the format-specific and catalog-specific system prompt snippet.
 
@@ -846,6 +861,10 @@ def generate_prompt(
         surface_id: The default surface ID for formats that need one.
         options: Multi-catalog, pruning, example and message-type options.
             None means a single unpruned catalog with no examples.
+        user_focused_thinking: Whether the snippet ends with the SDK's rule
+            asking the model to think about the user's request rather than
+            the format. The snippet then comes from an `A2uiRequestProcessor`
+            created with that option, as an agent would get it.
 
     Returns:
         The generated system prompt snippet.
@@ -864,7 +883,15 @@ def generate_prompt(
         examples=examples,
         allowed_messages=options.allowed_messages if options else None,
     )
-    return strategy.prompt_generator.generate()
+    if not user_focused_thinking:
+        return strategy.prompt_generator.generate()
+    processor = A2uiRequestProcessor(
+        catalogs,
+        examples,
+        _BoundFormatFactory(strategy),
+        user_focused_thinking=True,
+    )
+    return processor.prompt_snippet
 
 
 def parse_and_validate(

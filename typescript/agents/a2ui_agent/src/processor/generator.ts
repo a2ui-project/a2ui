@@ -23,6 +23,16 @@ import {validatePayload} from '../utils/validation.js';
 import {CatalogConfig} from './catalog-config.js';
 import {A2uiRequestProcessor, A2uiRequestProcessorOptions} from './processor.js';
 
+/** Options for a generator, passed on to every processor it creates. */
+export interface A2uiGeneratorOptions {
+  /**
+   * Whether each processor's prompt snippet ends with a rule asking the model to think about
+   * the user's request rather than the format, for an app that shows the model's thinking to
+   * the user. False by default.
+   */
+  userFocusedThinking?: boolean;
+}
+
 /**
  * Agent-lifetime object holding every catalog the agent supports.
  *
@@ -36,6 +46,7 @@ export class A2uiGenerator {
     private readonly catalogs: CatalogConfig[],
     private readonly examples?: Record<string, AgentToRendererMessage[] | string>,
     inferenceFormatFactory?: InferenceFormatFactory,
+    private readonly options: A2uiGeneratorOptions = {},
   ) {
     this.factory = inferenceFormatFactory || new ExpressFormatFactory();
   }
@@ -61,7 +72,7 @@ export class A2uiGenerator {
   createProcessor(
     rendererCapabilities: Record<string, RendererCapabilities> | RendererCapabilities,
     inferenceFormatFactory?: InferenceFormatFactory,
-    options: A2uiRequestProcessorOptions = {},
+    options: Pick<A2uiRequestProcessorOptions, 'state'> = {},
   ): A2uiRequestProcessor {
     if (!rendererCapabilities) {
       throw new A2uiCatalogError(
@@ -94,6 +105,9 @@ export class A2uiGenerator {
     }
 
     const formatFactory = inferenceFormatFactory || this.factory;
-    return new A2uiRequestProcessor(activeCatalogs, this.examples, formatFactory, options);
+    return new A2uiRequestProcessor(activeCatalogs, this.examples, formatFactory, {
+      state: options.state,
+      userFocusedThinking: this.options.userFocusedThinking,
+    });
   }
 }

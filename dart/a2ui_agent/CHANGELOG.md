@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `userFocusedThinking` to `A2uiGenerator` and `A2uiRequestProcessor`. When
+  it is `true`, `promptSnippet` ends with a rule asking the model to think about
+  the user's request rather than the A2UI format, for an app that shows the
+  model's thinking. [#3576](https://github.com/a2ui-project/a2ui/issues/3576)
 - Add incremental streaming support for the Express inference format via
   `ExpressResponseStream` (`ExpressFormat.supportsStreaming` and
   `ExpressParser.supportsStreaming` now return `true`). `ExpressFormatFactory`,

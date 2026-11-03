@@ -31,6 +31,13 @@ __all__ = [
     "A2uiRequestProcessor",
 ]
 
+_USER_FOCUSED_THINKING_RULE = (
+    "## Thinking:\n"
+    "In your thoughts, reason about the user's request and what they need."
+    " Write the UI without thinking aloud about the A2UI format, JSON,"
+    " schemas, or component and surface IDs."
+)
+
 
 class A2uiRequestProcessor:
     """Central request processor facade unifying multi-catalog capability resolution, prompt rendering, parser creation, and validation."""
@@ -42,6 +49,7 @@ class A2uiRequestProcessor:
         format_factory: InferenceFormatFactory | None = None,
         *,
         state: RendererState | None = None,
+        user_focused_thinking: bool = False,
     ):
         """Initializes A2uiRequestProcessor, resolving active catalogs and instantiating validator and format strategy.
 
@@ -54,6 +62,9 @@ class A2uiRequestProcessor:
                 a call passes none. Without one, each call checks the response
                 against a new state, as a chat agent wants. A processor bound
                 to a state serves only that conversation.
+            user_focused_thinking: Whether the prompt snippet ends with a rule
+                asking the model to think about the user's request rather than
+                the format, for an app that shows the model's thinking.
 
         Raises:
             A2uiCatalogError: If no active catalogs are provided, or if `state`
@@ -79,6 +90,7 @@ class A2uiRequestProcessor:
         self._parser: Parser | None = None
         self._check_state(state)
         self._state = state
+        self._user_focused_thinking = user_focused_thinking
 
     @property
     def active_catalogs(self) -> list[CatalogApi]:
@@ -104,8 +116,14 @@ class A2uiRequestProcessor:
 
     @property
     def prompt_snippet(self) -> str:
-        """Format-specific system prompt instruction snippet."""
-        return self._format.prompt_generator.generate()
+        """Format-specific system prompt instruction snippet.
+
+        With `user_focused_thinking`, the snippet ends with the thinking rule.
+        """
+        snippet = self._format.prompt_generator.generate()
+        if self._user_focused_thinking:
+            return f"{snippet}\n\n{_USER_FOCUSED_THINKING_RULE}"
+        return snippet
 
     @property
     def parser(self) -> Parser:

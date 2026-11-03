@@ -76,6 +76,16 @@ def test_generate_prompt_v10() -> None:
     assert "<a2ui>" in express_prompt
 
 
+@pytest.mark.parametrize("format_name", ["direct_json", "express"])
+def test_generate_prompt_ends_with_the_sdk_thinking_rule(format_name: str) -> None:
+    plain = generate_prompt(format_name, "1.0", V10_CATALOG)
+    focused = generate_prompt(
+        format_name, "1.0", V10_CATALOG, user_focused_thinking=True
+    )
+    assert "In your thoughts" not in plain
+    assert focused.startswith(plain + "\n\n## Thinking:\n")
+
+
 def test_generate_prompt_normalizes_and_validates_version() -> None:
     prompt = generate_prompt("direct_json", " v0.9.1 ", V091_CATALOG)
     assert V09_CATALOG_ID in prompt

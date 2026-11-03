@@ -670,6 +670,7 @@ class A2uiGenerator:
         catalogs: Master list of CatalogConfig objects supported by the agent.
         examples: Optional list of few-shot example turns shared across sessions.
         factory: Default InferenceFormatFactory used when instantiating processors.
+        user_focused_thinking: Whether each processor's prompt snippet ends with the thinking rule.
     """
 
     def __init__(
@@ -677,6 +678,7 @@ class A2uiGenerator:
         catalogs: Sequence[CatalogConfig],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
         inference_format_factory: Optional[InferenceFormatFactory] = None,
+        user_focused_thinking: bool = False,
     ):
         """Initializes A2uiGenerator with supported catalog configurations and format factory.
 
@@ -684,6 +686,8 @@ class A2uiGenerator:
             catalogs: List of supported CatalogConfig configurations.
             examples: Optional list of prompt example turns.
             inference_format_factory: Optional default InferenceFormatFactory (defaults to ExpressFormatFactory).
+            user_focused_thinking: Whether each processor's prompt snippet ends with the thinking rule,
+                for an app that shows the model's thinking to the user. Passed on to every processor.
         """
         pass
 
@@ -718,6 +722,7 @@ class A2uiRequestProcessor:
         catalogs: Sequence[CatalogApi],
         examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
         format_factory: Optional[InferenceFormatFactory] = None,
+        user_focused_thinking: bool = False,
     ):
         """Initializes A2uiRequestProcessor, resolving active catalogs and instantiating validator and format strategy.
 
@@ -725,6 +730,7 @@ class A2uiRequestProcessor:
             catalogs: List of active Catalog instances.
             examples: Optional list of prompt example turns.
             format_factory: Format factory for instantiating format strategies (defaults to ExpressFormatFactory).
+            user_focused_thinking: Whether `prompt_snippet` ends with the thinking rule.
         """
         pass
 
@@ -747,6 +753,15 @@ class A2uiRequestProcessor:
         """Parses and validates the LLM response into ResponseParts."""
         pass
 ```
+
+With `user_focused_thinking`, `prompt_snippet` is the format's snippet, a blank line, and this thinking rule, word for word in every SDK:
+
+```text
+## Thinking:
+In your thoughts, reason about the user's request and what they need. Write the UI without thinking aloud about the A2UI format, JSON, schemas, or component and surface IDs.
+```
+
+The rule is for an app that shows the model's thinking to the user while it waits. Without it, much of that thinking is about the format rather than the user's request. The rule does not depend on the format, so the processor adds it rather than each prompt generator. It is off by default, since an agent that does not show thinking gains nothing from it.
 
 ---
 

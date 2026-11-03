@@ -377,6 +377,15 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--user-focused-thinking",
+        action="store_true",
+        help=(
+            "End the SDK's prompt snippet with its rule asking the model to"
+            " think about the user's request rather than the A2UI format."
+            " Applies to the strategies that are one inference format."
+        ),
+    )
+    parser.add_argument(
         "--subagent-format",
         choices=["direct_json", "express"],
         default="direct_json",
@@ -475,6 +484,8 @@ def main() -> None:
             task_kwargs["max_validation_retries"] = args.max_validation_retries
         if args.subagent_format != "direct_json":
             task_kwargs["subagent_format"] = args.subagent_format
+        if args.user_focused_thinking:
+            task_kwargs["user_focused_thinking"] = True
 
         task_obj = task_func(**task_kwargs)
         if args.prompt and getattr(task_obj, "dataset", None) is not None:

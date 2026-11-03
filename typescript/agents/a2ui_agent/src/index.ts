@@ -140,7 +140,7 @@ export {
 } from './inference-formats/express/errors.js';
 
 // Facades
-export {A2uiGenerator} from './processor/generator.js';
+export {type A2uiGeneratorOptions, A2uiGenerator} from './processor/generator.js';
 export {type A2uiRequestProcessorOptions, A2uiRequestProcessor} from './processor/processor.js';
 export {
   type AnswerPart,
