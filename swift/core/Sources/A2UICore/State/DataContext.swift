@@ -77,7 +77,7 @@ public final class DataContext {
   ) {
     self.dataModel = dataModel
     self.path = path
-    self.functionHandler = optionalFunctionHandler
+    self.functionHandler = functionHandler
     self.protocolVersion = protocolVersion
     self.index = index
     self.isUserActivated = isUserActivated
