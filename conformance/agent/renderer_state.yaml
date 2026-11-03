@@ -1,0 +1,422 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Multi-turn stateful `RendererState` conformance suite.
+#
+# Each case runs a sequence of turns against a single `RendererState` instance
+# that persists across turns, verifying:
+# - Surface state retention across turns (turn 1 creates a surface, turn 2
+#   updates components and data on that surface).
+# - Rejecting an update to a surface that was never created with a
+#   `ValidationError`.
+# - Atomic rollback of a failed turn so the next turn succeeds against the last
+#   committed state.
+# - Deleting a surface on one turn and re-creating it on the next turn.
+
+# --- Direct JSON multi-turn state ---
+
+- name: test_renderer_state_direct_json_retains_state_across_turns
+  description: A surface created on turn 1 can have its components and data model updated on turn 2.
+  action: renderer_state_turns
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - format: direct_json
+      response: |-
+        Creating the main surface.
+        <a2ui-json>
+        [
+          {
+            "version": "1.0",
+            "createSurface": {
+              "surfaceId": "s1",
+              "catalogId": "conformance/simplified"
+            }
+          },
+          {
+            "version": "1.0",
+            "updateComponents": {
+              "surfaceId": "s1",
+              "components": [
+                {"id": "root", "component": "Column", "children": ["header"]},
+                {"id": "header", "component": "Text", "text": "Hello"}
+              ]
+            }
+          }
+        ]
+        </a2ui-json>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Column"
+              children: ["header"]
+            header:
+              component: "Text"
+              text: "Hello"
+          data: {}
+    - format: direct_json
+      response: |-
+        Updating the existing surface.
+        <a2ui-json>
+        [
+          {
+            "version": "1.0",
+            "updateComponents": {
+              "surfaceId": "s1",
+              "components": [
+                {"id": "header", "component": "Text", "text": "Updated"}
+              ]
+            }
+          },
+          {
+            "version": "1.0",
+            "updateDataModel": {
+              "surfaceId": "s1",
+              "path": "/title",
+              "value": "Updated"
+            }
+          }
+        ]
+        </a2ui-json>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Column"
+              children: ["header"]
+            header:
+              component: "Text"
+              text: "Updated"
+          data:
+            title: "Updated"
+
+- name: test_renderer_state_direct_json_unknown_surface_rejected
+  description: Updating a surface that was never created in the stateful session is rejected with a ValidationError.
+  action: renderer_state_turns
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - format: direct_json
+      response: |-
+        <a2ui-json>
+        [
+          {
+            "version": "1.0",
+            "updateComponents": {
+              "surfaceId": "missing_surface",
+              "components": [
+                {"id": "root", "component": "Text", "text": "Orphan"}
+              ]
+            }
+          }
+        ]
+        </a2ui-json>
+      expect_error:
+        category: "ValidationError"
+
+- name: test_renderer_state_direct_json_failed_turn_rolls_back_state
+  description: A turn that fails validation after mutating a surface rolls back to the last committed state so the next turn succeeds against turn 1's state.
+  action: renderer_state_turns
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - format: direct_json
+      response: |-
+        <a2ui-json>
+        [
+          {
+            "version": "1.0",
+            "createSurface": {
+              "surfaceId": "s1",
+              "catalogId": "conformance/simplified"
+            }
+          },
+          {
+            "version": "1.0",
+            "updateComponents": {
+              "surfaceId": "s1",
+              "components": [
+                {"id": "root", "component": "Column", "children": ["item_a"]},
+                {"id": "item_a", "component": "Text", "text": "Item A"}
+              ]
+            }
+          }
+        ]
+        </a2ui-json>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Column"
+              children: ["item_a"]
+            item_a:
+              component: "Text"
+              text: "Item A"
+    - format: direct_json
+      response: |-
+        <a2ui-json>
+        [
+          {
+            "version": "1.0",
+            "updateComponents": {
+              "surfaceId": "s1",
+              "components": [
+                {"id": "root", "component": "Column", "children": ["nonexistent_child"]}
+              ]
+            }
+          }
+        ]
+        </a2ui-json>
+      expect_error:
+        category: "ValidationError"
+    - format: direct_json
+      response: |-
+        <a2ui-json>
+        [
+          {
+            "version": "1.0",
+            "updateComponents": {
+              "surfaceId": "s1",
+              "components": [
+                {"id": "item_a", "component": "Text", "text": "Item A Updated"}
+              ]
+            }
+          }
+        ]
+        </a2ui-json>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Column"
+              children: ["item_a"]
+            item_a:
+              component: "Text"
+              text: "Item A Updated"
+
+- name: test_renderer_state_direct_json_delete_then_recreate_surface
+  description: Deleting a surface on turn 2 allows re-creating the same surface on turn 3.
+  action: renderer_state_turns
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - format: direct_json
+      response: |-
+        <a2ui-json>
+        [
+          {
+            "version": "1.0",
+            "createSurface": {
+              "surfaceId": "s1",
+              "catalogId": "conformance/simplified"
+            }
+          },
+          {
+            "version": "1.0",
+            "updateComponents": {
+              "surfaceId": "s1",
+              "components": [
+                {"id": "root", "component": "Text", "text": "First"}
+              ]
+            }
+          }
+        ]
+        </a2ui-json>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Text"
+              text: "First"
+    - format: direct_json
+      response: |-
+        <a2ui-json>
+        [
+          {"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}
+        ]
+        </a2ui-json>
+      expect_surfaces: {}
+    - format: direct_json
+      response: |-
+        <a2ui-json>
+        [
+          {
+            "version": "1.0",
+            "createSurface": {
+              "surfaceId": "s1",
+              "catalogId": "conformance/simplified"
+            }
+          },
+          {
+            "version": "1.0",
+            "updateComponents": {
+              "surfaceId": "s1",
+              "components": [
+                {"id": "root", "component": "Text", "text": "Second"}
+              ]
+            }
+          }
+        ]
+        </a2ui-json>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Text"
+              text: "Second"
+
+# --- Express multi-turn state ---
+
+- name: test_renderer_state_express_retains_state_across_turns
+  description: An Express surface created on turn 1 can have its components and data model updated on turn 2 without re-creating the surface.
+  action: renderer_state_turns
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - format: express
+      response: |-
+        Creating the main surface.
+        <a2ui>
+        surface("s1")
+        root = Column([header])
+        header = Text("Hello")
+        </a2ui>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Column"
+              children: ["header"]
+            header:
+              component: "Text"
+              text: "Hello"
+          data: {}
+    - format: express
+      response: |-
+        Updating the existing surface.
+        <a2ui>
+        surface("s1")
+        header = Text("Updated")
+        $/title = "Updated"
+        </a2ui>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Column"
+              children: ["header"]
+            header:
+              component: "Text"
+              text: "Updated"
+          data:
+            title: "Updated"
+
+- name: test_renderer_state_express_unknown_surface_rejected
+  description: Updating a surface with updateDataModel when the surface was never created in the stateful session is rejected with a ValidationError.
+  action: renderer_state_turns
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - format: express
+      response: |-
+        <a2ui>
+        surface("missing_surface")
+        $/title = "Orphan"
+        </a2ui>
+      expect_error:
+        category: "ValidationError"
+
+- name: test_renderer_state_express_failed_turn_rolls_back_state
+  description: An Express turn that fails topology validation after mutating a surface rolls back to the last committed state so the next turn succeeds against turn 1's state.
+  action: renderer_state_turns
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - format: express
+      response: |-
+        <a2ui>
+        surface("s1")
+        root = Column([item_a])
+        item_a = Text("Item A")
+        </a2ui>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Column"
+              children: ["item_a"]
+            item_a:
+              component: "Text"
+              text: "Item A"
+    - format: express
+      response: |-
+        <a2ui>
+        surface("s1")
+        root = Column([nonexistent_child])
+        </a2ui>
+      expect_error:
+        category: "ValidationError"
+    - format: express
+      response: |-
+        <a2ui>
+        surface("s1")
+        item_a = Text("Item A Updated")
+        </a2ui>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Column"
+              children: ["item_a"]
+            item_a:
+              component: "Text"
+              text: "Item A Updated"
+
+- name: test_renderer_state_express_delete_then_recreate_surface
+  description: Deleting an Express surface on turn 2 allows re-creating the same surface on turn 3.
+  action: renderer_state_turns
+  catalogs:
+    - "test_data/catalogs/simplified_catalog_v1_0.json"
+  turns:
+    - format: express
+      response: |-
+        <a2ui>
+        surface("s1")
+        root = Text("First")
+        </a2ui>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Text"
+              text: "First"
+    - format: express
+      response: |-
+        <a2ui>
+        deleteSurface("s1")
+        </a2ui>
+      expect_surfaces: {}
+    - format: express
+      response: |-
+        <a2ui>
+        surface("s1")
+        root = Text("Second")
+        </a2ui>
+      expect_surfaces:
+        s1:
+          components:
+            root:
+              component: "Text"
+              text: "Second"
