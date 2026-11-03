@@ -14,6 +14,7 @@
 
 import A2UICore
 import BasicCatalog
+import JSONSchema
 import Testing
 
 /// Resolves the submit check of the basic catalog's v1.0 login form example
@@ -36,6 +37,36 @@ struct V10LogicalCheckTests {
   @Test func loginButtonCheckPassesForValidInput() throws {
     let button = try resolveLoginButton(email: "user@example.com", password: "longenough")
     #expect(button.isValid == true)
+  }
+
+  @Test func coercedDynamicBooleanTable() {
+    #expect(JSONValue.boolean(true).coercedDynamicBoolean == true)
+    #expect(JSONValue.boolean(false).coercedDynamicBoolean == false)
+    #expect(JSONValue.object(["valid": .boolean(true)]).coercedDynamicBoolean == true)
+    #expect(
+      JSONValue.object(["valid": .boolean(false), "message": .string("Invalid")])
+        .coercedDynamicBoolean == false
+    )
+    #expect(JSONValue.string("true").coercedDynamicBoolean == true)
+    #expect(JSONValue.string("True").coercedDynamicBoolean == true)
+    #expect(JSONValue.string("TRUE").coercedDynamicBoolean == true)
+    #expect(JSONValue.string("false").coercedDynamicBoolean == false)
+    #expect(JSONValue.string("FALSE").coercedDynamicBoolean == false)
+    #expect(JSONValue.string("hello").coercedDynamicBoolean == false)
+    #expect(JSONValue.string("").coercedDynamicBoolean == false)
+    #expect(JSONValue.string("1").coercedDynamicBoolean == false)
+    #expect(JSONValue.integer(1).coercedDynamicBoolean == true)
+    #expect(JSONValue.integer(-2).coercedDynamicBoolean == true)
+    #expect(JSONValue.number(0.5).coercedDynamicBoolean == true)
+    #expect(JSONValue.integer(0).coercedDynamicBoolean == false)
+    #expect(JSONValue.number(0.0).coercedDynamicBoolean == false)
+    #expect(JSONValue.number(Double.nan).coercedDynamicBoolean == false)
+    #expect(JSONValue.null.coercedDynamicBoolean == false)
+    #expect(JSONValue.object([:]).coercedDynamicBoolean == false)
+    #expect(JSONValue.object(["other": .integer(1)]).coercedDynamicBoolean == false)
+    #expect(JSONValue.object(["valid": .string("yes")]).coercedDynamicBoolean == false)
+    #expect(JSONValue.array([]).coercedDynamicBoolean == false)
+    #expect(JSONValue.array([.boolean(true)]).coercedDynamicBoolean == false)
   }
 
   private func resolveLoginButton(email: String, password: String) throws -> Node {
