@@ -1,6 +1,16 @@
 ---
 name: a2ui
-description: 'Build agent-generated / AI-generated UI with A2UI (Agent-to-User Interface), the open protocol where an agent streams declarative JSON and the app renders it with its own native components (React, Angular, Lit, Flutter, SwiftUI, Jetpack Compose). Use when developers want an AI/LLM/agent to generate or update UI at runtime ("generative UI", "GenUI", "agent-generated UI", "AI renders widgets/forms/cards", "server-driven UI from an LLM"), especially on Flutter, Angular, native mobile, more than one platform, or when a remote/third-party agent must not send executable code. Triggers on: "A2UI", "generative UI", "GenUI", "Flutter GenUI", "genui", "agent UI", "AI-generated UI", "dynamic UI from LLM".'
+description: >-
+  Build agent-generated / AI-generated UI with A2UI (Agent-to-User Interface),
+  the open protocol where an agent streams declarative JSON and the app renders
+  it with its own native components (React, Angular, Lit, Flutter, SwiftUI,
+  Jetpack Compose). Use when developers want an AI, LLM or agent to generate or
+  update UI at runtime ("generative UI", "GenUI", "agent-generated UI", "AI
+  renders widgets/forms/cards", "server-driven UI from an LLM"), especially on
+  Flutter, Angular, native mobile, more than one platform, or when a remote or
+  third-party agent must not send executable code. Triggers on: "A2UI",
+  "generative UI", "GenUI", "Flutter GenUI", "genui", "agent UI", "AI-generated
+  UI", "dynamic UI from LLM".
 ---
 
 ## What A2UI is
@@ -38,16 +48,16 @@ different message names. Your training data is likely outdated.
 
 ## Install (current package names)
 
-| Platform                | Install                                                          |
-| ----------------------- | ---------------------------------------------------------------- |
-| React                   | `npm install @a2ui/react @a2ui/web_core`                         |
-| Angular                 | `npm install @a2ui/angular @a2ui/web_core`                       |
-| Lit / Web Components    | `npm install @a2ui/lit @a2ui/web_core`                           |
-| Flutter                 | `flutter pub add genui` (add `genui_a2a` for a remote A2A agent) |
-| SwiftUI (alpha)         | see `swift/swiftui` in the repo                                  |
-| Jetpack Compose (alpha) | https://developer.android.com/develop/ui/compose/agentic         |
-| Agent, Python           | `pip install a2ui-agent-sdk`                                     |
-| Agent, TypeScript       | `npm install @a2ui/agent`                                        |
+| Platform                | Install                                                                           |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| React                   | `npm install @a2ui/react @a2ui/web_core`                                          |
+| Angular                 | `npm install @a2ui/angular @a2ui/web_core`                                        |
+| Lit / Web Components    | `npm install @a2ui/lit @a2ui/web_core`                                            |
+| Flutter                 | `flutter pub add genui` (add `genui_a2a` for a remote A2A agent)                  |
+| SwiftUI (alpha)         | see [swift/swiftui](https://github.com/a2ui-project/a2ui/tree/main/swift/swiftui) |
+| Jetpack Compose (alpha) | https://developer.android.com/develop/ui/compose/agentic                          |
+| Agent, Python           | `pip install a2ui-agent-sdk`                                                      |
+| Agent, TypeScript       | `npm install @a2ui/agent`                                                         |
 
 Do **not** use `flutter_genui` or `genui_a2ui`: both are discontinued.
 
@@ -62,7 +72,8 @@ const processor = new MessageProcessor([basicCatalog]);
 // Feed agent messages as they arrive (SSE, WebSocket, A2A, AG-UI...):
 // processor.processMessages(messages);
 // Render each surface: <A2uiSurface surface={surface} />
-// See the @a2ui/react README for the full hook-up (onSurfaceCreated / onSurfaceDeleted).
+// Full hook-up (onSurfaceCreated / onSurfaceDeleted):
+// https://github.com/a2ui-project/a2ui/blob/main/typescript/renderers/react/README.md
 ```
 
 ## Integration paths
