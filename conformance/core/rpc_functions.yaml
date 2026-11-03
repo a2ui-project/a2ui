@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: test_rpc_call_renderer_function_success
+  features: [F-CORE-05, F-CORE-25]
   description: Verifies agent-initiated callRendererFunction on a function with allowedCallers=rendererOrAgent.
   catalog:
     protocolVersion: "1.0"
@@ -42,6 +43,7 @@
           timestamp: 0
 
 - name: test_rpc_call_renderer_function_unauthorized_caller
+  features: [F-CORE-05, F-CORE-39]
   description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when allowedCallers is rendererOnly.
   catalog:
     protocolVersion: "1.0"
@@ -69,6 +71,7 @@
           message: "Function 'internalStateReset' cannot be called by agent (allowedCallers is rendererOnly)."
 
 - name: test_rpc_call_renderer_function_requires_user_activation
+  features: [F-CORE-05, F-CORE-39]
   description: Verifies callRendererFunction execution when requiresUserActivation is true and user gesture is present.
   catalog:
     protocolVersion: "1.0"
@@ -97,6 +100,7 @@
           opened: true
 
 - name: test_rpc_call_agent_function_dispatch
+  features: [F-CORE-06, F-CORE-24]
   description: Verifies renderer-initiated callAgentFunction message generation and response correlation via functionCallId.
   catalog:
     protocolVersion: "1.0"
@@ -124,6 +128,7 @@
       price: "$29.99"
 
 - name: test_rpc_call_renderer_function_user_activation_denied
+  features: [F-CORE-05, F-CORE-39]
   description: Verifies callRendererFunction fails with INVALID_FUNCTION_CALL when requiresUserActivation is true but user gesture context is absent.
   catalog:
     protocolVersion: "1.0"
@@ -153,6 +158,7 @@
           message: "Function 'openExternalUrl' requires user activation context to execute."
 
 - name: test_rpc_call_renderer_function_execution_exception
+  features: [F-CORE-05, F-CORE-25]
   description: Verifies callRendererFunction handles runtime function execution exceptions and returns EXECUTION_ERROR.
   catalog:
     protocolVersion: "1.0"
@@ -180,6 +186,7 @@
           message: "An error occurred during function execution."
 
 - name: test_rpc_call_renderer_function_agent_only_boundary
+  features: [F-CORE-05, F-CORE-39]
   description: Verifies agent-initiated callRendererFunction on a function with allowedCallers=agentOnly.
   catalog:
     protocolVersion: "1.0"
@@ -359,6 +366,7 @@
       message: "catalogId"
 
 - name: test_rpc_agent_function_response_correlates_pending_call
+  features: [F-CORE-06, F-CORE-29]
   description: Verifies an outbound callAgentFunction correlates with and resolves from a matching inbound agentFunctionResponse.
   catalog:
     protocolVersion: "1.0"
@@ -445,6 +453,7 @@
           message: "does not match message protocol version"
 
 - name: test_rpc_call_agent_function_timeout_handling
+  features: [F-CORE-39]
   description: Verifies callAgentFunction timeout emitting TIMEOUT error code.
   catalog:
     protocolVersion: "1.0"
@@ -485,6 +494,7 @@
     code: "DUPLICATE"
 
 - name: test_rpc_call_agent_function_cancelled
+  features: [F-CORE-29, F-CORE-39]
   description: Verifies cancelling an in-flight callAgentFunction rejects with CANCELLED error code.
   catalog:
     protocolVersion: "1.0"
@@ -502,6 +512,7 @@
     code: "CANCELLED"
 
 - name: test_rpc_call_agent_function_disposed
+  features: [F-CORE-39]
   description: Verifies disposing RPC state rejects callAgentFunction with DISPOSED error code.
   catalog:
     protocolVersion: "1.0"
@@ -691,6 +702,7 @@
           message: "index"
 
 - name: test_rpc_ui_binding_triggers_call_agent_function_async_resolution
+  features: [F-CORE-24, F-CORE-28, F-CORE-29]
   description: Verifies a component property bound to an agent function initially resolves to null/undefined while emitting outbound callAgentFunction, and updates reactively when agentFunctionResponse arrives.
   catalog:
     protocolVersion: "1.0"
@@ -752,6 +764,7 @@
       accepted: true
 
 - name: test_rpc_ui_binding_agent_error_resolves_null
+  features: [F-CORE-06, F-CORE-30]
   description: Verifies that when a dynamic value binding calling an agent function receives an error response, the binding resolves to null, sibling components render intact, and the surface reports EXPRESSION_ERROR with the failed call's functionCallId.
   catalog:
     protocolVersion: "1.0"
@@ -802,6 +815,7 @@
       functionCallId: "$outboundCallId"
 
 - name: test_rpc_ui_check_agent_error_invalidates_rule
+  features: [F-CORE-06, F-CORE-30]
   description: Verifies that when a CheckRule condition calling an agent function receives an error response, the check rule evaluates to invalid with the rule's message and the surface reports EXPRESSION_ERROR with the failed call's functionCallId.
   catalog:
     protocolVersion: "1.0"
@@ -843,6 +857,7 @@
       functionCallId: "$outboundCallId"
 
 - name: test_rpc_ui_action_agent_error_halts_pipeline
+  features: [F-CORE-06, F-CORE-30]
   description: Verifies that when an agent function call in an action pipeline receives an error response, earlier effects are preserved, the remaining pipeline halts, and the surface reports EXPRESSION_ERROR with the failed call's functionCallId.
   catalog:
     protocolVersion: "1.0"

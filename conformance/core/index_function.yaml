@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: test_index_function_in_collection_loop
+  features: [F-CORE-21]
   description: Verifies built-in @index function evaluation during collection template iteration.
   catalog:
     protocolVersion: "1.0"
@@ -64,6 +65,7 @@
             text: "Pay Bills"
 
 - name: test_index_function_with_offset
+  features: [F-CORE-21]
   description: Verifies built-in @index function with offset argument (@index(1) for 1-based indexing).
   catalog:
     protocolVersion: "1.0"
@@ -98,6 +100,7 @@
             text: "2"
 
 - name: test_index_function_nested_path
+  features: [F-CORE-21]
   description: Verifies built-in @index function evaluation inside a deeply nested child property path of a template list.
   catalog:
     protocolVersion: "1.0"
@@ -141,6 +144,7 @@
             text: "2"
 
 - name: test_index_function_outside_loop_error
+  features: [F-CORE-21]
   description: Verifies error thrown when @index function is called outside a collection iteration scope.
   catalog:
     protocolVersion: "1.0"

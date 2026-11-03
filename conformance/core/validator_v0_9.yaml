@@ -17,6 +17,7 @@
 # ==============================================================================
 
 - name: test_validator_0_9
+  features: [F-CORE-07, F-CORE-11]
   description: Tests schema validation of v0.9 message envelopes against the basic v0.9 catalog schema.
   action: validate
   protocolVersion: "v0.9"
@@ -179,6 +180,7 @@
             code: "invalid_value"
 
 - name: test_recursion_limit_function_call_depth_exceeded_error
+  features: [F-CORE-38]
   description: Tests that nested functionCall expressions exceeding maximum depth (5) raise a RecursionError.
   action: validate
   protocolVersion: "v0.9"
@@ -218,6 +220,7 @@
       expectError: "functionCall depth"
 
 - name: test_v09_topology_circular_reference_error
+  features: [F-CORE-12]
   description: Tests that circular component references fail validation in v0.9 strict mode.
   action: validate
   protocolVersion: "v0.9"
@@ -243,6 +246,7 @@
       expectError: "Circular component reference"
 
 - name: test_v09_topology_dangling_child_reference_error
+  features: [F-CORE-12]
   description: Tests that dangling child references fail validation in v0.9 strict mode.
   action: validate
   protocolVersion: "v0.9"
@@ -1577,6 +1581,7 @@
         category: ValidationError
 
 - name: test_v09_theme_schema_validation_error
+  features: [F-CORE-42]
   description: Tests that an invalid theme property on createSurface fails schema validation in v0.9.
   action: validate
   protocolVersion: v0.9

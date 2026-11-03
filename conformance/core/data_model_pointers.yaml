@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: test_pointer_escape_characters
+  features: [F-CORE-14]
   description: Verifies RFC 6901 JSON Pointer escape sequence resolution (~0 for ~ and ~1 for /).
   catalog:
     protocolVersion: "1.0"
@@ -42,6 +43,7 @@
           "slash/key": 100
 
 - name: test_pointer_array_indexing
+  features: [F-CORE-14]
   description: Verifies numeric array indexing in JSON Pointers (/items/0, /items/1).
   catalog:
     protocolVersion: "1.0"
@@ -67,6 +69,7 @@
           items: ["first", "updated_second", "third"]
 
 - name: test_pointer_auto_vivification
+  features: [F-CORE-18]
   description: Verifies automatic intermediate object creation when setting deep uncreated JSON Pointer paths.
   catalog:
     protocolVersion: "1.0"
@@ -94,6 +97,7 @@
                 key: "vivified_value"
 
 - name: test_pointer_extended_escape_sequences
+  features: [F-CORE-14]
   description: Verifies advanced RFC 6901 escape sequence combinations (~10 for /0, ~00 for ~0, ~11 for /1, and ~01 for ~1).
   catalog:
     protocolVersion: "1.0"
@@ -163,6 +167,7 @@
         message: "non-numeric segment"
 
 - name: test_pointer_reject_write_through_primitive
+  features: [F-CORE-18]
   description: Verifies DataError when writing nested path through primitive intermediate node.
   catalog:
     protocolVersion: "1.0"

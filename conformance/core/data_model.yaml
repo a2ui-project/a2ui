@@ -42,6 +42,7 @@
 #     an explicit `delete` step.
 
 - name: test_data_model_initializes_empty
+  features: [F-CORE-14]
   description: >-
     A model created without data starts as an empty object.
   catalog:
@@ -53,6 +54,7 @@
       expect: {}
 
 - name: test_data_model_retrieves_root
+  features: [F-CORE-14]
   description: >-
     The root path returns the whole data model.
   catalog:
@@ -65,6 +67,7 @@
       expect: {"user": {"name": "Alice", "settings": {"theme": "dark"}}, "items": ["a", "b", "c"]}
 
 - name: test_data_model_retrieves_nested_path
+  features: [F-CORE-14]
   description: >-
     Nested object paths resolve segment by segment.
   catalog:
@@ -80,6 +83,7 @@
       expect: "dark"
 
 - name: test_data_model_retrieves_list_items
+  features: [F-CORE-14]
   description: >-
     List elements resolve by numeric segment.
   catalog:
@@ -95,6 +99,7 @@
       expect: "b"
 
 - name: test_data_model_absent_for_missing_paths
+  features: [F-CORE-18]
   description: >-
     Paths that do not exist resolve to no value.
   catalog:
@@ -127,6 +132,7 @@
       expect_absent: true
 
 - name: test_data_model_sets_existing_path
+  features: [F-CORE-17]
   description: >-
     Setting an existing path replaces its value.
   catalog:
@@ -142,6 +148,7 @@
       expect: "Bob"
 
 - name: test_data_model_sets_new_path
+  features: [F-CORE-17]
   description: >-
     Setting a new key on an existing object adds it.
   catalog:
@@ -157,6 +164,7 @@
       expect: 30
 
 - name: test_data_model_creates_intermediate_objects
+  features: [F-CORE-18]
   description: >-
     Missing intermediate objects are created on write.
   catalog:
@@ -175,6 +183,7 @@
       expect_type: "object"
 
 - name: test_data_model_delete_removes_key
+  features: [F-CORE-03]
   description: >-
     Deleting a path removes the key from its parent object.
   catalog:
@@ -320,6 +329,7 @@
       expect: "bar"
 
 - name: test_data_model_replaces_root
+  features: [F-CORE-03]
   description: >-
     Setting the root path replaces the whole model.
   catalog:
@@ -465,6 +475,7 @@
       expect_error: {"category": "DataError", "message": "non-numeric segment"}
 
 - name: test_data_model_notifies_exact_path
+  features: [F-CORE-40]
   description: >-
     An observer fires when its own path is written.
   catalog:
@@ -480,6 +491,7 @@
       expect_notified: ["/user/name"]
 
 - name: test_data_model_notifies_ancestor
+  features: [F-CORE-40]
   description: >-
     An observer on a container fires when a descendant is written.
   catalog:
@@ -495,6 +507,7 @@
       expect_notified: ["/user"]
 
 - name: test_data_model_notifies_descendant
+  features: [F-CORE-40]
   description: >-
     An observer on a leaf fires when an ancestor is replaced.
   catalog:
@@ -541,6 +554,7 @@
       expect_values: {"/parent": {"child": "updated"}}
 
 - name: test_data_model_does_not_notify_unrelated
+  features: [F-CORE-40]
   description: >-
     An observer does not fire for an unrelated path.
   catalog:
@@ -555,6 +569,7 @@
       expect_notified: []
 
 - name: test_data_model_does_not_notify_prefix_sibling
+  features: [F-CORE-40]
   description: >-
     A sibling whose name merely shares a prefix is not a descendant.
   catalog:
@@ -603,6 +618,7 @@
       expect_notified: ["/non/existent"]
 
 - name: test_data_model_stops_notifying_after_dispose
+  features: [F-CORE-40]
   description: >-
     Disposing the model detaches every observer.
   catalog:
@@ -947,6 +963,7 @@
       expect: ""
 
 - name: test_data_model_set_through_null_placeholder_vivifies
+  features: [F-CORE-18]
   description: >-
     Writing through an explicit null value in an object or list replaces the
     null slot with a container.

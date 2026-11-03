@@ -17,6 +17,7 @@
 # unescaping (@@path -> @path).
 
 - name: test_reserved_at_path_valid
+  features: [F-CORE-16]
   description: >-
     Valid v1.0 DataBinding using the reserved @path prefix.
   catalog:
@@ -34,6 +35,7 @@
               "@path": "/user/displayName"
 
 - name: test_reserved_at_call_valid
+  features: [F-CORE-34]
   description: >-
     Valid v1.0 FunctionCall using the reserved @call prefix.
   catalog:
@@ -53,6 +55,7 @@
                 value: "Hello world"
 
 - name: test_reserved_at_call_index
+  features: [F-CORE-21, F-CORE-34]
   description: >-
     Valid v1.0 FunctionCall invoking the @index system context function within a List template.
   catalog:
@@ -77,6 +80,7 @@
                 offset: 1
 
 - name: test_plain_object_with_literal_path_and_call
+  features: [F-CORE-16]
   description: >-
     A plain object containing 'path' and 'call' keys is valid in v1.0 and is not
     intercepted as a dynamic DataBinding or FunctionCall directive.
@@ -103,6 +107,7 @@
               call: "audit"
 
 - name: test_plain_object_escaped_doubled_at_key
+  features: [F-CORE-16]
   description: >-
     Literal @ keys escaped with prefix doubling (@@path, @@type) validate successfully
     as plain object keys.
@@ -129,6 +134,7 @@
               "@@type": "Resource"
 
 - name: test_disallowed_unknown_single_at_key
+  features: [F-CORE-16]
   description: >-
     Dynamic objects containing unknown single-@ keys (^@([^@]|$)) are disallowed to preserve
     backward compatibility for future directives.
@@ -184,6 +190,7 @@
     category: "ValidationError"
 
 - name: test_escaped_doubled_at_unescaping
+  features: [F-CORE-16, F-CORE-34]
   description: >-
     Verifies that doubled-@ keys ('@@path') are unescaped to '@path' during dynamic evaluation in v1.0.
   catalog:

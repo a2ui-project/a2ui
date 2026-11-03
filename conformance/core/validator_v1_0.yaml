@@ -17,6 +17,7 @@
 # ==============================================================================
 
 - name: test_validator_1_0
+  features: [F-CORE-07, F-CORE-11]
   description: Tests schema validation of v1.0 message envelopes (inline components, optional catalogId, data deletion) against the basic v1.0 catalog schema.
   action: validate
   protocolVersion: "1.0"
@@ -184,6 +185,7 @@
             message: "UnknownComponent"
 
 - name: test_validator_theme_schema
+  features: [F-CORE-42]
   description: Tests schema validation of surface theme properties against catalog theme schema.
   action: validate
   catalog:
@@ -215,6 +217,7 @@
         category: "ValidationError"
 
 - name: test_v10_topology_circular_reference_error
+  features: [F-CORE-12]
   description: Tests that circular component references fail validation in v1.0 strict mode.
   action: validate
   protocolVersion: "1.0"
@@ -240,6 +243,7 @@
       expectError: "Circular component reference"
 
 - name: test_v10_topology_dangling_child_reference_error
+  features: [F-CORE-12]
   description: Tests that dangling child references fail validation in v1.0 strict mode.
   action: validate
   protocolVersion: "1.0"
@@ -262,6 +266,7 @@
       expectError: "Dangling reference"
 
 - name: test_v10_topology_self_reference_error
+  features: [F-CORE-12]
   description: Tests that self-referencing components fail validation in v1.0 strict mode.
   action: validate
   protocolVersion: "1.0"
@@ -284,6 +289,7 @@
       expectError: "Self-reference detected"
 
 - name: test_v10_topology_orphaned_component_error
+  features: [F-CORE-12]
   description: Tests that unreachable orphaned components fail validation in v1.0 strict mode.
   action: validate
   protocolVersion: "1.0"
@@ -309,6 +315,7 @@
       expectError: "is not reachable from"
 
 - name: test_v10_topology_missing_root_component_error
+  features: [F-CORE-12]
   description: Tests that component updates missing root component fail validation in v1.0 strict mode.
   action: validate
   protocolVersion: "1.0"
@@ -2165,6 +2172,7 @@
                                     value: "At limit"
 
 - name: test_v10_recursion_limit_function_call_depth_one_past_limit_error
+  features: [F-CORE-38]
   description: Tests that nested function calls one past the maximum depth (6) fail validation with RecursionError in v1.0 strict mode.
   action: validate
   protocolVersion: "1.0"
@@ -2207,6 +2215,7 @@
         message: functionCall depth
 
 - name: test_v10_uax31_astral_plane_identifier_accepted
+  features: [F-CORE-09]
   description: Tests that an astral-plane UAX #31 identifier starting with XID_Start U+1D465 ('𝑥Label') is accepted for component types and IDs in v1.0 strict mode.
   action: validate
   protocolVersion: "1.0"
@@ -2253,6 +2262,7 @@
                 text: "Astral plane"
 
 - name: test_v10_uax31_astral_non_identifier_component_type_error
+  features: [F-CORE-09]
   description: Tests that an astral-plane non-identifier character (U+1F600 '😀') used as a component type fails UAX #31 validation in v1.0 even when unknown elements are allowed.
   action: validate
   protocolVersion: "1.0"

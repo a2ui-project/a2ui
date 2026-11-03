@@ -21,24 +21,28 @@
 # exactly.
 
 - name: test_v08_agent_to_renderer_schema_matches_specification
+  features: [F-CORE-07]
   description: The v0.8 server_to_client schema generated from the SDK models matches specification/v0_8/json/server_to_client.json exactly.
   action: agent_to_renderer_schema
   protocolVersion: "v0.8"
   expectFile: "specification/v0_8/json/server_to_client.json"
 
 - name: test_v09_agent_to_renderer_schema_matches_specification
+  features: [F-CORE-07]
   description: The v0.9 server_to_client schema generated from the SDK models matches specification/v0_9/json/server_to_client.json exactly.
   action: agent_to_renderer_schema
   protocolVersion: "v0.9"
   expectFile: "specification/v0_9/json/server_to_client.json"
 
 - name: test_v091_agent_to_renderer_schema_matches_specification
+  features: [F-CORE-07]
   description: The v0.9.1 server_to_client schema generated from the SDK models matches specification/v0_9_1/json/server_to_client.json exactly.
   action: agent_to_renderer_schema
   protocolVersion: "v0.9.1"
   expectFile: "specification/v0_9_1/json/server_to_client.json"
 
 - name: test_v10_agent_to_renderer_schema_matches_specification
+  features: [F-CORE-07]
   description: The v1.0 agent_to_renderer schema generated from the SDK models matches specification/v1_0/json/agent_to_renderer.json exactly.
   action: agent_to_renderer_schema
   protocolVersion: "1.0"

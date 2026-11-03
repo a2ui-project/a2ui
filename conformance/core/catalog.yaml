@@ -51,6 +51,7 @@
 # ------------------------------------------------------------------------------
 
 - name: test_v08_basic_catalog_from_json
+  features: [F-CORE-08]
   description: Tests that loading the published v0.8 basic catalog with fromJson yields a catalog equivalent to the SDK's own v0.8 basic catalog implementation. The v0.8 document has no $ref, so there is no self-contained check.
   action: from_json
   protocolVersion: "v0.8"
@@ -60,6 +61,7 @@
     matchesBuiltinCatalog: true
 
 - name: test_v09_basic_catalog_from_json
+  features: [F-CORE-08]
   description: Tests that the published v0.9 basic catalog loads with fromJson into a catalog equivalent to the SDK's own v0.9 basic catalog implementation, with its common_types references localised so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9"
@@ -69,6 +71,7 @@
     matchesBuiltinCatalog: true
 
 - name: test_v10_basic_catalog_from_json
+  features: [F-CORE-08, F-CORE-35]
   description: Tests that the published v1 basic catalog loads with fromJson into a catalog equivalent to the SDK's own v1 basic catalog implementation, with its common_types references localised so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "1.0"
@@ -82,6 +85,7 @@
 # ------------------------------------------------------------------------------
 
 - name: test_catalog_from_json_missing_catalog_id_error
+  features: [F-CORE-08]
   description: Tests that Catalog.from_json raises CatalogError when catalogId is missing.
   action: from_json
   catalog:
@@ -92,6 +96,7 @@
     message: "catalog_id must be provided or exist in catalog schema"
 
 - name: test_catalog_from_json_override_catalog_id
+  features: [F-CORE-08]
   description: Tests overriding catalogId during Catalog.from_json.
   action: from_json
   catalogId: "https://a2ui.org/catalogs/overridden"
@@ -107,6 +112,7 @@
         type: object
 
 - name: test_v10_catalog_from_json_v1_0_attributes
+  features: [F-CORE-35, F-CORE-37]
   description: Tests parsing allowedParents, allowedChildren, allowedCallers, and requiresUserActivation in a v1.0 catalog schema.
   action: from_json
   catalog:
@@ -139,6 +145,7 @@
         requiresUserActivation: false
 
 - name: test_v10_catalog_from_json_user_activation_agent_only_error
+  features: [F-CORE-37, F-CORE-39]
   description: Tests that a v1.0 catalog function with requiresUserActivation set to true and allowedCallers set to agentOnly raises CatalogError.
   action: from_json
   catalog:
@@ -154,6 +161,7 @@
     message: "requiresUserActivation"
 
 - name: test_v10_catalog_from_json_user_activation_renderer_or_agent_error
+  features: [F-CORE-37, F-CORE-39]
   description: Tests that a v1.0 catalog function with requiresUserActivation set to true and allowedCallers set to rendererOrAgent raises CatalogError.
   action: from_json
   catalog:
@@ -187,6 +195,7 @@
     functions: [openUrl, copyToClipboard]
 
 - name: test_v10_catalog_from_json_uax31_validation
+  features: [F-CORE-09]
   description: Tests parsing valid UAX#31 component and function identifiers in a v1.0 catalog.
   action: from_json
   catalog:
@@ -221,6 +230,7 @@
     category: "CatalogError"
 
 - name: test_v10_catalog_from_json_invalid_uax31_identifier_error
+  features: [F-CORE-09]
   description: Tests that invalid UAX#31 component identifier with hyphen raises CatalogError under v1.0.
   action: from_json
   catalog:
@@ -253,6 +263,7 @@
     message: "Unsupported external $ref"
 
 - name: test_v10_catalog_from_json_rejects_absolute_uri_ref
+  features: [F-CORE-44]
   description: Tests that a v1.0 catalog property that references another catalog by absolute URI raises CatalogError when loaded, without fetching the URI.
   action: from_json
   catalog:
@@ -294,6 +305,7 @@
     message: "Unsupported external $ref"
 
 - name: test_v10_catalog_from_json_accepts_local_and_common_types_refs
+  features: [F-CORE-44]
   description: Tests that local references and common_types.json references, in relative or absolute form, remain valid $ref targets in a v1.0 catalog.
   action: from_json
   catalog:
@@ -497,6 +509,7 @@
             bogus: 1
 
 - name: test_v09_published_minimal_catalog_is_self_contained
+  features: [F-CORE-44]
   description: Tests that the published v0.9 minimal catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9"
@@ -544,6 +557,7 @@
             bogus: 1
 
 - name: test_v091_published_basic_catalog_is_self_contained
+  features: [F-CORE-44]
   description: Tests that the published v0.9.1 basic catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9.1"
@@ -630,6 +644,7 @@
             bogus: 1
 
 - name: test_v10_published_mcp_catalog_is_self_contained
+  features: [F-CORE-44]
   description: Tests that the published v1.0 MCP catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "1.0"
@@ -1127,6 +1142,7 @@
 # teach a model to write messages for the wrong catalog.
 
 - name: test_v10_catalog_derive_keeps_named_entries
+  features: [F-CORE-37]
   description: A name keeps the source catalog's entry of that name, and the entries the lists leave out are not in the derived catalog.
   action: derive
   catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
@@ -1150,6 +1166,7 @@
     functions: [upper]
 
 - name: test_v10_catalog_derive_adds_and_replaces_entries
+  features: [F-CORE-37]
   description: A new entry is added to the derived catalog, and a new entry with the name of one of the source's entries replaces it.
   action: derive
   catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
@@ -1299,6 +1316,7 @@
       Column: null
 
 - name: test_v10_catalog_from_json_component_metadata_invalid_uax31_key_error
+  features: [F-CORE-09]
   description: Tests that a v1.0 catalog whose component metadata.extensions has a key that is not a UAX 31 identifier is rejected at load.
   action: from_json
   protocolVersion: "1.0"

@@ -17,6 +17,7 @@
 # ==============================================================================
 
 - name: test_v10_create_surface_inline_initialization
+  features: [F-CORE-01]
   description: Tests v1.0 createSurface message with inline components and initial dataModel initialization.
   action: process_messages
   protocolVersion: "1.0"
@@ -53,6 +54,7 @@
           counter: 42
 
 - name: test_v10_create_surface_optional_catalog_id
+  features: [F-CORE-01, F-CORE-10]
   description: Tests that v1.0 createSurface permits omitting catalogId.
   action: process_messages
   protocolVersion: "1.0"
@@ -122,6 +124,7 @@
     category: "ValidationError"
 
 - name: test_v10_component_catalog_override
+  features: [F-CORE-10]
   description: Tests that individual components in v1.0 can specify a catalogId override different from the surface default.
   action: process_messages
   catalogs:
@@ -158,6 +161,7 @@
             data: [10, 20, 30]
 
 - name: test_v10_update_data_model_deletion
+  features: [F-CORE-03]
   description: Tests that updating a path with value null deletes the key from the data model in v1.0.
   action: process_messages
   protocolVersion: "1.0"
@@ -185,6 +189,7 @@
             name: "Alice"
 
 - name: test_v10_get_renderer_capabilities
+  features: [F-CORE-31]
   description: Tests generating v1.0 renderer capabilities structure.
   action: get_renderer_capabilities
   catalogs:
@@ -3188,6 +3193,7 @@
     category: "ValidationError"
 
 - name: test_v10_permissive_incremental_streaming_out_of_order_before_root
+  features: [F-CORE-02]
   description: >-
     Multi-step strictMode: false incremental streaming case verifying that out-of-order child components arriving before root emit zero errors and assemble cleanly once root arrives.
   action: process_messages

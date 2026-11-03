@@ -14,6 +14,7 @@
 
 # See node_resolution.md for the operation and assertion contract.
 - name: scoped_binding_write
+  features: [F-CORE-15, F-CORE-17, F-CORE-41, F-CORE-45]
   description: >-
     Given two template items, when the first value binding is written,
     only that node emits, the write uses its data scope, and all nodes keep identity.
@@ -64,6 +65,7 @@
         same_nodes: [root, root/children/0, root/children/1]
 
 - name: complete_property_update
+  features: [F-CORE-17, F-CORE-40, F-CORE-45]
   description: >-
     Given two instances of one definition, when two properties change together,
     each instance emits one complete snapshot and the parent stays silent.
@@ -90,6 +92,7 @@
         same_nodes: [root, root/children/0, root/children/1]
 
 - name: template_membership
+  features: [F-CORE-13, F-CORE-45]
   description: >-
     Given two template items, when items are appended, inserted, and removed,
     surviving positions retain identity and removed nodes are destroyed once.
@@ -145,6 +148,7 @@
         destroyed: {root: 1, root/children/0: 1}
 
 - name: shared_definition_independent_instances
+  features: [F-CORE-13, F-CORE-40, F-CORE-45]
   description: >-
     Given a shared child under two parents, when one parent definition is removed,
     that parent and its child are destroyed while the other instance stays live.
@@ -184,6 +188,7 @@
         same_nodes: [root, root/children/0, root/children/1, root/children/1/child]
 
 - name: root_lifecycle
+  features: [F-CORE-11, F-CORE-45]
   description: >-
     Given an empty surface, when the root arrives and is removed,
     the tree appears and disappears; resolver disposal destroys a later root once.
@@ -217,6 +222,7 @@
         destroyed: {root: 1}
 
 - name: pending_child_replacement
+  features: [F-CORE-11, F-CORE-45]
   description: >-
     Given a pending child, when its definition arrives,
     the placeholder is replaced and destroyed while its parent emits once and keeps identity.
@@ -244,6 +250,7 @@
         destroyed: {root/child: 1}
 
 - name: dispatch_time_event_context
+  features: [F-CORE-23, F-CORE-45]
   description: >-
     Given an event action, when data changes before invocation,
     no event is sent early and the invoked action uses the latest data.
@@ -271,6 +278,7 @@
         events: [{name: save, source_component_id: root, context: {name: Grace}}]
 
 - name: function_action_without_event
+  features: [F-CORE-28, F-CORE-45]
   description: >-
     Given a function action, when it is invoked,
     the catalog function runs once and no action event is emitted.
@@ -674,6 +682,7 @@
         emissions: {}
 
 - name: reactive_check_props_on_node
+  features: [F-CORE-27, F-CORE-45]
   description: >-
     Given a CheckBox with a validation check bound to its value path,
     isValid, validationErrors, and validationResults update reactively on write.
@@ -775,6 +784,7 @@
         emissions: {}
 
 - name: delete_surface_disposes_tree
+  features: [F-CORE-04, F-CORE-41, F-CORE-45]
   description: >-
     Given a mounted component tree, when deleteSurface is processed,
     all mounted nodes are destroyed once and the tree becomes empty.
@@ -804,6 +814,7 @@
           root/children/1/child: 1
 
 - name: inline_create_applies_data_before_components
+  features: [F-CORE-01, F-CORE-45]
   description: >-
     createSurface with inline dataModel and components resolves bound
     components against that data on creation without a post-creation emission.
@@ -833,6 +844,7 @@
         created_emissions: {root: 0}
 
 - name: separate_data_message_keeps_arrival_order
+  features: [F-CORE-01, F-CORE-45]
   description: >-
     Separate updateComponents followed by updateDataModel in one batch creates
     nodes before data arrives and then emits once when data is written.

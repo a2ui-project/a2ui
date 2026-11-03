@@ -17,6 +17,7 @@
 # ==============================================================================
 
 - name: test_v08_begin_rendering_styles_mapping
+  features: [F-CORE-07]
   description: Tests that v0.8 VersionAdapter correctly extracts styles and root component from beginRendering.
   action: process_messages
   protocolVersion: "v0.8"
@@ -37,6 +38,7 @@
           primaryColor: "#0000ff"
 
 - name: test_v08_surface_update_components
+  features: [F-CORE-02, F-CORE-07]
   description: Tests that v0.8 surfaceUpdate with nested component objects is properly adapted into ComponentModels.
   action: process_messages
   protocolVersion: "v0.8"
@@ -64,6 +66,7 @@
             label: "Click Me"
 
 - name: test_v08_data_model_update
+  features: [F-CORE-03, F-CORE-07]
   description: Tests that v0.8 dataModelUpdate with typed contents entries is properly adapted into the surface DataStore.
   action: process_messages
   protocolVersion: "v0.8"
@@ -119,6 +122,7 @@
               active: true
 
 - name: test_v08_get_renderer_capabilities
+  features: [F-CORE-07, F-CORE-31]
   description: Tests generating v0.8 renderer capabilities structure.
   action: get_renderer_capabilities
   catalogs:
@@ -133,6 +137,7 @@
         - "cat-v08"
 
 - name: test_v08_rejects_v09_create_surface_action
+  features: [F-CORE-07]
   description: Tests that v0.8 MessageProcessor rejects v0.9 createSurface action when protocolVersion is v0.8.
   action: process_messages
   protocolVersion: "v0.8"
