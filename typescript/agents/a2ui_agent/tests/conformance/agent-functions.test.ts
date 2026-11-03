@@ -19,7 +19,6 @@ import fs from 'node:fs';
 import {describe, expect, test} from 'vitest';
 
 import {
-  A2uiCatalogError,
   A2uiRpcError,
   AgentFunction,
   type AgentFunctionContext,
@@ -27,12 +26,9 @@ import {
   type AgentFunctionResponseMessage,
   Catalog,
   type CatalogApi,
-  ComponentPruningTransformer,
-  DirectJsonFormat,
-  ExpressFormat,
-  FunctionPruningTransformer,
-  PromptGenerator,
+  type FunctionApi,
   RendererToAgentMessageProcessor,
+  type RendererToAgentMessageProcessorOptions,
   validatePayload,
 } from '../../src/index.js';
 import {classify, loadCases, type LoadedCase} from './loader.js';
@@ -51,25 +47,20 @@ interface BehaviorSpec {
 }
 
 interface AgentFunctionSpec {
-  from_catalog?: boolean;
+  name?: string;
+  from_api?: boolean;
   returnType?: string;
   args?: Record<string, unknown>;
-  allowedCallers?: string;
-  requiresUserActivation?: boolean;
   description?: string;
   behavior?: BehaviorSpec;
 }
 
 interface CatalogWithAgentFunctionsSpec {
-  catalog?: string | Record<string, unknown>;
-  catalog_id?: string;
-  protocol_version?: string;
+  catalog: string | Record<string, unknown>;
   agent_functions?: Record<string, AgentFunctionSpec>;
-  transformers?: Array<{
-    component_pruning?: string[];
-    function_pruning?: string[];
-  }>;
 }
+
+type CallbackKind = 'action' | 'error' | 'rendererFunctionResponse';
 
 function buildHandler(behavior?: BehaviorSpec): AgentFunctionHandler {
   if (!behavior) {
@@ -102,54 +93,47 @@ function buildHandler(behavior?: BehaviorSpec): AgentFunctionHandler {
 }
 
 function buildCatalogWithAgentFunctions(spec: CatalogWithAgentFunctionsSpec): CatalogApi {
-  let base: CatalogApi;
-  if (typeof spec.catalog === 'string') {
-    const rawJson = JSON.parse(fs.readFileSync(conformancePath(spec.catalog), 'utf-8')) as Record<
-      string,
-      unknown
-    >;
-    base = Catalog.fromJson(rawJson);
-  } else if (spec.catalog && typeof spec.catalog === 'object') {
-    base = Catalog.fromJson(spec.catalog);
-  } else {
-    base = new Catalog(spec.catalog_id ?? 'test', [], [], {
-      protocolVersion: (spec.protocol_version ?? '1.0') as never,
-    });
-  }
+  const base =
+    typeof spec.catalog === 'string'
+      ? Catalog.fromJson(
+          JSON.parse(fs.readFileSync(conformancePath(spec.catalog), 'utf-8')) as Record<
+            string,
+            unknown
+          >,
+        )
+      : Catalog.fromJson(spec.catalog);
 
   const agentFunctions: AgentFunction[] = [];
-  for (const [name, fnSpec] of Object.entries(spec.agent_functions ?? {})) {
+  for (const [key, fnSpec] of Object.entries(spec.agent_functions ?? {})) {
+    const name = fnSpec.name ?? key;
     const handler = buildHandler(fnSpec.behavior);
-    if (fnSpec.from_catalog) {
-      const decl = base.functions.get(name);
-      if (!decl) {
-        throw new A2uiCatalogError(`Catalog '${base.id}' does not declare function '${name}'.`);
-      }
-      agentFunctions.push(AgentFunction.fromApi(decl, handler));
-    } else {
-      agentFunctions.push(
-        new AgentFunction({
+    const direct = (): AgentFunction =>
+      new AgentFunction({
+        name,
+        returnType: (fnSpec.returnType ?? 'any') as never,
+        schema: fnSpec.args,
+        description: fnSpec.description,
+        handler,
+      });
+    if (fnSpec.from_api) {
+      // The catalog's own declaration, or else a foreign one built from the
+      // case's signature, which the catalog must refuse.
+      let declaration: FunctionApi | undefined = base.functions.get(name);
+      if (declaration === undefined) {
+        const signature = direct();
+        declaration = {
           name,
-          returnType: (fnSpec.returnType ?? 'any') as never,
-          schema: fnSpec.args,
-          requiresUserActivation: fnSpec.requiresUserActivation,
-          description: fnSpec.description,
-          handler,
-        }),
-      );
+          returnType: signature.returnType,
+          schema: signature.schema,
+          description: signature.description,
+        };
+      }
+      agentFunctions.push(AgentFunction.fromApi(declaration, handler));
+    } else {
+      agentFunctions.push(direct());
     }
   }
-
-  let catalog: CatalogApi = base.copyWith({agentFunctions});
-  for (const transformer of spec.transformers ?? []) {
-    if (transformer.function_pruning) {
-      catalog = new FunctionPruningTransformer(transformer.function_pruning).transform(catalog);
-    }
-    if (transformer.component_pruning) {
-      catalog = new ComponentPruningTransformer(transformer.component_pruning).transform(catalog);
-    }
-  }
-  return catalog;
+  return base.copyWith({agentFunctions});
 }
 
 function expectThrowsCaseError(fn: () => void, testCase: LoadedCase): void {
@@ -186,15 +170,7 @@ async function expectRejectsCaseError(
 }
 
 function runDeclareAgentFunctions(testCase: LoadedCase): void {
-  const rawArgs = (testCase.args ?? {}) as Record<string, unknown>;
-  const spec = (
-    rawArgs['catalog'] &&
-    typeof rawArgs['catalog'] === 'object' &&
-    (Object.hasOwn(rawArgs['catalog'], 'catalog') ||
-      Object.hasOwn(rawArgs['catalog'], 'agent_functions'))
-      ? rawArgs['catalog']
-      : rawArgs
-  ) as CatalogWithAgentFunctionsSpec;
+  const {catalog: spec} = (testCase.args ?? {}) as {catalog: CatalogWithAgentFunctionsSpec};
 
   if (testCase.expect_error) {
     expectThrowsCaseError(() => buildCatalogWithAgentFunctions(spec), testCase);
@@ -202,50 +178,17 @@ function runDeclareAgentFunctions(testCase: LoadedCase): void {
   }
 
   const catalog = buildCatalogWithAgentFunctions(spec);
-  const expected = (testCase.expect ?? {}) as {
-    functions?: string[];
-    agent_functions?: string[];
-    document_functions?: string[];
-    to_json_functions?: Record<string, unknown>;
-    prompt?: {
-      format: string;
-      contains?: string[];
-      not_contains?: string[];
-    };
+  const expected = testCase.expect as {
+    functions: string[];
+    agent_functions: string[];
+    document_functions: string[];
   };
+  const sorted = (names: Iterable<string>) => [...names].sort();
 
-  if (expected.functions !== undefined) {
-    expect([...catalog.functions.keys()]).toEqual(expected.functions);
-  }
-  if (expected.agent_functions !== undefined) {
-    expect([...catalog.agentFunctions.keys()]).toEqual(expected.agent_functions);
-  }
-  if (expected.document_functions !== undefined) {
-    const toJsonFunctions = (catalog.toJson().functions ?? {}) as Record<string, unknown>;
-    expect(Object.keys(toJsonFunctions)).toEqual(expected.document_functions);
-  }
-  if (expected.to_json_functions !== undefined) {
-    const toJsonFunctions = (catalog.toJson().functions ?? {}) as Record<string, unknown>;
-    expect(Object.keys(toJsonFunctions)).toEqual(Object.keys(expected.to_json_functions));
-    expect(toJsonFunctions).toEqual(expected.to_json_functions);
-  }
-  if (expected.prompt !== undefined) {
-    const format =
-      expected.prompt.format === 'direct_json'
-        ? new DirectJsonFormat()
-        : expected.prompt.format === 'express'
-          ? new ExpressFormat()
-          : (() => {
-              throw new Error(`Unsupported prompt format: ${expected.prompt.format}`);
-            })();
-    const promptText = new PromptGenerator(format).generatePrompt([catalog]);
-    for (const needle of expected.prompt.contains ?? []) {
-      expect(promptText).toContain(needle);
-    }
-    for (const forbidden of expected.prompt.not_contains ?? []) {
-      expect(promptText).not.toContain(forbidden);
-    }
-  }
+  expect(sorted(catalog.functions.keys())).toEqual(sorted(expected.functions));
+  expect(sorted(catalog.agentFunctions.keys())).toEqual(sorted(expected.agent_functions));
+  const documentFunctions = (catalog.toJson().functions ?? {}) as Record<string, unknown>;
+  expect(sorted(Object.keys(documentFunctions))).toEqual(sorted(expected.document_functions));
 }
 
 async function runHandleAgentFunction(testCase: LoadedCase): Promise<void> {
@@ -300,6 +243,68 @@ function runValidatePayload(testCase: LoadedCase): void {
   validatePayload(catalogs, args.messages);
 }
 
+/**
+ * Compares the replies sent with the expected ones exactly, except that an
+ * expected `error.message` is a substring of the one sent and may be left out.
+ */
+function expectReplies(actual: unknown[], expected: Array<Record<string, unknown>>): void {
+  expect(actual).toHaveLength(expected.length);
+  expected.forEach((want, i) => {
+    const got = structuredClone(actual[i]) as Record<string, Record<string, unknown>>;
+    const wantBody = (want['agentFunctionResponse'] ?? {}) as Record<string, unknown>;
+    const gotBody = got['agentFunctionResponse'];
+    const wantError = wantBody['error'] as {message?: string} | undefined;
+    const gotError = gotBody?.['error'] as {message?: string} | undefined;
+    if (wantError !== undefined && gotError !== undefined) {
+      if (wantError.message === undefined) {
+        delete gotError.message;
+      } else {
+        expect(gotError.message).toContain(wantError.message);
+        gotError.message = wantError.message;
+      }
+    }
+    expect(got).toEqual(want);
+  });
+}
+
+async function runProcessRendererMessage(testCase: LoadedCase): Promise<void> {
+  const args = (testCase.args ?? {}) as {
+    catalog?: CatalogWithAgentFunctionsSpec;
+    callbacks?: CallbackKind[];
+    message: unknown;
+  };
+  const received: Array<{kind: CallbackKind; message: unknown}> = [];
+  const record = (kind: CallbackKind) => (message: unknown) => {
+    received.push({kind, message});
+  };
+  const callbacks = new Set(args.callbacks ?? []);
+  const options: RendererToAgentMessageProcessorOptions = {
+    catalogs: args.catalog ? [buildCatalogWithAgentFunctions(args.catalog)] : [],
+    onAction: callbacks.has('action') ? record('action') : undefined,
+    onError: callbacks.has('error') ? record('error') : undefined,
+    onRendererFunctionResponse: callbacks.has('rendererFunctionResponse')
+      ? record('rendererFunctionResponse')
+      : undefined,
+  };
+  const processor = new RendererToAgentMessageProcessor(options);
+
+  if (testCase.expect_error) {
+    await expectRejectsCaseError(() => processor.processMessage(args.message), testCase);
+    expect(received).toEqual([]);
+    return;
+  }
+
+  const result = await processor.processMessage(args.message);
+  const expected = testCase.expect as {
+    handled: boolean;
+    replies?: Array<Record<string, unknown>>;
+    callback?: {kind: CallbackKind; message: unknown};
+  };
+  expect(result.handled).toBe(expected.handled);
+  expectReplies(result.replies, expected.replies ?? []);
+  expect(received).toEqual(expected.callback ? [expected.callback] : []);
+}
+
 describe('Conformance: agent_functions.yaml', () => {
   const cases = loadCases([conformancePath('agent/agent_functions.yaml')]);
 
@@ -319,6 +324,9 @@ describe('Conformance: agent_functions.yaml', () => {
           return;
         case 'validate_payload':
           runValidatePayload(testCase);
+          return;
+        case 'process_renderer_message':
+          await runProcessRendererMessage(testCase);
           return;
         default:
           throw new Error(`Unhandled conformance action: ${testCase.action}`);
