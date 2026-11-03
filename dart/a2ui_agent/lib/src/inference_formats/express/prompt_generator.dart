@@ -375,7 +375,7 @@ String _rules(
     if (components) _componentsRule,
     if (creates) _rootRule,
     ..._valueRules,
-    if (components) ..._callRules(v1: v1),
+    if (components) ...(v1 ? _callRulesV1 : _callRulesV0_9),
     if (data) _dataModelRule,
     if (components) _templateRule,
     if (allowed.contains('deleteSurface')) _deleteSurfaceRule,
@@ -438,9 +438,15 @@ Prefix relative list scopes with '$', e.g., $firstName.
 A lone '$' represents an empty relative path which resolves to the root of the current context (e.g. inside a template, representing the entire item itself).''',
 ];
 
-List<String> _callRules({required bool v1}) => [
+const List<String> _callRulesV0_9 = [
   _validationRule,
-  v1 ? _actionEventsRuleV1 : _actionEventsRuleV0_9,
+  _actionEventsRuleV0_9,
+  _nestedFunctionsRule,
+];
+
+const List<String> _callRulesV1 = [
+  _validationRule,
+  _actionEventsRuleV1,
   _nestedFunctionsRule,
 ];
 
