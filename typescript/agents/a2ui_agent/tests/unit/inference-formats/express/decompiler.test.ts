@@ -495,6 +495,26 @@ describe('ExpressDecompiler', () => {
       expect(decompileButton({event: {name: 'go', context: null}})).toContain('Event("go")');
     });
 
+    it('preserves an explicit empty context on Event("go", {}) across decompile and compile', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const action = {event: {name: 'go', context: {}}};
+      const msg = {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          components: [
+            {id: 'root', component: 'Button', child: 'label', action},
+            {id: 'label', component: 'Text', text: 'Go'},
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+      const notation = new ExpressDecompiler([catalog], version).decompile([msg]);
+      expect(notation).toContain('Event("go", {})');
+      const recompiled = new ExpressParser([catalog], 's1', version).compile(notation);
+      expect(recompiled).toEqual([msg]);
+    });
+
     it('escapes event names so they compile back unchanged', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const action = {event: {name: 'say "hi" \\ bye', context: {k: 1}}};

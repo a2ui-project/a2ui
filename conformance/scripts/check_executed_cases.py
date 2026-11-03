@@ -483,7 +483,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     print(
         f"OK ({args.harness}): verified {total_cases} cases across"
-        f" {len(corpus) - len(excluded & corpus.keys())} active suites."
+        f" {len(corpus) - len(excluded.keys() & corpus.keys())} active suites."
     )
     return 0
 
