@@ -446,10 +446,12 @@ struct MessageProcessorConformanceTests {
     let strictMode = testCase["strictMode"] as? Bool ?? false
     let validationConfig: ValidationConfig
     if let flags = testCase["validationConfig"] as? [String: Bool] {
-      validationConfig = try #require(
-        ConformanceTestHelper.validationConfig(from: flags),
-        "[\(name)] Unknown validationConfig flags \(flags.keys.sorted())"
-      )
+      guard let config = ConformanceTestHelper.validationConfig(from: flags) else {
+        throw UnknownConformanceKeyError(
+          "[\(name)] Unknown validationConfig flags \(flags.keys.sorted())"
+        )
+      }
+      validationConfig = config
     } else {
       validationConfig = strictMode ? .strict : .relaxed
     }
@@ -473,9 +475,11 @@ struct MessageProcessorConformanceTests {
     }
     let steps = explicitSteps ?? [testCase]
 
-    for step in steps {
+    for (index, step) in steps.enumerated() {
       try executeProcessMessagesStep(
         step,
+        testCase: testCase,
+        isFinalStep: index == steps.count - 1,
         processor: processor,
         handler: handler,
         expectedRuntimeError: expectedRuntimeError,
@@ -486,6 +490,8 @@ struct MessageProcessorConformanceTests {
 
   private func executeProcessMessagesStep(
     _ step: [String: Any],
+    testCase: [String: Any],
+    isFinalStep: Bool,
     processor: MessageProcessor,
     handler: ConformanceActionCaptureHandler,
     expectedRuntimeError: ExpectedRuntimeError?,
@@ -494,14 +500,17 @@ struct MessageProcessorConformanceTests {
     let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
     handler.capturedErrors.removeAll()
 
-    if let expectError = step["expectError"] as? [String: Any] {
+    let rawExpectError =
+      (step["expectError"] as? [String: Any])
+      ?? (isFinalStep ? (testCase["expectError"] as? [String: Any]) : nil)
+    if let expectError = rawExpectError {
       try ConformanceTestHelper.assertKnownKeys(
         expectError,
         Self.knownExpectErrorKeys,
         "message_processor expectError in '\(name)'",
         allowMetadata: false
       )
-      assertStepError(
+      try assertStepError(
         payload: payload,
         expectError: expectError,
         processor: processor,
@@ -518,7 +527,10 @@ struct MessageProcessorConformanceTests {
       name: name
     )
 
-    if let expectedDict = step["expect"] as? [String: Any] {
+    let rawExpect =
+      (step["expect"] as? [String: Any])
+      ?? (isFinalStep ? (testCase["expect"] as? [String: Any]) : nil)
+    if let expectedDict = rawExpect {
       try ConformanceTestHelper.assertKnownKeys(
         expectedDict,
         ["surfaces"],
@@ -526,10 +538,11 @@ struct MessageProcessorConformanceTests {
         allowMetadata: false
       )
     }
-    let expectedDict = (step["expect"] as? [String: Any]) ?? [:]
+    let expectedDict = rawExpect ?? [:]
     let expectedSurfaces =
       (expectedDict["surfaces"] as? [String: Any])
       ?? (step["expectedSurfaces"] as? [String: Any])
+      ?? (isFinalStep ? (testCase["expectedSurfaces"] as? [String: Any]) : nil)
     try verifyExpectedSurfaces(expectedSurfaces, on: processor, name: name)
   }
 
@@ -539,12 +552,12 @@ struct MessageProcessorConformanceTests {
     processor: MessageProcessor,
     handler: ConformanceActionCaptureHandler,
     name: String
-  ) {
+  ) throws {
     do {
       try processor.processMessages(payload)
       Issue.record("[\(name)] Expected error to be thrown for invalid message")
     } catch {
-      assertProcessErrorCategory(error: error, expectError: expectError, name: name)
+      try assertProcessErrorCategory(error: error, expectError: expectError, name: name)
       if let expectedMessage = expectError["message"] as? String, !expectedMessage.isEmpty {
         let description = (error as? (any A2UIError))?.message ?? error.localizedDescription
         #expect(
@@ -566,7 +579,7 @@ struct MessageProcessorConformanceTests {
     error: Error,
     expectError: [String: Any],
     name: String
-  ) {
+  ) throws {
     guard let category = expectError["category"] as? String else { return }
     switch category {
     case "RecursionError":
@@ -581,7 +594,7 @@ struct MessageProcessorConformanceTests {
     case "ValidationError":
       #expect(error is A2UIValidationError, "[\(name)] Expected ValidationError, got \(error)")
     default:
-      Issue.record("[\(name)] Unknown error category '\(category)'")
+      throw UnknownConformanceKeyError("[\(name)] Unknown error category '\(category)'")
     }
   }
 

@@ -895,6 +895,7 @@ async function validateRpcTestCase(testCase) {
     const surfaceErrors = [];
     procRef.current = new MessageProcessor([storeCat, v1_0BasicCatalog], undefined, {
       version: '1.0',
+      validationConfig: {allowUnknownElements: true},
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
@@ -1007,6 +1008,7 @@ async function validateRpcTestCase(testCase) {
     const surfaceErrors = [];
     procRef.current = new MessageProcessor([storeCat], undefined, {
       version: '1.0',
+      validationConfig: {allowUnknownElements: true},
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
@@ -1822,7 +1824,10 @@ function validateValidateTestCase(testCase) {
     const inputMessages =
       step.messages ||
       (Array.isArray(step.payload) ? step.payload : step.payload ? [step.payload] : []);
-    const expErrObj = step.expectError || (i === stepsToRun.length - 1 ? expectError : undefined);
+    const expErrObj =
+      step.expectError ||
+      step.expect_error ||
+      (i === stepsToRun.length - 1 ? expectError : undefined);
     const stepExpect = step.expect || (i === stepsToRun.length - 1 ? expect : undefined);
 
     if (inputMessages.length > 0) {
@@ -3523,7 +3528,8 @@ function validateProcessMessagesTestCase(testCase) {
   assertKnownKeys(testCase, PROCESS_MESSAGES_KNOWN_KEYS.case, 'process_messages');
   assertKnownKeysList(testCase.steps, PROCESS_MESSAGES_KNOWN_KEYS.step, 'process_messages.steps');
   assertKnownKeys(testCase.expect, PROCESS_MESSAGES_KNOWN_KEYS.expect, 'process_messages.expect');
-  const {messages, payload, steps, expect, expectError, protocolVersion} = testCase;
+  const {messages, payload, steps, expect, protocolVersion} = testCase;
+  const expectError = testCase.expectError || testCase.expect_error;
 
   const testCatalogs = getCatalogsForTestCase(testCase);
   let lastErrorMsg;
@@ -3573,7 +3579,7 @@ function validateProcessMessagesTestCase(testCase) {
       );
       const context = step.validationConfig ? {validationConfig: step.validationConfig} : undefined;
       const stepExpectError =
-        step.expectError || (i === steps.length - 1 ? expectError : undefined);
+        step.expectError || step.expect_error || (i === steps.length - 1 ? expectError : undefined);
       if (stepExpectError) {
         lastErrorMsg = undefined;
         let thrown;
