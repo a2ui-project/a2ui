@@ -593,6 +593,62 @@ describe('Catalog.fromJson & schema_loader', () => {
     assert.strictEqual(holder.safeParse({}).success, false);
   });
 
+  it('applies the default of an optional function argument that is missing', () => {
+    const catalog = Catalog.fromJson({
+      catalogId: 'https://example.com/fn_defaults_catalog.json',
+      protocolVersion: '1.0',
+      components: {},
+      functions: {
+        quote: {
+          type: 'object',
+          properties: {
+            '@call': {const: 'quote'},
+            args: {
+              type: 'object',
+              properties: {
+                symbol: {type: 'string'},
+                currency: {type: 'string', default: 'USD'},
+                options: {
+                  type: 'object',
+                  properties: {
+                    extendedHours: {type: 'boolean', default: false},
+                  },
+                  additionalProperties: false,
+                },
+                legs: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      side: {type: 'string', default: 'buy'},
+                    },
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ['symbol'],
+              additionalProperties: false,
+            },
+          },
+          required: ['@call', 'args'],
+        },
+      },
+    });
+    const schema = catalog.functions.get('quote')!.schema;
+
+    assert.deepStrictEqual(schema.parse({symbol: 'GOOG'}), {symbol: 'GOOG', currency: 'USD'});
+    assert.deepStrictEqual(
+      schema.parse({symbol: 'GOOG', currency: 'EUR', options: {}, legs: [{}]}),
+      {
+        symbol: 'GOOG',
+        currency: 'EUR',
+        options: {extendedHours: false},
+        legs: [{side: 'buy'}],
+      },
+    );
+    assert.strictEqual(schema.safeParse({currency: 'EUR'}).success, false);
+  });
+
   it('applies passthrough on function argument schemas when unevaluatedProperties is true or a schema object', () => {
     const catalogJson = {
       catalogId: 'https://example.com/fn_uneval_props_catalog.json',
