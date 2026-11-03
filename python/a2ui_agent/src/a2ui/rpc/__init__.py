@@ -12,29 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Function calls between the agent and the renderer (A2UI v1.0).
+"""Processes the messages that a renderer sends to the agent (A2UI v1.0).
 
-`AgentFunctionRegistry` answers the renderer's `callAgentFunction` messages
-by running the catalogs' agent functions. `RendererFunctionCalls` sends
-`callRendererFunction` messages and matches up the renderer's responses.
-`RendererMessageRouter` is one entry point for both kinds of incoming
-message.
+`RendererToAgentMessageProcessor` answers the renderer's `callAgentFunction`
+messages by running the catalogs' agent functions, and passes `action`,
+`error` and `rendererFunctionResponse` messages to optional callbacks.
 """
 
-from .agent_function_registry import AgentFunctionRegistry, CallAgentFunctionInput
-from .renderer_function_calls import (
-    DEFAULT_RENDERER_CALL_TIMEOUT,
-    RendererFunctionCalls,
-    RendererFunctionResponseInput,
+from .processor import (
+    ActionCallback,
+    ErrorCallback,
+    ProcessResult,
+    RendererFunctionResponseCallback,
+    RendererToAgentMessageInput,
+    RendererToAgentMessageProcessor,
 )
-from .router import RendererMessageInput, RendererMessageRouter
 
 __all__ = [
-    "AgentFunctionRegistry",
-    "CallAgentFunctionInput",
-    "DEFAULT_RENDERER_CALL_TIMEOUT",
-    "RendererFunctionCalls",
-    "RendererFunctionResponseInput",
-    "RendererMessageInput",
-    "RendererMessageRouter",
+    "ActionCallback",
+    "ErrorCallback",
+    "ProcessResult",
+    "RendererFunctionResponseCallback",
+    "RendererToAgentMessageInput",
+    "RendererToAgentMessageProcessor",
 ]

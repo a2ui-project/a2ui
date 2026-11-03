@@ -19,7 +19,8 @@ renderer's copy doesn't. The agent validates the model's output, and the same
 messages then go into an `a2ui_core` `MessageProcessor` under the default
 config, under strict validation, and under strict validation with a
 schema-only declaration of the function. Where the renderer accepts them, its
-`callAgentFunction` goes back through the agent's router and the response
+`callAgentFunction` goes back through the agent's
+`RendererToAgentMessageProcessor` and the response
 reaches the bound value.
 """
 
@@ -35,23 +36,21 @@ import pytest
 from a2ui.core import (
     STRICT_VALIDATION,
     A2uiValidationError,
+    AgentFunction,
+    AgentFunctionContext,
+    Catalog,
+    CatalogApi,
     DataContext,
     MessageProcessor,
     MessageProcessorOptions,
     ValidationConfig,
 )
 from a2ui.core.basic_catalog.v1_0 import BasicCatalog
-from a2ui.core.catalog import (
-    AgentFunction,
-    AgentFunctionContext,
-    Catalog,
-    CatalogApi,
-    FunctionApi,
-)
+from a2ui.core.catalog import FunctionApi
 from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.parser import A2uiPart
 from a2ui.processor import A2uiRequestProcessor
-from a2ui.rpc import AgentFunctionRegistry, RendererMessageRouter
+from a2ui.rpc import RendererToAgentMessageProcessor
 from a2ui.utils import validate_payload
 
 FX_RATE_SCHEMA: dict[str, Any] = {
@@ -207,14 +206,13 @@ async def _round_trip(renderer: _Renderer, text: Any) -> dict[str, Any]:
     """Answers the renderer's call on the agent and returns the call sent."""
     assert len(renderer.outbound) == 1
     call = renderer.outbound[0]
-    router = RendererMessageRouter(
-        agent_functions=AgentFunctionRegistry([_agent_catalog()])
+    result = await RendererToAgentMessageProcessor([_agent_catalog()]).process_message(
+        call
     )
-    assert router.handles(call)
-    replies = await router.dispatch(call)
-    renderer.processor.process_messages(
-        [reply.model_dump(by_alias=True, exclude_unset=True) for reply in replies]
-    )
+    assert result.handled
+    renderer.processor.process_messages([
+        reply.model_dump(by_alias=True, exclude_unset=True) for reply in result.replies
+    ])
     await _flush()
     assert text.peek() == "1 EUR = 1.08 USD"
     assert renderer.errors == []

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for AgentFunctionRegistry, which answers `callAgentFunction`."""
+"""Tests for how RendererToAgentMessageProcessor answers `callAgentFunction`."""
 
 from __future__ import annotations
 
@@ -23,20 +23,22 @@ from typing import Any
 
 import pytest
 
-from a2ui.core import A2uiRpcError, A2uiValidationError
-from a2ui.core.catalog import (
+from a2ui.core import (
+    A2uiRpcError,
+    A2uiValidationError,
     AgentFunction,
     AgentFunctionContext,
     AgentFunctionHandler,
     Catalog,
-    FunctionApi,
 )
+from a2ui.core.catalog import FunctionApi
 from a2ui.core.schema.v1_0 import (
+    AgentFunctionResponseMessage,
     CallAgentFunction,
     CallAgentFunctionMessage,
     FunctionCall,
 )
-from a2ui.rpc import AgentFunctionRegistry
+from a2ui.rpc import RendererToAgentMessageProcessor
 
 FIN = "https://example.com/fin/v1/catalog.json"
 TRAVEL = "https://example.com/travel/v1/catalog.json"
@@ -62,10 +64,24 @@ def _fx(handler: AgentFunctionHandler, **kwargs: Any) -> AgentFunction:
     )
 
 
-def _registry(*functions: AgentFunction, **kwargs: Any) -> AgentFunctionRegistry:
-    return AgentFunctionRegistry(
-        [Catalog(FIN, "1.0", agent_functions=list(functions))], **kwargs
+def _processor(
+    *functions: AgentFunction, **kwargs: Any
+) -> RendererToAgentMessageProcessor:
+    return RendererToAgentMessageProcessor(
+        [Catalog(FIN, "1.0", functions=list(functions))], **kwargs
     )
+
+
+async def _handle(
+    processor: RendererToAgentMessageProcessor, message: Any
+) -> AgentFunctionResponseMessage:
+    """Processes a call, which always gets exactly one reply."""
+    result = await processor.process_message(message)
+    assert result.handled
+    assert len(result.replies) == 1
+    reply = result.replies[0]
+    assert isinstance(reply, AgentFunctionResponseMessage)
+    return reply
 
 
 def _call(
@@ -106,15 +122,15 @@ class TestAnswers:
 
     @pytest.mark.asyncio
     async def test_returns_the_handler_value_and_copies_the_call_id(self) -> None:
-        registry = _registry(_fx(_constant(1.08)))
+        processor = _processor(_fx(_constant(1.08)))
 
-        response = await registry.handle(_call(call_id="Weird id/ü 42"))
+        response = await _handle(processor, _call(call_id="Weird id/ü 42"))
 
         assert _response(response) == {"functionCallId": "Weird id/ü 42", "value": 1.08}
 
     @pytest.mark.asyncio
     async def test_accepts_the_schema_model(self) -> None:
-        registry = _registry(_fx(_constant(1.08)))
+        processor = _processor(_fx(_constant(1.08)))
         message = CallAgentFunctionMessage(
             version="1.0",
             callAgentFunction=CallAgentFunction(
@@ -128,15 +144,15 @@ class TestAnswers:
             ),
         )
 
-        response = await registry.handle(message)
+        response = await _handle(processor, message)
 
         assert _response(response) == {"functionCallId": "fx-1", "value": 1.08}
 
     @pytest.mark.asyncio
     async def test_keeps_a_none_value_in_the_response(self) -> None:
-        registry = _registry(_fx(_constant(None)))
+        processor = _processor(_fx(_constant(None)))
 
-        response = await registry.handle(_call())
+        response = await _handle(processor, _call())
 
         assert _response(response) == {"functionCallId": "fx-1", "value": None}
 
@@ -148,9 +164,9 @@ class TestAnswers:
             seen.append((args, context))
             return 1.08
 
-        registry = _registry(_fx(handler))
+        processor = _processor(_fx(handler))
 
-        await registry.handle(_call(surface_id="checkout", call_id="fx-9"))
+        await _handle(processor, _call(surface_id="checkout", call_id="fx-9"))
 
         assert seen == [(
             {"base": "EUR", "target": "USD"},
@@ -169,50 +185,65 @@ class TestAnswers:
             seen.append(context.catalog_id)
             return 1.08
 
-        registry = AgentFunctionRegistry([
-            Catalog(FIN, "1.0", agent_functions=[_fx(handler)]),
+        processor = RendererToAgentMessageProcessor([
+            Catalog(FIN, "1.0", functions=[_fx(handler)]),
             Catalog(TRAVEL, "1.0"),
         ])
 
-        response = await registry.handle(_call(catalog_id=None))
+        response = await _handle(processor, _call(catalog_id=None))
 
         assert _response(response)["value"] == 1.08
         assert seen == [FIN]
 
     @pytest.mark.asyncio
     async def test_routes_by_catalog_id(self) -> None:
-        registry = AgentFunctionRegistry([
-            Catalog(FIN, "1.0", agent_functions=[_fx(_constant("fin"))]),
-            Catalog(TRAVEL, "1.0", agent_functions=[_fx(_constant("travel"))]),
+        processor = RendererToAgentMessageProcessor([
+            Catalog(FIN, "1.0", functions=[_fx(_constant("fin"))]),
+            Catalog(TRAVEL, "1.0", functions=[_fx(_constant("travel"))]),
         ])
 
-        fin = await registry.handle(_call(catalog_id=FIN))
-        travel = await registry.handle(_call(catalog_id=TRAVEL))
+        fin = await _handle(processor, _call(catalog_id=FIN))
+        travel = await _handle(processor, _call(catalog_id=TRAVEL))
 
         assert _response(fin)["value"] == "fin"
         assert _response(travel)["value"] == "travel"
 
-    def test_indexes_agent_functions_by_catalog_and_name(self) -> None:
-        fx = _fx(_constant(1.08))
+    @pytest.mark.asyncio
+    async def test_only_agent_functions_of_the_catalogs_answer(self) -> None:
         catalog = Catalog(
-            FIN, "1.0", functions=[FunctionApi("formatMoney")], agent_functions=[fx]
+            FIN, "1.0", functions=[FunctionApi("formatMoney"), _fx(_constant(1.08))]
         )
+        processor = RendererToAgentMessageProcessor([catalog])
 
-        registry = AgentFunctionRegistry([catalog])
+        fx = await _handle(processor, _call())
+        money = await _handle(processor, _call("formatMoney", {}))
 
-        assert registry.functions == {(FIN, "fetchFxRate"): fx}
-        assert registry.get(FIN, "fetchFxRate") is fx
-        assert registry.get(FIN, "formatMoney") is None
-        assert registry.get(TRAVEL, "fetchFxRate") is None
+        assert _response(fx)["value"] == 1.08
+        assert _response(money)["error"]["code"] == "UNKNOWN_FUNCTION"
+
+    @pytest.mark.asyncio
+    async def test_passes_only_the_args_to_a_one_parameter_handler(self) -> None:
+        seen: list[dict[str, Any]] = []
+
+        def handler(args: dict[str, Any]) -> float:
+            seen.append(args)
+            return 1.08
+
+        processor = _processor(_fx(handler))
+
+        response = await _handle(processor, _call())
+
+        assert _response(response)["value"] == 1.08
+        assert seen == [{"base": "EUR", "target": "USD"}]
 
 
 class TestErrors:
 
     @pytest.mark.asyncio
     async def test_unknown_function_name(self) -> None:
-        registry = _registry(_fx(_constant(1.08)))
+        processor = _processor(_fx(_constant(1.08)))
 
-        response = await registry.handle(_call("fetchWeather", call_id="w-1"))
+        response = await _handle(processor, _call("fetchWeather", call_id="w-1"))
 
         body = _response(response)
         assert body["functionCallId"] == "w-1"
@@ -221,27 +252,27 @@ class TestErrors:
 
     @pytest.mark.asyncio
     async def test_unknown_catalog(self) -> None:
-        registry = _registry(_fx(_constant(1.08)))
+        processor = _processor(_fx(_constant(1.08)))
 
-        response = await registry.handle(_call(catalog_id=TRAVEL))
+        response = await _handle(processor, _call(catalog_id=TRAVEL))
 
         assert _response(response)["error"]["code"] == "UNKNOWN_FUNCTION"
 
     @pytest.mark.asyncio
     async def test_declared_function_that_is_not_an_agent_function(self) -> None:
-        registry = AgentFunctionRegistry(
+        processor = RendererToAgentMessageProcessor(
             [Catalog(FIN, "1.0", functions=[FunctionApi("formatMoney")])]
         )
 
-        response = await registry.handle(_call("formatMoney", {}))
+        response = await _handle(processor, _call("formatMoney", {}))
 
         assert _response(response)["error"]["code"] == "UNKNOWN_FUNCTION"
 
     @pytest.mark.asyncio
     async def test_no_catalog_id_and_no_catalog_has_the_function(self) -> None:
-        registry = _registry(_fx(_constant(1.08)))
+        processor = _processor(_fx(_constant(1.08)))
 
-        response = await registry.handle(_call("fetchWeather", catalog_id=None))
+        response = await _handle(processor, _call("fetchWeather", catalog_id=None))
 
         assert _response(response)["error"]["code"] == "UNKNOWN_FUNCTION"
 
@@ -249,12 +280,12 @@ class TestErrors:
     async def test_no_catalog_id_and_several_catalogs_have_the_function(
         self,
     ) -> None:
-        registry = AgentFunctionRegistry([
-            Catalog(FIN, "1.0", agent_functions=[_fx(_constant(1))]),
-            Catalog(TRAVEL, "1.0", agent_functions=[_fx(_constant(2))]),
+        processor = RendererToAgentMessageProcessor([
+            Catalog(FIN, "1.0", functions=[_fx(_constant(1))]),
+            Catalog(TRAVEL, "1.0", functions=[_fx(_constant(2))]),
         ])
 
-        response = await registry.handle(_call(catalog_id=None))
+        response = await _handle(processor, _call(catalog_id=None))
 
         body = _response(response)
         assert body["error"]["code"] == "INVALID_FUNCTION_CALL"
@@ -271,9 +302,9 @@ class TestErrors:
     )
     async def test_invalid_args(self, args: dict[str, Any], detail: str) -> None:
         calls: list[Any] = []
-        registry = _registry(_fx(lambda a, c: calls.append(a)))
+        processor = _processor(_fx(lambda a, c: calls.append(a)))
 
-        response = await registry.handle(_call(args=args))
+        response = await _handle(processor, _call(args=args))
 
         body = _response(response)
         assert body["error"]["code"] == "INVALID_FUNCTION_CALL"
@@ -284,9 +315,13 @@ class TestErrors:
     async def test_agent_only_function_cannot_be_called_by_the_renderer(
         self,
     ) -> None:
-        registry = _registry(_fx(_constant(1.08), allowed_callers="agentOnly"))
+        # AgentFunction can't be built agentOnly; the guard still covers a
+        # function whose allowed_callers was changed afterwards.
+        fx = _fx(_constant(1.08))
+        fx.allowed_callers = "agentOnly"
+        processor = _processor(fx)
 
-        response = await registry.handle(_call())
+        response = await _handle(processor, _call())
 
         body = _response(response)
         assert body["error"]["code"] == "INVALID_FUNCTION_CALL"
@@ -299,10 +334,10 @@ class TestErrors:
         def handler(args: dict[str, Any], context: AgentFunctionContext) -> Any:
             raise LookupError("no rate for EUR")
 
-        registry = _registry(_fx(handler))
+        processor = _processor(_fx(handler))
 
         with caplog.at_level(logging.ERROR):
-            response = await registry.handle(_call())
+            response = await _handle(processor, _call())
 
         assert _response(response)["error"] == {
             "code": "EXECUTION_ERROR",
@@ -318,9 +353,9 @@ class TestErrors:
         async def handler(args: dict[str, Any], context: AgentFunctionContext) -> Any:
             raise A2uiRpcError("Provider PRV-102 not found.", code="PROVIDER_NOT_FOUND")
 
-        registry = _registry(_fx(handler))
+        processor = _processor(_fx(handler))
 
-        response = await registry.handle(_call())
+        response = await _handle(processor, _call())
 
         assert _response(response)["error"] == {
             "code": "PROVIDER_NOT_FOUND",
@@ -329,11 +364,11 @@ class TestErrors:
 
     @pytest.mark.asyncio
     async def test_malformed_message_with_a_call_id(self) -> None:
-        registry = _registry(_fx(_constant(1.08)))
+        processor = _processor(_fx(_constant(1.08)))
         message = _call()
         del message["callAgentFunction"]["surfaceId"]
 
-        response = await registry.handle(message)
+        response = await _handle(processor, message)
 
         body = _response(response)
         assert body["functionCallId"] == "fx-1"
@@ -341,12 +376,40 @@ class TestErrors:
 
     @pytest.mark.asyncio
     async def test_malformed_message_without_a_call_id_raises(self) -> None:
-        registry = _registry(_fx(_constant(1.08)))
+        processor = _processor(_fx(_constant(1.08)))
         message = _call()
         del message["callAgentFunction"]["functionCallId"]
 
         with pytest.raises(A2uiValidationError, match="functionCallId"):
-            await registry.handle(message)
+            await _handle(processor, message)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("as_model", [False, True])
+    async def test_empty_call_id_raises_without_running_the_handler(
+        self, as_model: bool
+    ) -> None:
+        calls: list[Any] = []
+        processor = _processor(_fx(lambda a, c: calls.append(a)))
+        message: Any = _call(call_id="")
+        if as_model:
+            message = CallAgentFunctionMessage.model_validate(message)
+
+        with pytest.raises(A2uiValidationError, match="empty functionCallId"):
+            await processor.process_message(message)
+        assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_empty_surface_id_is_an_invalid_call(self) -> None:
+        calls: list[Any] = []
+        processor = _processor(_fx(lambda a, c: calls.append(a)))
+
+        response = await _handle(processor, _call(surface_id=""))
+
+        body = _response(response)
+        assert body["functionCallId"] == "fx-1"
+        assert body["error"]["code"] == "INVALID_FUNCTION_CALL"
+        assert "surfaceId" in body["error"]["message"]
+        assert calls == []
 
 
 class TestExecution:
@@ -359,9 +422,9 @@ class TestExecution:
             threads.append(threading.get_ident())
             return 1
 
-        registry = _registry(_fx(handler))
+        processor = _processor(_fx(handler))
 
-        await registry.handle(_call())
+        await _handle(processor, _call())
 
         assert threads == [threading.get_ident()]
 
@@ -373,9 +436,9 @@ class TestExecution:
             threads.append(threading.get_ident())
             return 1
 
-        registry = _registry(_fx(handler))
+        processor = _processor(_fx(handler))
 
-        await registry.handle(_call())
+        await _handle(processor, _call())
 
         assert len(threads) == 1
         assert threads[0] != threading.get_ident()
@@ -385,9 +448,9 @@ class TestExecution:
         async def rate() -> float:
             return 1.08
 
-        registry = _registry(_fx(lambda args, context: rate()))
+        processor = _processor(_fx(lambda args, context: rate()))
 
-        response = await registry.handle(_call())
+        response = await _handle(processor, _call())
 
         assert _response(response)["value"] == 1.08
 
@@ -400,9 +463,9 @@ class TestExecution:
             ) -> str:
                 return threading.current_thread().name
 
-        registry = _registry(_fx(Handler()))
+        processor = _processor(_fx(Handler()))
 
-        response = await registry.handle(_call())
+        response = await _handle(processor, _call())
 
         assert _response(response)["value"] == threading.current_thread().name
 
@@ -419,51 +482,21 @@ class TestExecution:
             await both_started.wait()
             return context.function_call_id
 
-        registry = _registry(_fx(handler))
+        processor = _processor(_fx(handler))
 
         responses = await asyncio.wait_for(
             asyncio.gather(
-                registry.handle(_call(call_id="a")), registry.handle(_call(call_id="b"))
+                _handle(processor, _call(call_id="a")),
+                _handle(processor, _call(call_id="b")),
             ),
             timeout=5,
         )
 
         assert [_response(r)["value"] for r in responses] == ["a", "b"]
 
-    @pytest.mark.asyncio
-    async def test_max_concurrency_limits_running_handlers(self) -> None:
-        release = asyncio.Event()
-        running = 0
-        most_running = 0
-
-        async def handler(args: dict[str, Any], context: AgentFunctionContext) -> str:
-            nonlocal running, most_running
-            running += 1
-            most_running = max(most_running, running)
-            await release.wait()
-            running -= 1
-            return context.function_call_id
-
-        registry = _registry(_fx(handler), max_concurrency=2)
-        tasks = [
-            asyncio.ensure_future(registry.handle(_call(call_id=str(i))))
-            for i in range(5)
-        ]
-        for _ in range(5):
-            await asyncio.sleep(0)
-        assert running == 2
-
-        release.set()
-        responses = await asyncio.wait_for(asyncio.gather(*tasks), timeout=5)
-
-        assert most_running == 2
-        assert [_response(r)["value"] for r in responses] == ["0", "1", "2", "3", "4"]
-
-    def test_rejects_bad_limits(self) -> None:
-        with pytest.raises(ValueError, match="max_concurrency"):
-            _registry(max_concurrency=0)
+    def test_rejects_a_timeout_that_is_not_positive(self) -> None:
         with pytest.raises(ValueError, match="timeout"):
-            _registry(timeout=0)
+            _processor(agent_function_timeout=0)
 
 
 class TestTimeoutsAndCancellation:
@@ -487,9 +520,9 @@ class TestTimeoutsAndCancellation:
         self,
     ) -> None:
         handler, state = self._hanging()
-        registry = _registry(_fx(handler), timeout=0.01)
+        processor = _processor(_fx(handler), agent_function_timeout=0.01)
 
-        response = await asyncio.wait_for(registry.handle(_call()), timeout=5)
+        response = await asyncio.wait_for(_handle(processor, _call()), timeout=5)
 
         body = _response(response)
         assert body["error"]["code"] == "EXECUTION_ERROR"
@@ -497,24 +530,12 @@ class TestTimeoutsAndCancellation:
         assert state["cancelled"]
 
     @pytest.mark.asyncio
-    async def test_per_call_timeout_overrides_the_registry_timeout(self) -> None:
-        handler, state = self._hanging()
-        registry = _registry(_fx(handler), timeout=60)
-
-        response = await asyncio.wait_for(
-            registry.handle(_call(), timeout=0.01), timeout=5
-        )
-
-        assert _response(response)["error"]["code"] == "EXECUTION_ERROR"
-        assert state["cancelled"]
-
-    @pytest.mark.asyncio
     async def test_cancelling_the_caller_cancels_the_handler_without_reply(
         self,
     ) -> None:
         handler, state = self._hanging()
-        registry = _registry(_fx(handler))
-        task = asyncio.ensure_future(registry.handle(_call()))
+        processor = _processor(_fx(handler))
+        task = asyncio.ensure_future(processor.process_message(_call()))
         while not state["started"]:
             await asyncio.sleep(0)
 
@@ -523,64 +544,3 @@ class TestTimeoutsAndCancellation:
         with pytest.raises(asyncio.CancelledError):
             await task
         assert state["cancelled"]
-
-    @pytest.mark.asyncio
-    async def test_dispose_cancels_running_handlers(self) -> None:
-        handler, state = self._hanging()
-        registry = _registry(_fx(handler))
-        task = asyncio.ensure_future(registry.handle(_call()))
-        while not state["started"]:
-            await asyncio.sleep(0)
-
-        registry.dispose()
-
-        with pytest.raises(A2uiRpcError) as excinfo:
-            await asyncio.wait_for(task, timeout=5)
-        assert excinfo.value.code == "DISPOSED"
-        assert excinfo.value.function_call_id == "fx-1"
-        assert state["cancelled"]
-        assert registry.disposed
-
-    @pytest.mark.asyncio
-    async def test_disposed_registry_refuses_calls(self) -> None:
-        registry = _registry(_fx(_constant(1.08)))
-        registry.dispose()
-        registry.dispose()
-
-        with pytest.raises(A2uiRpcError) as excinfo:
-            await registry.handle(_call())
-        assert excinfo.value.code == "DISPOSED"
-
-    @pytest.mark.asyncio
-    async def test_timeout_and_dispose_while_queued_on_semaphore(self) -> None:
-        release = asyncio.Event()
-        invoked: list[str] = []
-
-        async def handler(args: dict[str, Any], context: AgentFunctionContext) -> str:
-            invoked.append(context.function_call_id)
-            await release.wait()
-            return context.function_call_id
-
-        registry = _registry(_fx(handler), max_concurrency=1)
-        active = asyncio.ensure_future(registry.handle(_call(call_id="c-active")))
-        while not invoked:
-            await asyncio.sleep(0)
-
-        queued_timeout = await asyncio.wait_for(
-            registry.handle(_call(call_id="c-queued-timeout"), timeout=0.01),
-            timeout=5,
-        )
-        assert _response(queued_timeout)["error"]["code"] == "EXECUTION_ERROR"
-        assert invoked == ["c-active"]
-
-        queued_dispose = asyncio.ensure_future(
-            registry.handle(_call(call_id="c-queued-dispose"))
-        )
-        await asyncio.sleep(0)
-        registry.dispose()
-
-        for task in (active, queued_dispose):
-            with pytest.raises(A2uiRpcError) as excinfo:
-                await asyncio.wait_for(task, timeout=5)
-            assert excinfo.value.code == "DISPOSED"
-        assert invoked == ["c-active"]

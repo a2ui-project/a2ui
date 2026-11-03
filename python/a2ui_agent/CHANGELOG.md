@@ -20,20 +20,6 @@
   `value=DataBinding(path="/form/email")`. The path does not have to exist yet
   ([#3830](https://github.com/a2ui-project/a2ui/issues/3830),
   [#3868](https://github.com/a2ui-project/a2ui/pull/3868)).
-- Add `a2ui.rpc` for v1.0 function calls between the agent and the renderer.
-  `AgentFunctionRegistry` answers `callAgentFunction` by running the handlers
-  of the catalogs' agent functions (`Catalog(agent_functions=...)` in
-  `a2ui-core`): it validates the arguments against the function's schema and
-  replies `UNKNOWN_FUNCTION`, `INVALID_FUNCTION_CALL` or `EXECUTION_ERROR`
-  when the call can't be answered. Sync handlers run on a worker thread, and
-  `max_concurrency`, `timeout` and `dispose()` bound the work.
-  `RendererFunctionCalls` sends `callRendererFunction` and settles each call's
-  future from the `rendererFunctionResponse`, with timeouts (30 seconds by
-  default), `max_pending` and `dispose()`. `RendererMessageRouter` passes each
-  renderer RPC message to the right one. `agent_development.md` describes them
-  and what strict renderers need.
-  [#3536](https://github.com/a2ui-project/a2ui/issues/3536),
-  [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
 - Add incremental streaming support for the Express inference format via `ExpressResponseStream` (`ExpressFormat.supports_streaming` and `ExpressParser.supports_streaming` now return `True`). `ExpressFormatFactory`, `ExpressFormat`, and `ExpressParser` accept `progressive_keys` (defaulting to `DEFAULT_EXPRESS_PROGRESSIVE_KEYS = frozenset({"text"})`) to heal unclosed string literals in matching component properties and data path assignments as chunks arrive, while gating initial `createSurface` emission on `root = ...` for new surfaces, emitting delta `updateComponents` and per-path `updateDataModel` messages on subsequent chunks, and holding statements with unresolved value variables until defined ([#2896](https://github.com/a2ui-project/a2ui/issues/2896)).
 - **BREAKING CHANGE**: Use `'1.0'` (without a `'v'` prefix) as the `version`
   field on v1.0 protocol messages and capabilities in inference format
@@ -302,6 +288,21 @@
   that declare none, and a function call given to a property with a static
   type. Elemental output whose top-level element has no `id="root"` is
   rejected, as its prompt requires.
+- Add `a2ui.rpc` with `RendererToAgentMessageProcessor`, which processes the
+  v1.0 messages a renderer sends to the agent. `process_message` and
+  `process_messages` return a `ProcessResult` (`handled`, `replies`). A
+  `callAgentFunction` is always handled: the processor runs the handler of the
+  catalogs' agent function (`Catalog.copy_with(agent_functions=...)` in
+  `a2ui-core`), validates the arguments against the function's schema, and
+  replies with one `agentFunctionResponse`, carrying the value or
+  `UNKNOWN_FUNCTION`, `INVALID_FUNCTION_CALL` or `EXECUTION_ERROR`. Sync
+  handlers run on a worker thread, and `agent_function_timeout` bounds a call.
+  `action`, `error` and `rendererFunctionResponse` go to the `on_action`,
+  `on_error` and `on_renderer_function_response` callbacks; without one, the
+  message is left unhandled for the agent's turn. `agent_development.md`
+  describes it and what strict renderers need
+  ([#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3793](https://github.com/a2ui-project/a2ui/pull/3793)).
 - The Express response parser treats only `"` as a string delimiter, as
   Express does, so an apostrophe in a comment (`/* Chef's pick */`) no longer
   swallows the closing `</a2ui>` tag
