@@ -37,6 +37,7 @@ import {A2uiErrorPayload, SurfaceModel} from '../../src/state/surface-model.js';
 type Component = Record<string, unknown> & {id: string; component: string};
 interface Fixture {
   catalog: string;
+  surface?: boolean;
   data: Record<string, unknown>;
   components: Component[];
 }
@@ -54,6 +55,7 @@ interface NodeExpectation {
 interface Expectation {
   nodes: Record<string, NodeExpectation>;
   emissions?: Record<string, number>;
+  created_emissions?: Record<string, number>;
   metadata_emissions?: Record<string, number>;
   same_nodes?: string[];
   replaced_nodes?: string[];
@@ -91,8 +93,9 @@ const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 
 const KNOWN_KEYS = {
   case: new Set(['action', 'description', 'expect', 'features', 'fixture', 'name', 'steps']),
-  fixture: new Set(['catalog', 'components', 'data']),
+  fixture: new Set(['catalog', 'components', 'data', 'surface']),
   expect: new Set([
+    'created_emissions',
     'data',
     'destroyed',
     'emissions',
@@ -334,24 +337,26 @@ function checkExpectedErrors(
 async function executeNodeResolutionStep(
   step: ConformanceCase['steps'][number],
   before: Map<string, ComponentNode>,
-  surface: SurfaceModel,
+  ctx: ResolutionContext,
   catalog: Catalog<ComponentApi>,
   processor: MessageProcessor,
-  resolver: NodeResolver,
   reason: string,
 ): Promise<void> {
   switch (step.op) {
     case 'set_data':
       assertKnownKeys(step, KNOWN_KEYS.step.set_data, reason);
-      surface.dataModel.set(step.path, step.value);
+      assert.ok(ctx.surface, `${reason}: no surface`);
+      ctx.surface.dataModel.set(step.path, step.value);
       break;
     case 'update_components':
       assertKnownKeys(step, KNOWN_KEYS.step.update_components, reason);
-      updateComponents(surface, catalog, step.components);
+      assert.ok(ctx.surface, `${reason}: no surface`);
+      updateComponents(ctx.surface, catalog, step.components);
       break;
     case 'remove_component':
       assertKnownKeys(step, KNOWN_KEYS.step.remove_component, reason);
-      surface.componentsModel.removeComponent(step.component_id);
+      assert.ok(ctx.surface, `${reason}: no surface`);
+      ctx.surface.componentsModel.removeComponent(step.component_id);
       break;
     case 'write': {
       assertKnownKeys(step, KNOWN_KEYS.step.write, reason);
@@ -378,7 +383,8 @@ async function executeNodeResolutionStep(
       break;
     case 'dispose':
       assertKnownKeys(step, KNOWN_KEYS.step.dispose, reason);
-      resolver.dispose();
+      assert.ok(ctx.resolver, `${reason}: no resolver`);
+      ctx.resolver.dispose();
       break;
     default:
       assert.fail(`Unknown node operation: ${(step as {op: string}).op}`);
@@ -386,15 +392,20 @@ async function executeNodeResolutionStep(
 }
 
 interface ResolutionContext {
-  resolver: NodeResolver;
-  surface: SurfaceModel;
+  resolver?: NodeResolver;
+  surface?: SurfaceModel;
   watches: Map<ComponentNode, Watch>;
+  createdEmissions: Map<ComponentNode, number>;
   events: unknown[];
   functions: unknown[];
   errors: A2uiErrorPayload[];
 }
 
-function watchNodes(nodes: Map<string, ComponentNode>, watches: Map<ComponentNode, Watch>): void {
+function watchNodes(
+  nodes: Map<string, ComponentNode>,
+  watches: Map<ComponentNode, Watch>,
+  onPropsUpdated?: () => void,
+): void {
   for (const [path, node] of nodes) {
     const existing = watches.get(node);
     if (existing) {
@@ -412,6 +423,7 @@ function watchNodes(nodes: Map<string, ComponentNode>, watches: Map<ComponentNod
       const props = getValue(node.props);
       watch.emissions++;
       watch.lastProps = normalize(props, watch.path);
+      onPropsUpdated?.();
     });
     const stopMetadata = effect(() => {
       getValue(node.metadata);
@@ -429,6 +441,28 @@ function watchNodes(nodes: Map<string, ComponentNode>, watches: Map<ComponentNod
   }
 }
 
+function watchCreatedNodes(
+  resolver: NodeResolver,
+  createdEmissions: Map<ComponentNode, number>,
+  createdStops: Array<() => void>,
+): void {
+  for (const node of mountedNodes(resolver).values()) {
+    if (createdEmissions.has(node)) continue;
+    createdEmissions.set(node, 0);
+    let initial = true;
+    const stop = effect(() => {
+      getValue(node.props);
+      if (initial) {
+        initial = false;
+      } else {
+        createdEmissions.set(node, (createdEmissions.get(node) ?? 0) + 1);
+      }
+      watchCreatedNodes(resolver, createdEmissions, createdStops);
+    });
+    createdStops.push(stop);
+  }
+}
+
 function checkExpectation(
   expected: Expectation,
   before: Map<string, ComponentNode>,
@@ -438,8 +472,9 @@ function checkExpectation(
   assertKnownKeys(expected, KNOWN_KEYS.expect, `${reason}.expect`);
   assertKnownKeysList(expected.events, KNOWN_KEYS.event, `${reason}.expect.events`);
   assertKnownKeysList(expected.functions, KNOWN_KEYS.function, `${reason}.expect.functions`);
-  const after = mountedNodes(ctx.resolver);
+  const after = ctx.resolver ? mountedNodes(ctx.resolver) : new Map<string, ComponentNode>();
   checkNodes(after, expected, reason, ctx.surface);
+  const beforeNodes = new Set(before.values());
   const surviving = new Set(after.values());
   const emissions: Record<string, number> = {};
   const metadataEmissions: Record<string, number> = {};
@@ -465,6 +500,15 @@ function checkExpectation(
     }
   }
   assert.deepEqual(emissions, expected.emissions ?? {}, `${reason}: emissions`);
+  if (expected.created_emissions !== undefined) {
+    const createdEmissions: Record<string, number> = {};
+    for (const [path, node] of after) {
+      if (!beforeNodes.has(node)) {
+        createdEmissions[path] = ctx.createdEmissions.get(node) ?? 0;
+      }
+    }
+    assert.deepEqual(createdEmissions, expected.created_emissions, `${reason}: created_emissions`);
+  }
   if (expected.metadata_emissions !== undefined) {
     assert.deepEqual(
       metadataEmissions,
@@ -488,6 +532,7 @@ function checkExpectation(
     );
   }
   for (const [path, value] of Object.entries(expected.data ?? {})) {
+    assert.ok(ctx.surface, `${reason}: no surface for data ${path}`);
     assert.deepEqual(
       normalize(ctx.surface.dataModel.get(path), path),
       value,
@@ -530,44 +575,75 @@ export async function runNodeResolutionCase(
       }),
     ),
   );
-  const surface = new SurfaceModel('s', catalog);
   const processor = new MessageProcessor([catalog]);
-  processor.model.addSurface(surface);
-  surface.dataModel.set('/', fixture.data);
-  updateComponents(surface, catalog, fixture.components);
-  const resolver = new NodeResolver(surface, catalog);
   const watches = new Map<ComponentNode, Watch>();
-  const ctx: ResolutionContext = {resolver, surface, watches, events, functions, errors};
-  const stopActions = surface.onAction.subscribe(action => {
-    events.push({
-      name: action.name,
-      source_component_id: action.sourceComponentId,
-      context: normalize(action.context, ''),
-      ...(action.metadata !== undefined ? {metadata: action.metadata} : {}),
+  const createdEmissions = new Map<ComponentNode, number>();
+  const createdStops: Array<() => void> = [];
+  const ctx: ResolutionContext = {watches, createdEmissions, events, functions, errors};
+  const cleanups: Array<() => void> = [];
+
+  const attachSurface = (s: SurfaceModel) => {
+    if (s.id !== 's' || ctx.resolver) return;
+    ctx.surface = s;
+    const r = new NodeResolver(s, catalog);
+    ctx.resolver = r;
+    const stopRoot = effect(() => {
+      getValue(r.rootNode);
+      watchCreatedNodes(r, createdEmissions, createdStops);
     });
-  });
-  const stopErrors = surface.onError.subscribe(err => {
-    errors.push(err);
-  });
+    const stopActions = s.onAction.subscribe(action => {
+      events.push({
+        name: action.name,
+        source_component_id: action.sourceComponentId,
+        context: normalize(action.context, ''),
+        ...(action.metadata !== undefined ? {metadata: action.metadata} : {}),
+      });
+    });
+    const stopErrors = s.onError.subscribe(err => {
+      errors.push(err);
+    });
+    cleanups.push(
+      stopRoot,
+      () => stopActions.unsubscribe(),
+      () => stopErrors.unsubscribe(),
+    );
+  };
+
+  const stopSurfaceCreated = processor.model.onSurfaceCreated.subscribe(attachSurface);
+  cleanups.push(() => stopSurfaceCreated.unsubscribe());
+
+  if (fixture.surface !== false) {
+    const surface = new SurfaceModel('s', catalog);
+    processor.model.addSurface(surface);
+    surface.dataModel.set('/', fixture.data);
+    updateComponents(surface, catalog, fixture.components);
+  }
 
   try {
     await flush();
     checkExpectation(testCase.expect, new Map(), ctx, `${testCase.name} initial`);
     for (const [index, step] of testCase.steps.entries()) {
       const reason = `${testCase.name} step ${index} (${step.op})`;
-      const before = mountedNodes(resolver);
-      watchNodes(before, watches);
+      const before = ctx.resolver ? mountedNodes(ctx.resolver) : new Map<string, ComponentNode>();
+      watchNodes(before, watches, () => {
+        if (ctx.resolver) {
+          watchCreatedNodes(ctx.resolver, createdEmissions, createdStops);
+        }
+      });
       for (const watch of watches.values()) {
         watch.emissions = 0;
         watch.metadataEmissions = 0;
         watch.destroyed = 0;
         watch.lastProps = undefined;
       }
+      for (const stop of createdStops) stop();
+      createdStops.length = 0;
+      createdEmissions.clear();
       events.length = 0;
       functions.length = 0;
       errors.length = 0;
       const bindings = saveBindings(before);
-      await executeNodeResolutionStep(step, before, surface, catalog, processor, resolver, reason);
+      await executeNodeResolutionStep(step, before, ctx, catalog, processor, reason);
       await flush();
       checkExpectation(step.expect, before, ctx, reason);
       for (const [binding, value] of bindings) {
@@ -579,11 +655,11 @@ export async function runNodeResolutionCase(
       }
     }
   } finally {
-    resolver.dispose();
-    surface.dispose();
+    for (const stop of createdStops) stop();
+    ctx.resolver?.dispose();
+    ctx.surface?.dispose();
     await flush();
     for (const watch of watches.values()) watch.stop();
-    stopActions.unsubscribe();
-    stopErrors.unsubscribe();
+    for (const cleanup of cleanups) cleanup();
   }
 }

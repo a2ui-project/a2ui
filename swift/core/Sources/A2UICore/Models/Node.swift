@@ -26,6 +26,7 @@ package final class NodeBox: Observable {
   private var _properties: [String: any Resolved]
   private var _metadata: [String: JSONValue]?
   package private(set) var revision: UInt64 = 0
+  package private(set) var propsRevision: UInt64 = 0
 
   var properties: [String: any Resolved] {
     registrar.access(self, keyPath: \.properties)
@@ -63,6 +64,7 @@ package final class NodeBox: Observable {
       registrar.withMutation(of: self, keyPath: \.properties) {
         _properties = newProperties
       }
+      propsRevision &+= 1
     } else {
       _properties = newProperties
     }
