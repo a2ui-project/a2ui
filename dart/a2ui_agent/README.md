@@ -94,20 +94,6 @@ final String llmOutput = await callLlm(processor.promptSnippet, userMessage);
 final List<ResponsePart> parts = processor.parseResponse(llmOutput);
 ```
 
-If your app shows the model's thinking to the user while it waits, create the
-generator with `userFocusedThinking: true`. The snippet then starts and ends
-with a rule that tells the model the user reads its thoughts, and asks it to
-think about the user's request and to write the UI without planning or checking
-its code in its thoughts. Models follow such rules only partly, so check the
-thinking your model shows.
-
-```dart
-final generator = A2uiGenerator(
-  catalogs: [CatalogConfig(catalog)],
-  userFocusedThinking: true,
-);
-```
-
 To show the UI while the model is still writing it, read the Express or direct
 JSON response as it streams, through a stream opened for that response. Each
 part carries the text, or the messages, that are new or changed since the

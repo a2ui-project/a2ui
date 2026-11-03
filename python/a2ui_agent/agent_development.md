@@ -174,17 +174,6 @@ generator = A2uiGenerator(
 
 `ExpressFormatFactory` takes `allowed_messages` too.
 
-If your app shows the model's thinking to the user while it waits, create the
-generator with `user_focused_thinking=True`. The snippet then starts and ends
-with a rule that tells the model the user reads its thoughts, and asks it to
-think about the user's request and to write the UI without planning or checking
-its code in its thoughts. Models follow such rules only partly, so check the
-thinking your model shows.
-
-```python
-generator = A2uiGenerator(catalogs, user_focused_thinking=True)
-```
-
 ### Step 3: Build an LLM Agent with the System Prompt
 
 Configure your `LlmAgent` using the generated system instructions. This agent
