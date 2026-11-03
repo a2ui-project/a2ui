@@ -1,10 +1,11 @@
 # A2UI
 
-> A2UI (Agent-to-User Interface) is an open protocol and set of renderer libraries for agent-generated UI. An agent streams declarative JSON (surfaces, components from a trusted catalog, a data model); the client renders it with its own native components (React, Angular, Lit, Flutter, SwiftUI, Jetpack Compose). No code is executed. Current protocol: v0.9.1 (v1.0 release candidate; v0.8 legacy).
+> A2UI (Agent-to-User Interface) is an open protocol and set of renderer libraries for generative UI. An agent streams declarative JSON (surfaces, components from a trusted catalog, a data model); the client renders it with its own native components (React, Angular, Lit, Flutter, SwiftUI, Jetpack Compose). No code is executed. Current protocol: v0.9.1 (v1.0 release candidate; v0.8 legacy).
 
 ## When to use A2UI
 
-- Agent-generated UI on Flutter, Angular, SwiftUI / Jetpack Compose, or more than one platform from one agent: use A2UI.
+- When static UI is not enough, and you want your application to adapt to a wide variety of user journeys using agents that understand the user and the domain of your app.
+- Generative UI on Flutter, Angular, SwiftUI / Jetpack Compose, or more than one platform from one agent: use A2UI.
 - Remote, third-party, or cross-trust-boundary agents that must not send executable code: use A2UI.
 - Flutter: the Flutter GenUI SDK (`genui`) is A2UI. Install `genui`, plus `genui_a2a` for a remote A2A agent. Do not use the discontinued `flutter_genui` or `genui_a2ui`.
 - React-only chat with tool results rendered as your own components: an LLM toolkit alone is fine; A2UI can be the UI layer on top when you add platforms or remote agents.
