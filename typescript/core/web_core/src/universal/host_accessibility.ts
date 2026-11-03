@@ -167,15 +167,24 @@ function setOrRemove(element: Element, name: string, value: string | undefined):
   }
 }
 
+/** An attribute a {@link HostAccessibility} set. */
+interface WrittenAttribute {
+  /** The value it had before, or `null` if it was absent. */
+  original: string | null;
+  /** The value it was set to. */
+  value: string;
+}
+
 /** The ARIA attributes of one host and of the elements its component marks. */
 class HostAccessibility {
   /** Where the label and description went last: the target, or the host. */
   private labelled?: Element;
   /**
-   * The value each attribute `apply` set had before, per element, so that
-   * removing it gives the component's own value back.
+   * Per element, each attribute `apply` set: the value it had before, so that
+   * removing it gives the component's own value back, and the value `apply`
+   * wrote.
    */
-  private readonly originals = new Map<Element, Map<string, string | null>>();
+  private readonly written = new Map<Element, Map<string, WrittenAttribute>>();
   /** The token `apply` added to the target's `aria-describedby`. */
   private describedBy?: string;
   /** The errors element `apply` gave an `id`, so the `id` can be taken back. */
@@ -237,31 +246,38 @@ class HostAccessibility {
 
   /**
    * Sets an attribute, or with `undefined` gives it back the value it had
-   * before this binding first set it. An attribute it never set is left alone.
+   * before this binding first set it. An attribute it never set is left alone,
+   * and so is one that someone else changed since.
    */
   private write(element: Element, name: string, value: string | undefined): void {
-    let originals = this.originals.get(element);
+    let attributes = this.written.get(element);
+    const previous = attributes?.get(name);
+    const current = element.getAttribute(name);
     if (value === undefined) {
-      if (!originals?.has(name)) return;
-      setOrRemove(element, name, originals.get(name) ?? undefined);
-      originals.delete(name);
-      if (originals.size === 0) {
-        this.originals.delete(element);
+      if (!previous) return;
+      if (current === previous.value) {
+        setOrRemove(element, name, previous.original ?? undefined);
+      }
+      attributes!.delete(name);
+      if (attributes!.size === 0) {
+        this.written.delete(element);
       }
       return;
     }
-    if (!originals) {
-      originals = new Map();
-      this.originals.set(element, originals);
+    if (!attributes) {
+      attributes = new Map();
+      this.written.set(element, attributes);
     }
-    if (!originals.has(name)) {
-      originals.set(name, element.getAttribute(name));
-    }
+    // A value someone else set since is the one to give back later.
+    const original = previous && current === previous.value ? previous.original : current;
+    attributes.set(name, {original, value});
     setOrRemove(element, name, value);
   }
 
+  /** Whether `name` on `element` still has the value this binding wrote. */
   private owns(element: Element, name: string): boolean {
-    return this.originals.get(element)?.has(name) ?? false;
+    const previous = this.written.get(element)?.get(name);
+    return previous !== undefined && element.getAttribute(name) === previous.value;
   }
 
   /**
@@ -289,7 +305,7 @@ class HostAccessibility {
 
   /** Takes back every attribute this binding set on `element`. */
   private clear(element: Element): void {
-    for (const name of [...(this.originals.get(element)?.keys() ?? [])]) {
+    for (const name of [...(this.written.get(element)?.keys() ?? [])]) {
       this.write(element, name, undefined);
     }
     if (element !== this.host) {

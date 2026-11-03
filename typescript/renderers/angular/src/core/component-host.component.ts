@@ -170,10 +170,10 @@ export class ComponentHostComponent {
   });
   protected readonly componentInputs = computed<Record<string, unknown>>(() => {
     const inputs: Record<string, unknown> = {
-      props: this.props(),
-      surfaceId: this.surfaceId(),
-      componentId: this.resolvedComponentId,
-      dataContextPath: this.resolvedDataContextPath,
+      'props': this.props(),
+      'surfaceId': this.surfaceId(),
+      'componentId': this.resolvedComponentId,
+      'dataContextPath': this.resolvedDataContextPath,
     };
     if (this.acceptsMetadata()) {
       inputs['metadata'] = this.metadata();

@@ -206,6 +206,17 @@ describe('host accessibility', () => {
       resolver.dispose();
     });
 
+    it('drops the label when its node is cleared', () => {
+      const {el, resolver} = mountUnderLit('Card', {accessibility: {label: 'Featured Deal'}});
+
+      el.node = undefined;
+
+      expect(el.hasAttribute('aria-label')).toBeFalse();
+      expect(el.hasAttribute('role')).toBeFalse();
+      el.remove();
+      resolver.dispose();
+    });
+
     it("puts the label on its component's a2uiAccessibilityTarget element", () => {
       const {el, resolver} = mountUnderLit('Field', {accessibility: {label: 'Email'}});
 

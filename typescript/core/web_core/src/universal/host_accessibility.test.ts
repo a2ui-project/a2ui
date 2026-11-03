@@ -76,6 +76,17 @@ describe('bindHostAccessibility', () => {
     assert.strictEqual(host.getAttribute('role'), 'region');
   });
 
+  it('leaves an attribute that someone else changed since it set it', () => {
+    const {host, propsSignal} = setup({accessibility: {label: 'Deal'}});
+    host.setAttribute('role', 'region');
+    host.setAttribute('aria-label', 'Offer');
+
+    setValue(propsSignal, {});
+
+    assert.strictEqual(host.getAttribute('role'), 'region');
+    assert.strictEqual(host.getAttribute('aria-label'), 'Offer');
+  });
+
   it('moves the label and validation state to the target', () => {
     const {host, targets} = setup({
       accessibility: {label: 'Email', live: 'polite'},
@@ -112,6 +123,60 @@ describe('bindHostAccessibility', () => {
     setValue(targets.target, null);
     assert.strictEqual(input.hasAttribute('aria-label'), false);
     assert.strictEqual(host.getAttribute('aria-label'), 'Email');
+  });
+
+  it('keeps the attributes the component set on its target', () => {
+    const {propsSignal, targets, stop} = setup({});
+    const input = document.createElement('input');
+    input.setAttribute('aria-label', 'Search');
+    input.setAttribute('aria-describedby', 'hint');
+    const errors = document.createElement('div');
+    setValue(targets.target, input);
+    setValue(targets.errors, errors);
+    assert.strictEqual(input.getAttribute('aria-label'), 'Search');
+
+    setValue(propsSignal, {
+      accessibility: {label: 'Email'},
+      isValid: false,
+      validationErrors: ['Required'],
+    });
+    assert.strictEqual(input.getAttribute('aria-label'), 'Email');
+    assert.strictEqual(input.getAttribute('aria-describedby'), 'hint n1-error');
+
+    setValue(propsSignal, {isValid: true, validationErrors: []});
+    assert.strictEqual(input.getAttribute('aria-label'), 'Search');
+    assert.strictEqual(input.getAttribute('aria-describedby'), 'hint');
+    assert.strictEqual(errors.hasAttribute('id'), false);
+
+    setValue(propsSignal, {accessibility: {label: 'Email'}});
+    stop();
+    assert.strictEqual(input.getAttribute('aria-label'), 'Search');
+  });
+
+  it('leaves the DOM alone when other props change', () => {
+    const {host, propsSignal, targets} = setup({
+      value: 'a',
+      accessibility: {label: 'Email', live: 'polite'},
+      isValid: false,
+      validationErrors: ['Required'],
+    });
+    const input = document.createElement('input');
+    const errors = document.createElement('div');
+    host.append(input, errors);
+    setValue(targets.target, input);
+    setValue(targets.errors, errors);
+    const observer = new MutationObserver(() => {});
+    observer.observe(host, {attributes: true, subtree: true});
+
+    setValue(propsSignal, {
+      value: 'ab',
+      accessibility: {label: 'Email', live: 'polite'},
+      isValid: false,
+      validationErrors: ['Required'],
+    });
+
+    assert.deepStrictEqual(observer.takeRecords(), []);
+    observer.disconnect();
   });
 
   it('removes every attribute it set when stopped', () => {
