@@ -168,7 +168,7 @@ function ensureCreateSurfaceMessage(
     surfaceId = createMsg.createSurface.surfaceId;
   } else if (version === '1.0') {
     messages.unshift({
-      version: 'v1.0',
+      version: '1.0',
       createSurface: {
         surfaceId,
         catalogId: basicCatalogV10.id,

@@ -29,9 +29,12 @@ typescript/renderers/angular/a2ui_explorer/src/app/generated/**
 typescript/renderers/lit/a2ui_explorer/src/generated/**
 typescript/renderers/react/a2ui_explorer/src/generated/**
 typescript/agents/a2ui_agent/src/inference-formats/express/generated/**
+typescript/renderers/*/a2ui_explorer/public/a2ui-sandbox/**
 typescript/catalogs/mcp/tests/fixtures/generated/**
 .next
 **/.next
+**/.astro
+docs/site/public/**
 
 # Evaluation logs and history
 eval/logs
@@ -39,3 +42,6 @@ eval/logs
 eval/history
 **/history
 **/history_summary.md
+
+# MkDocs Jinja2 template overrides (not compatible with Prettier's Angular HTML parser)
+docs/overrides/**

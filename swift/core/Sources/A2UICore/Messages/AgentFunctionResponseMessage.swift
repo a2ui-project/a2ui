@@ -68,7 +68,8 @@ public struct AgentFunctionResponseMessage: Codable, Sendable, Equatable, Protoc
   public init(from decoder: Decoder, version: A2UIProtocolVersion) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     functionCallID = try container.decode(String.self, forKey: .functionCallID)
-    let hasError = container.contains(.error)
+    // An explicit `"error": null` counts as no error, but `"value": null` is a null result.
+    let hasError = try container.contains(.error) && !container.decodeNil(forKey: .error)
     let hasValue = container.contains(.value)
     if hasError && hasValue {
       let context = DecodingError.Context(

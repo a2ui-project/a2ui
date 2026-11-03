@@ -33,7 +33,7 @@ import {loadBasicCatalog, REPO_ROOT} from '../helpers/basic-catalogs.js';
 import {classify, KNOWN_FAILURES, loadCases, LoadedCase} from './loader.js';
 import {conformancePath, errorClassFor} from './suite-helpers.js';
 
-const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('1.0');
 
 interface SkillCaseContext {
   args: Record<string, unknown>;

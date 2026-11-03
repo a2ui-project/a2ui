@@ -52,7 +52,7 @@ void _turns(A2uiProtocolVersion version) {
 
   /// Waits for the whole response, then parses it at once with
   /// [A2uiRequestProcessor.parseResponse].
-  test(
+  modelTest(
     'a direct JSON agent turn produces a surface the renderer accepts',
     () async {
       final String llmOutput = await AiClient().send(
@@ -100,7 +100,7 @@ void _turns(A2uiProtocolVersion version) {
   /// A component can name a child that a later chunk brings. The renderer
   /// runs with [ValidationConfig.relaxed], so it accepts that reference, and
   /// the child fills in when it arrives.
-  test(
+  modelTest(
     'a streamed direct JSON turn builds the surface as it arrives',
     () async {
       final ResponseStream stream = const DirectJsonFormatFactory(

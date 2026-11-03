@@ -15,10 +15,10 @@
  */
 
 import {ParseError} from '../../errors.js';
-import {AgentToRendererMessage, CatalogApi, linkCatalogs} from '../../internal/web-core.js';
+import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
 import {BlockLexer, JSON_PAYLOAD_START_RE} from '../../parser/lexer.js';
-import {ParseOptions, Parser} from '../../parser/parser.js';
-import {RawResponsePart} from '../../parser/response-part.js';
+import {ContinuingStreamOptions, Parser, StreamOptions} from '../../parser/parser.js';
+import {RawResponsePart, StreamPart} from '../../parser/response-part.js';
 import {checkParserCatalogs} from '../../utils/catalog-checks.js';
 import {CLOSE_TAG, OPEN_TAG, cleanRaw} from './blocks.js';
 import {DirectJsonDecompiler} from './decompiler.js';
@@ -37,7 +37,7 @@ export interface DirectJsonParserOptions {
 
 /** Parser for the Direct JSON format, for complete and streamed responses. */
 export class DirectJsonParser extends Parser {
-  /** The active catalogs, linked to each other so cross-catalog `$ref`s resolve. */
+  /** The active catalogs. */
   readonly catalogs: CatalogApi[];
   /** The keys whose string values a stream heals while they arrive. */
   readonly progressiveKeys: ReadonlySet<string>;
@@ -59,7 +59,7 @@ export class DirectJsonParser extends Parser {
   constructor(catalogs: CatalogApi[], options: DirectJsonParserOptions = {}) {
     super();
     checkParserCatalogs(catalogs);
-    this.catalogs = linkCatalogs(catalogs);
+    this.catalogs = catalogs;
     this.progressiveKeys = new Set(options.progressiveKeys ?? []);
   }
 
@@ -108,7 +108,17 @@ export class DirectJsonParser extends Parser {
     return this.decompiler.wrap(blocks);
   }
 
-  override openStream({wrapped = true, state}: ParseOptions = {}): DirectJsonResponseStream {
-    return new DirectJsonResponseStream(this, wrapped, state ?? this.emptyState());
+  override openStream(options: ContinuingStreamOptions): DirectJsonResponseStream<StreamPart>;
+  override openStream(options?: StreamOptions): DirectJsonResponseStream;
+  override openStream({
+    wrapped = true,
+    state,
+    afterRejectedBlock = 'end',
+  }: StreamOptions = {}): DirectJsonResponseStream<StreamPart> {
+    return new DirectJsonResponseStream<StreamPart>(this, {
+      wrapped,
+      state: state ?? this.emptyState(),
+      afterRejectedBlock,
+    });
   }
 }

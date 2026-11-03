@@ -139,7 +139,7 @@ describe('SandboxedFrameElement', () => {
   function componentProps(props: Record<string, unknown>) {
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: SURFACE_ID,
           components: [{id: COMPONENT_ID, component: 'TestFrame', ...props}],
@@ -190,7 +190,7 @@ describe('SandboxedFrameElement', () => {
     catalog = new Catalog<WebComponentImplementation>(CATALOG_ID, '1.0', [TestFrame]);
     processor = new MessageProcessor([catalog]);
     processor.processMessages([
-      {version: 'v1.0', createSurface: {surfaceId: SURFACE_ID, catalogId: CATALOG_ID}},
+      {version: '1.0', createSurface: {surfaceId: SURFACE_ID, catalogId: CATALOG_ID}},
     ]);
     surface = processor.model.getSurface(SURFACE_ID)!;
   });

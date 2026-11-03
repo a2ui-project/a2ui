@@ -1,0 +1,126 @@
+[
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "sales_dashboard",
+      "catalogId": "https://a2ui.org/samples/community/agent/adk/rizzcharts/catalog_schemas/0.9/rizzcharts_catalog_definition.json"
+    }
+  },
+  {
+    "version": "1.0",
+    "updateComponents": {
+      "surfaceId": "sales_dashboard",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["chart_title", "sales_chart"]
+        },
+        {
+          "id": "chart_title",
+          "component": "Text",
+          "text": {
+            "@path": "/chartTitle"
+          }
+        },
+        {
+          "id": "sales_chart",
+          "component": "Chart",
+          "type": "doughnut",
+          "title": {
+            "@path": "/chartTitle"
+          },
+          "chartData": {
+            "@path": "/chartItems"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "1.0",
+    "updateDataModel": {
+      "surfaceId": "sales_dashboard",
+      "path": "/",
+      "value": {
+        "chartTitle": "Sales by Category",
+        "chartItems": [
+          {
+            "label": "Apparel",
+            "value": 41,
+            "drillDown": [
+              {
+                "label": "Tops",
+                "value": 31
+              },
+              {
+                "label": "Bottoms",
+                "value": 38
+              },
+              {
+                "label": "Outerwear",
+                "value": 20
+              },
+              {
+                "label": "Footwear",
+                "value": 11
+              }
+            ]
+          },
+          {
+            "label": "Home Goods",
+            "value": 15,
+            "drillDown": [
+              {
+                "label": "Pillow",
+                "value": 8
+              },
+              {
+                "label": "Coffee Maker",
+                "value": 16
+              },
+              {
+                "label": "Area Rug",
+                "value": 3
+              },
+              {
+                "label": "Bath Towels",
+                "value": 14
+              }
+            ]
+          },
+          {
+            "label": "Electronics",
+            "value": 28,
+            "drillDown": [
+              {
+                "label": "Phones",
+                "value": 25
+              },
+              {
+                "label": "Laptops",
+                "value": 27
+              },
+              {
+                "label": "TVs",
+                "value": 21
+              },
+              {
+                "label": "Other",
+                "value": 27
+              }
+            ]
+          },
+          {
+            "label": "Health & Beauty",
+            "value": 10
+          },
+          {
+            "label": "Other",
+            "value": 6
+          }
+        ]
+      }
+    }
+  }
+]

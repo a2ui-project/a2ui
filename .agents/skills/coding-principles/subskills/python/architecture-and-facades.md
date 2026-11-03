@@ -26,7 +26,7 @@ Python code across the repository spans SDK libraries, agent implementations, ev
 - **`a2ui_a2a`** (`python/a2ui_a2a/`, distribution `a2ui-a2a`):
   - A2A protocol extension (`a2ui.a2a`): extension URI negotiation and A2A part helpers.
 - **`a2ui_adk`** (`python/a2ui_adk/`, distribution `a2ui-adk`):
-  - Agent Development Kit integration (`a2ui.adk`): `SendA2uiToClientToolset` and `GenAIFileResolver`.
+  - Agent Development Kit integration (`a2ui.adk`): `SendA2uiToClientToolset` and `A2uiProcessorStore`.
   - The ADK-to-A2A converters (`a2ui.adk.a2a`) and A2A orchestration helpers (`a2ui.adk.orchestration`) need the `a2a` extra and are exported lazily from `a2ui.adk`.
 - **Namespace rule**: `a2ui` is a PEP 420 namespace package shared by all of these distributions. Never add `src/a2ui/__init__.py`, and never ship the same subpackage from two distributions.
 - **`a2ui.builder`** (`python/a2ui_agent/src/a2ui/builder/`):

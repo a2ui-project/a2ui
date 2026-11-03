@@ -56,7 +56,7 @@ struct MultiCatalogConformanceTests {
     let defaultCatalogID = surfaceDict["defaultCatalogId"] as? String
     let supportedCatalogIDs = (surfaceDict["supportedCatalogIds"] as? [String]) ?? []
     let catalogConfig = (testCase["catalog"] as? [String: Any]) ?? [:]
-    let defaultVersion = (catalogConfig["protocolVersion"] as? String) ?? "v1.0"
+    let defaultVersion = (catalogConfig["protocolVersion"] as? String) ?? "1.0"
     let explicitCatalogs = (args["catalogs"] as? [String: Any]) ?? [:]
 
     let openSchema = try Schema(instance: "{\"type\": \"object\"}")
@@ -173,7 +173,7 @@ struct MultiCatalogConformanceTests {
   }
 
   private func runValidateCase(_ testCase: [String: Any], name: String) throws {
-    let commonTypes = try? ConformanceTestHelper.commonTypesSchema(forProtocolVersion: "v1.0")
+    let commonTypes = try? ConformanceTestHelper.commonTypesSchema(forProtocolVersion: "1.0")
     var catalogs = ConformanceTestHelper.basicCatalogs(for: .v10)
     if let catalogList = testCase["catalogs"] as? [[String: Any]] {
       for dict in catalogList {
@@ -181,7 +181,7 @@ struct MultiCatalogConformanceTests {
           ConformanceTestHelper.buildCatalog(
             catalogSchema: ConformanceTestHelper.toJSONValue(dict),
             commonTypes: commonTypes,
-            protocolVersion: (dict["protocolVersion"] as? String) ?? "v1.0"
+            protocolVersion: (dict["protocolVersion"] as? String) ?? "1.0"
           )
         )
       }

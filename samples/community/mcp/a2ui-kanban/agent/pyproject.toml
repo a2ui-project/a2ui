@@ -1,0 +1,42 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[project]
+name = "a2ui-kanban-agent"
+version = "0.1.0"
+description = "ADK + A2A agent of the A2UI Kanban showcase"
+requires-python = ">=3.10"
+dependencies = [
+    "a2a-sdk[http-server]>=0.3.0,<0.4.0",
+    "a2ui-a2a",
+    "click>=8.1.8",
+    "google-adk>=1.28.1",
+    "google-genai>=1.27.0",
+    "mcp>=2.0.0",
+    "python-dotenv>=1.1.0",
+    "starlette",
+    "uvicorn",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "pytest-asyncio>=1.0"]
+
+# This sample is not a member of the repository's uv workspace, so the A2UI
+# A2A package comes from its source tree by path.
+[tool.uv.sources]
+a2ui-a2a = { path = "../../../../../python/a2ui_a2a", editable = true }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

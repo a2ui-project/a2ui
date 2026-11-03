@@ -309,7 +309,7 @@ struct RPCHandlerTests {
 
     let inboundCallJSON = """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
           "functionCallId": "proc_call_1",
           "callFunction": {
@@ -409,6 +409,122 @@ struct RPCHandlerTests {
       #expect(error == .disposed(callID: "disp_call"))
       #expect(error.rpcCode == "DISPOSED")
     }
+  }
+
+  @Test func outgoingCallUsesDefaultTimeoutWhenOmitted() async throws {
+    #expect(RPCHandler.defaultTimeoutSeconds == 30)
+    let handler = RPCHandler()
+    let (stream, continuation) = AsyncStream<RendererToAgentMessage>.makeStream()
+
+    // Omit timeoutSeconds so the default 30.0s parameter is used.
+    let task = Task {
+      try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "defaultTimeoutFn",
+        functionCallID: "default_timeout_call",
+        version: .v10,
+        sendOutbound: { msg in
+          continuation.yield(msg)
+        }
+      )
+    }
+
+    var iterator = stream.makeAsyncIterator()
+    let outboundMsg = await iterator.next()
+    #expect(outboundMsg != nil)
+
+    // Call remains pending under the 30s default window (duplicate ID is rejected).
+    do {
+      _ = try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "defaultTimeoutFn",
+        functionCallID: "default_timeout_call",
+        version: .v10,
+        sendOutbound: { _ in }
+      )
+      Issue.record("Expected duplicate error while call is pending under default timeout")
+    } catch let error as FunctionError {
+      #expect(error == .duplicate(callID: "default_timeout_call"))
+    }
+
+    handler.handleAgentResponse(
+      AgentFunctionResponseMessage(
+        functionCallID: "default_timeout_call",
+        value: .string("settled"),
+        version: .v10
+      )
+    )
+
+    let result = try await task.value
+    #expect(result == .string("settled"))
+  }
+
+  @Test func outgoingCallTaskCancellationRemovesPendingEntry() async throws {
+    let handler = RPCHandler()
+    let (stream, continuation) = AsyncStream<Void>.makeStream()
+
+    let task = Task {
+      try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "cancellableFn",
+        functionCallID: "cancel_cleanup_call",
+        version: .v10,
+        sendOutbound: { _ in
+          continuation.yield()
+        }
+      )
+    }
+
+    var iterator = stream.makeAsyncIterator()
+    await iterator.next()
+
+    task.cancel()
+
+    do {
+      _ = try await task.value
+      Issue.record("Expected cancelled error after Task.cancel()")
+    } catch let error as FunctionError {
+      #expect(error == .cancelled(callID: "cancel_cleanup_call"))
+      #expect(error.rpcCode == "CANCELLED")
+    }
+
+    // Late response for the cancelled call ID is ignored.
+    handler.handleAgentResponse(
+      AgentFunctionResponseMessage(
+        functionCallID: "cancel_cleanup_call",
+        value: .string("late_ignored"),
+        version: .v10
+      )
+    )
+
+    let (retryStream, retryContinuation) = AsyncStream<Void>.makeStream()
+    // Because the pending entry was removed on cancellation, reusing the same
+    // functionCallID succeeds.
+    let retryTask = Task {
+      try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "cancellableFn",
+        functionCallID: "cancel_cleanup_call",
+        version: .v10,
+        sendOutbound: { _ in
+          retryContinuation.yield()
+        }
+      )
+    }
+
+    var retryIterator = retryStream.makeAsyncIterator()
+    await retryIterator.next()
+
+    handler.handleAgentResponse(
+      AgentFunctionResponseMessage(
+        functionCallID: "cancel_cleanup_call",
+        value: .string("reused_ok"),
+        version: .v10
+      )
+    )
+
+    let retryResult = try await retryTask.value
+    #expect(retryResult == .string("reused_ok"))
   }
 }
 

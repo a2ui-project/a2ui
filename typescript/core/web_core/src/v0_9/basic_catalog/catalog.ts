@@ -38,7 +38,7 @@ import {
   A2uiTextField,
   A2uiVideo,
 } from './components/index.js';
-import {BASIC_FUNCTIONS} from './functions/basic_functions.js';
+import {V09_SPEC_FUNCTIONS} from './functions/basic_functions.js';
 
 /**
  * The single canonical basic catalog of A2UI components implemented via Web Components (Custom Elements).
@@ -72,7 +72,7 @@ export const basicCatalog = new Catalog<WebComponentImplementation>(
     A2uiSlider,
     A2uiDateTimeInput,
   ],
-  BASIC_FUNCTIONS,
+  V09_SPEC_FUNCTIONS,
   {
     themeSchema: BasicCatalogThemeSchema,
     ...BASIC_CATALOG_DOCUMENT_OPTIONS,

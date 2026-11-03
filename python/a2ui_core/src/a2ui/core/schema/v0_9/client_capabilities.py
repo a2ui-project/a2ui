@@ -40,7 +40,9 @@ class FunctionDefinition(StrictBaseModel):
     return_type: Literal[
         "string", "number", "boolean", "array", "object", "any", "void"
     ] = Field(
-        ..., alias="returnType", description="The type of value this function returns."
+        ...,
+        alias="returnType",
+        description="The type of value this function returns.",
     )
 
 
@@ -56,14 +58,15 @@ class InlineCatalog(BaseModel):
         description="Definitions for UI components supported by this catalog.",
     )
     functions: list[FunctionDefinition] | None = Field(
-        default=None, description="Definitions for functions supported by this catalog."
+        default=None,
+        description="Definitions for functions supported by this catalog.",
     )
     theme: dict[str, Any] | None = Field(
         default=None,
         description=(
-            "A schema that defines a catalog of A2UI theme properties. Each key is a"
-            " theme property name (e.g. 'primaryColor'), and each value is the JSON"
-            " schema for that property."
+            "A schema that defines a catalog of A2UI theme properties. Each key"
+            " is a theme property name (e.g. 'primaryColor'), and each value is"
+            " the JSON schema for that property."
         ),
     )
 
@@ -76,17 +79,17 @@ class V09Capabilities(StrictBaseModel):
         ...,
         alias="supportedCatalogIds",
         description=(
-            "An array of string identifiers for each of the component and function"
-            " catalogs supported by the client."
+            "An array of string identifiers for each of the component and"
+            " function catalogs supported by the client."
         ),
     )
     inline_catalogs: list[Catalog] | None = Field(
         default=None,
         alias="inlineCatalogs",
         description=(
-            "An array of inline catalog definitions, which can contain both components"
-            " and functions. This should only be provided if the agent declares"
-            " 'acceptsInlineCatalogs: true' in its capabilities."
+            "An array of inline catalog definitions, which can contain both"
+            " components and functions. This should only be provided if the agent"
+            " declares 'acceptsInlineCatalogs: true' in its capabilities."
         ),
     )
 

@@ -71,7 +71,7 @@ describe('PayloadValidator', () => {
   it('validates function arguments when parameters schema uses $ref', () => {
     const catalog = Catalog.fromJson({
       catalogId: 'https://example.com/test-ref-validator.json',
-      protocolVersion: 'v1.0',
+      protocolVersion: '1.0',
       $defs: {
         RefArgs: {
           type: 'object',

@@ -21,7 +21,10 @@ from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.core import CatalogApi
 from a2ui.core.schema import ProtocolVersion
-from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.inference_formats.direct_json import (
+    DEFAULT_WORKFLOW_RULES,
+    DirectJsonFormatFactory,
+)
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import to_version_number
 from google.adk.agents.llm_agent import LlmAgent
@@ -32,7 +35,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from tools import get_calculator_app, calculate_via_mcp, get_pong_mcp_app_json, get_pong_app_web_frame_json, get_pong_app_web_frame_srcdoc_json, commentate_pong_game
-from agent_executor import get_a2ui_catalogs, get_a2ui_enabled, get_a2ui_examples
+from agent_executor import get_a2ui_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -125,8 +128,6 @@ class McpAppProxyAgent:
         self._model = model
 
         self._a2ui_enabled_provider = get_a2ui_enabled
-        self._a2ui_catalogs_provider = get_a2ui_catalogs
-        self._a2ui_examples_provider = get_a2ui_examples
 
         self._agent_name = "mcp_app_proxy_agent"
         self._user_id = "remote_agent"
@@ -275,7 +276,7 @@ class McpAppProxyAgent:
         if processor:
             instruction = "\n\n".join([
                 ROLE_DESCRIPTION,
-                processor.format.prompt_generator.generate_base_rules(),
+                DEFAULT_WORKFLOW_RULES,
                 WORKFLOW_DESCRIPTION,
                 f"## UI Description:\n{UI_DESCRIPTION}",
             ])

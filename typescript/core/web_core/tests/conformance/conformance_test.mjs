@@ -54,7 +54,14 @@ import {
 import {DataContext} from '../../dist/src/resolution/data-context.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
-import {getValue, peekValue, effect, isSignal} from '../../dist/src/reactivity/signals.js';
+import {
+  getValue,
+  peekValue,
+  effect,
+  isSignal,
+  signal,
+  setValue,
+} from '../../dist/src/reactivity/signals.js';
 import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolution.js';
 
 // Dedicated basic catalog component definitions per specification version
@@ -80,7 +87,7 @@ const v0_9Catalog = new Catalog(
 );
 const v1_0Catalog = new Catalog(
   'v1.0:basic',
-  'v1.0',
+  '1.0',
   v1_0Components,
   V1_0_BASIC_FUNCTIONS,
   undefined,
@@ -104,7 +111,7 @@ const v0_9BasicCatalog = new Catalog(
 );
 const v1_0BasicCatalog = new Catalog(
   'basic',
-  'v1.0',
+  '1.0',
   v1_0Components,
   V1_0_BASIC_FUNCTIONS,
   undefined,
@@ -139,6 +146,7 @@ const KNOWN_DIVERGENCES = new Map();
  */
 const FROM_JSON_EXPECT_KEYS = new Set([
   'catalogId',
+  'componentMetadata',
   'components',
   'functions',
   'invalidComponents',
@@ -188,9 +196,17 @@ const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
  * 'accessibility.yaml' tests ARIA and DOM accessibility tree rendering, which is handled
  * by UI framework renderers (Lit, React, Angular, Flutter, SwiftUI) rather than headless web_core.
  *
+ * 'adapter_conformance.yaml' tests UI framework renderers (Lit, React, Angular, Flutter, SwiftUI)
+ * rather than headless web_core.
+ *
  * 'builder.yaml' covers the agent-side typesafe builder API, which web_core does not implement.
  */
-const SKIP_TEST_SUITES = new Set(['accessibility.yaml', 'builder.yaml', 'macros.yaml']);
+const SKIP_TEST_SUITES = new Set([
+  'accessibility.yaml',
+  'adapter_conformance.yaml',
+  'builder.yaml',
+  'macros.yaml',
+]);
 
 /**
  * Action types the web_core runner deliberately does not implement, and why.
@@ -221,6 +237,7 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['wrap', 'web_core has no inference-format wrapper'],
   ['parse_response', 'web_core has no inference-format parser'],
   ['parse_chunk', 'web_core has no streaming inference parser'],
+  ['stream_answer', 'streamed answers are agent-side only'],
   ['create_format', 'inference format factories are agent-side only'],
   ['create_processor', 'request processors are agent-side only'],
   ['transform_catalog', 'catalog transformers are agent-side only'],
@@ -408,6 +425,9 @@ async function runConformanceHarness() {
           case 'from_json':
             validateFromJsonTestCase(testCase);
             break;
+          case 'derive':
+            validateDeriveTestCase(testCase);
+            break;
           case 'select_catalog':
             validateSelectCatalogTestCase(testCase);
             break;
@@ -427,7 +447,7 @@ async function runConformanceHarness() {
             validateEvaluateFunctionTestCase(testCase);
             break;
           case 'dispatch_action':
-            validateDispatchActionTestCase(testCase);
+            await validateDispatchActionTestCase(testCase);
             break;
           default:
             throw new Error(`Unhandled action type in conformance harness: '${action}'`);
@@ -515,6 +535,10 @@ async function validateRpcTestCase(testCase) {
         throw new Error('An error occurred during function execution.');
       } else if (fnName === 'calculateTax') {
         return (fnArgs?.amount ?? 0) * 0.1;
+      } else if (fnName === 'echoArgs') {
+        return Object.fromEntries(
+          Object.entries(fnArgs ?? {}).map(([k, v]) => [k, v === undefined ? null : v]),
+        );
       }
       return null;
     };
@@ -556,30 +580,193 @@ async function validateRpcTestCase(testCase) {
   }
 
   const catVersion =
-    args.catalogVersion || testCase.catalog?.protocolVersion || testCase.protocolVersion || 'v1.0';
+    args.catalogVersion || testCase.catalog?.protocolVersion || testCase.protocolVersion || '1.0';
 
   const cat = new Catalog(catId, catVersion, [], funcs, undefined, undefined);
   let sentOutboundMsg;
-  const processor = new MessageProcessor([cat], undefined, {
-    version: 'v1.0',
+  let lastErrorMsg;
+  const rpcCatalogs = cat.id === 'basic' ? [cat] : [cat, v1_0BasicCatalog];
+  const processor = new MessageProcessor(rpcCatalogs, undefined, {
+    version: '1.0',
     outboundListener: msg => {
       sentOutboundMsg = msg;
     },
+    errorHandler: msg => {
+      lastErrorMsg = msg;
+    },
   });
 
-  if (message) {
-    if (expect?.error) {
-      assert.throws(
-        () => {
-          processor.processMessages(message);
+  if (args.surfaceId) {
+    const avail = new Map([[cat.id, cat]]);
+    if (cat.id !== 'basic') {
+      avail.set('basic', v1_0BasicCatalog);
+    }
+    const surface = new SurfaceModel(
+      args.surfaceId,
+      cat,
+      avail,
+      undefined,
+      false,
+      new DataModel(args.dataModel || {}),
+      catVersion,
+    );
+    processor.model.addSurface(surface);
+  }
+
+  if (args.uiBindingScenario) {
+    const scenario = args.uiBindingScenario;
+    const callName =
+      scenario.component?.text?.['@call'] ||
+      scenario.component?.text?.call ||
+      'fetchRemoteGreeting';
+    const procRef = {current: null};
+    const agentBindingFn = createFunctionImplementation(
+      {
+        name: callName,
+        returnType: 'string',
+        schema: z.record(z.string(), z.any()).optional().default({}),
+      },
+      fnArgs => {
+        const sig = signal(null);
+        void procRef.current
+          .callAgentFunction(scenario.surfaceId, {
+            '@call': callName,
+            catalogId: scenario.catalogId,
+            args: fnArgs,
+          })
+          .then(val => setValue(sig, val));
+        return sig;
+      },
+    );
+    const storeCat = new Catalog(
+      scenario.catalogId,
+      '1.0',
+      v1_0Components,
+      [agentBindingFn],
+      undefined,
+      undefined,
+    );
+    procRef.current = new MessageProcessor([storeCat, v1_0BasicCatalog], undefined, {
+      version: '1.0',
+      outboundListener: msg => {
+        sentOutboundMsg = msg;
+      },
+    });
+    procRef.current.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: scenario.surfaceId,
+          catalogId: scenario.catalogId,
+          components: [scenario.component],
         },
-        err => {
-          if (expect.error.message) {
-            return err.message.includes(expect.error.message);
-          }
-          return true;
-        },
+      },
+    ]);
+    const surface = procRef.current.getSurface(scenario.surfaceId);
+    const resolved = collectResolvedNodes(surface);
+    try {
+      const rootNode = resolved.nodes.get(scenario.component.id);
+      const initialText = normalizeComponentRefs(peekValue(rootNode.props).text);
+      assert.strictEqual(initialText ?? null, expect.initialValue);
+      assert.ok(sentOutboundMsg?.callAgentFunction, 'Expected outbound callAgentFunction');
+      assert.strictEqual(sentOutboundMsg.version, expect.outboundCall.version);
+      assert.strictEqual(
+        sentOutboundMsg.callAgentFunction.surfaceId,
+        expect.outboundCall.callAgentFunction.surfaceId,
       );
+      procRef.current.processMessages({
+        version: '1.0',
+        agentFunctionResponse: {
+          functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
+          value: scenario.inboundResponseValue,
+        },
+      });
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const updatedText = normalizeComponentRefs(peekValue(rootNode.props).text);
+      assert.strictEqual(updatedText, expect.resolvedValue);
+    } finally {
+      resolved.dispose();
+    }
+    return;
+  }
+
+  if (args.uiActionFallbackScenario) {
+    const scenario = args.uiActionFallbackScenario;
+    const fc = scenario.actionPayload.functionCall;
+    const callName = fc['@call'] || fc.call;
+    const procRef = {current: null};
+    const agentActionFn = createFunctionImplementation(
+      {
+        name: callName,
+        returnType: 'any',
+        schema: z.record(z.string(), z.any()).optional().default({}),
+      },
+      fnArgs =>
+        procRef.current.callAgentFunction(scenario.surfaceId, {
+          '@call': callName,
+          catalogId: scenario.catalogId,
+          args: fnArgs,
+        }),
+    );
+    const storeCat = new Catalog(
+      scenario.catalogId,
+      '1.0',
+      v1_0Components,
+      [agentActionFn],
+      undefined,
+      undefined,
+    );
+    procRef.current = new MessageProcessor([storeCat], undefined, {
+      version: '1.0',
+      outboundListener: msg => {
+        sentOutboundMsg = msg;
+      },
+    });
+    procRef.current.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: scenario.surfaceId,
+          catalogId: scenario.catalogId,
+        },
+      },
+    ]);
+    const surface = procRef.current.getSurface(scenario.surfaceId);
+    const ctx = new DataContext(surface, '/');
+    const actionPromise = ctx.resolveAction(scenario.actionPayload);
+    assert.ok(sentOutboundMsg?.callAgentFunction, 'Expected outbound callAgentFunction');
+    assert.strictEqual(sentOutboundMsg.version, expect.outboundCall.version);
+    assert.strictEqual(
+      sentOutboundMsg.callAgentFunction.surfaceId,
+      expect.outboundCall.callAgentFunction.surfaceId,
+    );
+    procRef.current.processMessages({
+      version: '1.0',
+      agentFunctionResponse: {
+        functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
+        value: scenario.inboundResponseValue,
+      },
+    });
+    const result = await actionPromise;
+    assert.deepStrictEqual(result, expect.result);
+    return;
+  }
+
+  if (message) {
+    if (expect?.error || expectError) {
+      let thrown;
+      try {
+        processor.processMessages(message);
+      } catch (err) {
+        thrown = err;
+      }
+      assert.ok(thrown, 'Expected processMessages to throw on invalid RPC message');
+      if (expect?.error?.message) {
+        assert.ok(thrown.message.includes(expect.error.message));
+      }
+      if (expectError) {
+        assertExpectedConformanceError(thrown, lastErrorMsg, expectError);
+      }
     } else if (expect && 'response' in expect) {
       const expectResp = expect.response;
       const responses = await processor.processMessagesAsync(message, {
@@ -820,7 +1007,7 @@ function validateSelectCatalogTestCase(testCase) {
   const catalogsDict = new Map();
   if (args.catalogs && typeof args.catalogs === 'object') {
     for (const [catId, catDef] of Object.entries(args.catalogs)) {
-      const pVer = catDef.protocolVersion || 'v1.0';
+      const pVer = catDef.protocolVersion || '1.0';
       catalogsDict.set(
         catId,
         new Catalog(catId, pVer, flexibleComponents, [], undefined, undefined),
@@ -831,14 +1018,14 @@ function validateSelectCatalogTestCase(testCase) {
     for (const catId of supported) {
       catalogsDict.set(
         catId,
-        new Catalog(catId, 'v1.0', flexibleComponents, [], undefined, undefined),
+        new Catalog(catId, '1.0', flexibleComponents, [], undefined, undefined),
       );
     }
   }
 
   const defaultCat =
     catalogsDict.get(defaultCatId) ||
-    new Catalog(defaultCatId, 'v1.0', flexibleComponents, [], undefined, undefined);
+    new Catalog(defaultCatId, '1.0', flexibleComponents, [], undefined, undefined);
 
   const executeSelect = () => {
     // 1. Check protocol version consistency across catalogs
@@ -934,6 +1121,221 @@ function matchesErrorCategory(err, category) {
   }
 }
 
+function assertExpectedConformanceError(thrown, emittedErrorMsg, expErrObj) {
+  if (!expErrObj || typeof expErrObj !== 'object') return;
+  if (expErrObj.category) {
+    if (!matchesErrorCategory(thrown, expErrObj.category)) {
+      throw new Error(
+        `Expected error category '${expErrObj.category}' but received ${thrown.constructor?.name || thrown.name}: ${thrown.message}`,
+      );
+    }
+  }
+  if (expErrObj.code) {
+    if (
+      thrown.code !== expErrObj.code &&
+      emittedErrorMsg?.error?.code !== expErrObj.code &&
+      !thrown.message.includes(expErrObj.code) &&
+      thrown.name !== expErrObj.code
+    ) {
+      throw new Error(
+        `Expected error code '${expErrObj.code}' but received code='${thrown.code || emittedErrorMsg?.error?.code}': ${thrown.message}`,
+      );
+    }
+  }
+  if (expErrObj.surfaceId !== undefined) {
+    const actualSurfaceId = thrown.surfaceId ?? emittedErrorMsg?.error?.surfaceId ?? '';
+    if (actualSurfaceId !== expErrObj.surfaceId) {
+      throw new Error(
+        `Expected error surfaceId '${expErrObj.surfaceId}' but received '${actualSurfaceId}'`,
+      );
+    }
+  }
+  if (expErrObj.path !== undefined) {
+    const actualPath = thrown.path ?? emittedErrorMsg?.error?.path;
+    if (actualPath !== expErrObj.path) {
+      throw new Error(`Expected error path '${expErrObj.path}' but received '${actualPath}'`);
+    }
+  }
+  if (expErrObj.functionCallId !== undefined) {
+    const actualFnCallId = thrown.functionCallId ?? emittedErrorMsg?.error?.functionCallId;
+    if (actualFnCallId !== expErrObj.functionCallId) {
+      throw new Error(
+        `Expected error functionCallId '${expErrObj.functionCallId}' but received '${actualFnCallId}'`,
+      );
+    }
+  }
+  if (expErrObj.message) {
+    const expectedMsg = expErrObj.message;
+    const normalizedActual = thrown.message.replaceAll('"', "'").replaceAll("','", "', '");
+    const normalizedExpected = expectedMsg.replaceAll('"', "'").replaceAll("','", "', '");
+    const matches =
+      normalizedActual.includes(normalizedExpected) ||
+      (expectedMsg.includes('Unsupported protocol version') &&
+        (thrown.message.includes('Invalid enum value') ||
+          thrown.message.includes('Unsupported protocol version'))) ||
+      (expectedMsg.includes('Missing') &&
+        thrown.message.includes("missing a valid 'version' string")) ||
+      (expectedMsg.includes('multiple update types') &&
+        thrown.message.includes('multiple conflicting update actions'));
+    if (!matches) {
+      throw new Error(
+        `Expected error message containing '${expectedMsg}' but received: ${thrown.message}`,
+      );
+    }
+  }
+  if (Array.isArray(expErrObj.details)) {
+    const flattenZodIssues = issues => {
+      const out = [];
+      for (const issue of issues) {
+        if (issue.code === 'invalid_union' && Array.isArray(issue.unionErrors)) {
+          for (const ue of issue.unionErrors) {
+            if (Array.isArray(ue.issues)) {
+              out.push(...flattenZodIssues(ue.issues));
+            }
+          }
+        } else {
+          out.push(issue);
+        }
+      }
+      return out;
+    };
+    const rawDetails = Array.isArray(thrown.details)
+      ? thrown.details
+      : Array.isArray(thrown.details?.issues)
+        ? flattenZodIssues(thrown.details.issues)
+        : [];
+    const actualDetails = rawDetails.map(d => {
+      const rawPath = Array.isArray(d.path)
+        ? `/${d.path.map(String).join('/')}`
+        : String(d.path ?? '');
+      const isMissing =
+        d.code === 'missing_field' ||
+        (d.code === 'invalid_type' && d.received === 'undefined') ||
+        d.message === 'Required';
+      return {
+        ...d,
+        path: rawPath,
+        code: isMissing ? 'missing_field' : d.code,
+      };
+    });
+    if (actualDetails.length === 0 && thrown.message?.includes("missing a valid 'version'")) {
+      actualDetails.push({
+        path: '/version',
+        code: 'missing_field',
+        message: thrown.message,
+      });
+    }
+    const normalizeDetailPath = p =>
+      String(p ?? '')
+        .replace(/^\/?messages[./]\d+[./]?/, '/')
+        .replace(/\./g, '/')
+        .replace(
+          /^\/?(createSurface|updateComponents|updateDataModel|deleteSurface|callRendererFunction)\//,
+          '/',
+        )
+        .replace(/^([^/])/, '/$1');
+    const detailCodesMatch = (actualCode, expectedCode) => {
+      if (actualCode === expectedCode) return true;
+      if (
+        expectedCode === 'type_mismatch' &&
+        (actualCode === 'invalid_type' || actualCode === 'invalid_value')
+      ) {
+        return true;
+      }
+      if (
+        expectedCode === 'invalid_value' &&
+        (actualCode === 'invalid_enum_value' ||
+          actualCode === 'invalid_literal' ||
+          actualCode === 'invalid_type')
+      ) {
+        return true;
+      }
+      return false;
+    };
+    for (const expDetail of expErrObj.details) {
+      const matched = actualDetails.some(d => {
+        if (
+          expDetail.path !== undefined &&
+          d.path !== expDetail.path &&
+          normalizeDetailPath(d.path) !== normalizeDetailPath(expDetail.path)
+        ) {
+          return false;
+        }
+        if (expDetail.code !== undefined && !detailCodesMatch(d.code, expDetail.code)) return false;
+        if (expDetail.surfaceId !== undefined && d.surfaceId !== expDetail.surfaceId) return false;
+        if (expDetail.message !== undefined) {
+          const normAct = String(d.message ?? '')
+            .replaceAll('"', "'")
+            .replaceAll("','", "', '");
+          const normExp = String(expDetail.message).replaceAll('"', "'").replaceAll("','", "', '");
+          if (!normAct.includes(normExp)) return false;
+        }
+        return true;
+      });
+      if (!matched) {
+        throw new Error(
+          `Expected error detail matching ${JSON.stringify(expDetail)}, got details: ${JSON.stringify(actualDetails)}`,
+        );
+      }
+    }
+  }
+  if (expErrObj.rendererError) {
+    if (!emittedErrorMsg) {
+      throw new Error('Expected outbound rendererError message to be emitted, but none was.');
+    }
+    const expRe = expErrObj.rendererError;
+    if (expRe.version !== undefined) {
+      assert.strictEqual(
+        emittedErrorMsg.version,
+        expRe.version,
+        `rendererError.version mismatch: expected '${expRe.version}', got '${emittedErrorMsg.version}'`,
+      );
+    }
+    if (expRe.error) {
+      if (expRe.error.code !== undefined) {
+        assert.strictEqual(
+          emittedErrorMsg.error?.code,
+          expRe.error.code,
+          `rendererError.error.code mismatch: expected '${expRe.error.code}', got '${emittedErrorMsg.error?.code}'`,
+        );
+      }
+      if (expRe.error.surfaceId !== undefined) {
+        assert.strictEqual(
+          emittedErrorMsg.error?.surfaceId,
+          expRe.error.surfaceId,
+          `rendererError.error.surfaceId mismatch: expected '${expRe.error.surfaceId}', got '${emittedErrorMsg.error?.surfaceId}'`,
+        );
+      }
+      if (expRe.error.functionCallId !== undefined) {
+        assert.strictEqual(
+          emittedErrorMsg.error?.functionCallId,
+          expRe.error.functionCallId,
+          `rendererError.error.functionCallId mismatch`,
+        );
+        assert.strictEqual(emittedErrorMsg.error?.surfaceId, undefined);
+        assert.strictEqual(emittedErrorMsg.error?.path, undefined);
+      }
+      if (expRe.error.path !== undefined) {
+        assert.strictEqual(
+          emittedErrorMsg.error?.path,
+          expRe.error.path,
+          `rendererError.error.path mismatch: expected '${expRe.error.path}', got '${emittedErrorMsg.error?.path}'`,
+        );
+      }
+      if (expRe.error.message !== undefined) {
+        const normAct = String(emittedErrorMsg.error?.message ?? '')
+          .replaceAll('"', "'")
+          .replaceAll("','", "', '");
+        const normExp = String(expRe.error.message).replaceAll('"', "'").replaceAll("','", "', '");
+        assert.ok(
+          normAct.includes(normExp),
+          `Expected rendererError.error.message containing '${expRe.error.message}', got '${emittedErrorMsg.error?.message}'`,
+        );
+      }
+    }
+  }
+}
+
 function validateValidateTestCase(testCase) {
   const expectError = testCase.expectError || testCase.expect_error;
   const {steps, payload, messages, expect, expectValid} = testCase;
@@ -942,9 +1344,17 @@ function validateValidateTestCase(testCase) {
   }
 
   const testCatalogs = getCatalogsForTestCase(testCase);
+  let lastErrorMsg;
+  const validationConfig =
+    testCase.strictMode === false
+      ? {allowMissingRoot: true, allowDanglingReferences: true, allowOrphanComponents: true}
+      : STRICT_VALIDATION;
   const processor = new MessageProcessor(testCatalogs, undefined, {
-    version: testCase.protocolVersion || 'v1.0',
-    validationConfig: STRICT_VALIDATION,
+    version: testCase.protocolVersion || '1.0',
+    validationConfig,
+    errorHandler: msg => {
+      lastErrorMsg = msg;
+    },
   });
 
   const stepsToRun =
@@ -968,6 +1378,7 @@ function validateValidateTestCase(testCase) {
 
     if (inputMessages.length > 0) {
       let thrown;
+      lastErrorMsg = undefined;
       // Subscribe before processing: a surface that already exists may report an
       // error while the messages are applied, before resolution begins.
       const watcher = watchSurfaceErrors(processor);
@@ -986,35 +1397,7 @@ function validateValidateTestCase(testCase) {
         if (expectValid || !expErrObj) {
           throw thrown;
         }
-        if (typeof expErrObj === 'object' && expErrObj.category) {
-          if (!matchesErrorCategory(thrown, expErrObj.category)) {
-            throw new Error(
-              `Expected error category '${expErrObj.category}' but received ${thrown.constructor?.name || thrown.name}: ${thrown.message}`,
-            );
-          }
-        }
-        if (typeof expErrObj === 'object' && expErrObj.code) {
-          if (
-            !thrown.message.includes(expErrObj.code) &&
-            thrown.name !== expErrObj.code &&
-            thrown.code !== expErrObj.code
-          ) {
-            throw new Error(
-              `Expected error matching '${expErrObj.code}' but received: ${thrown.message}`,
-            );
-          }
-        }
-        if (typeof expErrObj === 'object' && expErrObj.message) {
-          const normalizedActual = thrown.message.replaceAll('"', "'").replaceAll("','", "', '");
-          const normalizedExpected = expErrObj.message
-            .replaceAll('"', "'")
-            .replaceAll("','", "', '");
-          if (!normalizedActual.includes(normalizedExpected)) {
-            throw new Error(
-              `Expected error message containing '${expErrObj.message}' but received: ${thrown.message}`,
-            );
-          }
-        }
+        assertExpectedConformanceError(thrown, lastErrorMsg, expErrObj);
         continue;
       }
 
@@ -1163,23 +1546,6 @@ function assertMatchesBuiltinCatalog(loaded) {
   );
 }
 
-/**
- * Loads the case's `peerCatalogPaths` with `Catalog.fromJson` and returns the
- * catalog `withPeerCatalogs` links to them, in the listed order, or `catalog`
- * itself when the case lists no peers.
- */
-function linkPeerCatalogs(testCase, catalog, pVer) {
-  const peerPaths = testCase.peerCatalogPaths ?? [];
-  if (peerPaths.length === 0) return catalog;
-  const peers = peerPaths.map(peerPath =>
-    Catalog.fromJson(
-      JSON.parse(fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', peerPath), 'utf8')),
-      pVer,
-    ),
-  );
-  return catalog.withPeerCatalogs(peers);
-}
-
 function validateFromJsonTestCase(testCase) {
   const rawSchema = testCase.catalogPath
     ? JSON.parse(
@@ -1212,7 +1578,7 @@ function validateFromJsonTestCase(testCase) {
     return;
   }
 
-  const catalog = linkPeerCatalogs(testCase, load(), pVer);
+  const catalog = load();
   assert.ok(catalog, 'Catalog should be initialized from schema');
 
   if (testCase.expect) {
@@ -1254,6 +1620,17 @@ function validateFromJsonTestCase(testCase) {
     if (expected.matchesBuiltinCatalog) {
       assertMatchesBuiltinCatalog(catalog);
     }
+    if (expected.componentMetadata) {
+      for (const [compName, expectedMeta] of Object.entries(expected.componentMetadata)) {
+        const compApi = catalog.components.get(compName);
+        assert.ok(compApi, `Expected component '${compName}' to exist in catalog`);
+        assert.deepStrictEqual(
+          compApi.metadata ?? null,
+          expectedMeta,
+          `Component '${compName}' metadata mismatch`,
+        );
+      }
+    }
     if (expected.validComponents || expected.invalidComponents) {
       const validator = new PayloadValidator(catalog, STRICT_VALIDATION);
       for (const component of expected.validComponents ?? []) {
@@ -1266,6 +1643,88 @@ function validateFromJsonTestCase(testCase) {
         );
       }
     }
+  }
+}
+
+/**
+ * The `expect` keys a `derive` case may use (`DeriveExpect` in
+ * conformance_schema.json).
+ */
+const DERIVE_EXPECT_KEYS = new Set([
+  'absentKeys',
+  'catalogId',
+  'components',
+  'functions',
+  'instructions',
+  'protocolVersion',
+  'theme',
+]);
+
+/**
+ * Runs a `derive` case: loads the source catalog with `fromJson`, derives a
+ * catalog from it, and checks the derived catalog and its `toJson()` document.
+ */
+function validateDeriveTestCase(testCase) {
+  const source = Catalog.fromJson(readCaseCatalogDocument(testCase));
+  const {catalogId, components, functions, instructions} = testCase.args;
+  // A map with one key is a new entry, built by loading it into a catalog of
+  // the source's version.
+  const entries = (list, kind) =>
+    list?.map(item => {
+      if (typeof item === 'string') return item;
+      const [name, definition] = Object.entries(item)[0];
+      const holder = Catalog.fromJson({
+        catalogId: 'conformance:derive-entries',
+        protocolVersion: source.protocolVersion,
+        [kind]: {[name]: definition},
+      });
+      return holder[kind].get(name);
+    });
+  const derive = () =>
+    source.derive({
+      catalogId,
+      components: entries(components, 'components'),
+      functions: entries(functions, 'functions'),
+      instructions,
+    });
+
+  if (testCase.expectError) {
+    assert.throws(derive, err => {
+      if (!matchesErrorCategory(err, testCase.expectError.category)) return false;
+      return !testCase.expectError.message || err.message.includes(testCase.expectError.message);
+    });
+    return;
+  }
+
+  const expected = testCase.expect;
+  const unknownKeys = Object.keys(expected).filter(key => !DERIVE_EXPECT_KEYS.has(key));
+  assert.deepStrictEqual(unknownKeys, [], `Unknown derive expect keys: ${unknownKeys}`);
+  const derived = derive();
+  const document = derived.toJson();
+  if (expected.catalogId) assert.strictEqual(derived.id, expected.catalogId);
+  if (expected.protocolVersion) {
+    assert.strictEqual(
+      toCanonicalVersion(derived.protocolVersion),
+      toCanonicalVersion(expected.protocolVersion),
+    );
+  }
+  for (const kind of ['components', 'functions']) {
+    const listed = expected[kind];
+    if (!listed) continue;
+    const names = Array.isArray(listed) ? listed : Object.keys(listed);
+    assert.deepStrictEqual([...derived[kind].keys()].sort(), [...names].sort(), `${kind} mismatch`);
+    if (!Array.isArray(listed)) {
+      for (const [name, definition] of Object.entries(listed)) {
+        assertJsonSetEqual(document[kind][name], definition, `${kind} '${name}' differs`);
+      }
+    }
+  }
+  if (expected.theme) assertJsonSetEqual(document.theme, expected.theme, 'theme differs');
+  if (expected.instructions !== undefined) {
+    assert.strictEqual(document.instructions, expected.instructions);
+  }
+  for (const key of expected.absentKeys ?? []) {
+    assert.ok(!(key in document), `Expected toJson() to carry no '${key}'`);
   }
 }
 
@@ -1463,11 +1922,10 @@ function sortKeysDeep(node) {
 /**
  * Returns the catalog a `validation_schema` case checks: the authored catalog
  * loaded with `fromJson`, even when it is one web_core implements. Built-in
- * equivalence is covered by `matchesBuiltinCatalog`. When the case lists
- * `peerCatalogPaths`, the catalog linked to them.
+ * equivalence is covered by `matchesBuiltinCatalog`.
  */
 function loadValidationSchemaCatalog(testCase, rawSchema, pVer) {
-  return linkPeerCatalogs(testCase, Catalog.fromJson(rawSchema, pVer, testCase.catalogId), pVer);
+  return Catalog.fromJson(rawSchema, pVer, testCase.catalogId);
 }
 
 /** Runs a `validation_schema` case against its golden `expectFile`. */
@@ -1690,7 +2148,7 @@ function resolveProtocolVersion(testCase) {
   const catId = String(testCase.catalogId || catSpec.catalogId || caseSchema.catalogId || '');
   if (catId.includes('v08') || catId.includes('v0_8')) return 'v0.8';
   if (catId.includes('v09') || catId.includes('v0_9')) return 'v0.9';
-  if (catId.includes('v10') || catId.includes('v1_0') || catId.includes('v1.0')) return 'v1.0';
+  if (catId.includes('v10') || catId.includes('v1_0') || catId.includes('v1.0')) return '1.0';
   return 'v0.9';
 }
 
@@ -1731,7 +2189,9 @@ function getCatalogsForTestCase(testCase) {
   const isCatalogErrorCase =
     typeof declaredError === 'object' &&
     declaredError !== null &&
-    (declaredError.category === 'CatalogError' || declaredError.category === 'A2uiCatalogError');
+    (declaredError.category === 'CatalogError' ||
+      declaredError.category === 'A2uiCatalogError' ||
+      declaredError.code === 'CATALOG_ERROR');
   const expectsError = Boolean(declaredError) && !isCatalogErrorCase;
 
   const addCatalogId = (id, ver) => {
@@ -1882,13 +2342,15 @@ function getCatalogsForTestCase(testCase) {
     if (
       item.createSurface &&
       item.createSurface.catalogId &&
-      item.createSurface.catalogId !== 'unknown-catalog'
+      !isCatalogErrorCase &&
+      !item.createSurface.catalogId.includes('unknown')
     )
       addCatalogId(item.createSurface.catalogId, scanVersion);
     if (
       item.beginRendering &&
       item.beginRendering.catalogId &&
-      item.beginRendering.catalogId !== 'unknown-catalog'
+      !isCatalogErrorCase &&
+      !item.beginRendering.catalogId.includes('unknown')
     )
       addCatalogId(item.beginRendering.catalogId, scanVersion);
   };
@@ -2028,7 +2490,15 @@ function forceResolution(processor, reported) {
 
   if (reported.length > 0) {
     const first = reported[0];
-    throw new A2uiValidationError(first?.message ?? 'Expression error');
+    throw new A2uiValidationError(
+      first?.message ?? 'Expression error',
+      first?.details,
+      first?.code ?? 'VALIDATION_FAILED',
+      {
+        surfaceId: first?.surfaceId,
+        path: first?.path,
+      },
+    );
   }
 }
 
@@ -2128,6 +2598,13 @@ function assertSurfacesMatch(processor, expect) {
           expectedSurface.dataModel,
         );
       }
+      if (surface && 'metadata' in expectedSurface) {
+        assert.deepStrictEqual(
+          surface.metadata ?? null,
+          expectedSurface.metadata,
+          `Surface '${surfaceId}' metadata mismatch`,
+        );
+      }
       if (surface && expectedSurface.components) {
         // A suite may list components either as an array of objects carrying
         // their own `id`, or as a mapping of id to expectation. Both forms are
@@ -2161,6 +2638,15 @@ function assertSurfacesMatch(processor, expect) {
             const actualProps = node ? (peekValue(node.props) ?? {}) : (comp.properties ?? {});
             for (const [propKey, expectedVal] of Object.entries(expectedComp)) {
               if (propKey === 'id' || propKey === 'component') continue;
+              if (propKey === 'metadata') {
+                const actualMeta = (node ? peekValue(node.metadata) : comp.metadata) ?? null;
+                assert.deepStrictEqual(
+                  actualMeta,
+                  expectedVal,
+                  `Metadata mismatch on component '${expectedComp.id}'`,
+                );
+                continue;
+              }
               const actualVal = normalizeComponentRefs(actualProps[propKey]);
               if (!propertyValuesMatch(actualVal, expectedVal)) {
                 throw new Error(
@@ -2195,17 +2681,131 @@ function assertSurfacesMatch(processor, expect) {
           }
         }
       }
+      if (
+        surface &&
+        (expectedSurface.isValid !== undefined ||
+          expectedSurface.validationErrors !== undefined ||
+          expectedSurface.validationResults !== undefined ||
+          expectedSurface.validationResult !== undefined)
+      ) {
+        const resolved = collectResolvedNodes(surface);
+        try {
+          let fallbackNode = resolved.nodes.get('root');
+          if (!fallbackNode && resolved.nodes.size > 0) {
+            fallbackNode = resolved.nodes.values().next().value;
+          }
+          const getPropsForId = id => {
+            const n = resolved.nodes.get(id) ?? (id === 'root' ? fallbackNode : undefined);
+            return n ? (peekValue(n.props) ?? {}) : {};
+          };
+          if (expectedSurface.isValid !== undefined) {
+            if (typeof expectedSurface.isValid === 'boolean') {
+              assert.strictEqual(getPropsForId('root').isValid, expectedSurface.isValid);
+            } else {
+              for (const [compId, expVal] of Object.entries(expectedSurface.isValid)) {
+                assert.strictEqual(getPropsForId(compId).isValid, expVal);
+              }
+            }
+          }
+          if (expectedSurface.validationErrors !== undefined) {
+            if (Array.isArray(expectedSurface.validationErrors)) {
+              assert.deepStrictEqual(
+                getPropsForId('root').validationErrors,
+                expectedSurface.validationErrors,
+              );
+            } else {
+              for (const [compId, expVal] of Object.entries(expectedSurface.validationErrors)) {
+                assert.deepStrictEqual(getPropsForId(compId).validationErrors, expVal);
+              }
+            }
+          }
+          if (expectedSurface.validationResults !== undefined) {
+            if (Array.isArray(expectedSurface.validationResults)) {
+              assert.deepStrictEqual(
+                getPropsForId('root').validationResults,
+                expectedSurface.validationResults,
+              );
+            } else {
+              for (const [compId, expVal] of Object.entries(expectedSurface.validationResults)) {
+                assert.deepStrictEqual(getPropsForId(compId).validationResults, expVal);
+              }
+            }
+          }
+          if (expectedSurface.validationResult !== undefined) {
+            const checkSingleResult = (compId, expRes) => {
+              const firstResult = Array.isArray(getPropsForId(compId).validationResults)
+                ? getPropsForId(compId).validationResults[0]
+                : undefined;
+              if (expRes.valid !== undefined) assert.strictEqual(firstResult?.valid, expRes.valid);
+              if (expRes.message !== undefined) {
+                assert.strictEqual(firstResult?.message, expRes.message);
+              }
+              if (expRes.code !== undefined) assert.strictEqual(firstResult?.code, expRes.code);
+              if (expRes.severity !== undefined) {
+                assert.strictEqual(firstResult?.severity, expRes.severity);
+              }
+            };
+            if (
+              'valid' in expectedSurface.validationResult ||
+              'message' in expectedSurface.validationResult ||
+              'code' in expectedSurface.validationResult
+            ) {
+              checkSingleResult('root', expectedSurface.validationResult);
+            } else {
+              for (const [compId, expRes] of Object.entries(expectedSurface.validationResult)) {
+                checkSingleResult(compId, expRes);
+              }
+            }
+          }
+        } finally {
+          resolved.dispose();
+        }
+      }
     }
   }
+}
+
+/**
+ * The flags a case's `validationConfig` may set (`validationConfig` in
+ * conformance_schema.json). An unknown flag fails the case rather than being
+ * silently ignored.
+ */
+const CASE_VALIDATION_FLAGS = new Set([
+  'allowOrphanComponents',
+  'allowDanglingReferences',
+  'allowMissingRoot',
+  'allowUnknownElements',
+]);
+
+/**
+ * The processor's validation config for a process_messages case. A case's
+ * `validationConfig` sets its checks, so they don't depend on this harness: a
+ * flag it leaves out is false. Without one, `strictMode` selects strict
+ * validation and anything else none.
+ */
+function caseValidationConfig(testCase) {
+  const flags = testCase.validationConfig;
+  if (flags === undefined) {
+    return testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {};
+  }
+  const unknown = Object.keys(flags).filter(name => !CASE_VALIDATION_FLAGS.has(name));
+  if (unknown.length > 0) {
+    throw new Error(`Unknown validationConfig flags: ${unknown.join(', ')}`);
+  }
+  return {validationConfig: {...STRICT_VALIDATION, ...flags}};
 }
 
 function validateProcessMessagesTestCase(testCase) {
   const {messages, payload, steps, expect, expectError, protocolVersion} = testCase;
 
   const testCatalogs = getCatalogsForTestCase(testCase);
+  let lastErrorMsg;
   const processorOptions = {
     ...(protocolVersion ? {version: protocolVersion} : {}),
-    ...(testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {}),
+    ...caseValidationConfig(testCase),
+    errorHandler: msg => {
+      lastErrorMsg = msg;
+    },
   };
   const processor = new MessageProcessor(testCatalogs, undefined, processorOptions);
 
@@ -2229,55 +2829,35 @@ function validateProcessMessagesTestCase(testCase) {
     return inputMessages;
   };
 
-  const assertExpectedProcessError = (err, expectedErr) => {
-    if (expectedErr.category) {
-      if (!matchesErrorCategory(err, expectedErr.category)) {
-        throw new Error(
-          `Expected error category '${expectedErr.category}', got '${err.constructor?.name || err.name}': ${err.message}`,
-        );
-      }
-    }
-    if (expectedErr.message) {
-      const expectedMsg = expectedErr.message;
-      const matches =
-        err.message.includes(expectedMsg) ||
-        (expectedMsg.includes('Unsupported protocol version') &&
-          (err.message.includes('Invalid enum value') ||
-            err.message.includes('Unsupported protocol version'))) ||
-        (expectedMsg.includes('Missing') &&
-          err.message.includes("missing a valid 'version' string")) ||
-        (expectedMsg.includes('multiple update types') &&
-          err.message.includes('multiple conflicting update actions'));
-      if (!matches) {
-        throw new Error(`Expected error message containing '${expectedMsg}', got '${err.message}'`);
-      }
-    }
-  };
-
   if (steps && Array.isArray(steps)) {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
-      let stepMsgs = step.messages || (step.payload ? [step.payload] : []);
+      let stepMsgs =
+        step.messages ||
+        (Array.isArray(step.payload) ? step.payload : step.payload ? [step.payload] : []);
       if (!stepMsgs && step.message) stepMsgs = [step.message];
       stepMsgs = normalizeMsgs(stepMsgs);
 
+      // A step's validationConfig applies to that call only.
+      const context = step.validationConfig ? {validationConfig: step.validationConfig} : undefined;
       const stepExpectError =
         step.expectError || (i === steps.length - 1 ? expectError : undefined);
       if (stepExpectError) {
+        lastErrorMsg = undefined;
         let thrown;
         try {
-          processor.processMessages(stepMsgs);
+          processor.processMessages(stepMsgs, context);
         } catch (err) {
           thrown = err;
         }
         if (!thrown) {
           throw new Error(
-            `Expected error (${stepExpectError.category || stepExpectError.message || 'UNKNOWN'}) but message processing succeeded.`,
+            `Expected error (${stepExpectError.category || stepExpectError.code || stepExpectError.message || 'UNKNOWN'}) but message processing succeeded.`,
           );
         }
-        assertExpectedProcessError(thrown, stepExpectError);
+        assertExpectedConformanceError(thrown, lastErrorMsg, stepExpectError);
       } else {
-        processor.processMessages(stepMsgs);
+        processor.processMessages(stepMsgs, context);
         const stepExpect = step.expect || (i === steps.length - 1 ? expect : undefined);
         if (stepExpect) {
           assertSurfacesMatch(processor, stepExpect);
@@ -2291,6 +2871,7 @@ function validateProcessMessagesTestCase(testCase) {
   if (!inputMessages) return;
 
   if (expectError) {
+    lastErrorMsg = undefined;
     let thrown;
     try {
       processor.processMessages(inputMessages);
@@ -2299,10 +2880,10 @@ function validateProcessMessagesTestCase(testCase) {
     }
     if (!thrown) {
       throw new Error(
-        `Expected error (${expectError.category || expectError.message || 'UNKNOWN'}) but message processing succeeded.`,
+        `Expected error (${expectError.category || expectError.code || expectError.message || 'UNKNOWN'}) but message processing succeeded.`,
       );
     }
-    assertExpectedProcessError(thrown, expectError);
+    assertExpectedConformanceError(thrown, lastErrorMsg, expectError);
     return;
   }
 
@@ -2371,12 +2952,15 @@ function getBasicCatalog(version) {
   return v0_9BasicCatalog;
 }
 
-function validateDispatchActionTestCase(testCase) {
+async function validateDispatchActionTestCase(testCase) {
   const {
     actionPayload,
+    metadata,
     dataModel = {},
     surfaceId = 'main',
+    sourceComponentId = 'root',
     scope,
+    userActivation,
     expectDispatched,
     expectDataModel,
     expectError,
@@ -2385,46 +2969,138 @@ function validateDispatchActionTestCase(testCase) {
   const errorSpec = expect_error || expectError;
 
   const testCatalogs = getCatalogsForTestCase(testCase);
-  const defaultCat = testCatalogs[0] || getBasicCatalog(resolveProtocolVersion(testCase) || 'v0.9');
+  const baseCat = testCatalogs[0] || getBasicCatalog(resolveProtocolVersion(testCase) || 'v0.9');
+  const actionFunctions = [
+    ...Array.from(baseCat.functions.values()),
+    createFunctionImplementation(
+      {
+        name: 'incrementCounter',
+        returnType: 'void',
+        schema: z.object({
+          path: z.string().optional(),
+          step: z.number().optional(),
+        }),
+      },
+      (args, context) => {
+        const targetPath = args.path || '/counter';
+        const step = args.step ?? 1;
+        const cur = Number(context.dataModel.get(targetPath) ?? 0);
+        context.dataModel.set(targetPath, cur + step);
+      },
+    ),
+    createFunctionImplementation(
+      {
+        name: 'failingAction',
+        returnType: 'void',
+        schema: z.object({}),
+      },
+      () => {
+        throw new Error('Action function failed');
+      },
+    ),
+  ];
+  const defaultCat = new Catalog(
+    baseCat.id,
+    baseCat.protocolVersion || '0.9',
+    Array.from(baseCat.components.values()),
+    actionFunctions,
+    baseCat.themeSchema,
+    baseCat.instructions,
+  );
   const model = new DataModel(dataModel);
   const surface = new SurfaceModel(surfaceId, defaultCat, undefined, undefined, false, model);
 
   const dispatched = [];
   surface.onAction.subscribe(evt => dispatched.push(evt));
+  const surfaceErrors = [];
+  surface.onError.subscribe(err => surfaceErrors.push(err));
 
   const ctx = new DataContext(surface, scope || '/');
+  const prevWindow = globalThis.window;
+  if (typeof globalThis.window === 'undefined') {
+    globalThis.window = {open: () => null};
+  }
 
-  if (errorSpec) {
-    assert.throws(() => {
-      const resolved = ctx.resolveAction(actionPayload);
-      if (resolved && typeof resolved === 'object' && ('event' in resolved || 'name' in resolved)) {
-        surface.dispatchAction(resolved);
+  try {
+    if (errorSpec) {
+      let thrown;
+      try {
+        const resolved = ctx.resolveAction(actionPayload, {userActivation});
+        if (
+          resolved &&
+          typeof resolved === 'object' &&
+          ('event' in resolved || 'name' in resolved)
+        ) {
+          await surface.dispatchAction(resolved, sourceComponentId, metadata);
+        }
+      } catch (err) {
+        thrown = err;
       }
-    });
-    return;
-  }
-
-  const resolved = ctx.resolveAction(actionPayload);
-  if (resolved && typeof resolved === 'object' && ('event' in resolved || 'name' in resolved)) {
-    surface.dispatchAction(resolved);
-  }
-
-  if (expectDispatched !== undefined) {
-    assert.ok(dispatched.length >= 1, 'Expected action to be dispatched, but none was');
-    const actual = dispatched[0];
-    if ('name' in expectDispatched) {
-      assert.strictEqual(actual.name, expectDispatched.name);
+      if (!thrown && surfaceErrors.length > 0) {
+        const first = surfaceErrors[0];
+        thrown = new A2uiValidationError(first.message, first.details, first.code);
+      }
+      if (!thrown) {
+        throw new Error('Expected action dispatch error, but none was thrown or reported');
+      }
+      if (errorSpec.code && surfaceErrors.length > 0) {
+        assert.strictEqual(surfaceErrors[0].code, errorSpec.code);
+      } else if (errorSpec.code && thrown.code) {
+        assert.strictEqual(thrown.code, errorSpec.code);
+      }
+      if (errorSpec.message) {
+        const actualMsg = surfaceErrors[0]?.message || thrown.message || '';
+        assert.ok(
+          actualMsg.toLowerCase().includes(errorSpec.message.toLowerCase()),
+          `Expected error message containing '${errorSpec.message}', got '${actualMsg}'`,
+        );
+      }
+      return;
     }
-    if ('context' in expectDispatched) {
-      assert.deepStrictEqual(actual.context, expectDispatched.context);
-    }
-    if ('userMessage' in expectDispatched) {
-      assert.strictEqual(actual.userMessage, expectDispatched.userMessage);
-    }
-  }
 
-  if (expectDataModel !== undefined) {
-    assert.deepStrictEqual(model.get('/'), expectDataModel);
+    const resolved = ctx.resolveAction(actionPayload, {userActivation});
+    if (resolved && typeof resolved === 'object' && ('event' in resolved || 'name' in resolved)) {
+      await surface.dispatchAction(resolved, sourceComponentId, metadata);
+    }
+
+    if (expectDispatched === null) {
+      assert.strictEqual(dispatched.length, 0, 'Expected no action to be dispatched');
+    } else if (expectDispatched !== undefined) {
+      assert.ok(dispatched.length >= 1, 'Expected action to be dispatched, but none was');
+      const actual = dispatched[0];
+      if ('name' in expectDispatched) {
+        assert.strictEqual(actual.name, expectDispatched.name);
+      }
+      if ('context' in expectDispatched) {
+        assert.deepStrictEqual(actual.context, expectDispatched.context);
+      }
+      if ('userMessage' in expectDispatched) {
+        assert.strictEqual(actual.userMessage, expectDispatched.userMessage);
+      }
+      if ('metadata' in expectDispatched) {
+        assert.deepStrictEqual(actual.metadata ?? null, expectDispatched.metadata);
+      }
+      if ('surfaceId' in expectDispatched) {
+        assert.strictEqual(actual.surfaceId, expectDispatched.surfaceId);
+      }
+      if ('sourceComponentId' in expectDispatched) {
+        assert.strictEqual(actual.sourceComponentId, expectDispatched.sourceComponentId);
+      }
+      if ('timestampIso8601' in expectDispatched) {
+        assert.strictEqual(typeof actual.timestamp, 'string');
+        assert.ok(!Number.isNaN(Date.parse(actual.timestamp)));
+      }
+    }
+
+    if (expectDataModel !== undefined) {
+      assert.deepStrictEqual(model.get('/'), expectDataModel);
+    }
+  } finally {
+    if (prevWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = prevWindow;
+    }
   }
 }
 

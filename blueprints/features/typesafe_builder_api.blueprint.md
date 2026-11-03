@@ -234,6 +234,7 @@ When re-exporting `DataBinding`, `ActionEvent`, `FunctionCall`, `CheckRule`, and
 
 - **`DynamicChildList`**: Authoring accepts `DynamicChildList(path="/users", template=Card(...))`. During flattening, the `template` subtree is emitted as a component and `DynamicChildList` serializes to `{"path": "/users", "componentId": "<template_id>"}`.
 - **`Action`**: Accepts either `event=ActionEvent(...)` or `function_call=FunctionCall(...)`, validates mutual exclusion, and serializes to the active branch.
+- **Extension metadata (v1.0+)**: Every `ComponentBuilderNode` accepts an `extensions` map that serializes to the component's `metadata: {extensions}` envelope, and exposes a `metadata` property (`get`/`set`) and a chainable `with_extension(key, value)` for incremental authoring. Surface-level extensions are authored either as a constructor argument on the create-surface envelope or by stamping them onto already compiled envelopes with `set_surface_extensions(messages, surface_id=..., extensions=...)`. Every extension key is validated as a UAX #31 identifier at authoring time, so an invalid key fails before it reaches the wire.
 - **Direct envelope packaging**: The builder does not define custom `create_surface()` or `update_components()` helper functions. Callers construct standard `a2ui_core` message envelopes (`CreateSurfaceMessage`, `UpdateComponentsMessage`, `UpdateDataModelMessage`) using the list returned by `.flatten()`.
 
 ---

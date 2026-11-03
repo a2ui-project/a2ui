@@ -186,7 +186,8 @@ def test_pruning_leaves_the_input_catalog_unchanged():
 
 
 @pytest.mark.parametrize(
-    "transformer_class", [ComponentPruningTransformer, FunctionPruningTransformer]
+    "transformer_class",
+    [ComponentPruningTransformer, FunctionPruningTransformer],
 )
 def test_pruning_rejects_a_single_string(transformer_class):
     with pytest.raises(TypeError, match="not a string"):
@@ -277,7 +278,11 @@ def test_pruning_a_loaded_catalog_keeps_its_defs_as_written():
     schema = pruned.validation_schema
     assert "Orphaned" not in schema["$defs"]
     a_schema = schema["components"]["A"]
-    assert a_schema["properties"]["x"] == source["$defs"]["X"]
+    assert a_schema["properties"]["x"] == {"$ref": "#/$defs/X"}
+    assert schema["$defs"]["X"] == source["$defs"]["X"]
+    assert (
+        pruned.resolved_component_schema("A")["properties"]["x"] == source["$defs"]["X"]
+    )
     validator = jsonschema.Draft202012Validator({"$defs": schema["$defs"], **a_schema})
     validator.validate(
         {"id": "a1", "component": "A", "x": {"n": 1}, "label": {"text": "hi"}}

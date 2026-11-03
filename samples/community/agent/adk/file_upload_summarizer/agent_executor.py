@@ -16,7 +16,7 @@ import logging
 from typing import override
 from a2a.server.agent_execution import RequestContext
 from a2ui.a2a import try_activate_a2ui_extension
-from a2ui.adk import A2uiEventConverter
+from a2ui.adk import A2uiEventConverter, A2uiProcessorStore
 from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from google.adk.a2a.converters.request_converter import AgentRunRequest
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor, A2aAgentExecutorConfig
@@ -28,9 +28,9 @@ from file_resolution import STATE_KEY_BASE_URL
 
 logger = logging.getLogger(__name__)
 
-_A2UI_ENABLED_KEY = "system:a2ui_enabled"
-_A2UI_CATALOGS_KEY = "system:a2ui_catalogs"
-_A2UI_EXAMPLES_KEY = "system:a2ui_examples"
+# The processor of each session's latest request. It can't be kept in session
+# state, which ADK's session services save as JSON and copy on each load.
+_A2UI_PROCESSORS = A2uiProcessorStore()
 
 
 class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
@@ -45,7 +45,9 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
         self._agent = agent
 
         config = A2aAgentExecutorConfig(
-            event_converter=A2uiEventConverter(bypass_tool_check=True)
+            event_converter=A2uiEventConverter(
+                bypass_tool_check=True, a2ui_processor=_A2UI_PROCESSORS.get
+            )
         )
         super().__init__(runner=self._agent.get_runner(None), config=config)
 
@@ -76,6 +78,7 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
                 ),
             )
 
+        processor = None
         if active_ui_version:
             client_capabilities = (
                 context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
@@ -85,23 +88,7 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
             processor = self._agent.create_processor(
                 active_ui_version, client_capabilities
             )
-            a2ui_catalogs = processor.active_catalogs
 
-            examples = ""
-
-            await runner.session_service.append_event(
-                session,
-                Event(
-                    invocation_id=new_invocation_context_id(),
-                    author="system",
-                    actions=EventActions(
-                        state_delta={
-                            _A2UI_ENABLED_KEY: True,
-                            _A2UI_CATALOGS_KEY: a2ui_catalogs,
-                            _A2UI_EXAMPLES_KEY: examples,
-                        }
-                    ),
-                ),
-            )
+        _A2UI_PROCESSORS.set(session.id, processor)
 
         return session

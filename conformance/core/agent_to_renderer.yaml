@@ -41,5 +41,5 @@
 - name: test_v10_agent_to_renderer_schema_matches_specification
   description: The v1.0 agent_to_renderer schema generated from the SDK models matches specification/v1_0/json/agent_to_renderer.json exactly.
   action: agent_to_renderer_schema
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   expectFile: "specification/v1_0/json/agent_to_renderer.json"

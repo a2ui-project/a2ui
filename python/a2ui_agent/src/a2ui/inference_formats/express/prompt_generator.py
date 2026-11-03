@@ -156,23 +156,23 @@ def _multi_catalog_rules(helpers: Mapping[str, CatalogSchemaHelper]) -> str:
         "## Multiple Catalogs",
         "",
         (
-            "Several component catalogs are active. Each is identified by its catalog"
-            " ID, and the signatures below are grouped by catalog:"
+            "Several component catalogs are active. Each is identified by its"
+            " catalog ID, and the signatures below are grouped by catalog:"
         ),
         listing,
         "",
         (
             "16. A surface has no catalog of its own: do not name a catalog on a"
             " `surface` line. Each component and function call, including checks,"
-            " actions, nested function calls and inline child components, is found"
-            " by its name in whichever catalog defines it."
+            " actions, nested function calls and inline child components, is"
+            " found by its name in whichever catalog defines it."
         ),
         "",
         (
-            "17. When several catalogs define the same component or function name,"
-            " you MUST say which one you mean: add a `catalogId` keyword argument"
-            " to the component or function call, or a `{catalogId: ...}` argument"
-            " to a check. Do not add `catalogId` to any other name:"
+            "17. When several catalogs define the same component or function"
+            " name, you MUST say which one you mean: add a `catalogId` keyword"
+            " argument to the component or function call, or a `{catalogId: ...}`"
+            " argument to a check. Do not add `catalogId` to any other name:"
         ),
         f'    widget = ComponentName(..., catalogId="{example_id}")',
         f'    action = functionName(..., catalogId="{example_id}")',

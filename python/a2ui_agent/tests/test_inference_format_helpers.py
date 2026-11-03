@@ -45,7 +45,7 @@ PRIMARY = "https://example.com/catalogs/primary"
 SECONDARY = "https://example.com/catalogs/secondary"
 
 
-def _catalog(catalog_id: str, protocol_version: str = "v1.0") -> Catalog:
+def _catalog(catalog_id: str, protocol_version: str = "1.0") -> Catalog:
     return Catalog(catalog_id=catalog_id, protocol_version=protocol_version)
 
 
@@ -57,7 +57,7 @@ def _catalog(catalog_id: str, protocol_version: str = "v1.0") -> Catalog:
     [
         pytest.param(
             {
-                "version": "v1.0",
+                "version": "1.0",
                 "callRendererFunction": {
                     "functionCallId": "fn-7",
                     "callFunction": {
@@ -71,18 +71,25 @@ def _catalog(catalog_id: str, protocol_version: str = "v1.0") -> Catalog:
         ),
         pytest.param(
             {
-                "version": "v1.0",
-                "updateDataModel": {"surfaceId": "s1", "path": "/a", "value": None},
+                "version": "1.0",
+                "updateDataModel": {
+                    "surfaceId": "s1",
+                    "path": "/a",
+                    "value": None,
+                },
             },
             id="v1_0_explicit_null_value",
         ),
         pytest.param(
-            {"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "path": "/a"}},
+            {
+                "version": "v0.9",
+                "updateDataModel": {"surfaceId": "s1", "path": "/a"},
+            },
             id="v0_9_omitted_value_stays_omitted",
         ),
         pytest.param(
             {
-                "version": "v1.0",
+                "version": "1.0",
                 "createSurface": {
                     "surfaceId": "s1",
                     "catalogId": SECONDARY,
@@ -113,24 +120,24 @@ def test_message_round_trip_is_lossless(message: dict[str, Any]):
 
 
 def test_to_message_models_invents_no_catalog_id():
-    message = {"version": "v1.0", "createSurface": {"surfaceId": "s1"}}
+    message = {"version": "1.0", "createSurface": {"surfaceId": "s1"}}
     assert to_message_dicts(to_message_models([message])) == [message]
 
 
 def test_to_message_models_invents_no_surface_id():
-    message = {"version": "v1.0", "deleteSurface": {}}
+    message = {"version": "1.0", "deleteSurface": {}}
     with pytest.raises(A2uiValidationError):
         to_message_models([message])
 
 
 def test_to_message_models_does_not_rewrite_a_top_level_call_function():
-    message = {"version": "v1.0", "callFunction": {"@call": "openUrl", "args": {}}}
+    message = {"version": "1.0", "callFunction": {"@call": "openUrl", "args": {}}}
     with pytest.raises(A2uiValidationError):
         to_message_models([message])
 
 
 def test_to_message_models_accepts_a_single_message():
-    message = {"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}
+    message = {"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}
     assert to_message_dicts(to_message_models(message)) == [message]
 
 
@@ -142,7 +149,7 @@ def test_to_message_models_rejects_a_string():
 def test_to_message_dicts_writes_the_version_of_a_model_built_without_it():
     model = v1_0.DeleteSurfaceMessage(deleteSurface=v1_0.DeleteSurface(surfaceId="s1"))
     assert to_message_dicts([model]) == [
-        {"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}
+        {"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}
     ]
 
 
@@ -158,16 +165,16 @@ def test_normalize_prompt_example_messages_fills_in_example_defaults():
             {"callFunction": {"@call": "openUrl", "args": {"url": "x"}}},
             {"version": "1.0", "deleteSurface": {"surfaceId": "s2"}},
         ],
-        version="v1.0",
+        version="1.0",
         default_catalog_id=PRIMARY,
     )
     assert to_message_dicts(models) == [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {"surfaceId": "main", "catalogId": PRIMARY},
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "callRendererFunction": {
                 "functionCallId": "call_1",
                 "callFunction": {
@@ -177,7 +184,7 @@ def test_normalize_prompt_example_messages_fills_in_example_defaults():
                 },
             },
         },
-        {"version": "v1.0", "deleteSurface": {"surfaceId": "s2"}},
+        {"version": "1.0", "deleteSurface": {"surfaceId": "s2"}},
     ]
 
 
@@ -188,7 +195,7 @@ def test_normalize_prompt_example_messages_rejects_empty_or_none_version(
     with pytest.raises(A2uiValidationError, match="Version cannot be None or empty"):
         normalize_prompt_example_messages(
             [{"version": bad_version, "deleteSurface": {"surfaceId": "s1"}}],
-            version="v1.0",
+            version="1.0",
             default_catalog_id=PRIMARY,
         )
 
@@ -199,11 +206,11 @@ def test_normalize_prompt_example_messages_rejects_empty_or_none_version(
 def test_direct_json_compile_passes_messages_through_unchanged():
     messages = [
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateDataModel": {"surfaceId": "s1", "path": "/a", "value": None},
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "callRendererFunction": {
                 "functionCallId": "fn-1",
                 "callFunction": {
@@ -217,7 +224,7 @@ def test_direct_json_compile_passes_messages_through_unchanged():
     catalog = BasicCatalog("1.0")
     parser = DirectJsonParser([catalog])
     create = {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
     }
     state = RendererState([catalog])
@@ -229,12 +236,12 @@ def test_direct_json_compile_passes_messages_through_unchanged():
 def test_direct_json_parse_of_invalid_messages_raises_validation_error():
     parser = DirectJsonParser([BasicCatalog("1.0")])
     with pytest.raises(A2uiValidationError):
-        parser.parse_response('[{"version": "v1.0", "notAMessage": {}}]', wrapped=False)
+        parser.parse_response('[{"version": "1.0", "notAMessage": {}}]', wrapped=False)
 
 
 def test_direct_json_decompiler_writes_the_messages_unchanged():
     message = {
-        "version": "v1.0",
+        "version": "1.0",
         "updateDataModel": {"surfaceId": "s1", "path": "/a", "value": None},
     }
     notation = DirectJsonDecompiler().decompile(to_message_models([message]))
@@ -259,7 +266,7 @@ def test_check_catalogs_rejects_duplicate_ids():
 
 def test_check_catalogs_rejects_mixed_protocol_versions():
     with pytest.raises(A2uiCatalogError, match="incompatible protocol versions"):
-        check_catalogs([_catalog(PRIMARY, "v1.0"), _catalog(SECONDARY, "v0.9")])
+        check_catalogs([_catalog(PRIMARY, "1.0"), _catalog(SECONDARY, "v0.9")])
 
 
 def test_check_catalogs_requires_a_catalog():
@@ -276,9 +283,7 @@ def test_check_mixed_catalogs_requires_v10_when_multiple_catalogs():
     assert len(check_mixed_catalogs([_catalog(PRIMARY, "v0.9")])) == 1
     assert (
         len(
-            check_mixed_catalogs(
-                [_catalog(PRIMARY, "v1.0"), _catalog(SECONDARY, "v1.0")]
-            )
+            check_mixed_catalogs([_catalog(PRIMARY, "1.0"), _catalog(SECONDARY, "1.0")])
         )
         == 2
     )
@@ -293,7 +298,7 @@ def test_surface_catalog_id_returns_id_only_for_single_catalog():
 
 def test_catalogs_protocol_version_reads_the_catalogs_version():
     assert catalogs_protocol_version([_catalog(PRIMARY, "0.9")]) == "v0.9"
-    assert catalogs_protocol_version([_catalog(PRIMARY, "v1.0")]) == "v1.0"
+    assert catalogs_protocol_version([_catalog(PRIMARY, "1.0")]) == "1.0"
 
 
 def test_build_catalog_helpers_keys_by_catalog_id_in_order():
@@ -311,14 +316,14 @@ def test_build_catalog_helpers_rejects_duplicate_ids():
 
 def _create(sid: str, cat: str = SECONDARY, **extra: Any) -> dict[str, Any]:
     return {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {"surfaceId": sid, "catalogId": cat, **extra},
     }
 
 
 def _components(sid: str, *ids: str) -> dict[str, Any]:
     return {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
             "surfaceId": sid,
             "components": [{"id": i, "component": "Text", "text": i} for i in ids],
@@ -330,7 +335,7 @@ def _data(sid: str, value: Any, path: str | None = None) -> dict[str, Any]:
     body: dict[str, Any] = {"surfaceId": sid, "value": value}
     if path is not None:
         body["path"] = path
-    return {"version": "v1.0", "updateDataModel": body}
+    return {"version": "1.0", "updateDataModel": body}
 
 
 def test_coalesce_merges_split_create_components_and_root_data():
@@ -354,19 +359,22 @@ def test_coalesce_root_data_update_replaces_the_data_model(path: str | None):
 
 def test_coalesce_keeps_a_sub_path_data_update():
     coalesced = coalesce_surface_messages([_create("s1"), _data("s1", 5, "/count")])
-    assert [c.message for c in coalesced] == [_create("s1"), _data("s1", 5, "/count")]
+    assert [c.message for c in coalesced] == [
+        _create("s1"),
+        _data("s1", 5, "/count"),
+    ]
     assert coalesced[1].is_update
     assert coalesced[1].surface_catalog_id == SECONDARY
 
 
 def test_coalesce_keeps_a_root_data_update_without_an_object_value():
-    deletion = {"version": "v1.0", "updateDataModel": {"surfaceId": "s1"}}
+    deletion = {"version": "1.0", "updateDataModel": {"surfaceId": "s1"}}
     coalesced = coalesce_surface_messages([_create("s1"), deletion])
     assert [c.message for c in coalesced] == [_create("s1"), deletion]
 
 
 def test_coalesce_keeps_a_bare_create_before_delete():
-    delete = {"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}
+    delete = {"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}
     coalesced = coalesce_surface_messages([_create("s1"), delete])
     assert [c.message for c in coalesced] == [_create("s1"), delete]
     assert coalesced[1].surface_catalog_id == SECONDARY
@@ -405,17 +413,24 @@ def test_coalesce_merges_interleaved_surfaces_independently():
         _components("a", "root"),
         _components("b", "root"),
     ])
-    assert [c.message["createSurface"]["surfaceId"] for c in coalesced] == ["a", "b"]
+    assert [c.message["createSurface"]["surfaceId"] for c in coalesced] == [
+        "a",
+        "b",
+    ]
     assert all("components" in c.message["createSurface"] for c in coalesced)
     assert [c.surface_catalog_id for c in coalesced] == [PRIMARY, SECONDARY]
 
 
 def test_coalesce_does_not_merge_across_a_function_call():
     call = {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
             "functionCallId": "c1",
-            "callFunction": {"catalogId": PRIMARY, "@call": "openUrl", "args": {}},
+            "callFunction": {
+                "catalogId": PRIMARY,
+                "@call": "openUrl",
+                "args": {},
+            },
         },
     }
     coalesced = coalesce_surface_messages(

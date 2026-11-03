@@ -90,7 +90,7 @@ class TestExpressIntegration(unittest.TestCase):
 
         # 2. Test dictionary keys quoting in decompiler
         wire_json_dict = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "main",
                 "catalogId": (
@@ -124,7 +124,7 @@ class TestExpressIntegration(unittest.TestCase):
 
         # 3. Test check message formatting with unified string decompiler (supports multiline)
         multiline_msg_envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "main",
                 "components": [{

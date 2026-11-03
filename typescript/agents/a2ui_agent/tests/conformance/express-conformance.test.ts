@@ -225,14 +225,14 @@ describe('Express Conformance Suite', () => {
         if (testCase.expect_error) {
           assertThrows(
             () => {
-              parser.decompile(messages.length > 1 ? messages : messages[0]);
+              parser.decompile(messages);
             },
             testCase.expect_error as Record<string, unknown>,
           );
           return;
         }
 
-        const notation = parser.decompile(messages.length > 1 ? messages : messages[0]);
+        const notation = parser.decompile(messages);
 
         if (testCase.expect_contains) {
           for (const fragment of testCase.expect_contains as string[]) {

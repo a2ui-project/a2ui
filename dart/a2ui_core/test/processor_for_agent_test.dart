@@ -41,7 +41,7 @@ void main() {
   }
 
   Map<String, Object?> createSurface(List<Map<String, Object?>> components) => {
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's',
           'catalogId': catalog.id,
@@ -50,7 +50,7 @@ void main() {
       };
 
   Map<String, Object?> callRendererFunction(Map<String, Object?> call) => {
-        'version': 'v1.0',
+        'version': '1.0',
         'callRendererFunction': {
           'functionCallId': 'call_1',
           'callFunction': {'catalogId': catalog.id, ...call},
@@ -107,7 +107,7 @@ void main() {
   test('ignores a response to a call the renderer made', () {
     forAgent().processMessages([
       {
-        'version': 'v1.0',
+        'version': '1.0',
         'agentFunctionResponse': {'functionCallId': 'call_1', 'value': 42},
       },
     ]);
@@ -158,7 +158,7 @@ void main() {
           {'id': 'root', 'component': 'Text', 'text': 'Hello'},
         ]),
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'callRendererFunction': {
             'surfaceId': 's',
             'functionCallId': 'call_1',
@@ -265,7 +265,7 @@ void main() {
       expect(
         () => forAgent(catalogs: [callable]).processMessages([
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'callRendererFunction': {
               'surfaceId': 'missing',
               'functionCallId': 'call_1',
@@ -291,7 +291,7 @@ void main() {
       test('accepts a call on a surface the processor does not hold', () {
         forAgent(catalogs: [callable]).checkRendererFunctionCall(
           message({
-            'version': 'v1.0',
+            'version': '1.0',
             'callRendererFunction': {
               'surfaceId': 'earlier',
               'functionCallId': 'call_1',
@@ -435,7 +435,7 @@ void main() {
           },
         });
         Map<String, Object?> shoutingNested(Map<String, Object?> nested) => {
-              'version': 'v1.0',
+              'version': '1.0',
               'callRendererFunction': {
                 'functionCallId': 'call_1',
                 'callFunction': {

@@ -330,7 +330,9 @@ def _get_cached_common_types(release: tuple[int, int]) -> _CachedCommonTypes:
 # `__all__`, so neither `import *` nor the package facades re-export them.
 
 
-def get_dynamic_type_index(protocol_version: ProtocolVersion) -> DynamicTypeIndex:
+def get_dynamic_type_index(
+    protocol_version: ProtocolVersion,
+) -> DynamicTypeIndex:
     """Returns the dynamic value def index for a protocol version.
 
     Versions without a common_types schema (v0.8) fall back to the v0.9
@@ -348,7 +350,9 @@ def get_all_dynamic_type_names() -> frozenset[str]:
     ))
 
 
-def get_common_types_catalog_defs(protocol_version: ProtocolVersion) -> dict[str, Any]:
+def get_common_types_catalog_defs(
+    protocol_version: ProtocolVersion,
+) -> dict[str, Any]:
     """Returns the common types defs in the `$ref` form that catalogs use.
 
     Unlike the published schema, helper models (e.g. `TemplateChildList`) are
@@ -362,7 +366,9 @@ def get_common_types_catalog_defs(protocol_version: ProtocolVersion) -> dict[str
     return copy.deepcopy(_get_common_types_schema(protocol_version).catalog_defs)
 
 
-def get_common_types_symbols(protocol_version: ProtocolVersion) -> dict[str, Any]:
+def get_common_types_symbols(
+    protocol_version: ProtocolVersion,
+) -> dict[str, Any]:
     """Returns the common types defs' Python symbols by def name.
 
     These are the models and types the published common types schema is
@@ -376,7 +382,9 @@ def get_common_types_symbols(protocol_version: ProtocolVersion) -> dict[str, Any
     return dict(getattr(importlib.import_module(module_name), "COMMON_TYPES_DEFS"))
 
 
-def _get_common_types_schema(protocol_version: ProtocolVersion) -> _CachedCommonTypes:
+def _get_common_types_schema(
+    protocol_version: ProtocolVersion,
+) -> _CachedCommonTypes:
     """Returns the cached common types schema for a protocol version.
 
     Generated dynamically from the build-time Pydantic models for the target protocol version.
@@ -388,7 +396,9 @@ def _get_common_types_schema(protocol_version: ProtocolVersion) -> _CachedCommon
     return _get_cached_common_types(_common_types_release(protocol_version))
 
 
-def get_common_types_schema_map(protocol_version: ProtocolVersion) -> dict[str, Any]:
+def get_common_types_schema_map(
+    protocol_version: ProtocolVersion,
+) -> dict[str, Any]:
     """Returns the common types JSON schema as a dictionary for a protocol version.
 
     Args:

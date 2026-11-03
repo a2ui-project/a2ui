@@ -192,8 +192,13 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
 }
 
 /// Feeds the steps of a `parse_chunk` case to one stream, checking what each
-/// yields and that closing the stream yields nothing more, and then the whole
-/// response to a new parser in one call when the case asks.
+/// yields, whether the stream is then inside a block, and the partial results
+/// of a step that fails. Then checks what closing the stream yields, and
+/// parses the whole response with a new parser in one call when the case
+/// asks.
+///
+/// A case with `after_rejected_block: continue` reads through
+/// [Parser.openContinuingStream].
 ///
 /// A case whose catalog declares v0.9 is written in that version, so its
 /// chunks and what the stream yields are compared as they are, without
@@ -205,12 +210,19 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
       ? SuiteVersion.v1_0
       : version;
   final String? catalogId = written.injectedCatalog(testCase);
-  List<Object?> lift(List<ResponsePart> parts) =>
+  List<Object?> lift(List<StreamPart> parts) =>
       written.partsJson(parts, injectedCatalogId: catalogId);
-  final ResponseStream stream = _format(
-    testCase,
-    version,
-  ).createParser().openStream(wrapped: wrapped);
+  final Parser parser = _format(testCase, version).createParser();
+  final ResponseReader<StreamPart> stream =
+      args['after_rejected_block'] == 'continue'
+      ? parser.openContinuingStream(wrapped: wrapped)
+      : parser.openStream(wrapped: wrapped);
+  void expectInBlock(Map<String, Object?> step, int i) {
+    if (step['expect_in_block'] case final bool inBlock) {
+      expect(stream.isInBlock, inBlock, reason: 'step $i: in block');
+    }
+  }
+
   final chunks = <String>[];
   final yielded = <Object?>[];
   for (final (int i, Object? step)
@@ -222,14 +234,39 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
     );
     chunks.add(chunk);
     if (stepCase['expect_error'] case final Object error) {
-      expectThrowsCategory(() => stream.feed(chunk), error, reason: 'step $i');
+      A2uiError? thrown;
+      expectThrowsCategory(
+        () {
+          try {
+            stream.feed(chunk);
+          } on A2uiError catch (e) {
+            thrown = e;
+            rethrow;
+          }
+        },
+        error,
+        reason: 'step $i',
+      );
+      if (stepCase['expect_partial_results'] case final Object partial) {
+        expect(
+          lift(thrown!.partialResults),
+          partial,
+          reason: 'step $i: partial results',
+        );
+      }
+      expectInBlock(stepCase, i);
       return;
     }
     final List<Object?> parts = lift(stream.feed(chunk));
     expect(parts, stepCase['expect'], reason: 'step $i: ${stepCase['input']}');
+    expectInBlock(stepCase, i);
     yielded.addAll(parts);
   }
-  yielded.addAll(lift(stream.close()));
+  final List<Object?> closed = lift(stream.close());
+  if (testCase['expect_close'] case final Object expected) {
+    expect(closed, expected, reason: 'close');
+  }
+  yielded.addAll(closed);
   if (testCase['expect_matches_single_shot'] == true) {
     expect(
       _mergeAdjacentText(yielded),

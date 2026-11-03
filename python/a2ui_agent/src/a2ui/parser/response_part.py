@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Union
 
+from a2ui.core import A2uiError
 from a2ui.core.schema import AgentToRendererMessage
 
 
@@ -50,3 +51,16 @@ class A2uiPart:
 
 
 ResponsePart = Union[TextPart, A2uiPart]
+
+
+@dataclass
+class ErrorPart:
+    """A block that a response stream rejected and read past, in place of the block.
+
+    Only a stream opened with `after_rejected_block="continue"` returns one.
+    """
+
+    error: A2uiError
+
+
+StreamPart = Union[TextPart, A2uiPart, ErrorPart]

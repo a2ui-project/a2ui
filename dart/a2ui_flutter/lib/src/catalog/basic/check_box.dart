@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 
 import '../../component_implementation.dart';
 import '../../component_props.dart';
+import 'check_hint.dart';
 import 'unbounded_width.dart';
 import 'write_back.dart';
 
@@ -33,6 +34,7 @@ Widget buildCheckBox(
   final String label = props.string('label') ?? '';
   final bool checked = props.boolean('value') ?? false;
   final String? error = props.validationErrors.firstOrNull;
+  final String? hint = checkHint(props);
   final void Function(Object?)? write = writerFor(context, props, 'value');
   final VoidCallback? toggle = write == null ? null : () => write(!checked);
   final ThemeData theme = Theme.of(context);
@@ -66,7 +68,9 @@ Widget buildCheckBox(
           Text(
             error,
             style: theme.textTheme.bodySmall?.copyWith(color: errorColor),
-          ),
+          )
+        else if (hint != null)
+          Text(hint, style: theme.textTheme.bodySmall),
       ],
     ),
   );

@@ -13,9 +13,10 @@ respect target boundaries:
 
 1. **`A2UIJSON`** (`swift/core/Sources/A2UIJSON/`):
    - **Purpose**: A2UI-specific JSON Schema definitions for types used across the v0.9.1 protocol.
-   - **Dependencies**: `JSONSchema`, `JSONSchemaBuilder` (from `swift-json-schema`).
-   - **Rule**: Define common type schemas as raw `JSONValue` or via `@Schemable` macros when
-     available. Register them into `Context.remoteSchemaStorage` for `$ref` resolution.
+   - **Dependencies**: `JSONSchema`, `OrderedJSON` (from `swift-json-schema`).
+   - **Rule**: Common type schemas are generated from `specification/` via
+     `A2UISchemaGeneratorPlugin` as raw `JSONValue` definitions and registered in
+     `A2UICommonSchema.allSchemas` (passed as `remoteSchema` to `Context`) for `$ref` resolution.
 
 2. **`A2UICore`** (`swift/core/Sources/A2UICore/`):
    - **Purpose**: Stateful runtime engine managing message processing, JSON pointer evaluation,
@@ -24,9 +25,9 @@ respect target boundaries:
    - **Rule**: Never import `JSONSchemaBuilder` here. Use `Schema` and `JSONValue` directly.
 
 3. **`BasicCatalog`** (`swift/core/Sources/BasicCatalog/`):
-   - **Purpose**: Component APIs, schema builders, and standard function handlers for the Basic
+   - **Purpose**: Component APIs, schemas, and standard function handlers for the Basic
      Catalog.
-   - **Dependencies**: `A2UICore`, `JSONSchema`, `JSONSchemaBuilder`.
+   - **Dependencies**: `A2UICore`, `JSONSchema`.
    - **Plural rules**: `PluralizeFunction` uses Foundation and the bundled
      `Resources/PluralCategories.stringsdict`. Keep this category-marker table unlocalized and
      preserve its SwiftPM resource declaration. Rules follow the OS; never format server text

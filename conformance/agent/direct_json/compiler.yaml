@@ -69,15 +69,15 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: |-
     [
-      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
-      {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}
+      {"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}
     ]
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s1"
         components:
@@ -91,9 +91,9 @@
   args:
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: '{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}'
+  input: '{"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       deleteSurface:
         surfaceId: "s1"
 
@@ -103,9 +103,9 @@
   args:
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello",},]}},]'
+  input: '[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello",},]}},]'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s1"
         components:
@@ -119,11 +119,27 @@
   args:
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: "[{“version”: “v1.0”, “deleteSurface”: {“surfaceId”: “s1”}}]"
+  input: "[{“version”: “1.0”, “deleteSurface”: {“surfaceId”: “s1”}}]"
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       deleteSurface:
         surfaceId: "s1"
+
+- name: test_compile_json_preserves_typographic_quotes_in_strings
+  description: Typographic quotes inside valid JSON string values are kept as written (#2934).
+  action: compile
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Willkommen im „Café Central“"}]}}]'
+  expect:
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Willkommen im „Café Central“"
 
 - name: test_compile_json_malformed_is_a_parse_error
   description: Payload text that is not JSON is a parse error.
@@ -151,7 +167,7 @@
   args:
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: '[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Sparkline", "values": [1, 2]}]}}]'
+  input: '[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Sparkline", "values": [1, 2]}]}}]'
   expect_error:
     category: "ValidationError"
 
@@ -182,10 +198,10 @@
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: |-
-    [{"version": "v1.0", "deleteSurface": {"surface
+    [{"version": "1.0", "deleteSurface": {"surface
     Id": "s1"}}]
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       deleteSurface:
         surfaceId: "s1"
 
@@ -197,16 +213,16 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: |-
     [
-      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
-      {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "ro
+      {"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "ro
     ot", "component": "Text", "text": "Hello"}]}}
     ]
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s1"
         components:
@@ -222,16 +238,16 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: |-
     [
-      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
-      {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Apples
+      {"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Apples
     Oranges"}]}}
     ]
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s1"
         components:
@@ -247,16 +263,16 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: |-
     [
-      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
-      {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "第一行
+      {"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "第一行
     第二行"}]}}
     ]
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s1"
         components:
@@ -270,13 +286,13 @@
   args:
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: "[{\"version\": \"v1.0\", \"createSurface\": {\"surfaceId\": \"s1\", \"catalogId\": \"conformance/simplified\"}}, {\"version\": \"v1.0\", \"updateComponents\": {\"surfaceId\": \"s1\", \"components\": [{\"id\": \"root\", \"component\": \"Text\", \"text\": \"Line 1\r\nLine 2\"}]}}]"
+  input: "[{\"version\": \"1.0\", \"createSurface\": {\"surfaceId\": \"s1\", \"catalogId\": \"conformance/simplified\"}}, {\"version\": \"1.0\", \"updateComponents\": {\"surfaceId\": \"s1\", \"components\": [{\"id\": \"root\", \"component\": \"Text\", \"text\": \"Line 1\r\nLine 2\"}]}}]"
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s1"
         components:
@@ -290,9 +306,9 @@
   args:
     format: direct_json
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: '`[{"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}}]`'
+  input: '`[{"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}]`'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       deleteSurface:
         surfaceId: "s1"
 
@@ -304,10 +320,10 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: |-
     [
-      {"version": "v1.0", "createSurface": {"surfaceId": "s
+      {"version": "1.0", "createSurface": {"surfaceId": "s
     1", "catalogId": "conformance/
     simplified"}},
-      {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [
+      {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [
         {"id": "ro
     ot", "component": "Ca
     rd", "child": "bo
@@ -316,11 +332,11 @@
       ]}}
     ]
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
-    - version: "v1.0"
+    - version: "1.0"
       updateComponents:
         surfaceId: "s1"
         components:
@@ -339,8 +355,8 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: |-
     [
-      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
-      {"version": "v1.0", "updateDataModel": {"surfaceId": "s1", "value": {
+      {"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+      {"version": "1.0", "updateDataModel": {"surfaceId": "s1", "value": {
         "id": "item
     1",
         "component": "comp
@@ -350,11 +366,11 @@
       }}}
     ]
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
-    - version: "v1.0"
+    - version: "1.0"
       updateDataModel:
         surfaceId: "s1"
         value:
@@ -370,7 +386,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: |-
     [
-      {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified", "dataModel": {
+      {"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified", "dataModel": {
         "id": "item
     1",
         "notes": "line
@@ -378,7 +394,7 @@
       }}}
     ]
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"

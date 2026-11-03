@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v1_0/renderer_to_agent.json",
-  "title": "A2UI (Agent to UI) Renderer-to-Agent Event Schema",
+  "title": "A2UI Renderer-to-Agent Event Schema",
   "description": "Describes a JSON payload for a renderer-to-agent event message.",
   "type": "object",
   "minProperties": 2,
   "maxProperties": 2,
   "properties": {
     "version": {
-      "const": "v1.0"
+      "const": "1.0"
     },
     "action": {
       "type": "object",

@@ -15,9 +15,9 @@
  */
 
 import * as assert from 'node:assert';
-import {describe, it, before, beforeEach, after} from 'node:test';
+import {describe, it, before, beforeEach, after, afterEach} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../test/dom-setup.js';
-import {nothing} from 'lit';
+import {css, nothing, render} from 'lit';
 
 import {ComponentContext} from '../resolution/component-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';
@@ -82,14 +82,14 @@ describe('A2uiLitElement', () => {
     processor = new MessageProcessor([testCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'test-surface',
           catalogId: testCatalog.id,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'test-surface',
           components: [
@@ -107,7 +107,7 @@ describe('A2uiLitElement', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'test-surface',
           value: {
@@ -121,13 +121,66 @@ describe('A2uiLitElement', () => {
     surface = processor.model.getSurface('test-surface')!;
   });
 
-  it('should default to Shadow DOM rendering (creates a ShadowRoot)', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    document.adoptedStyleSheets = [];
+  });
+
+  it('defaults to light DOM (createRenderRoot returns this)', () => {
     const el = document.createElement('test-a2ui-element') as any;
-    assert.notStrictEqual(el.createRenderRoot(), el);
-    assert.ok(
-      el.createRenderRoot() instanceof (globalThis as any).ShadowRoot ||
-        el.createRenderRoot() !== el,
-    );
+    assert.strictEqual(el.createRenderRoot(), el);
+    assert.strictEqual(el.shadowRoot, null);
+  });
+
+  it('adopts scoped styles into the document by default', () => {
+    class TestLightStyledElement extends A2uiLitElement<any> {
+      static override styles = css`
+        :host {
+          display: block;
+        }
+        .title {
+          color: blue;
+        }
+      `;
+      override createController() {
+        return {dispose: () => {}} as any;
+      }
+    }
+    customElements.define('test-light-styled-element', TestLightStyledElement);
+
+    const el = document.createElement('test-light-styled-element') as TestLightStyledElement;
+    document.body.appendChild(el);
+
+    assert.strictEqual(el.renderRoot, el);
+    assert.strictEqual(el.shadowRoot, null);
+    assert.ok((TestLightStyledElement as any)._processedCss?.includes('test-light-styled-element'));
+    assert.ok((TestLightStyledElement as any)._adoptedRoots?.has(document));
+    assert.strictEqual(document.adoptedStyleSheets.length, 1);
+  });
+
+  it('does not adopt its styles into the document when it renders into a ShadowRoot', () => {
+    class TestShadowStyledElement extends A2uiLitElement<any> {
+      static override styles = css`
+        .title {
+          color: red;
+        }
+      `;
+      protected override createRenderRoot() {
+        return this.attachShadow({mode: 'open'});
+      }
+      override createController() {
+        return {dispose: () => {}} as any;
+      }
+    }
+    customElements.define('test-shadow-styled-element', TestShadowStyledElement);
+
+    const sheetsBefore = [...document.adoptedStyleSheets];
+    const el = document.createElement('test-shadow-styled-element') as TestShadowStyledElement;
+    document.body.appendChild(el);
+
+    assert.ok(el.renderRoot instanceof (globalThis as any).ShadowRoot);
+    assert.deepStrictEqual(document.adoptedStyleSheets, sheetsBefore);
+    assert.strictEqual((TestShadowStyledElement as any)._processedCss, undefined);
   });
 
   it('should create controller when context is set', async () => {
@@ -245,7 +298,7 @@ describe('A2uiLitElement', () => {
     surface.componentsModel.removeComponent('root');
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'test-surface',
           components: [{id: 'root', component: 'Text', text: 'Recreated'}],
@@ -266,14 +319,14 @@ describe('A2uiLitElement', () => {
     const nodeProcessor = new MessageProcessor([basicCatalog]);
     nodeProcessor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'node-surface',
           catalogId: basicCatalog.id,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'node-surface',
           components: [
@@ -299,7 +352,7 @@ describe('A2uiLitElement', () => {
     assert.strictEqual(el.context, root.context);
     assert.strictEqual(controllerCreatedCount, 1);
     // renderNode('child_id') hands the child element the child's own node.
-    const childEl = el.shadowRoot.querySelector('a2ui-basic-text');
+    const childEl = el.querySelector('a2ui-basic-text');
     assert.strictEqual(childEl.node, childNode);
     assert.strictEqual(childEl.context, childNode.context);
 
@@ -311,6 +364,19 @@ describe('A2uiLitElement', () => {
 
     // A child that is still a placeholder renders nothing.
     assert.strictEqual((el as any).renderNode('missing'), nothing);
+    // Passing a ComponentNode directly to renderNode renders that node.
+    const host = document.createElement('div');
+    render((el as any).renderNode(childNode), host);
+    const direct = host.querySelector('a2ui-basic-text') as any;
+    assert.ok(direct, 'renderNode(childNode) should render the child element');
+    assert.strictEqual(direct.node, childNode);
+
+    // Replacing the assigned node with a different ComponentNode recreates the controller.
+    await asyncUpdate(el, (e: any) => {
+      e.node = childNode;
+    });
+    assert.strictEqual(disposedCount, 1);
+    assert.strictEqual(controllerCreatedCount, 2);
 
     document.body.removeChild(el);
     resolver.dispose();
@@ -388,9 +454,9 @@ describe('A2uiLitElement', () => {
       const catalog = new Catalog<ComponentApi>(catalogId, '1.0', [api]);
       const catalogProcessor = new MessageProcessor([catalog]);
       catalogProcessor.processMessages([
-        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId}},
+        {version: '1.0', createSurface: {surfaceId: 's', catalogId}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's',
             components: [{id: 'root', component: 'Label', text: 'Hi'}],
@@ -445,14 +511,14 @@ describe('A2uiLitElement', () => {
     const columnProcessor = new MessageProcessor([basicCatalog]);
     columnProcessor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'leak-surface',
           catalogId: basicCatalog.id,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'leak-surface',
           components: [
@@ -463,7 +529,7 @@ describe('A2uiLitElement', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'leak-surface',
           value: {label: 'Initial'},
@@ -495,7 +561,7 @@ describe('A2uiLitElement', () => {
       await asyncUpdate(rootEl, (e: any) => {
         columnProcessor.processMessages([
           {
-            version: 'v1.0',
+            version: '1.0',
             updateDataModel: {
               surfaceId: 'leak-surface',
               value: {label: `Tick ${i}`},
