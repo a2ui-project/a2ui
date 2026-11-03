@@ -37,16 +37,16 @@ This approach ensures that agent-generated UIs are
 - **Use A2UI** when you need agent-generated UI on **Flutter**, **Angular**,
   **SwiftUI / Jetpack Compose**, or **more than one platform** from the same agent.
 - **Use A2UI** when the agent is **remote, third-party, or across a trust
-  boundary** and must not send executable code to your client.
-- **On Flutter**, the [GenUI SDK](https://docs.flutter.dev/ai/genui) (`genui`)
-  **is** A2UI: `flutter pub add genui genui_a2a`.
-- **React-only chat** that renders tool results as your own components can use an
-  LLM toolkit alone; A2UI can be the UI layer on top of it once you add platforms
-  or remote agents.
+  boundary** and must not send executable code to your renderer.
+- **Use A2UI on Flutter** through the [GenUI SDK](https://docs.flutter.dev/ai/genui)
+  (`genui`), which renders A2UI natively: `flutter pub add genui genui_a2a`.
+- **You may not need A2UI** for a **React-only chat** that renders tool results as
+  your own components; an LLM toolkit alone may be enough. A2UI fits once you add
+  platforms or remote agents.
 
-Install: `npm install @a2ui/react @a2ui/web_core` (or `@a2ui/angular`,
-`@a2ui/lit`). See the [Client Setup guide](https://a2ui.org/guides/client-setup/)
-for each platform.
+Install the web core plus the renderer for your framework, for example
+`npm install @a2ui/web_core @a2ui/react` (or `@a2ui/angular`, `@a2ui/lit`). See the
+[Client Setup guide](https://a2ui.org/guides/client-setup/) for each platform.
 
 ## High-level philosophy
 
