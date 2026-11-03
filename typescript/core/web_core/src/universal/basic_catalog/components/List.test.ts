@@ -25,6 +25,8 @@ import {
   SurfaceModel,
   Subscription,
 } from '../../../v0_9/index.js';
+import {NodeResolver} from '../../../resolution/node-resolver.js';
+import {getValue} from '../../../reactivity/signals.js';
 import {
   type A2uiWebComponentElement,
   registerUniversalElement,
@@ -111,6 +113,63 @@ describe('List Component', () => {
     assert.strictEqual(textElements.length, 2);
     assert.strictEqual(el.textContent?.includes('List Item 1'), true);
     assert.strictEqual(el.textContent?.includes('List Item 2'), true);
+  });
+
+  it('emits no item for a child that has not resolved, then adds it on arrival', async () => {
+    // The filter runs before the ol/ul/div branch, so every listStyle shares it.
+    const nodeProcessor = new MessageProcessor([basicCatalog]);
+    nodeProcessor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {surfaceId: 'node-surface', catalogId: basicCatalog.id},
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'node-surface',
+          components: [
+            {id: 'root', component: 'List', children: ['a', 'late', 'b']},
+            {id: 'a', component: 'Text', text: 'A'},
+            {id: 'b', component: 'Text', text: 'B'},
+          ],
+        },
+      },
+    ]);
+    const nodeSurface = nodeProcessor.model.getSurface('node-surface')!;
+    const resolver = new NodeResolver(nodeSurface, basicCatalog);
+    const root = getValue(resolver.rootNode)!;
+
+    const el = document.createElement('a2ui-list') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+    await asyncUpdate(el, e => {
+      e.node = root;
+    });
+
+    const items = () => el.querySelectorAll('.a2ui-list-item-none');
+    // `late` has not arrived: no empty item (box, gap) stands in for it.
+    assert.strictEqual(items().length, 2);
+    assert.strictEqual(el.querySelectorAll('a2ui-basic-text').length, 2);
+
+    nodeProcessor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'node-surface',
+          components: [{id: 'late', component: 'Text', text: 'Late'}],
+        },
+      },
+    ]);
+    await (el as unknown as {updateComplete: Promise<unknown>}).updateComplete;
+
+    assert.strictEqual(items().length, 3);
+    assert.deepStrictEqual(
+      [...el.querySelectorAll<A2uiWebComponentElement>('a2ui-basic-text')].map(
+        t => t.node?.componentId,
+      ),
+      ['a', 'late', 'b'],
+    );
+    resolver.dispose();
   });
 
   it('should track and reuse child elements during a reordering operation', async () => {

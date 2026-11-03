@@ -439,6 +439,45 @@ export abstract class A2uiLitElement<
   }
 
   /**
+   * Whether `renderNode(childRef, customPath)` would render nothing because the child has not
+   * resolved: its component has not arrived, has an unknown type, or is part of a cycle.
+   *
+   * Containers that give each child a slot of their own (an `<li>`, an item `div`) use this to
+   * leave such children out entirely, wrapper included, so they take no marker or gap.
+   */
+  protected childRendersNothing(
+    childRef?: ComponentNode | A2uiChildRef,
+    customPath?: string,
+  ): boolean {
+    if (!childRef) return true;
+    if (isComponentNode(childRef) && !customPath) return childRef.isPlaceholder;
+    const surface = this.context?.dataContext?.surface;
+    if (!surface) return false;
+
+    let componentId: ComponentId;
+    let path = customPath;
+    if (isComponentNode(childRef)) {
+      componentId = childRef.componentId;
+    } else if (typeof childRef === 'object') {
+      componentId = childRef.id;
+      path = path ?? childRef.basePath;
+    } else {
+      componentId = childRef;
+    }
+    if (!componentId || !surface.componentsModel?.get(componentId)) return true;
+
+    if (this.node) {
+      const childNode = findChildNode(
+        this.node,
+        componentId,
+        path ?? this.context!.dataContext.path,
+      );
+      if (childNode) return childNode.isPlaceholder;
+    }
+    return false;
+  }
+
+  /**
    * Reacts to changes in the component's properties.
    *
    * Specifically, when the `node` or `context` property changes or is initialized,
