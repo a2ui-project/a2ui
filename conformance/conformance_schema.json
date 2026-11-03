@@ -2200,10 +2200,7 @@
           ]
         },
         {
-          "oneOf": [
-            {"required": ["inboundResponseValue"]},
-            {"required": ["inboundResponseError"]}
-          ]
+          "oneOf": [{"required": ["inboundResponseValue"]}, {"required": ["inboundResponseError"]}]
         }
       ],
       "additionalProperties": false
@@ -2219,18 +2216,12 @@
         "action": {"const": "handle_rpc"},
         "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
         "catalog": {
-          "oneOf": [
-            {"type": "string"},
-            {"$ref": "#/$defs/Catalog"}
-          ]
+          "oneOf": [{"type": "string"}, {"$ref": "#/$defs/Catalog"}]
         },
         "catalogs": {
           "type": "array",
           "items": {
-            "oneOf": [
-              {"type": "string"},
-              {"$ref": "#/$defs/Catalog"}
-            ]
+            "oneOf": [{"type": "string"}, {"$ref": "#/$defs/Catalog"}]
           }
         },
         "catalogPaths": {"type": "array", "items": {"type": "string"}},
