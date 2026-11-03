@@ -864,7 +864,7 @@ struct MessageProcessorTests {
               {
                 "type": "object",
                 "properties": {
-                  "count": { "$ref": "common_types.json#/$defs/DynamicNumber" }
+                  "count": { "type": ["number", "object"] }
                 }
               }
               """
