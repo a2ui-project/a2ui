@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,9 +27,9 @@ try:
     from conformance.scripts.e2e_outcome import outcome_of
 except ImportError:
     try:
-        from scripts.e2e_outcome import outcome_of
+        from scripts.e2e_outcome import outcome_of  # type: ignore[import-not-found,no-redef]
     except ImportError:
-        from e2e_outcome import outcome_of
+        from e2e_outcome import outcome_of  # type: ignore[import-not-found,no-redef]
 
 
 def _load_scenario_file(path_str: str) -> list[dict[str, Any]]:
