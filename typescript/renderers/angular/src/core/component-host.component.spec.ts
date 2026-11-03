@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import {TestBed, ComponentFixture} from '@angular/core/testing';
-import {By} from '@angular/platform-browser';
-import {ComponentHostComponent} from './component-host.component';
-import {A2uiRendererService} from './a2ui-renderer.service';
+import { TestBed, ComponentFixture } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { ComponentHostComponent } from './component-host.component';
+import { A2uiRendererService } from './a2ui-renderer.service';
 import {
   A2uiMetadata,
   ComponentApi,
@@ -28,8 +28,8 @@ import {
   SurfaceModel,
   getValue,
 } from '@a2ui/web_core/v0_9';
-import {A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
-import {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
+import { A2uiText } from '@a2ui/web_core/v0_9/basic_catalog';
+import { WebComponentImplementation } from '@a2ui/web_core/v0_9/universal';
 import {
   Component,
   EnvironmentInjector,
@@ -40,13 +40,13 @@ import {
   computed,
   input,
 } from '@angular/core';
-import {CatalogComponentInstance} from './catalog_component_instance';
-import {AngularCatalog, createComponentImplementation} from '../catalog/types';
-import {UniversalOnlyComponent} from '../catalog/universal_only.component';
-import {initializeAngularReactivity} from './reactivity';
-import {ComponentBinder} from './component-binder.service';
-import {SurfaceNodeResolver} from './surface-node-resolver.service';
-import {z} from 'zod';
+import { CatalogComponentInstance } from './catalog_component_instance';
+import { AngularCatalog, createComponentImplementation } from '../catalog/types';
+import { UniversalOnlyComponent } from '../catalog/universal_only.component';
+import { initializeAngularReactivity } from './reactivity';
+import { ComponentBinder } from './component-binder.service';
+import { SurfaceNodeResolver } from './surface-node-resolver.service';
+import { z } from 'zod';
 
 @Component({
   selector: 'test-child',
@@ -66,7 +66,7 @@ class TestChildComponent {
   template: '<div>Other Child Component</div>',
 })
 class TestOtherChildComponent {
-  @Input() props!: {text: {value: () => string}};
+  @Input() props!: { text: { value: () => string } };
   @Input() surfaceId?: string;
   @Input() componentId?: string;
   @Input() dataContextPath?: string;
@@ -74,9 +74,12 @@ class TestOtherChildComponent {
 
 const TestTypeApi = {
   name: 'TestType',
-  schema: z.object({text: DynamicStringSchema.optional(), other: DynamicStringSchema.optional()}),
+  schema: z.object({ text: DynamicStringSchema.optional(), other: DynamicStringSchema.optional() }),
 } satisfies ComponentApi;
-const OtherTypeApi = {name: 'OtherType', schema: z.object({text: DynamicStringSchema.optional()})};
+const OtherTypeApi = {
+  name: 'OtherType',
+  schema: z.object({ text: DynamicStringSchema.optional() }),
+};
 
 /** Flushes root effects (the resolver updates node props in effects) and the fixture view. */
 function flush(fixture: ComponentFixture<unknown>) {
@@ -85,7 +88,7 @@ function flush(fixture: ComponentFixture<unknown>) {
 }
 
 /** Waits for `EventSource` listeners that are delivered asynchronously. */
-const settle = () => new Promise<void>(resolve => setTimeout(resolve));
+const settle = () => new Promise<void>((resolve) => setTimeout(resolve));
 
 describe('ComponentHostComponent', () => {
   let component: ComponentHostComponent;
@@ -101,7 +104,7 @@ describe('ComponentHostComponent', () => {
   }
 
   beforeEach(async () => {
-    mockRendererConfig = {useUniversalComponents: false};
+    mockRendererConfig = { useUniversalComponents: false };
     mockRendererService = {
       surfaceGroup: undefined,
       get useUniversalComponents() {
@@ -111,7 +114,7 @@ describe('ComponentHostComponent', () => {
 
     TestBed.configureTestingModule({
       imports: [ComponentHostComponent],
-      providers: [{provide: A2uiRendererService, useValue: mockRendererService}],
+      providers: [{ provide: A2uiRendererService, useValue: mockRendererService }],
     });
     // Angular reactivity must be in place before any `NodeResolver` or `SurfaceModel`
     // signal is created, exactly as `provideA2Ui` guarantees in an application.
@@ -128,7 +131,7 @@ describe('ComponentHostComponent', () => {
       ),
     ]);
     surface = new SurfaceModel('surf1', catalog);
-    addRoot('TestType', {text: 'Hello'});
+    addRoot('TestType', { text: 'Hello' });
 
     mockSurfaceGroup = {
       getSurface: jasmine.createSpy('getSurface').and.returnValue(surface),
@@ -137,7 +140,7 @@ describe('ComponentHostComponent', () => {
 
     fixture = TestBed.createComponent(ComponentHostComponent);
     component = fixture.componentInstance;
-    fixture.componentRef.setInput('componentKey', {id: 'root', basePath: '/'});
+    fixture.componentRef.setInput('componentKey', { id: 'root', basePath: '/' });
     fixture.componentRef.setInput('surfaceId', 'surf1');
   });
 
@@ -174,7 +177,7 @@ describe('ComponentHostComponent', () => {
       expect(childInstance.props.text.value()).toBe('Hello');
 
       const rootModel = surface.componentsModel.get('root')!;
-      rootModel.properties = {text: 'Hello', other: 'new value'};
+      rootModel.properties = { text: 'Hello', other: 'new value' };
       await settle();
       flush(fixture);
 
@@ -183,18 +186,18 @@ describe('ComponentHostComponent', () => {
 
     it('should bind and update metadata and extensions when component metadata changes', () => {
       const rootModel = surface.componentsModel.get('root')!;
-      rootModel.metadata = {extensions: {badge: 'initial'}};
+      rootModel.metadata = { extensions: { badge: 'initial' } };
       fixture.detectChanges();
 
       const childInstance = fixture.debugElement.query(By.directive(TestChildComponent))
         .componentInstance as TestChildComponent;
-      expect(childInstance.metadata()).toEqual({extensions: {badge: 'initial'}});
-      expect(childInstance.extensions()).toEqual({badge: 'initial'});
+      expect(childInstance.metadata()).toEqual({ extensions: { badge: 'initial' } });
+      expect(childInstance.extensions()).toEqual({ badge: 'initial' });
 
       rootModel.setExtension('badge', 'updated');
       flush(fixture);
-      expect(childInstance.metadata()).toEqual({extensions: {badge: 'updated'}});
-      expect(childInstance.extensions()).toEqual({badge: 'updated'});
+      expect(childInstance.metadata()).toEqual({ extensions: { badge: 'updated' } });
+      expect(childInstance.extensions()).toEqual({ badge: 'updated' });
 
       rootModel.removeExtension('badge');
       flush(fixture);
@@ -204,7 +207,7 @@ describe('ComponentHostComponent', () => {
 
     it('should update bound values when the data model changes', () => {
       surface.dataModel.set('/greeting', 'Hi');
-      surface.componentsModel.get('root')!.properties = {text: {path: '/greeting'}};
+      surface.componentsModel.get('root')!.properties = { text: { path: '/greeting' } };
       fixture.detectChanges();
 
       const childInstance = fixture.debugElement.query(By.directive(TestChildComponent))
@@ -218,7 +221,7 @@ describe('ComponentHostComponent', () => {
 
     it('should write back through onUpdate for writable bindings', () => {
       surface.dataModel.set('/greeting', 'Hi');
-      surface.componentsModel.get('root')!.properties = {text: {path: '/greeting'}};
+      surface.componentsModel.get('root')!.properties = { text: { path: '/greeting' } };
       fixture.detectChanges();
 
       const childInstance = fixture.debugElement.query(By.directive(TestChildComponent))
@@ -237,7 +240,7 @@ describe('ComponentHostComponent', () => {
       fixture.detectChanges();
       expect(fixture.debugElement.query(By.directive(TestChildComponent))).toBeTruthy();
 
-      replaceRoot('OtherType', {text: 'World'});
+      replaceRoot('OtherType', { text: 'World' });
       fixture.detectChanges();
 
       expect(fixture.debugElement.query(By.directive(TestChildComponent))).toBeFalsy();
@@ -250,8 +253,8 @@ describe('ComponentHostComponent', () => {
       fixture.detectChanges();
 
       const bindNodeSpy = spyOn(TestBed.inject(ComponentBinder), 'bindNode').and.callThrough();
-      replaceRoot('OtherType', {text: 'World'});
-      await new Promise<void>(resolve => setTimeout(resolve));
+      replaceRoot('OtherType', { text: 'World' });
+      await new Promise<void>((resolve) => setTimeout(resolve));
       fixture.detectChanges();
 
       expect(bindNodeSpy).toHaveBeenCalledTimes(1);
@@ -269,7 +272,7 @@ describe('ComponentHostComponent', () => {
       );
       expect(fixture.debugElement.query(By.directive(TestChildComponent))).toBeFalsy();
 
-      replaceRoot('OtherType', {text: 'World'});
+      replaceRoot('OtherType', { text: 'World' });
       fixture.detectChanges();
       expect(fixture.debugElement.query(By.directive(TestOtherChildComponent))).toBeTruthy();
     });
@@ -300,7 +303,7 @@ describe('ComponentHostComponent', () => {
     });
 
     it('should handle synchronous surface creation and unsubscribe cleanly', () => {
-      const mockSubscription = {unsubscribe: jasmine.createSpy('unsubscribe')};
+      const mockSubscription = { unsubscribe: jasmine.createSpy('unsubscribe') };
       mockSurfaceGroup.onSurfaceCreated = {
         subscribe: jasmine
           .createSpy('subscribe')
@@ -329,7 +332,7 @@ describe('ComponentHostComponent', () => {
         'Component root not found in surface surf1. Waiting for it...',
       );
 
-      addRoot('TestType', {text: 'Late'});
+      addRoot('TestType', { text: 'Late' });
       fixture.detectChanges();
       expect(fixture.debugElement.query(By.directive(TestChildComponent))).toBeTruthy();
     });
@@ -371,7 +374,7 @@ describe('ComponentHostComponent', () => {
       fixture.detectChanges();
 
       const runSpy = spyOn(TestBed.inject(NgZone), 'run').and.callThrough();
-      surface.componentsModel.get('root')!.properties = {text: 'Hello', other: 'new value'};
+      surface.componentsModel.get('root')!.properties = { text: 'Hello', other: 'new value' };
       await settle();
 
       expect(runSpy).toHaveBeenCalled();
@@ -394,7 +397,7 @@ describe('ComponentHostComponent', () => {
       }
       const lateCatalog = new AngularCatalog('late-catalog', '0.9', [
         createComponentImplementation(
-          {name: 'Parent', schema: z.object({child: ComponentIdSchema})},
+          { name: 'Parent', schema: z.object({ child: ComponentIdSchema }) },
           TestParentComponent as unknown as Type<CatalogComponentInstance>,
         ),
         createComponentImplementation(
@@ -404,7 +407,7 @@ describe('ComponentHostComponent', () => {
       ]);
       const lateSurface = new SurfaceModel('late-surf', lateCatalog);
       lateSurface.componentsModel.addComponent(
-        new ComponentModel('root', 'Parent', {child: 'leaf'}, lateCatalog),
+        new ComponentModel('root', 'Parent', { child: 'leaf' }, lateCatalog),
       );
       mockSurfaceGroup.getSurface.and.returnValue(lateSurface);
 
@@ -416,7 +419,7 @@ describe('ComponentHostComponent', () => {
       expect(testFixture.debugElement.query(By.directive(TestChildComponent))).toBeFalsy();
 
       lateSurface.componentsModel.addComponent(
-        new ComponentModel('leaf', 'TestType', {text: 'Late leaf'}, lateCatalog),
+        new ComponentModel('leaf', 'TestType', { text: 'Late leaf' }, lateCatalog),
       );
       await settle();
       flush(testFixture);
@@ -431,7 +434,7 @@ describe('ComponentHostComponent', () => {
     it('should render a child reference that carries its node without searching the tree', () => {
       const childCatalog = new AngularCatalog('child-catalog', '0.9', [
         createComponentImplementation(
-          {name: 'Parent', schema: z.object({child: ComponentIdSchema})},
+          { name: 'Parent', schema: z.object({ child: ComponentIdSchema }) },
           TestOtherChildComponent as unknown as Type<CatalogComponentInstance>,
         ),
         createComponentImplementation(
@@ -441,10 +444,10 @@ describe('ComponentHostComponent', () => {
       ]);
       const childSurface = new SurfaceModel('child-surf', childCatalog);
       childSurface.componentsModel.addComponent(
-        new ComponentModel('root', 'Parent', {child: 'leaf'}, childCatalog),
+        new ComponentModel('root', 'Parent', { child: 'leaf' }, childCatalog),
       );
       childSurface.componentsModel.addComponent(
-        new ComponentModel('leaf', 'TestType', {text: 'Leaf'}, childCatalog),
+        new ComponentModel('leaf', 'TestType', { text: 'Leaf' }, childCatalog),
       );
       mockSurfaceGroup.getSurface.and.returnValue(childSurface);
 
@@ -474,8 +477,8 @@ describe('ComponentHostComponent', () => {
       TestBed.configureTestingModule({
         imports: [ComponentHostComponent],
         providers: [
-          {provide: A2uiRendererService, useValue: mockRendererService},
-          {provide: SurfaceNodeResolver, useValue: shared},
+          { provide: A2uiRendererService, useValue: mockRendererService },
+          { provide: SurfaceNodeResolver, useValue: shared },
         ],
       });
       initializeAngularReactivity(TestBed.inject(EnvironmentInjector));
@@ -511,7 +514,7 @@ describe('ComponentHostComponent', () => {
     }
     const mockWcImpl: WebComponentImplementation = {
       name: 'WcType',
-      schema: z.object({label: z.string().optional()}),
+      schema: z.object({ label: z.string().optional() }),
       tagName: 'mock-host-wc',
       element: MockWcElement,
     };
@@ -529,7 +532,7 @@ describe('ComponentHostComponent', () => {
       }
       const wcCatalog = useCatalog([mockWcImpl]);
       surface.componentsModel.addComponent(
-        new ComponentModel('root', 'WcType', {label: 'Click me'}, wcCatalog),
+        new ComponentModel('root', 'WcType', { label: 'Click me' }, wcCatalog),
       );
       mockRendererConfig.useUniversalComponents = true;
 
@@ -543,7 +546,7 @@ describe('ComponentHostComponent', () => {
       expect(wcEl.node.componentId).toBe('root');
       expect(wcEl.context).toBeUndefined();
 
-      surface.componentsModel.get('root')!.properties = {label: 'Updated label'};
+      surface.componentsModel.get('root')!.properties = { label: 'Updated label' };
       flush(testFixture);
       expect(wcEl.node.componentId).toBe('root');
       testFixture.destroy();
@@ -553,7 +556,7 @@ describe('ComponentHostComponent', () => {
       const wcCatalog = useCatalog([mockWcImpl]);
       surface.componentsModel.addComponent(new ComponentModel('root', 'WcType', {}, wcCatalog));
 
-      fixture.componentRef.setInput('componentKey', {id: 'root', basePath: '/'});
+      fixture.componentRef.setInput('componentKey', { id: 'root', basePath: '/' });
       fixture.detectChanges();
 
       expect(fixture.nativeElement.querySelector('mock-host-wc')).toBeNull();
@@ -588,7 +591,7 @@ describe('ComponentHostComponent', () => {
       );
       const textCatalog = useCatalog([basicImpl]);
       surface.componentsModel.addComponent(
-        new ComponentModel('root', 'Text', {text: 'Hi'}, textCatalog),
+        new ComponentModel('root', 'Text', { text: 'Hi' }, textCatalog),
       );
       mockRendererConfig.useUniversalComponents = true;
       const testFixture = TestBed.createComponent(ComponentHostComponent);

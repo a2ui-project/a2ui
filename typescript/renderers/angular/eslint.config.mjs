@@ -15,9 +15,9 @@
  */
 
 import preset from '../../../eslint.preset.mjs';
-import {BOUNDARY_ALLOWLIST, BOUNDARY_RESTRICTED} from './eslint.boundary.mjs';
+import { BOUNDARY_ALLOWLIST, BOUNDARY_RESTRICTED } from './eslint.boundary.mjs';
 
-const boundaryPaths = BOUNDARY_RESTRICTED.from.map(name => ({
+const boundaryPaths = BOUNDARY_RESTRICTED.from.map((name) => ({
   name,
   importNames: BOUNDARY_RESTRICTED.names,
   message:
@@ -61,7 +61,7 @@ export default [
       'src/core/**/*.spec.ts',
       'src/catalog/**/*.spec.ts',
       'src/*.spec.ts',
-      ...BOUNDARY_ALLOWLIST.filter(f => !f.startsWith('src/v0_9/')),
+      ...BOUNDARY_ALLOWLIST.filter((f) => !f.startsWith('src/v0_9/')),
     ],
     rules: {
       'no-restricted-imports': [
@@ -110,7 +110,10 @@ export default [
     },
   },
   {
-    files: ['src/v0_9/**/*.spec.ts', ...BOUNDARY_ALLOWLIST.filter(f => f.startsWith('src/v0_9/'))],
+    files: [
+      'src/v0_9/**/*.spec.ts',
+      ...BOUNDARY_ALLOWLIST.filter((f) => f.startsWith('src/v0_9/')),
+    ],
     ignores: ['src/v0_9/testing/**'],
     rules: {
       'no-restricted-imports': [
