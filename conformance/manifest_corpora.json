@@ -1,0 +1,8 @@
+{
+  "core": {"include": ["core/*.yaml"]},
+  "agent": {"include": ["agent/**/*.yaml"]},
+  "extensions": {"include": ["extensions/**/*.yaml"]},
+  "adapter": {
+    "include": ["core/adapter_conformance.yaml", "core/accessibility.yaml"]
+  }
+}
