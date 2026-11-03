@@ -10,7 +10,7 @@ A2UI lets an AI agent describe an interactive UI as a stream of JSON messages th
 
 ---
 
-## How agents generate UI
+## Generating UI
 
 On the server, you configure the [A2UI Agent SDK](/concepts/agent-sdks/) with a [component catalog](/concepts/catalogs/) (`catalog.json`) that describes the UI components and functions available to render on your client. From that catalog, the SDK's skill generator produces an A2UI skill containing prompt instructions and grammar rules. Your agent code and LLM runtime sit outside the SDK: they take the generated A2UI skill alongside your domain tools (such as a flight search API), call the model, and pass its UI output to the SDK's compiler. The compiler parses and validates the content against the catalog, then sends layout ([`updateComponents`](/concepts/messages/)) and data ([`updateDataModel`](/concepts/messages/)) messages over a transport such as AG-UI, A2A, MCP, or WebSockets.
 
@@ -24,7 +24,7 @@ _In the diagram above, purple marks your server-side agent code, blue marks your
 
 ---
 
-## UI generation pipeline detail
+## Step-by-step Generation
 
 The rest of this page traces a flight-booking request through each stage of the pipeline: defining the catalog, generating the skill, prompting the model, compiling and validating the output, rendering the surface on the client, and handling user actions.
 
