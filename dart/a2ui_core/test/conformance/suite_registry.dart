@@ -18,6 +18,9 @@ const Map<String, Map<String, String>> coreSuiteActions = {
   'core/actions.yaml': {
     'dispatch_action': 'actions_conformance_test.dart',
   },
+  'core/agent_function_routing.yaml': {
+    'route_agent_function': 'agent_function_routing_conformance_test.dart',
+  },
   'core/catalog.yaml': {
     'derive': 'catalog_schema_conformance_test.dart',
     'from_json': 'catalog_schema_conformance_test.dart',

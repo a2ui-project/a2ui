@@ -1138,6 +1138,9 @@ extension ConformanceTestHelper {
     "core/actions.yaml": [
       "dispatch_action": "ActionsConformanceTests.swift"
     ],
+    "core/agent_function_routing.yaml": [
+      "route_agent_function": "AgentFunctionRoutingConformanceTests.swift"
+    ],
     "core/catalog.yaml": [
       "derive": "CatalogDeriveConformanceTests.swift",
       "from_json": "CatalogConformanceTests.swift",

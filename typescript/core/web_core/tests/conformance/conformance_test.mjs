@@ -16,6 +16,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {isDeepStrictEqual} from 'node:util';
 
 import yaml from 'js-yaml';
 import {z} from 'zod';
@@ -41,11 +42,15 @@ import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js'
 import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
 import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
 import {effect, getValue, isSignal, peekValue} from '../../dist/src/reactivity/signals.js';
+import {ComponentContext} from '../../dist/src/resolution/component-context.js';
 import {DataContext} from '../../dist/src/resolution/data-context.js';
+import {GenericBinder} from '../../dist/src/resolution/generic-binder.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
+import {ComponentModel} from '../../dist/src/state/component-model.js';
 import {DataModel} from '../../dist/src/state/data-model.js';
 import {SurfaceModel} from '../../dist/src/state/surface-model.js';
+import {CommonSchemas} from '../../dist/src/types/common-types.js';
 import {basicCatalog as V0_8_SDK_BASIC_CATALOG} from '../../dist/src/v0_8/basic_catalog/catalog.js';
 import {
   BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS,
@@ -137,6 +142,17 @@ const SKIP_TEST_NAMES = new Set();
  */
 const KNOWN_DIVERGENCES = new Map([
   [
+    'core/agent_function_routing.yaml',
+    new Map([
+      [
+        'test_agent_routing_cancelled_call_is_sent_again_on_unrelated_change',
+        'web_core re-evaluates a nested call only when its own arguments change, so an unrelated ' +
+          'path change does not re-evaluate it; the rule is covered by ' +
+          'test_agent_routing_cancelled_call_is_sent_again_when_its_value_is_rewritten',
+      ],
+    ]),
+  ],
+  [
     'core/common_types.yaml',
     new Map([
       [
@@ -153,19 +169,19 @@ const KNOWN_DIVERGENCES = new Map([
       ],
       [
         'test_v09_function_call_rejects_unknown_keys',
-        'v0.9 FunctionCallSchema in web_core is not strict and allows extra keys',
+        "v0.9 FunctionCallSchema in web_core is not strict (allows extra keys) and defaults returnType to 'boolean' when omitted",
       ],
       [
         'test_v09_dynamic_value_branches_are_exclusive',
-        'v0.9 FunctionCallSchema in web_core is not strict, so an object with both call and path matches FunctionCallSchema',
+        "v0.9 FunctionCallSchema in web_core is not strict (an object with both call and path matches FunctionCallSchema) and defaults returnType to 'boolean' when omitted",
       ],
       [
         'test_v091_function_call_rejects_unknown_keys',
-        'v0.9 FunctionCallSchema in web_core is not strict and allows extra keys',
+        "v0.9 FunctionCallSchema in web_core is not strict (allows extra keys) and defaults returnType to 'boolean' when omitted",
       ],
       [
         'test_v091_dynamic_value_branches_are_exclusive',
-        'v0.9 FunctionCallSchema in web_core is not strict, so an object with both call and path matches FunctionCallSchema',
+        "v0.9 FunctionCallSchema in web_core is not strict (an object with both call and path matches FunctionCallSchema) and defaults returnType to 'boolean' when omitted",
       ],
     ]),
   ],
@@ -492,6 +508,9 @@ async function dispatchTestCase(testCase) {
       break;
     case 'validate_common_type':
       validateCommonTypeTestCase(testCase);
+      break;
+    case 'route_agent_function':
+      await validateRouteAgentFunctionTestCase(testCase);
       break;
     default:
       throw new Error(`Unhandled action type in conformance harness: '${action}'`);
@@ -4190,6 +4209,22 @@ const VALIDATE_COMMON_TYPE_KNOWN_KEYS = {
   step: new Set(['expectError', 'value']),
 };
 
+/**
+ * Step-level round-trip divergences in `validate_common_type` cases that are
+ * not already skipped as a whole in `KNOWN_DIVERGENCES`. An entry whose step
+ * round-trips cleanly fails the test so stale entries are caught.
+ */
+const VALIDATE_COMMON_TYPE_ROUND_TRIP_DIVERGENCES = new Map([
+  [
+    'test_v09_action_is_event_or_function_call#1',
+    "v0.9 FunctionCallSchema in web_core defaults returnType to 'boolean' when omitted",
+  ],
+  [
+    'test_v091_action_is_event_or_function_call#1',
+    "v0.9 FunctionCallSchema in web_core defaults returnType to 'boolean' when omitted",
+  ],
+]);
+
 function validateCommonTypeTestCase(testCase) {
   assertKnownKeys(testCase, VALIDATE_COMMON_TYPE_KNOWN_KEYS.case, 'validate_common_type');
   assertKnownKeysList(
@@ -4228,7 +4263,243 @@ function validateCommonTypeTestCase(testCase) {
         true,
         `Step ${i}: expected ${testCase.definition} to accept ${JSON.stringify(step.value)}, got error: ${result.error?.message}`,
       );
+      const stepKey = `${testCase.name}#${i}`;
+      const divergence = VALIDATE_COMMON_TYPE_ROUND_TRIP_DIVERGENCES.get(stepKey);
+      if (divergence !== undefined) {
+        assert.strictEqual(
+          isDeepStrictEqual(result.data, step.value),
+          false,
+          `Step ${i} (${stepKey}): known round-trip divergence (${divergence}) passed unexpectedly`,
+        );
+      } else {
+        assert.deepStrictEqual(
+          result.data,
+          step.value,
+          `Step ${i}: expected ${testCase.definition} to round-trip ${JSON.stringify(step.value)}, got ${JSON.stringify(result.data)}`,
+        );
+      }
     }
+  }
+}
+
+/** Lets pending promise callbacks and timers that are already due run. */
+const flushAsyncWork = async () => {
+  for (let i = 0; i < 3; i++) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+};
+
+/**
+ * Builds the catalogs of a `route_agent_function` case.
+ *
+ * `localFunctions` take web_core's basic catalog implementations for the
+ * case's protocol version. `agentFunctions` are declared without an
+ * implementation, as a catalog document loaded with `Catalog.fromJson`
+ * declares them, so they are schema-only.
+ */
+function buildRoutingCatalogs(testCase, version) {
+  const basicFunctions =
+    toCanonicalVersion(version) === '1.0' ? V1_0_BASIC_FUNCTIONS : V0_9_BASIC_FUNCTIONS;
+  return (testCase.catalogs ?? []).map(spec => {
+    const functions = (spec.localFunctions ?? []).map(name => {
+      const fn = basicFunctions.find(candidate => candidate.name === name);
+      if (!fn) throw new Error(`web_core's basic catalog has no function '${name}'.`);
+      return fn;
+    });
+    const agentFunctions = Object.entries(spec.agentFunctions ?? {});
+    if (agentFunctions.length > 0) {
+      const document = Catalog.fromJson({
+        catalogId: spec.catalogId,
+        protocolVersion: version,
+        components: {},
+        functions: Object.fromEntries(
+          agentFunctions.map(([name, declaration]) => [
+            name,
+            {
+              type: 'object',
+              ...(declaration.returnType ? {returnType: declaration.returnType} : {}),
+              ...(declaration.requiresUserActivation ? {requiresUserActivation: true} : {}),
+              ...(declaration.allowedCallers ? {allowedCallers: declaration.allowedCallers} : {}),
+              properties: {'@call': {const: name}, args: declaration.args},
+              required: ['@call', 'args'],
+            },
+          ]),
+        ),
+      });
+      functions.push(...document.functions.values());
+    }
+    return new Catalog(spec.catalogId, version, [], functions);
+  });
+}
+
+/**
+ * Runs a `route_agent_function` case: evaluates function calls on a surface
+ * created through a `MessageProcessor`, answers the `callAgentFunction`
+ * messages the processor sends, and checks the values and reported errors.
+ *
+ * A `binding` subscribes to the call as a dynamic value, as a component
+ * binding does; a `check` subscribes to it as the condition of a check rule,
+ * as the generic binder does; an `action` resolves it as the `functionCall` of
+ * an action, which runs it within a user activation; an `event` resolves an
+ * event action within a user activation and dispatches it, as the generic
+ * binder does for a component's action.
+ */
+async function validateRouteAgentFunctionTestCase(testCase) {
+  const version = resolveProtocolVersion(testCase);
+  const wireVersion =
+    toCanonicalVersion(version) === '1.0' ? '1.0' : `v${toCanonicalVersion(version)}`;
+  const surfaceSpec = testCase.surface ?? {};
+  const outbound = [];
+  const processor = new MessageProcessor(buildRoutingCatalogs(testCase, version), undefined, {
+    outboundListener:
+      surfaceSpec.outboundListener === false ? undefined : message => outbound.push(message),
+  });
+  const createSurface = {surfaceId: 'main'};
+  if (surfaceSpec.catalogId !== undefined) createSurface.catalogId = surfaceSpec.catalogId;
+  processor.processMessages([{version: wireVersion, createSurface}]);
+  const surface = processor.getSurface('main');
+  if (testCase.dataModel !== undefined) surface.dataModel.set('/', testCase.dataModel);
+
+  const errors = [];
+  const errorSubscription = surface.onError.subscribe(err => errors.push(err));
+  const actions = [];
+  const actionSubscription = surface.onAction.subscribe(action => actions.push(action));
+  const ctx = new DataContext(surface, '/');
+  /** Current values of the binding and check evaluations, in order. */
+  const values = [];
+  const evaluations = [];
+  const disposables = [];
+  let outboundSeen = 0;
+  let errorsSeen = 0;
+  let actionsSeen = 0;
+
+  try {
+    for (const [index, step] of (testCase.steps ?? []).entries()) {
+      const label = `step ${index}`;
+      if (step.evaluate !== undefined) {
+        const as = step.as ?? 'binding';
+        if (as === 'action') {
+          const result = ctx.resolveAction({functionCall: step.evaluate});
+          // The action's own outcome is reported on the surface.
+          Promise.resolve(result).catch(() => {});
+        } else if (as === 'event') {
+          const resolved = ctx.resolveAction({event: step.evaluate}, {userActivation: true});
+          if (resolved !== undefined) {
+            // A failure is reported on the surface; the dispatch itself never rejects.
+            surface.dispatchAction(resolved, 'probe').catch(() => {});
+          }
+        } else if (as === 'check') {
+          const probeId = `probe_${evaluations.length}`;
+          const comp = new ComponentModel(probeId, 'Probe', {});
+          surface.componentsModel.addComponent(comp);
+          const binder = new GenericBinder(
+            new ComponentContext(surface, probeId),
+            CommonSchemas.Checkable.describe(''),
+          );
+          const sub = binder.subscribe(() => {});
+          comp.properties = {
+            checks: [{condition: step.evaluate, message: 'Check failed'}],
+          };
+          disposables.push(() => sub.unsubscribe());
+          evaluations.push(() => binder.snapshot.isValid);
+        } else {
+          const slot = values.length;
+          values.push(undefined);
+          const bound = ctx.subscribeDynamicValue(step.evaluate, value => {
+            values[slot] = value;
+          });
+          values[slot] = bound.value;
+          disposables.push(() => bound.unsubscribe());
+          evaluations.push(() => values[slot]);
+        }
+      } else if (step.respond !== undefined) {
+        const {call, ...response} = step.respond;
+        const message = outbound.filter(m => m.callAgentFunction)[call];
+        assert.ok(message, `${label}: no callAgentFunction at index ${call}`);
+        processor.processMessages([
+          {
+            version: '1.0',
+            agentFunctionResponse: {
+              functionCallId: message.callAgentFunction.functionCallId,
+              ...response,
+            },
+          },
+        ]);
+      } else if (step.updateData !== undefined) {
+        surface.dataModel.set(step.updateData.path, step.updateData.value);
+      } else if (step.cancelSurfaceCalls === true) {
+        processor.rpc.cancelSurfaceCalls('main');
+      } else if (step.deleteSurface === true) {
+        processor.processMessages([{version: wireVersion, deleteSurface: {surfaceId: 'main'}}]);
+      } else {
+        throw new Error(
+          `${label}: a step needs 'evaluate', 'respond', 'updateData', 'cancelSurfaceCalls' or 'deleteSurface'.`,
+        );
+      }
+      await flushAsyncWork();
+
+      const sent = outbound.slice(outboundSeen);
+      outboundSeen = outbound.length;
+      for (const message of sent) {
+        assert.ok(message.callAgentFunction, `${label}: unexpected outbound message`);
+        assert.strictEqual(message.callAgentFunction.surfaceId, 'main', `${label}: surfaceId`);
+      }
+      const byJson = (a, b) =>
+        JSON.stringify(sortKeysDeep(a)).localeCompare(JSON.stringify(sortKeysDeep(b)));
+      const sentPayloads = sent.map(message => message.callAgentFunction.callFunction);
+      const expectedPayloads = step.expectOutbound ?? [];
+      assert.deepStrictEqual(
+        step.outboundInAnyOrder ? [...sentPayloads].sort(byJson) : sentPayloads,
+        step.outboundInAnyOrder ? [...expectedPayloads].sort(byJson) : expectedPayloads,
+        `${label}: outbound callFunction payloads`,
+      );
+
+      const reported = errors.slice(errorsSeen);
+      errorsSeen = errors.length;
+      const expectedErrors = step.expectErrors ?? [];
+      assert.strictEqual(
+        reported.length,
+        expectedErrors.length,
+        `${label}: reported errors ${JSON.stringify(reported)}`,
+      );
+      expectedErrors.forEach((expected, i) => {
+        assert.strictEqual(reported[i].code, expected.code, `${label}: error code`);
+        if (expected.message !== undefined) {
+          assert.ok(
+            reported[i].message.includes(expected.message),
+            `${label}: error message '${reported[i].message}' lacks '${expected.message}'`,
+          );
+        }
+      });
+
+      const dispatched = actions.slice(actionsSeen);
+      actionsSeen = actions.length;
+      assert.deepStrictEqual(
+        dispatched.map(action =>
+          JSON.parse(
+            JSON.stringify({
+              name: action.name,
+              context: action.context,
+              userMessage: action.userMessage,
+            }),
+          ),
+        ),
+        step.expectActions ?? [],
+        `${label}: dispatched actions`,
+      );
+
+      if (step.expectValues !== undefined) {
+        const actual = evaluations.map(read => {
+          const value = read();
+          return value === undefined ? null : JSON.parse(JSON.stringify(value));
+        });
+        assert.deepStrictEqual(actual, step.expectValues, `${label}: values`);
+      }
+    }
+  } finally {
+    disposables.forEach(dispose => dispose());
+    errorSubscription.unsubscribe();
+    actionSubscription.unsubscribe();
   }
 }
 
