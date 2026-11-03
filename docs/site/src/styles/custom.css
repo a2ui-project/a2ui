@@ -145,11 +145,15 @@ header.header {
 }
 
 .sl-markdown-content table:not(:where(.not-content *)) :is(th, td) {
-  padding: 0.55rem 0.7rem;
+  padding: 0.65rem 0.9rem;
   border-bottom: 1px solid var(--sl-color-hairline-light);
   vertical-align: top;
   overflow-wrap: normal;
   word-break: normal;
+}
+
+.sl-markdown-content table:not(:where(.not-content *)) :is(th:first-child, td:first-child) {
+  padding-inline-start: 1rem;
 }
 
 .sl-markdown-content table:not(:where(.not-content *)) tbody tr:last-child td {
@@ -168,9 +172,10 @@ header.header {
   white-space: nowrap;
 }
 
-.sl-markdown-content table:not(:where(.not-content *)) :is(th, td):last-child {
+.sl-markdown-content table:not(:where(.not-content *)) :is(th:last-child, td:last-child) {
+  padding-inline-end: 1rem;
   width: 100%;
-  min-width: 14rem;
+  min-width: 12.5rem;
 }
 
 /* GitHub-flavored alert callouts rendered by remark-a2ui-includes */

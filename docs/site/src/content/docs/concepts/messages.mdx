@@ -1,20 +1,20 @@
 ---
 title: 'Messages'
-description: 'Asynchronous bidirectional message types, metadata carriers, and lifecycle sequences in A2UI.'
+description: 'Asynchronous bidirectional JSON message types and transport metadata in A2UI.'
 ---
 
 import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 import SchemaChips from '../../../components/docs/common/SchemaChips.astro';
 
-A2UI agents and client renderers communicate by exchanging explicit, asynchronous JSON messages in both directions: agents send messages to create surfaces, update component trees, update data models, and call renderer functions, while renderers send messages back to report user actions and invoke or respond to function calls. Each wire message is an independent JSON object containing a `"version"` field (`"1.0"` in v1.0, or `"v0.9"` / `"v0.9.1"` in v0.9.1) and a single message key, carried over transports such as [AG-UI](https://docs.ag-ui.com/introduction), [Agent-to-Agent (A2A)](https://a2a-protocol.org), [Model Context Protocol (MCP)](https://modelcontextprotocol.io), WebSockets, or Server-Sent Events (SSE).
+A2UI agents and client renderers communicate by exchanging explicit, asynchronous JSON messages in both directions: agents send messages to create surfaces, update component trees, update data models, and call renderer functions, while renderers send messages back to report user actions and invoke or respond to function calls. These message types can be sent over a variety of transports, including [AG-UI](https://docs.ag-ui.com/introduction), [Agent-to-Agent (A2A)](https://a2a-protocol.org), [Model Context Protocol (MCP)](https://modelcontextprotocol.io), WebSockets, and Server-Sent Events (SSE).
 
-Alongside explicit A2UI messages, the protocol uses [metadata](#metadata) when A2UI context needs to piggyback onto requests triggered for other purposes. Transport metadata travels from the renderer to the agent: for example, when a user sends a text prompt, the renderer attaches its supported catalogs (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1) or synchronized surface state (`a2uiRendererDataModel` / `a2uiClientDataModel`) to the outgoing transport request. In v1.0, explicit wire messages in both directions (`createSurface` from agent to renderer, and `action` from renderer to agent) can also carry an optional `metadata` field for custom application extensions.
+Alongside explicit A2UI messages, implementations can optionally use [metadata](#metadata) when renderer context needs to piggyback onto requests triggered for other purposes. For example, when a user sends a text prompt, the renderer can attach its supported catalogs (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1) or synchronized surface state (`a2uiRendererDataModel` / `a2uiClientDataModel`) to the outgoing request; implementations that agree on catalogs in advance do not need to use this metadata mechanism.
 
 ---
 
 ## Agent-to-renderer messages
 
-Agent-to-renderer messages construct surfaces, update component hierarchies and reactive data models, clean up surfaces, invoke client-side functions, and return results for agent-side function calls.
+Agent-to-renderer messages construct surfaces, update component hierarchies and reactive data models, clean up surfaces, invoke client-side functions, and return results for agent-side function calls. Each wire message in either direction is a JSON object with a `"version"` field (`"1.0"` in v1.0, or `"v0.9"` / `"v0.9.1"` in v0.9.1) and a single message key.
 
 <SchemaChips
   items={[
@@ -33,7 +33,7 @@ Agent-to-renderer messages construct surfaces, update component hierarchies and 
   ]}
 />
 
-### `createSurface`
+### createSurface
 
 <SchemaChips
   items={[
@@ -50,7 +50,7 @@ Agent-to-renderer messages construct surfaces, update component hierarchies and 
   ]}
 />
 
-The `createSurface` message allocates a new UI surface identified by `surfaceId`. The `surfaceId` must be globally unique within the rendering context (the `MessageProcessor` instance on the renderer), which is typically a conversation. Creating a surface implicitly instantiates the reserved [`Surface`](/specification/v1.0/schemas/#common_types.json/$defs/Surface) container component with `child: "root"`.
+The `createSurface` message allocates a new UI surface identified by `surfaceId`. The `surfaceId` must be globally unique within the rendering context (the `MessageProcessor` instance on the renderer), which is typically a conversation. Creating a surface implicitly instantiates the reserved [`Surface`](/specification/v1.0/schemas/#common_types.json/$defs/Surface) container component with `child: "root"`. In v1.0, `createSurface` can also include optional surface-level custom extensions under `metadata.extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)).
 
 #### Properties
 
@@ -61,13 +61,17 @@ The `createSurface` message allocates a new UI surface identified by `surfaceId`
 | `sendDataModel` | boolean | Optional                      | When `true`, the renderer attaches the full surface data model in transport metadata (`a2uiRendererDataModel` in v1.0 / `a2uiClientDataModel` in v0.9.1) on every message to the creating agent. |
 | `components`    | array   | Optional (v1.0)               | Initial flat list of component definitions, allowing single-message surface creation.                                                                                                            |
 | `dataModel`     | object  | Optional (v1.0)               | Initial root data model JSON object for the surface.                                                                                                                                             |
-| `metadata`      | object  | Optional (v1.0)               | Surface-level metadata object containing optional `extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)) with Unicode UAX #31 keys.                      |
+| `metadata`      | object  | Optional (v1.0)               | Surface-level extensions container with optional `extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)).                                                 |
 
 <Aside type="note" title="Changes in v1.0">
   In v1.0, `catalogId` is optional, `components` and `dataModel` can be passed inline to initialize
   a surface in a single message, and the v0.9.1 `theme` property is removed in favor of host
   application styling.
 </Aside>
+
+#### Example
+
+Creating a `"flight_search"` surface:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
@@ -125,7 +129,7 @@ The `createSurface` message allocates a new UI surface identified by `surfaceId`
 
 ---
 
-### `updateComponents`
+### updateComponents
 
 <SchemaChips
   items={[
@@ -142,7 +146,7 @@ The `createSurface` message allocates a new UI surface identified by `surfaceId`
   ]}
 />
 
-The `updateComponents` message adds or replaces component definitions in an existing surface. Relationships between components are expressed by ID references in a flat adjacency list rather than nested JSON trees, and one component in the surface must have `id: "root"`.
+The `updateComponents` message adds or replaces component definitions in an existing surface. Relationships between components are expressed by ID references in a flat adjacency list rather than nested JSON trees, and one component in the surface must have `id: "root"`. In v1.0, individual component definitions in `components` can also carry optional component-level extensions via `metadata.extensions` ([`ComponentCommon`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentCommon)).
 
 #### Properties
 
@@ -150,6 +154,10 @@ The `updateComponents` message adds or replaces component definitions in an exis
 | :----------- | :----- | :------- | :---------------------------------------------------------------------------------------------------------------------------- |
 | `surfaceId`  | string | Yes      | Identifier of the surface to update.                                                                                          |
 | `components` | array  | Yes      | Non-empty flat array of component objects. Components whose `id` already exists in the surface replace the stored definition. |
+
+#### Example
+
+Populating a surface with a `Column`, header `Text`, and interactive `Button`:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
@@ -241,7 +249,7 @@ The `updateComponents` message adds or replaces component definitions in an exis
 
 ---
 
-### `updateDataModel`
+### updateDataModel
 
 <SchemaChips
   items={[
@@ -273,8 +281,12 @@ The `updateDataModel` message updates the surface data model at a targeted locat
   `value` is optional, and omitting `value` removes the key at `path`.
 </Aside>
 
+#### Examples
+
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
+Updating `/selectedFlight`:
+
 ```json
 {
   "version": "1.0",
@@ -290,7 +302,7 @@ The `updateDataModel` message updates the surface data model at a targeted locat
 }
 ```
 
-To delete `/selectedFlight` in v1.0:
+Deleting `/selectedFlight` in v1.0 by setting `"value": null`:
 
 ```json
 {
@@ -305,6 +317,8 @@ To delete `/selectedFlight` in v1.0:
 
   </TabItem>
   <TabItem label="v0.9.1 (Active)">
+Updating `/selectedFlight`:
+
 ```json
 {
   "version": "v0.9",
@@ -320,7 +334,7 @@ To delete `/selectedFlight` in v1.0:
 }
 ```
 
-To delete `/selectedFlight` in v0.9.1, omit `value`:
+Deleting `/selectedFlight` in v0.9.1 by omitting `value`:
 
 ```json
 {
@@ -337,7 +351,7 @@ To delete `/selectedFlight` in v0.9.1, omit `value`:
 
 ---
 
-### `deleteSurface`
+### deleteSurface
 
 <SchemaChips
   items={[
@@ -362,6 +376,10 @@ The `deleteSurface` message instructs the renderer to unmount the surface identi
 | :---------- | :----- | :------- | :--------------------------------- |
 | `surfaceId` | string | Yes      | Identifier of the surface to drop. |
 
+#### Example
+
+Deleting the `"flight_search"` surface:
+
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
 ```json
@@ -387,7 +405,7 @@ The `deleteSurface` message instructs the renderer to unmount the surface identi
 
 ---
 
-### `callRendererFunction` (v1.0 only)
+### callRendererFunction (v1.0 only)
 
 <SchemaChips
   items={[
@@ -414,6 +432,10 @@ The `callRendererFunction` message is an agent-initiated remote procedure call (
 | `callFunction`   | object | Yes      | [`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object with required `@call`, required `catalogId`, and optional `args`. |
 | `surfaceId`      | string | Optional | Surface ID whose data model provides the evaluation context. When omitted, the function executes in an isolated root context with `{}`.                      |
 
+#### Example
+
+Calling a client-side `getDeviceTimezone` function on the renderer:
+
 ```json
 {
   "version": "1.0",
@@ -431,7 +453,7 @@ The `callRendererFunction` message is an agent-initiated remote procedure call (
 
 ---
 
-### `agentFunctionResponse` (v1.0 only)
+### agentFunctionResponse (v1.0 only)
 
 <SchemaChips
   items={[
@@ -452,6 +474,10 @@ The `agentFunctionResponse` message returns the execution result or structured e
 | `functionCallId` | string | Yes         | Correlation identifier matching the initiating `callAgentFunction` message.                                                        |
 | `value`          | any    | Conditional | Return value produced on success. Exactly one of `value` or `error` must be present.                                               |
 | `error`          | object | Conditional | Error object with required `code` (`string`) and `message` (`string`) fields if execution failed. Mutually exclusive with `value`. |
+
+#### Example
+
+Returning baggage allowance data for an agent function call:
 
 ```json
 {
@@ -490,7 +516,7 @@ Renderer-to-agent messages report user interactions, invoke remote functions on 
   ]}
 />
 
-### `action`
+### action
 
 <SchemaChips
   items={[
@@ -507,19 +533,23 @@ Renderer-to-agent messages report user interactions, invoke remote functions on 
   ]}
 />
 
-The `action` message notifies the agent that the user triggered an event action on an interactive component (such as clicking a `Button` configured with `action.event`). Before dispatching the message, the renderer resolves any data bindings inside `action.event.context` and `action.event.userMessage` against the local data model.
+The `action` message notifies the agent that the user triggered an event action on an interactive component (such as clicking a `Button` configured with `action.event`). Before dispatching the message, the renderer resolves any data bindings inside `action.event.context` and `action.event.userMessage` against the local data model. In v1.0, `action` can also include optional renderer-side custom extensions under `metadata.extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)).
 
 #### Properties
 
-| Property            | Type   | Required        | Description                                                                                                                                       |
-| :------------------ | :----- | :-------------- | :------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `name`              | string | Yes             | Event name declared on the component's `action.event.name`.                                                                                       |
-| `surfaceId`         | string | Yes             | Surface ID where the interaction originated.                                                                                                      |
-| `sourceComponentId` | string | Yes             | Component `id` that triggered the action.                                                                                                         |
-| `timestamp`         | string | Yes             | ISO 8601 date-time string indicating when the event occurred.                                                                                     |
-| `context`           | object | Yes             | Resolved key-value dictionary from `action.event.context` with all data bindings evaluated to current values.                                     |
-| `userMessage`       | string | Optional (v1.0) | Human-readable string resolved from `action.event.userMessage`, suitable for adding to LLM conversation history.                                  |
-| `metadata`          | object | Optional (v1.0) | Renderer-side action metadata containing optional `extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)). |
+| Property            | Type   | Required        | Description                                                                                                                                     |
+| :------------------ | :----- | :-------------- | :---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`              | string | Yes             | Event name declared on the component's `action.event.name`.                                                                                     |
+| `surfaceId`         | string | Yes             | Surface ID where the interaction originated.                                                                                                    |
+| `sourceComponentId` | string | Yes             | Component `id` that triggered the action.                                                                                                       |
+| `timestamp`         | string | Yes             | ISO 8601 date-time string indicating when the event occurred.                                                                                   |
+| `context`           | object | Yes             | Resolved key-value dictionary from `action.event.context` with all data bindings evaluated to current values.                                   |
+| `userMessage`       | string | Optional (v1.0) | Human-readable string resolved from `action.event.userMessage`, suitable for adding to LLM conversation history.                                |
+| `metadata`          | object | Optional (v1.0) | Action-level extensions container with optional `extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)). |
+
+#### Example
+
+Reporting a `"select_flight"` button action with resolved context:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
@@ -561,7 +591,7 @@ The `action` message notifies the agent that the user triggered an event action 
 
 ---
 
-### `callAgentFunction` (v1.0 only)
+### callAgentFunction (v1.0 only)
 
 <SchemaChips
   items={[
@@ -583,6 +613,10 @@ The `callAgentFunction` message is a renderer-initiated RPC requesting that the 
 | `functionCallId` | string | Yes      | Unique correlation identifier for this call, copied verbatim into [`agentFunctionResponse`](#agentfunctionresponse-v10-only).                                |
 | `callFunction`   | object | Yes      | [`FunctionCall`](/specification/v1.0/schemas/#common_types.json/$defs/FunctionCall) object with required `@call`, optional `catalogId`, and optional `args`. |
 
+#### Example
+
+Invoking `getBaggageAllowance` on the agent from the renderer:
+
 ```json
 {
   "version": "1.0",
@@ -603,7 +637,7 @@ The `callAgentFunction` message is a renderer-initiated RPC requesting that the 
 
 ---
 
-### `rendererFunctionResponse` (v1.0 only)
+### rendererFunctionResponse (v1.0 only)
 
 <SchemaChips
   items={[
@@ -625,6 +659,10 @@ The `rendererFunctionResponse` message delivers the renderer's return value or s
 | `value`          | any    | Conditional | Return value produced on success. Exactly one of `value` or `error` must be present.                                               |
 | `error`          | object | Conditional | Error object with required `code` (`string`) and `message` (`string`) fields if execution failed. Mutually exclusive with `value`. |
 
+#### Example
+
+Returning the device timezone for a preceding `callRendererFunction` call:
+
 ```json
 {
   "version": "1.0",
@@ -641,17 +679,6 @@ The `rendererFunctionResponse` message delivers the renderer's return value or s
 ---
 
 ### Metadata
-
-A2UI uses transport metadata when renderer context needs to piggyback on an external transport request (such as `message.metadata` in A2A or request metadata in MCP), and message-level extension metadata (`metadata.extensions` in v1.0) when custom vendor or application fields travel inside explicit `createSurface` or `action` messages. Transport metadata flows from the renderer to the agent, whereas v1.0 `metadata.extensions` can be attached in both directions without violating `additionalProperties: false` schema validation.
-
-| Metadata key / field       | Direction         | Carrier            | Purpose                                                                                                                           |
-| :------------------------- | :---------------- | :----------------- | :-------------------------------------------------------------------------------------------------------------------------------- |
-| `a2uiRendererCapabilities` | Renderer to Agent | Transport metadata | Advertises supported protocol version, `supportedCatalogIds`, and optional `inlineCatalogs` (`a2uiClientCapabilities` in v0.9.1). |
-| `a2uiRendererDataModel`    | Renderer to Agent | Transport metadata | Sends full local data models for surfaces created with `sendDataModel: true` (`a2uiClientDataModel` in v0.9.1).                   |
-| `action.metadata`          | Renderer to Agent | Wire message       | Optional v1.0 `extensions` map attached to an `action` event (such as client attestations or audit context).                      |
-| `createSurface.metadata`   | Agent to Renderer | Wire message       | Optional v1.0 surface-level `extensions` map attached to `createSurface` (such as session telemetry IDs or access policies).      |
-
-#### Capabilities and data model transport metadata
 
 <SchemaChips
   items={[
@@ -678,7 +705,20 @@ A2UI uses transport metadata when renderer context needs to piggyback on an exte
   ]}
 />
 
-When a user sends a text prompt or triggers an action, the renderer attaches `a2uiRendererCapabilities` (to negotiate supported catalogs) and, when `sendDataModel: true` is active on any surface, `a2uiRendererDataModel` (to synchronize local input state without embedding full data models inside `action`). Agents can optionally advertise their own static catalog support ahead of time via [`agent_capabilities.json`](/specification/v1.0/schemas/#agent_capabilities.json) (v1.0) or [`server_capabilities.json`](/specification/v0.9.1/schemas/#server_capabilities.json) (v0.9.1), such as in an A2A Agent Card.
+Transport metadata lets the renderer piggyback A2UI context onto outgoing requests triggered for other purposes (such as user text prompts in A2A or request metadata in MCP), flowing from the renderer to the agent.
+
+| Metadata key (v1.0)        | Metadata key (v0.9.1)    | Purpose                                                                                       |
+| :------------------------- | :----------------------- | :-------------------------------------------------------------------------------------------- |
+| `a2uiRendererCapabilities` | `a2uiClientCapabilities` | Advertises supported protocol versions, `supportedCatalogIds`, and optional `inlineCatalogs`. |
+| `a2uiRendererDataModel`    | `a2uiClientDataModel`    | Sends full local data models for active surfaces created with `sendDataModel: true`.          |
+
+Renderer capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1) are an optional mechanism that loosely coupled systems can use to negotiate which protocol versions and catalogs can be used when they are not known in advance. Systems where the agent and client are owned by the same party may not need capability negotiation if the protocol version and catalogs are agreed in advance. Agents can also advertise their static catalog support ahead of time via [`agent_capabilities.json`](/specification/v1.0/schemas/#agent_capabilities.json) (v1.0) or [`server_capabilities.json`](/specification/v0.9.1/schemas/#server_capabilities.json) (v0.9.1), such as in an A2A Agent Card.
+
+When any active surface was created with `sendDataModel: true`, the renderer attaches `a2uiRendererDataModel` (or `a2uiClientDataModel` in v0.9.1) on outgoing messages to that agent so local input state stays synchronized without embedding full data models inside `action` payloads.
+
+#### Example
+
+Attaching capabilities and synchronized surface state to an outgoing transport request:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
@@ -732,100 +772,3 @@ When a user sends a text prompt or triggers an action, the renderer attaches `a2
 ```
   </TabItem>
 </Tabs>
-
-#### Surface and action extension metadata (v1.0)
-
-<SchemaChips
-  items={[
-    {
-      version: 'v1.0',
-      label: 'common_types.json#Extensions',
-      href: '/specification/v1.0/schemas/#common_types.json/$defs/Extensions',
-    },
-  ]}
-/>
-
-In v1.0, both `createSurface.metadata` (agent to renderer) and `action.metadata` (renderer to agent) accept an `extensions` object whose keys are Unicode UAX #31 identifiers. Official extensions use the reserved `a2ui_` prefix, while custom extensions prefix keys with a reversed domain or organization identifier.
-
-Surface metadata (`createSurface.metadata`, agent to renderer):
-
-```json
-{
-  "version": "1.0",
-  "createSurface": {
-    "surfaceId": "flight_search",
-    "catalogId": "travel:flights",
-    "metadata": {
-      "extensions": {
-        "com_acme_telemetry": {"sessionTraceId": "tr_9042"}
-      }
-    }
-  }
-}
-```
-
-Action metadata (`action.metadata`, renderer to agent):
-
-```json
-{
-  "version": "1.0",
-  "action": {
-    "name": "select_flight",
-    "surfaceId": "flight_search",
-    "sourceComponentId": "btn_select_lh458",
-    "timestamp": "2026-11-02T10:15:30.000Z",
-    "context": {"flightId": "LH458"},
-    "metadata": {
-      "extensions": {
-        "com_acme_attestation": {"verifiedUserGesture": true}
-      }
-    }
-  }
-}
-```
-
----
-
-## End-to-end flight booking sequence
-
-The following sequence diagram traces the lifecycle of a surface in a flight booking scenario. When the user submits an initial prompt, the client app piggybacks `a2uiRendererCapabilities` in transport metadata so the agent knows which catalogs the renderer supports before allocating a surface via `createSurface`. Next, the agent streams `updateComponents` layout definitions and `updateDataModel` flight state, which the client renders as native UI. When the user clicks a flight button, the renderer sends an `action` message with resolved context back to the agent, which replies with an incremental `updateDataModel` update. Optional blocks show remote agent function calls (`callAgentFunction`), agent-initiated renderer function calls (`callRendererFunction`), and surface cleanup (`deleteSurface`).
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant Renderer as Client App (Renderer SDK)
-    participant Agent as Agent Server (LLM + Agent SDK)
-
-    Note over User,Agent: 1. Initial Prompt, Capabilities Metadata & Surface Creation
-    User->>Renderer: "Book flight from Berlin to San Francisco today, two tickets."
-    Renderer->>Agent: Prompt + metadata (a2uiRendererCapabilities: ["travel:flights"])
-    Agent-->>Renderer: createSurface(surfaceId: "flights", catalogId: "travel:flights")
-
-    Note over Renderer,Agent: 2. Decoupled Layout & State Streaming
-    Agent-->>Renderer: updateComponents(surfaceId: "flights", components: [root, header, btn_label, btn_select])
-    Agent-->>Renderer: updateDataModel(surfaceId: "flights", path: "/flights", value: [{id: "LH458", price: 680}])
-    Renderer->>User: Renders flight card with "Select LH458 ($680)" button
-
-    Note over User,Agent: 3. User Interaction & State Update
-    User->>Renderer: Clicks "Select LH458"
-    Renderer-->>Agent: action(name: "select_flight", surfaceId: "flights", sourceComponentId: "btn_select", timestamp: "...", context: {flightId: "LH458", price: 680})
-    Agent-->>Renderer: updateDataModel(surfaceId: "flights", path: "/selectedFlight", value: "LH458")
-    Renderer->>User: Updates UI to show selected state
-
-    opt Remote Function Execution (callAgentFunction)
-        Renderer-->>Agent: callAgentFunction(surfaceId: "flights", functionCallId: "call_bag_1", callFunction: {@call: "getBaggageFee", catalogId: "travel:flights", args: {flightId: "LH458"}})
-        Agent-->>Renderer: agentFunctionResponse(functionCallId: "call_bag_1", value: {fee: 0, allowance: "2 bags"})
-    end
-
-    opt Local Function Execution (callRendererFunction)
-        Agent-->>Renderer: callRendererFunction(surfaceId: "flights", functionCallId: "call_tz_1", callFunction: {@call: "getDeviceTimezone", catalogId: "device:sensors"})
-        Renderer-->>Agent: rendererFunctionResponse(functionCallId: "call_tz_1", value: {timeZone: "Europe/Berlin"})
-    end
-
-    opt Surface Cleanup
-        User->>Renderer: Closes booking workflow
-        Agent-->>Renderer: deleteSurface(surfaceId: "flights")
-        Renderer->>Renderer: Unmounts surface and disposes state
-    end
-```
