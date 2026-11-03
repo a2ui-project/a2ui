@@ -26,6 +26,7 @@
 # messages gives the messages back.
 
 - name: test_compile_atom_surface_form_creates_a_surface
+  features: [F-AGT-24]
   description: A surface form followed by a component form compiles to one createSurface carrying the surface id, the catalog, the root component and its nested children, with the ids the forms declare.
   action: compile
   args:
@@ -76,6 +77,7 @@
         surfaceId: "s1"
 
 - name: test_compile_atom_unknown_component_is_a_validation_error
+  features: [F-AGT-63]
   description: A form naming a component the catalog does not declare is a validation error rather than an unknown component in the output.
   action: compile
   args:

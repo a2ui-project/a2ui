@@ -429,7 +429,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-02
   title: ComponentPruningTransformer component filtering and dangling child reference rewriting
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
@@ -438,7 +437,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-03
   title: FunctionPruningTransformer function filtering and empty functions removal
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
@@ -447,7 +445,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-04
   title: PromptGenerator template-method assembly (generate, generate_Format_instructions, generate_catalog_description,
     render_examples)
@@ -457,7 +454,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-05
   title: Multi-catalog prompt generation and format-level generate_prompt_snippet
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#mixable-catalogs-and-component-resolution-logic
@@ -466,7 +462,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-06
   title: Skill and SkillSet domain models, YAML frontmatter serialization, and scoped directory export
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
@@ -475,7 +470,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-07
   title: Common Parser interface (has_a2ui_content, unwrap, wrap, parse_response, parse_chunk)
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
@@ -484,7 +478,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-08
   title: ResponseStream incremental chunk parser (append, close, text_parts, a2ui_messages,parts)
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
@@ -493,7 +486,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-09
   title: Validation layer delegation to Core MessageProcessor and PayloadValidator
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#standard-validation-error-format
@@ -502,7 +494,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-10
   title: Surface state tracking across turns during validation (RendererState integration)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#composition-validation-rules
@@ -511,7 +502,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-11
   title: Agent-callable function validation during response parsing
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#callrendererfunction
@@ -520,7 +510,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-12
   title: InferenceFormat and InferenceFormatFactory registry and custom format registration
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
@@ -529,7 +518,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Covered by SDK unit tests for InferenceFormatFactory registration and lookup.
 - id: F-AGT-13
   title: CatalogProvider, FileSystemCatalogProvider, and ListCatalogProvider
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-component-catalog
@@ -538,7 +526,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-14
   title: CatalogConfig with CatalogTransformer pipeline and example loading
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-component-catalog
@@ -547,7 +534,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-15
   title: A2uiGenerator startup facade, catalog caching, and create_processor negotiation
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
@@ -556,7 +542,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-16
   title: A2uiRequestProcessor per-request facade (generate_prompt_snippet, validate_examples, parse_response,
     parse_chunk)
@@ -566,7 +551,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-17
   title: resolve_catalogs capability negotiation for v0.9 and v1.0
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#renderer-capabilities
@@ -575,7 +559,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-18
   title: read_renderer_capabilities metadata extractor for v1.0 and v0.9
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#renderer-capabilities
@@ -584,7 +567,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-19
   title: DirectJsonFormat prompt generation, JSON fence stripping, and response parsing
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
@@ -593,7 +575,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-20
   title: DirectJsonResponseStream incremental top-level JSON object extraction across chunks
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#example-stream
@@ -602,7 +583,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-21
   title: ExpressFormat prompt generation, compiler, and decompiler
   specAnchor: specification/proposals/atom/a2ui_atom.md#a2ui-atom-technical-specification
@@ -611,7 +591,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-22
   title: ExpressResponseStream incremental streaming compilation and delta emission
   specAnchor: specification/proposals/atom/a2ui_atom.md#compilation-example
@@ -620,7 +599,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-23
   title: Express data model compilation and decompilation
   specAnchor: specification/proposals/atom/a2ui_atom.md#data-model-population
@@ -629,7 +607,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-24
   title: Express ANTLR4 grammar and parser parity across SDKs
   specAnchor: specification/proposals/atom/a2ui_atom.md#syntax-and-grammar
@@ -638,14 +615,12 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-25
   title: Legacy v0.8 A2uiSchemaManager and SendA2uiToClientToolset backward compatibility
   specAnchor: specification/v0_8/docs/a2ui_protocol.md
   blueprintAnchor: blueprints/codebases/python/a2ui_agent/codebase.blueprint.md#local-technical-decisions-overrides
   claimedBy:
   - python-agent
-  uncovered: Covered by Python v0.8 unit tests in python/a2ui_agent/tests/v0_8/.
 - id: F-AGT-26
   title: Typesafe Builder API (ComponentNode, SurfaceBuilder, ChildList, CheckRule, and Macro)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#ui-composition-the-adjacency-list-model
@@ -654,7 +629,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-27
   title: A2A extension URI constants and version mapping (v0.8, v0.9, v1.0)
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#extension-uri
@@ -663,7 +637,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-28
   title: A2A DataPart serialization and deserialization with mimeType application/json+a2ui
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#data-encoding
@@ -672,56 +645,48 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-29
   title: A2A part serialization and deserialization (a2ui_part_serde)
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#data-encoding
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
   - python-agent
-  uncovered: Covered by Python A2A integration unit tests in python/a2ui_a2a/tests/.
 - id: F-AGT-30
   title: A2A capability extraction from request message metadata
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#a2uirenderercapabilities
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#read_renderer_capabilities
   claimedBy:
   - python-agent
-  uncovered: Covered by Python A2A unit tests and live E2E agent servers.
 - id: F-AGT-31
   title: A2A extension activation header negotiation (try_activate_a2ui_extension)
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#a2a-extension-activation
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
   - python-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-32
   title: A2A AgentExtension builder with supportedCatalogIds and acceptsInlineCatalogs params
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#agent-card
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
   - python-agent
-  uncovered: Covered by Python A2A unit tests in python/a2ui_a2a/tests/.
 - id: F-AGT-33
   title: ADK SendA2uiToClientToolset dynamic system instructions and tool execution
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
   - python-agent
-  uncovered: Covered by Python ADK unit tests in python/a2ui_adk/tests/.
 - id: F-AGT-34
   title: ADK A2uiEventConverter outbound stream part conversion
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#agent-to-renderer-messages
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
   - python-agent
-  uncovered: Covered by Python ADK unit tests in python/a2ui_adk/tests/ and live E2E agent tests.
 - id: F-AGT-35
   title: ADK A2uiPartConverter factories (create_from_prompt_parser and create_from_stream_parser)
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#agent-to-renderer-messages
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
   - python-agent
-  uncovered: Covered by Python ADK unit tests in python/a2ui_adk/tests/.
 - id: F-AGT-36
   title: ADK A2aAgentExecutor capability-aware request lifecycle
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#processing-rules
@@ -737,7 +702,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-38
   title: RendererState.of / attach binding to A2uiRequestProcessor across turns
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#composition-validation-rules
@@ -746,7 +710,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-39
   title: RendererState.data_model_for_surface and include_data_model prompt injection
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#renderer-data-model
@@ -764,7 +727,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-41
   title: AgentFunction and AgentFunctionRegistry declaration and lookup
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#callagentfunction
@@ -773,7 +735,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-42
   title: Agent-side RPC execution loop (callAgentFunction -> agentFunctionResponse and callRendererFunction
     -> rendererFunctionResponse)
@@ -783,7 +744,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-43
   title: Legacy Kotlin A2uiAgent multi-turn streaming loop with tool registry
   specAnchor: specification/v0_9_1/docs/a2ui_protocol.md#protocol-overview-data-flow
@@ -798,7 +758,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-45
   title: DirectJSON streaming tolerance for invalid JSON and validation errors within a block
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#standard-validation-error-format
@@ -807,7 +766,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-46
   title: Express streaming compilation resilience when an earlier surface statement fails
   specAnchor: specification/proposals/atom/a2ui_atom.md#messages-and-surfaces
@@ -816,7 +774,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-47
   title: Express decompile and recompile round-trip equivalence
   specAnchor: specification/proposals/atom/a2ui_atom.md#compilation-example
@@ -825,7 +782,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-48
   title: Prompt token overhead and scaling budgets across inference formats
   specAnchor: specification/proposals/atom/a2ui_atom.md#core-design-goals
@@ -834,7 +790,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-49
   title: Catalog example validation against active negotiated catalogs during create_processor
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
@@ -843,7 +798,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-50
   title: Format-agnostic example normalization and ordering in PromptGenerator
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
@@ -852,7 +806,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-51
   title: Express inline createSurface compilation when components and dataModel precede children
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#createsurface
@@ -861,7 +814,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-52
   title: Express component declaration field ordering (positional vs named properties, checks, and bindings)
   specAnchor: specification/proposals/atom/a2ui_atom.md#expressions-and-component-declarations
@@ -870,7 +822,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-53
   title: Express function call compilation for local and agent-side functions
   specAnchor: specification/proposals/atom/a2ui_atom.md#validation-and-logic-expressions
@@ -879,7 +830,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-54
   title: Builder API cross-surface ComponentRef rejection during build_components
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#ui-composition-the-adjacency-list-model
@@ -888,7 +838,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-55
   title: FileSystemCatalogProvider recursive catalog.json discovery and invalid file skipping
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-component-catalog
@@ -897,7 +846,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-56
   title: RendererState turn lifecycle for deleteSurface and recreate with same surfaceId
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#deletesurface
@@ -906,7 +854,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-57
   title: Inbound renderer-to-agent action event parsing and model input formatting (v0.9 and v1.0)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#action
@@ -915,7 +862,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-58
   title: Inbound renderer-to-agent error event parsing and self-correction formatting (v0.9 and v1.0)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#error
@@ -924,7 +870,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-59
   title: Inbound a2uiRendererDataModel / a2uiClientDataModel extraction and RendererState sync
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#a2uirendererdatamodel
@@ -943,7 +888,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-61
   title: Outbound callRendererFunction invocation and inbound rendererFunctionResponse correlation
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#rendererfunctionresponse
@@ -952,7 +896,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-62
   title: ADK A2uiInboundPartConverter inbound DataPart routing for actions, errors, and RPC
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#renderer-to-agent-events
@@ -969,7 +912,6 @@
   - python-agent
   - ts-agent
   - dart-agent
-  uncovered: Agent and extension conformance suite tagging pending.
 - id: F-RND-01
   title: Surface lifecycle rendering (createSurface, incremental updateComponents, deleteSurface)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#envelope-message-structure

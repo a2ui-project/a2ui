@@ -67,6 +67,7 @@
 # --- Which catalogs become active ---
 
 - name: test_named_catalog_becomes_active
+  features: [F-AGT-17, F-AGT-30]
   description: The renderer names one of the two registered catalogs and only that one is active.
   action: resolve_catalogs
   args:
@@ -80,6 +81,7 @@
     active_catalog_ids: ["conformance/simplified"]
 
 - name: test_every_named_catalog_becomes_active
+  features: [F-AGT-17]
   description: A renderer that names both registered catalogs gets both, rather than the first match alone.
   action: resolve_catalogs
   args:
@@ -98,6 +100,7 @@
         components: ["Chart", "Gauge"]
 
 - name: test_unknown_catalog_id_is_ignored
+  features: [F-AGT-17]
   description: An id the agent does not hold is passed over, and the ids it does hold still resolve.
   action: resolve_catalogs
   args:
@@ -110,6 +113,7 @@
     active_catalog_ids: ["conformance/simplified"]
 
 - name: test_no_catalog_in_common_is_an_error
+  features: [F-AGT-17]
   description: A renderer that names nothing the agent holds leaves the session with no catalog, which fails.
   action: resolve_catalogs
   args:
@@ -179,6 +183,7 @@
 # --- Inline catalogs ---
 
 - name: test_inline_catalog_is_accepted
+  features: [F-AGT-17]
   description: An agent that accepts inline catalogs gains one active catalog per inline document.
   action: resolve_catalogs
   args:
@@ -207,6 +212,7 @@
         components: ["Marquee"]
 
 - name: test_inline_catalog_is_rejected
+  features: [F-AGT-17]
   description: An agent that does not accept inline catalogs drops them and resolves the named ids alone.
   action: resolve_catalogs
   args:
@@ -409,6 +415,7 @@
 # --- Transformers ---
 
 - name: test_resolved_catalog_is_the_transformed_one
+  features: [F-AGT-17]
   description: A registration's transformers have already run on the catalog resolution returns.
   action: resolve_catalogs
   args:
@@ -480,6 +487,7 @@
 # --- Malformed capabilities ---
 
 - name: test_capabilities_without_the_catalogs_version_are_invalid
+  features: [F-AGT-17, F-AGT-18]
   description: A capabilities object with no entry for the catalogs' protocol version is malformed rather than a statement of no preference.
   action: resolve_catalogs
   args:

@@ -46,6 +46,7 @@
             text: "Quarterly Revenue"
 
 - name: test_express_compile_component_catalog_override
+  features: [F-AGT-05]
   description: With multiple active catalogs, createSurface omits catalogId and each component resolves its catalog by name or explicit catalogId override and carries catalogId in the compiled output.
   action: compile
   args:
@@ -878,6 +879,7 @@
     category: CatalogError
 
 - name: test_direct_json_parse_response_mixed_catalogs
+  features: [F-AGT-05]
   description: Parsing a wrapped Direct JSON response containing mixed-catalog components returns the conversational text and the compiled mixed-catalog surface message.
   action: parse_response
   args:

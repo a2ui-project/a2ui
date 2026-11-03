@@ -50,6 +50,7 @@ version: "v0.9"
 
 tests:
   - id: "01_primitive_components"
+    features: [F-AGT-26]
     description: "Primitive components with static attributes and strict enums"
     golden: "01_primitive_components.json"
     surface_id: "conformance"
@@ -71,6 +72,7 @@ tests:
         variant: "body"
 
   - id: "02_nested_hierarchy_and_slots"
+    features: [F-AGT-26]
     description: "Nested component trees with single and multi-child slots"
     golden: "02_nested_hierarchy_and_slots.json"
     surface_id: "conformance"
@@ -124,6 +126,7 @@ tests:
             text: "Second Item"
 
   - id: "04_data_bindings"
+    features: [F-AGT-26]
     description: "Data bindings preserve relative and absolute paths exactly as written"
     golden: "04_data_bindings.json"
     surface_id: "conformance"
@@ -173,6 +176,7 @@ tests:
           event: "submit_application"
 
   - id: "06_actions_and_function_calls"
+    features: [F-AGT-26]
     description: "Actions with server event context maps and client function calls"
     golden: "06_actions_and_function_calls.json"
     surface_id: "conformance"
@@ -212,6 +216,7 @@ tests:
                   url: "https://a2ui.org/docs"
 
   - id: "07_dynamic_child_list"
+    features: [F-AGT-26]
     description: "Collection templates keep item-relative bindings inside the child scope"
     golden: "07_dynamic_child_list.json"
     surface_id: "conformance"
@@ -237,6 +242,7 @@ tests:
                 $bind: "title"
 
   - id: "08_component_references"
+    features: [F-AGT-26, F-AGT-54]
     description: "External surface component slot references (ComponentRef)"
     golden: "08_component_references.json"
     surface_id: "conformance"
@@ -258,6 +264,7 @@ tests:
           - $componentRef: "existing_surface_widget"
 
   - id: "09_surface_lifecycle_envelopes"
+    features: [F-AGT-26]
     description: "Full surface lifecycle: createSurface, updateComponents, updateDataModel"
     golden: "09_surface_lifecycle_envelopes.json"
     surface_id: "main_surface"
@@ -275,6 +282,7 @@ tests:
         text: "A2UI"
 
   - id: "10_validation_rules"
+    features: [F-AGT-26]
     description: "Client-side validation rules (CheckRule) on a checkable component"
     golden: "10_validation_rules.json"
     surface_id: "conformance"
@@ -329,6 +337,7 @@ tests:
   # --- Protocol v1.0 Twin Cases ---
 
   - id: "01_primitive_components_v1_0"
+    features: [F-AGT-26]
     version: "v1.0"
     description: "Primitive components with static attributes and strict enums (v1.0)"
     golden: "v1_0/01_primitive_components.json"
@@ -514,6 +523,7 @@ tests:
                 $bind: "title"
 
   - id: "08_component_references_v1_0"
+    features: [F-AGT-26, F-AGT-54]
     version: "v1.0"
     description: "External surface component slot references (ComponentRef) (v1.0)"
     golden: "v1_0/08_component_references.json"
@@ -552,6 +562,7 @@ tests:
         text: "A2UI"
 
   - id: "10_validation_rules_v1_0"
+    features: [F-AGT-26]
     version: "v1.0"
     description: "Client-side validation rules (CheckRule) on a checkable component (v1.0)"
     golden: "v1_0/10_validation_rules.json"

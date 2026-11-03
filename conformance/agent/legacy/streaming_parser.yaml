@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: test_incremental_yielding
+  features: [F-AGT-25]
   description: Tests that partial chunks are buffered and yielded correctly.
   catalog:
     protocolVersion: "v0.8"

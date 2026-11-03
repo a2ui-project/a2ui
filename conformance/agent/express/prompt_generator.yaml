@@ -72,6 +72,7 @@
 # --- What the catalog contributes ---
 
 - name: test_express_snippet_names_every_function_of_the_catalog
+  features: [F-AGT-04, F-AGT-21]
   description: The snippet names each function of the active catalog alongside its components, since a function the model is not given is a function it cannot call. `required` is left out of the assertion because it is also a JSON Schema keyword, so asserting it would pass for any snippet that embeds the catalog document.
   action: generate_prompt_snippet
   args:
@@ -105,6 +106,7 @@
   expect_absent: ["openUrl"]
 
 - name: test_express_snippet_names_both_catalogs_and_their_ids
+  features: [F-AGT-05]
   description: With two catalogs active the snippet names both sets of members and both catalog ids, so the model can say which catalog a component came from.
   action: generate_prompt_snippet
   args:
@@ -123,6 +125,7 @@
     - "percent"
 
 - name: test_express_snippet_with_two_catalogs_and_pruning
+  features: [F-AGT-05]
   description: When multiple catalogs are active and transformed, each catalog section reflects its own component and function pruning rules.
   action: generate_prompt_snippet
   args:
@@ -151,6 +154,7 @@
 # --- Examples ---
 
 - name: test_express_snippet_renders_supplied_examples
+  features: [F-AGT-04, F-AGT-50]
   description: An example is supplied as messages but has to reach the model in the notation it is being asked to write, so the Express snippet carries the decompiled Express of its payload rather than the messages themselves.
   action: generate_prompt_snippet
   args:
@@ -164,6 +168,7 @@
     - 'root = Text("Hello")'
 
 - name: test_express_snippet_renders_multi_catalog_examples
+  features: [F-AGT-05, F-AGT-50]
   description: Examples spanning multiple active catalogs decompile using each example surface's respective catalog schema.
   action: generate_prompt_snippet
   args:
@@ -179,7 +184,29 @@
     - 'root = Text("Hello")'
     - "root = Chart([1, 2, 3])"
 
+- name: test_express_snippet_preserves_supplied_example_order
+  features: [F-AGT-50]
+  description: Supplied examples appear in the Express prompt snippet in the exact order given in the examples list, even when an example from the second catalog precedes an example from the first catalog.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    examples:
+      - "test_data/examples/chart_series.json"
+      - "test_data/examples/greeting_surface.json"
+  expect_contains:
+    - |-
+      root = Chart([1, 2, 3])
+      </a2ui>
+
+      <a2ui>
+      surface("s1")
+      root = Text("Hello")
+
 - name: test_express_snippet_without_examples_carries_no_example
+  features: [F-AGT-50]
   description: The same catalog without examples carries none of the example payload. The whole statement is asserted absent rather than the bare name, since the signature block legitimately carries `Text(`.
   action: generate_prompt_snippet
   args:
@@ -255,6 +282,7 @@
   expect_contains: ["surface(", "deleteSurface(", "$/"]
 
 - name: test_express_snippet_names_only_agent_callable_functions_for_standalone_calls
+  features: [F-AGT-11, F-AGT-41]
   description: Only functions whose allowedCallers admits the agent and which require no user activation are agent-callable for standalone calls.
   action: generate_prompt_snippet
   args:
@@ -265,6 +293,7 @@
   expect_contains: ["notifyAgent", "showToast"]
 
 - name: test_express_snippet_has_no_standalone_call_rule_without_callable_functions
+  features: [F-AGT-11, F-AGT-41]
   description: When no active catalog function is agent-callable, the standalone renderer call rule is omitted from the Express prompt.
   action: generate_prompt_snippet
   args:
@@ -277,6 +306,7 @@
 # --- Determinism ---
 
 - name: test_express_snippet_is_deterministic
+  features: [F-AGT-04, F-AGT-21]
   description: The Express snippet is stable across calls, including the order it lists two catalogs in and the rendering of an example, which is the part most likely to vary if a decompiler walks an unordered map.
   action: generate_prompt_snippet
   args:

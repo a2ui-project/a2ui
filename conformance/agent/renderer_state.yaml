@@ -27,6 +27,7 @@
 # --- Direct JSON multi-turn state ---
 
 - name: test_renderer_state_direct_json_retains_state_across_turns
+  features: [F-AGT-10, F-AGT-37, F-AGT-38]
   description: A surface created on turn 1 can have its components and data model updated on turn 2.
   action: renderer_state_turns
   catalogs:
@@ -103,6 +104,7 @@
             title: "Updated"
 
 - name: test_renderer_state_direct_json_unknown_surface_rejected
+  features: [F-AGT-10, F-AGT-37]
   description: Updating a surface that was never created in the stateful session is rejected with a ValidationError.
   action: renderer_state_turns
   catalogs:
@@ -127,6 +129,7 @@
         category: "ValidationError"
 
 - name: test_renderer_state_direct_json_failed_turn_rolls_back_state
+  features: [F-AGT-10, F-AGT-37]
   description: A turn that fails validation after mutating a surface rolls back to the last committed state so the next turn succeeds against turn 1's state.
   action: renderer_state_turns
   catalogs:
@@ -207,6 +210,7 @@
               text: "Item A Updated"
 
 - name: test_renderer_state_direct_json_delete_then_recreate_surface
+  features: [F-AGT-37, F-AGT-56]
   description: Deleting a surface on turn 2 allows re-creating the same surface on turn 3.
   action: renderer_state_turns
   catalogs:
@@ -280,6 +284,7 @@
 # --- Express multi-turn state ---
 
 - name: test_renderer_state_express_retains_state_across_turns
+  features: [F-AGT-10, F-AGT-37, F-AGT-38]
   description: An Express surface created on turn 1 can have its components and data model updated on turn 2 without re-creating the surface.
   action: renderer_state_turns
   catalogs:
@@ -324,6 +329,7 @@
             title: "Updated"
 
 - name: test_renderer_state_express_unknown_surface_rejected
+  features: [F-AGT-10, F-AGT-37]
   description: Updating a surface with updateDataModel when the surface was never created in the stateful session is rejected with a ValidationError.
   action: renderer_state_turns
   catalogs:
@@ -339,6 +345,7 @@
         category: "ValidationError"
 
 - name: test_renderer_state_express_failed_turn_rolls_back_state
+  features: [F-AGT-10, F-AGT-37]
   description: An Express turn that fails topology validation after mutating a surface rolls back to the last committed state so the next turn succeeds against turn 1's state.
   action: renderer_state_turns
   catalogs:
@@ -385,6 +392,7 @@
               text: "Item A Updated"
 
 - name: test_renderer_state_express_delete_then_recreate_surface
+  features: [F-AGT-37, F-AGT-56]
   description: Deleting an Express surface on turn 2 allows re-creating the same surface on turn 3.
   action: renderer_state_turns
   catalogs:

@@ -15,6 +15,7 @@
 # --- Catalog Selection Tests ---
 
 - name: test_select_catalog_default
+  features: [F-AGT-25]
   description: If supported_catalog_ids is not provided, return the first supported catalog.
   action: select_catalog
   args:
@@ -29,6 +30,7 @@
   expectSelected: id_basic
 
 - name: test_select_catalog_intersection
+  features: [F-AGT-25]
   description: Find the intersection, return any catalog that matches.
   action: select_catalog
   args:
@@ -44,6 +46,7 @@
   expectSelected: id_custom2
 
 - name: test_select_catalog_priority
+  features: [F-AGT-25]
   description: Priority is determined by the order in supported_catalog_ids.
   action: select_catalog
   args:

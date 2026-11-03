@@ -22,6 +22,7 @@
 # time.
 
 - name: test_scaling_compile_express_v10
+  features: [F-AGT-48]
   description: Compiling a block of n components takes about four times as long at 4n.
   action: measure_growth
   args:

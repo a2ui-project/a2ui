@@ -33,6 +33,7 @@
 # --- What the catalog contributes ---
 
 - name: test_snippet_names_every_component_of_the_catalog
+  features: [F-AGT-04, F-AGT-19]
   description: The snippet renders the full prompt for a single active catalog, including workflow rules, agent-to-renderer schema, pruned common types schema, and the catalog's serialized JSON document.
   action: generate_prompt_snippet
   args:
@@ -42,6 +43,7 @@
   expect_file: "test_data/prompts/direct_json/simplified_catalog.txt"
 
 - name: test_snippet_names_every_function_of_the_catalog
+  features: [F-AGT-04, F-AGT-19]
   description: The snippet names each function of the active catalog alongside its components in the serialized catalog schema.
   action: generate_prompt_snippet
   args:
@@ -73,6 +75,7 @@
   expect_file: "test_data/prompts/direct_json/pruned_functions.txt"
 
 - name: test_snippet_names_both_catalogs_and_their_ids
+  features: [F-AGT-05]
   description: With two catalogs active the snippet emits a shared common types schema once and both catalogs' serialized JSON documents.
   action: generate_prompt_snippet
   args:
@@ -83,6 +86,7 @@
   expect_file: "test_data/prompts/direct_json/two_catalogs.txt"
 
 - name: test_snippet_with_two_catalogs_and_pruning
+  features: [F-AGT-05]
   description: When multiple catalogs are active and transformed, each catalog in the direct JSON snippet reflects its own component and function pruning rules and common types are pruned to the union of reachable definitions.
   action: generate_prompt_snippet
   args:
@@ -100,6 +104,7 @@
 # --- Examples ---
 
 - name: test_snippet_renders_supplied_examples
+  features: [F-AGT-04, F-AGT-50]
   description: An example reaches the snippet as the payload the model is meant to imitate, wrapped in a2ui-json tags.
   action: generate_prompt_snippet
   args:
@@ -111,6 +116,7 @@
   expect_file: "test_data/prompts/direct_json/single_example.txt"
 
 - name: test_snippet_renders_multi_catalog_examples
+  features: [F-AGT-05, F-AGT-50]
   description: Examples spanning multiple active catalogs are validated against their respective catalogs and rendered in the prompt snippet.
   action: generate_prompt_snippet
   args:
@@ -124,6 +130,7 @@
   expect_file: "test_data/prompts/direct_json/multi_catalog_examples.txt"
 
 - name: test_snippet_preserves_supplied_example_order
+  features: [F-AGT-50]
   description: Supplied examples appear in the prompt snippet in the exact order given in the examples list, even when an example from the second catalog precedes an example from the first catalog.
   action: generate_prompt_snippet
   args:
@@ -158,6 +165,7 @@
             "catalogId": "conformance/simplified"
 
 - name: test_snippet_without_examples_carries_no_example
+  features: [F-AGT-50]
   description: The same catalog without examples omits the Examples section altogether.
   action: generate_prompt_snippet
   args:
@@ -199,6 +207,7 @@
 # --- Determinism ---
 
 - name: test_direct_json_snippet_is_deterministic
+  features: [F-AGT-04, F-AGT-19]
   description: Two calls with the same catalogs and examples return the same string, matching the golden prompt verbatim.
   action: generate_prompt_snippet
   args:

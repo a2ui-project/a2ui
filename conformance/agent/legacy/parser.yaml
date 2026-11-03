@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: test_parse_empty_response
+  features: [F-AGT-25]
   description: Tests that empty response raises error.
   action: parse_full
   input: ""
@@ -37,6 +38,7 @@
     message: "A2UI JSON part is empty"
 
 - name: test_parse_response_only_json_with_tags
+  features: [F-AGT-25]
   description: Tests parsing only JSON with tags.
   action: parse_full
   input: '<a2ui-json>[{"id": "test"}]</a2ui-json>'

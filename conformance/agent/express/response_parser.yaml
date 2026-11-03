@@ -79,6 +79,7 @@
 # --- Unwrapping a response ---
 
 - name: test_unwrap_express_text_between_blocks
+  features: [F-AGT-07, F-AGT-21]
   description: Express blocks sit between a2ui tags and are ordered against the text the same way.
   action: unwrap
   args:
@@ -111,6 +112,7 @@
     - a2ui_raw: 'root = Text("Hello")'
 
 - name: test_unwrap_express_response_without_tags_is_one_text_part
+  features: [F-AGT-44]
   description: An Express response with no tags is conversational text, as it is for direct JSON.
   action: unwrap
   args:
@@ -490,6 +492,7 @@
   expect_output: ""
 
 - name: test_wrap_express_restores_tags_and_order
+  features: [F-AGT-07]
   description: Express parts are written back inside a2ui tags, in order.
   action: wrap
   args:
@@ -538,6 +541,7 @@
 # --- Parsing a whole response ---
 
 - name: test_parse_response_express_two_blocks
+  features: [F-AGT-07, F-AGT-21]
   description: Two Express blocks in one response compile separately and keep their place against the text.
   action: parse_response
   args:
@@ -590,6 +594,7 @@
                 text: "Hello"
 
 - name: test_parse_response_express_validation_failure_surfaces
+  features: [F-AGT-09, F-AGT-63]
   description: An Express block naming a component the catalog does not declare fails the parse as a validation error.
   action: parse_response
   args:

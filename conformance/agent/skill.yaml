@@ -15,6 +15,7 @@
 # --- Skill Generator Conformance Tests ---
 
 - name: test_express_monolithic_skill
+  features: [F-AGT-06]
   description: Generates a complete monolithic skill for Express format and basic catalog.
   action: from_format
   args:
@@ -24,6 +25,7 @@
   expected_file: conformance/test_data/skills/express_basic_monolithic.skill.md
 
 - name: test_express_core_skill
+  features: [F-AGT-06]
   description: Generates a core syntax skill for Express format.
   action: core_syntax
   args:
@@ -33,6 +35,7 @@
   expected_file: conformance/test_data/skills/express_core.skill.md
 
 - name: test_express_catalog_skill
+  features: [F-AGT-06]
   description: Generates a catalog skill for basic catalog in Express format.
   action: from_catalog
   args:
@@ -41,6 +44,7 @@
   expected_file: conformance/test_data/skills/express_basic_catalog.skill.md
 
 - name: test_express_skill_set
+  features: [F-AGT-06]
   description: Generates a modular SkillSet for Express format.
   action: skill_set
   args:
@@ -60,6 +64,7 @@
 # path in `expected_files` exists and every path in `expected_absent_files` does not.
 
 - name: test_export_wipes_stale_files_and_preserves_siblings
+  features: [F-AGT-06]
   description: >-
     Exporting removes stale files inside a skill's own directory, and leaves unrelated
     sibling directories and files at the root of the output directory untouched.
@@ -85,6 +90,7 @@
     - a2ui-core/stale_note.txt
 
 - name: test_export_nested_filename_cleans_only_own_directory
+  features: [F-AGT-06]
   description: >-
     A skill whose filename is nested (such as `src/skills/nested/SKILL.md`) cleans only
     the directory that holds the skill file, never an ancestor such as `src/`.

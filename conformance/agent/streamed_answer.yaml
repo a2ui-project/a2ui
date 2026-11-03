@@ -32,6 +32,7 @@
 # open the answer.
 
 - name: test_answer_keeps_text_and_surfaces_in_the_order_written
+  features: [F-AGT-40]
   description: The answer's parts are its text and its surfaces in the order the model wrote them, with text that arrived in pieces joined.
   action: stream_answer
   args:
@@ -63,6 +64,7 @@
     - text: "Done."
 
 - name: test_answer_reads_past_a_rejected_block
+  features: [F-AGT-40]
   description: A rejected block becomes an error part, and the text and surfaces after it are read as usual.
   action: stream_answer
   args:
@@ -78,6 +80,7 @@
         - surface: "good"
 
 - name: test_answer_keeps_a_surface_its_rejected_block_created_first
+  features: [F-AGT-40]
   description: A surface that a block created before the block was rejected stays in the answer, before the error part.
   action: stream_answer
   args:
@@ -97,6 +100,7 @@
       expect_in_block: false
 
 - name: test_answer_drops_a_surface_it_deletes
+  features: [F-AGT-40]
   description: A surface the answer deletes leaves its parts.
   action: stream_answer
   args:
@@ -112,6 +116,7 @@
         - surface: "b"
 
 - name: test_answer_ends_with_an_error_part_for_a_block_still_open
+  features: [F-AGT-40]
   description: A block still open when the answer is closed becomes an error part.
   action: stream_answer
   args:
@@ -128,6 +133,7 @@
         category: "ParseError"
 
 - name: test_answer_rejects_a_renderer_with_other_catalogs
+  features: [F-AGT-40]
   description: An answer cannot be opened on a renderer whose catalogs are not the request processor's active catalogs.
   action: stream_answer
   args:

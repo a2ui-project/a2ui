@@ -25,6 +25,7 @@
 # notation written for the messages gives the messages back.
 
 - name: test_compile_elemental_body_creates_a_surface
+  features: [F-AGT-24]
   description: A body element with ui-* children compiles to one createSurface carrying the surface id, the catalog, and the component tree, with the component ids the elements declare.
   action: compile
   args:
@@ -81,6 +82,7 @@
         surfaceId: "s1"
 
 - name: test_compile_elemental_unknown_component_is_a_validation_error
+  features: [F-AGT-63]
   description: A ui-* element naming a component the catalog does not declare is a validation error rather than an unknown component in the output.
   action: compile
   args:

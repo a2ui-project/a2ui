@@ -60,6 +60,7 @@
 # does: a surface that the block updates without creating is assumed to exist.
 
 - name: test_decompile_express_components
+  features: [F-AGT-21, F-AGT-47]
   description: A createSurface writes back out as the surface line and the component assignments it came from.
   action: decompile
   args:
@@ -84,6 +85,7 @@
   expect_round_trip: true
 
 - name: test_decompile_express_unicode_identifier_round_trips
+  features: [F-AGT-47]
   description: Component ids that are UAX 31 Unicode identifiers are written as bare variable names and round-trip.
   action: decompile
   args:
@@ -156,6 +158,7 @@
     message: "UAX #31"
 
 - name: test_decompile_express_data_model
+  features: [F-AGT-23, F-AGT-47]
   description: An initial data model writes back out as the data path assignments that would produce it.
   action: decompile
   args:
@@ -179,6 +182,7 @@
   expect_round_trip: true
 
 - name: test_decompile_express_update_components
+  features: [F-AGT-21]
   description: An updateComponents writes back out as the component assignments it came from, and a block naming no root is an update to a surface that already exists rather than a create.
   action: decompile
   args:
@@ -198,6 +202,7 @@
   expect_round_trip: true
 
 - name: test_decompile_express_update_data_model
+  features: [F-AGT-23]
   description: A standalone root data model update writes back out as a root map assignment ($/ = {...}), with no component assignment beside it to make the block a create, and round-trips without losing replace semantics.
   action: decompile
   args:
@@ -216,6 +221,7 @@
   expect_round_trip: true
 
 - name: test_decompile_express_delete_surface
+  features: [F-AGT-21]
   description: A deleteSurface writes back out as the statement of that name, which is what lets a lifecycle turn be shown to a model as an example.
   action: decompile
   args:
@@ -341,6 +347,7 @@
   expect_round_trip: true
 
 - name: test_decompile_express_nested_data_model_is_one_assignment_per_leaf
+  features: [F-AGT-23]
   description: A surface creation dataModel of nested maps writes out as one assignment per leaf path rather than as a map literal against the root, because the compiler builds the nesting back up from the paths.
   action: decompile
   args:
@@ -425,6 +432,7 @@
   expect_round_trip: true
 
 - name: test_decompile_express_integral_double_round_trips
+  features: [F-AGT-47]
   description: An integral double such as 3.0 may be written `3` or `3.0`; both recompile to the same value, so the case pins only the prefix the two spellings share. A decompiler that wrote `3e0` or threw for the value would fail the round trip.
   action: decompile
   args:
@@ -444,6 +452,7 @@
   expect_round_trip: true
 
 - name: test_decompile_express_two_surfaces_in_two_catalogs
+  features: [F-AGT-47]
   description: Two surfaces built from two active catalogs write back out without surface-level catalog arguments when component names are unique across the catalogs, and recompiling restores both surfaces with per-component catalogIds.
   action: decompile
   args:

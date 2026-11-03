@@ -77,6 +77,7 @@
 # --- Creating a format ---
 
 - name: test_format_binds_catalogs_to_its_prompt_generator
+  features: [F-AGT-12]
   description: A format built by the factory carries a prompt generator that describes the catalogs it was bound to.
   action: create_format
   args:
@@ -87,6 +88,7 @@
     prompt_snippet_contains: ["Text", "Button", "Card", "Column", "<a2ui-json>"]
 
 - name: test_format_binds_the_transformed_catalogs
+  features: [F-AGT-14]
   description: The factory binds the transformed catalogs, so a component the agent pruned is missing from the format's prompt.
   action: create_format
   args:
@@ -100,6 +102,7 @@
     prompt_snippet_absent: ["Button", "Column"]
 
 - name: test_express_format_binds_catalogs_to_its_prompt_generator
+  features: [F-AGT-12]
   description: The Express factory produces a format whose prompt uses the Express tags and positional signatures.
   action: create_format
   args:
@@ -111,6 +114,7 @@
     prompt_snippet_absent: ["<a2ui-json>"]
 
 - name: test_format_renders_examples_in_its_prompt
+  features: [F-AGT-14]
   description: Examples handed to the factory reach the prompt the format generates.
   action: create_format
   args:
@@ -149,6 +153,7 @@
 # --- Negotiating the active catalogs ---
 
 - name: test_capabilities_select_the_active_catalogs
+  features: [F-AGT-15]
   description: A renderer that names one of the agent's catalogs gets a processor bound to that one.
   action: create_processor
   args:
@@ -201,6 +206,7 @@
     category: CatalogError
 
 - name: test_creating_a_processor_leaves_the_generator_alone
+  features: [F-AGT-15]
   description: The generator holds the same catalogs after a negotiation as before, so one renderer's session cannot narrow the next renderer's.
   action: create_processor
   args:
@@ -218,6 +224,7 @@
 # --- What the processor tells the model ---
 
 - name: test_prompt_snippet_describes_the_active_catalogs
+  features: [F-AGT-16]
   description: The snippet describes what was negotiated, so a catalog the renderer did not ask for is never offered to the model.
   action: create_processor
   args:
@@ -251,6 +258,7 @@
     prompt_snippet_absent: ["Button", "Card", "Column"]
 
 - name: test_processor_holds_the_transformed_catalog
+  features: [F-AGT-16]
   description: The catalog the processor holds is the pruned one, which is what its validator will check a payload against.
   action: create_processor
   args:
@@ -271,6 +279,7 @@
         functions: ["formatString"]
 
 - name: test_format_override_replaces_the_generator_format
+  features: [F-AGT-12]
   description: A format passed when the processor is created takes the place of the generator's own, for that processor only.
   action: create_processor
   args:
@@ -289,6 +298,7 @@
 # --- Examples against the active catalogs ---
 
 - name: test_example_using_an_unknown_component_fails_at_creation
+  features: [F-AGT-49]
   description: An example that uses a component the active catalogs do not declare fails when the processor is created, not when a response is parsed.
   action: create_processor
   args:
@@ -307,6 +317,7 @@
 # --- Parsing a turn through the processor ---
 
 - name: test_processor_parses_a_response_within_the_active_catalogs
+  features: [F-AGT-09, F-AGT-16]
   description: A response using the negotiated catalog parses into the text the model wrote and the messages it emitted, in that order. This case is the counterweight to the one below, which a processor that rejected every response would also pass.
   action: create_processor
   args:
@@ -336,6 +347,7 @@
                   text: "Hello"
 
 - name: test_response_outside_the_active_catalogs_is_rejected
+  features: [F-AGT-09, F-AGT-63]
   description: A response naming a component the negotiated catalogs do not declare fails validation, even though the agent registered a catalog that declares it. Only a processor can state this, since the rule is about what negotiation left active.
   action: create_processor
   args:
@@ -354,6 +366,7 @@
       category: ValidationError
 
 - name: test_processor_streams_a_response_within_the_active_catalogs
+  features: [F-AGT-16]
   description: A stream the processor opened yields each chunk's text and messages as they close, reading against the negotiated catalog, and closing after the last chunk yields nothing more.
   action: create_processor
   args:
@@ -391,6 +404,7 @@
     expect_close: []
 
 - name: test_processor_stream_rejects_a_response_outside_the_active_catalogs
+  features: [F-AGT-09, F-AGT-63]
   description: A stream the processor opened checks components against the catalogs negotiation left active, so a chunk closing a component from a catalog the agent registered but the renderer did not ask for raises as it closes.
   action: create_processor
   args:
@@ -500,6 +514,7 @@
                   caption: "Q1"
 
 - name: test_express_format_renders_examples_in_its_prompt
+  features: [F-AGT-14]
   description: Examples handed to the Express factory are decompiled into Express DSL and included in the format's prompt.
   action: create_format
   args:
@@ -512,6 +527,7 @@
     prompt_snippet_contains: ["Hello", "s1", "Text("]
 
 - name: test_express_format_binds_the_transformed_catalogs
+  features: [F-AGT-14]
   description: The Express factory binds the transformed catalogs, so a component the agent pruned is omitted from the Express positional signatures.
   action: create_format
   args:
@@ -610,6 +626,7 @@
     category: CatalogError
 
 - name: test_generator_defaults_to_express_format
+  features: [F-AGT-12, F-AGT-15]
   description: When no inference format factory is passed to A2uiGenerator, the created processor defaults to the Express inference format, rendering Express syntax in its prompt snippet and parsing <a2ui> blocks.
   action: create_processor
   args:
