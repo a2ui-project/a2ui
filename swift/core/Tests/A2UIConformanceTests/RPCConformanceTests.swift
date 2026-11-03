@@ -975,7 +975,7 @@ struct RPCConformanceTests {
     )
 
     let action = try #require(
-      surface.rootNode?.action(for: "action"),
+      surface.rootNode?.action(for: "action", userActivation: true),
       "[\(testCase.name)] Expected resolved Button action"
     )
     action()
@@ -1138,7 +1138,7 @@ struct RPCConformanceTests {
       testName: testName
     )
 
-    var responsePayload: [String: JSONValue] = [
+    var responsePayload: OrderedDictionary<String, JSONValue> = [
       "functionCallId": .string(actualCall.functionCallID)
     ]
     if let errObj = scenario["inboundResponseError"] {

@@ -462,7 +462,7 @@ void _assertLateResponseIgnored(
   if (lateResponse == null) return;
   final int beforeSent = sent.length;
   final surfaceErrors = <A2uiRendererError>[];
-  final subscriptions = [
+  final subscriptions = <Subscription>[
     for (final surface in processor.model.allSurfaces)
       surface.onError.subscribe(surfaceErrors.add),
   ];

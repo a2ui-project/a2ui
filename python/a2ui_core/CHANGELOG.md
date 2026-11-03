@@ -22,6 +22,10 @@
 - Add `RpcHandler.cancel_surface_calls` to cancel pending outbound agent
   function calls with `RpcErrorCode.CANCELLED`.
 - `DataModel` now defensively copies `initial_data` and values passed to `set()`, preventing subsequent caller mutation of input dicts or lists from silently mutating internal state, and `PayloadValidator` now validates component type names against UAX #31 identifier syntax on v1.0+ surfaces.
+- `MessageProcessor` writes an inline `createSurface.dataModel` as one
+  `DataModel.set` per top-level key (`/<escaped_key>`, escaping `~` as `~0` and
+  `/` as `~1` per RFC 6901) before applying inline `createSurface.components`
+  ([#3857](https://github.com/a2ui-project/a2ui/pull/3857)).
 - **BREAKING CHANGE**: `DataContext` refuses a function whose `allowed_callers`
   is `agentOnly`, before running it, so a binding, check or function call
   action that calls one reports an `EXPRESSION_ERROR` instead of running it, as
