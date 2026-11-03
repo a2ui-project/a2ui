@@ -27,7 +27,23 @@
     let window: NSWindow
     let hostingView: NSView
 
-    init(trigger: Node) throws {
+    private static let enhancedUserInterface = NSAccessibility.Attribute(
+      rawValue: "AXEnhancedUserInterface")
+
+    /// Hosts a Modal with the given trigger, runs `body`, then closes the window and turns off the
+    /// accessibility tree again so other tests in the process are unaffected.
+    static func withHost(trigger: Node, _ body: (ModalHost) throws -> Void) throws {
+      // SwiftUI builds its accessibility tree only once an assistive client asks for it.
+      NSApplication.shared.accessibilitySetValue(true, forAttribute: enhancedUserInterface)
+      defer {
+        NSApplication.shared.accessibilitySetValue(false, forAttribute: enhancedUserInterface)
+      }
+      let host = try ModalHost(trigger: trigger)
+      defer { host.close() }
+      try body(host)
+    }
+
+    private init(trigger: Node) throws {
       let catalog = BasicCatalogImplementation.makeCatalog(version: .v091)
       let content = Node(id: "modal_body", type: "Text", properties: ["text": "Details"])
       let modal = Node(
@@ -43,11 +59,6 @@
         .environment(\.a2uiCatalogs, [catalog.id: catalog])
         .environment(\.a2uiDefaultCatalogID, catalog.id)
 
-      // SwiftUI builds its accessibility tree only once an assistive client asks for it.
-      NSApplication.shared.accessibilitySetValue(
-        true,
-        forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
-      )
       hostingView = NSHostingView(rootView: rootView)
       window = NSWindow(
         contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
@@ -58,6 +69,14 @@
       window.isReleasedWhenClosed = false
       window.contentView = hostingView
       window.makeKeyAndOrderFront(nil)
+      settle()
+    }
+
+    private func close() {
+      if let sheet = window.attachedSheet {
+        window.endSheet(sheet)
+      }
+      window.close()
       settle()
     }
 

@@ -161,53 +161,56 @@ struct A2UIModalTests {
 
   #if canImport(AppKit)
     @Test func voiceOverPressOnButtonTriggerPresentsSheet() throws {
-      let host = try ModalHost(trigger: buttonTrigger())
-      #expect(!host.isSheetPresented)
+      try ModalHost.withHost(trigger: buttonTrigger()) { host in
+        #expect(!host.isSheetPresented)
 
-      #expect(try host.pressWithVoiceOver(label: "Open"))
+        let handled = try host.pressWithVoiceOver(label: "Open")
+        #expect(handled)
 
-      #expect(host.isSheetPresented)
+        #expect(host.isSheetPresented)
+      }
     }
 
     @Test func clickOnButtonTriggerPresentsSheet() throws {
-      let host = try ModalHost(trigger: buttonTrigger())
+      try ModalHost.withHost(trigger: buttonTrigger()) { host in
+        try host.click(label: "Open")
 
-      try host.click(label: "Open")
-
-      #expect(host.isSheetPresented)
+        #expect(host.isSheetPresented)
+      }
     }
 
     @Test func keyboardActivationOfButtonTriggerPresentsSheet() throws {
-      let host = try ModalHost(trigger: buttonTrigger())
+      try ModalHost.withHost(trigger: buttonTrigger()) { host in
+        try host.pressSpace(label: "Open")
 
-      try host.pressSpace(label: "Open")
-
-      #expect(host.isSheetPresented)
+        #expect(host.isSheetPresented)
+      }
     }
 
     @Test func clickOnButtonTriggerWithFailingCheckDoesNotPresentSheet() throws {
-      let host = try ModalHost(trigger: buttonTrigger(checks: [failingCheck()]))
+      try ModalHost.withHost(trigger: buttonTrigger(checks: [failingCheck()])) { host in
+        try host.click(label: "Open")
 
-      try host.click(label: "Open")
-
-      #expect(!host.isSheetPresented)
+        #expect(!host.isSheetPresented)
+      }
     }
 
     @Test func voiceOverPressOnButtonTriggerWithFailingCheckDoesNotPresentSheet() throws {
-      let host = try ModalHost(trigger: buttonTrigger(checks: [failingCheck()]))
+      try ModalHost.withHost(trigger: buttonTrigger(checks: [failingCheck()])) { host in
+        try host.pressWithVoiceOver(label: "Open")
 
-      try host.pressWithVoiceOver(label: "Open")
-
-      #expect(!host.isSheetPresented)
+        #expect(!host.isSheetPresented)
+      }
     }
 
     @Test func voiceOverPressOnTextTriggerPresentsSheet() throws {
       let trigger = Node(id: "trigger_text", type: "Text", properties: ["text": "Open"])
-      let host = try ModalHost(trigger: trigger)
+      try ModalHost.withHost(trigger: trigger) { host in
+        let handled = try host.pressWithVoiceOver(label: "Open")
+        #expect(handled)
 
-      #expect(try host.pressWithVoiceOver(label: "Open"))
-
-      #expect(host.isSheetPresented)
+        #expect(host.isSheetPresented)
+      }
     }
   #endif
 

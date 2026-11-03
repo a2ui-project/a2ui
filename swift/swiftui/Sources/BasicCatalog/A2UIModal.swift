@@ -95,6 +95,9 @@ public struct A2UIModal: View {
           }
         }
       }
+      // A sheet inherits the presenter's environment. When this Modal sits in another Modal's
+      // trigger, a Button in this content must not open that other Modal.
+      .environment(\.a2uiModalTriggerAction, nil)
     }
   }
 }
