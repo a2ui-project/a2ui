@@ -595,7 +595,10 @@ function convertPropertiesToShape(
       defCache,
     );
     if (!requiredSet.has(propName)) {
-      shape[propName] = zodField.optional();
+      // A property with a `default` already accepts a missing value, and
+      // `optional()` would skip the default. Leaving it unwrapped applies the
+      // default on parse, as a `.default()` in a catalog defined in code does.
+      shape[propName] = zodField instanceof z.ZodDefault ? zodField : zodField.optional();
     } else if (zodField.safeParse(undefined).success) {
       // A schema that accepts any value, such as `{}`, also accepts a missing
       // key, which `required` rules out.

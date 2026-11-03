@@ -1033,16 +1033,17 @@ export class ExpressDecompiler {
       ) {
         const evt = obj.event as Record<string, unknown>;
         const name = typeof evt.name === 'string' ? evt.name : '';
-        const ctx = optionalObjectField(evt.context, `Event '${name}'`, 'context');
-        const ctxReprs: string[] = [];
-        for (const [k, v] of Object.entries(ctx)) {
-          const kRepr = isExpressIdentifier(k) ? k : decompileString(k);
-          ctxReprs.push(
-            `${kRepr}: ${this.decompileValue(v, varNames, false, helper, surfaceCatalogId)}`,
-          );
-        }
         const eventArgs = [decompileString(name)];
-        if (ctxReprs.length > 0) {
+        // An empty context is written out so that it compiles back.
+        if (evt.context !== undefined && evt.context !== null) {
+          const ctx = optionalObjectField(evt.context, `Event '${name}'`, 'context');
+          const ctxReprs: string[] = [];
+          for (const [k, v] of Object.entries(ctx)) {
+            const kRepr = isExpressIdentifier(k) ? k : decompileString(k);
+            ctxReprs.push(
+              `${kRepr}: ${this.decompileValue(v, varNames, false, helper, surfaceCatalogId)}`,
+            );
+          }
           eventArgs.push(`{${ctxReprs.join(', ')}}`);
         }
         if (evt.userMessage !== undefined && evt.userMessage !== null) {
