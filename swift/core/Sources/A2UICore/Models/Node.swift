@@ -220,8 +220,9 @@ public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
     if lhs.box === rhs.box {
       return true
     }
-    guard lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID
-      && lhs.state == rhs.state,
+    guard
+      lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID
+        && lhs.state == rhs.state,
       MetadataValidator.areEqual(lhs.metadata, rhs.metadata),
       lhs.properties.count == rhs.properties.count
     else {

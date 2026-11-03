@@ -85,9 +85,13 @@ public final class NodeResolver: Sendable {
   private var currentNodeChildIdentities: [String: ComponentIdentity?]?
   private var currentNodeDirectChildren: Set<String>?
   private var reportedExpressionErrors: Set<String> = []
-  private var currentPassExpressionErrors: Set<String> = []
-  private var reportedUnknownTypeKeys: Set<String> = []
-  private var reportedCyclicKeys: Set<String> = []
+  /// The error keys each node reported in the current pass, by node key. A node shared by several
+  /// parents resolves once per parent, so these are committed to `reportedExpressionErrors` when
+  /// the pass ends rather than after each visit.
+  private var expressionErrorsInCurrentPass: [String: Set<String>] = [:]
+  /// Shared dedupe keys reported in the current pass, so nodes that report the same one in a
+  /// pass report it once.
+  private var sharedErrorsInCurrentPass: Set<String> = []
   private var isResolvingTree = false
   private var currentComponentID: String?
   private var currentPropertyPath: String?
@@ -291,7 +295,9 @@ public final class NodeResolver: Sendable {
     resetResolutionState()
     isResolvingTree = true
     defer {
+      commitExpressionErrorsOfCurrentPass()
       resolvedInCurrentPass.removeAll()
+      sharedErrorsInCurrentPass.removeAll()
       isResolvingTree = false
     }
     return resolveNode(
@@ -319,10 +325,9 @@ public final class NodeResolver: Sendable {
     dirtyDataPaths.removeAll()
     needsFullResolve = false
     resolvedInCurrentPass.removeAll()
+    sharedErrorsInCurrentPass.removeAll()
     reportedExpressionErrors.removeAll()
-    currentPassExpressionErrors.removeAll()
-    reportedUnknownTypeKeys.removeAll()
-    reportedCyclicKeys.removeAll()
+    expressionErrorsInCurrentPass.removeAll()
     for call in nodesByAgentCall.keys {
       agentCallHost?.agentCallCache.forgetFailure(call)
     }
@@ -454,8 +459,11 @@ public final class NodeResolver: Sendable {
 
     isResolvingTree = true
     resolvedInCurrentPass.removeAll()
+    sharedErrorsInCurrentPass.removeAll()
     defer {
+      commitExpressionErrorsOfCurrentPass()
       resolvedInCurrentPass.removeAll()
+      sharedErrorsInCurrentPass.removeAll()
       isResolvingTree = false
     }
 
@@ -642,10 +650,9 @@ public final class NodeResolver: Sendable {
   private func pruneSubtree(_ nodeKey: String, protectedNodeKeys: Set<String> = []) {
     guard !protectedNodeKeys.contains(nodeKey) else { return }
     activeNodes.removeValue(forKey: nodeKey)
-    reportedUnknownTypeKeys.remove(nodeKey)
-    reportedCyclicKeys.remove(nodeKey)
     let prefix = "\(nodeKey):"
     reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
+    expressionErrorsInCurrentPass.removeValue(forKey: nodeKey)
     guard let record = nodeRecords.removeValue(forKey: nodeKey) else { return }
 
     nodesByDefinitionID[record.definitionID]?.remove(nodeKey)
@@ -698,8 +705,6 @@ public final class NodeResolver: Sendable {
     activeNodes.removeAll()
     activeCyclicNodes.removeAll()
     nodeRecords.removeAll()
-    reportedUnknownTypeKeys.removeAll()
-    reportedCyclicKeys.removeAll()
   }
 
   private func cachedSchema(
@@ -752,6 +757,7 @@ public final class NodeResolver: Sendable {
     let effectiveDataPath = normalizePath(basePath ?? "/")
     if visited.contains(nodeKey) {
       return resolveCyclicNode(
+        definitionID: definitionID,
         instanceID: instanceID,
         nodeKey: nodeKey,
         parentKey: currentComponentID,
@@ -787,20 +793,13 @@ public final class NodeResolver: Sendable {
     let previousChildIdentities = currentNodeChildIdentities
     let previousDirectChildren = currentNodeDirectChildren
     let previousAgentCalls = currentNodeAgentCalls
-    let previousPassErrors = currentPassExpressionErrors
     currentComponentID = nodeKey
     currentNodeReadValues = [:]
     currentNodeTemplateCounts = [:]
     currentNodeChildIdentities = [:]
     currentNodeDirectChildren = []
     currentNodeAgentCalls = []
-    currentPassExpressionErrors = []
     defer {
-      if isResolvingTree {
-        let prefix = "\(nodeKey):"
-        reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
-        reportedExpressionErrors.formUnion(currentPassExpressionErrors)
-      }
       currentComponentID = previousComponentID
       currentPropertyPath = previousPropertyPath
       currentNodeReadValues = previousReadValues
@@ -808,7 +807,6 @@ public final class NodeResolver: Sendable {
       currentNodeChildIdentities = previousChildIdentities
       currentNodeDirectChildren = previousDirectChildren
       currentNodeAgentCalls = previousAgentCalls
-      currentPassExpressionErrors = previousPassErrors
     }
 
     let type = component.type
@@ -816,13 +814,12 @@ public final class NodeResolver: Sendable {
     let targetCatalog = getCatalog(id: effectiveCatalogID)
     let isRegisteredType = targetCatalog?.components[type] != nil
     let nodeState: NodeState = isRegisteredType ? .resolved : .unknownType
-    if isRegisteredType {
-      reportedUnknownTypeKeys.remove(nodeKey)
-    } else {
-      reportUnknownComponentTypeIfNeeded(
-        nodeKey: nodeKey,
-        componentID: instanceID,
-        typeName: type
+    if let targetCatalog, !isRegisteredType {
+      reportResolutionError(
+        code: "UNKNOWN_COMPONENT_TYPE",
+        message: "Component '\(definitionID)' has type '\(type)', which is not in catalog "
+          + "'\(targetCatalog.id)'.",
+        dedupeKey: "UNKNOWN_COMPONENT_TYPE:\(type)"
       )
     }
 
@@ -950,26 +947,22 @@ public final class NodeResolver: Sendable {
   }
 
   private func resolveCyclicNode(
+    definitionID: String,
     instanceID: String,
     nodeKey: String,
     parentKey: String?,
     basePath: String?,
     dataContextPath: String
   ) -> Node {
-    if reportedCyclicKeys.insert(nodeKey).inserted {
-      let version = effectiveProtocolVersion ?? .v10
-      actionHandler?.handle(
-        error: .generic(
-          GenericError(
-            code: "CYCLIC_REFERENCE",
-            surfaceID: surfaceID,
-            message: "Cyclic component reference detected for '\(instanceID)'",
-            version: version
-          )
-        ),
-        from: surfaceID
-      )
-    }
+    // Every descendant that repeats this ancestor closes the same cycle, so the report is
+    // shared and keyed by the repeated node, as in the other core SDKs.
+    reportResolutionError(
+      code: "CYCLIC_REFERENCE",
+      message: "Component '\(definitionID)' at '\(dataContextPath)' is referenced by one of its "
+        + "own descendants; omitting the reference.",
+      dedupeKey: "CYCLIC_REFERENCE:\(nodeKey)",
+      sharedAcrossNodes: true
+    )
     let cyclicKey = "\(parentKey ?? "")->\(nodeKey)"
     if let existing = activeCyclicNodes[cyclicKey] {
       return existing
@@ -982,26 +975,6 @@ public final class NodeResolver: Sendable {
     )
     activeCyclicNodes[cyclicKey] = node
     return node
-  }
-
-  private func reportUnknownComponentTypeIfNeeded(
-    nodeKey: String,
-    componentID: String,
-    typeName: String
-  ) {
-    guard reportedUnknownTypeKeys.insert(nodeKey).inserted else { return }
-    let version = effectiveProtocolVersion ?? .v10
-    actionHandler?.handle(
-      error: .generic(
-        GenericError(
-          code: "UNKNOWN_COMPONENT_TYPE",
-          surfaceID: surfaceID,
-          message: "Unknown component type '\(typeName)' for component '\(componentID)'",
-          version: version
-        )
-      ),
-      from: surfaceID
-    )
   }
 
   private func resolveChildReference(
@@ -1021,6 +994,7 @@ public final class NodeResolver: Sendable {
     let childNodeKey = makeNodeKey(instanceID: childInstanceID, basePath: basePath)
     if visited.contains(childNodeKey) {
       return resolveCyclicNode(
+        definitionID: childID,
         instanceID: childInstanceID,
         nodeKey: childNodeKey,
         parentKey: currentComponentID,
@@ -2481,14 +2455,68 @@ extension NodeResolver: FunctionHandler {
         )
       )
     }
-    let dedupeKey =
-      "\(currentComponentID ?? ""):\(currentPropertyPath ?? ""):\(functionName):\(rendererError)"
+    report(
+      rendererError,
+      dedupeKey: "\(currentPropertyPath ?? ""):\(functionName):\(rendererError)"
+    )
+  }
+}
+
+// MARK: - Error Reporting
+
+extension NodeResolver {
+  /// Replaces the errors recorded for each node resolved in the pass with the ones it reported in
+  /// the pass, so an error is reported again only after its node resolves without it.
+  private func commitExpressionErrorsOfCurrentPass() {
+    for nodeKey in resolvedInCurrentPass {
+      let prefix = "\(nodeKey):"
+      reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
+      reportedExpressionErrors.formUnion(expressionErrorsInCurrentPass[nodeKey] ?? [])
+    }
+    expressionErrorsInCurrentPass.removeAll()
+  }
+
+  /// Reports a `GenericError` for a problem in the component tree.
+  private func reportResolutionError(
+    code: String,
+    message: String,
+    dedupeKey: String,
+    sharedAcrossNodes: Bool = false
+  ) {
+    let error = GenericError(
+      code: code,
+      surfaceID: surfaceID,
+      message: message,
+      version: effectiveProtocolVersion ?? .v09
+    )
+    report(.generic(error), dedupeKey: dedupeKey, sharedAcrossNodes: sharedAcrossNodes)
+  }
+
+  /// Reports an error to the action handler.
+  ///
+  /// While resolving the tree, an error is keyed to the node being resolved and reported once
+  /// until that node resolves without it, so re-renders don't repeat it.
+  ///
+  /// - Parameter sharedAcrossNodes: Whether nodes reporting the same `dedupeKey` share one
+  ///   report. Each node still records the key, so the error is reported again only once no node
+  ///   reports it.
+  private func report(_ error: RendererError, dedupeKey: String, sharedAcrossNodes: Bool = false) {
     if isResolvingTree {
-      let isFirstInPass = currentPassExpressionErrors.insert(dedupeKey).inserted
-      guard isFirstInPass && !reportedExpressionErrors.contains(dedupeKey) else {
+      let nodeKey = currentComponentID ?? ""
+      let key = "\(nodeKey):\(dedupeKey)"
+      let isFirstInPass = expressionErrorsInCurrentPass[nodeKey, default: []].insert(key).inserted
+      guard isFirstInPass, !reportedExpressionErrors.contains(key) else {
         return
       }
+      if sharedAcrossNodes {
+        let suffix = ":\(dedupeKey)"
+        guard sharedErrorsInCurrentPass.insert(dedupeKey).inserted,
+          !reportedExpressionErrors.contains(where: { $0.hasSuffix(suffix) })
+        else {
+          return
+        }
+      }
     }
-    actionHandler?.handle(error: rendererError, from: surfaceID)
+    actionHandler?.handle(error: error, from: surfaceID)
   }
 }

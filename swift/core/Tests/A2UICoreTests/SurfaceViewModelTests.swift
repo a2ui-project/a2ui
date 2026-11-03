@@ -258,15 +258,14 @@ struct SurfaceViewModelTests {
         ["id": "root", "component": "unknown_type"]
       ]
     )
-    // The update is accepted; the resolver only reports a non-fatal
-    // UNKNOWN_COMPONENT_TYPE diagnostic for the unknown-type placeholder.
-    #expect(handler.capturedErrors.count == 1)
-    if case .generic(let err) = handler.capturedErrors.first {
-      #expect(err.code == "UNKNOWN_COMPONENT_TYPE")
-    } else {
-      Issue.record("Expected a generic UNKNOWN_COMPONENT_TYPE diagnostic")
-    }
     #expect(surface.componentsModel.get("root")?.type == "unknown_type")
+    // The component is stored, and the resolver reports its type once.
+    #expect(handler.capturedErrors.count == 1)
+    guard case .generic(let error) = handler.capturedErrors.first else {
+      Issue.record("Expected a generic error, got \(handler.capturedErrors)")
+      return
+    }
+    #expect(error.code == "UNKNOWN_COMPONENT_TYPE")
   }
 
   @Test func updateComponentsRejectsUnknownTypeInStrictMode() throws {
