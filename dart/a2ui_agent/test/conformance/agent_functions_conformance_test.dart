@@ -90,14 +90,40 @@ AgentFunction _agentFunction(String name, Map<String, Object?> declaration) {
       (declaration['allowedCallers'] as String?) ?? 'rendererOnly';
   final rawArgs = declaration['args']! as Map<String, Object?>;
   final behavior = declaration['behavior']! as Map<String, Object?>;
+  final AllowedCallers allowedCallers = AllowedCallers.fromJson(
+    allowedCallersStr,
+  );
+  if (allowedCallers == AllowedCallers.agentOnly) {
+    return _AgentOnlyFunction(
+      name: name,
+      handler: _handler(behavior),
+      returnType: A2uiReturnType.fromJson(returnTypeStr),
+      argumentSchema: Schema.fromMap(rawArgs),
+      description: declaration['description'] as String?,
+    );
+  }
   return AgentFunction(
     name: name,
     handler: _handler(behavior),
     returnType: A2uiReturnType.fromJson(returnTypeStr),
     argumentSchema: Schema.fromMap(rawArgs),
-    allowedCallers: AllowedCallers.fromJson(allowedCallersStr),
     description: declaration['description'] as String?,
   );
+}
+
+/// An agent function that claims `allowedCallers: agentOnly`, which neither
+/// the constructor nor [AgentFunction.fromApi] can build.
+final class _AgentOnlyFunction extends AgentFunction {
+  const _AgentOnlyFunction({
+    required super.name,
+    required super.handler,
+    required super.returnType,
+    required super.argumentSchema,
+    super.description,
+  });
+
+  @override
+  AllowedCallers get allowedCallers => AllowedCallers.agentOnly;
 }
 
 CatalogApi _catalog(Map<String, Object?> entry) {

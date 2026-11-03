@@ -224,8 +224,13 @@ abstract class FunctionImplementation extends FunctionApi {
 
 /// Invocation metadata passed to an [AgentFunctionHandler].
 class AgentFunctionContext {
+  /// The catalog the called function belongs to.
   final String catalogId;
+
+  /// The surface the call was made from.
   final String surfaceId;
+
+  /// The call's `functionCallId`, which the response copies.
   final String functionCallId;
 
   const AgentFunctionContext({
@@ -236,6 +241,11 @@ class AgentFunctionContext {
 }
 
 /// A sync or async handler that executes an [AgentFunction] on the agent.
+///
+/// It receives the call's validated `args`, with schema defaults applied, and
+/// the [AgentFunctionContext] of the call, and returns the JSON value to send
+/// back. A handler that has no use for the context ignores the second
+/// parameter: `(args, _) => ...`.
 typedef AgentFunctionHandler = FutureOr<Object?> Function(
   Map<String, dynamic> args,
   AgentFunctionContext context,
@@ -247,27 +257,54 @@ typedef AgentFunctionHandler = FutureOr<Object?> Function(
 /// no renderer-side `execute` method and any renderer core given a catalog
 /// containing an [AgentFunction] treats it as a schema-only declaration and
 /// forwards calls to the agent.
+///
+/// Add agent functions to an existing catalog with
+/// `catalog.copyWith(agentFunctions: [...])`, or list them in `functions` when
+/// building a catalog from scratch.
 class AgentFunction extends FunctionApi {
-  /// The sync or async callback invoked by `AgentFunctionRegistry.handle`.
+  /// The sync or async callback that runs when a renderer calls this function.
   final AgentFunctionHandler handler;
 
   /// The schema-only [FunctionApi] this [AgentFunction] was built from via
   /// [AgentFunction.fromApi], or null for a standalone [AgentFunction].
   final FunctionApi? declaration;
 
+  /// Creates a standalone agent function.
+  ///
+  /// Its [allowedCallers] is [AllowedCallers.rendererOnly]: only the renderer
+  /// calls an agent function. To keep another value a catalog declares, wrap
+  /// the declaration with [AgentFunction.fromApi].
   const AgentFunction({
     required super.name,
     required super.argumentSchema,
     super.returnType = A2uiReturnType.any,
     super.description,
-    super.allowedCallers,
     super.requiresUserActivation,
     super.definition,
     required this.handler,
-    this.declaration,
+  }) : declaration = null;
+
+  const AgentFunction._fromApi({
+    required super.name,
+    required super.argumentSchema,
+    required super.returnType,
+    required super.description,
+    required super.allowedCallers,
+    required super.requiresUserActivation,
+    required super.definition,
+    required this.handler,
+    required FunctionApi this.declaration,
   });
 
-  /// Attaches [handler] to an existing schema-only [FunctionApi] declaration.
+  /// Attaches [handler] to an existing schema-only [FunctionApi] declaration,
+  /// such as one read by [Catalog.fromJson].
+  ///
+  /// `catalog.copyWith(agentFunctions: [...])` puts the result in place of
+  /// [api], so the catalog document is unchanged.
+  ///
+  /// Throws [ArgumentError] if [api] is already an [AgentFunction], and
+  /// [A2uiCatalogError] if [api] declares `allowedCallers: agentOnly`, which a
+  /// renderer may never call.
   factory AgentFunction.fromApi(
     FunctionApi api,
     AgentFunctionHandler handler,
@@ -279,7 +316,13 @@ class AgentFunction extends FunctionApi {
         'api is already an AgentFunction.',
       );
     }
-    return AgentFunction(
+    if (api.allowedCallers == AllowedCallers.agentOnly) {
+      throw A2uiCatalogError(
+        "Function '${api.name}' declares allowedCallers 'agentOnly', so a "
+        "renderer can't call it and it can't be an agent function.",
+      );
+    }
+    return AgentFunction._fromApi(
       name: api.name,
       argumentSchema: api.argumentSchema,
       returnType: api.returnType,
@@ -382,6 +425,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       if (entry.value case final AgentFunction fn) entry.key: fn,
   });
 
+  /// The functions that run on the renderer, keyed by name: every entry of
+  /// [functions] that is not an [AgentFunction].
+  late final Map<String, F> rendererFunctions = Map.unmodifiable({
+    for (final MapEntry<String, F> entry in functions.entries)
+      if (entry.value is! AgentFunction) entry.key: entry.value,
+  });
+
   /// The document's shared named definitions: its `$defs`, except `theme`
   /// when [themeSchema] was read from there, and the `anyComponent` and
   /// `anyFunction` unions, which [toJson] computes from [components] and
@@ -447,7 +497,6 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     required String id,
     required List<C> components,
     List<F> functions = const [],
-    List<AgentFunction> agentFunctions = const [],
     Schema? themeSchema,
     String? schemaId,
     String? title,
@@ -460,7 +509,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   }) : this._(
           id: id,
           components: components,
-          functions: _withAgentFunctions(id, functions, agentFunctions),
+          functions: functions,
           themeSchema: themeSchema,
           schemaDialect: schemaDialect,
           schemaId: schemaId,
@@ -497,6 +546,16 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         _otherFields = _frozenCopy(otherFields)! as Map<String, Object?>,
         _layout = layout;
 
+  /// Adds [agentFunctions] to [functions].
+  ///
+  /// An agent function built with [AgentFunction.fromApi] replaces, in place,
+  /// the entry it was built from; any other is appended.
+  ///
+  /// Throws [A2uiCatalogError] when [agentFunctions] names a function twice,
+  /// when an agent function's name is taken by another function, when one
+  /// built with [AgentFunction.fromApi] wraps a declaration this catalog does
+  /// not have, or when the catalog's function type can't hold an
+  /// [AgentFunction].
   static List<T> _withAgentFunctions<T extends FunctionApi>(
     String catalogId,
     List<T> functions,
@@ -505,6 +564,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final List<AgentFunction> agentList = agentFunctions.toList();
     if (agentList.isEmpty) return functions;
     final merged = List<T>.of(functions);
+    final positions = <String, int>{
+      for (var i = 0; i < merged.length; i++) merged[i].name: i,
+    };
+    final added = <String>{};
     for (final agentFn in agentList) {
       if (agentFn is! T) {
         throw A2uiCatalogError(
@@ -513,19 +576,40 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           catalogId: catalogId,
         );
       }
-      final FunctionApi? declaration = agentFn.declaration;
-      var replaced = false;
-      if (declaration != null) {
-        for (var i = 0; i < merged.length; i++) {
-          if (identical(merged[i], declaration)) {
-            merged[i] = agentFn as T;
-            replaced = true;
-            break;
-          }
-        }
+      final String name = agentFn.name;
+      if (!added.add(name)) {
+        throw A2uiCatalogError(
+          "Catalog '$catalogId' was given more than one agent function "
+          "named '$name'.",
+          catalogId: catalogId,
+        );
       }
-      if (!replaced) {
+      final FunctionApi? declaration = agentFn.declaration;
+      final int? position = positions[name];
+      if (position == null) {
+        if (declaration != null) {
+          throw A2uiCatalogError(
+            "Agent function '$name' was built with AgentFunction.fromApi, "
+            "but catalog '$catalogId' declares no function '$name' for it to "
+            'replace. Build it with the AgentFunction constructor instead, '
+            "or wrap this catalog's own declaration.",
+            catalogId: catalogId,
+          );
+        }
+        positions[name] = merged.length;
         merged.add(agentFn as T);
+      } else if (declaration != null &&
+          identical(merged[position], declaration)) {
+        merged[position] = agentFn as T;
+      } else {
+        throw A2uiCatalogError(
+          "Catalog '$catalogId' already declares a function named '$name', "
+          "so an agent function can't use that name: a renderer that "
+          'implements the other function would run it instead of calling '
+          'the agent. Give the agent function its own name, or build it with '
+          "AgentFunction.fromApi from the catalog's declaration.",
+          catalogId: catalogId,
+        );
       }
     }
     return merged;
@@ -2790,6 +2874,16 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// [toJson] writes, and the [definitions], except one that only removed
   /// or replaced entries referenced. The `anyComponent` and `anyFunction`
   /// unions follow the new components and functions.
+  ///
+  /// [agentFunctions], when given, replaces the catalog's agent functions:
+  /// the existing ones are removed first, an agent function built with
+  /// [AgentFunction.fromApi] going back to the declaration it wraps, and
+  /// then the new ones are added. One built with [AgentFunction.fromApi]
+  /// takes the place of the declaration it wraps, which must be in the
+  /// catalog; any other is appended and must have a name of its own. So
+  /// `copyWith(agentFunctions: const [])` gives back the catalog without its
+  /// agent functions. Throws [A2uiCatalogError] when [agentFunctions] breaks
+  /// these rules.
   Catalog<C, F> copyWith({
     Iterable<C>? components,
     Iterable<F>? functions,

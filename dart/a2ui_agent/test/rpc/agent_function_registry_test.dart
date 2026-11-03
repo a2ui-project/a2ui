@@ -79,13 +79,13 @@ void main() {
         id: _catId,
         protocolVersion: A2uiProtocolVersion.v1_0,
         components: const <ComponentApi>[],
-        agentFunctions: [quote],
+        functions: [quote],
       );
       final CatalogApi cat2 = Catalog(
         id: _cat2Id,
         protocolVersion: A2uiProtocolVersion.v1_0,
         components: const <ComponentApi>[],
-        agentFunctions: [rate],
+        functions: [rate],
       );
 
       final reg = AgentFunctionRegistry([cat1, cat2]);
@@ -137,7 +137,7 @@ void main() {
         id: _catId,
         protocolVersion: A2uiProtocolVersion.v1_0,
         components: const <ComponentApi>[],
-        agentFunctions: [syncFn, asyncFn],
+        functions: [syncFn, asyncFn],
       );
       final reg = AgentFunctionRegistry([cat]);
 
@@ -191,7 +191,7 @@ void main() {
           id: _catId,
           protocolVersion: A2uiProtocolVersion.v1_0,
           components: const <ComponentApi>[],
-          agentFunctions: [quote, boom, customRpc, nonJson],
+          functions: [quote, boom, customRpc, nonJson],
         );
         final reg = AgentFunctionRegistry([cat]);
 
@@ -310,7 +310,7 @@ void main() {
         id: _catId,
         protocolVersion: A2uiProtocolVersion.v1_0,
         components: const <ComponentApi>[],
-        agentFunctions: [slow],
+        functions: [slow],
       );
       final reg = AgentFunctionRegistry([cat], maxConcurrency: 2);
 
@@ -346,7 +346,7 @@ void main() {
         id: _catId,
         protocolVersion: A2uiProtocolVersion.v1_0,
         components: const <ComponentApi>[],
-        agentFunctions: [stuckFn],
+        functions: [stuckFn],
       );
       final reg2 = AgentFunctionRegistry([catStuck]);
       final Future<AgentFunctionResponseMessage> inFlight = reg2.handle(
@@ -395,7 +395,7 @@ void main() {
         id: _catId,
         protocolVersion: A2uiProtocolVersion.v1_0,
         components: const <ComponentApi>[],
-        agentFunctions: [gatedFn],
+        functions: [gatedFn],
       );
 
       // 1) Timeout while queued behind maxConcurrency: 1.
@@ -433,7 +433,7 @@ void main() {
         id: _catId,
         protocolVersion: A2uiProtocolVersion.v1_0,
         components: const <ComponentApi>[],
-        agentFunctions: [gatedFn2],
+        functions: [gatedFn2],
       );
       final regDispose = AgentFunctionRegistry([cat2], maxConcurrency: 1);
       final Future<AgentFunctionResponseMessage> activeCall = regDispose.handle(

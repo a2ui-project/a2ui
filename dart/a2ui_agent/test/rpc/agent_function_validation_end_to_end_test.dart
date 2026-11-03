@@ -84,8 +84,7 @@ void main() {
             }),
           ),
         ],
-        functions: [scrollImpl],
-        agentFunctions: [quote],
+        functions: [scrollImpl, quote],
       );
 
       // Renderer catalog implements only scrollIntoView; fetchQuote is

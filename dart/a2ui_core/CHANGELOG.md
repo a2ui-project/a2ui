@@ -164,6 +164,29 @@
   of the list the processor was created with, and adding to it throws
   `UnsupportedError`. Pass every catalog when creating the processor
   ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- (v1_0) Added agent functions: catalog functions whose handler runs on the
+  agent when a renderer sends `callAgentFunction`
+  ([#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
+  - `AgentFunction` pairs a function signature with an `AgentFunctionHandler`,
+    which receives the validated arguments and an `AgentFunctionContext` (the
+    catalog, surface and call ids). One built with the constructor is
+    `rendererOnly`. `AgentFunction.fromApi` attaches a handler to a
+    declaration the catalog already has, such as one read by
+    `Catalog.fromJson`, and keeps its `allowedCallers`; it throws
+    `A2uiCatalogError` for an `agentOnly` declaration, which a renderer may
+    never call.
+  - `Catalog.copyWith(agentFunctions: [...])` adds agent functions to a
+    catalog: one built with `fromApi` takes the place of its declaration, so
+    the catalog document is unchanged, and any other is appended. It throws
+    `A2uiCatalogError` for the same name given twice, for a name another
+    function already has, and for a `fromApi` function whose declaration the
+    catalog doesn't have. An agent function can also be listed in `functions`
+    when building a catalog.
+  - `Catalog.agentFunctions` and `Catalog.rendererFunctions` list a catalog's
+    functions that run on the agent and on the renderer.
+  - `A2uiRpcError.custom` carries an error code the protocol doesn't define,
+    such as one an agent function reports.
 - Added `MessageErrorMapper`, `SurfaceGroupModel.onError`, and
   `MessageProcessor.processMessagesWithErrors` for mapping `A2uiError`
   exceptions into structured wire-format `ErrorMessage` envelopes, and

@@ -42,7 +42,7 @@ void main() {
         id: _catId,
         protocolVersion: A2uiProtocolVersion.v1_0,
         components: const <ComponentApi>[],
-        agentFunctions: [quote],
+        functions: [quote],
       );
       final registry = AgentFunctionRegistry([cat]);
       final calls = RendererFunctionCalls();
