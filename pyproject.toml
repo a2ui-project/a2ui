@@ -25,6 +25,7 @@ package = false
 [tool.uv.workspace]
 members = [
   "conformance",
+  "e2e/agents/python",
   "python/a2ui_a2a",
   "python/a2ui_adk",
   "python/a2ui_agent",
@@ -68,6 +69,7 @@ release = [
 [tool.pytest.ini_options]
 testpaths = [
     "conformance/tests",
+    "e2e/agents/python/tests",
     "python/a2ui_a2a/tests",
     "python/a2ui_adk/tests",
     "python/a2ui_agent/tests",

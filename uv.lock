@@ -22,6 +22,7 @@ members = [
     "a2ui-conformance-validation",
     "a2ui-core",
     "a2ui-custom-components-example",
+    "a2ui-e2e-agent",
     "a2ui-eval",
     "a2ui-in-mcp-apps-server",
     "a2ui-mcp-apps-in-a2ui-sample",
@@ -248,6 +249,33 @@ requires-dist = [
     { name = "mcp", specifier = ">=1.26.0" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "starlette", specifier = ">=0.50.0" },
+    { name = "uvicorn", specifier = ">=0.40.0" },
+]
+
+[[package]]
+name = "a2ui-e2e-agent"
+version = "0.1.0"
+source = { editable = "e2e/agents/python" }
+dependencies = [
+    { name = "a2a-sdk", extra = ["http-server"] },
+    { name = "a2ui-a2a" },
+    { name = "a2ui-adk", extra = ["a2a"] },
+    { name = "a2ui-agent-sdk" },
+    { name = "click" },
+    { name = "httpx" },
+    { name = "pyyaml" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "a2a-sdk", extras = ["http-server"], specifier = ">=0.3.0" },
+    { name = "a2ui-a2a", editable = "python/a2ui_a2a" },
+    { name = "a2ui-adk", extras = ["a2a"], editable = "python/a2ui_adk" },
+    { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
+    { name = "click", specifier = ">=8.1.8" },
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "uvicorn", specifier = ">=0.40.0" },
 ]
 
