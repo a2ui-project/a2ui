@@ -156,3 +156,6 @@ express_live_demo_output.txt
 # Specification test temporary files
 specification/*/test/temp_data.json
 specification/*/test/catalog.json
+
+# Recordings the live e2e tests write (scripts/e2e_test.sh).
+e2e-recordings/

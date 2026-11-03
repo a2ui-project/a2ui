@@ -33,6 +33,10 @@ jobs:
     # because the test does not have access to secrets in forks.
     if: github.repository == 'a2ui-project/a2ui'
     runs-on: ubuntu-latest
+    env:
+      # The one place the model the live tests ask is pinned. The code
+      # defaults to the same model for local runs.
+      A2UI_E2E_MODEL: gemini-3.6-flash
     permissions:
       # Lets create_issue.sh find the last passing run.
       actions: read
@@ -74,11 +78,37 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
       - name: Run ./scripts/e2e_test.sh
+        id: e2e
+        # The script exits 0 when every test passed and every recording
+        # renders what its golden does, 3 when the outcome of a recording
+        # drifted from its golden, and 1 for any other failure. The steps
+        # below act on the code, so the step itself may not fail the job.
+        continue-on-error: true
         env:
           GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
-        run: ./scripts/e2e_test.sh
-      - name: Create Issue if E2E tests fail on main branch
-        if: failure() && (github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
+        run: |
+          ./scripts/e2e_test.sh
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit $code
+      - name: Upload the recordings and the drift report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-recordings
+          path: e2e-recordings/
+          retention-days: 14
+          if-no-files-found: ignore
+      - name: Create Issue if the outcomes drifted on the main branch
+        # Only a scheduled run files an issue, and only for drift. A test
+        # that failed for another reason shows up in the run history, not in
+        # the issue queue. A manual run never files an issue.
+        if: steps.e2e.outputs.exit_code == '3' && github.event_name == 'schedule' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/create_issue.sh "E2E tests" "e2e_failure"
+        run: ./scripts/create_issue.sh "E2E drift" "e2e_drift" e2e-recordings/drift.md
+      - name: Fail the job if the script did not exit 0
+        if: steps.e2e.outputs.exit_code != '0'
+        run: |
+          echo "::error::./scripts/e2e_test.sh exited ${{ steps.e2e.outputs.exit_code }}"
+          exit 1
