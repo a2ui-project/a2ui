@@ -195,7 +195,27 @@ export const Volume = createComponentImplementation(VolumeApi, ({props, accessib
 ));
 ```
 
-`createBinderlessComponentImplementation` passes `accessibilityRef` too.
+The `accessibilityRef` element also gets the validation state: `aria-invalid="true"` while a check fails. To make screen readers read the error messages with the element, pass `validationErrorsRef` to the element that shows them. While there are errors, the `accessibilityRef` element gets `aria-describedby` pointing at it, and the element gets an `id` if it has none:
+
+```tsx
+export const Email = createComponentImplementation(
+  EmailApi,
+  ({props, accessibilityRef, validationErrorsRef}) => (
+    <div>
+      <input
+        ref={accessibilityRef}
+        value={props.value ?? ''}
+        onChange={e => props.setValue(e.target.value)}
+      />
+      {props.validationErrors?.length ? (
+        <div ref={validationErrorsRef}>{props.validationErrors.join(' ')}</div>
+      ) : null}
+    </div>
+  ),
+);
+```
+
+`createBinderlessComponentImplementation` passes both refs too.
 
 ## Generic Binder Features
 

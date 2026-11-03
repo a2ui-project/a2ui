@@ -59,9 +59,36 @@ const RawButton = createBinderlessComponentImplementation(
   ),
 );
 
+/** An input that shows its validation errors below it. */
+const CheckedField = createComponentImplementation(
+  {
+    name: 'CheckedField',
+    schema: z.object({
+      value: CommonSchemas.DynamicString.optional(),
+      checks: CommonSchemas.Checkable.shape.checks,
+    }),
+  },
+  ({props, accessibilityRef, validationErrorsRef}) => (
+    <div>
+      <input data-testid="input" ref={accessibilityRef} />
+      {props.validationErrors?.length ? (
+        <div data-testid="errors" ref={validationErrorsRef}>
+          {props.validationErrors.join(' ')}
+        </div>
+      ) : null}
+    </div>
+  ),
+);
+
 const Column = webCoreBasicCatalog.components.get('Column')!;
 
-const catalog = new Catalog<ReactCatalogComponent>('a11y', '0.9', [Card, Field, RawButton, Column]);
+const catalog = new Catalog<ReactCatalogComponent>('a11y', '0.9', [
+  Card,
+  Field,
+  CheckedField,
+  RawButton,
+  Column,
+]);
 
 function surfaceWith(id: string, ...components: ComponentModel[]) {
   const surface = new SurfaceModel<ReactCatalogComponent>(id, catalog);
@@ -218,7 +245,7 @@ describe('React host accessibility', () => {
     expect(card.getAttribute('aria-label')).toBe('After');
   });
 
-  it('removes the group role and label when the label is removed', () => {
+  it('removes the group role and label when accessibility is removed', () => {
     const surface = surfaceWith(
       'removed',
       new ComponentModel('root', 'Card', {accessibility: {label: 'Featured Deal'}}, catalog),
@@ -228,7 +255,7 @@ describe('React host accessibility', () => {
     expect(card.getAttribute('role')).toBe('group');
 
     act(() => {
-      surface.componentsModel.get('root')!.properties = {accessibility: {}};
+      surface.componentsModel.get('root')!.properties = {};
     });
 
     expect(card.hasAttribute('role')).toBe(false);
@@ -249,5 +276,81 @@ describe('React host accessibility', () => {
     });
 
     expect(card.getAttribute('role')).toBe('region');
+  });
+
+  describe('validation state', () => {
+    function checkedSurface(id: string, ok: boolean) {
+      const surface = surfaceWith(
+        id,
+        new ComponentModel(
+          'root',
+          'CheckedField',
+          {checks: [{condition: {path: '/ok'}, message: 'Fix this'}]},
+          catalog,
+        ),
+      );
+      surface.dataModel.set('/ok', ok);
+      return surface;
+    }
+
+    it('marks the accessibilityRef element invalid and describes it by the errors', () => {
+      const {getByTestId} = render(<A2uiSurface surface={checkedSurface('invalid', false)} />);
+
+      const input = getByTestId('input');
+      const errors = getByTestId('errors');
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+      expect(errors.id).not.toBe('');
+      expect(input.getAttribute('aria-describedby')).toBe(errors.id);
+    });
+
+    it('sets no validation attributes while the checks pass', () => {
+      const {getByTestId} = render(<A2uiSurface surface={checkedSurface('valid', true)} />);
+
+      const input = getByTestId('input');
+      expect(input.hasAttribute('aria-invalid')).toBe(false);
+      expect(input.hasAttribute('aria-describedby')).toBe(false);
+    });
+
+    it('removes the validation attributes when the checks start to pass', () => {
+      const surface = checkedSurface('fixed', false);
+      const {getByTestId, queryByTestId} = render(<A2uiSurface surface={surface} />);
+      const input = getByTestId('input');
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+
+      act(() => {
+        surface.dataModel.set('/ok', true);
+      });
+
+      expect(queryByTestId('errors')).toBeNull();
+      expect(input.hasAttribute('aria-invalid')).toBe(false);
+      expect(input.hasAttribute('aria-describedby')).toBe(false);
+    });
+
+    it('keeps an id the errors element already has', () => {
+      const WithId = createComponentImplementation(
+        {name: 'WithId', schema: z.object({checks: CommonSchemas.Checkable.shape.checks})},
+        ({accessibilityRef, validationErrorsRef}) => (
+          <>
+            <input data-testid="input" ref={accessibilityRef} />
+            <div id="my-errors" ref={validationErrorsRef} />
+          </>
+        ),
+      );
+      const withIdCatalog = new Catalog<ReactCatalogComponent>('with-id', '0.9', [WithId]);
+      const surface = new SurfaceModel<ReactCatalogComponent>('with-id', withIdCatalog);
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          'root',
+          'WithId',
+          {checks: [{condition: {path: '/ok'}, message: 'Fix this'}]},
+          withIdCatalog,
+        ),
+      );
+      surface.dataModel.set('/ok', false);
+
+      const {getByTestId} = render(<A2uiSurface surface={surface} />);
+
+      expect(getByTestId('input').getAttribute('aria-describedby')).toBe('my-errors');
+    });
   });
 });

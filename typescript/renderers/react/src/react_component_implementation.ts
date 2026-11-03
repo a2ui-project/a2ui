@@ -51,12 +51,20 @@ export type ReactRenderProps = {
   buildChild: (id: string, basePath?: string) => React.ReactNode;
   metadata?: A2uiMetadata;
   /**
-   * Pass to the element that should carry `accessibility.label` and
-   * `accessibility.description`, such as the component's input
-   * (`<input ref={accessibilityRef}>`). Without it, the component's host
-   * element is labelled with them as a `role="group"`.
+   * Pass to the element that should carry `accessibility.label`,
+   * `accessibility.description` and the validation state, such as the
+   * component's input (`<input ref={accessibilityRef}>`). It gets
+   * `aria-invalid` when a check fails. Without it, the component's host
+   * element is labelled as a `role="group"` and no element gets the
+   * validation state.
    */
   accessibilityRef?: (element: Element | null) => void;
+  /**
+   * Pass to the element that shows the validation errors. While there are
+   * errors, the `accessibilityRef` element gets `aria-describedby` pointing at
+   * it, and it gets an `id` if it has none.
+   */
+  validationErrorsRef?: (element: Element | null) => void;
 };
 
 /** A catalog entry implemented as a React component. */
@@ -86,10 +94,18 @@ export type ReactA2uiComponentProps<T> = {
   context: ComponentContext;
   metadata?: A2uiMetadata;
   /**
-   * Pass to the element that should carry `accessibility.label` and
-   * `accessibility.description`, such as the component's input
-   * (`<input ref={accessibilityRef}>`). Without it, the component's host
-   * element is labelled with them as a `role="group"`.
+   * Pass to the element that should carry `accessibility.label`,
+   * `accessibility.description` and the validation state, such as the
+   * component's input (`<input ref={accessibilityRef}>`). It gets
+   * `aria-invalid` when a check fails. Without it, the component's host
+   * element is labelled as a `role="group"` and no element gets the
+   * validation state.
    */
   accessibilityRef?: (element: Element | null) => void;
+  /**
+   * Pass to the element that shows the validation errors. While there are
+   * errors, the `accessibilityRef` element gets `aria-describedby` pointing at
+   * it, and it gets an `id` if it has none.
+   */
+  validationErrorsRef?: (element: Element | null) => void;
 };

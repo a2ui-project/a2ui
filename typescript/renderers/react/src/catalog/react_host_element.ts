@@ -18,11 +18,7 @@ import {effect, getValue, type ComponentContext, type ComponentNode} from '@a2ui
 import type {A2uiWebComponentElement} from '@a2ui/web_core/v0_9/universal';
 import {HostRegistry, isReactRendered, ownerAbove} from '../host_registry';
 import type {ReactComponentImplementation} from '../react_component_implementation';
-import {
-  HostAccessibility,
-  accessibilityTargetOf,
-  resolvedAccessibility,
-} from './host_accessibility';
+import {HostAccessibility, hostAccessibilityState, hostRefsOf} from './host_accessibility';
 
 /**
  * The custom element that stands in the DOM for a node implemented in React
@@ -32,8 +28,9 @@ import {
  * with its surface's `HostRegistry` under the nearest React-rendered element
  * above it, whose React content portals the node's content into it.
  *
- * The host applies the node's `accessibility` attributes itself, so every
- * React implementation gets them (see `host_accessibility.ts`).
+ * The host applies the node's `accessibility` attributes and validation
+ * state itself, so every React implementation gets them (see
+ * `host_accessibility.ts`).
  */
 export interface ReactHostElement extends A2uiWebComponentElement {
   node?: ComponentNode<ReactComponentImplementation>;
@@ -97,13 +94,16 @@ export class ReactWcHost extends HTMLElement implements ReactHostElement {
     this.unbindAccessibility();
     this.accessibilityNode = node;
     if (!node) {
-      this.accessibility.apply(undefined, null);
+      this.accessibility.apply({}, null, null, '');
       return;
     }
+    const refs = hostRefsOf(node);
     this.stopAccessibility = effect(() => {
       this.accessibility.apply(
-        resolvedAccessibility(getValue(node.props)),
-        getValue(accessibilityTargetOf(node)),
+        hostAccessibilityState(getValue(node.props)),
+        getValue(refs.target),
+        getValue(refs.errors),
+        `${node.id}-error`,
       );
     });
   }

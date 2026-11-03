@@ -15,10 +15,13 @@
  */
 
 /**
- * How a React host applies its node's `accessibility` attributes. The host
- * sets `aria-live` and `aria-hidden` on itself. `label` and `description`
- * go to the element the implementation passes to `accessibilityRef`; when it
- * passes none, the host labels itself as a `role="group"`.
+ * How a React host applies its node's `accessibility` attributes and
+ * validation state. The host sets `aria-live` and `aria-hidden` on itself.
+ * `label` and `description` go to the element the implementation passes to
+ * `accessibilityRef`; when it passes none, the host labels itself as a
+ * `role="group"`. That element also gets `aria-invalid` when a check fails,
+ * and `aria-describedby` pointing at the element the implementation passes
+ * to `validationErrorsRef` while there are errors to show.
  */
 
 import {
@@ -34,48 +37,65 @@ import {
   setHostAccessibilityAttributes,
 } from '@a2ui/web_core/v0_9/universal';
 
-const targets = new WeakMap<ComponentNode, Signal<Element | null>>();
-const refs = new WeakMap<ComponentNode, (element: Element | null) => void>();
-
-/** The element the node's implementation passed to `accessibilityRef`, or `null`. */
-export function accessibilityTargetOf(node: ComponentNode): Signal<Element | null> {
-  let target = targets.get(node);
-  if (!target) {
-    target = signal<Element | null>(null);
-    targets.set(node, target);
-  }
-  return target;
-}
+type ElementRef = (element: Element | null) => void;
 
 /**
- * The `accessibilityRef` the node's implementation receives. There is one per
- * node, so React does not detach and reattach it on every render.
+ * The elements a node's implementation hands its host, and the refs it hands
+ * them through. There is one set per node, so React does not detach and
+ * reattach the refs on every render.
  */
-export function accessibilityRefFor(node: ComponentNode): (element: Element | null) => void {
-  let ref = refs.get(node);
-  if (!ref) {
-    const target = accessibilityTargetOf(node);
-    ref = element => setValue(target, element);
-    refs.set(node, ref);
+export interface HostRefs {
+  /** The element `accessibilityRef` points at, or `null`. */
+  readonly target: Signal<Element | null>;
+  /** The element `validationErrorsRef` points at, or `null`. */
+  readonly errors: Signal<Element | null>;
+  readonly accessibilityRef: ElementRef;
+  readonly validationErrorsRef: ElementRef;
+}
+
+const hostRefs = new WeakMap<ComponentNode, HostRefs>();
+
+export function hostRefsOf(node: ComponentNode): HostRefs {
+  let refs = hostRefs.get(node);
+  if (!refs) {
+    const target = signal<Element | null>(null);
+    const errors = signal<Element | null>(null);
+    refs = {
+      target,
+      errors,
+      accessibilityRef: element => setValue(target, element),
+      validationErrorsRef: element => setValue(errors, element),
+    };
+    hostRefs.set(node, refs);
   }
-  return ref;
+  return refs;
+}
+
+/** What a host reads from its node's props. */
+export interface HostAccessibilityState {
+  accessibility?: ResolvedAccessibilityAttributes;
+  isValid?: boolean;
+  validationErrors?: string[];
 }
 
 function unwrap(value: unknown): unknown {
   return value instanceof ResolvedBinding ? value.value : value;
 }
 
-/** `props.accessibility` of a node, with its bindings unwrapped. */
-export function resolvedAccessibility(
-  props: NodeProps,
-): ResolvedAccessibilityAttributes | undefined {
+/** The accessibility and validation props of a node, with their bindings unwrapped. */
+export function hostAccessibilityState(props: NodeProps): HostAccessibilityState {
   const accessibility = unwrap(props['accessibility']);
-  if (!accessibility || typeof accessibility !== 'object') {
-    return undefined;
-  }
-  return Object.fromEntries(
-    Object.entries(accessibility).map(([key, value]) => [key, unwrap(value)]),
-  ) as ResolvedAccessibilityAttributes;
+  const validationErrors = unwrap(props['validationErrors']);
+  return {
+    accessibility:
+      accessibility && typeof accessibility === 'object'
+        ? (Object.fromEntries(
+            Object.entries(accessibility).map(([key, value]) => [key, unwrap(value)]),
+          ) as ResolvedAccessibilityAttributes)
+        : undefined,
+    isValid: unwrap(props['isValid']) as boolean | undefined,
+    validationErrors: Array.isArray(validationErrors) ? validationErrors : undefined,
+  };
 }
 
 /** `undefined` for a missing or empty value, which leaves the attribute out. */
@@ -91,25 +111,37 @@ function setOrRemove(element: Element, name: string, value: string | undefined):
   }
 }
 
-/** The accessibility attributes of one host and of the element it labels. */
+/** The ARIA attributes of one host and of the elements its implementation hands it. */
 export class HostAccessibility {
   /** Where the label and description went last: the target, or the host. */
   private labelled?: Element;
   /** Whether `apply` set the host's `role`, so a role the app set is kept. */
   private ownsGroupRole = false;
+  /** The errors element `apply` gave an `id`, so the `id` can be taken back. */
+  private namedErrors?: Element;
 
   constructor(private readonly host: HTMLElement) {}
 
   /**
-   * Sets the attributes for `accessibility`, with `label` and `description`
-   * on `target`, or on the host when `target` is `null`, and removes the ones
-   * a previous call set that no longer apply.
+   * Sets the attributes for `state` and removes the ones a previous call set
+   * that no longer apply.
+   *
+   * @param target The element for the label, description and validation
+   *     state, or `null` to label the host.
+   * @param errors The element showing the validation errors, or `null`.
+   * @param errorsId The `id` given to `errors` when it has none.
    */
-  apply(accessibility: ResolvedAccessibilityAttributes | undefined, target: Element | null): void {
+  apply(
+    state: HostAccessibilityState,
+    target: Element | null,
+    errors: Element | null,
+    errorsId: string,
+  ): void {
+    const {accessibility} = state;
     setHostAccessibilityAttributes(this.host, accessibility);
     const labelled = target ?? this.host;
     if (this.labelled && this.labelled !== labelled) {
-      this.clearLabel(this.labelled);
+      this.clear(this.labelled);
     }
     this.labelled = labelled;
 
@@ -126,13 +158,40 @@ export class HostAccessibility {
     }
     setOrRemove(labelled, 'aria-label', label);
     setOrRemove(labelled, 'aria-description', description);
+
+    if (this.namedErrors && this.namedErrors !== errors) {
+      this.releaseErrorsId();
+    }
+    if (!target) {
+      return;
+    }
+    // As on Lit elements, only a target carries the validation state:
+    // `aria-invalid` is not supported on a group.
+    setOrRemove(target, 'aria-invalid', state.isValid === false ? 'true' : undefined);
+    const showsErrors = state.isValid === false && Boolean(state.validationErrors?.length);
+    setOrRemove(
+      target,
+      'aria-describedby',
+      showsErrors && errors ? this.idOf(errors, errorsId) : undefined,
+    );
   }
 
-  private clearLabel(element: Element): void {
+  private idOf(errors: Element, errorsId: string): string {
+    if (!errors.id) {
+      errors.id = errorsId;
+      this.namedErrors = errors;
+    }
+    return errors.id;
+  }
+
+  private clear(element: Element): void {
     element.removeAttribute('aria-label');
     element.removeAttribute('aria-description');
     if (element === this.host) {
       this.releaseGroupRole();
+    } else {
+      element.removeAttribute('aria-invalid');
+      element.removeAttribute('aria-describedby');
     }
   }
 
@@ -141,5 +200,10 @@ export class HostAccessibility {
       this.host.removeAttribute('role');
     }
     this.ownsGroupRole = false;
+  }
+
+  private releaseErrorsId(): void {
+    this.namedErrors?.removeAttribute('id');
+    this.namedErrors = undefined;
   }
 }
