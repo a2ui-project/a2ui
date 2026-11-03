@@ -64,10 +64,10 @@ struct NotFunctionTests {
     #expect(result == .boolean(true))
   }
 
-  @Test func readsValidationResultOperandAsPlainObjectInV09() throws {
+  @Test func readsValidationResultOperandByValidityInV09() throws {
     let result = try function.evaluate(
       arguments: ["value": .object(["valid": .boolean(false)])], context: context)
-    #expect(result == .boolean(false))
+    #expect(result == .boolean(true))
   }
 
   @Test func evaluatesToFalseWhenValueIsNotABoolean() throws {
