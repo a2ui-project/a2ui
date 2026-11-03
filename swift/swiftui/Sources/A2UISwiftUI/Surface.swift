@@ -85,6 +85,9 @@ extension Surface {
     using catalogs: [String: Catalog<ComponentImplementation>],
     defaultCatalogID: String? = nil
   ) -> AnyView? {
+    if node.state != .resolved || node.type == "Placeholder" {
+      return AnyView(EmptyView())
+    }
     if let catalogID = node.catalogID, let catalog = catalogs[catalogID],
       let component = catalog.components[node.type]
     {

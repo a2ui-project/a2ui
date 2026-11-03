@@ -831,7 +831,7 @@ public final class MessageProcessor: ObservableObject {
     }
 
     if let components = op.components {
-      try validateComponentsBatch(components, on: vm)
+      try validateComponentsBatch(components, on: vm, isCreateSurface: true)
       applyComponentsBatch(components, to: vm)
     }
 
@@ -1001,7 +1001,8 @@ public final class MessageProcessor: ObservableObject {
 
   private func validateComponentsBatch(
     _ components: [[String: JSONValue]],
-    on surface: SurfaceViewModel
+    on surface: SurfaceViewModel,
+    isCreateSurface: Bool = false
   ) throws {
     var effectiveConfig = validationConfig
     if surface.protocolVersion.isAtLeastV10
@@ -1020,7 +1021,12 @@ public final class MessageProcessor: ObservableObject {
     }
 
     guard !components.isEmpty else { return }
-    try validateComponentGraph(components, on: surface, config: effectiveConfig)
+    try validateComponentGraph(
+      components,
+      on: surface,
+      config: effectiveConfig,
+      isCreateSurface: isCreateSurface
+    )
   }
 
   /// Checks the component graph of `surface` with `components` applied.
@@ -1036,7 +1042,8 @@ public final class MessageProcessor: ObservableObject {
   private func validateComponentGraph(
     _ components: [[String: JSONValue]],
     on surface: SurfaceViewModel,
-    config: ValidationConfig
+    config: ValidationConfig,
+    isCreateSurface: Bool = false
   ) throws {
     let held = surface.componentsModel.components
     let catalogs = surface.catalogs
@@ -1077,13 +1084,19 @@ public final class MessageProcessor: ObservableObject {
     graphBounds[surface.surfaceID] = nil
 
     let allComponents = try buildCombinedComponentsForTopology(components, on: surface)
-    try GraphTopologyValidator.validate(
-      components: allComponents,
-      rootID: "root",
-      config: config,
-      catalogs: catalogs,
-      defaultCatalogID: defaultCatalogID
-    )
+    do {
+      try GraphTopologyValidator.validate(
+        components: allComponents,
+        rootID: "root",
+        config: config,
+        catalogs: catalogs,
+        defaultCatalogID: defaultCatalogID
+      )
+    } catch is A2UIRecursionError
+      where isCreateSurface && checksBatch && config.allowUnknownElements
+    {
+      return
+    }
     if checksBatch {
       var graph: [String: [String]] = [:]
       for component in allComponents {

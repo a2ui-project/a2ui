@@ -15,6 +15,14 @@
 import Combine
 import OrderedJSON
 
+/// The resolution state of a component ``Node``.
+public enum NodeState: String, Sendable, Equatable {
+  case resolved = "resolved"
+  case pending = "pending"
+  case unknownType = "unknown-type"
+  case cyclic = "cyclic"
+}
+
 /// A persistent, observable backing store for a resolved component node.
 ///
 /// `@unchecked Sendable` is safe because instances are initialized once in `Node.init` and
@@ -23,6 +31,9 @@ package final class NodeBox: ObservableObject, @unchecked Sendable {
   let id: String
   let type: String
   let catalogID: String?
+  let state: NodeState
+  let scopeKey: String?
+  let dataContextPath: String
   private(set) var properties: [String: any Resolved]
   private(set) var metadata: [String: JSONValue]?
   package private(set) var revision: UInt64 = 0
@@ -31,12 +42,18 @@ package final class NodeBox: ObservableObject, @unchecked Sendable {
     id: String,
     type: String,
     catalogID: String? = nil,
+    state: NodeState = .resolved,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/",
     properties: [String: any Resolved],
     metadata: [String: JSONValue]? = nil
   ) {
     self.id = id
     self.type = type
     self.catalogID = catalogID
+    self.state = state
+    self.scopeKey = scopeKey
+    self.dataContextPath = dataContextPath
     self.properties = properties
     self.metadata = metadata
   }
@@ -111,6 +128,9 @@ public struct Node: Identifiable, Equatable, Sendable {
   public var id: String { box.id }
   public var type: String { box.type }
   public var catalogID: String? { box.catalogID }
+  public var state: NodeState { box.state }
+  public var scopeKey: String? { box.scopeKey }
+  public var dataContextPath: String { box.dataContextPath }
   public var properties: [String: any Resolved] { box.properties }
   public var metadata: [String: JSONValue]? { box.metadata }
   public var extensions: [String: JSONValue]? { MetadataValidator.extensions(from: box.metadata) }
@@ -120,6 +140,9 @@ public struct Node: Identifiable, Equatable, Sendable {
     id: String,
     type: String,
     catalogID: String? = nil,
+    state: NodeState = .resolved,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/",
     properties: [String: any Resolved],
     metadata: [String: JSONValue]? = nil
   ) {
@@ -127,10 +150,36 @@ public struct Node: Identifiable, Equatable, Sendable {
       id: id,
       type: type,
       catalogID: catalogID,
+      state: state,
+      scopeKey: scopeKey,
+      dataContextPath: dataContextPath,
       properties: properties,
       metadata: metadata
     )
     self.renderRevision = 0
+  }
+
+  /// Creates a placeholder component node for an unresolved, unknown, or cyclic component.
+  public init(
+    placeholderID: String,
+    state: NodeState,
+    declaredType: String? = nil,
+    catalogID: String? = nil,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/",
+    metadata: [String: JSONValue]? = nil
+  ) {
+    let resolvedType = state == .unknownType ? (declaredType ?? "Placeholder") : "Placeholder"
+    self.init(
+      id: placeholderID,
+      type: resolvedType,
+      catalogID: catalogID,
+      state: state,
+      scopeKey: scopeKey,
+      dataContextPath: dataContextPath,
+      properties: [:],
+      metadata: metadata
+    )
   }
 
   private init(box: NodeBox, renderRevision: UInt64) {
@@ -172,7 +221,8 @@ public struct Node: Identifiable, Equatable, Sendable {
     if lhs.box === rhs.box {
       return lhs.renderRevision == rhs.renderRevision
     }
-    guard lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID,
+    guard lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID
+      && lhs.state == rhs.state,
       MetadataValidator.areEqual(lhs.metadata, rhs.metadata),
       lhs.properties.count == rhs.properties.count
     else {

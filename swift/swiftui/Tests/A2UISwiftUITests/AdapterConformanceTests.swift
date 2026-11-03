@@ -65,14 +65,7 @@ struct AccessibilityCase: CustomTestStringConvertible, Sendable {
 struct AdapterConformanceTests {
   /// Adapter conformance cases that depend on runtime features not yet implemented in `A2UICore` /
   /// `A2UISwiftUI`, recorded as expected failures with their root-cause reason.
-  private static let expectedAdapterFailures: [String: String] = [
-    "progressive_arrival_placeholder_upgrade_in_place":
-      "A2UICore.NodeResolver skips unresolved child IDs instead of materializing pending "
-      + "placeholder nodes.",
-    "fallback_states_unknown_type_and_cyclic_diagnostics":
-      "A2UICore.NodeResolver does not expose unknown-type or cyclic placeholder nodes or emit "
-      + "UNKNOWN_COMPONENT_TYPE / CYCLIC_REFERENCE diagnostics on SurfaceViewModel.",
-  ]
+  private static let expectedAdapterFailures: [String: String] = [:]
 
   nonisolated private static var conformanceDirectory: URL {
     if let envDir = ProcessInfo.processInfo.environment["A2UI_CONFORMANCE_DIR"], !envDir.isEmpty {

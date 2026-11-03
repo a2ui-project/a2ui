@@ -835,7 +835,7 @@ enum AdapterHarness {
       id: baseID,
       instanceID: node.id,
       type: node.type,
-      state: "resolved",
+      state: node.state.rawValue,
       node: node,
       children: children
     )
@@ -866,6 +866,7 @@ enum AdapterHarness {
     in surface: Surface,
     node: A2UICore.Node
   ) -> [AdapterViewNode] {
+    guard node.state == .resolved else { return [] }
     if let singleChild = node.child(for: "child") {
       return [buildViewNode(in: surface, node: singleChild)]
     }

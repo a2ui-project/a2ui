@@ -125,7 +125,7 @@ struct NodeResolverTests {
     #expect(children[0].string(for: "text") == "Hello World")
   }
 
-  @Test func childListSkipsUnarrivedComponents() throws {
+  @Test func childListMaterializesPendingPlaceholderForUnarrivedComponents() throws {
     let catalog = try makeCatalog()
     // child1 not in components dictionary yet
     let components: [String: ComponentModel] = [
@@ -151,12 +151,18 @@ struct NodeResolverTests {
 
     let rootNode = try #require(resolver.resolveTree())
     let children = rootNode.children(for: "children")
-    #expect(children.count == 1)
-    #expect(children[0].id == "child2")
+    #expect(children.count == 2)
+    #expect(children[0].id == "child1")
+    #expect(children[0].type == "Placeholder")
+    #expect(children[0].state == .pending)
+    #expect(children[1].id == "child2")
+    #expect(children[1].type == "Text")
+    #expect(children[1].state == .resolved)
   }
 
-  @Test func cyclicReferencesReturnNilWithoutInfiniteLoop() throws {
+  @Test func cyclicReferencesReturnCyclicPlaceholderAndReportErrorOnce() throws {
     let catalog = try makeCatalog()
+    let handler = ExpressionErrorCaptureHandler()
     let components: [String: ComponentModel] = [
       "root": ComponentModel(
         id: "root",
@@ -175,23 +181,40 @@ struct NodeResolverTests {
       ),
     ]
 
+    let dataModel = DataModel()
     let resolver = NodeResolver(
       surfaceID: "s1",
       catalogs: [catalog.id: catalog],
       defaultCatalogID: catalog.id,
       componentsModel: SurfaceComponentsModel(components: components),
-      dataModel: DataModel()
+      dataModel: dataModel,
+      actionHandler: handler
     )
 
     let rootNode = try #require(resolver.resolveTree())
     let aNode = try #require(rootNode.children(for: "children").first)
     let bNode = try #require(aNode.children(for: "children").first)
-    // b's reference back to a is detected as cyclic and omitted
-    #expect(bNode.children(for: "children").isEmpty)
+    let cyclicChild = try #require(bNode.children(for: "children").first)
+    #expect(cyclicChild.id == "a")
+    #expect(cyclicChild.type == "Placeholder")
+    #expect(cyclicChild.state == .cyclic)
+    #expect(handler.capturedErrors.count == 1)
+    if case .generic(let genericError) = handler.capturedErrors.first {
+      #expect(genericError.code == "CYCLIC_REFERENCE")
+      #expect(genericError.surfaceID == "s1")
+    } else {
+      Issue.record("Expected CYCLIC_REFERENCE generic error")
+    }
+
+    // Subsequent incremental passes do not re-emit CYCLIC_REFERENCE for the same cyclic node key.
+    dataModel.set("/unrelated", value: .string("updated"))
+    _ = try #require(resolver.resolveTree())
+    #expect(handler.capturedErrors.count == 1)
   }
 
-  @Test func unknownComponentTypeResolvesWithFallbackSchema() throws {
+  @Test func unknownComponentTypeResolvesWithUnknownTypeStateAndReportsErrorOnce() throws {
     let catalog = try makeCatalog()
+    let handler = ExpressionErrorCaptureHandler()
     let components: [String: ComponentModel] = [
       "root": ComponentModel(
         id: "root",
@@ -205,19 +228,34 @@ struct NodeResolverTests {
       ),
     ]
 
+    let dataModel = DataModel()
     let resolver = NodeResolver(
       surfaceID: "s1",
       catalogs: [catalog.id: catalog],
       defaultCatalogID: catalog.id,
       componentsModel: SurfaceComponentsModel(components: components),
-      dataModel: DataModel()
+      dataModel: dataModel,
+      actionHandler: handler
     )
 
     let rootNode = try #require(resolver.resolveTree())
     let childNode = try #require(rootNode.child(for: "child"))
     #expect(childNode.id == "unknownChild")
     #expect(childNode.type == "NonExistentWidget")
+    #expect(childNode.state == .unknownType)
     #expect(childNode.properties["someProp"] as? String == "unclassifiedValue")
+    #expect(handler.capturedErrors.count == 1)
+    if case .generic(let genericError) = handler.capturedErrors.first {
+      #expect(genericError.code == "UNKNOWN_COMPONENT_TYPE")
+      #expect(genericError.surfaceID == "s1")
+    } else {
+      Issue.record("Expected UNKNOWN_COMPONENT_TYPE generic error")
+    }
+
+    // Subsequent incremental passes do not re-emit UNKNOWN_COMPONENT_TYPE for the same node key.
+    dataModel.set("/unrelated", value: .string("updated"))
+    _ = try #require(resolver.resolveTree())
+    #expect(handler.capturedErrors.count == 1)
   }
 
   @Test func standardArrayPreservesNullElements() throws {
@@ -767,9 +805,13 @@ struct NodeResolverTests {
 
     let root = try #require(resolver.resolveTree())
     #expect(resolver.lastResolvedNodeCount == 1)
-    #expect(root.child(for: "child") == nil)
+    let pendingGreeting = try #require(root.child(for: "child"))
+    #expect(pendingGreeting.id == "greeting")
+    #expect(pendingGreeting.type == "Placeholder")
+    #expect(pendingGreeting.state == .pending)
 
-    // 1. Delayed arrival of "greeting": root and greeting resolve, root keeps identity.
+    // 1. Delayed arrival of "greeting": root and greeting resolve, root keeps identity,
+    // and the pending placeholder is replaced with a resolved NodeBox.
     componentsModel.addComponent(
       ComponentModel(
         id: "greeting",
@@ -782,6 +824,8 @@ struct NodeResolverTests {
     #expect(rootAfterArrival.box === root.box)
     let greetingText = try #require(root.child(for: "child"))
     #expect(greetingText.type == "Text")
+    #expect(greetingText.state == .resolved)
+    #expect(greetingText.box !== pendingGreeting.box)
     #expect(greetingText.string(for: "text") == "Hello")
 
     // 2. Type change on child ("Text" -> "Container"): root keeps identity, child gets a new NodeBox.
@@ -796,13 +840,18 @@ struct NodeResolverTests {
     #expect(resolver.lastResolvedNodeCount == 2)
     let greetingContainer = try #require(root.child(for: "child"))
     #expect(greetingContainer.type == "Container")
+    #expect(greetingContainer.state == .resolved)
     #expect(greetingContainer.box !== greetingText.box)
 
-    // 3. Remove "greeting": only root resolves, child becomes nil, and old /msg dependency is pruned.
+    // 3. Remove "greeting": only root resolves, child becomes pending,
+    // and old /msg dependency is pruned.
     componentsModel.removeComponent("greeting")
     _ = try #require(resolver.resolveTree())
     #expect(resolver.lastResolvedNodeCount == 1)
-    #expect(root.child(for: "child") == nil)
+    let removedGreeting = try #require(root.child(for: "child"))
+    #expect(removedGreeting.state == .pending)
+    #expect(removedGreeting.type == "Placeholder")
+    #expect(removedGreeting.box !== greetingContainer.box)
 
     dataModel.set("/msg", value: .string("Updated"))
     _ = try #require(resolver.resolveTree())

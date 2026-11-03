@@ -65,12 +65,7 @@ private final class RecordingFunctionImplementation: FunctionImplementation, @un
 /// Runs the shared `conformance/core/node_resolution.yaml` suite.
 @MainActor
 struct NodeResolutionConformanceTests {
-  static let placeholderKnownIssues: [String: String] = [
-    "cyclic_component_reference_same_scope": "NodeResolver omits placeholder nodes",
-    "pending_child_replacement": "NodeResolver omits placeholder nodes",
-    "shared_definition_independent_instances": "NodeResolver omits placeholder nodes",
-    "unknown_component_type_placeholder": "NodeResolver omits placeholder nodes",
-  ]
+  static let placeholderKnownIssues: [String: String] = [:]
 
   private static let knownCaseKeys: Set<String> = [
     "action",
@@ -453,9 +448,6 @@ struct NodeResolutionConformanceTests {
         rawChildren.indices.contains(idx),
         let childDefID = rawChildren[idx].stringValue
       {
-        guard surface.componentsModel.components[childDefID] != nil else {
-          return nil
-        }
         if let match = nodes.first(where: {
           $0.id == childDefID || $0.id.hasPrefix("\(childDefID)_")
             || $0.id.hasPrefix("\(childDefID):")
@@ -493,6 +485,9 @@ struct NodeResolutionConformanceTests {
     if let expectedEvents = expect["events"] as? [[String: Any]] {
       assertExpectedEvents(expectedEvents, actual: capture.events, caseName: caseName)
     }
+    if let expectedErrors = expect["errors"] as? [[String: Any]] {
+      assertExpectedErrors(expectedErrors, actual: capture.errors, caseName: caseName)
+    }
     if let expectedFunctions = expect["functions"] as? [[String: Any]] {
       assertExpectedFunctions(expectedFunctions, actual: capture.functionCalls, caseName: caseName)
     }
@@ -519,24 +514,34 @@ struct NodeResolutionConformanceTests {
         Issue.record("[\(caseName)] Expected resolved node at '\(nodePath)'")
         continue
       }
-      assertSingleNodeMatches(node: node, spec: spec, nodePath: nodePath, caseName: caseName)
+      assertSingleNodeMatches(
+        node: node,
+        spec: spec,
+        surface: surface,
+        nodePath: nodePath,
+        caseName: caseName
+      )
     }
   }
 
   private func assertSingleNodeMatches(
     node: Node,
     spec: [String: Any],
+    surface: SurfaceViewModel?,
     nodePath: String,
     caseName: String
   ) {
     let expectedState = spec["state"] as? String ?? "resolved"
     #expect(
-      expectedState == "resolved",
-      "[\(caseName)] \(nodePath) state mismatch: got 'resolved', expected '\(expectedState)'"
+      node.state.rawValue == expectedState,
+      """
+      [\(caseName)] \(nodePath) state mismatch: \
+      got '\(node.state.rawValue)', expected '\(expectedState)'
+      """
     )
+    let baseID = node.id.split(separator: ":").first.map(String.init) ?? node.id
+    let strippedID = baseID.split(separator: "_").first.map(String.init) ?? baseID
     if let expectedCompID = spec["component_id"] as? String {
-      let baseID = node.id.split(separator: ":").first.map(String.init) ?? node.id
-      let strippedID = baseID.split(separator: "_").first.map(String.init) ?? baseID
       #expect(
         node.id == expectedCompID || baseID == expectedCompID || strippedID == expectedCompID,
         """
@@ -545,8 +550,23 @@ struct NodeResolutionConformanceTests {
         """
       )
     }
+    if let expectedDataPath = spec["data_path"] as? String {
+      #expect(
+        node.dataContextPath == expectedDataPath,
+        """
+        [\(caseName)] \(nodePath) data_path mismatch: \
+        got '\(node.dataContextPath)', expected '\(expectedDataPath)'
+        """
+      )
+    }
     if let expectedType = spec["type"] as? String {
-      #expect(node.type == expectedType, "[\(caseName)] \(nodePath) type mismatch")
+      let declaredType =
+        surface?.componentsModel.components[baseID]?.type
+        ?? surface?.componentsModel.components[strippedID]?.type
+      let actualType =
+        (node.state == .cyclic && node.type == "Placeholder")
+        ? (declaredType ?? node.type) : node.type
+      #expect(actualType == expectedType, "[\(caseName)] \(nodePath) type mismatch")
     }
     if let expectedIsValid = spec["isValid"] as? Bool {
       #expect(node.isValid == expectedIsValid, "[\(caseName)] \(nodePath) isValid mismatch")
@@ -639,6 +659,35 @@ struct NodeResolutionConformanceTests {
     #expect(actual.count == expectedEvents.count, "[\(caseName)] Event count mismatch")
     for (actualEvent, expSpec) in zip(actual, expectedEvents) {
       assertSingleEventMatches(actualEvent: actualEvent, expSpec: expSpec, caseName: caseName)
+    }
+  }
+
+  private func assertExpectedErrors(
+    _ expectedErrors: [[String: Any]],
+    actual: [RendererError],
+    caseName: String
+  ) {
+    #expect(actual.count >= expectedErrors.count, "[\(caseName)] Error count mismatch")
+    for expSpec in expectedErrors {
+      let expCode = expSpec["code"] as? String
+      let expSurface = expSpec["surfaceId"] as? String
+      let expMessage = (expSpec["messageContains"] ?? expSpec["message"]) as? String
+      let matched = actual.contains { err in
+        let (code, surfaceID, message): (String, String?, String)
+        switch err {
+        case .validationFailed(let valError):
+          (code, surfaceID, message) = (
+            valError.code.rawValue, valError.surfaceID, valError.message
+          )
+        case .generic(let genError):
+          (code, surfaceID, message) = (genError.code, genError.surfaceID, genError.message)
+        }
+        let codeMatch = expCode == nil || code == expCode
+        let surfaceMatch = expSurface == nil || surfaceID == expSurface
+        let messageMatch = expMessage == nil || message.contains(expMessage ?? "")
+        return codeMatch && surfaceMatch && messageMatch
+      }
+      #expect(matched, "[\(caseName)] Expected error matching \(expSpec) in \(actual)")
     }
   }
 

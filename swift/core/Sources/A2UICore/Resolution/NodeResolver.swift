@@ -44,6 +44,7 @@ public final class NodeResolver: Sendable {
   private struct ComponentIdentity: Equatable {
     let type: String
     let catalogID: String?
+    let state: NodeState
   }
 
   private struct NodeResolutionRecord {
@@ -54,7 +55,7 @@ public final class NodeResolver: Sendable {
     let index: Int?
     let instanceSuffix: String?
     let visited: Set<String>
-    var componentSnapshot: ComponentModel
+    var componentSnapshot: ComponentModel?
     var childIdentities: [String: ComponentIdentity?]
     var readValues: [String: JSONValue?]
     var templateCounts: [String: Int]
@@ -65,6 +66,7 @@ public final class NodeResolver: Sendable {
   package private(set) var lastResolvedNodeCount = 0
 
   private var activeNodes: [String: Node] = [:]
+  private var activeCyclicNodes: [String: Node] = [:]
   private var schemaCache: [String: CachedComponentSchema] = [:]
   private var nodeRecords: [String: NodeResolutionRecord] = [:]
   private var nodesByDefinitionID: [String: Set<String>] = [:]
@@ -83,6 +85,8 @@ public final class NodeResolver: Sendable {
   private var currentNodeDirectChildren: Set<String>?
   private var reportedExpressionErrors: Set<String> = []
   private var currentPassExpressionErrors: Set<String> = []
+  private var reportedUnknownTypeKeys: Set<String> = []
+  private var reportedCyclicKeys: Set<String> = []
   private var isResolvingTree = false
   private var currentComponentID: String?
   private var currentPropertyPath: String?
@@ -265,6 +269,7 @@ public final class NodeResolver: Sendable {
 
   private func resetResolutionState() {
     activeNodes.removeAll()
+    activeCyclicNodes.removeAll()
     nodeRecords.removeAll()
     nodesByDefinitionID.removeAll()
     parentsByChildDefinitionID.removeAll()
@@ -278,6 +283,8 @@ public final class NodeResolver: Sendable {
     resolvedInCurrentPass.removeAll()
     reportedExpressionErrors.removeAll()
     currentPassExpressionErrors.removeAll()
+    reportedUnknownTypeKeys.removeAll()
+    reportedCyclicKeys.removeAll()
   }
 
   private func resolveIncrementalChanges(
@@ -312,14 +319,14 @@ public final class NodeResolver: Sendable {
         for nodeKey in instances {
           guard let record = nodeRecords[nodeKey] else { continue }
           if record.componentSnapshot != currentComp || hadClearedErrors {
-            let previousIdentity = ComponentIdentity(
-              type: record.componentSnapshot.type,
-              catalogID: record.componentSnapshot.catalogID ?? defaultCatalogID
-            )
+            let previousIdentity = record.componentSnapshot.map {
+              componentIdentity(for: $0)
+            }
             if let currentComp,
+              let previousSnap = record.componentSnapshot,
               !hadClearedErrors,
               currentIdentity == previousIdentity,
-              record.componentSnapshot.properties == currentComp.properties
+              previousSnap.properties == currentComp.properties
             {
               var updatedRecord = record
               updatedRecord.componentSnapshot = currentComp
@@ -327,7 +334,9 @@ public final class NodeResolver: Sendable {
               if let existing = activeNodes[nodeKey] {
                 activeNodes[nodeKey] = existing.updatingMetadata(currentComp.metadata)
               }
-            } else if currentIdentity == previousIdentity || nodeKey == "root" {
+            } else if currentIdentity != nil,
+              currentIdentity == previousIdentity || nodeKey == "root"
+            {
               affectedNodeIDs.insert(nodeKey)
             }
           }
@@ -428,9 +437,17 @@ public final class NodeResolver: Sendable {
     in components: [String: ComponentModel]
   ) -> ComponentIdentity? {
     guard let comp = components[definitionID] else { return nil }
+    return componentIdentity(for: comp)
+  }
+
+  private func componentIdentity(for comp: ComponentModel) -> ComponentIdentity {
+    let effectiveCatalogID = comp.catalogID ?? defaultCatalogID
+    let targetCatalog = getCatalog(id: effectiveCatalogID)
+    let isRegistered = targetCatalog?.components[comp.type] != nil
     return ComponentIdentity(
       type: comp.type,
-      catalogID: comp.catalogID ?? defaultCatalogID
+      catalogID: effectiveCatalogID,
+      state: isRegistered ? .resolved : .unknownType
     )
   }
 
@@ -446,9 +463,10 @@ public final class NodeResolver: Sendable {
       }
       if var record = nodeRecords[nodeKey],
         let currentComp,
-        record.componentSnapshot.type == currentComp.type,
-        record.componentSnapshot.catalogID == currentComp.catalogID,
-        record.componentSnapshot.properties == currentComp.properties
+        let snapshot = record.componentSnapshot,
+        snapshot.type == currentComp.type,
+        snapshot.catalogID == currentComp.catalogID,
+        snapshot.properties == currentComp.properties
       {
         record.componentSnapshot = currentComp
         nodeRecords[nodeKey] = record
@@ -568,6 +586,8 @@ public final class NodeResolver: Sendable {
   private func pruneSubtree(_ nodeKey: String, protectedNodeKeys: Set<String> = []) {
     guard !protectedNodeKeys.contains(nodeKey) else { return }
     activeNodes.removeValue(forKey: nodeKey)
+    reportedUnknownTypeKeys.remove(nodeKey)
+    reportedCyclicKeys.remove(nodeKey)
     let prefix = "\(nodeKey):"
     reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
     guard let record = nodeRecords.removeValue(forKey: nodeKey) else { return }
@@ -645,12 +665,31 @@ public final class NodeResolver: Sendable {
     recurseIntoChildren: Bool = true
   ) -> Node? {
     let nodeKey = makeNodeKey(instanceID: instanceID, basePath: basePath)
+    let effectiveDataPath = normalizePath(basePath ?? "/")
     if visited.contains(nodeKey) {
-      return nil
+      return resolveCyclicNode(
+        instanceID: instanceID,
+        nodeKey: nodeKey,
+        parentKey: currentComponentID,
+        basePath: basePath,
+        dataContextPath: effectiveDataPath
+      )
     }
 
     guard let component = components[definitionID] else {
-      return nil
+      guard !(definitionID == "root" && basePath == nil && visited.isEmpty) else {
+        return nil
+      }
+      return resolvePendingNode(
+        definitionID: definitionID,
+        instanceID: instanceID,
+        nodeKey: nodeKey,
+        basePath: basePath,
+        dataContextPath: effectiveDataPath,
+        index: index,
+        instanceSuffix: instanceSuffix,
+        visited: visited
+      )
     }
 
     lastResolvedNodeCount += 1
@@ -688,6 +727,17 @@ public final class NodeResolver: Sendable {
     let type = component.type
     let effectiveCatalogID = component.catalogID ?? defaultCatalogID
     let targetCatalog = getCatalog(id: effectiveCatalogID)
+    let isRegisteredType = targetCatalog?.components[type] != nil
+    let nodeState: NodeState = isRegisteredType ? .resolved : .unknownType
+    if isRegisteredType {
+      reportedUnknownTypeKeys.remove(nodeKey)
+    } else {
+      reportUnknownComponentTypeIfNeeded(
+        nodeKey: nodeKey,
+        componentID: instanceID,
+        typeName: type
+      )
+    }
 
     var visited = visited
     visited.insert(nodeKey)
@@ -749,7 +799,9 @@ public final class NodeResolver: Sendable {
     registerNodeDependencies(record)
 
     if let existing = activeNodes[nodeKey],
-      existing.type == type && existing.catalogID == effectiveCatalogID
+      existing.state == nodeState
+        && existing.type == type
+        && existing.catalogID == effectiveCatalogID
     {
       let updated = existing.updatingProperties(resolvedProperties, metadata: component.metadata)
       activeNodes[nodeKey] = updated
@@ -760,11 +812,109 @@ public final class NodeResolver: Sendable {
       id: instanceID,
       type: type,
       catalogID: effectiveCatalogID,
+      state: nodeState,
+      scopeKey: basePath,
+      dataContextPath: effectiveDataPath,
       properties: resolvedProperties,
       metadata: component.metadata
     )
     activeNodes[nodeKey] = node
     return node
+  }
+
+  private func resolvePendingNode(
+    definitionID: String,
+    instanceID: String,
+    nodeKey: String,
+    basePath: String?,
+    dataContextPath: String,
+    index: Int?,
+    instanceSuffix: String?,
+    visited: Set<String>
+  ) -> Node {
+    resolvedInCurrentPass.insert(nodeKey)
+    let record = NodeResolutionRecord(
+      nodeKey: nodeKey,
+      definitionID: definitionID,
+      instanceID: instanceID,
+      basePath: basePath,
+      index: index,
+      instanceSuffix: instanceSuffix,
+      visited: visited,
+      componentSnapshot: nil,
+      childIdentities: [:],
+      readValues: [:],
+      templateCounts: [:],
+      directChildInstances: []
+    )
+    registerNodeDependencies(record)
+
+    if let existing = activeNodes[nodeKey], existing.state == .pending {
+      return existing
+    }
+    let node = Node(
+      placeholderID: instanceID,
+      state: .pending,
+      scopeKey: basePath,
+      dataContextPath: dataContextPath
+    )
+    activeNodes[nodeKey] = node
+    return node
+  }
+
+  private func resolveCyclicNode(
+    instanceID: String,
+    nodeKey: String,
+    parentKey: String?,
+    basePath: String?,
+    dataContextPath: String
+  ) -> Node {
+    if reportedCyclicKeys.insert(nodeKey).inserted {
+      let version = effectiveProtocolVersion ?? .v10
+      actionHandler?.handle(
+        error: .generic(
+          GenericError(
+            code: "CYCLIC_REFERENCE",
+            surfaceID: surfaceID,
+            message: "Cyclic component reference detected for '\(instanceID)'",
+            version: version
+          )
+        ),
+        from: surfaceID
+      )
+    }
+    let cyclicKey = "\(parentKey ?? "")->\(nodeKey)"
+    if let existing = activeCyclicNodes[cyclicKey] {
+      return existing
+    }
+    let node = Node(
+      placeholderID: instanceID,
+      state: .cyclic,
+      scopeKey: basePath,
+      dataContextPath: dataContextPath
+    )
+    activeCyclicNodes[cyclicKey] = node
+    return node
+  }
+
+  private func reportUnknownComponentTypeIfNeeded(
+    nodeKey: String,
+    componentID: String,
+    typeName: String
+  ) {
+    guard reportedUnknownTypeKeys.insert(nodeKey).inserted else { return }
+    let version = effectiveProtocolVersion ?? .v10
+    actionHandler?.handle(
+      error: .generic(
+        GenericError(
+          code: "UNKNOWN_COMPONENT_TYPE",
+          surfaceID: surfaceID,
+          message: "Unknown component type '\(typeName)' for component '\(componentID)'",
+          version: version
+        )
+      ),
+      from: surfaceID
+    )
   }
 
   private func resolveChildReference(
@@ -782,11 +932,19 @@ public final class NodeResolver: Sendable {
     currentNodeChildIdentities?.updateValue(childIdentity, forKey: childID)
 
     let childNodeKey = makeNodeKey(instanceID: childInstanceID, basePath: basePath)
-    guard !visited.contains(childNodeKey), let childIdentity else {
-      return nil
+    if visited.contains(childNodeKey) {
+      return resolveCyclicNode(
+        instanceID: childInstanceID,
+        nodeKey: childNodeKey,
+        parentKey: currentComponentID,
+        basePath: basePath,
+        dataContextPath: normalizePath(basePath ?? "/")
+      )
     }
 
     let existingRecord = nodeRecords[childNodeKey]
+    let expectedState = childIdentity?.state ?? .pending
+    let expectedType = childIdentity?.type ?? "Placeholder"
     if !recurseIntoChildren,
       let existing = activeNodes[childNodeKey],
       let existingRecord,
@@ -795,7 +953,8 @@ public final class NodeResolver: Sendable {
       existingRecord.index == index,
       existingRecord.instanceSuffix == instanceSuffix,
       existingRecord.visited == visited,
-      existing.type == childIdentity.type && existing.catalogID == childIdentity.catalogID
+      existing.state == expectedState,
+      existing.type == expectedType && existing.catalogID == childIdentity?.catalogID
     {
       currentNodeDirectChildren?.insert(childNodeKey)
       return existing
@@ -1914,6 +2073,9 @@ extension NodeResolver: FunctionHandler {
   public func dispose() {
     modelCancellables.removeAll()
     activeNodes.removeAll()
+    activeCyclicNodes.removeAll()
     nodeRecords.removeAll()
+    reportedUnknownTypeKeys.removeAll()
+    reportedCyclicKeys.removeAll()
   }
 }
