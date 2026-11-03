@@ -724,9 +724,9 @@ export interface ExpressStreamOptions {
  *
  * @template Part The parts the stream returns. See `ResponseStream`.
  */
-export class ExpressResponseStream<
-  Part extends StreamPart = ResponsePart,
-> implements ResponseStream<Part> {
+export class ExpressResponseStream<Part extends StreamPart = ResponsePart>
+  implements ResponseStream<Part>
+{
   readonly state: RendererState;
   private readonly wrapped: boolean;
   private readonly continues: boolean;

@@ -568,10 +568,12 @@ class _Component {
         final Iterable<String> ids = value.cast<String>().map(_reference);
         return '[${ids.join(', ')}]';
       }
-      if (value case {
-        'componentId': final String componentId,
-        'path': final String path,
-      } when value.length == 2 && variables.containsKey(componentId)) {
+      if (value
+          case {
+            'componentId': final String componentId,
+            'path': final String path,
+          }
+          when value.length == 2 && variables.containsKey(componentId)) {
         if (_path(path) case final String written) {
           return '_template($written, ${variables[componentId]!})';
         }
@@ -719,20 +721,21 @@ class _Component {
   }
 
   String _check(Object? rule) {
-    if (rule case {
-      'condition': final Map<Object?, Object?> condition,
-      'message': final String message,
-    } when rule.length == 2) {
+    if (rule
+        case {
+          'condition': final Map<Object?, Object?> condition,
+          'message': final String message,
+        }
+        when rule.length == 2) {
       final Object? name = condition[_callKey];
       final Object? args = condition['args'];
       final bool written = condition.keys.every(
         (k) => k == _callKey || k == 'args' || (_v1 && k == 'catalogId'),
       );
       if (name is String && args is Map && written) {
-        if (_function(name, condition['catalogId']) case (
-          final CatalogSchemaHelper helper,
-          final String? catalogId,
-        ) when args.keys.every(helper.parameters(name).contains)) {
+        if (_function(name, condition['catalogId'])
+            case (final CatalogSchemaHelper helper, final String? catalogId)
+            when args.keys.every(helper.parameters(name).contains)) {
           return _checkCall(name, helper, args, message, catalogId);
         }
       }

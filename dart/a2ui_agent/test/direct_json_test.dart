@@ -29,11 +29,9 @@ import 'package:test/test.dart';
 void main() {
   final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
-          File(
-            '../../specification/v0_9/catalogs/basic/catalog.json',
-          ).readAsStringSync(),
-        )
-        as Map<String, Object?>,
+      File('../../specification/v0_9/catalogs/basic/catalog.json')
+          .readAsStringSync(),
+    ) as Map<String, Object?>,
   );
   final CatalogApi custom = Catalog.fromJson({
     'catalogId': 'https://example.com/custom.json',
@@ -756,16 +754,16 @@ void main() {
       List<CatalogApi>? catalogs,
       List<String>? allowedMessages,
       List<List<AgentToRendererMessage>> examples = const [],
-    }) => DirectJsonFormatFactory(allowedMessages: allowedMessages)
-        .createFormat(catalogs ?? [basic], examples: examples)
-        .promptGenerator
-        .generate();
+    }) =>
+        DirectJsonFormatFactory(allowedMessages: allowedMessages)
+            .createFormat(catalogs ?? [basic], examples: examples)
+            .promptGenerator
+            .generate();
 
     test('embeds the published v0.9 message schema', () {
       final Object? published = jsonDecode(
-        File(
-          '../../specification/v0_9/json/server_to_client.json',
-        ).readAsStringSync(),
+        File('../../specification/v0_9/json/server_to_client.json')
+            .readAsStringSync(),
       );
       expect(
         snippet(),
@@ -816,11 +814,10 @@ void main() {
     test('rejects v1.0 helper definitions in the allowlist', () {
       final CatalogApi v10 = Catalog.fromJson(
         jsonDecode(
-              File(
-                '../../conformance/test_data/catalogs/simplified_catalog_v1_0.json',
-              ).readAsStringSync(),
-            )
-            as Map<String, Object?>,
+          File(
+            '../../conformance/test_data/catalogs/simplified_catalog_v1_0.json',
+          ).readAsStringSync(),
+        ) as Map<String, Object?>,
       );
       for (final helper in ['Component', 'ComponentsList', 'component']) {
         expect(

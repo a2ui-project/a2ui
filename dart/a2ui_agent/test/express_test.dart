@@ -28,11 +28,9 @@ import 'package:test/test.dart';
 void main() {
   final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
-          File(
-            '../../specification/v0_9/catalogs/basic/catalog.json',
-          ).readAsStringSync(),
-        )
-        as Map<String, Object?>,
+      File('../../specification/v0_9/catalogs/basic/catalog.json')
+          .readAsStringSync(),
+    ) as Map<String, Object?>,
   );
   final CatalogApi custom = Catalog.fromJson({
     'catalogId': 'https://example.com/custom.json',
@@ -431,9 +429,8 @@ surface("s1")
     test('v1.0 surface and component extensions kwargs', () {
       final CatalogApi v1Basic = Catalog.fromJson(
         jsonDecode(
-              File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
-            )
-            as Map<String, Object?>,
+          File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
+        ) as Map<String, Object?>,
         protocolVersion: A2uiProtocolVersion.v1_0,
       );
       final List<AgentToRendererMessage> compiled = ExpressCompiler([v1Basic])
@@ -465,21 +462,21 @@ surface("s1")
         },
       });
       expect(
-        () => ExpressCompiler([
-          v1Basic,
-        ]).compile('root = Text("Hello", extensions={"bad-key": true})'),
+        () =>
+            ExpressCompiler([v1Basic])
+                .compile('root = Text("Hello", extensions={"bad-key": true})'),
         throwsError<A2uiValidationError>(),
       );
       expect(
-        () => ExpressCompiler([
-          basic,
-        ]).compile('root = Text("Hello", extensions={comp_ext: true})'),
+        () =>
+            ExpressCompiler([basic])
+                .compile('root = Text("Hello", extensions={comp_ext: true})'),
         throwsError<A2uiValidationError>(),
       );
       expect(
-        () => ExpressCompiler([
-          v1Basic,
-        ]).compile('root = Text("Hello", extensions=[1, 2])'),
+        () =>
+            ExpressCompiler([v1Basic])
+                .compile('root = Text("Hello", extensions=[1, 2])'),
         throwsError<A2uiValidationError>(),
       );
       final List<AgentToRendererMessage> viaVar = ExpressCompiler([v1Basic])
@@ -652,9 +649,11 @@ surface("s1")
     });
 
     test('describes only the statements of the allowed messages', () {
-      String snippet(List<String> allowed) => ExpressFormatFactory(
-        allowedMessages: allowed,
-      ).createFormat([basic]).promptGenerator.generate();
+      String snippet(List<String> allowed) =>
+          ExpressFormatFactory(allowedMessages: allowed)
+              .createFormat([basic])
+              .promptGenerator
+              .generate();
 
       final String data = snippet(['updateDataModel']);
       expect(data, contains(r'$/path/to/key = "value"'));
@@ -675,9 +674,11 @@ surface("s1")
 
     test('rejects an allowed message v0.9 does not have', () {
       expect(
-        () => const ExpressFormatFactory(
-          allowedMessages: ['callFunction'],
-        ).createFormat([basic]).promptGenerator.generate(),
+        () =>
+            const ExpressFormatFactory(allowedMessages: ['callFunction'])
+                .createFormat([basic])
+                .promptGenerator
+                .generate(),
         throwsA(isA<ArgumentError>()),
       );
     });
@@ -994,9 +995,8 @@ surface("s1")
     });
 
     test('compiles and decompiles a block', () {
-      final List<AgentToRendererMessage> messages = ExpressCompiler([
-        basic,
-      ]).compile('root = Text("Hello")');
+      final List<AgentToRendererMessage> messages = ExpressCompiler([basic])
+          .compile('root = Text("Hello")');
       final String block = ExpressDecompiler([basic]).decompile(messages);
       expect(
         ExpressParser([basic]).compile(block).map((m) => m.toJson()),
@@ -1179,9 +1179,8 @@ surface("s1")
 
     /// The action of the `root` Button [block] compiles to.
     Object? action(String block) {
-      final List<AgentToRendererMessage> messages = ExpressCompiler([
-        v1,
-      ]).compile('$block\nlabel = Text("Go")');
+      final List<AgentToRendererMessage> messages = ExpressCompiler([v1])
+          .compile('$block\nlabel = Text("Go")');
       final components =
           (messages.single.toJson()['createSurface']! as Map)['components']!
               as List;
@@ -1346,9 +1345,8 @@ surface("s1")
 
     /// The items of the `root` Links [block] compiles to.
     Object? items(String block) {
-      final List<AgentToRendererMessage> messages = ExpressCompiler([
-        links,
-      ]).compile(block);
+      final List<AgentToRendererMessage> messages = ExpressCompiler([links])
+          .compile(block);
       final components =
           (messages.single.toJson()['createSurface']! as Map)['components']!
               as List;
@@ -1395,9 +1393,8 @@ surface("s1")
 
     /// The `root` component [block] compiles to, against [catalog].
     Map<String, Object?> rootOf(CatalogApi catalog, String block) {
-      final List<AgentToRendererMessage> messages = ExpressCompiler([
-        catalog,
-      ]).compile(block);
+      final List<AgentToRendererMessage> messages = ExpressCompiler([catalog])
+          .compile(block);
       final components =
           (messages.single.toJson()['createSurface']! as Map)['components']!
               as List;

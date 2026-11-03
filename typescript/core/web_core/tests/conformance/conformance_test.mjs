@@ -246,6 +246,7 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['transform_catalog', 'catalog transformers are agent-side only'],
   ['provide_catalog', 'catalog providers are agent-side only'],
   ['resolve_catalogs', 'catalog resolution is agent-side only'],
+  ['renderer_state_turns', 'multi-turn RendererState tracking is agent-side only'],
   ['common_types_schema', 'web_core does not generate the common types schema from its own models'],
   [
     'agent_to_renderer_schema',

@@ -113,9 +113,8 @@ class StreamedAnswer<T extends ComponentApi> {
     for (final part in streamParts) {
       switch (part) {
         case TextPart(:final String text):
-          if (parts.lastOrNull case AnswerTextPart<T>(
-            text: final String before,
-          ) when _inText) {
+          if (parts.lastOrNull case AnswerTextPart<T>(text: final String before)
+              when _inText) {
             parts.last = AnswerTextPart<T>(before + text);
           } else {
             parts.add(AnswerTextPart<T>(text));

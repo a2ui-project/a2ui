@@ -525,12 +525,10 @@ abstract class _DirectJsonStream<P extends StreamPart>
       for (final Object? component in added)
         if (component is Map<String, Object?>) component,
     ], earlier: earlier);
-    final delta =
-        reader.read({
-              ...envelope,
-              growing.key: {...body, 'components': added},
-            })
-            as UpdateComponentsMessage;
+    final delta = reader.read({
+      ...envelope,
+      growing.key: {...body, 'components': added},
+    }) as UpdateComponentsMessage;
     _applyMessage(delta);
     final previous = growing.message as UpdateComponentsMessage;
     final message = UpdateComponentsMessage(

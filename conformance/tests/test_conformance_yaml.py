@@ -464,15 +464,13 @@ def test_renderer_error_rejects_spec_violations(invalid_renderer_error):
             "catalogs": ["test_data/catalogs/simplified_catalog_v1_0.json"],
             "turns": [
                 {
-                    "payload": [
-                        {
-                            "version": "1.0",
-                            "createSurface": {
-                                "surfaceId": "s1",
-                                "catalogId": "conformance/simplified",
-                            },
-                        }
-                    ],
+                    "payload": [{
+                        "version": "1.0",
+                        "createSurface": {
+                            "surfaceId": "s1",
+                            "catalogId": "conformance/simplified",
+                        },
+                    }],
                     "expect_surfaces": {"s1": {"components": []}},
                 },
                 {
@@ -567,4 +565,3 @@ def test_agent_suite_schemas_accept_valid_cases(valid_case):
 def test_agent_suite_schemas_reject_invalid_cases(invalid_case):
     with pytest.raises(jsonschema.ValidationError):
         VALIDATOR.validate([invalid_case])
-
