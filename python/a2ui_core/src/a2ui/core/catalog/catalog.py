@@ -57,6 +57,7 @@ from ..schema.common_types_schema import (
 from ._spec_shape import SpecSchema, SpecShaper, v08_document_schema
 from .components import ComponentApi, ComponentImplementation, ModelComponentApi
 from .functions import (
+    AgentFunction,
     AllowedCallers,
     FunctionApi,
     FunctionImplementation,
@@ -643,6 +644,53 @@ def _reachable_defs(roots: Sequence[Any], defs: Mapping[str, Any]) -> set[str]:
     return reachable
 
 
+def _agent_function_name_taken(catalog_id: str, name: str) -> A2uiCatalogError:
+    """The error for an agent function whose name another function has."""
+    return A2uiCatalogError(
+        f"Catalog '{catalog_id}' already has a function named '{name}', so an"
+        " agent function can't use that name: a renderer that implements the"
+        " other function would run it instead of calling the agent. Give the"
+        " agent function its own name, or build it with"
+        " `AgentFunction.from_api` from the catalog's entry to replace that"
+        " entry."
+    )
+
+
+def _with_agent_functions(
+    catalog_id: str,
+    functions: Sequence[Any],
+    agent_functions: Sequence[AgentFunction] | None,
+) -> list[Any]:
+    """Adds agent functions to a catalog's functions.
+
+    An agent function built with `AgentFunction.from_api` replaces the entry
+    it was built from, in place; any other is appended.
+
+    Raises:
+        A2uiCatalogError: If an entry is not an `AgentFunction`, or its name
+            is already taken.
+    """
+    merged = list(functions)
+    if not agent_functions:
+        return merged
+    positions = {fn.name: i for i, fn in enumerate(merged)}
+    for agent_function in agent_functions:
+        if not isinstance(agent_function, AgentFunction):
+            raise A2uiCatalogError(
+                f"Catalog '{catalog_id}' was given {agent_function!r} as an"
+                " agent function, which is not an `AgentFunction`."
+            )
+        position = positions.get(agent_function.name)
+        if position is None:
+            positions[agent_function.name] = len(merged)
+            merged.append(agent_function)
+        elif agent_function.declaration is merged[position]:
+            merged[position] = agent_function
+        else:
+            raise _agent_function_name_taken(catalog_id, agent_function.name)
+    return merged
+
+
 def _externalize_refs(
     node: Any, common_names: set[str], document: str = _COMMON_TYPES_DOCUMENT
 ) -> Any:
@@ -1156,6 +1204,7 @@ class Catalog(Generic[TComponent, TFunction]):
         functions_form: FunctionsForm | None = None,
         union_defs: Mapping[str, Any | None] | None = None,
         extras: Mapping[str, Any] | None = None,
+        agent_functions: Sequence[AgentFunction] | None = None,
         _layout: "_DocumentLayout | None" = None,
     ):
         """Initializes the catalog.
@@ -1205,10 +1254,19 @@ class Catalog(Generic[TComponent, TFunction]):
                 the entries it has, and both from v1.0 on.
             extras: The catalog document's top-level keys that `Catalog`
                 does not model, as written.
+            agent_functions: Functions that run on the agent (v1.0 and
+                later). Each is added to `functions`, so validation and the
+                catalog document treat it like any other function, and is
+                also listed in `agent_functions`. An agent function needs a
+                name of its own, unless it was built with
+                `AgentFunction.from_api` from an entry of `functions`, which
+                it then replaces.
 
         Raises:
             A2uiCatalogError: If `protocol_version` is missing, an identifier
-                is invalid or `theme_location` is unknown.
+                is invalid, `theme_location` is unknown, an agent function's
+                name is already taken, or the catalog has agent functions
+                before v1.0.
         """
         if not protocol_version:
             raise A2uiCatalogError("protocol_version must be provided.")
@@ -1281,7 +1339,7 @@ class Catalog(Generic[TComponent, TFunction]):
             else ()
         )
         self.functions: dict[str, TFunction] = {}
-        for fn in functions or []:
+        for fn in _with_agent_functions(catalog_id, functions or [], agent_functions):
             if (
                 validate_identifiers
                 and fn not in system_impls
@@ -1290,7 +1348,20 @@ class Catalog(Generic[TComponent, TFunction]):
                 raise A2uiCatalogError(
                     f"Invalid UAX #31 function identifier: '{fn.name}'"
                 )
+            existing = self.functions.get(fn.name)
+            if existing is not None and (
+                isinstance(fn, AgentFunction) or isinstance(existing, AgentFunction)
+            ):
+                raise _agent_function_name_taken(catalog_id, fn.name)
             self.functions[fn.name] = fn
+        if not is_at_least_version(protocol_version, ProtocolVersion.V1_0) and any(
+            isinstance(fn, AgentFunction) for fn in self.functions.values()
+        ):
+            raise A2uiCatalogError(
+                f"Catalog '{catalog_id}' targets protocol version"
+                f" {protocol_version}, but agent functions need v1.0 or later,"
+                " where renderers send calls to the agent."
+            )
 
         self.theme_model = theme_model
         if theme_schema is None and theme_model is not None:
@@ -1318,12 +1389,25 @@ class Catalog(Generic[TComponent, TFunction]):
         """Symmetrical alias for catalog_id."""
         return self.catalog_id
 
+    @property
+    def agent_functions(self) -> dict[str, AgentFunction]:
+        """The catalog's functions that run on the agent, by name.
+
+        Each is also in `functions`.
+        """
+        return {
+            name: fn
+            for name, fn in self.functions.items()
+            if isinstance(fn, AgentFunction)
+        }
+
     def copy_with(
         self,
         *,
         components: Sequence[ComponentApi] | None = None,
         functions: Sequence[FunctionApi] | None = None,
         defs: Mapping[str, Any] | None = None,
+        agent_functions: Sequence[AgentFunction] | None = None,
     ) -> "CatalogApi":
         """Returns a catalog derived from this one, for catalog transformers.
 
@@ -1335,19 +1419,44 @@ class Catalog(Generic[TComponent, TFunction]):
 
         Args:
             components: The copy's components. None keeps this catalog's.
-            functions: The copy's functions. None keeps this catalog's.
+            functions: The copy's functions. None keeps this catalog's. Agent
+                functions among them stay agent functions.
             defs: The copy's own `$defs`. None keeps this catalog's, except
                 those that only the dropped entries referenced. Defs given
                 here are treated as defined in code.
+            agent_functions: The copy's agent functions, in place of the ones
+                in `functions`. An agent function built with
+                `AgentFunction.from_api` goes back to the entry it was built
+                from. None keeps the agent functions in `functions`.
 
         Returns:
             A schema-only catalog.
+
+        Raises:
+            A2uiCatalogError: If an agent function's name is already taken.
         """
+        new_functions = list(
+            self.functions.values() if functions is None else functions
+        )
+        if agent_functions is not None:
+            new_functions = _with_agent_functions(
+                self.catalog_id,
+                [
+                    (
+                        cast(FunctionApi, fn.declaration)
+                        if isinstance(fn, AgentFunction)
+                        else fn
+                    )
+                    for fn in new_functions
+                    if not isinstance(fn, AgentFunction) or fn.declaration is not None
+                ],
+                agent_functions,
+            )
         return cast(
             "CatalogApi",
             self._rebuild(
                 list(self.components.values() if components is None else components),
-                list(self.functions.values() if functions is None else functions),
+                new_functions,
                 defs,
                 catalog_id=self.catalog_id,
                 schema_id=self.schema_id,

@@ -1,5 +1,16 @@
 ## Unreleased
 
+- (v1_0) Add `AgentFunction`, a catalog function that runs on the agent: a
+  `FunctionApi` with a `handler` that receives the validated arguments and an
+  `AgentFunctionContext` (catalog, surface and function call IDs). `Catalog`
+  and `Catalog.copy_with` take `agent_functions`, which adds them to
+  `functions`, so validation and `to_json` treat them like any other declared
+  function, and `Catalog.agent_functions` lists them. The catalog document
+  never includes the handler. An agent function needs a name of its own, unless
+  it is built with `AgentFunction.from_api` from a function the catalog already
+  declares, which it then replaces; a catalog before v1.0 rejects agent
+  functions. Also exported: `AgentFunctionHandler`.
+  [#3536](https://github.com/a2ui-project/a2ui/issues/3536)
 - (v1_0) The basic catalog `regex` function's `pattern` description now names
   the A2UI regex dialect and its safety limits
   ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
