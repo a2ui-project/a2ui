@@ -113,7 +113,9 @@ def test_component_context_dispatch_action_callback_signatures(monkeypatch):
         monkeypatch.setattr(
             inspect,
             "signature",
-            lambda _fn, _exc=exc_cls: (_ for _ in ()).throw(_exc("no signature")),
+            lambda _fn, _exc=exc_cls: (_ for _ in ()).throw(
+                _exc("no signature")
+            ),
         )
         ctx = ComponentContext(
             c1,
@@ -182,7 +184,9 @@ def test_data_context_missing_binding_warning():
     cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat)
     ctx = DataContext(surface)
-    with pytest.warns(MissingDataBindingWarning, match="does not physically exist"):
+    with pytest.warns(
+        MissingDataBindingWarning, match="does not physically exist"
+    ):
         val = ctx.resolve_dynamic_value({"path": "/missing/pointer"})
     assert val is None
 
@@ -198,10 +202,12 @@ def test_generic_binder_reactive_checks():
         cat,
         {
             "value": {"path": "/score"},
-            "checks": [{
-                "condition": {"path": "/score"},
-                "message": "Score must be non-zero",
-            }],
+            "checks": [
+                {
+                    "condition": {"path": "/score"},
+                    "message": "Score must be non-zero",
+                }
+            ],
         },
     )
     surface.components_model.add_component(c1)
@@ -287,7 +293,9 @@ def test_string_interpolation_with_escapes():
     # Escaped block resolving to literal string
     expr = {
         "call": "formatString",
-        "args": {"value": r"Keep \${escaped} as literal and resolve ${user/name}"},
+        "args": {
+            "value": r"Keep \${escaped} as literal and resolve ${user/name}"
+        },
     }
 
     resolved = ctx.resolve_dynamic_value(expr)
@@ -297,7 +305,9 @@ def test_string_interpolation_with_escapes():
 def test_generic_binder_reactive_property_changes():
     cat = BasicCatalog("0.9")
     data_model = DataModel({"item": {"title": "Original"}})
-    comp = ComponentModel("text_1", "Text", cat, {"text": {"path": "item/title"}})
+    comp = ComponentModel(
+        "text_1", "Text", cat, {"text": {"path": "item/title"}}
+    )
     surface = SurfaceModel("s1", cat, data_model=data_model)
     ctx = DataContext(surface, path="/")
     context = ComponentContext(comp, ctx)
@@ -320,10 +330,12 @@ def test_generic_binder_checks_validation():
         "Button",
         cat,
         {
-            "checks": [{
-                "condition": {"path": "/checkbox_state"},
-                "message": "You must check the box!",
-            }]
+            "checks": [
+                {
+                    "condition": {"path": "/checkbox_state"},
+                    "message": "You must check the box!",
+                }
+            ]
         },
     )
     cat = BasicCatalog("0.9")
@@ -335,7 +347,9 @@ def test_generic_binder_checks_validation():
 
     # Initial: State is False, so check fails
     assert binder.current_props["isValid"] is False
-    assert binder.current_props["validationErrors"] == ["You must check the box!"]
+    assert binder.current_props["validationErrors"] == [
+        "You must check the box!"
+    ]
 
     # Update state to True
     data_model.set("/checkbox_state", True)
@@ -349,29 +363,39 @@ def test_generic_binder_path_bound_check_keeps_data_model_message():
     """A path-bound ValidationResult keeps its own message; the rule message
     is the fallback. (An evaluated check gives the rule message precedence.)"""
     cat = BasicCatalog("1.0")
-    data_model = DataModel({
-        "check": {
-            "valid": False,
-            "code": "FROM_DATA",
-            "message": "Message from the data model",
+    data_model = DataModel(
+        {
+            "check": {
+                "valid": False,
+                "code": "FROM_DATA",
+                "message": "Message from the data model",
+            }
         }
-    })
+    )
     comp = ComponentModel(
         "field_1",
         "TextField",
         cat,
         {
             "label": "Field",
-            "checks": [{
-                "condition": {"@path": "/check"},
-                "message": "Rule fallback message",
-            }],
+            "checks": [
+                {
+                    "condition": {"@path": "/check"},
+                    "message": "Rule fallback message",
+                }
+            ],
         },
     )
-    surface = SurfaceModel("s1", cat, data_model=data_model, protocol_version="1.0")
-    binder = GenericBinder(ComponentContext(comp, DataContext(surface, path="/")))
+    surface = SurfaceModel(
+        "s1", cat, data_model=data_model, protocol_version="1.0"
+    )
+    binder = GenericBinder(
+        ComponentContext(comp, DataContext(surface, path="/"))
+    )
 
-    assert binder.current_props["validationErrors"] == ["Message from the data model"]
+    assert binder.current_props["validationErrors"] == [
+        "Message from the data model"
+    ]
 
     data_model.set("/check", {"valid": False})
     assert binder.current_props["validationErrors"] == ["Rule fallback message"]
@@ -414,7 +438,9 @@ def test_expression_parser_parse_errors():
     with pytest.raises(A2uiExpressionError, match="Expected '\\)'"):
         parser.parse("${add(a: 1, b: 2}")
 
-    with pytest.raises(A2uiExpressionError, match="Max recursion depth reached"):
+    with pytest.raises(
+        A2uiExpressionError, match="Max recursion depth reached"
+    ):
         parser.parse("deep", ExpressionParser.MAX_DEPTH + 1)
 
 
@@ -432,8 +458,10 @@ def test_string_interpolation_complex_execution():
             self.functions["add"] = lambda args, context, abort_signal=None: (
                 args["a"] + args["b"]
             )
-            self.functions["formatString"] = lambda args, context, abort_signal=None: (
-                _format_string(args, context)
+            self.functions["formatString"] = (
+                lambda args, context, abort_signal=None: (
+                    _format_string(args, context)
+                )
             )
 
     cat1 = MockCatalog()
@@ -460,10 +488,12 @@ def test_subscribe_dynamic_value_chained_functions():
                 if isinstance(args.get("value", ""), str)
                 else args.get("value", "")
             )
-            self.functions["capitalize"] = lambda args, context, abort_signal=None: (
-                args.get("value", "").capitalize()
-                if isinstance(args.get("value", ""), str)
-                else args.get("value", "")
+            self.functions["capitalize"] = (
+                lambda args, context, abort_signal=None: (
+                    args.get("value", "").capitalize()
+                    if isinstance(args.get("value", ""), str)
+                    else args.get("value", "")
+                )
             )
 
     cat2 = StringFunctionsCatalog()
@@ -473,7 +503,9 @@ def test_subscribe_dynamic_value_chained_functions():
     # Chained expression: Capitalize(Trim(DataModelSubscription(path: /user/name)))
     chained_expr = {
         "call": "capitalize",
-        "args": {"value": {"call": "trim", "args": {"value": {"path": "/user/name"}}}},
+        "args": {
+            "value": {"call": "trim", "args": {"value": {"path": "/user/name"}}}
+        },
     }
 
     changes: list[str] = []
@@ -604,7 +636,9 @@ def test_data_context_v10_nested_validators_feed_logical_functions():
                 required("/terms"),
                 {
                     "@call": "or",
-                    "args": {"values": [required("/email"), required("/phone")]},
+                    "args": {
+                        "values": [required("/email"), required("/phone")]
+                    },
                 },
             ]
         },
@@ -692,14 +726,16 @@ def test_data_context_v10_coerces_validation_result_in_document_function():
     surface.on_error.subscribe(lambda err: errors.append(err))
     ctx = DataContext(surface, path="/")
 
-    result = ctx.resolve_dynamic_value({
-        "@call": "echo",
-        "args": {
-            "on": {"@path": "/result"},
-            "all": [{"@path": "/result"}, True],
-            "payload": {"@path": "/result"},
-        },
-    })
+    result = ctx.resolve_dynamic_value(
+        {
+            "@call": "echo",
+            "args": {
+                "on": {"@path": "/result"},
+                "all": [{"@path": "/result"}, True],
+                "payload": {"@path": "/result"},
+            },
+        }
+    )
 
     assert errors == []
     assert result == {
@@ -736,27 +772,34 @@ def test_data_context_v10_coerces_validation_result_in_optional_list():
         protocol_version="1.0",
         functions=[
             FunctionImplementation(
-                name="echo", return_type="object", schema=FlagsArgs, execute=echo
+                name="echo",
+                return_type="object",
+                schema=FlagsArgs,
+                execute=echo,
             )
         ],
     )
     surface = SurfaceModel(
         "s1",
         catalog,
-        data_model=DataModel({"bad": {"valid": False}, "good": {"valid": True}}),
+        data_model=DataModel(
+            {"bad": {"valid": False}, "good": {"valid": True}}
+        ),
     )
     errors: list[dict[str, Any]] = []
     surface.on_error.subscribe(lambda err: errors.append(err))
     ctx = DataContext(surface, path="/")
 
-    result = ctx.resolve_dynamic_value({
-        "@call": "echo",
-        "args": {
-            "flags": [{"@path": "/bad"}, True],
-            "flag": {"@path": "/good"},
-            "nested": {"inner": {"@path": "/bad"}},
-        },
-    })
+    result = ctx.resolve_dynamic_value(
+        {
+            "@call": "echo",
+            "args": {
+                "flags": [{"@path": "/bad"}, True],
+                "flag": {"@path": "/good"},
+                "nested": {"inner": {"@path": "/bad"}},
+            },
+        }
+    )
 
     assert errors == []
     assert result == {
@@ -776,7 +819,9 @@ def test_data_context_v09_coerces_valid_objects_in_dynamic_boolean():
     ctx = DataContext(surface, path="/")
 
     assert (
-        ctx.resolve_dynamic_value({"call": "not", "args": {"value": {"path": "/flag"}}})
+        ctx.resolve_dynamic_value(
+            {"call": "not", "args": {"value": {"path": "/flag"}}}
+        )
         is True
     )
 
@@ -833,7 +878,9 @@ def test_dynamic_boolean_coercion_table_for_properties_and_arguments():
 
     for raw, expected in cases:
         surface.data_model.set("/flag", raw)
-        assert binder.snapshot["value"] is expected, f"Property failed for {raw!r}"
+        assert (
+            binder.snapshot["value"] is expected
+        ), f"Property failed for {raw!r}"
         if isinstance(raw, float) and raw != raw:
             continue
         assert ctx.resolve_dynamic_value(
@@ -845,13 +892,19 @@ def test_dynamic_boolean_coercion_table_for_properties_and_arguments():
         component: str
         any_val: DynamicValue
 
-    custom_cat = Catalog("custom", "1.0", components=[ComponentApi("PolyBox", _PolymorphicBox)])
-    poly_surface = SurfaceModel("s2", custom_cat, data_model=DataModel({"v": "hello"}))
+    custom_cat = Catalog(
+        "custom", "1.0", components=[ComponentApi("PolyBox", _PolymorphicBox)]
+    )
+    poly_surface = SurfaceModel(
+        "s2", custom_cat, data_model=DataModel({"v": "hello"})
+    )
     poly_comp = ComponentModel(
         "p1", "PolyBox", custom_cat, {"any_val": {"@path": "/v"}}
     )
     poly_surface.components_model.add_component(poly_comp)
-    poly_binder = GenericBinder(ComponentContext.from_surface(poly_surface, "p1"))
+    poly_binder = GenericBinder(
+        ComponentContext.from_surface(poly_surface, "p1")
+    )
     assert poly_binder.snapshot["any_val"] == "hello"
     poly_surface.data_model.set("/v", 42)
     assert poly_binder.snapshot["any_val"] == 42
@@ -882,7 +935,9 @@ def test_data_context_index_function_on_surface_without_default_catalog():
     surface = SurfaceModel("s1", None, protocol_version="1.0")
     ctx = DataContext(surface, path="/items/2")
 
-    value = ctx.resolve_dynamic_value({"@call": "@index", "args": {"offset": 1}})
+    value = ctx.resolve_dynamic_value(
+        {"@call": "@index", "args": {"offset": 1}}
+    )
 
     assert value == 3
 
@@ -897,7 +952,9 @@ def test_data_context_system_function_naming_catalog_is_expression_error(
     surface.on_error.subscribe(lambda err: errors.append(err))
     ctx = DataContext(surface, path="/items/2")
 
-    value = ctx.resolve_dynamic_value({"@call": "@index", "catalogId": catalog_id})
+    value = ctx.resolve_dynamic_value(
+        {"@call": "@index", "catalogId": catalog_id}
+    )
 
     assert value is None
     assert len(errors) == 1
@@ -950,7 +1007,10 @@ def test_data_context_refuses_agent_only_function_in_binding_and_action():
     ctx, calls, errors = _allowed_callers_context("agentOnly")
 
     assert ctx.resolve_dynamic_value({"@call": "lookup", "args": {}}) is None
-    assert ctx.resolve_action({"functionCall": {"@call": "lookup", "args": {}}}) is None
+    assert (
+        ctx.resolve_action({"functionCall": {"@call": "lookup", "args": {}}})
+        is None
+    )
 
     assert calls == []
     assert [(e["code"], e["expression"]) for e in errors] == [
@@ -966,7 +1026,9 @@ def test_data_context_refuses_agent_only_function_in_binding_and_action():
 def test_data_context_runs_renderer_or_agent_function_in_binding_and_action():
     ctx, calls, errors = _allowed_callers_context("rendererOrAgent")
 
-    assert ctx.resolve_dynamic_value({"@call": "lookup", "args": {}}) == "secret"
+    assert (
+        ctx.resolve_dynamic_value({"@call": "lookup", "args": {}}) == "secret"
+    )
     assert (
         ctx.resolve_action({"functionCall": {"@call": "lookup", "args": {}}})
         == "secret"
@@ -1007,11 +1069,13 @@ def test_data_context_catalog_and_missing_function_error_dispatch():
     # 2. Non-existent catalog ID (a call names its own catalog from v1.0)
     v10_surface = SurfaceModel("s3", BasicCatalog("1.0"))
     v10_surface.on_error.subscribe(lambda err: errors.append(err))
-    res2 = DataContext(v10_surface, path="/").resolve_dynamic_value({
-        "@call": "formatString",
-        "catalogId": "unknown_catalog_id",
-        "args": {"value": "test"},
-    })
+    res2 = DataContext(v10_surface, path="/").resolve_dynamic_value(
+        {
+            "@call": "formatString",
+            "catalogId": "unknown_catalog_id",
+            "args": {"value": "test"},
+        }
+    )
     assert res2 is None
     assert len(errors) == 2
     assert errors[1]["code"] == "CATALOG_ERROR"
@@ -1027,10 +1091,12 @@ def test_data_context_catalog_and_missing_function_error_dispatch():
     mock_errors: list[dict[str, Any]] = []
     mock_surface.on_error.subscribe(lambda err: mock_errors.append(err))
     mock_ctx = DataContext(mock_surface, path="/")
-    res3 = mock_ctx.resolve_dynamic_value({
-        "call": "formatString",
-        "args": {"value": "test"},
-    })
+    res3 = mock_ctx.resolve_dynamic_value(
+        {
+            "call": "formatString",
+            "args": {"value": "test"},
+        }
+    )
     assert res3 is None
     assert len(mock_errors) == 1
     assert mock_errors[0]["code"] == "EXPRESSION_ERROR"
@@ -1128,10 +1194,16 @@ def test_generic_binder_action_closure_returns_dispatch_result():
         captured.append((action, component_id))
         return "dispatched_result"
 
-    context = ComponentContext(comp, ctx, dispatch_action_callback=custom_dispatch)
+    context = ComponentContext(
+        comp, ctx, dispatch_action_callback=custom_dispatch
+    )
     binder = GenericBinder(
         context,
-        schema={"properties": {"onClick": {"$ref": "common_types.json#/$defs/Action"}}},
+        schema={
+            "properties": {
+                "onClick": {"$ref": "common_types.json#/$defs/Action"}
+            }
+        },
     )
     result = binder.current_props["onClick"]()
     assert result == "dispatched_result"
@@ -1296,13 +1368,15 @@ def test_generic_binder_schema_driven_custom_checkable_property():
         "CustomInput",
         cat,
         {
-            "customValidators": [{
-                "condition": {
-                    "call": "required",
-                    "args": {"value": {"path": "/username"}},
-                },
-                "message": "Username is required",
-            }]
+            "customValidators": [
+                {
+                    "condition": {
+                        "call": "required",
+                        "args": {"value": {"path": "/username"}},
+                    },
+                    "message": "Username is required",
+                }
+            ]
         },
     )
     surface = SurfaceModel("s1", cat, data_model=data_model)
@@ -1361,13 +1435,15 @@ def test_generic_binder_nested_checkable_does_not_pollute_root_props():
             "topLevel": "safe",
             "section": {
                 "fieldVal": {"path": "/form/field"},
-                "checks": [{
-                    "condition": {
-                        "call": "required",
-                        "args": {"value": {"path": "/form/field"}},
-                    },
-                    "message": "Field required",
-                }],
+                "checks": [
+                    {
+                        "condition": {
+                            "call": "required",
+                            "args": {"value": {"path": "/form/field"}},
+                        },
+                        "message": "Field required",
+                    }
+                ],
             },
         },
     )
@@ -1419,15 +1495,17 @@ def test_generic_binder_binds_action_inside_list_item():
         "Carousel",
         cat,
         {
-            "items": [{
-                "name": "first",
-                "action": {
-                    "event": {
-                        "name": "open_card",
-                        "context": {"cardId": {"path": "/card/id"}},
-                    }
-                },
-            }]
+            "items": [
+                {
+                    "name": "first",
+                    "action": {
+                        "event": {
+                            "name": "open_card",
+                            "context": {"cardId": {"path": "/card/id"}},
+                        }
+                    },
+                }
+            ]
         },
     )
     surface = SurfaceModel("s1", cat, data_model=data_model)
@@ -1510,12 +1588,16 @@ def test_data_context_deduplicated_on_warning_and_warnings_warn():
 
     # Second resolution of same path still emits Python warning, but surface.on_warning is deduplicated
     with pytest.warns(MissingDataBindingWarning):
-        assert nested_ctx.resolve_dynamic_value({"path": "/missing/field"}) is None
+        assert (
+            nested_ctx.resolve_dynamic_value({"path": "/missing/field"}) is None
+        )
     assert len(surface_warnings) == 1
 
     # Different missing path via subscribe_dynamic_value emits both
     with pytest.warns(MissingDataBindingWarning):
-        sub = ctx.subscribe_dynamic_value({"path": "/another/missing"}, lambda _: None)
+        sub = ctx.subscribe_dynamic_value(
+            {"path": "/another/missing"}, lambda _: None
+        )
         sub.unsubscribe()
     assert len(surface_warnings) == 2
     assert surface_warnings[1]["path"] == "/another/missing"
@@ -1531,7 +1613,9 @@ def test_data_context_max_function_call_args_limit():
 
     ctx = DataContext(surface, path="/")
     too_many_args = {f"arg_{i}": i for i in range(MAX_FUNCTION_CALL_ARGS + 1)}
-    res = ctx.resolve_dynamic_value({"call": "formatString", "args": too_many_args})
+    res = ctx.resolve_dynamic_value(
+        {"call": "formatString", "args": too_many_args}
+    )
     assert res is None
     assert len(errors) == 1
     assert "exceeds maximum allowed arguments count" in errors[0]["message"]
@@ -1554,7 +1638,10 @@ def test_data_context_execute_function_exceeds_max_args():
 
     assert len(errors_dispatched) == 1
     assert errors_dispatched[0]["code"] == "EXPRESSION_ERROR"
-    assert "exceeds maximum allowed arguments count" in errors_dispatched[0]["message"]
+    assert (
+        "exceeds maximum allowed arguments count"
+        in errors_dispatched[0]["message"]
+    )
     assert errors_dispatched[0]["surfaceId"] == "s1"
 
     # When surface has no error dispatcher, it re-raises
@@ -1593,7 +1680,9 @@ def test_generic_binder_v10_literal_path_no_setter():
 
 
 def test_adapt_ast_part_for_v10_preserves_arg_names():
-    from a2ui.core.basic_catalog.v1_0.function_impls import _adapt_ast_part_for_v10
+    from a2ui.core.basic_catalog.v1_0.function_impls import (
+        _adapt_ast_part_for_v10,
+    )
 
     part = {
         "call": "myFunction",
@@ -1615,7 +1704,9 @@ def test_adapt_ast_part_for_v10_preserves_arg_names():
 def test_generic_binder_binds_catalog_defined_dynamic_defs():
     """A `$ref` to a catalog-defined dynamic def (e.g. `DynamicDate`) binds."""
     cat = BasicCatalog("0.9")
-    data_model = DataModel({"form": {"date": {"year": 2024, "month": 5, "day": 1}}})
+    data_model = DataModel(
+        {"form": {"date": {"year": 2024, "month": 5, "day": 1}}}
+    )
     comp = ComponentModel(
         "picker", "DatePicker", cat, {"value": {"path": "/form/date"}}
     )
@@ -1655,19 +1746,26 @@ def _boom(args: dict[str, Any], ctx: Any = None, abort: Any = None) -> Any:
     raise RuntimeError("boom")
 
 
-def _action_button(action: dict[str, Any]) -> tuple[GenericBinder, SurfaceModel]:
+def _action_button(
+    action: dict[str, Any],
+) -> tuple[GenericBinder, SurfaceModel]:
     from a2ui.core.basic_catalog import v1_0
 
     cat = v1_0.BasicCatalog()
     cat.functions["boom"] = FunctionImplementation(name="boom", execute=_boom)
     surface = SurfaceModel("s1", cat)
     comp = ComponentModel("b1", "Button", cat, {"child": "t", "action": action})
-    return GenericBinder(ComponentContext(comp, DataContext(surface, "/"))), surface
+    return (
+        GenericBinder(ComponentContext(comp, DataContext(surface, "/"))),
+        surface,
+    )
 
 
 def test_generic_binder_action_closure_classifies_local_errors_as_execution():
     """A local function that raises in an action closure is an EXECUTION_ERROR."""
-    binder, surface = _action_button({"functionCall": {"@call": "boom", "args": {}}})
+    binder, surface = _action_button(
+        {"functionCall": {"@call": "boom", "args": {}}}
+    )
     errors: list[dict[str, Any]] = []
     surface.on_error.subscribe(errors.append)
 
@@ -1677,7 +1775,12 @@ def test_generic_binder_action_closure_classifies_local_errors_as_execution():
 
 def test_event_action_local_error_is_execution_error():
     binder, surface = _action_button(
-        {"event": {"name": "go", "context": {"x": {"@call": "boom", "args": {}}}}}
+        {
+            "event": {
+                "name": "go",
+                "context": {"x": {"@call": "boom", "args": {}}},
+            }
+        }
     )
     errors: list[dict[str, Any]] = []
     actions: list[dict[str, Any]] = []
