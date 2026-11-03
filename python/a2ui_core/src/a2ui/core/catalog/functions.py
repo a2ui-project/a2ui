@@ -25,6 +25,8 @@ from typing import (
 )
 from typing_extensions import TypeVar
 
+from ..exceptions import A2uiCatalogError
+
 AllowedCallers = Literal["rendererOnly", "agentOnly", "rendererOrAgent"]
 FunctionReturnType = Literal[
     "string",
@@ -199,15 +201,34 @@ class AgentFunctionContext:
     function_call_id: str
 
 
-AgentFunctionHandler = Callable[
-    [dict[str, Any], AgentFunctionContext], Any | Awaitable[Any]
-]
+AgentFunctionHandler = (
+    Callable[[dict[str, Any]], Any | Awaitable[Any]]
+    | Callable[[dict[str, Any], AgentFunctionContext], Any | Awaitable[Any]]
+)
 """Runs an agent function call.
 
 Receives the call's arguments, validated against the function's schema with
-its defaults applied, and the context of the call. Returns the value to send
-back, directly or as an awaitable.
+its defaults applied, and, if it takes a second parameter, the context of the
+call. Returns the value to send back, directly or as an awaitable.
 """
+
+
+def _takes_context(handler: Callable[..., Any]) -> bool:
+    """Whether a handler takes the call's context after its arguments."""
+    try:
+        parameters = inspect.signature(handler).parameters.values()
+    except (ValueError, TypeError):
+        return True
+    positional = 0
+    for parameter in parameters:
+        if parameter.kind is inspect.Parameter.VAR_POSITIONAL:
+            return True
+        if parameter.kind in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            positional += 1
+    return positional >= 2
 
 
 class AgentFunction(FunctionApi):
@@ -216,10 +237,13 @@ class AgentFunction(FunctionApi):
     A renderer has no implementation for it, so from v1.0 it sends calls to
     the agent with `callAgentFunction`, and the agent runs `handler`. Add
     agent functions to the agent's copy of a catalog with
-    `Catalog(agent_functions=...)` or `Catalog.copy_with(agent_functions=...)`,
-    so that validation and prompts treat them like any other function of the
-    catalog. The catalog document lists them like functions without an
-    implementation, and never includes the handler.
+    `Catalog.copy_with(agent_functions=...)` (or, for a catalog built in
+    code, in its `functions`), so that validation and prompts treat them like
+    any other function of the catalog. The catalog document lists them like
+    functions without an implementation, and never includes the handler.
+
+    An agent function built directly is `rendererOnly`. One built with
+    `from_api` keeps the declaration's `allowed_callers`.
 
     An agent function has no `execute` method, so a renderer core that is
     handed a catalog containing one treats it as declared but not
@@ -233,7 +257,6 @@ class AgentFunction(FunctionApi):
         handler: AgentFunctionHandler,
         return_type: FunctionReturnType | None = "any",
         schema: Any = None,
-        allowed_callers: AllowedCallers | None = "rendererOnly",
         requires_user_activation: bool | None = False,
         description: str | None = None,
         is_definition: bool | None = None,
@@ -243,13 +266,11 @@ class AgentFunction(FunctionApi):
 
         Args:
             name: The function's name, which calls use as `@call`.
-            handler: Runs a call on the agent.
+            handler: Runs a call on the agent. It takes the arguments, or the
+                arguments and an `AgentFunctionContext`.
             return_type: The type of the function's result.
             schema: The schema of the function's `args`, as `FunctionApi`
                 takes it.
-            allowed_callers: Who may call the function. The default,
-                `rendererOnly`, lets renderers call it; `agentOnly` would
-                make renderers refuse to call it at all.
             requires_user_activation: Whether a call needs a user gesture.
             description: What the function does, published in the catalog
                 schema and the prompt.
@@ -267,19 +288,37 @@ class AgentFunction(FunctionApi):
             name=name,
             return_type=return_type,
             schema=schema,
-            allowed_callers=allowed_callers,
+            allowed_callers="rendererOnly",
             requires_user_activation=requires_user_activation,
             description=description,
             is_definition=is_definition,
             from_document=from_document,
         )
         self.handler = handler
+        self._handler_takes_context = _takes_context(handler)
         self._declaration: FunctionApi | None = None
 
     @property
     def declaration(self) -> FunctionApi | None:
         """The catalog entry this function was built from with `from_api`, if any."""
         return self._declaration
+
+    def invoke(self, args: dict[str, Any], context: AgentFunctionContext) -> Any:
+        """Runs `handler` for a call.
+
+        Passes `context` only to a handler that takes a second parameter.
+        Does not validate `args`.
+
+        Args:
+            args: The call's arguments, already validated.
+            context: Where the call came from.
+
+        Returns:
+            What the handler returns, which may be an awaitable.
+        """
+        if self._handler_takes_context:
+            return cast(Callable[..., Any], self.handler)(args, context)
+        return cast(Callable[..., Any], self.handler)(args)
 
     @classmethod
     def from_api(
@@ -289,34 +328,46 @@ class AgentFunction(FunctionApi):
 
         Use it when the catalog document declares the function, so that its
         definition stays as written: a catalog takes the result in place of
-        `api` instead of rejecting it as a second function of that name.
+        `api` instead of rejecting it as a second function of that name. A
+        catalog that has no entry `api` rejects the result.
 
         Args:
             api: The catalog's entry for the function.
             handler: Runs a call on the agent.
 
         Returns:
-            The agent function, with `api`'s name, schema and metadata.
+            The agent function, with `api`'s name, schema and metadata,
+            including its `allowed_callers`.
 
         Raises:
-            TypeError: If `api` is already an `AgentFunction`.
+            TypeError: If `api` is not a `FunctionApi`, or is already an
+                `AgentFunction`.
+            A2uiCatalogError: If `api` is `agentOnly`, which renderers would
+                never call.
         """
+        if not isinstance(api, FunctionApi):
+            raise TypeError(f"Expected a FunctionApi, got {type(api).__name__}.")
         if isinstance(api, AgentFunction):
             raise TypeError(
                 f"'{api.name}' is already an agent function; build from the"
                 " catalog entry it declares instead."
+            )
+        if api.allowed_callers == "agentOnly":
+            raise A2uiCatalogError(
+                f"Function '{api.name}' is agentOnly, so renderers never call"
+                " it and it can't be an agent function."
             )
         agent_function = cls(
             api.name,
             handler=handler,
             return_type=api.return_type,
             schema=api.schema,
-            allowed_callers=api.allowed_callers,
             requires_user_activation=api.requires_user_activation,
             description=api.description,
             is_definition=api.is_definition,
             from_document=api.from_document,
         )
+        agent_function.allowed_callers = api.allowed_callers
         agent_function._declaration = api
         return agent_function
 

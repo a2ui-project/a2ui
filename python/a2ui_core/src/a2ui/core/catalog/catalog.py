@@ -645,14 +645,22 @@ def _reachable_defs(roots: Sequence[Any], defs: Mapping[str, Any]) -> set[str]:
 
 
 def _agent_function_name_taken(catalog_id: str, name: str) -> A2uiCatalogError:
-    """The error for an agent function whose name another function has."""
+    """The error for an agent function whose name a declared function has."""
     return A2uiCatalogError(
-        f"Catalog '{catalog_id}' already has a function named '{name}', so an"
-        " agent function can't use that name: a renderer that implements the"
-        " other function would run it instead of calling the agent. Give the"
-        " agent function its own name, or build it with"
+        f"Catalog '{catalog_id}' already declares a function named '{name}',"
+        " so an agent function can't use that name: a renderer that implements"
+        " the declared function would run it instead of calling the agent."
+        " Give the agent function its own name, or build it with"
         " `AgentFunction.from_api` from the catalog's entry to replace that"
         " entry."
+    )
+
+
+def _duplicate_agent_function(catalog_id: str, name: str) -> A2uiCatalogError:
+    """The error for two agent functions with one name."""
+    return A2uiCatalogError(
+        f"Catalog '{catalog_id}' was given more than one agent function named"
+        f" '{name}'. Each agent function needs a name of its own."
     )
 
 
@@ -667,27 +675,41 @@ def _with_agent_functions(
     it was built from, in place; any other is appended.
 
     Raises:
-        A2uiCatalogError: If an entry is not an `AgentFunction`, or its name
-            is already taken.
+        A2uiCatalogError: If an entry is not an `AgentFunction`, two entries
+            share a name, an entry's name is already taken by a declared
+            function, or an entry built with `AgentFunction.from_api` has no
+            entry of `functions` to replace.
     """
     merged = list(functions)
     if not agent_functions:
         return merged
     positions = {fn.name: i for i, fn in enumerate(merged)}
+    seen: set[str] = set()
     for agent_function in agent_functions:
         if not isinstance(agent_function, AgentFunction):
             raise A2uiCatalogError(
                 f"Catalog '{catalog_id}' was given {agent_function!r} as an"
                 " agent function, which is not an `AgentFunction`."
             )
-        position = positions.get(agent_function.name)
+        name = agent_function.name
+        if name in seen:
+            raise _duplicate_agent_function(catalog_id, name)
+        seen.add(name)
+        position = positions.get(name)
         if position is None:
-            positions[agent_function.name] = len(merged)
+            if agent_function.declaration is not None:
+                raise A2uiCatalogError(
+                    f"Catalog '{catalog_id}' has no function named '{name}'"
+                    " for the agent function built with"
+                    " `AgentFunction.from_api` to replace. Build it from this"
+                    " catalog's entry, or build an `AgentFunction` directly."
+                )
+            positions[name] = len(merged)
             merged.append(agent_function)
         elif agent_function.declaration is merged[position]:
             merged[position] = agent_function
         else:
-            raise _agent_function_name_taken(catalog_id, agent_function.name)
+            raise _agent_function_name_taken(catalog_id, name)
     return merged
 
 
@@ -1204,7 +1226,6 @@ class Catalog(Generic[TComponent, TFunction]):
         functions_form: FunctionsForm | None = None,
         union_defs: Mapping[str, Any | None] | None = None,
         extras: Mapping[str, Any] | None = None,
-        agent_functions: Sequence[AgentFunction] | None = None,
         _layout: "_DocumentLayout | None" = None,
     ):
         """Initializes the catalog.
@@ -1213,7 +1234,9 @@ class Catalog(Generic[TComponent, TFunction]):
             catalog_id: The catalog's ID.
             protocol_version: The A2UI protocol version the catalog targets.
             components: The catalog's components.
-            functions: The catalog's functions.
+            functions: The catalog's functions. `AgentFunction` entries run
+                on the agent (v1.0 and later); to add them to a loaded
+                catalog, use `copy_with(agent_functions=...)`.
             theme_schema: The JSON schema of the catalog's theme. Defaults to
                 the schema of `theme_model`.
             instructions: Instructions for agents that use the catalog.
@@ -1254,13 +1277,6 @@ class Catalog(Generic[TComponent, TFunction]):
                 the entries it has, and both from v1.0 on.
             extras: The catalog document's top-level keys that `Catalog`
                 does not model, as written.
-            agent_functions: Functions that run on the agent (v1.0 and
-                later). Each is added to `functions`, so validation and the
-                catalog document treat it like any other function, and is
-                also listed in `agent_functions`. An agent function needs a
-                name of its own, unless it was built with
-                `AgentFunction.from_api` from an entry of `functions`, which
-                it then replaces.
 
         Raises:
             A2uiCatalogError: If `protocol_version` is missing, an identifier
@@ -1339,7 +1355,7 @@ class Catalog(Generic[TComponent, TFunction]):
             else ()
         )
         self.functions: dict[str, TFunction] = {}
-        for fn in _with_agent_functions(catalog_id, functions or [], agent_functions):
+        for fn in functions or []:
             if (
                 validate_identifiers
                 and fn not in system_impls
@@ -1349,6 +1365,8 @@ class Catalog(Generic[TComponent, TFunction]):
                     f"Invalid UAX #31 function identifier: '{fn.name}'"
                 )
             existing = self.functions.get(fn.name)
+            if isinstance(fn, AgentFunction) and isinstance(existing, AgentFunction):
+                raise _duplicate_agent_function(catalog_id, fn.name)
             if existing is not None and (
                 isinstance(fn, AgentFunction) or isinstance(existing, AgentFunction)
             ):
@@ -1401,6 +1419,19 @@ class Catalog(Generic[TComponent, TFunction]):
             if isinstance(fn, AgentFunction)
         }
 
+    @property
+    def renderer_functions(self) -> dict[str, FunctionApi]:
+        """The catalog's functions that are not agent functions, by name.
+
+        Each is also in `functions`. A copy: changing it leaves the catalog
+        as it is.
+        """
+        return {
+            name: fn
+            for name, fn in self.functions.items()
+            if not isinstance(fn, AgentFunction)
+        }
+
     def copy_with(
         self,
         *,
@@ -1433,7 +1464,9 @@ class Catalog(Generic[TComponent, TFunction]):
             A schema-only catalog.
 
         Raises:
-            A2uiCatalogError: If an agent function's name is already taken.
+            A2uiCatalogError: If an agent function's name is already taken,
+                two agent functions share a name, or an agent function built
+                with `AgentFunction.from_api` has no entry to replace.
         """
         new_functions = list(
             self.functions.values() if functions is None else functions

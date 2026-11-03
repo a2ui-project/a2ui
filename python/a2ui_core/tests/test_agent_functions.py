@@ -21,14 +21,9 @@ import warnings
 
 import pytest
 
+from a2ui.core import AgentFunction, AgentFunctionContext, Catalog, CatalogApi
 from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV1_0
-from a2ui.core.catalog import (
-    AgentFunction,
-    AgentFunctionContext,
-    Catalog,
-    CatalogApi,
-    FunctionApi,
-)
+from a2ui.core.catalog import FunctionApi
 from a2ui.core.exceptions import A2uiCatalogError, A2uiValidationError
 from a2ui.core.validation import STRICT_VALIDATION, PayloadValidator
 
@@ -47,6 +42,29 @@ def _handler(args: dict[str, Any], context: AgentFunctionContext) -> Any:
     return 1.08
 
 
+CONTEXT = AgentFunctionContext(
+    catalog_id="c", surface_id="s", function_call_id="call-1"
+)
+
+# A function the catalog declares without implementing it, as a catalog
+# document declares a function that the agent provides.
+VERIFY_PROVIDER_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"provider": {"type": "string"}},
+    "required": ["provider"],
+    "additionalProperties": False,
+}
+
+
+def _verify_provider() -> FunctionApi:
+    return FunctionApi(
+        "verifyProvider",
+        return_type="boolean",
+        schema=VERIFY_PROVIDER_SCHEMA,
+        description="Checks a provider with the agent's records.",
+    )
+
+
 def _fetch_fx_rate(name: str = "fetchFxRate") -> AgentFunction:
     return AgentFunction(
         name,
@@ -62,6 +80,40 @@ def _basic_catalog() -> CatalogApi:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         document = BasicCatalogV1_0().catalog_schema
+    return Catalog.from_json(document, protocol_version="1.0")
+
+
+def _declaring_catalog() -> CatalogApi:
+    """A loaded catalog whose document declares `verifyProvider`."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        document = BasicCatalogV1_0().catalog_schema
+    any_function = document["$defs"]["anyFunction"]
+    document = {
+        **document,
+        "$defs": {
+            **document["$defs"],
+            "anyFunction": {
+                "oneOf": [
+                    *any_function["oneOf"],
+                    {"$ref": "#/functions/verifyProvider"},
+                ]
+            },
+        },
+        "functions": {
+            **document["functions"],
+            "verifyProvider": {
+                "type": "object",
+                "description": "Checks a provider with the agent's records.",
+                "returnType": "boolean",
+                "properties": {
+                    "@call": {"const": "verifyProvider"},
+                    "args": VERIFY_PROVIDER_SCHEMA,
+                },
+                "required": ["@call", "args"],
+            },
+        },
+    }
     return Catalog.from_json(document, protocol_version="1.0")
 
 
@@ -83,6 +135,55 @@ class TestAgentFunction:
     def test_rejects_a_handler_that_is_not_callable(self):
         with pytest.raises(TypeError, match="fetchFxRate"):
             AgentFunction("fetchFxRate", handler="not callable")  # type: ignore[arg-type]
+
+    def test_has_no_allowed_callers_parameter(self):
+        with pytest.raises(TypeError):
+            AgentFunction(  # type: ignore[call-arg]
+                "fetchFxRate", handler=_handler, allowed_callers="agentOnly"
+            )
+
+    def test_invoke_passes_the_context_to_a_two_parameter_handler(self):
+        received: list[Any] = []
+
+        def handler(args: dict[str, Any], context: AgentFunctionContext) -> Any:
+            received.append((args, context))
+            return "ok"
+
+        fn = AgentFunction("f", handler=handler)
+
+        assert fn.invoke({"a": 1}, CONTEXT) == "ok"
+        assert received == [({"a": 1}, CONTEXT)]
+
+    def test_invoke_passes_only_the_args_to_a_one_parameter_handler(self):
+        received: list[Any] = []
+
+        def handler(args: dict[str, Any]) -> Any:
+            received.append(args)
+            return "ok"
+
+        fn = AgentFunction("f", handler=handler)
+
+        assert fn.invoke({"a": 1}, CONTEXT) == "ok"
+        assert received == [{"a": 1}]
+
+    def test_invoke_passes_the_context_to_a_variadic_handler(self):
+        fn = AgentFunction("f", handler=lambda *call: call)
+
+        assert fn.invoke({"a": 1}, CONTEXT) == ({"a": 1}, CONTEXT)
+
+    def test_invoke_returns_a_coroutine_of_an_async_handler(self):
+        async def handler(args: dict[str, Any]) -> Any:
+            return args["a"]
+
+        fn = AgentFunction("f", handler=handler)
+        result = fn.invoke({"a": 1}, CONTEXT)
+
+        try:
+            with pytest.raises(StopIteration) as stopped:
+                result.send(None)
+            assert stopped.value.value == 1
+        finally:
+            result.close()
 
     def test_from_api_keeps_the_declaration(self):
         declaration = FunctionApi(
@@ -106,97 +207,93 @@ class TestAgentFunction:
         assert fn.is_definition == declaration.is_definition
         assert fn.from_document == declaration.from_document
 
+    def test_from_api_keeps_renderer_only(self):
+        fn = AgentFunction.from_api(_verify_provider(), _handler)
+
+        assert fn.allowed_callers == "rendererOnly"
+
+    def test_from_api_rejects_an_agent_only_declaration(self):
+        declaration = FunctionApi(
+            "verifyProvider",
+            schema=VERIFY_PROVIDER_SCHEMA,
+            allowed_callers="agentOnly",
+        )
+
+        with pytest.raises(A2uiCatalogError, match="agentOnly"):
+            AgentFunction.from_api(declaration, _handler)
+
     def test_from_api_rejects_an_agent_function(self):
         with pytest.raises(TypeError, match="already an agent function"):
             AgentFunction.from_api(_fetch_fx_rate(), _handler)
 
+    @pytest.mark.parametrize(
+        "api", [None, {"name": "verifyProvider"}, FunctionApi], ids=repr
+    )
+    def test_from_api_rejects_what_is_not_a_function_api(self, api: Any):
+        with pytest.raises(TypeError, match="Expected a FunctionApi"):
+            AgentFunction.from_api(api, _handler)
+
 
 class TestCatalogAgentFunctions:
 
-    def test_constructor_adds_agent_functions_to_functions(self):
-        fx = _fetch_fx_rate()
-
-        catalog = Catalog("c", "1.0", agent_functions=[fx])
-
-        assert catalog.functions == {"fetchFxRate": fx}
-        assert catalog.agent_functions == {"fetchFxRate": fx}
-
-    def test_agent_functions_lists_only_agent_functions(self):
-        local = FunctionApi("formatRate", schema=FX_RATE_SCHEMA)
-        fx = _fetch_fx_rate()
-
-        catalog = Catalog("c", "1.0", functions=[local], agent_functions=[fx])
-
-        assert _function_names(catalog) == ["formatRate", "fetchFxRate"]
-        assert catalog.agent_functions == {"fetchFxRate": fx}
+    def test_constructor_has_no_agent_functions_parameter(self):
+        with pytest.raises(TypeError):
+            Catalog(  # type: ignore[call-arg]
+                "c", "1.0", agent_functions=[_fetch_fx_rate()]
+            )
 
     def test_agent_function_passed_in_functions_is_an_agent_function(self):
         fx = _fetch_fx_rate()
 
         catalog = Catalog("c", "1.0", functions=[fx])
 
+        assert catalog.functions == {"fetchFxRate": fx}
         assert catalog.agent_functions == {"fetchFxRate": fx}
+        assert catalog.renderer_functions == {}
 
-    def test_rejects_an_agent_function_named_like_another_function(self):
-        local = FunctionApi("fetchFxRate", schema=FX_RATE_SCHEMA)
+    def test_lists_agent_and_renderer_functions_apart(self):
+        local = FunctionApi("formatRate", schema=FX_RATE_SCHEMA)
+        fx = _fetch_fx_rate()
 
-        with pytest.raises(A2uiCatalogError, match="already has a function named"):
-            Catalog("c", "1.0", functions=[local], agent_functions=[_fetch_fx_rate()])
+        catalog = Catalog("c", "1.0", functions=[local, fx])
 
-    def test_rejects_two_agent_functions_with_one_name(self):
-        with pytest.raises(A2uiCatalogError, match="already has a function named"):
-            Catalog("c", "1.0", agent_functions=[_fetch_fx_rate(), _fetch_fx_rate()])
+        assert _function_names(catalog) == ["formatRate", "fetchFxRate"]
+        assert catalog.agent_functions == {"fetchFxRate": fx}
+        assert catalog.renderer_functions == {"formatRate": local}
+
+    def test_renderer_functions_is_a_copy(self):
+        catalog = Catalog(
+            "c", "1.0", functions=[FunctionApi("formatRate", schema=FX_RATE_SCHEMA)]
+        )
+
+        catalog.renderer_functions.clear()
+
+        assert list(catalog.renderer_functions) == ["formatRate"]
+        assert list(catalog.functions) == ["formatRate"]
 
     def test_rejects_a_function_list_mixing_an_agent_function_and_its_name(self):
         local = FunctionApi("fetchFxRate", schema=FX_RATE_SCHEMA)
 
-        with pytest.raises(A2uiCatalogError, match="already has a function named"):
+        with pytest.raises(A2uiCatalogError, match="already declares a function"):
             Catalog("c", "1.0", functions=[_fetch_fx_rate(), local])
 
-    def test_rejects_an_entry_that_is_not_an_agent_function(self):
-        local = FunctionApi("fetchFxRate", schema=FX_RATE_SCHEMA)
-
-        with pytest.raises(A2uiCatalogError, match="not an `AgentFunction`"):
-            Catalog("c", "1.0", agent_functions=[local])  # type: ignore[list-item]
+    def test_rejects_two_agent_functions_with_one_name_in_functions(self):
+        with pytest.raises(A2uiCatalogError, match="more than one agent function"):
+            Catalog("c", "1.0", functions=[_fetch_fx_rate(), _fetch_fx_rate()])
 
     def test_rejects_agent_functions_before_v1_0(self):
         with pytest.raises(A2uiCatalogError, match="need v1.0 or later"):
-            Catalog("c", "0.9", agent_functions=[_fetch_fx_rate()])
+            Catalog("c", "0.9", functions=[_fetch_fx_rate()])
 
     def test_rejects_an_agent_function_with_an_invalid_identifier(self):
         with pytest.raises(A2uiCatalogError, match="Invalid UAX #31"):
-            Catalog("c", "1.0", agent_functions=[_fetch_fx_rate("fetch-fx-rate")])
-
-    def test_from_api_entry_replaces_the_declaration_in_place(self):
-        declaration = FunctionApi("fetchFxRate", schema=FX_RATE_SCHEMA)
-        local = FunctionApi("formatRate", schema=FX_RATE_SCHEMA)
-        fx = AgentFunction.from_api(declaration, _handler)
-
-        catalog = Catalog(
-            "c", "1.0", functions=[declaration, local], agent_functions=[fx]
-        )
-
-        assert _function_names(catalog) == ["fetchFxRate", "formatRate"]
-        assert catalog.functions["fetchFxRate"] is fx
-        assert catalog.agent_functions == {"fetchFxRate": fx}
-
-    def test_from_api_entry_of_another_entry_is_rejected(self):
-        declaration = FunctionApi("fetchFxRate", schema=FX_RATE_SCHEMA)
-        same_name = FunctionApi("fetchFxRate", schema=FX_RATE_SCHEMA)
-
-        with pytest.raises(A2uiCatalogError, match="already has a function named"):
-            Catalog(
-                "c",
-                "1.0",
-                functions=[same_name],
-                agent_functions=[AgentFunction.from_api(declaration, _handler)],
-            )
+            Catalog("c", "1.0", functions=[_fetch_fx_rate("fetch-fx-rate")])
 
 
 class TestCatalogDocument:
 
     def test_writes_an_agent_function_like_a_declared_function(self):
-        with_agent = Catalog("c", "1.0", agent_functions=[_fetch_fx_rate()])
+        with_agent = Catalog("c", "1.0", functions=[_fetch_fx_rate()])
         declared = Catalog(
             "c",
             "1.0",
@@ -213,15 +310,16 @@ class TestCatalogDocument:
         assert with_agent.to_json() == declared.to_json()
 
     def test_from_api_keeps_a_document_definition_as_written(self):
-        catalog = _basic_catalog()
-        declaration = catalog.functions["formatString"]
+        catalog = _declaring_catalog()
+        declaration = catalog.functions["verifyProvider"]
 
         replaced = catalog.copy_with(
             agent_functions=[AgentFunction.from_api(declaration, _handler)]
         )
 
         assert replaced.to_json() == catalog.to_json()
-        assert list(replaced.agent_functions) == ["formatString"]
+        assert list(replaced.agent_functions) == ["verifyProvider"]
+        assert "verifyProvider" not in replaced.renderer_functions
 
 
 class TestCopyWith:
@@ -253,9 +351,69 @@ class TestCopyWith:
         assert copy.agent_functions == {"quote": quote}
         assert "fetchFxRate" not in copy.functions
 
+    def test_from_api_entry_replaces_the_declaration_in_place(self):
+        catalog = _declaring_catalog()
+        declaration = catalog.functions["verifyProvider"]
+        fn = AgentFunction.from_api(declaration, _handler)
+
+        copy = catalog.copy_with(agent_functions=[fn])
+
+        assert _function_names(copy) == _function_names(catalog)
+        assert copy.functions["verifyProvider"] is fn
+        assert copy.agent_functions == {"verifyProvider": fn}
+
+    def test_rejects_a_from_api_entry_the_catalog_does_not_declare(self):
+        foreign = AgentFunction.from_api(_verify_provider(), _handler)
+
+        with pytest.raises(A2uiCatalogError, match="has no function named"):
+            _basic_catalog().copy_with(agent_functions=[foreign])
+
+    def test_rejects_a_from_api_entry_of_another_entry_with_its_name(self):
+        catalog = _declaring_catalog()
+        other = AgentFunction.from_api(_verify_provider(), _handler)
+
+        with pytest.raises(A2uiCatalogError, match="already declares a function"):
+            catalog.copy_with(agent_functions=[other])
+
+    def test_rejects_two_agent_functions_with_one_name(self):
+        with pytest.raises(A2uiCatalogError, match="more than one agent function"):
+            _basic_catalog().copy_with(
+                agent_functions=[_fetch_fx_rate(), _fetch_fx_rate()]
+            )
+
+    def test_rejects_two_from_api_entries_of_one_declaration(self):
+        catalog = _declaring_catalog()
+        declaration = catalog.functions["verifyProvider"]
+
+        with pytest.raises(A2uiCatalogError, match="more than one agent function"):
+            catalog.copy_with(
+                agent_functions=[
+                    AgentFunction.from_api(declaration, _handler),
+                    AgentFunction.from_api(declaration, _handler),
+                ]
+            )
+
+    def test_rejects_an_entry_that_is_not_an_agent_function(self):
+        local = FunctionApi("fetchFxRate", schema=FX_RATE_SCHEMA)
+
+        with pytest.raises(A2uiCatalogError, match="not an `AgentFunction`"):
+            _basic_catalog().copy_with(agent_functions=[local])  # type: ignore[list-item]
+
+    def test_rejects_agent_functions_before_v1_0(self):
+        catalog = Catalog("c", "0.9")
+
+        with pytest.raises(A2uiCatalogError, match="need v1.0 or later"):
+            catalog.copy_with(agent_functions=[_fetch_fx_rate()])
+
+    def test_rejects_an_agent_function_with_an_invalid_identifier(self):
+        with pytest.raises(A2uiCatalogError, match="Invalid UAX #31"):
+            _basic_catalog().copy_with(
+                agent_functions=[_fetch_fx_rate("fetch-fx-rate")]
+            )
+
     def test_empty_agent_functions_restore_declarations(self):
-        catalog = _basic_catalog()
-        declaration = catalog.functions["formatString"]
+        catalog = _declaring_catalog()
+        declaration = catalog.functions["verifyProvider"]
         with_agent = catalog.copy_with(
             agent_functions=[
                 AgentFunction.from_api(declaration, _handler),
@@ -266,13 +424,13 @@ class TestCopyWith:
         copy = with_agent.copy_with(agent_functions=[])
 
         assert copy.agent_functions == {}
-        assert copy.functions["formatString"] is declaration
+        assert copy.functions["verifyProvider"] is declaration
         assert _function_names(copy) == _function_names(catalog)
 
     def test_rejects_an_agent_function_named_like_a_loaded_function(self):
         catalog = _basic_catalog()
 
-        with pytest.raises(A2uiCatalogError, match="formatString"):
+        with pytest.raises(A2uiCatalogError, match="already declares a function"):
             catalog.copy_with(agent_functions=[_fetch_fx_rate("formatString")])
 
     def test_pruning_functions_drops_their_agent_entries(self):
