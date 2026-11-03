@@ -34,6 +34,7 @@ import {
   ParseError,
   RawResponsePart,
   ResponsePart,
+  agentCallableFunctions,
 } from '../../src/index.js';
 import {Catalog, CatalogApi} from '../../src/internal/web-core.js';
 import {createFileCatalogConfig} from './fixtures.js';
@@ -370,6 +371,13 @@ describeSuite(
       );
       const output = generator.generate();
 
+      if (testCase.expect_callable_functions !== undefined) {
+        const expectedCallable = testCase.expect_callable_functions as string[];
+        expect(agentCallableFunctions(loadedCatalogs)).toEqual(expectedCallable);
+        for (const fnName of expectedCallable) {
+          expect(output).toContain(fnName);
+        }
+      }
       if (testCase.expect_contains) {
         for (const fragment of testCase.expect_contains as string[]) {
           expect(output).toContain(fragment);

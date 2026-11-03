@@ -21,8 +21,9 @@
  * signatures and instruction blocks.
  */
 
-import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
+import {AgentToRendererMessage, CatalogApi, isAtLeastVersion} from '../../internal/web-core.js';
 import {PromptGenerator} from '../../prompt/generator.js';
+import {agentCallableFunctions} from '../../utils/agent-callable.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 import {buildSchemaHelpers, catalogsDefining, resolveExpressVersion} from './catalogs.js';
 import {ExpressDecompiler, RawNumber} from './decompiler.js';
@@ -354,10 +355,20 @@ export class ExpressPromptGenerator extends PromptGenerator {
     const allowedMessages = this.allowedMessages;
     let rules = EXPRESS_RULES;
     let wantsComponentsOrData = true;
+    const callableFns = isAtLeastVersion(this.version, '1.0')
+      ? agentCallableFunctions(this.catalogs)
+      : [];
+    const callRendererAllowed =
+      !allowedMessages ||
+      allowedMessages.includes('callRendererFunction') ||
+      allowedMessages.includes('CallRendererFunctionMessage');
 
     if (allowedMessages) {
       // Filter rule 12 if deleteSurface is disallowed
-      if (!allowedMessages.includes('deleteSurface')) {
+      if (
+        !allowedMessages.includes('deleteSurface') &&
+        !allowedMessages.includes('DeleteSurfaceMessage')
+      ) {
         rules = rules.replace(
           /\n\n12\. To delete a user interface surface, output the standalone `deleteSurface\(surfaceId\)` command \(no variable assignment\):\n {4}deleteSurface\("dashboard-surface-1"\)/,
           '',
@@ -365,7 +376,10 @@ export class ExpressPromptGenerator extends PromptGenerator {
       }
 
       // Filter rule 10 if updateDataModel is disallowed
-      if (!allowedMessages.includes('updateDataModel')) {
+      if (
+        !allowedMessages.includes('updateDataModel') &&
+        !allowedMessages.includes('UpdateDataModelMessage')
+      ) {
         rules = rules.replace(
           /\n\n10\. Data model population: Assign a value directly to an absolute data path \(e\.g\. \$\/path\/to\/key = "value"\) to populate or initialize values inside the shared dataModel\. The value can be a primitive, array, or map\./,
           '',
@@ -376,8 +390,13 @@ export class ExpressPromptGenerator extends PromptGenerator {
       // target a surface. Its `root = ...` line applies only to components, and the rule
       // goes when neither kind of statement is allowed.
       const writesComponents =
-        allowedMessages.includes('createSurface') || allowedMessages.includes('updateComponents');
-      const writesData = allowedMessages.includes('updateDataModel');
+        allowedMessages.includes('createSurface') ||
+        allowedMessages.includes('CreateSurfaceMessage') ||
+        allowedMessages.includes('updateComponents') ||
+        allowedMessages.includes('UpdateComponentsMessage');
+      const writesData =
+        allowedMessages.includes('updateDataModel') ||
+        allowedMessages.includes('UpdateDataModelMessage');
       wantsComponentsOrData = writesComponents || writesData;
       if (!writesComponents) {
         rules = rules.replace(/\n {4}root = ComponentA\(\.\.\.\)$/, '');
@@ -388,6 +407,20 @@ export class ExpressPromptGenerator extends PromptGenerator {
           );
         }
       }
+    }
+
+    if (callRendererAllowed && callableFns.length > 0) {
+      const formatted = callableFns.map(name => `\`${name}\``).join(', ');
+      const callRule =
+        'To have the renderer run a function right away, output the call as a standalone command (no variable assignment):\n' +
+        `    ${callableFns[0]}(...)\n` +
+        `    Only these functions can be called this way: ${formatted}.`;
+      rules = rules.replace(
+        /\n\n13\. Static properties:/,
+        `\n\n13. ${callRule}\n\n14. Static properties:`,
+      );
+      let ruleIndex = 0;
+      rules = rules.replace(/(?<=\n\n)\d+(?=\. )/g, () => String(++ruleIndex));
     }
 
     const rootComponent = exampleRootComponent(this.catalogs);

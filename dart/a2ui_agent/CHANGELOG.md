@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Export `agentCallableFunctions` from `package:a2ui_agent/a2ui_agent.dart` to return the names of functions across active catalogs that the agent may invoke via `callRendererFunction`.
 - Add incremental streaming support for the Express inference format via
   `ExpressResponseStream` (`ExpressFormat.supportsStreaming` and
   `ExpressParser.supportsStreaming` now return `true`). `ExpressFormatFactory`,

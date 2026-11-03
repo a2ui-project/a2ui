@@ -52,6 +52,7 @@ const Map<String, Set<String>> _knownKeys = {
     ...caseMetadataKeys,
     'args',
     'expect_absent',
+    'expect_callable_functions',
     'expect_contains',
     'expect_deterministic',
     'expect_error',
@@ -480,6 +481,13 @@ void _checkSnippet(
   String snippet,
 ) {
   expectSnippet(snippet, testCase);
+  if (testCase['expect_callable_functions'] case final List<Object?> expected) {
+    final args = testCase['args']! as Map<String, Object?>;
+    expect(agentCallableFunctions(version.catalogs(args)), expected);
+    for (final Object? name in expected) {
+      expect(snippet, contains(name));
+    }
+  }
   if (testCase['expect_deterministic'] == true) {
     expect(_perform(testCase, version), snippet);
   }

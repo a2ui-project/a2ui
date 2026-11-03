@@ -26,6 +26,7 @@ import re
 from typing import Any, Literal
 
 from a2ui.core import CatalogApi
+from a2ui.core.common import is_at_least_version
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
@@ -35,6 +36,7 @@ from a2ui.inference_formats._shared import (
     surface_catalog_id,
 )
 from a2ui.prompt import PromptGenerator
+from a2ui.utils.agent_callable import agent_callable_functions
 
 # Envelope keys of the messages a JSON example may hold to be decompiled.
 _EXAMPLE_MESSAGE_KEYS = (
@@ -238,22 +240,50 @@ def _get_schema_enum(prop_schema: Any) -> list[str] | None:
     return None
 
 
-def _filter_express_rules(allowed_messages: Sequence[str]) -> str:
-    """Filters EXPRESS_RULES to only the rules for the allowed message types."""
-    allowed = set(allowed_messages)
-    creates = "createSurface" in allowed or "CreateSurfaceMessage" in allowed
-    components = (
-        creates or "updateComponents" in allowed or "UpdateComponentsMessage" in allowed
+def _renderer_call_rule(callable_fns: Sequence[str]) -> str:
+    """Formats the Express grammar rule for standalone renderer function calls."""
+    formatted = ", ".join(f"`{name}`" for name in callable_fns)
+    return (
+        "To have the renderer run a function right away, output the call as a"
+        " standalone command (no variable assignment):\n"
+        f"{callable_fns[0]}(...)\n"
+        f"Only these functions can be called this way: {formatted}."
     )
-    data = "updateDataModel" in allowed or "UpdateDataModelMessage" in allowed
-    delete = "deleteSurface" in allowed or "DeleteSurfaceMessage" in allowed
+
+
+def _strip_rule_prefix(rule: str) -> str:
+    match = re.match(r"^(\d+\. )", rule)
+    if not match:
+        return rule
+    prefix_len = len(match.group(1))
+    return re.sub(rf"\n {{{prefix_len}}}", "\n", rule[prefix_len:])
+
+
+def _filter_express_rules(
+    allowed_messages: Sequence[str] | None,
+    callable_fns: Sequence[str] = (),
+) -> str:
+    """Filters EXPRESS_RULES to only the rules for the allowed message types."""
+    if allowed_messages is None:
+        creates = components = data = delete = call_renderer = True
+    else:
+        allowed = set(allowed_messages)
+        creates = "createSurface" in allowed or "CreateSurfaceMessage" in allowed
+        components = (
+            creates
+            or "updateComponents" in allowed
+            or "UpdateComponentsMessage" in allowed
+        )
+        data = "updateDataModel" in allowed or "UpdateDataModelMessage" in allowed
+        delete = "deleteSurface" in allowed or "DeleteSurfaceMessage" in allowed
+        call_renderer = (
+            "callRendererFunction" in allowed
+            or "CallRendererFunctionMessage" in allowed
+        )
 
     contract, _, rules_block = EXPRESS_RULES.partition("## Grammar Rules\n\n")
     raw_rules = re.split(r"\n\n(?=\d+\. )", rules_block.strip())
-    rule_bodies = [
-        re.sub(r"^\d+\. ", "", r).replace("\n   ", "\n").replace("\n    ", "\n ")
-        for r in raw_rules
-    ]
+    rule_bodies = [_strip_rule_prefix(r) for r in raw_rules]
     # rule_bodies indices (0-based, matching rules 1..15):
     # 0: components, 1: root, 2..5: values, 6..8: calls, 9: dataModel,
     # 10: template, 11: deleteSurface, 12..13: arguments, 14: surface
@@ -271,6 +301,8 @@ def _filter_express_rules(allowed_messages: Sequence[str]) -> str:
         selected.append(rule_bodies[10])
     if delete:
         selected.append(rule_bodies[11])
+    if call_renderer and callable_fns:
+        selected.append(_renderer_call_rule(callable_fns))
     if components:
         selected.extend(rule_bodies[12:14])
     if components or data:
@@ -333,10 +365,15 @@ class ExpressPromptGenerator(PromptGenerator):
         effective_allowed = (
             allowed_messages if allowed_messages is not None else self._allowed_messages
         )
+        callable_fns = (
+            agent_callable_functions(self.catalogs)
+            if is_at_least_version(self._version, "1.0")
+            else []
+        )
         base = (
             EXPRESS_RULES
-            if effective_allowed is None
-            else _filter_express_rules(effective_allowed)
+            if effective_allowed is None and not callable_fns
+            else _filter_express_rules(effective_allowed, callable_fns)
         )
         root_component = _example_root_component(self.catalogs)
         if root_component is not None:

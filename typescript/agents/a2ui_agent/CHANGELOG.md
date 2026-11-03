@@ -1,5 +1,6 @@
 ## Unreleased
 
+- `ExpressPromptGenerator.generateBaseRules()` now includes the standalone renderer function call rule in v1.0 when `callRendererFunction` is allowed and the active catalogs define at least one agent-callable function, listing only `agentCallableFunctions(catalogs)`.
 - **BREAKING CHANGE**: `RendererState`, `validatePayload`, and response parsers (`DirectJsonParser`, `ExpressParser`, and their streaming counterparts) now reject `callRendererFunction` messages that target a `rendererOnly` function or a function with `requiresUserActivation: true` with `A2uiValidationError`. Exported `agentCallableFunctions` and `checkAgentCallable`.
 
 ## 0.1.0

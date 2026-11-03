@@ -34,7 +34,8 @@ A2uiProtocolVersion catalogsProtocolVersion(List<CatalogApi> catalogs) {
   final List<A2uiProtocolVersion> versions = {
     for (final CatalogApi catalog in catalogs)
       catalog.protocolVersion ?? A2uiProtocolVersion.v0_9,
-  }.toList()..sort();
+  }.toList()
+    ..sort();
   final A2uiProtocolVersion earliest = versions.first;
   if (!versions.every(
     (v) => isCatalogVersionCompatible(v.jsonValue, earliest.jsonValue),
@@ -64,4 +65,19 @@ void checkDistinctIds(List<CatalogApi> catalogs) {
       );
     }
   }
+}
+
+/// The functions of [catalogs] the agent may ask the renderer to run with
+/// `callRendererFunction`: those whose `allowedCallers` admits the agent, and
+/// which need no user activation, which a call from the agent never has.
+List<String> agentCallableFunctions(List<CatalogApi> catalogs) {
+  final seen = <String>{};
+  return [
+    for (final CatalogApi catalog in catalogs)
+      for (final FunctionApi function in catalog.functions.values)
+        if (function.allowedCallers != AllowedCallers.rendererOnly &&
+            !function.requiresUserActivation &&
+            seen.add(function.name))
+          function.name,
+  ];
 }

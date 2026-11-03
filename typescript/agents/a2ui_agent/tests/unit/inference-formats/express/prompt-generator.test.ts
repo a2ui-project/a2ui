@@ -661,5 +661,21 @@ describe('ExpressPromptGenerator', () => {
       expect(snippet).toContain('root = Label("FromKeyedExample")');
       expect(snippet).toContain('root = Chart([4, 5])');
     });
+
+    it('emits the standalone call rule listing only agent-callable functions in v1.0', () => {
+      const cat = loadConformanceCatalog('allowed_callers_catalog_v1_0.json');
+      const rules = new ExpressPromptGenerator([cat]).generateBaseRules();
+      expect(rules).toContain(
+        'Only these functions can be called this way: `notifyAgent`, `showToast`.',
+      );
+      expect(rules).not.toContain('`formatValue`');
+      expect(rules).not.toContain('`launch`');
+
+      const withoutCall = new ExpressPromptGenerator([cat], undefined, [
+        'createSurface',
+        'updateComponents',
+      ]).generateBaseRules();
+      expect(withoutCall).not.toContain('Only these functions can be called this way');
+    });
   });
 });

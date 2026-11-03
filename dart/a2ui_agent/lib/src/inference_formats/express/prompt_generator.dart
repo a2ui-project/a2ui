@@ -72,14 +72,14 @@ class ExpressPromptGenerator extends PromptGenerator {
     final buffer = StringBuffer(
       _rules(
         resolveAllowedMessages(allowedMessages, version),
-        callable: v1 ? _agentCallable(catalogs) : const [],
+        callable: v1 ? agentCallableFunctions(catalogs) : const [],
       ),
     );
     String section(CatalogApi catalog, String heading) => _catalogSection(
-      CatalogSchemaHelper(catalog),
-      heading,
-      instructions: v1 ? _instructions(catalog, decompiler, version) : null,
-    );
+          CatalogSchemaHelper(catalog),
+          heading,
+          instructions: v1 ? _instructions(catalog, decompiler, version) : null,
+        );
     if (catalogs.length == 1) {
       buffer
         ..write('\n\n')
@@ -107,8 +107,7 @@ class ExpressPromptGenerator extends PromptGenerator {
 
 /// Before v1.0 a surface uses one catalog, which its `surface(...)` line
 /// names unless it is the first.
-String _catalogsV0_9(List<CatalogApi> catalogs) =>
-    '\n\n## Catalogs\n\n'
+String _catalogsV0_9(List<CatalogApi> catalogs) => '\n\n## Catalogs\n\n'
     'Components and functions come from the catalogs below. A surface '
     'uses one catalog. The first catalog, `${catalogs.first.id}`, is the '
     'default. To build a surface from another catalog, name it in the '
@@ -162,17 +161,6 @@ String _catalogsV1(List<CatalogApi> catalogs) {
   }
   return buffer.toString();
 }
-
-/// The functions of [catalogs] the agent may ask the renderer to run with
-/// `callRendererFunction`: those whose `allowedCallers` admits the agent, and
-/// which need no user activation, which a call from the agent never has.
-List<String> _agentCallable(List<CatalogApi> catalogs) => [
-  for (final CatalogApi catalog in catalogs)
-    for (final FunctionApi function in catalog.functions.values)
-      if (function.allowedCallers != AllowedCallers.rendererOnly &&
-          !function.requiresUserActivation)
-        function.name,
-];
 
 /// The `instructions` of [catalog], with each JSON example of messages in
 /// them written as the Express block it decompiles to, or null if it has
@@ -261,10 +249,10 @@ String _componentSignatures(CatalogSchemaHelper helper) {
       final annotation = isComponentId(schema)
           ? ' (component ID)'
           : isAction(schema)
-          ? ' (action)'
-          : allowsBinding(schema)
-          ? ''
-          : ' (static)';
+              ? ' (action)'
+              : allowsBinding(schema)
+                  ? ''
+                  : ' (static)';
       arguments.add('$property$optional$annotation');
       if (_propertyDetail(property, schema) case final String detail) {
         details.add(detail);
@@ -299,8 +287,8 @@ String? _propertyDetail(String property, Map<String, Object?>? schema) {
   final String? keys = switch (schema) {
     {'type': 'object', 'properties': final Map<Object?, Object?> properties} =>
       'Map with keys:\n${_keys(properties)}',
-    {'type': 'array', 'items': final Map<Object?, Object?> items} =>
-      switch (items) {
+    {'type': 'array', 'items': final Map<Object?, Object?> items} => switch (
+          items) {
         {
           'type': 'object',
           'properties': final Map<Object?, Object?> properties,
@@ -317,13 +305,13 @@ String? _propertyDetail(String property, Map<String, Object?>? schema) {
 }
 
 String _keys(Map<Object?, Object?> properties) => [
-  for (final MapEntry<Object?, Object?> entry in properties.entries)
-    switch (entry.value) {
-      {'description': final String description} =>
-        '    * ${entry.key} - $description',
-      _ => '    * ${entry.key}',
-    },
-].join('\n');
+      for (final MapEntry<Object?, Object?> entry in properties.entries)
+        switch (entry.value) {
+          {'description': final String description} =>
+            '    * ${entry.key} - $description',
+          _ => '    * ${entry.key}',
+        },
+    ].join('\n');
 
 String _functionSignatures(CatalogSchemaHelper helper) {
   final signatures = <String>[];

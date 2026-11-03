@@ -254,6 +254,26 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   expect_contains: ["surface(", "deleteSurface(", "$/"]
 
+- name: test_express_snippet_names_only_agent_callable_functions_for_standalone_calls
+  description: Only functions whose allowedCallers admits the agent and which require no user activation are agent-callable for standalone calls.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+  expect_callable_functions: ["notifyAgent", "showToast"]
+  expect_contains: ["notifyAgent", "showToast"]
+
+- name: test_express_snippet_has_no_standalone_call_rule_without_callable_functions
+  description: When no active catalog function is agent-callable, the standalone renderer call rule is omitted from the Express prompt.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_callable_functions: []
+  expect_absent: ["Only these functions can be called this way"]
+
 # --- Determinism ---
 
 - name: test_express_snippet_is_deterministic
