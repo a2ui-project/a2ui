@@ -2730,6 +2730,19 @@ class Catalog(Generic[TComponent, TFunction]):
                             f" function '{name}'"
                         )
 
+            allowed_callers = spec.get("allowedCallers")
+            requires_user_activation = spec.get("requiresUserActivation")
+            if (
+                requires_user_activation is True
+                and allowed_callers is not None
+                and allowed_callers != "rendererOnly"
+            ):
+                raise A2uiCatalogError(
+                    f"Function '{name}' declares requiresUserActivation=true with"
+                    f" allowedCallers='{allowed_callers}'; requiresUserActivation=true"
+                    " requires allowedCallers='rendererOnly'."
+                )
+
             if not permitted_func_names or name in permitted_func_names:
                 fn_description = spec.get("description")
                 functions.append(
@@ -2737,8 +2750,8 @@ class Catalog(Generic[TComponent, TFunction]):
                         name=name,
                         return_type=_declared_return_type(spec),
                         schema=spec,
-                        allowed_callers=spec.get("allowedCallers"),
-                        requires_user_activation=spec.get("requiresUserActivation"),
+                        allowed_callers=allowed_callers,
+                        requires_user_activation=requires_user_activation,
                         description=(
                             fn_description if isinstance(fn_description, str) else None
                         ),

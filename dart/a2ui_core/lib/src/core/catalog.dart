@@ -987,6 +987,22 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         }
         final definition =
             _frozenCopy(_asSchemaMap(entry))! as Map<String, Object?>;
+        final AllowedCallers? allowedCallers = _parseAllowedCallers(
+          definition['allowedCallers'],
+          rawName,
+          catalogId,
+        );
+        final bool? requiresUserActivation = _parseRequiresUserActivation(
+          definition['requiresUserActivation'],
+          rawName,
+          catalogId,
+        );
+        _checkUserActivationCallers(
+          allowedCallers,
+          requiresUserActivation,
+          rawName,
+          catalogId,
+        );
         functions.add(
           FunctionApi(
             name: rawName,
@@ -995,16 +1011,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             returnType: A2uiReturnType.fromJson(
               definition['returnType'] as String? ?? 'any',
             ),
-            allowedCallers: _parseAllowedCallers(
-              definition['allowedCallers'],
-              rawName,
-              catalogId,
-            ),
-            requiresUserActivation: _parseRequiresUserActivation(
-              definition['requiresUserActivation'],
-              rawName,
-              catalogId,
-            ),
+            allowedCallers: allowedCallers,
+            requiresUserActivation: requiresUserActivation,
             definition: definition,
           ),
         );
@@ -1053,27 +1061,54 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                   ? schema['returnType'] as String
                   : null) ??
               'any';
+      final AllowedCallers? allowedCallers = _parseAllowedCallers(
+        schema['allowedCallers'],
+        fnName,
+        catalogId,
+      );
+      final bool? requiresUserActivation = _parseRequiresUserActivation(
+        schema['requiresUserActivation'],
+        fnName,
+        catalogId,
+      );
+      _checkUserActivationCallers(
+        allowedCallers,
+        requiresUserActivation,
+        fnName,
+        catalogId,
+      );
       functions.add(
         FunctionApi(
           name: fnName,
           description: rawFnDesc as String?,
           argumentSchema: _argumentSchema(args),
           returnType: A2uiReturnType.fromJson(returnTypeStr),
-          allowedCallers: _parseAllowedCallers(
-            schema['allowedCallers'],
-            fnName,
-            catalogId,
-          ),
-          requiresUserActivation: _parseRequiresUserActivation(
-            schema['requiresUserActivation'],
-            fnName,
-            catalogId,
-          ),
+          allowedCallers: allowedCallers,
+          requiresUserActivation: requiresUserActivation,
           definition: schema,
         ),
       );
     }
     return functions;
+  }
+
+  static void _checkUserActivationCallers(
+    AllowedCallers? allowedCallers,
+    bool? requiresUserActivation,
+    String functionName,
+    String catalogId,
+  ) {
+    if (requiresUserActivation == true &&
+        allowedCallers != null &&
+        allowedCallers != AllowedCallers.rendererOnly) {
+      throw A2uiCatalogError(
+        "Catalog function '$functionName' declares "
+        'requiresUserActivation: true with allowedCallers '
+        "'${allowedCallers.jsonValue}'; requiresUserActivation requires "
+        "allowedCallers 'rendererOnly'.",
+        catalogId: catalogId,
+      );
+    }
   }
 
   /// The argument schema [raw], a part of a frozen definition, or an empty

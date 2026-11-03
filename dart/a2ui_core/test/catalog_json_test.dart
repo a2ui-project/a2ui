@@ -584,20 +584,30 @@ void main() {
             'type': 'object',
             'returnType': 'void',
             'allowedCallers': 'agentOnly',
-            'requiresUserActivation': true,
             'properties': {
               '@call': {'const': 'guarded'},
+            },
+          },
+          'activated': {
+            'type': 'object',
+            'returnType': 'void',
+            'requiresUserActivation': true,
+            'properties': {
+              '@call': {'const': 'activated'},
             },
           },
         },
       }).validationSchema['functions']! as Map<String, Object?>;
       final plain = functions['plain']! as Map;
       final guarded = functions['guarded']! as Map;
+      final activated = functions['activated']! as Map;
 
       expect(plain.containsKey('allowedCallers'), isFalse);
       expect(plain.containsKey('requiresUserActivation'), isFalse);
       expect(guarded['allowedCallers'], 'agentOnly');
-      expect(guarded['requiresUserActivation'], isTrue);
+      expect(guarded.containsKey('requiresUserActivation'), isFalse);
+      expect(activated.containsKey('allowedCallers'), isFalse);
+      expect(activated['requiresUserActivation'], isTrue);
     });
 
     test('closes the entry and restates returnType before protocol 1.0', () {

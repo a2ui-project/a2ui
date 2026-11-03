@@ -9,6 +9,11 @@
 - (v1_0) The basic catalog `regex` function's `pattern` description now names
   the A2UI regex dialect and its safety limits
   ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
+- (v1_0) `Catalog.from_json()` now rejects function definitions that set
+  `requiresUserActivation: true` when `allowedCallers` is not `'rendererOnly'`
+  (such as `'agentOnly'` or `'rendererOrAgent'`) by raising `A2uiCatalogError`,
+  matching the v1.0 catalog definition schema
+  ([#3840](https://github.com/a2ui-project/a2ui/pull/3840)).
 - **BREAKING CHANGE**: `DataContext` refuses a function whose `allowed_callers`
   is `agentOnly`, before running it, so a binding, check or function call
   action that calls one reports an `EXPRESSION_ERROR` instead of running it, as

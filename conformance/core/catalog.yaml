@@ -138,6 +138,54 @@
         allowedCallers: agentOnly
         requiresUserActivation: false
 
+- name: test_v10_catalog_from_json_user_activation_agent_only_error
+  description: Tests that a v1.0 catalog function with requiresUserActivation set to true and allowedCallers set to agentOnly raises CatalogError.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_agent_only"
+    functions:
+      openUrl:
+        returnType: void
+        allowedCallers: agentOnly
+        requiresUserActivation: true
+  expectError:
+    category: "CatalogError"
+    message: "requiresUserActivation"
+
+- name: test_v10_catalog_from_json_user_activation_renderer_or_agent_error
+  description: Tests that a v1.0 catalog function with requiresUserActivation set to true and allowedCallers set to rendererOrAgent raises CatalogError.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_renderer_or_agent"
+    functions:
+      openUrl:
+        returnType: void
+        allowedCallers: rendererOrAgent
+        requiresUserActivation: true
+  expectError:
+    category: "CatalogError"
+    message: "requiresUserActivation"
+
+- name: test_v10_catalog_from_json_user_activation_renderer_only
+  description: Tests that a v1.0 catalog function with requiresUserActivation set to true is accepted when allowedCallers is rendererOnly or omitted.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_renderer_only"
+    functions:
+      openUrl:
+        returnType: void
+        allowedCallers: rendererOnly
+        requiresUserActivation: true
+      copyToClipboard:
+        returnType: void
+        requiresUserActivation: true
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_renderer_only"
+    functions: [openUrl, copyToClipboard]
+
 - name: test_v10_catalog_from_json_uax31_validation
   description: Tests parsing valid UAX#31 component and function identifiers in a v1.0 catalog.
   action: from_json

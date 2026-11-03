@@ -1019,25 +1019,37 @@ function parseFunctionDefinitions(
     }
   };
 
+  const assertUserActivationCallers = (entry: FunctionApi): void => {
+    if (
+      entry.requiresUserActivation === true &&
+      entry.allowedCallers !== undefined &&
+      entry.allowedCallers !== 'rendererOnly'
+    ) {
+      throw new A2uiCatalogError(
+        `Function '${entry.name}' declares requiresUserActivation=true with allowedCallers='${entry.allowedCallers}'; requiresUserActivation=true requires allowedCallers='rendererOnly'.`,
+      );
+    }
+  };
+
   if (Array.isArray(rawFunctions)) {
     for (const fn of rawFunctions) {
       if (fn && typeof fn === 'object' && typeof fn.name === 'string') {
         const paramNames = functionParameterNames(fn.parameters, rootDoc);
         assertFunctionIdentifiers(fn.name, paramNames);
+        const entry = new JsonFunctionApi(fn.name, fn as Record<string, unknown>, definition =>
+          definition['parameters'] && typeof definition['parameters'] === 'object'
+            ? convertFunctionArgsJsonSchemaToZod(
+                definition['parameters'] as Record<string, unknown>,
+                rootDoc,
+                defCache,
+              )
+            : z.record(z.unknown()),
+        );
+        assertUserActivationCallers(entry);
         if (permittedNames && !permittedNames.has(fn.name)) {
           continue;
         }
-        result.push(
-          new JsonFunctionApi(fn.name, fn as Record<string, unknown>, definition =>
-            definition['parameters'] && typeof definition['parameters'] === 'object'
-              ? convertFunctionArgsJsonSchemaToZod(
-                  definition['parameters'] as Record<string, unknown>,
-                  rootDoc,
-                  defCache,
-                )
-              : z.record(z.unknown()),
-          ),
-        );
+        result.push(entry);
       }
     }
     return result;
@@ -1049,18 +1061,18 @@ function parseFunctionDefinitions(
       const argsSchema = functionArgsSchema(rawDefn);
       const paramNames = functionParameterNames(argsSchema, rootDoc);
       assertFunctionIdentifiers(name, paramNames);
+      if (!defn || typeof defn !== 'object') continue;
+      const entry = new JsonFunctionApi(name, defn as Record<string, unknown>, definition => {
+        const argsSchema = functionArgsSchema(definition);
+        return argsSchema
+          ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc, defCache)
+          : z.record(z.unknown());
+      });
+      assertUserActivationCallers(entry);
       if (permittedNames && !permittedNames.has(name)) {
         continue;
       }
-      if (!defn || typeof defn !== 'object') continue;
-      result.push(
-        new JsonFunctionApi(name, defn as Record<string, unknown>, definition => {
-          const argsSchema = functionArgsSchema(definition);
-          return argsSchema
-            ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc, defCache)
-            : z.record(z.unknown());
-        }),
-      );
+      result.push(entry);
     }
   }
 

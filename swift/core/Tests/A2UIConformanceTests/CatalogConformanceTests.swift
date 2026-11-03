@@ -323,12 +323,14 @@ struct CatalogConformanceTests {
       allowedNames: allowedFuncNames,
       context: context
     )
-    return Catalog(
+    let catalog = Catalog(
       id: catalogID,
       protocolVersion: protocolVersion,
       components: components,
       functions: functions
     )
+    try catalog.validateFunctionCallerConstraints()
+    return catalog
   }
 
   private func loadCommonTypes(
