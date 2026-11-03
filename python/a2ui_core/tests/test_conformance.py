@@ -40,7 +40,7 @@ except ImportError:
     run_node_resolution_case = _nr_mod.run_node_resolution_case
 from a2ui.core.catalog import Catalog, CatalogApi
 from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
-from a2ui.core.common import to_canonical_version
+from a2ui.core.common import remove_a2ui_thinking, to_canonical_version
 from a2ui.core.schema import ProtocolVersion
 from a2ui.core.schema.v0_9 import ClientToServerMessage
 from a2ui.core.schema.v1_0 import RendererToAgentMessage
@@ -869,6 +869,8 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_evaluate_function_case(case)
     elif action == "dispatch_action":
         validate_dispatch_action_case(case)
+    elif action == "remove_a2ui_thinking":
+        assert remove_a2ui_thinking(case["input"]) == case["expect"]
     else:
         pytest.fail(
             f"Action '{action}' has no handler in the core Python harness."

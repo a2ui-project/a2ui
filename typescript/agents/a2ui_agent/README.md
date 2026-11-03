@@ -37,10 +37,10 @@ for (const part of processor.parseResponse(llmResponse)) {
 
 `parseResponse` throws an `A2uiError` when a block cannot be read or a renderer would reject a message. The error's `partialResults` holds the parts before the failing block, or only the text when the tree check across every block fails. None of them is applied to the state.
 
-If your app shows the model's thinking to the user while the answer is on its way, pass each thought through `removeA2uiThinking` before showing it. It removes every sentence with inline code, a data path such as `$/form/name`, or a protocol term such as A2UI, JSON or data model, so the user reads about their request. The terms also match a sentence about the user's own code or JSON, so an agent whose users ask about code should show the thinking unfiltered.
+If your app shows the model's thinking to the user while the answer is on its way, pass each thought through `removeA2uiThinking` from `@a2ui/web_core` before showing it. It removes every sentence with inline code, a data path such as `$/form/name`, or a protocol term such as A2UI, JSON or data model, so the user reads about their request. The terms also match a sentence about the user's own code or JSON, so an agent whose users ask about code should show the thinking unfiltered.
 
 ```ts
-import {removeA2uiThinking} from '@a2ui/agent';
+import {removeA2uiThinking} from '@a2ui/web_core';
 
 const shown = removeA2uiThinking(thought);
 ```

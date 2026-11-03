@@ -284,8 +284,9 @@ def test_event_converter_does_not_stream_a_format_that_cannot():
         mock_base_converter.return_value = []
         converter(_event(partial=True), invocation_context)
         effective = mock_base_converter.call_args[0][4]
+        parts = effective(genai_types.Part(text="Hello."))
 
-    assert isinstance(effective.__self__, A2uiPartConverter)
+    assert [p.root.text for p in parts] == ["Hello."]
     assert converter._streams == {}
 
 
@@ -552,3 +553,54 @@ def test_event_converter_logs_a_failed_chunk_without_its_text(caplog):
 
     assert re.search(r"Failed to stream A2UI chunk: \w+$", caplog.text, re.M)
     assert secret not in caplog.text
+
+
+def test_event_converter_filters_a_streamed_thought_by_whole_sentences():
+    processor = A2uiRequestProcessor(
+        [BasicCatalog("0.9")], format_factory=DirectJsonFormatFactory()
+    )
+    converter = A2uiEventConverter(a2ui_processor=processor)
+    invocation_context = _context()
+
+    def thought(text: str, partial: bool) -> list[str]:
+        convert_part = _convert(converter, invocation_context, _event(partial=partial))
+        parts = convert_part(genai_types.Part(text=text, thought=True))
+        return [p.root.text for p in parts]
+
+    assert thought("The Bosch fits. I'll put it in a ", partial=True) == [
+        "The Bosch fits. "
+    ]
+    assert thought("`Card`. It is", partial=True) == []
+    assert thought(" quiet.\n", partial=True) == ["It is quiet.\n"]
+    assert converter._thoughts == {}
+    assert thought("The Bosch fits. I'll put it in a `Card`.", partial=False) == [
+        "The Bosch fits."
+    ]
+
+
+def test_event_converter_drops_a_waiting_sentence_on_the_final_event():
+    processor = A2uiRequestProcessor(
+        [BasicCatalog("0.9")], format_factory=DirectJsonFormatFactory()
+    )
+    converter = A2uiEventConverter(a2ui_processor=processor)
+    invocation_context = _context()
+
+    _convert(converter, invocation_context, _event(partial=True))(
+        genai_types.Part(text="The Bosch", thought=True)
+    )
+    assert converter._thoughts
+    _convert(converter, invocation_context, _event(partial=False))
+
+    assert converter._thoughts == {}
+
+
+def test_event_converter_streams_thoughts_unfiltered_when_asked():
+    processor = A2uiRequestProcessor(
+        [BasicCatalog("0.9")], format_factory=DirectJsonFormatFactory()
+    )
+    converter = A2uiEventConverter(a2ui_processor=processor, filter_thinking=False)
+
+    convert_part = _convert(converter, event=_event(partial=True))
+    parts = convert_part(genai_types.Part(text="I'll fix the JSON", thought=True))
+
+    assert [p.root.text for p in parts] == ["I'll fix the JSON"]

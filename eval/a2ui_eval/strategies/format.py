@@ -244,7 +244,10 @@ def compile_format_payload(
     measured = measured_generate()
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        if not state.output or not state.output.completion:
+        if not state.output or state.output.empty:
+            return state
+        state.metadata[THINKING_KEY] = visible_thinking(state.output.message)
+        if not state.output.completion:
             return state
 
         resolved_catalog_path = str(GIT_ROOT / state.metadata["catalog"])
@@ -256,7 +259,6 @@ def compile_format_payload(
             allowed_surface_ids=state.metadata.get("allowed_surface_ids", ["main"]),
         )
 
-        state.metadata[THINKING_KEY] = visible_thinking(state.output.message)
         completion = state.output.completion.strip()
         result = await _attempt_compile(ctx, completion)
         state.metadata["pass_at_1"] = result.ok

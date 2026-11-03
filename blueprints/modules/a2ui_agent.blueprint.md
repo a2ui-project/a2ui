@@ -65,8 +65,7 @@ a2ui_agent/
 │   ├── catalog_config         # CatalogConfig structure for catalog registration
 │   ├── processor              # A2uiRequestProcessor facade implementation
 │   ├── generator              # A2uiGenerator class
-│   ├── catalog_providers      # Catalog provider classes
-│   └── thinking               # remove_a2ui_thinking
+│   └── catalog_providers      # Catalog provider classes
 ├── inference_format           # Abstract InferenceFormat & InferenceFormatFactory facades
 ├── inference_formats/         # Concrete inference format strategy implementations
 │   ├── direct_json/           # Self-contained Direct JSON format package
@@ -749,25 +748,6 @@ class A2uiRequestProcessor:
         pass
 ```
 
-#### `remove_a2ui_thinking`
-
-An app can show the model's thinking to the user while the answer is on its way. Much of that thinking is about the format: its code, its data model and the checks the model runs on what it wrote. `remove_a2ui_thinking` removes those sentences from one thought before the app shows it, so the user reads about their request ([#3576](https://github.com/a2ui-project/a2ui/issues/3576)).
-
-```python
-def remove_a2ui_thinking(thinking: str) -> str:
-    """Removes the sentences of the model's thinking that are about A2UI."""
-    pass
-```
-
-Every SDK removes the same text:
-
-1. A sentence ends at `.`, `!` or `?` followed by whitespace, and never spans a line.
-2. A sentence is removed when it has inline code (a backtick), a data path (`$/`), or one of these terms, in any letter case: `a2ui`, `json`, `schema`, `catalog`, `dsl`, `syntax`, `data model`, `data binding`, `surface id`, `component id`, `component tree`, `root component`, `variable name`, and the message names `createSurface`, `updateComponents`, `updateDataModel` and `deleteSurface`. A bare "surface" or "component" is kept, since the user's request may be about a kitchen surface or a dishwasher component.
-3. A line that keeps only some of its sentences has them joined by one space. A line that loses all of them is removed, and so are the blank lines after it.
-4. A thought with nothing to remove comes back unchanged.
-
-The terms also match a sentence about the user's own code or JSON, so an agent whose users ask about code shows the thinking unfiltered. The function filters text rather than steering the model, so it costs no prompt tokens and no latency, and it does not depend on the inference format.
-
 ---
 
 ### G. Utility Helpers (`a2ui.utils`)
@@ -1105,7 +1085,6 @@ The suites covering this document live under `conformance/agent/`:
 | `express/response_streaming.yaml`     | `Parser.open_stream` and `ResponseStream`, for incremental Express DSL streaming                |
 | `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                    |
 | `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs` |
-| `thinking.yaml`                       | `remove_a2ui_thinking`: which sentences of a thought it removes                                 |
 
 Suites under `conformance/agent/legacy/` describe the earlier interface of `kotlin/agent_sdk_legacy`, which runs them. `python/a2ui_agent` implements the current interface above and runs none of them. The TypeScript agent harness runs the subset of `legacy/parser.yaml` and `legacy/inference_format.yaml` that the current suites do not supersede ([`loader.ts`](../../typescript/agents/a2ui_agent/tests/conformance/loader.ts)).
 

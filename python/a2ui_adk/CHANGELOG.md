@@ -1,12 +1,5 @@
 ## Unreleased
 
-- `A2uiPartConverter`, and so `A2uiEventConverter`, removes the sentences about
-  A2UI from each thought part with `remove_a2ui_thinking` from
-  `a2ui-agent-sdk`, and drops a thought with nothing else in it, since a client
-  may show the model's thoughts to the user. It needs the `a2ui-agent-sdk`
-  release that adds `remove_a2ui_thinking`
-  ([#3576](https://github.com/a2ui-project/a2ui/issues/3576),
-  [#3874](https://github.com/a2ui-project/a2ui/pull/3874)).
 - **BREAKING CHANGE**: `GenAIFileResolver` is removed, along with the
   `FileResolver` it extended in `a2ui-agent-sdk`.
   [#3731](https://github.com/a2ui-project/a2ui/pull/3731)
@@ -81,6 +74,16 @@
   processor's whole `prompt_snippet` in the Direct JSON format, whose snippet
   lays the schemas out in one block rather than per section.
   [#3763](https://github.com/a2ui-project/a2ui/pull/3763)
+- `A2uiPartConverter`, and so `A2uiEventConverter`, removes the sentences about
+  A2UI from each thought part with `remove_a2ui_thinking` from `a2ui-core`, and
+  drops a thought with nothing else in it, since a client may show the model's
+  thoughts to the user. `A2uiEventConverter` sends a streamed thought up to its
+  last finished sentence, so a sentence split across chunks is filtered whole.
+  Pass `filter_thinking=False` to either for an agent whose users ask about code
+  or JSON. The `a2a` extra now needs the `a2ui-core` release that adds
+  `remove_a2ui_thinking`
+  ([#3576](https://github.com/a2ui-project/a2ui/issues/3576),
+  [#3874](https://github.com/a2ui-project/a2ui/pull/3874)).
 
 ## 0.1.0 (2026-10-17)
 

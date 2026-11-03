@@ -12,18 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_agent/a2ui_agent.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
-import 'suites.dart';
+import 'conformance_harness.dart';
 
-/// Runs the shared `conformance/agent/thinking.yaml` suite against
-/// [removeA2uiThinking]. The suite names no protocol version, so it runs once.
+/// Runs the shared suite `conformance/core/thinking.yaml` against
+/// [removeA2uiThinking].
 void main() {
-  const path = 'agent/thinking.yaml';
-  group('conformance $path', () {
-    final List<Map<String, Object?>> cases = loadSuite(path);
-    test('suite is not empty', () => expect(cases, isNotEmpty));
+  final List<ConformanceTestCase> cases = loadConformanceSuite(
+    'core/thinking.yaml',
+  );
+
+  group('conformance core/thinking.yaml', () {
+    test('suite has cases', () => expect(cases, isNotEmpty));
+
     for (final testCase in cases) {
       test(testCase['name']! as String, () {
         expect(testCase['action'], 'remove_a2ui_thinking');

@@ -127,6 +127,11 @@
   `DateTimeInput` now validates; previously it matched all three branches of
   the `oneOf` that tells them apart and was always rejected
   ([#3123](https://github.com/a2ui-project/a2ui/issues/3123)).
+- Added `removeA2uiThinking`. It removes the sentences about A2UI (inline
+  code, data paths, code blocks and protocol terms such as JSON or data model)
+  from one of the model's thoughts, for an app that shows the model's thinking
+  to the user ([#3576](https://github.com/a2ui-project/a2ui/issues/3576),
+  [#3874](https://github.com/a2ui-project/a2ui/pull/3874)).
 
 ## 0.4.0
 

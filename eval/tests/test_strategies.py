@@ -629,6 +629,25 @@ async def test_compile_format_payload_records_the_first_thinking() -> None:
 
 
 @pytest.mark.asyncio
+async def test_compile_format_payload_records_thinking_without_an_answer() -> None:
+    state = _state({"catalog": str(V1_CATALOG)})
+    state.output = ModelOutput(
+        model="mock/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=[ContentReasoning(reasoning="The user wants a greeting.")]
+                )
+            )
+        ],
+    )
+    state = await compile_format_payload("express", version="1.0")(
+        state, dummy_generate
+    )
+    assert state.metadata[THINKING_KEY] == "The user wants a greeting."
+
+
+@pytest.mark.asyncio
 async def test_a2ui_elemental_solvers() -> None:
     prompt_solver = format_system_prompt("elemental", version="1.0")
     state = await prompt_solver(_state({"catalog": str(V1_CATALOG)}), dummy_generate)

@@ -24,7 +24,7 @@ the user. It does not affect whether a sample passes.
 
 from __future__ import annotations
 
-from a2ui.processor import remove_a2ui_thinking
+from a2ui.core import remove_a2ui_thinking
 from inspect_ai.scorer import (
     NOANSWER,
     Metric,

@@ -149,7 +149,6 @@ export {
   type StreamedAnswerOptions,
   StreamedAnswer,
 } from './processor/streamed-answer.js';
-export {removeA2uiThinking} from './processor/thinking.js';
 
 // Skill generator
 export {

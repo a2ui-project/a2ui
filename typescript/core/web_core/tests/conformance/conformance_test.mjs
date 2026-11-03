@@ -24,6 +24,7 @@ import {DataModel} from '../../dist/src/state/data-model.js';
 import {SurfaceModel} from '../../dist/src/state/surface-model.js';
 import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
 import {toCanonicalVersion} from '../../dist/src/common/semver.js';
+import {removeA2uiThinking} from '../../dist/src/common/thinking.js';
 import {
   BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS,
   ThemeSchema as V0_8_ThemeSchema,
@@ -448,6 +449,9 @@ async function runConformanceHarness() {
             break;
           case 'dispatch_action':
             await validateDispatchActionTestCase(testCase);
+            break;
+          case 'remove_a2ui_thinking':
+            assert.strictEqual(removeA2uiThinking(testCase.input), testCase.expect);
             break;
           default:
             throw new Error(`Unhandled action type in conformance harness: '${action}'`);

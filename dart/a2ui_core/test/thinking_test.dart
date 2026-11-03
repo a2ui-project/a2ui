@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_agent/a2ui_agent.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
-/// [removeA2uiThinking] beyond `conformance/agent/thinking.yaml`.
+/// [removeA2uiThinking] beyond `conformance/core/thinking.yaml`.
 void main() {
   test('an empty thought stays empty', () {
     expect(removeA2uiThinking(''), '');

@@ -510,3 +510,15 @@ def test_converter_drops_a_thought_that_is_all_about_a2ui():
     part = genai_types.Part(text="Next I set up the data model.", thought=True)
 
     assert converter.convert(part) == []
+
+
+def test_converter_leaves_thoughts_unfiltered_when_asked():
+    processor = A2uiRequestProcessor(
+        [BasicCatalog(ProtocolVersion.V0_9)], format_factory=DirectJsonFormatFactory()
+    )
+    converter = A2uiPartConverter(processor, filter_thinking=False)
+    part = genai_types.Part(text="The user's JSON has a typo.", thought=True)
+
+    a2a_parts = converter.convert(part)
+
+    assert a2a_parts[0].root.text == "The user's JSON has a typo."

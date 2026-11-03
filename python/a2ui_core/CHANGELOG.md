@@ -193,6 +193,12 @@
   and the bare `protocolVersion` (for example `'1.0'`) on each inline catalog
   even when the source catalog document omits them.
   [#3382](https://github.com/a2ui-project/a2ui/pull/3382)
+- Add `remove_a2ui_thinking` to `a2ui.core`. It removes the sentences about
+  A2UI (inline code, data paths, code blocks and protocol terms such as JSON or
+  data model) from one of the model's thoughts, for an app that shows the
+  model's thinking to the user
+  ([#3576](https://github.com/a2ui-project/a2ui/issues/3576),
+  [#3874](https://github.com/a2ui-project/a2ui/pull/3874)).
 
 ## 0.4.0 (2026-10-17)
 

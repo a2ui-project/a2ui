@@ -440,12 +440,12 @@ if state is None or not processor.accepts_state(state):
 If your app shows the model's thinking to the user while the answer is on its
 way, much of that thinking is about A2UI: the code the model plans to write,
 its data model and the checks it runs. Pass each thought through
-`remove_a2ui_thinking` before showing it. The function removes every sentence
-with inline code, a data path such as `$/form/name`, or a protocol term such
-as A2UI, JSON or data model, and keeps the rest:
+`remove_a2ui_thinking` from `a2ui-core` before showing it. The function
+removes every sentence with inline code, a data path such as `$/form/name`, or
+a protocol term such as A2UI, JSON or data model, and keeps the rest:
 
 ```python
-from a2ui.processor import remove_a2ui_thinking
+from a2ui.core import remove_a2ui_thinking
 
 shown = remove_a2ui_thinking(thought)
 if shown.strip():

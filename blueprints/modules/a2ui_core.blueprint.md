@@ -139,7 +139,8 @@ a2ui/core/
 ├── exceptions                      # Root exception hierarchy & RPC error codes
 ├── common/                         # Shared primitives with no layer dependencies
 │   ├── events                      # EventSource / listener plumbing
-│   └── semver                      # Protocol version comparison
+│   ├── semver                      # Protocol version comparison
+│   └── thinking                    # remove_a2ui_thinking
 ├── expressions/                    # Protocol-version-agnostic expression parser
 ├── basic_catalog/                  # Bundled default components and functions
 │   ├── v0_8/                       # Conforms to spec v0.8
@@ -1562,6 +1563,41 @@ export class A2uiExpressionError extends A2uiError {
 **Inheritance must match across implementations.** `A2uiIntegrityError` and `A2uiRecursionError` both derive from `A2uiValidationError`, because both report a payload the SDK refused to accept, and a caller that catches `A2uiValidationError` expects to have caught all of them. Parenting them directly on `A2uiError` in one language and on `A2uiValidationError` in another makes the same conformance case pass in one SDK and fail in the other.
 
 **`expect_error.category` in `conformance/conformance_schema.json` names these classes** without the `A2ui` prefix. Add a category alongside the first suite that asserts it.
+
+---
+
+### H. Model Thinking (`a2ui.core.common.thinking`)
+
+An app can show the model's thinking to the user while the answer is on its way. Much of that thinking is about the format: the code the model plans to write, its data model and the checks it runs on what it wrote. `remove_a2ui_thinking` (`removeA2uiThinking` in TypeScript and Dart, `removeA2UIThinking` in Swift) removes those sentences from one thought before the app shows it, so the user reads about their request ([#3576](https://github.com/a2ui-project/a2ui/issues/3576)). It belongs to the core SDK because the app that shows the thinking may be a renderer, which depends on the core SDK alone.
+
+```python
+def remove_a2ui_thinking(thinking: str) -> str:
+    """Removes the sentences of the model's thinking that are about A2UI."""
+    pass
+```
+
+Every SDK removes the same text:
+
+1. The thought is read line by line, split at `\n`. A line's trailing `\r` is set aside, and put back on a line that keeps some of its sentences.
+2. A fenced code block is removed whole: from a line that starts with ` ``` ` (after leading whitespace) to the next line that holds ` ``` `. A line holding two fences is removed alone. So is a block from a line that holds only `<a2ui>` or `<a2ui-json>` to the next line that holds `</a2ui`, in any letter case. A tag inside a sentence does not start a block.
+3. A line may start with a list marker, matched by `^\s*(?:[-*+]|\d+[.)])\s+`. The marker is not part of the line's first sentence.
+4. The rest of the line is split into sentences at the whitespace after `.`, `!` or `?`, or after one of those followed by one or two of `*`, `_`, `"`, `'`, `)` and `]`: `(?<=[.!?])\s+|(?<=[.!?][*_"')\]])\s+|(?<=[.!?][*_"')\]]{2})\s+`. Empty pieces, such as the one after trailing whitespace, are not sentences.
+5. A sentence is about A2UI when it matches this pattern, ignoring letter case. The pattern is one line, wrapped here at the `|` between terms:
+
+   ```text
+   `|\$/|\ba2ui|\bjson|\bschemas?\b|\bcatalogs?\b|\bdsl\b|\bsyntax\b
+   |\bdata ?models?\b|\bdata ?bindings?\b|\bsurface ?ids?\b
+   |\bcomponent ?ids?\b|\bcomponent trees?\b|\broot components?\b
+   |\bvariable names?\b|\bcreatesurface\b|\bupdatecomponents\b
+   |\bupdatedatamodel\b|\bdeletesurface\b
+   ```
+
+   That is inline code (a backtick), a data path (`$/`), and protocol terms as whole words, in singular or plural, with or without the space in two-word terms. A bare "surface" or "component" is kept, since the user's request may be about a kitchen surface or a dishwasher component.
+
+6. A line with no sentence about A2UI is kept unchanged. A line that keeps some of its sentences becomes its marker followed by the kept sentences, joined by one space. A line that keeps none is removed.
+7. A blank line after a removed line or block, or after other blank lines that follow one, is removed too, so no gap is left where the text was.
+
+The terms also match a sentence about the user's own code or JSON, so an agent whose users ask about code shows the thinking unfiltered. The function filters text rather than steering the model, so it costs no prompt tokens and no latency, and it does not depend on the inference format.
 
 ---
 

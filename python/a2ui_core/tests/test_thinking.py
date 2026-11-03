@@ -12,22 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Runs the shared `conformance/agent/thinking.yaml` suite."""
-
-import pytest
-
-from a2ui.processor import remove_a2ui_thinking
-
-from .conformance_helpers import load_conformance_yaml
-
-cases = load_conformance_yaml("agent/thinking.yaml")
+from a2ui.core import remove_a2ui_thinking
 
 
-def test_thinking_suite_is_not_empty():
-    assert cases
+def test_an_empty_thought_stays_empty():
+    assert remove_a2ui_thinking("") == ""
 
 
-@pytest.mark.parametrize("case", cases, ids=[case["name"] for case in cases])
-def test_thinking_conformance(case):
-    assert case["action"] == "remove_a2ui_thinking"
-    assert remove_a2ui_thinking(case["input"]) == case["expect"]
+def test_blank_lines_before_the_first_removed_line_stay():
+    assert remove_a2ui_thinking("\n\nThe JSON is ready.\nShe wants red.") == (
+        "\n\nShe wants red."
+    )
+
+
+def test_a_price_is_not_a_data_path():
+    assert remove_a2ui_thinking("It costs $450.") == "It costs $450."

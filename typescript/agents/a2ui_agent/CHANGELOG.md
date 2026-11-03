@@ -1,7 +1,5 @@
 ## Unreleased
 
-- Add `removeA2uiThinking`. It removes the sentences about A2UI (inline code, data paths and protocol terms such as JSON or data model) from one of the model's thoughts, for an app that shows the model's thinking to the user ([#3576](https://github.com/a2ui-project/a2ui/issues/3576), [#3874](https://github.com/a2ui-project/a2ui/pull/3874)).
-
 ## 0.1.0
 
 - **BREAKING CHANGE**: Remove duplicate and non-idiomatic APIs across `@a2ui/agent` ([#3592](https://github.com/a2ui-project/a2ui/issues/3592), [#3758](https://github.com/a2ui-project/a2ui/pull/3758)):

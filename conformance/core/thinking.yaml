@@ -18,10 +18,14 @@
 # or a protocol term. Each case states the whole output, since the point of the
 # function is the exact text the user reads.
 #
-# A sentence ends at `.`, `!` or `?` followed by whitespace, and never spans a
-# line. A line that keeps only some of its sentences has them joined by one
-# space. A line that loses all of them is removed, and so are the blank lines
-# after it, so no gap is left where it was.
+# A sentence ends at `.`, `!` or `?` followed by whitespace, or by closing
+# emphasis, quotes or brackets and then whitespace, and never spans a line. A
+# list marker such as `1. ` or `- ` belongs to the line, not to its first
+# sentence. A line that keeps only some of its sentences has them joined by one
+# space after its marker, and keeps a trailing `\r`. A line that loses all of
+# them is removed, and so are the blank lines after it, so no gap is left where
+# it was. A fenced code block, or a block between a line holding only `<a2ui>`
+# (or `<a2ui-json>`) and the line that closes it, is removed whole.
 
 - name: test_keeps_a_thought_about_the_request_unchanged
   action: remove_a2ui_thinking
@@ -57,3 +61,43 @@
   action: remove_a2ui_thinking
   input: "**Writing the DSL**\n\nThe root component is a `Column`.\n"
   expect: ""
+
+- name: test_removes_a_sentence_for_every_protocol_term
+  action: remove_a2ui_thinking
+  input: "The family needs quiet. A catalog lists them. The syntax is strict. Each data binding is set. The surface id is main. Every component id is unique. The component tree is deep. Each variable name is short. Then createSurface runs. Then updateComponents runs. Then updateDataModel runs. Then deleteSurface runs. The schema matches. The JSON parses. The DSL compiles. The data model holds it. The root component is a Column. The A2UI block is done."
+  expect: "The family needs quiet."
+
+- name: test_matches_plurals_and_names_written_without_a_space
+  action: remove_a2ui_thinking
+  input: "Set the surfaceIds. Fill the dataModels. Check each componentId. Keep it short."
+  expect: "Keep it short."
+
+- name: test_matches_only_whole_words
+  action: remove_a2ui_thinking
+  input: "The surface idea is good. Cataloging takes time. The schematic is clear."
+  expect: "The surface idea is good. Cataloging takes time. The schematic is clear."
+
+- name: test_keeps_a_list_marker_with_its_line
+  action: remove_a2ui_thinking
+  input: "1. Use a `Card`.\n2. Pick the red one. Bind it to $/choice.\n- Set the data model.\n- Show the price."
+  expect: "2. Pick the red one.\n- Show the price."
+
+- name: test_ends_a_sentence_after_closing_emphasis
+  action: remove_a2ui_thinking
+  input: "**Planning the visit.** I add the JSON. She said \"it's late.\" Then the catalog."
+  expect: "**Planning the visit.** She said \"it's late.\""
+
+- name: test_removes_a_fenced_code_block_whole
+  action: remove_a2ui_thinking
+  input: "The Bosch fits.\n```\nroot = Text(\"Hi\")\n```\nIt is quiet."
+  expect: "The Bosch fits.\nIt is quiet."
+
+- name: test_removes_an_a2ui_block_whole
+  action: remove_a2ui_thinking
+  input: "The Bosch fits.\n<a2ui>\nroot = Text(\"Hi\")\n</a2ui>\nI wrap it in <a2ui> tags.\nIt is quiet."
+  expect: "The Bosch fits.\nIt is quiet."
+
+- name: test_ignores_trailing_whitespace_and_keeps_crlf
+  action: remove_a2ui_thinking
+  input: "The JSON is ready. \r\n\r\nShe wants red. \r\nIt fits. I add a `Card`.\r\n"
+  expect: "She wants red. \r\nIt fits.\r\n"

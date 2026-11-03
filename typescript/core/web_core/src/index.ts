@@ -32,6 +32,7 @@ export * from './errors.js';
 export * from './common/events.js';
 export * from './common/markdown.js';
 export * from './common/sanitize_media_url.js';
+export {removeA2uiThinking} from './common/thinking.js';
 export {
   validateMetadata,
   cloneMetadata,
