@@ -195,9 +195,10 @@ header.header {
   overflow-x: auto;
   border-radius: 0.75rem;
   padding: 1.25rem;
-  background: var(--sl-color-bg-inline-code, var(--sl-color-gray-6, rgba(0, 0, 0, 0.05)));
+  background: var(--sl-color-bg-inline-code);
   border: 1px solid var(--sl-color-hairline);
 }
+
 .mermaid-rendered svg {
   max-width: 100%;
   height: auto;

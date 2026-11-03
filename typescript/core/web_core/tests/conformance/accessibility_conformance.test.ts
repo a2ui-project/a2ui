@@ -136,8 +136,39 @@ function findComponentElement(
   return undefined;
 }
 
+function isNestedComponentElement(host: HTMLElement, candidate: Element): boolean {
+  let current: Element | null = candidate;
+  while (current && current !== host) {
+    const a2uiEl = current as unknown as {context?: unknown; node?: unknown};
+    if (a2uiEl.context || a2uiEl.node) {
+      return true;
+    }
+    current = current.parentElement;
+  }
+  return false;
+}
+
+function resolveOwnAttribute(el: HTMLElement, attr: string): string | undefined {
+  const hostValue = el.getAttribute(attr);
+  if (hostValue) {
+    return hostValue;
+  }
+  for (const descendant of Array.from(el.querySelectorAll(`[${attr}]`))) {
+    if (
+      !isNestedComponentElement(el, descendant) &&
+      !descendant.matches('.a2ui-filter-input, .a2ui-modal-close')
+    ) {
+      const value = descendant.getAttribute(attr);
+      if (value) {
+        return value;
+      }
+    }
+  }
+  return undefined;
+}
+
 function resolveAccessibleLabel(el: HTMLElement): string | undefined {
-  const explicit = el.getAttribute('aria-label');
+  const explicit = resolveOwnAttribute(el, 'aria-label');
   if (explicit) {
     return explicit;
   }
@@ -206,7 +237,7 @@ function assertNodeAccessibility(
   }
   if (expected.description !== undefined) {
     assert.equal(
-      el.getAttribute('aria-description'),
+      resolveOwnAttribute(el, 'aria-description'),
       expected.description,
       `aria-description mismatch on "${componentId}"`,
     );
@@ -261,6 +292,23 @@ function assertAxeInvariants(container: HTMLElement, rules: string[] = []): void
         val === 'off' || val === 'polite' || val === 'assertive',
         `Invalid aria-live attribute value: ${val}`,
       );
+    }
+  }
+  if (rules.includes('aria-hidden-focus')) {
+    const hiddenSubtrees = Array.from(container.querySelectorAll('[aria-hidden="true"]'));
+    const focusableSelector =
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+    for (const subtree of hiddenSubtrees) {
+      const focusables = [
+        ...(subtree.matches(focusableSelector) ? [subtree] : []),
+        ...Array.from(subtree.querySelectorAll(focusableSelector)),
+      ];
+      for (const focusable of focusables) {
+        assert.ok(
+          Boolean(focusable.closest('[inert]')),
+          `aria-hidden="true" subtree contains focusable element <${focusable.tagName.toLowerCase()}> without inert`,
+        );
+      }
     }
   }
 }

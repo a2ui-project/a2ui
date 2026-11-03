@@ -195,8 +195,10 @@ struct ValidatorConformanceTests {
       )
       return
     }
+    // The case's expect applies to the last step only, like its expectError.
+    let caseExpect = stepIndex == testCase.steps.count - 1 ? testCase.expect : nil
     if verifyExpectedSurfaces,
-      let expectedSurfaces = (step.expect ?? testCase.expect)?["surfaces"]?.objectValue
+      let expectedSurfaces = (step.expect ?? caseExpect)?["surfaces"]?.objectValue
     {
       try assertReservedKeysSurfaces(
         expectedSurfaces: OrderedDictionary(
