@@ -67,12 +67,24 @@ public struct A2UITextField: View {
     node.string(for: "variant") ?? "shortText"
   }
 
-  private var valueBinding: Binding<String> {
+  /// Two-way binding for the text field's `value` property.
+  public var valueBinding: Binding<String> {
     node.binding(for: "value", default: "")
   }
 
-  private var validationErrors: [String] {
+  /// Whether all blocking (`severity == .error`) validation checks pass.
+  public var isValid: Bool {
+    node.isValid
+  }
+
+  /// Active blocking validation error messages.
+  public var validationErrors: [String] {
     node.validationErrors
+  }
+
+  /// Structured validation results for all failing checks, including warnings and info.
+  public var validationResults: [ValidationResult] {
+    node.validationResults
   }
 
   private var hasError: Bool {
@@ -100,12 +112,7 @@ public struct A2UITextField: View {
         .accessibilityIdentifier("A2UITextField_\(node.id)")
         .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
 
-      if let firstError = validationErrors.first {
-        Text(firstError)
-          .font(.caption)
-          .foregroundStyle(Color.red)
-          .accessibilityIdentifier("A2UITextField_Error_\(node.id)")
-      }
+      A2UICheckMessage(node: node, identifierPrefix: "A2UITextField")
     }
   }
 

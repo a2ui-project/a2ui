@@ -22,9 +22,14 @@ This installs `a2ui-agent-sdk` and `a2a-sdk` as dependencies.
   when the client asks for it. `get_a2ui_extension_uri` and
   `A2UI_EXTENSION_BASE_URI` give the extension URI for a protocol version.
 - Part helpers: `create_a2ui_part`, `is_a2ui_part` and `get_a2ui_datapart`
-  wrap and unwrap A2UI messages in A2A `DataPart`s. `parse_response_to_parts`,
-  `parse_stream_chunk_to_parts`, `stream_response_to_parts` and
-  `parse_content_to_parts` turn model output into A2A parts.
+  wrap and unwrap A2UI messages in A2A `DataPart`s. `to_a2a_parts` converts
+  the parts that `A2uiRequestProcessor.parse_response()` returns, and
+  `stream_response_to_parts` reads a streamed response through a
+  `ResponseStream`, such as one from `A2uiRequestProcessor.open_stream()`.
+  Both leave validation errors to the caller. `parse_content_to_parts`
+  parses a whole response with a `Parser`, such as
+  `A2uiRequestProcessor.parser`, and logs and drops one that fails. A canvas
+  agent passes it the `RendererState` it keeps with `state=`.
 
 ```python
 from a2ui.a2a import create_a2ui_part, get_a2ui_agent_extension

@@ -36,9 +36,6 @@ void main() {
         protocolVersion: A2uiProtocolVersion.v0_9,
       ).load(),
       examples: '../../specification/v0_9/catalogs/basic/examples',
-      expressCannotWrite: const {
-        '00_incremental.json': 'updates an item of a list in the data model',
-      },
     );
   });
 
@@ -48,9 +45,6 @@ void main() {
         '../../catalogs/basic/v1/catalog.json',
       ).load(),
       examples: '../../catalogs/basic/v1/examples',
-      expressCannotWrite: const {
-        '00_incremental.json': 'updates an item of a list in the data model',
-      },
     );
   });
 }

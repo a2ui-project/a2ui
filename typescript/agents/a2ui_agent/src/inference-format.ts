@@ -25,11 +25,6 @@ export interface InferenceFormat {
   readonly promptGenerator: PromptGenerator;
 
   /**
-   * Whether parsers created by this format support streaming. Mirrors Python InferenceFormat.supports_streaming.
-   */
-  readonly supportsStreaming: boolean;
-
-  /**
    * Creates a parser tied to this inference format.
    */
   createParser(): Parser;

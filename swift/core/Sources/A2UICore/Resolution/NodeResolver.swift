@@ -13,7 +13,9 @@
 // limitations under the License.
 
 import A2UIJSON
+import Combine
 import Foundation
+import OrderedCollections
 import OrderedJSON
 
 /// Resolves raw component models, data model state, and catalog schemas
@@ -33,11 +35,102 @@ public final class NodeResolver: Sendable {
   public let dataModel: DataModel
   public weak var actionHandler: (any ActionHandling)?
   public let protocolVersion: A2UIProtocolVersion?
+
+  private struct CachedComponentSchema {
+    let propertiesSchema: [String: JSONValue]
+    let classifiedTypes: [String: PropertyType]
+  }
+
+  private struct ComponentIdentity: Equatable {
+    let type: String
+    let catalogID: String?
+  }
+
+  private struct NodeResolutionRecord {
+    let nodeKey: String
+    let definitionID: String
+    let instanceID: String
+    let basePath: String?
+    let index: Int?
+    let instanceSuffix: String?
+    let visited: Set<String>
+    var componentSnapshot: ComponentModel
+    var childIdentities: [String: ComponentIdentity?]
+    var readValues: [String: JSONValue?]
+    var templateCounts: [String: Int]
+    var directChildInstances: Set<String>
+    var agentCalls: Set<AgentFunctionCall>
+  }
+
+  /// The number of `resolveNode` invocations executed during the most recent `resolveTree()` pass.
+  package private(set) var lastResolvedNodeCount = 0
+
+  private var activeNodes: [String: Node] = [:]
+  private var schemaCache: [String: CachedComponentSchema] = [:]
+  private var nodeRecords: [String: NodeResolutionRecord] = [:]
+  private var nodesByDefinitionID: [String: Set<String>] = [:]
+  private var parentsByChildDefinitionID: [String: Set<String>] = [:]
+  private var parentsByChildInstanceID: [String: Set<String>] = [:]
+  private var nodesByReadPath: [String: Set<String>] = [:]
+  private var readPathsByAncestorPath: [String: Set<String>] = [:]
+  private var nodesByTemplatePath: [String: Set<String>] = [:]
+  private var dirtyComponentIDs: Set<String> = []
+  private var dirtyDataPaths: Set<String> = []
+  private var needsFullResolve = false
+  private var resolvedInCurrentPass: Set<String> = []
+  private var currentNodeReadValues: [String: JSONValue?]?
+  private var currentNodeTemplateCounts: [String: Int]?
+  private var currentNodeChildIdentities: [String: ComponentIdentity?]?
+  private var currentNodeDirectChildren: Set<String>?
   private var reportedExpressionErrors: Set<String> = []
-  private var currentPassExpressionErrors: Set<String> = []
+  /// The error keys each node reported in the current pass, by node key. A node shared by several
+  /// parents resolves once per parent, so these are committed to `reportedExpressionErrors` when
+  /// the pass ends rather than after each visit.
+  private var expressionErrorsInCurrentPass: [String: Set<String>] = [:]
+  /// Shared dedupe keys reported in the current pass, so nodes that report the same one in a
+  /// pass report it once.
+  private var sharedErrorsInCurrentPass: Set<String> = []
   private var isResolvingTree = false
   private var currentComponentID: String?
   private var currentPropertyPath: String?
+  private var modelCancellables = Set<AnyCancellable>()
+
+  /// The surface that sends calls to functions the renderer does not implement to the agent, and
+  /// keeps their results; ``SurfaceViewModel`` sets itself.
+  ///
+  /// The resolver records which nodes make each such call, and resolves them again when the call
+  /// settles.
+  weak var agentCallHost: SurfaceViewModel? {
+    didSet {
+      agentCallCancellable = agentCallHost?.agentCallCache.settledCallSubject
+        .sink { [weak self] call in
+          self?.markAgentCallSettled(call)
+        }
+    }
+  }
+  private var agentCallCancellable: AnyCancellable?
+
+  /// Agent function calls made while resolving a node, keyed to the nodes that made them.
+  private var nodesByAgentCall: [AgentFunctionCall: Set<String>] = [:]
+  /// The agent calls the node being resolved makes.
+  private var currentNodeAgentCalls: Set<AgentFunctionCall>?
+  /// The agent calls the action being run makes.
+  private var currentActionAgentCalls: Set<AgentFunctionCall>?
+  /// The agent calls the condition of the check rule being resolved makes.
+  private var currentCheckAgentCalls: Set<AgentFunctionCall>?
+  /// Per-action cache used while running an imperative action so action calls never read from or
+  /// populate the surface-wide reactive ``AgentCallCache``.
+  private var currentActionCallCache: AgentCallCache?
+  /// Agent calls settled since the last pass, whose nodes must be resolved again.
+  private var dirtyAgentCalls: Set<AgentFunctionCall> = []
+  private var isDisposed = false
+  private let agentCallSettledSubject = PassthroughSubject<Void, Never>()
+
+  /// Publishes when a call that a resolved node makes settles, so that the tree should be
+  /// resolved again to pick up the result or the failure. ``SurfaceViewModel`` rebuilds its tree.
+  var agentFunctionResultPublisher: AnyPublisher<Void, Never> {
+    agentCallSettledSubject.eraseToAnyPublisher()
+  }
 
   /// Whether this resolver follows v1.0 rules.
   ///
@@ -85,21 +178,36 @@ public final class NodeResolver: Sendable {
     protocolVersion: A2UIProtocolVersion? = nil
   ) {
     self.surfaceID = surfaceID
-    self.catalogs = catalogs
-    let allCatalogsAtLeastV10 =
-      !catalogs.isEmpty && catalogs.values.allSatisfy(\.isAtLeastV10)
-    let isAtLeastV10 = protocolVersion?.isAtLeastV10 ?? allCatalogsAtLeastV10
-    if let defaultCatalogID {
-      self.defaultCatalogID = defaultCatalogID
-    } else if !isAtLeastV10, catalogs.count == 1 {
-      self.defaultCatalogID = catalogs.keys.first
-    } else {
-      self.defaultCatalogID = nil
-    }
-    self.componentsModel = componentsModel ?? SurfaceComponentsModel()
-    self.dataModel = dataModel ?? DataModel()
+    let compatibleCatalogs = catalogs.filterCompatible(with: protocolVersion)
+    self.catalogs = compatibleCatalogs
+    self.defaultCatalogID = compatibleCatalogs.resolveDefaultCatalogID(
+      explicitDefaultID: defaultCatalogID,
+      protocolVersion: protocolVersion
+    )
+    let resolvedComponentsModel = componentsModel ?? SurfaceComponentsModel()
+    let resolvedDataModel = dataModel ?? DataModel()
+    self.componentsModel = resolvedComponentsModel
+    self.dataModel = resolvedDataModel
     self.actionHandler = actionHandler
     self.protocolVersion = protocolVersion
+
+    resolvedComponentsModel.changedIDsSubject
+      .sink { [weak self] ids in
+        self?.dirtyComponentIDs.formUnion(ids)
+      }
+      .store(in: &modelCancellables)
+
+    resolvedComponentsModel.metadataChangedSubject
+      .sink { [weak self] compID, newMetadata in
+        self?.applyMetadataUpdate(forComponentID: compID, newMetadata: newMetadata)
+      }
+      .store(in: &modelCancellables)
+
+    resolvedDataModel.pathChangeSubject
+      .sink { [weak self] path in
+        self?.dirtyDataPaths.insert(path)
+      }
+      .store(in: &modelCancellables)
   }
 
   public convenience init(
@@ -156,39 +264,457 @@ public final class NodeResolver: Sendable {
 
   // MARK: - Tree Resolution
 
-  /// Clears previously reported expression errors so subsequent evaluations re-emit.
-  public func clearReportedExpressionErrors(forComponentID componentID: String? = nil) {
-    if let componentID {
-      let prefix = "\(componentID):"
-      reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
-    } else {
-      reportedExpressionErrors.removeAll()
-    }
-  }
-
   /// Resolves the component tree starting from the root component ("root")
   /// using the stored component and data models.
   public func resolveTree() -> Node? {
-    let wasResolvingTree = isResolvingTree
-    if !wasResolvingTree {
-      isResolvingTree = true
-      currentPassExpressionErrors.removeAll()
+    if isResolvingTree {
+      return resolveNode(
+        definitionID: "root",
+        instanceID: "root",
+        basePath: nil,
+        visited: [],
+        components: componentsModel.components,
+        data: dataModel.data,
+        recurseIntoChildren: true
+      )
     }
+
+    lastResolvedNodeCount = 0
+    let components = componentsModel.components
+    guard components["root"] != nil else {
+      resetResolutionState()
+      return nil
+    }
+
+    if activeNodes["root"] != nil && !needsFullResolve {
+      return resolveIncrementalChanges(components: components, currentData: dataModel.data)
+    }
+
+    resetResolutionState()
+    isResolvingTree = true
     defer {
-      if !wasResolvingTree {
-        reportedExpressionErrors = currentPassExpressionErrors
-        currentPassExpressionErrors.removeAll()
-        isResolvingTree = false
-      }
+      commitExpressionErrorsOfCurrentPass()
+      resolvedInCurrentPass.removeAll()
+      sharedErrorsInCurrentPass.removeAll()
+      isResolvingTree = false
     }
     return resolveNode(
       definitionID: "root",
       instanceID: "root",
       basePath: nil,
       visited: [],
-      components: componentsModel.components,
-      data: dataModel.data
+      components: components,
+      data: dataModel.data,
+      recurseIntoChildren: true
     )
+  }
+
+  private func resetResolutionState() {
+    activeNodes.removeAll()
+    nodeRecords.removeAll()
+    nodesByDefinitionID.removeAll()
+    parentsByChildDefinitionID.removeAll()
+    parentsByChildInstanceID.removeAll()
+    nodesByReadPath.removeAll()
+    readPathsByAncestorPath.removeAll()
+    nodesByTemplatePath.removeAll()
+    dirtyComponentIDs.removeAll()
+    dirtyDataPaths.removeAll()
+    needsFullResolve = false
+    resolvedInCurrentPass.removeAll()
+    sharedErrorsInCurrentPass.removeAll()
+    reportedExpressionErrors.removeAll()
+    expressionErrorsInCurrentPass.removeAll()
+    for call in nodesByAgentCall.keys {
+      agentCallHost?.agentCallCache.forgetFailure(call)
+    }
+    nodesByAgentCall.removeAll()
+    dirtyAgentCalls.removeAll()
+  }
+
+  private func resolveIncrementalChanges(
+    components: [String: ComponentModel],
+    currentData: JSONValue
+  ) -> Node? {
+    let changedCompIDs = dirtyComponentIDs
+    let changedDataPaths = dirtyDataPaths
+    let changedAgentCalls = dirtyAgentCalls
+    dirtyComponentIDs.removeAll()
+    dirtyDataPaths.removeAll()
+    dirtyAgentCalls.removeAll()
+
+    guard !changedCompIDs.isEmpty || !changedDataPaths.isEmpty || !changedAgentCalls.isEmpty
+    else {
+      return activeNodes["root"]
+    }
+
+    var affectedNodeIDs: Set<String> = []
+
+    for call in changedAgentCalls {
+      affectedNodeIDs.formUnion(nodesByAgentCall[call] ?? [])
+    }
+
+    for compID in changedCompIDs {
+      let currentComp = components[compID]
+      let currentIdentity = componentIdentity(for: compID, in: components)
+
+      let directPrefix = "\(compID):"
+      let instancePrefixes = (nodesByDefinitionID[compID] ?? []).map { "\($0):" }
+      let previousErrorCount = reportedExpressionErrors.count
+      reportedExpressionErrors = reportedExpressionErrors.filter { key in
+        guard !key.hasPrefix(directPrefix) else { return false }
+        return !instancePrefixes.contains { key.hasPrefix($0) }
+      }
+      let hadClearedErrors = reportedExpressionErrors.count != previousErrorCount
+
+      if let instances = nodesByDefinitionID[compID] {
+        for nodeKey in instances {
+          guard let record = nodeRecords[nodeKey] else { continue }
+          if record.componentSnapshot != currentComp || hadClearedErrors {
+            let previousIdentity = ComponentIdentity(
+              type: record.componentSnapshot.type,
+              catalogID: record.componentSnapshot.catalogID ?? defaultCatalogID
+            )
+            if let currentComp,
+              !hadClearedErrors,
+              currentIdentity == previousIdentity,
+              record.componentSnapshot.properties == currentComp.properties
+            {
+              var updatedRecord = record
+              updatedRecord.componentSnapshot = currentComp
+              nodeRecords[nodeKey] = updatedRecord
+              if let existing = activeNodes[nodeKey] {
+                existing.updateMetadata(currentComp.metadata)
+              }
+            } else if currentIdentity == previousIdentity || nodeKey == "root" {
+              affectedNodeIDs.insert(nodeKey)
+            }
+          }
+        }
+      }
+
+      if let parentInstances = parentsByChildDefinitionID[compID] {
+        for parentNodeKey in parentInstances {
+          guard let parentRecord = nodeRecords[parentNodeKey] else { continue }
+          if let recordedIdentity = parentRecord.childIdentities[compID],
+            recordedIdentity != currentIdentity
+          {
+            affectedNodeIDs.insert(parentNodeKey)
+          }
+        }
+      }
+    }
+
+    var candidateReadPaths: Set<String> = []
+    for rawChanged in changedDataPaths {
+      let normChanged = normalizePath(rawChanged)
+
+      if nodesByReadPath[normChanged] != nil {
+        candidateReadPaths.insert(normChanged)
+      }
+      for ancestor in ancestorPaths(of: normChanged) where nodesByReadPath[ancestor] != nil {
+        candidateReadPaths.insert(ancestor)
+      }
+      if let subReadPaths = readPathsByAncestorPath[normChanged] {
+        candidateReadPaths.formUnion(subReadPaths)
+      }
+
+      for (templatePath, templateNodes) in nodesByTemplatePath
+      where pathsOverlap(templatePath, normChanged) {
+        let currentCount = currentData[templatePath]?.arrayValue?.count ?? 0
+        for nodeKey in templateNodes {
+          if nodeRecords[nodeKey]?.templateCounts[templatePath] != currentCount {
+            affectedNodeIDs.insert(nodeKey)
+          }
+        }
+      }
+    }
+
+    for readPath in candidateReadPaths {
+      let currentVal = currentData[readPath]
+      if let readers = nodesByReadPath[readPath] {
+        for nodeKey in readers {
+          if let record = nodeRecords[nodeKey],
+            let recordedVal = record.readValues[readPath],
+            recordedVal != currentVal
+          {
+            affectedNodeIDs.insert(nodeKey)
+          }
+        }
+      }
+    }
+
+    guard !affectedNodeIDs.isEmpty else {
+      return activeNodes["root"]
+    }
+
+    let sortedAffected = affectedNodeIDs.sorted {
+      (nodeRecords[$0]?.visited.count ?? 0) < (nodeRecords[$1]?.visited.count ?? 0)
+    }
+
+    isResolvingTree = true
+    resolvedInCurrentPass.removeAll()
+    sharedErrorsInCurrentPass.removeAll()
+    defer {
+      commitExpressionErrorsOfCurrentPass()
+      resolvedInCurrentPass.removeAll()
+      sharedErrorsInCurrentPass.removeAll()
+      isResolvingTree = false
+    }
+
+    for nodeKey in sortedAffected {
+      guard !resolvedInCurrentPass.contains(nodeKey),
+        let record = nodeRecords[nodeKey],
+        activeNodes[nodeKey] != nil
+      else {
+        continue
+      }
+      _ = resolveNode(
+        definitionID: record.definitionID,
+        instanceID: record.instanceID,
+        basePath: record.basePath,
+        index: record.index,
+        instanceSuffix: record.instanceSuffix,
+        visited: record.visited,
+        components: components,
+        data: currentData,
+        recurseIntoChildren: false
+      )
+    }
+
+    return activeNodes["root"]
+  }
+
+  private func componentIdentity(
+    for definitionID: String,
+    in components: [String: ComponentModel]
+  ) -> ComponentIdentity? {
+    guard let comp = components[definitionID] else { return nil }
+    return ComponentIdentity(
+      type: comp.type,
+      catalogID: comp.catalogID ?? defaultCatalogID
+    )
+  }
+
+  private func applyMetadataUpdate(
+    forComponentID compID: String,
+    newMetadata: [String: JSONValue]?
+  ) {
+    guard let instances = nodesByDefinitionID[compID] else { return }
+    let currentComp = componentsModel.get(compID)
+    for nodeKey in instances {
+      if let existing = activeNodes[nodeKey] {
+        existing.updateMetadata(newMetadata)
+      }
+      if var record = nodeRecords[nodeKey],
+        let currentComp,
+        record.componentSnapshot.type == currentComp.type,
+        record.componentSnapshot.catalogID == currentComp.catalogID,
+        record.componentSnapshot.properties == currentComp.properties
+      {
+        record.componentSnapshot = currentComp
+        nodeRecords[nodeKey] = record
+      }
+    }
+  }
+
+  private func makeNodeKey(instanceID: String, basePath: String?) -> String {
+    guard let basePath, !basePath.isEmpty else { return instanceID }
+    return "\(instanceID)@\(normalizePath(basePath))"
+  }
+
+  private func pathsOverlap(_ pathA: String, _ pathB: String) -> Bool {
+    if pathA == pathB || pathA == "/" || pathB == "/" { return true }
+    let prefixA = pathA + "/"
+    let prefixB = pathB + "/"
+    return pathA.hasPrefix(prefixB) || pathB.hasPrefix(prefixA)
+  }
+
+  private func normalizePath(_ path: String) -> String {
+    let segments = JSONValue.parsePath(path).map { segment in
+      segment
+        .replacingOccurrences(of: "~", with: "~0")
+        .replacingOccurrences(of: "/", with: "~1")
+    }
+    return segments.isEmpty ? "/" : "/" + segments.joined(separator: "/")
+  }
+
+  private func ancestorPaths(of normalizedPath: String) -> [String] {
+    guard normalizedPath != "/" else { return [] }
+    var result: [String] = ["/"]
+    var current = ""
+    let parts = normalizedPath.dropFirst().split(separator: "/", omittingEmptySubsequences: false)
+    for part in parts.dropLast() {
+      current += "/" + part
+      result.append(current)
+    }
+    return result
+  }
+
+  private func recordReadPath(_ path: String, in data: JSONValue) {
+    let normalized = normalizePath(path)
+    currentNodeReadValues?.updateValue(data[normalized], forKey: normalized)
+  }
+
+  private func readData(_ absPath: String, from data: JSONValue) -> JSONValue? {
+    let normalized = normalizePath(absPath)
+    let value = data[normalized]
+    currentNodeReadValues?.updateValue(value, forKey: normalized)
+    return value
+  }
+
+  private func registerNodeDependencies(_ record: NodeResolutionRecord) {
+    let nodeKey = record.nodeKey
+    var removedChildren: Set<String> = []
+
+    if let oldRecord = nodeRecords[nodeKey] {
+      if oldRecord.definitionID != record.definitionID {
+        nodesByDefinitionID[oldRecord.definitionID]?.remove(nodeKey)
+      }
+      for oldChildDefID in oldRecord.childIdentities.keys
+      where !record.childIdentities.keys.contains(oldChildDefID) {
+        parentsByChildDefinitionID[oldChildDefID]?.remove(nodeKey)
+      }
+      for oldReadPath in oldRecord.readValues.keys
+      where !record.readValues.keys.contains(oldReadPath) {
+        nodesByReadPath[oldReadPath]?.remove(nodeKey)
+        if nodesByReadPath[oldReadPath]?.isEmpty == true {
+          nodesByReadPath.removeValue(forKey: oldReadPath)
+          for ancestor in ancestorPaths(of: oldReadPath) {
+            readPathsByAncestorPath[ancestor]?.remove(oldReadPath)
+          }
+        }
+      }
+      for oldTemplatePath in oldRecord.templateCounts.keys
+      where !record.templateCounts.keys.contains(oldTemplatePath) {
+        nodesByTemplatePath[oldTemplatePath]?.remove(nodeKey)
+      }
+      for oldCall in oldRecord.agentCalls where !record.agentCalls.contains(oldCall) {
+        unregisterAgentCall(oldCall, for: nodeKey)
+      }
+
+      removedChildren = oldRecord.directChildInstances.subtracting(record.directChildInstances)
+      let addedChildren = record.directChildInstances.subtracting(oldRecord.directChildInstances)
+      for addedChild in addedChildren {
+        parentsByChildInstanceID[addedChild, default: []].insert(nodeKey)
+      }
+    } else {
+      for child in record.directChildInstances {
+        parentsByChildInstanceID[child, default: []].insert(nodeKey)
+      }
+    }
+
+    nodeRecords[nodeKey] = record
+    nodesByDefinitionID[record.definitionID, default: []].insert(nodeKey)
+    for childDefID in record.childIdentities.keys {
+      parentsByChildDefinitionID[childDefID, default: []].insert(nodeKey)
+    }
+    for readPath in record.readValues.keys {
+      nodesByReadPath[readPath, default: []].insert(nodeKey)
+      for ancestor in ancestorPaths(of: readPath) {
+        readPathsByAncestorPath[ancestor, default: []].insert(readPath)
+      }
+    }
+    for templatePath in record.templateCounts.keys {
+      nodesByTemplatePath[templatePath, default: []].insert(nodeKey)
+    }
+    for call in record.agentCalls {
+      nodesByAgentCall[call, default: []].insert(nodeKey)
+    }
+
+    for removedChild in removedChildren {
+      parentsByChildInstanceID[removedChild]?.remove(nodeKey)
+      if parentsByChildInstanceID[removedChild]?.isEmpty ?? true {
+        parentsByChildInstanceID.removeValue(forKey: removedChild)
+        if !record.visited.contains(removedChild) {
+          pruneSubtree(removedChild, protectedNodeKeys: record.visited)
+        }
+      }
+    }
+  }
+
+  private func pruneSubtree(_ nodeKey: String, protectedNodeKeys: Set<String> = []) {
+    guard !protectedNodeKeys.contains(nodeKey) else { return }
+    activeNodes.removeValue(forKey: nodeKey)
+    let prefix = "\(nodeKey):"
+    reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
+    expressionErrorsInCurrentPass.removeValue(forKey: nodeKey)
+    guard let record = nodeRecords.removeValue(forKey: nodeKey) else { return }
+
+    nodesByDefinitionID[record.definitionID]?.remove(nodeKey)
+    for childDefID in record.childIdentities.keys {
+      parentsByChildDefinitionID[childDefID]?.remove(nodeKey)
+    }
+    for readPath in record.readValues.keys {
+      nodesByReadPath[readPath]?.remove(nodeKey)
+      if nodesByReadPath[readPath]?.isEmpty == true {
+        nodesByReadPath.removeValue(forKey: readPath)
+        for ancestor in ancestorPaths(of: readPath) {
+          readPathsByAncestorPath[ancestor]?.remove(readPath)
+        }
+      }
+    }
+    for templatePath in record.templateCounts.keys {
+      nodesByTemplatePath[templatePath]?.remove(nodeKey)
+    }
+    for call in record.agentCalls {
+      unregisterAgentCall(call, for: nodeKey)
+    }
+
+    for childNodeKey in record.directChildInstances {
+      parentsByChildInstanceID[childNodeKey]?.remove(nodeKey)
+      if parentsByChildInstanceID[childNodeKey]?.isEmpty ?? true {
+        parentsByChildInstanceID.removeValue(forKey: childNodeKey)
+        pruneSubtree(childNodeKey, protectedNodeKeys: protectedNodeKeys)
+      }
+    }
+  }
+
+  /// Removes a node from the nodes making an agent call.
+  private func unregisterAgentCall(_ call: AgentFunctionCall, for nodeKey: String) {
+    nodesByAgentCall[call]?.remove(nodeKey)
+    if nodesByAgentCall[call]?.isEmpty ?? true {
+      nodesByAgentCall.removeValue(forKey: call)
+      // A call that failed for nodes is sent again once a node makes it anew.
+      agentCallHost?.agentCallCache.forgetFailure(call)
+    }
+  }
+
+  /// Disposes the resolver: cancels model change subscriptions, clears cached resolution state,
+  /// and suppresses late async callbacks.
+  public func dispose() {
+    isDisposed = true
+    modelCancellables.removeAll()
+    agentCallCancellable = nil
+    nodesByAgentCall.removeAll()
+    dirtyAgentCalls.removeAll()
+    activeNodes.removeAll()
+    nodeRecords.removeAll()
+  }
+
+  private func cachedSchema(
+    for type: String,
+    catalogID: String?,
+    catalog: AnyCatalog?
+  ) -> CachedComponentSchema {
+    let cacheKey = "\(catalogID ?? ""):\(type)"
+    if let cached = schemaCache[cacheKey] {
+      return cached
+    }
+    let schemaJSON = catalog?.components[type]?.schema.jsonValue ?? .object([:])
+    var propertiesSchema = extractPropertiesSchema(from: schemaJSON)
+    // `accessibility` comes from `ComponentCommon`, so a component schema need not declare it.
+    if propertiesSchema["accessibility"] == nil {
+      propertiesSchema["accessibility"] = .object([
+        "$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))
+      ])
+    }
+    let entry = CachedComponentSchema(
+      propertiesSchema: propertiesSchema,
+      classifiedTypes: propertiesSchema.mapValues { classifySchema($0) }
+    )
+    schemaCache[cacheKey] = entry
+    return entry
   }
 
   /// Resolves a component definition into a concrete ``Node``.
@@ -197,7 +723,7 @@ public final class NodeResolver: Sendable {
   ///   - definitionID: The ID of the component in `components`.
   ///   - instanceID: The unique identifier for this instance in the tree.
   ///   - basePath: The data model base path for relative bindings.
-  ///   - visited: The set of instance IDs currently being resolved in the stack.
+  ///   - visited: The set of node keys currently being resolved in the stack.
   ///   - components: The current map of component models on the surface.
   ///   - data: The current data model JSON snapshot.
   /// - Returns: A resolved node, or `nil` if missing, cyclic, or unregistered.
@@ -209,9 +735,11 @@ public final class NodeResolver: Sendable {
     instanceSuffix: String? = nil,
     visited: Set<String> = [],
     components: [String: ComponentModel],
-    data: JSONValue
+    data: JSONValue,
+    recurseIntoChildren: Bool = true
   ) -> Node? {
-    if visited.contains(instanceID) {
+    let nodeKey = makeNodeKey(instanceID: instanceID, basePath: basePath)
+    if visited.contains(nodeKey) {
       return nil
     }
 
@@ -219,35 +747,58 @@ public final class NodeResolver: Sendable {
       return nil
     }
 
+    lastResolvedNodeCount += 1
+    resolvedInCurrentPass.insert(nodeKey)
+
+    let ancestorVisited = visited
     let previousComponentID = currentComponentID
     let previousPropertyPath = currentPropertyPath
-    currentComponentID = instanceID
+    let previousReadValues = currentNodeReadValues
+    let previousTemplateCounts = currentNodeTemplateCounts
+    let previousChildIdentities = currentNodeChildIdentities
+    let previousDirectChildren = currentNodeDirectChildren
+    let previousAgentCalls = currentNodeAgentCalls
+    currentComponentID = nodeKey
+    currentNodeReadValues = [:]
+    currentNodeTemplateCounts = [:]
+    currentNodeChildIdentities = [:]
+    currentNodeDirectChildren = []
+    currentNodeAgentCalls = []
     defer {
       currentComponentID = previousComponentID
       currentPropertyPath = previousPropertyPath
+      currentNodeReadValues = previousReadValues
+      currentNodeTemplateCounts = previousTemplateCounts
+      currentNodeChildIdentities = previousChildIdentities
+      currentNodeDirectChildren = previousDirectChildren
+      currentNodeAgentCalls = previousAgentCalls
     }
 
     let type = component.type
     let effectiveCatalogID = component.catalogID ?? defaultCatalogID
     let targetCatalog = getCatalog(id: effectiveCatalogID)
+    if let targetCatalog, targetCatalog.components[type] == nil {
+      reportResolutionError(
+        code: "UNKNOWN_COMPONENT_TYPE",
+        message: "Component '\(definitionID)' has type '\(type)', which is not in catalog "
+          + "'\(targetCatalog.id)'.",
+        dedupeKey: "UNKNOWN_COMPONENT_TYPE:\(type)"
+      )
+    }
 
     var visited = visited
-    visited.insert(instanceID)
+    visited.insert(nodeKey)
 
-    let schemaJSON = targetCatalog?.components[type]?.schema.jsonValue ?? .object([:])
-    let propertiesSchema = extractPropertiesSchema(from: schemaJSON)
+    let cached = cachedSchema(for: type, catalogID: effectiveCatalogID, catalog: targetCatalog)
+    let propertiesSchema = cached.propertiesSchema
 
     var componentChecks: [ResolvedCheck] = []
     var preResolvedChecksByKey: [String: [ResolvedCheck]] = [:]
-    for (key, val) in component.properties {
-      let propSchema = propertiesSchema[key] ?? .boolean(true)
-      let propType = classifySchema(propSchema)
-      if propType == .checks {
-        currentPropertyPath = key
-        let resolved = resolveChecks(val, basePath: basePath, index: index, data: data)
-        preResolvedChecksByKey[key] = resolved
-        componentChecks.append(contentsOf: resolved)
-      }
+    for (key, val) in component.properties where cached.classifiedTypes[key] == .checks {
+      currentPropertyPath = key
+      let resolved = resolveChecks(val, basePath: basePath, index: index, data: data)
+      preResolvedChecksByKey[key] = resolved
+      componentChecks.append(contentsOf: resolved)
     }
 
     var resolvedProperties: [String: any Resolved] = [:]
@@ -257,7 +808,7 @@ public final class NodeResolver: Sendable {
         continue
       }
       let propSchema = propertiesSchema[key] ?? .boolean(true)
-      let propType = classifySchema(propSchema)
+      let propType = cached.classifiedTypes[key] ?? .standard
 
       if let resolvedVal = resolveProperty(
         value: val,
@@ -271,18 +822,117 @@ public final class NodeResolver: Sendable {
         visited: visited,
         components: components,
         data: data,
-        checks: componentChecks
+        checks: componentChecks,
+        recurseIntoChildren: recurseIntoChildren
       ) {
         resolvedProperties[key] = resolvedVal
       }
     }
 
-    return Node(
+    let record = NodeResolutionRecord(
+      nodeKey: nodeKey,
+      definitionID: definitionID,
+      instanceID: instanceID,
+      basePath: basePath,
+      index: index,
+      instanceSuffix: instanceSuffix,
+      visited: ancestorVisited,
+      componentSnapshot: component,
+      childIdentities: currentNodeChildIdentities ?? [:],
+      readValues: currentNodeReadValues ?? [:],
+      templateCounts: currentNodeTemplateCounts ?? [:],
+      directChildInstances: currentNodeDirectChildren ?? [],
+      agentCalls: currentNodeAgentCalls ?? []
+    )
+    registerNodeDependencies(record)
+
+    if let existing = activeNodes[nodeKey],
+      existing.type == type && existing.catalogID == effectiveCatalogID
+    {
+      existing.updateProperties(resolvedProperties, metadata: component.metadata)
+      return existing
+    }
+
+    let node = Node(
       id: instanceID,
       type: type,
       catalogID: effectiveCatalogID,
-      properties: resolvedProperties
+      properties: resolvedProperties,
+      metadata: component.metadata
     )
+    activeNodes[nodeKey] = node
+    return node
+  }
+
+  private func resolveChildReference(
+    definitionID childID: String,
+    instanceID childInstanceID: String,
+    basePath: String?,
+    index: Int?,
+    instanceSuffix: String?,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    recurseIntoChildren: Bool
+  ) -> Node? {
+    let childIdentity = componentIdentity(for: childID, in: components)
+    currentNodeChildIdentities?.updateValue(childIdentity, forKey: childID)
+
+    let childNodeKey = makeNodeKey(instanceID: childInstanceID, basePath: basePath)
+    guard !visited.contains(childNodeKey) else {
+      let dataPath = normalizePath(basePath ?? "/")
+      // Every descendant that repeats this ancestor closes the same cycle, so the report is
+      // shared and keyed by the repeated node, as in the other core SDKs.
+      reportResolutionError(
+        code: "CYCLIC_REFERENCE",
+        message: "Component '\(childID)' at '\(dataPath)' is referenced by one of its own "
+          + "descendants; omitting the reference.",
+        dedupeKey: "CYCLIC_REFERENCE:\(childNodeKey)",
+        sharedAcrossNodes: true
+      )
+      return nil
+    }
+    guard let childIdentity else {
+      return nil
+    }
+
+    let existingRecord = nodeRecords[childNodeKey]
+    if !recurseIntoChildren,
+      let existing = activeNodes[childNodeKey],
+      let existingRecord,
+      existingRecord.definitionID == childID,
+      existingRecord.basePath == basePath,
+      existingRecord.index == index,
+      existingRecord.instanceSuffix == instanceSuffix,
+      existingRecord.visited == visited,
+      existing.type == childIdentity.type && existing.catalogID == childIdentity.catalogID
+    {
+      currentNodeDirectChildren?.insert(childNodeKey)
+      return existing
+    }
+
+    let shouldRecurse =
+      recurseIntoChildren
+      || (existingRecord != nil
+        && (existingRecord?.basePath != basePath
+          || existingRecord?.index != index
+          || existingRecord?.instanceSuffix != instanceSuffix
+          || existingRecord?.visited != visited))
+    if let childNode = resolveNode(
+      definitionID: childID,
+      instanceID: childInstanceID,
+      basePath: basePath,
+      index: index,
+      instanceSuffix: instanceSuffix,
+      visited: visited,
+      components: components,
+      data: data,
+      recurseIntoChildren: shouldRecurse
+    ) {
+      currentNodeDirectChildren?.insert(childNodeKey)
+      return childNode
+    }
+    return nil
   }
 
   // MARK: - Property Classification & Extraction
@@ -302,62 +952,57 @@ public final class NodeResolver: Sendable {
     case standard
   }
 
+  private static let refPropertyTypes: [String: PropertyType] = [
+    "DynamicBoolean": .dynamicBoolean,
+    "DynamicString": .dynamicString,
+    "DynamicNumber": .dynamicNumber,
+    "DynamicValue": .dynamicValue,
+    "DynamicStringList": .dynamicStringList,
+    "DataBinding": .dynamicString,
+    "CheckRule": .checks,
+    "Checkable": .checks,
+    "Action": .action,
+    "ChildList": .childList,
+    "Child": .componentID,
+    "ComponentId": .componentID,
+  ]
+
   private func classifySchema(_ schemaJSON: JSONValue) -> PropertyType {
-    if let ref = schemaJSON["$ref"]?.stringValue {
-      let typeName = ref.split(separator: "/").last.map(String.init)
-      switch typeName {
-      case "DynamicBoolean": return .dynamicBoolean
-      case "DynamicString": return .dynamicString
-      case "DynamicNumber": return .dynamicNumber
-      case "DynamicValue": return .dynamicValue
-      case "DynamicStringList": return .dynamicStringList
-      case "DataBinding": return .dynamicString
-      case "CheckRule", "Checkable": return .checks
-      case "Action": return .action
-      case "ChildList": return .childList
-      case "Child", "ComponentId": return .componentID
-      default: break
-      }
+    if let ref = schemaJSON["$ref"]?.stringValue,
+      let typeName = ref.split(separator: "/").last.map(String.init),
+      let matched = Self.refPropertyTypes[typeName]
+    {
+      return matched
     }
+    if let composite = classifyCompositeSchema(schemaJSON) {
+      return composite
+    }
+    if let items = schemaJSON["items"], classifySchema(items) == .checks {
+      return .checks
+    }
+    return classifyNumericTypeSchema(schemaJSON)
+  }
 
-    if let oneOf = schemaJSON["oneOf"]?.arrayValue {
-      for sub in oneOf {
+  private func classifyCompositeSchema(_ schemaJSON: JSONValue) -> PropertyType? {
+    for keyword in ["oneOf", "anyOf", "allOf"] {
+      guard let subSchemas = schemaJSON[keyword]?.arrayValue else { continue }
+      for sub in subSchemas {
         let type = classifySchema(sub)
         if type != .standard { return type }
       }
     }
+    return nil
+  }
 
-    if let anyOf = schemaJSON["anyOf"]?.arrayValue {
-      for sub in anyOf {
-        let type = classifySchema(sub)
-        if type != .standard { return type }
-      }
-    }
-
-    if let allOf = schemaJSON["allOf"]?.arrayValue {
-      for sub in allOf {
-        let type = classifySchema(sub)
-        if type != .standard { return type }
-      }
-    }
-
-    if let items = schemaJSON["items"] {
-      let type = classifySchema(items)
-      if type == .checks { return .checks }
-    }
-
+  private func classifyNumericTypeSchema(_ schemaJSON: JSONValue) -> PropertyType {
     if let type = schemaJSON["type"]?.stringValue {
-      switch type {
-      case "number": return .number
-      case "integer": return .integer
-      default: break
-      }
+      if type == "number" { return .number }
+      if type == "integer" { return .integer }
     } else if let types = schemaJSON["type"]?.arrayValue {
       let typeStrings = types.compactMap(\.stringValue)
       if typeStrings.contains("number") { return .number }
       if typeStrings.contains("integer") { return .integer }
     }
-
     return .standard
   }
 
@@ -368,43 +1013,23 @@ public final class NodeResolver: Sendable {
         result[k] = v
       }
     }
-    if let ref = schemaJSON["$ref"]?.stringValue {
-      let typeName = ref.split(separator: "/").last.map(String.init) ?? ""
-      let def =
-        A2UICommonSchema.v10Document["$defs"]?.objectValue?[typeName]
-        ?? A2UICommonSchema.document["$defs"]?.objectValue?[typeName]
-      if let def {
-        let defProps = extractPropertiesSchema(from: def)
-        for (k, v) in defProps {
-          result[k] = v
-        }
-      }
+    if let ref = schemaJSON["$ref"]?.stringValue,
+      let def = lookupCommonDef(ref: ref)
+    {
+      result.merge(extractPropertiesSchema(from: def)) { _, new in new }
     }
-    if let allOf = schemaJSON["allOf"]?.arrayValue {
-      for subSchema in allOf {
-        let subProps = extractPropertiesSchema(from: subSchema)
-        for (k, v) in subProps {
-          result[k] = v
-        }
-      }
-    }
-    if let oneOf = schemaJSON["oneOf"]?.arrayValue {
-      for subSchema in oneOf {
-        let subProps = extractPropertiesSchema(from: subSchema)
-        for (k, v) in subProps {
-          result[k] = v
-        }
-      }
-    }
-    if let anyOf = schemaJSON["anyOf"]?.arrayValue {
-      for subSchema in anyOf {
-        let subProps = extractPropertiesSchema(from: subSchema)
-        for (k, v) in subProps {
-          result[k] = v
-        }
+    for keyword in ["allOf", "oneOf", "anyOf"] {
+      for subSchema in schemaJSON[keyword]?.arrayValue ?? [] {
+        result.merge(extractPropertiesSchema(from: subSchema)) { _, new in new }
       }
     }
     return result
+  }
+
+  private func lookupCommonDef(ref: String) -> JSONValue? {
+    let typeName = ref.split(separator: "/").last.map(String.init) ?? ""
+    return A2UICommonSchema.v10Document["$defs"]?.objectValue?[typeName]
+      ?? A2UICommonSchema.document["$defs"]?.objectValue?[typeName]
   }
 
   // MARK: - Property Resolution
@@ -421,14 +1046,12 @@ public final class NodeResolver: Sendable {
     visited: Set<String>,
     components: [String: ComponentModel],
     data: JSONValue,
-    checks: [ResolvedCheck] = []
+    checks: [ResolvedCheck] = [],
+    recurseIntoChildren: Bool = true
   ) -> (any Resolved)? {
-    let previousComponentID = currentComponentID
     let previousPropertyPath = currentPropertyPath
-    currentComponentID = componentID
     currentPropertyPath = propertyKey
     defer {
-      currentComponentID = previousComponentID
       currentPropertyPath = previousPropertyPath
     }
     switch type {
@@ -463,100 +1086,215 @@ public final class NodeResolver: Sendable {
         propertyKey: propertyKey,
         visited: visited,
         components: components,
-        data: data
+        data: data,
+        recurseIntoChildren: recurseIntoChildren
       )
     case .componentID:
-      guard let childID = value.stringValue else { return nil }
-      let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
-      let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
-      return resolveNode(
-        definitionID: childID,
-        instanceID: childInstanceID,
+      return resolveComponentIDProperty(
+        value: value,
         basePath: basePath,
         index: index,
-        instanceSuffix: effectiveSuffix,
+        instanceSuffix: instanceSuffix,
         visited: visited,
         components: components,
-        data: data
+        data: data,
+        recurseIntoChildren: recurseIntoChildren
       )
     case .number:
       return value.doubleValue
     case .integer:
       return value.intValue
     case .standard:
-      if let array = value.arrayValue {
-        let itemsSchema = schema["items"] ?? .boolean(true)
-        let itemType = classifySchema(itemsSchema)
-        if itemType == .checks {
-          return resolveChecks(value, basePath: basePath, index: index, data: data)
-        }
-        let resolvedArray = array.enumerated().compactMap { itemIndex, item -> (any Resolved)? in
-          if let resolved = resolveProperty(
-            value: item,
-            schema: itemsSchema,
-            type: itemType,
-            basePath: basePath,
-            index: index,
-            instanceSuffix: instanceSuffix,
-            componentID: componentID,
-            propertyKey: "\(propertyKey)/\(itemIndex)",
-            visited: visited,
-            components: components,
-            data: data,
-            checks: checks
-          ) {
-            return resolved
-          }
-          return item == .null ? item : nil
-        }
-        return ResolvedArray(resolvedArray)
-      }
+      return resolveStandardProperty(
+        value: value,
+        schema: schema,
+        basePath: basePath,
+        index: index,
+        instanceSuffix: instanceSuffix,
+        componentID: componentID,
+        propertyKey: propertyKey,
+        visited: visited,
+        components: components,
+        data: data,
+        checks: checks,
+        recurseIntoChildren: recurseIntoChildren
+      )
+    }
+  }
 
-      if let obj = value.objectValue {
-        let objProps = extractPropertiesSchema(from: schema)
-        if !objProps.isEmpty {
-          var resolvedObj: [String: any Resolved] = [:]
-          for (k, v) in obj {
-            let nestedPropSchema = objProps[k] ?? .boolean(true)
-            let classified = classifySchema(nestedPropSchema)
-            let nestedPropType: PropertyType
-            let bindingKey = atLeastV10 ? "@path" : "path"
-            if classified == .standard,
-              v.objectValue?[bindingKey] != nil
-            {
-              nestedPropType = .dynamicValue
-            } else {
-              nestedPropType = classified
-            }
-            if let resVal = resolveProperty(
-              value: v,
-              schema: nestedPropSchema,
-              type: nestedPropType,
-              basePath: basePath,
-              index: index,
-              instanceSuffix: instanceSuffix,
-              componentID: componentID,
-              propertyKey: "\(propertyKey)/\(k)",
-              visited: visited,
-              components: components,
-              data: data,
-              checks: checks
-            ) {
-              resolvedObj[k] = resVal
-            }
-          }
-          return ResolvedDictionary(resolvedObj)
-        }
-      }
+  private func resolveComponentIDProperty(
+    value: JSONValue,
+    basePath: String?,
+    index: Int?,
+    instanceSuffix: String?,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    recurseIntoChildren: Bool = true
+  ) -> (any Resolved)? {
+    guard let childID = value.stringValue else { return nil }
+    let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
+    let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
+    return resolveChildReference(
+      definitionID: childID,
+      instanceID: childInstanceID,
+      basePath: basePath,
+      index: index,
+      instanceSuffix: effectiveSuffix,
+      visited: visited,
+      components: components,
+      data: data,
+      recurseIntoChildren: recurseIntoChildren
+    )
+  }
 
-      switch value {
-      case .string(let str): return str
-      case .boolean(let b): return b
-      case .number(let n): return n
-      case .integer(let i): return i
-      case .null: return nil
-      default: return value
+  private func resolveStandardProperty(
+    value: JSONValue,
+    schema: JSONValue,
+    basePath: String?,
+    index: Int?,
+    instanceSuffix: String?,
+    componentID: String,
+    propertyKey: String,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    checks: [ResolvedCheck],
+    recurseIntoChildren: Bool = true
+  ) -> (any Resolved)? {
+    if let array = value.arrayValue {
+      return resolveStandardArrayProperty(
+        array: array,
+        rawValue: value,
+        schema: schema,
+        basePath: basePath,
+        index: index,
+        instanceSuffix: instanceSuffix,
+        componentID: componentID,
+        propertyKey: propertyKey,
+        visited: visited,
+        components: components,
+        data: data,
+        checks: checks,
+        recurseIntoChildren: recurseIntoChildren
+      )
+    }
+    if let object = value.objectValue {
+      let objectProperties = extractPropertiesSchema(from: schema)
+      if !objectProperties.isEmpty {
+        return resolveStandardObjectProperty(
+          object: object,
+          objectProperties: objectProperties,
+          basePath: basePath,
+          index: index,
+          instanceSuffix: instanceSuffix,
+          componentID: componentID,
+          propertyKey: propertyKey,
+          visited: visited,
+          components: components,
+          data: data,
+          checks: checks,
+          recurseIntoChildren: recurseIntoChildren
+        )
       }
+    }
+    return resolvePrimitiveValue(value)
+  }
+
+  private func resolveStandardArrayProperty(
+    array: [JSONValue],
+    rawValue: JSONValue,
+    schema: JSONValue,
+    basePath: String?,
+    index: Int?,
+    instanceSuffix: String?,
+    componentID: String,
+    propertyKey: String,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    checks: [ResolvedCheck],
+    recurseIntoChildren: Bool = true
+  ) -> (any Resolved)? {
+    let itemsSchema = schema["items"] ?? .boolean(true)
+    let itemType = classifySchema(itemsSchema)
+    if itemType == .checks {
+      return resolveChecks(rawValue, basePath: basePath, index: index, data: data)
+    }
+    let resolvedArray = array.enumerated().compactMap { itemIndex, item -> (any Resolved)? in
+      if let resolved = resolveProperty(
+        value: item,
+        schema: itemsSchema,
+        type: itemType,
+        basePath: basePath,
+        index: index,
+        instanceSuffix: instanceSuffix,
+        componentID: componentID,
+        propertyKey: "\(propertyKey)/\(itemIndex)",
+        visited: visited,
+        components: components,
+        data: data,
+        checks: checks,
+        recurseIntoChildren: recurseIntoChildren
+      ) {
+        return resolved
+      }
+      return item == .null ? item : nil
+    }
+    return ResolvedArray(resolvedArray)
+  }
+
+  private func resolveStandardObjectProperty(
+    object: OrderedDictionary<String, JSONValue>,
+    objectProperties: [String: JSONValue],
+    basePath: String?,
+    index: Int?,
+    instanceSuffix: String?,
+    componentID: String,
+    propertyKey: String,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    checks: [ResolvedCheck],
+    recurseIntoChildren: Bool = true
+  ) -> ResolvedDictionary {
+    var resolvedObject: [String: any Resolved] = [:]
+    let bindingKey = atLeastV10 ? "@path" : "path"
+    for (key, propertyValue) in object {
+      let nestedPropSchema = objectProperties[key] ?? .boolean(true)
+      let classified = classifySchema(nestedPropSchema)
+      let nestedPropType: PropertyType =
+        (classified == .standard && propertyValue.objectValue?[bindingKey] != nil)
+        ? .dynamicValue : classified
+      if let resolvedValue = resolveProperty(
+        value: propertyValue,
+        schema: nestedPropSchema,
+        type: nestedPropType,
+        basePath: basePath,
+        index: index,
+        instanceSuffix: instanceSuffix,
+        componentID: componentID,
+        propertyKey: "\(propertyKey)/\(key)",
+        visited: visited,
+        components: components,
+        data: data,
+        checks: checks,
+        recurseIntoChildren: recurseIntoChildren
+      ) {
+        resolvedObject[key] = resolvedValue
+      }
+    }
+    return ResolvedDictionary(resolvedObject)
+  }
+
+  private func resolvePrimitiveValue(_ value: JSONValue) -> (any Resolved)? {
+    switch value {
+    case .string(let str): return str
+    case .boolean(let b): return b
+    case .number(let n): return n
+    case .integer(let i): return i
+    case .null: return nil
+    default: return value
     }
   }
 
@@ -565,14 +1303,26 @@ public final class NodeResolver: Sendable {
   private func evaluateDynamicValue(
     _ value: JSONValue,
     basePath: String?,
-    index: Int? = nil
+    index: Int? = nil,
+    userActivation: Bool = false
   ) -> JSONValue {
+    let currentData = dataModel.data
+    let previousReadHook = dataModel.onReadPath
+    if currentNodeReadValues != nil {
+      dataModel.onReadPath = { [weak self] path in
+        self?.recordReadPath(path, in: currentData)
+      }
+    }
+    defer {
+      dataModel.onReadPath = previousReadHook
+    }
     let context = DataContext(
       dataModel: dataModel,
       path: basePath ?? "",
       functionHandler: self,
       protocolVersion: effectiveProtocolVersion,
-      index: index
+      index: index,
+      isUserActivated: userActivation
     )
     return context.resolveDynamicValue(value)
   }
@@ -615,7 +1365,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      let resolvedValue = data[absPath]?.boolValue
+      let resolvedValue = readData(absPath, from: data)?.coercedDynamicBoolean ?? false
       return DataBinding<Bool>(
         identity: .path(absPath),
         value: resolvedValue,
@@ -624,7 +1374,9 @@ public final class NodeResolver: Sendable {
         }
       )
     }
-    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, index: index).boolValue
+    let resolvedValue = evaluateDynamicValue(
+      value, basePath: basePath, index: index
+    ).coercedDynamicBoolean
     return DataBinding<Bool>(
       identity: .literal(value),
       value: resolvedValue,
@@ -643,7 +1395,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      let resolvedValue = coerceToString(data[absPath])
+      let resolvedValue = coerceToString(readData(absPath, from: data))
       return DataBinding<String>(
         identity: .path(absPath),
         value: resolvedValue,
@@ -672,7 +1424,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      let resolvedValue = data[absPath]?.doubleValue
+      let resolvedValue = readData(absPath, from: data)?.doubleValue
       return DataBinding<Double>(
         identity: .path(absPath),
         value: resolvedValue,
@@ -700,7 +1452,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      let resolvedValue = data[absPath]
+      let resolvedValue = readData(absPath, from: data)
       return DataBinding<JSONValue>(
         identity: .path(absPath),
         value: resolvedValue,
@@ -728,7 +1480,9 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      let resolvedValue = data[absPath]?.arrayValue?.compactMap { self.coerceToString($0) }
+      let resolvedValue = readData(absPath, from: data)?.arrayValue?.compactMap {
+        self.coerceToString($0)
+      }
       return DataBinding<[String]>(
         identity: .path(absPath),
         value: resolvedValue,
@@ -756,96 +1510,148 @@ public final class NodeResolver: Sendable {
     index: Int? = nil,
     data: JSONValue
   ) -> [ResolvedCheck] {
-    let parseRule: (JSONValue) -> ResolvedCheck? = { [weak self] ruleJSON in
-      guard let self else { return nil }
-      let ruleDict = ruleJSON.dictionaryValue
-      let conditionJSON = ruleDict?["condition"] ?? ruleJSON
-      let fallbackMessage = ruleDict?["message"]?.stringValue ?? "Validation failed"
-
-      let bindingKey = self.atLeastV10 ? "@path" : "path"
-      if let dict = conditionJSON.dictionaryValue, let pathStr = dict[bindingKey]?.stringValue {
-        let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-        let rawVal = data[absPath]
-        if let rawDict = rawVal?.objectValue, let valid = rawDict["valid"]?.boolValue {
-          let code = rawDict["code"]?.stringValue
-          let msg = rawDict["message"]?.stringValue ?? fallbackMessage
-          let severity = rawDict["severity"]?.stringValue.flatMap {
-            ValidationSeverity(rawValue: $0)
-          }
-          let result = ValidationResult(valid: valid, code: code, message: msg, severity: severity)
-          return ResolvedCheck(
-            condition: DataBinding(identity: .path(absPath), value: valid, set: { _ in }),
-            message: msg,
-            validationResult: result
-          )
-        } else {
-          let valid = rawVal?.boolValue ?? false
-          let result = ValidationResult(
-            valid: valid,
-            code: nil,
-            message: fallbackMessage,
-            severity: .error
-          )
-          return ResolvedCheck(
-            condition: DataBinding(
-              identity: .path(absPath),
-              value: valid,
-              set: { [weak self] newValue in
-                self?.dataModel.set(absPath, value: .boolean(newValue))
-              }
-            ),
-            message: fallbackMessage,
-            validationResult: result
-          )
-        }
-      }
-
-      let evaluated = self.evaluateDynamicValue(conditionJSON, basePath: basePath, index: index)
-      if let evalDict = evaluated.objectValue, let valid = evalDict["valid"]?.boolValue {
-        let code = evalDict["code"]?.stringValue
-        let msg = evalDict["message"]?.stringValue ?? fallbackMessage
-        let severity = evalDict["severity"]?.stringValue.flatMap {
-          ValidationSeverity(rawValue: $0)
-        }
-        let result = ValidationResult(valid: valid, code: code, message: msg, severity: severity)
-        return ResolvedCheck(
-          condition: DataBinding(identity: .literal(conditionJSON), value: valid, set: { _ in }),
-          message: msg,
-          validationResult: result
-        )
-      } else if let b = evaluated.boolValue {
-        let result = ValidationResult(
-          valid: b,
-          code: nil,
-          message: fallbackMessage,
-          severity: .error
-        )
-        return ResolvedCheck(
-          condition: DataBinding(identity: .literal(conditionJSON), value: b, set: { _ in }),
-          message: fallbackMessage,
-          validationResult: result
-        )
-      } else {
-        let result = ValidationResult(
-          valid: false,
-          code: nil,
-          message: fallbackMessage,
-          severity: .error
-        )
-        return ResolvedCheck(
-          condition: DataBinding(identity: .literal(conditionJSON), value: false, set: { _ in }),
-          message: fallbackMessage,
-          validationResult: result
-        )
+    if let array = value.arrayValue {
+      return array.compactMap {
+        parseSingleCheckRule($0, basePath: basePath, index: index, data: data)
       }
     }
-
-    if let array = value.arrayValue {
-      return array.compactMap(parseRule)
-    } else if value.dictionaryValue != nil {
-      return [parseRule(value)].compactMap { $0 }
+    if value.dictionaryValue != nil,
+      let check = parseSingleCheckRule(value, basePath: basePath, index: index, data: data)
+    {
+      return [check]
     }
     return []
+  }
+
+  private func parseSingleCheckRule(
+    _ ruleJSON: JSONValue,
+    basePath: String?,
+    index: Int?,
+    data: JSONValue
+  ) -> ResolvedCheck? {
+    let ruleDict = ruleJSON.dictionaryValue
+    let conditionJSON = ruleDict?["condition"] ?? ruleJSON
+    let fallbackMessage = ruleDict?["message"]?.stringValue ?? "Validation failed"
+    let explicitRuleMessage = ruleDict?["message"]?.stringValue
+    let bindingKey = atLeastV10 ? "@path" : "path"
+
+    if let dict = conditionJSON.dictionaryValue, let pathStr = dict[bindingKey]?.stringValue {
+      let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      return makePathBoundCheck(
+        absPath: absPath,
+        rawVal: readData(absPath, from: data),
+        fallbackMessage: fallbackMessage
+      )
+    }
+
+    let previousCheckAgentCalls = currentCheckAgentCalls
+    currentCheckAgentCalls = []
+    let evaluated = evaluateDynamicValue(conditionJSON, basePath: basePath, index: index)
+    let agentCalls = currentCheckAgentCalls ?? []
+    currentCheckAgentCalls = previousCheckAgentCalls
+    // A condition waiting on the agent neither passes nor fails until the call settles.
+    if evaluated == .null, agentCalls.contains(where: isAgentCallPending) {
+      return ResolvedCheck(
+        condition: DataBinding(identity: .literal(conditionJSON), value: nil, set: { _ in }),
+        message: explicitRuleMessage ?? fallbackMessage,
+        isPending: true
+      )
+    }
+    return makeEvaluatedCheck(
+      conditionJSON: conditionJSON,
+      evaluated: evaluated,
+      fallbackMessage: fallbackMessage,
+      explicitRuleMessage: explicitRuleMessage
+    )
+  }
+
+  /// Whether `call`, routed to the agent from a binding or check, awaits the agent's response.
+  private func isAgentCallPending(_ call: AgentFunctionCall) -> Bool {
+    guard case .pending = agentCallHost?.agentCallCache[call] else { return false }
+    return true
+  }
+
+  private func makePathBoundCheck(
+    absPath: String,
+    rawVal: JSONValue?,
+    fallbackMessage: String
+  ) -> ResolvedCheck {
+    if let rawDict = rawVal?.objectValue, let valid = rawDict["valid"]?.boolValue {
+      let result = parseValidationResultObject(
+        rawDict,
+        valid: valid,
+        fallbackMessage: fallbackMessage
+      )
+      return ResolvedCheck(
+        condition: DataBinding(identity: .path(absPath), value: valid, set: { _ in }),
+        message: result.message ?? fallbackMessage,
+        validationResult: result
+      )
+    }
+    let valid = rawVal?.boolValue ?? false
+    let result = ValidationResult(
+      valid: valid,
+      code: nil,
+      message: fallbackMessage,
+      severity: .error
+    )
+    return ResolvedCheck(
+      condition: DataBinding(
+        identity: .path(absPath),
+        value: valid,
+        set: { [weak self] newValue in
+          self?.dataModel.set(absPath, value: .boolean(newValue))
+        }
+      ),
+      message: fallbackMessage,
+      validationResult: result
+    )
+  }
+
+  private func makeEvaluatedCheck(
+    conditionJSON: JSONValue,
+    evaluated: JSONValue,
+    fallbackMessage: String,
+    explicitRuleMessage: String? = nil
+  ) -> ResolvedCheck {
+    if let evalDict = evaluated.objectValue, let valid = evalDict["valid"]?.boolValue {
+      let result = parseValidationResultObject(
+        evalDict,
+        valid: valid,
+        fallbackMessage: fallbackMessage,
+        explicitRuleMessage: explicitRuleMessage
+      )
+      return ResolvedCheck(
+        condition: DataBinding(identity: .literal(conditionJSON), value: valid, set: { _ in }),
+        message: result.message ?? explicitRuleMessage ?? fallbackMessage,
+        validationResult: result
+      )
+    }
+    let valid = evaluated.boolValue ?? false
+    let result = ValidationResult(
+      valid: valid,
+      code: nil,
+      message: explicitRuleMessage ?? fallbackMessage,
+      severity: .error
+    )
+    return ResolvedCheck(
+      condition: DataBinding(identity: .literal(conditionJSON), value: valid, set: { _ in }),
+      message: explicitRuleMessage ?? fallbackMessage,
+      validationResult: result
+    )
+  }
+
+  private func parseValidationResultObject(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    valid: Bool,
+    fallbackMessage: String,
+    explicitRuleMessage: String? = nil
+  ) -> ValidationResult {
+    let code = dict["code"]?.stringValue
+    let msg = explicitRuleMessage ?? dict["message"]?.stringValue ?? fallbackMessage
+    let severity =
+      dict["severity"]?.stringValue.flatMap { ValidationSeverity(rawValue: $0) } ?? .error
+    return ValidationResult(valid: valid, code: code, message: msg, severity: severity)
   }
 
   // MARK: - Action Resolution
@@ -859,124 +1665,419 @@ public final class NodeResolver: Sendable {
     data: JSONValue
   ) -> ResolvedAction? {
     guard let dict = value.dictionaryValue else { return nil }
-
-    let eventObj: [String: JSONValue]?
-    if let wrapped = dict["event"]?.dictionaryValue {
-      eventObj = wrapped
-    } else if dict["name"]?.stringValue != nil {
-      eventObj = dict
-    } else {
-      eventObj = nil
-    }
-
-    let callKey = atLeastV10 ? "@call" : "call"
-    let funcCallVal: JSONValue?
-    if let wrapped = value["functionCall"], wrapped.dictionaryValue != nil {
-      funcCallVal = wrapped
-    } else if dict[callKey]?.stringValue != nil {
-      funcCallVal = value
-    } else {
-      funcCallVal = nil
-    }
-
-    if let eventObj, let name = eventObj["name"]?.stringValue {
-      let contextDict = eventObj["context"]?.dictionaryValue
-      let userMessageVal = eventObj["userMessage"]
-      let initialUserMessage = userMessageVal.flatMap {
-        self.evaluateDynamicValue($0, basePath: basePath, index: index).stringValue
-      }
-      let unresolvedIdentity = ResolvedAction.Identity.event(
+    if let eventObj = extractEventActionObject(dict),
+      let name = eventObj["name"]?.stringValue
+    {
+      return makeEventResolvedAction(
         name: name,
-        context: contextDict,
-        userMessage: initialUserMessage
+        eventObject: eventObj,
+        outerObject: dict,
+        checks: checks,
+        basePath: basePath,
+        index: index,
+        componentID: componentID
       )
-
-      return ResolvedAction(
-        identity: unresolvedIdentity,
-        sourceComponentID: componentID,
-        dataContextPath: basePath,
-        trigger: { [weak self] in
-          guard let self else { return }
-
-          let failedChecks = checks.filter { !$0.isValid }
-          if !failedChecks.isEmpty {
-            let errorMsg = failedChecks.map(\.message).joined(separator: ", ")
-            let version = self.effectiveProtocolVersion ?? .v10
-            self.actionHandler?.handle(
-              error: .validationFailed(
-                ValidationFailedError(
-                  surfaceID: self.surfaceID,
-                  path: componentID,
-                  message: errorMsg,
-                  version: version
-                )
-              ),
-              from: self.surfaceID
-            )
-            return
-          }
-
-          var resolvedContext: [String: JSONValue] = [:]
-          if let contextDict {
-            for (key, val) in contextDict {
-              resolvedContext[key] = self.evaluateDynamicValue(
-                val, basePath: basePath, index: index)
-            }
-          }
-          let resolvedUserMessage = userMessageVal.flatMap {
-            self.evaluateDynamicValue($0, basePath: basePath, index: index).stringValue
-          }
-
-          let triggerAction = ResolvedAction(
-            identity: .event(
-              name: name, context: resolvedContext, userMessage: resolvedUserMessage),
-            sourceComponentID: componentID,
-            trigger: {}
-          )
-
-          self.actionHandler?.handle(action: triggerAction, from: self.surfaceID)
-        }
-      )
-    } else if let funcCallVal, let funcCallDict = funcCallVal.dictionaryValue,
+    }
+    let callKey = atLeastV10 ? "@call" : "call"
+    if let funcCallVal = extractFunctionCallActionValue(value, dict: dict, callKey: callKey),
+      let funcCallDict = funcCallVal.dictionaryValue,
       let call = funcCallDict[callKey]?.stringValue
     {
-      let argsDict = funcCallDict["args"]?.dictionaryValue
-      let unresolvedIdentity = ResolvedAction.Identity.function(
+      return makeFunctionResolvedAction(
         call: call,
-        args: argsDict
-      )
-
-      return ResolvedAction(
-        identity: unresolvedIdentity,
-        sourceComponentID: componentID,
-        dataContextPath: basePath,
-        trigger: { [weak self] in
-          guard let self else { return }
-
-          let failedChecks = checks.filter { !$0.isValid }
-          if !failedChecks.isEmpty {
-            let errorMsg = failedChecks.map(\.message).joined(separator: ", ")
-            let version = self.effectiveProtocolVersion ?? .v10
-            self.actionHandler?.handle(
-              error: .validationFailed(
-                ValidationFailedError(
-                  surfaceID: self.surfaceID,
-                  path: componentID,
-                  message: errorMsg,
-                  version: version
-                )
-              ),
-              from: self.surfaceID
-            )
-            return
-          }
-
-          _ = self.evaluateDynamicValue(funcCallVal, basePath: basePath, index: index)
-        }
+        functionCallValue: funcCallVal,
+        functionCallDictionary: funcCallDict,
+        checks: checks,
+        basePath: basePath,
+        index: index,
+        componentID: componentID
       )
     }
-
     return nil
+  }
+
+  private func extractEventActionObject(_ dict: [String: JSONValue]) -> [String: JSONValue]? {
+    if let wrapped = dict["event"]?.dictionaryValue { return wrapped }
+    if dict["name"]?.stringValue != nil { return dict }
+    return nil
+  }
+
+  private func extractFunctionCallActionValue(
+    _ value: JSONValue,
+    dict: [String: JSONValue],
+    callKey: String
+  ) -> JSONValue? {
+    if let wrapped = value["functionCall"], wrapped.dictionaryValue != nil { return wrapped }
+    if dict[callKey]?.stringValue != nil { return value }
+    return nil
+  }
+
+  private func makeEventResolvedAction(
+    name: String,
+    eventObject: [String: JSONValue],
+    outerObject: [String: JSONValue],
+    checks: [ResolvedCheck],
+    basePath: String?,
+    index: Int?,
+    componentID: String
+  ) -> ResolvedAction {
+    let contextDictionary = eventObject["context"]?.dictionaryValue
+    // The entries of `context`, in the order the decoded object holds them.
+    let contextEntries = eventObject["context"]?.objectValue
+    let userMessageValue = eventObject["userMessage"]
+    let rawMetadata = eventObject["metadata"] ?? outerObject["metadata"]
+    let actionMetadata = try? MetadataValidator.validate(
+      rawMetadata,
+      pathPrefix: "action.metadata"
+    )
+    let unresolvedIdentity = ResolvedAction.Identity.event(
+      name: name,
+      context: contextDictionary,
+      userMessage: userMessageValue?.stringValue
+    )
+    return ResolvedAction(
+      identity: unresolvedIdentity,
+      sourceComponentID: componentID,
+      dataContextPath: basePath,
+      rawUserMessage: userMessageValue,
+      metadata: actionMetadata,
+      triggerWithUserActivation: { [weak self] userActivation, callMetadata in
+        guard let self else { return }
+        guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
+          return
+        }
+        let validatedBase = try MetadataValidator.validate(
+          rawMetadata,
+          pathPrefix: "action.metadata"
+        )
+        let mergedMetadata = try MetadataValidator.mergeActionMetadata(
+          base: validatedBase,
+          override: callMetadata
+        )
+        self.runEventAction(
+          name: name,
+          contextEntries: contextEntries,
+          userMessageValue: userMessageValue,
+          metadata: mergedMetadata,
+          basePath: basePath,
+          index: index,
+          componentID: componentID,
+          isUserActivated: userActivation
+        )
+      }
+    )
+  }
+
+  private func makeFunctionResolvedAction(
+    call: String,
+    functionCallValue: JSONValue,
+    functionCallDictionary: [String: JSONValue],
+    checks: [ResolvedCheck],
+    basePath: String?,
+    index: Int?,
+    componentID: String
+  ) -> ResolvedAction {
+    let argsDictionary = functionCallDictionary["args"]?.dictionaryValue
+    let unresolvedIdentity = ResolvedAction.Identity.function(call: call, args: argsDictionary)
+    return ResolvedAction(
+      identity: unresolvedIdentity,
+      sourceComponentID: componentID,
+      dataContextPath: basePath,
+      triggerWithUserActivation: { [weak self] userActivation, _ in
+        guard let self else { return }
+        guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
+          return
+        }
+        self.runActionFunctionCall(
+          functionCallValue,
+          basePath: basePath,
+          index: index,
+          isUserActivated: userActivation
+        )
+      }
+    )
+  }
+
+  private func reportFailedActionChecksIfNeeded(
+    _ checks: [ResolvedCheck],
+    componentID: String
+  ) -> Bool {
+    let failedChecks = checks.filter { !$0.isValid }
+    guard !failedChecks.isEmpty else { return true }
+    let errorMessage = failedChecks.map(\.message).joined(separator: ", ")
+    let version = effectiveProtocolVersion ?? .v10
+    actionHandler?.handle(
+      error: .validationFailed(
+        ValidationFailedError(
+          surfaceID: surfaceID,
+          path: componentID,
+          message: errorMessage,
+          version: version
+        )
+      ),
+      from: surfaceID
+    )
+    return false
+  }
+
+  /// The outcome of resolving one value of an action: an entry of an event's `context`, its
+  /// `userMessage`, or the function call of an action.
+  private enum ActionValueResolution {
+    /// The value resolved.
+    case resolved(JSONValue)
+    /// The value waits on these calls routed to the agent.
+    case pending(Set<AgentFunctionCall>)
+    /// A call failed, and its error was reported. The action stops.
+    case failed
+  }
+
+  /// Resolves one value of an action run in response to a user gesture, with `actionCache`
+  /// holding the agent's answers for this run of the action.
+  private func resolveActionValue(
+    _ value: JSONValue,
+    in context: DataContext,
+    actionCache: AgentCallCache
+  ) -> ActionValueResolution {
+    let previousActionCallCache = currentActionCallCache
+    let previousActionAgentCalls = currentActionAgentCalls
+    currentActionCallCache = actionCache
+    currentActionAgentCalls = []
+    let resolved = context.resolveDynamicValue(value)
+    let agentCalls = currentActionAgentCalls ?? []
+    currentActionCallCache = previousActionCallCache
+    currentActionAgentCalls = previousActionAgentCalls
+
+    if context.hasFailedFunctionCall {
+      actionCache.stop()
+      return .failed
+    }
+    let pendingCalls = agentCalls.filter { call in
+      if case .pending = actionCache[call] { return true }
+      return false
+    }
+    return pendingCalls.isEmpty ? .resolved(resolved) : .pending(pendingCalls)
+  }
+
+  /// Runs `resume` once every call in `calls` has been answered, unless one of them fails or the
+  /// action stops first.
+  private func resumeAction(
+    after calls: Set<AgentFunctionCall>,
+    in actionCache: AgentCallCache,
+    _ resume: @escaping @MainActor () -> Void
+  ) {
+    Task { @MainActor in
+      for call in calls {
+        guard await actionCache.awaitSettlement(of: call), !actionCache.isStopped else { return }
+      }
+      resume()
+    }
+  }
+
+  /// Runs an event action, waiting for any agent function calls in `context` or `userMessage` to
+  /// settle before dispatching the event. When no agent calls are pending, the event is
+  /// dispatched synchronously.
+  ///
+  /// The `context` entries are resolved one at a time, in the order the `context` object holds
+  /// them, then `userMessage`. That is the payload's order unless the JSON decoder reordered the
+  /// keys, as Foundation's `JSONDecoder` may. An entry that waits on the agent is awaited before
+  /// the next entry is resolved, so no later entry sends a call before it settles. The first entry that fails stops the action: no later entry is
+  /// resolved, and the event isn't dispatched. Each run resolves the entries again, reading the
+  /// answers already received from `actionCache`.
+  ///
+  /// A `userMessage` that resolves to null is absent. One that resolves to any other non-string,
+  /// whether at once or after an agent call, stops the action with an `INVALID_ACTION` error, and
+  /// the event isn't dispatched.
+  private func runEventAction(
+    name: String,
+    contextEntries: OrderedDictionary<String, JSONValue>?,
+    userMessageValue: JSONValue?,
+    metadata: [String: JSONValue]?,
+    basePath: String?,
+    index: Int?,
+    componentID: String,
+    isUserActivated: Bool = true,
+    actionCache: AgentCallCache = AgentCallCache()
+  ) {
+    guard !isDisposed, !actionCache.isStopped else { return }
+    let context = DataContext(
+      dataModel: dataModel,
+      path: basePath ?? "",
+      functionHandler: self,
+      protocolVersion: effectiveProtocolVersion,
+      index: index,
+      isUserActivated: isUserActivated
+    )
+    let resume: @MainActor () -> Void = { [weak self] in
+      self?.runEventAction(
+        name: name,
+        contextEntries: contextEntries,
+        userMessageValue: userMessageValue,
+        metadata: metadata,
+        basePath: basePath,
+        index: index,
+        componentID: componentID,
+        isUserActivated: isUserActivated,
+        actionCache: actionCache
+      )
+    }
+    var resolvedContext: [String: JSONValue] = [:]
+    for (key, value) in contextEntries ?? [:] {
+      if let reason = invalidDynamicValueReason(value) {
+        actionCache.stop()
+        reportInvalidEventValue("Action event context entry '\(key)' is invalid: \(reason)")
+        return
+      }
+      switch resolveActionValue(value, in: context, actionCache: actionCache) {
+      case .resolved(let resolved):
+        resolvedContext[key] = resolved
+      case .pending(let calls):
+        resumeAction(after: calls, in: actionCache, resume)
+        return
+      case .failed:
+        return
+      }
+    }
+    var resolvedUserMessage: String?
+    if let userMessageValue {
+      if let reason = invalidDynamicValueReason(userMessageValue) {
+        actionCache.stop()
+        reportInvalidEventValue("Action event userMessage is invalid: \(reason)")
+        return
+      }
+      switch resolveActionValue(userMessageValue, in: context, actionCache: actionCache) {
+      case .resolved(.null):
+        // A `userMessage` that resolves to null, such as a missing path, is absent.
+        resolvedUserMessage = nil
+      case .resolved(let resolved):
+        guard let message = resolved.stringValue else {
+          reportInvalidUserMessage()
+          return
+        }
+        resolvedUserMessage = message
+      case .pending(let calls):
+        resumeAction(after: calls, in: actionCache, resume)
+        return
+      case .failed:
+        return
+      }
+    }
+    let triggerAction = ResolvedAction(
+      identity: .event(
+        name: name,
+        context: resolvedContext,
+        userMessage: resolvedUserMessage
+      ),
+      sourceComponentID: componentID,
+      metadata: metadata,
+      trigger: {}
+    )
+    actionHandler?.handle(action: triggerAction, from: surfaceID)
+  }
+
+  /// Returns why `value` isn't a well-formed dynamic value, or `nil` if it is.
+  ///
+  /// From v1.0, an object key that starts with `@` must be `@path` or `@call` (`@@` escapes a
+  /// literal `@`). A data binding's path and a function call's name must be strings, and a
+  /// function call's `args` must be an object. Nested values are checked too.
+  private func invalidDynamicValueReason(_ value: JSONValue) -> String? {
+    let pathKey = atLeastV10 ? "@path" : "path"
+    let callKey = atLeastV10 ? "@call" : "call"
+    switch value {
+    case .array(let elements):
+      return elements.lazy.compactMap { self.invalidDynamicValueReason($0) }.first
+    case .object(let members):
+      if atLeastV10,
+        let unknownKey = members.keys.first(where: {
+          $0.hasPrefix("@") && !$0.hasPrefix("@@") && $0 != "@path" && $0 != "@call"
+        })
+      {
+        return "'\(unknownKey)' is not a known expression key."
+      }
+      if let path = members[pathKey], path.stringValue == nil,
+        atLeastV10 || members["componentId"] == nil
+      {
+        return "'\(pathKey)' must be a string."
+      }
+      if let call = members[callKey] {
+        guard let name = call.stringValue else {
+          return "'\(callKey)' must be a string."
+        }
+        if let args = members["args"], args.objectValue == nil {
+          return "the 'args' of '\(name)' must be an object."
+        }
+      }
+      return members.values.lazy.compactMap { self.invalidDynamicValueReason($0) }.first
+    default:
+      return nil
+    }
+  }
+
+  /// Reports a malformed `context` entry or `userMessage` of an event action.
+  private func reportInvalidEventValue(_ message: String) {
+    actionHandler?.handle(
+      error: .generic(
+        GenericError(
+          code: "EXPRESSION_ERROR",
+          surfaceID: surfaceID,
+          message: message,
+          version: effectiveProtocolVersion ?? .v10
+        )
+      ),
+      from: surfaceID
+    )
+  }
+
+  /// Reports an event action whose `userMessage` didn't resolve to a string.
+  private func reportInvalidUserMessage() {
+    actionHandler?.handle(
+      error: .generic(
+        GenericError(
+          code: "INVALID_ACTION",
+          surfaceID: surfaceID,
+          message: "Action event 'userMessage' must resolve to a string.",
+          version: effectiveProtocolVersion ?? .v10
+        )
+      ),
+      from: surfaceID
+    )
+  }
+
+  /// Runs the function call of an action, in response to a user gesture.
+  ///
+  /// Each action invocation uses its own `actionCache`, so action calls never read from or write
+  /// to the surface-wide reactive ``AgentCallCache`` or share in-flight calls across clicks. A
+  /// function call whose arguments include calls routed to the agent runs once those calls have
+  /// settled in `actionCache`. The run stops at the first call that fails, after reporting its
+  /// error once; the failures of sibling calls that settle later are not reported.
+  private func runActionFunctionCall(
+    _ functionCall: JSONValue,
+    basePath: String?,
+    index: Int?,
+    isUserActivated: Bool = true,
+    actionCache: AgentCallCache = AgentCallCache()
+  ) {
+    guard !isDisposed, !actionCache.isStopped else { return }
+    let context = DataContext(
+      dataModel: dataModel,
+      path: basePath ?? "",
+      functionHandler: self,
+      protocolVersion: effectiveProtocolVersion,
+      index: index,
+      isUserActivated: isUserActivated
+    )
+    // Run again only once the agent calls in the arguments settle. A call sent to the agent
+    // itself, rather than deferred, needs no second run.
+    let resolution = resolveActionValue(functionCall, in: context, actionCache: actionCache)
+    guard case .pending(let calls) = resolution, context.hasDeferredFunctionCall else { return }
+    resumeAction(after: calls, in: actionCache) { [weak self] in
+      self?.runActionFunctionCall(
+        functionCall,
+        basePath: basePath,
+        index: index,
+        isUserActivated: isUserActivated,
+        actionCache: actionCache
+      )
+    }
   }
 
   // MARK: - Child List Resolution
@@ -990,75 +2091,114 @@ public final class NodeResolver: Sendable {
     propertyKey: String,
     visited: Set<String>,
     components: [String: ComponentModel],
-    data: JSONValue
+    data: JSONValue,
+    recurseIntoChildren: Bool = true
   ) -> [Node]? {
     switch value {
     case .array(let arr):
-      let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
-      var resolvedNodes: [Node] = []
-      for item in arr {
-        guard let childID = item.stringValue else { continue }
-        let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
-        if let childNode = resolveNode(
-          definitionID: childID,
-          instanceID: childInstanceID,
-          basePath: basePath,
-          index: index,
-          instanceSuffix: effectiveSuffix,
-          visited: visited,
-          components: components,
-          data: data
-        ) {
-          resolvedNodes.append(childNode)
-        }
-      }
-      return resolvedNodes
-
+      return resolveStaticChildList(
+        arr,
+        basePath: basePath,
+        index: index,
+        instanceSuffix: instanceSuffix,
+        visited: visited,
+        components: components,
+        data: data,
+        recurseIntoChildren: recurseIntoChildren
+      )
     case .object(let dict):
-      guard
-        let templateID =
-          (dict["componentId"]?.stringValue
-            ?? dict["template"]?.stringValue),
-        let pathStr = (dict["path"]?.stringValue ?? dict["data"]?.stringValue)
-      else {
-        return nil
-      }
-
-      let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-
-      guard let dataListVal = data[absPath],
-        let dataItems = dataListVal.arrayValue
-      else {
-        return []
-      }
-
-      var expandedNodes: [Node] = []
-
-      for (itemIndex, _) in dataItems.enumerated() {
-        let itemSuffix =
-          instanceSuffix.map { "\($0)_\(itemIndex)" } ?? "\(itemIndex)"
-        let itemID = "\(templateID)_\(itemSuffix)"
-        let itemBasePath = "\(absPath)/\(itemIndex)"
-
-        if let itemNode = resolveNode(
-          definitionID: templateID,
-          instanceID: itemID,
-          basePath: itemBasePath,
-          index: itemIndex,
-          instanceSuffix: itemSuffix,
-          visited: visited,
-          components: components,
-          data: data
-        ) {
-          expandedNodes.append(itemNode)
-        }
-      }
-
-      return expandedNodes
-
+      return resolveTemplateChildList(
+        dict,
+        basePath: basePath,
+        instanceSuffix: instanceSuffix,
+        visited: visited,
+        components: components,
+        data: data,
+        recurseIntoChildren: recurseIntoChildren
+      )
     default:
       return nil
     }
+  }
+
+  private func resolveStaticChildList(
+    _ arr: [JSONValue],
+    basePath: String?,
+    index: Int?,
+    instanceSuffix: String?,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    recurseIntoChildren: Bool = true
+  ) -> [Node] {
+    let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
+    var resolvedNodes: [Node] = []
+    for item in arr {
+      guard let childID = item.stringValue else { continue }
+      let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
+      if let childNode = resolveChildReference(
+        definitionID: childID,
+        instanceID: childInstanceID,
+        basePath: basePath,
+        index: index,
+        instanceSuffix: effectiveSuffix,
+        visited: visited,
+        components: components,
+        data: data,
+        recurseIntoChildren: recurseIntoChildren
+      ) {
+        resolvedNodes.append(childNode)
+      }
+    }
+    return resolvedNodes
+  }
+
+  private func resolveTemplateChildList(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    basePath: String?,
+    instanceSuffix: String?,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    recurseIntoChildren: Bool = true
+  ) -> [Node]? {
+    guard
+      let templateID = dict["componentId"]?.stringValue ?? dict["template"]?.stringValue,
+      let pathStr = dict["path"]?.stringValue ?? dict["data"]?.stringValue
+    else {
+      return nil
+    }
+    let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+    let normalizedTemplatePath = normalizePath(absPath)
+    currentNodeChildIdentities?.updateValue(
+      componentIdentity(for: templateID, in: components),
+      forKey: templateID
+    )
+    guard let dataItems = data[normalizedTemplatePath]?.arrayValue else {
+      currentNodeTemplateCounts?[normalizedTemplatePath] = 0
+      return []
+    }
+    currentNodeTemplateCounts?[normalizedTemplatePath] = dataItems.count
+    var expandedNodes: [Node] = []
+    for itemIndex in dataItems.indices {
+      let itemSuffix = instanceSuffix.map { "\($0)_\(itemIndex)" } ?? "\(itemIndex)"
+      let itemID = "\(templateID)_\(itemSuffix)"
+      let itemBasePath = "\(normalizedTemplatePath)/\(itemIndex)"
+      if let itemNode = resolveChildReference(
+        definitionID: templateID,
+        instanceID: itemID,
+        basePath: itemBasePath,
+        index: itemIndex,
+        instanceSuffix: itemSuffix,
+        visited: visited,
+        components: components,
+        data: data,
+        recurseIntoChildren: recurseIntoChildren
+      ) {
+        expandedNodes.append(itemNode)
+      }
+    }
+    return expandedNodes
   }
 }
 
@@ -1069,7 +2209,7 @@ extension NodeResolver: FunctionHandler {
     if name == "@index" {
       return catalogID == nil ? IndexFunction() : nil
     }
-    let callCatalogID = catalogID ?? defaultCatalogID
+    let callCatalogID = atLeastV10 ? (catalogID ?? defaultCatalogID) : defaultCatalogID
     return getCatalog(id: callCatalogID)?.functions[name]
   }
 
@@ -1100,10 +2240,86 @@ extension NodeResolver: FunctionHandler {
     }
   }
 
+  /// Returns the catalog a v1.0 call is sent to the agent with: the catalog it names, else the
+  /// default catalog. Returns `nil` before v1.0, or when the surface has no
+  /// ``SurfaceViewModel/agentFunctionCaller``.
+  public func agentFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
+    guard atLeastV10, agentCallHost?.agentFunctionCaller != nil else { return nil }
+    return catalogID ?? defaultCatalogID
+  }
+
+  /// Sends a call to the agent through the surface, returning its result if available.
+  ///
+  /// While a node is being resolved, the call is recorded as a dependency of that node, and the
+  /// node is resolved again when the agent answers it (see ``agentFunctionResultPublisher``).
+  /// For reactive bindings and checks, the surface keeps the result so an identical call made
+  /// again reads it instead of being sent again. For imperative actions, each action invocation
+  /// uses its own ``currentActionCallCache`` and always sends a fresh call.
+  ///
+  /// An agent error or timeout is reported as an `EXPRESSION_ERROR`, and the value is `null`.
+  ///
+  /// - Returns: The agent's result if already received, else `nil`.
+  public func agentFunctionValue(for call: AgentFunctionCall) -> JSONValue? {
+    guard !isDisposed else { return nil }
+    let hadCallInCurrentPass = currentNodeAgentCalls?.contains(call) == true
+    currentNodeAgentCalls?.insert(call)
+    currentActionAgentCalls?.insert(call)
+    currentCheckAgentCalls?.insert(call)
+    guard let agentCallHost else {
+      handleFunctionError(FunctionError.noListener(name: call.name), functionName: call.name)
+      return nil
+    }
+    if let actionCache = currentActionCallCache {
+      return agentCallHost.actionAgentFunctionValue(for: call, in: actionCache)
+    }
+    if let nodeKey = currentComponentID,
+      !hadCallInCurrentPass,
+      !(nodesByAgentCall[call]?.contains(nodeKey) ?? false)
+    {
+      agentCallHost.agentCallCache.forgetFailure(call)
+    }
+    return agentCallHost.agentFunctionValue(
+      for: call,
+      isRequestedByNode: currentNodeAgentCalls != nil
+    )
+  }
+
+  /// Makes the next ``resolveTree()`` resolve every node again, discarding cached resolutions.
+  func setNeedsFullResolve() {
+    needsFullResolve = true
+  }
+
+  /// Whether a resolved node makes `call`.
+  func hasNodes(makingAgentCall call: AgentFunctionCall) -> Bool {
+    nodesByAgentCall[call] != nil
+  }
+
+  /// Marks the nodes making `call` for resolution once it has settled, and publishes on
+  /// ``agentFunctionResultPublisher`` if there are any.
+  ///
+  /// A failed call is resolved again too, so that a check waiting on it becomes invalid.
+  private func markAgentCallSettled(_ call: AgentFunctionCall) {
+    guard nodesByAgentCall[call] != nil else { return }
+    dirtyAgentCalls.insert(call)
+    agentCallSettledSubject.send()
+  }
+
   /// Reports a failed function call: unresolvable catalogs map through `MessageErrorMapper`
   /// (`CATALOG_ERROR`), while missing functions and errors thrown by `evaluate` are reported as
-  /// `EXPRESSION_ERROR`, matching the other core SDKs.
+  /// `EXPRESSION_ERROR`, matching the other core SDKs. A local function that throws while an
+  /// action runs is reported as `EXECUTION_ERROR`. A call cancelled with the RPC code
+  /// `CANCELLED`, such as when its surface is deleted, reports nothing.
   public func handleFunctionError(_ error: any Error, functionName: String) {
+    guard !isDisposed else { return }
+    var error = error
+    var code = "EXPRESSION_ERROR"
+    if let executionError = error as? ActionExecutionError {
+      error = executionError.underlying
+      code = "EXECUTION_ERROR"
+    }
+    if let functionError = error as? FunctionError, functionError.rpcCode == "CANCELLED" {
+      return
+    }
     let version = effectiveProtocolVersion ?? .v09
     let rendererError: RendererError
     if let catalogError = error as? A2UICatalogError {
@@ -1123,7 +2339,7 @@ extension NodeResolver: FunctionHandler {
       }
       rendererError = .generic(
         GenericError(
-          code: "EXPRESSION_ERROR",
+          code: code,
           surfaceID: surfaceID,
           message: message,
           expression: functionName,
@@ -1131,14 +2347,68 @@ extension NodeResolver: FunctionHandler {
         )
       )
     }
-    let dedupeKey =
-      "\(currentComponentID ?? ""):\(currentPropertyPath ?? ""):\(functionName):\(rendererError)"
+    report(
+      rendererError,
+      dedupeKey: "\(currentPropertyPath ?? ""):\(functionName):\(rendererError)"
+    )
+  }
+}
+
+// MARK: - Error Reporting
+
+extension NodeResolver {
+  /// Replaces the errors recorded for each node resolved in the pass with the ones it reported in
+  /// the pass, so an error is reported again only after its node resolves without it.
+  private func commitExpressionErrorsOfCurrentPass() {
+    for nodeKey in resolvedInCurrentPass {
+      let prefix = "\(nodeKey):"
+      reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
+      reportedExpressionErrors.formUnion(expressionErrorsInCurrentPass[nodeKey] ?? [])
+    }
+    expressionErrorsInCurrentPass.removeAll()
+  }
+
+  /// Reports a `GenericError` for a problem in the component tree.
+  private func reportResolutionError(
+    code: String,
+    message: String,
+    dedupeKey: String,
+    sharedAcrossNodes: Bool = false
+  ) {
+    let error = GenericError(
+      code: code,
+      surfaceID: surfaceID,
+      message: message,
+      version: effectiveProtocolVersion ?? .v09
+    )
+    report(.generic(error), dedupeKey: dedupeKey, sharedAcrossNodes: sharedAcrossNodes)
+  }
+
+  /// Reports an error to the action handler.
+  ///
+  /// While resolving the tree, an error is keyed to the node being resolved and reported once
+  /// until that node resolves without it, so re-renders don't repeat it.
+  ///
+  /// - Parameter sharedAcrossNodes: Whether nodes reporting the same `dedupeKey` share one
+  ///   report. Each node still records the key, so the error is reported again only once no node
+  ///   reports it.
+  private func report(_ error: RendererError, dedupeKey: String, sharedAcrossNodes: Bool = false) {
     if isResolvingTree {
-      let isFirstInPass = currentPassExpressionErrors.insert(dedupeKey).inserted
-      guard isFirstInPass && !reportedExpressionErrors.contains(dedupeKey) else {
+      let nodeKey = currentComponentID ?? ""
+      let key = "\(nodeKey):\(dedupeKey)"
+      let isFirstInPass = expressionErrorsInCurrentPass[nodeKey, default: []].insert(key).inserted
+      guard isFirstInPass, !reportedExpressionErrors.contains(key) else {
         return
       }
+      if sharedAcrossNodes {
+        let suffix = ":\(dedupeKey)"
+        guard sharedErrorsInCurrentPass.insert(dedupeKey).inserted,
+          !reportedExpressionErrors.contains(where: { $0.hasSuffix(suffix) })
+        else {
+          return
+        }
+      }
     }
-    actionHandler?.handle(error: rendererError, from: surfaceID)
+    actionHandler?.handle(error: error, from: surfaceID)
   }
 }

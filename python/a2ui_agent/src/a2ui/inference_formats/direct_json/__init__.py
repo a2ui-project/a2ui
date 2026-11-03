@@ -22,6 +22,7 @@ from .format import DirectJsonFormatFactory
 from .parser import DirectJsonParser
 from .prompt_generator import DEFAULT_WORKFLOW_RULES
 from .prompt_generator import DirectJsonPromptGenerator
+from .response_stream import DirectJsonResponseStream
 from .schema_prompt import schema_to_prompt
 
 __all__ = [
@@ -32,5 +33,6 @@ __all__ = [
     "DirectJsonFormatFactory",
     "DirectJsonParser",
     "DirectJsonPromptGenerator",
+    "DirectJsonResponseStream",
     "schema_to_prompt",
 ]

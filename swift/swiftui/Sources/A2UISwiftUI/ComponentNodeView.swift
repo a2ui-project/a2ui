@@ -14,6 +14,7 @@
 
 import A2UICore
 import SwiftUI
+import os
 
 /// Renders a single resolved A2UI engine node by looking up its view builder
 /// from the active component catalogs in the SwiftUI environment.
@@ -25,9 +26,6 @@ public struct ComponentNodeView: View {
   @Environment(\.a2uiCatalogs) private var catalogs
   @Environment(\.a2uiDefaultCatalogID) private var defaultCatalogID
 
-  /// Whether the rendered component reported applying its label and hint to its own control.
-  @State private var controlCarriesLabel = false
-
   public let node: Node
 
   public init(node: Node) {
@@ -35,31 +33,67 @@ public struct ComponentNodeView: View {
   }
 
   public var body: some View {
+    let _ = (node.properties, node.metadata)
     if let renderedView = Surface.render(
       node: node, using: catalogs, defaultCatalogID: defaultCatalogID)
     {
       renderedView
-        .modifier(
-          A2UIAccessibilityModifier(node: node, appliesLabelAndHint: !controlCarriesLabel)
-        )
-        .onPreferenceChange(A2UIAccessibilityControlKey.self) { carriesLabel in
-          // SwiftUI delivers preference changes on the main thread. Updating synchronously avoids
-          // a frame where both the root and the control carry the label.
-          MainActor.assumeIsolated {
-            if controlCarriesLabel != carriesLabel {
-              controlCarriesLabel = carriesLabel
-            }
-          }
-        }
-        // A nested component's control must not affect its ancestors.
-        .transformPreference(A2UIAccessibilityControlKey.self) { $0 = false }
+        .modifier(ComponentAccessibilityHostModifier(node: node))
     } else {
-      fallbackView
+      let _ = Self.logMissingViewBuilder(for: node, defaultCatalogID: defaultCatalogID)
+      EmptyView()
     }
   }
 
-  private var fallbackView: some View {
-    print("[A2UI] Component view builder not found for type: \(node.type)")
-    return EmptyView()
+  private static let logger = Logger(subsystem: "A2UISwiftUI", category: "ComponentNodeView")
+
+  /// Catalog and type pairs already logged, so a missing view builder is logged once per
+  /// process instead of on every render.
+  @MainActor private static var loggedMissingViewBuilders: Set<String> = []
+
+  /// Logs a node type that has no view builder in the SwiftUI catalogs passed to `Surface`.
+  ///
+  /// A type missing from the surface's catalog was already reported to the agent by the
+  /// resolver as `UNKNOWN_COMPONENT_TYPE`. A catalog type with no view builder is a host setup
+  /// mismatch that only this log points at.
+  @MainActor private static func logMissingViewBuilder(
+    for node: Node,
+    defaultCatalogID: String?
+  ) {
+    let catalogID = node.catalogID ?? defaultCatalogID ?? "default"
+    guard loggedMissingViewBuilders.insert("\(catalogID)/\(node.type)").inserted else {
+      return
+    }
+    logger.warning(
+      """
+      No view builder for component type '\(node.type, privacy: .public)' \
+      in catalog '\(catalogID, privacy: .public)'.
+      """
+    )
+  }
+}
+
+private struct ComponentAccessibilityHostModifier: ViewModifier {
+  let node: Node
+
+  /// Whether the rendered component reported applying its label and hint to its own control.
+  @State private var controlCarriesLabel = false
+
+  func body(content: Content) -> some View {
+    content
+      .modifier(
+        A2UIAccessibilityModifier(node: node, appliesLabelAndHint: !controlCarriesLabel)
+      )
+      .onPreferenceChange(A2UIAccessibilityControlKey.self) { carriesLabel in
+        // SwiftUI delivers preference changes on the main thread. Updating synchronously avoids
+        // a frame where both the root and the control carry the label.
+        MainActor.assumeIsolated {
+          if controlCarriesLabel != carriesLabel {
+            controlCarriesLabel = carriesLabel
+          }
+        }
+      }
+      // A nested component's control must not affect its ancestors.
+      .transformPreference(A2UIAccessibilityControlKey.self) { $0 = false }
   }
 }

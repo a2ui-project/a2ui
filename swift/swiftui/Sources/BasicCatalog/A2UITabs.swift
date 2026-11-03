@@ -33,10 +33,16 @@ extension BasicCatalogImplementation {
 public struct A2UITabs: View {
   public let node: Node
 
-  @State private var selectedIndex = 0
+  private let externalSelectedIndex: Binding<Int>?
+  @State private var internalSelectedIndex = 0
 
-  public init(node: Node) {
+  public init(node: Node, selectedIndex: Binding<Int>? = nil) {
     self.node = node
+    self.externalSelectedIndex = selectedIndex
+  }
+
+  private var activeSelectedIndex: Int {
+    externalSelectedIndex?.wrappedValue ?? internalSelectedIndex
   }
 
   private struct TabData: Identifiable {
@@ -75,34 +81,60 @@ public struct A2UITabs: View {
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: 8) {
           ForEach(tabs) { tab in
-            Button(action: { selectedIndex = tab.id }) {
+            Button(action: {
+              if let externalSelectedIndex {
+                externalSelectedIndex.wrappedValue = tab.id
+              } else {
+                internalSelectedIndex = tab.id
+              }
+            }) {
               Text(tab.title)
-                .font(.subheadline.weight(selectedIndex == tab.id ? .semibold : .regular))
+                .font(.subheadline.weight(activeSelectedIndex == tab.id ? .semibold : .regular))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .background(
-                  selectedIndex == tab.id
+                  activeSelectedIndex == tab.id
                     ? Color.accentColor.opacity(0.12)
                     : Color.clear
                 )
                 .foregroundStyle(
-                  selectedIndex == tab.id
+                  activeSelectedIndex == tab.id
                     ? Color.accentColor
                     : Color.secondary
                 )
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
+            .accessibilityAddTraits(activeSelectedIndex == tab.id ? .isSelected : [])
           }
         }
+        .modifier(TabBarAccessibility())
       }
 
       Divider()
 
       // Selected Tab Content
-      if selectedIndex < tabs.count, let childNode = tabs[selectedIndex].childNode {
+      if activeSelectedIndex >= 0,
+        activeSelectedIndex < tabs.count,
+        let childNode = tabs[activeSelectedIndex].childNode
+      {
         ComponentNodeView(node: childNode)
       }
+    }
+  }
+}
+
+/// Marks the row of tab headers as a tab bar where the platform supports it (iOS 17, macOS 14 and
+/// later), so assistive technologies treat the headers as tabs.
+private struct TabBarAccessibility: ViewModifier {
+  @ViewBuilder
+  func body(content: Content) -> some View {
+    if #available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *) {
+      content
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isTabBar)
+    } else {
+      content
     }
   }
 }

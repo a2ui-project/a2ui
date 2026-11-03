@@ -21,7 +21,8 @@ import '../../component_props.dart';
 import 'media.dart';
 
 /// Builds the basic `Video` component: the video at an `http` or `https`
-/// `url` above its playback controls.
+/// `url` above its playback controls, showing the image at `posterUrl` until
+/// playback starts or fails.
 Widget buildVideo(
   BuildContext context,
   ComponentNode<ComponentImplementation> node,
@@ -29,5 +30,9 @@ Widget buildVideo(
   ChildWidgetBuilder buildChild,
 ) => LimitedBox(
   maxWidth: 300,
-  child: MediaPlayer(url: props.string('url'), showVideo: true),
+  child: MediaPlayer(
+    url: props.string('url'),
+    showVideo: true,
+    posterUrl: props.string('posterUrl'),
+  ),
 );

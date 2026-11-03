@@ -16,11 +16,11 @@
 # Used by the "Verify Markdown links" step in .github/workflows/docs.yml.
 # See https://lychee.cli.rs/usage/config/
 
-# HTTP status codes treated as success. 403/429 are frequent false negatives
+# HTTP status codes treated as success. 403/408/429 are frequent false negatives
 # from sites that block or throttle automated checkers rather than real breakage.
 # 503 is how github.com throttles requests for /blob/ pages from CI, even with a
 # token: on each run a different set of valid links gets it.
-accept = [200, 206, 403, 429, 503]
+accept = [200, 206, 403, 408, 429, 503]
 
 # Skip mailto: links (this is lychee's default; stated explicitly for clarity).
 include_mail = false
@@ -47,15 +47,21 @@ exclude = [
   "^https?://go/",
   # Valid Google vanity domains / services that reject or block automated checkers.
   "aistudio\\.google\\.com",
+  "docs\\.google\\.com",
   "opal\\.google",
   "gemini\\.google\\.com",
-  "aistudio\\.google\\.com",
+  # Dynamic badge SVG endpoints on shields.io frequently return 408/5xx when
+  # upstream registries throttle them; the surrounding package links (npmjs.com,
+  # pypi.org, pub.dev) are still checked directly.
+  "img\\.shields\\.io",
   # Known-dead external references (verified 404, no published replacement).
   # Excluded to keep CI green; drop the referencing content if gone for good.
   "github\\.com/orgs/community/discussions/187776",
   "flutter/genui/blob/main/examples/e2e/",
   # Flaky. See: https://github.com/a2ui-project/a2ui/issues/1747
   "https://ojs\\.aaai\\.org",
+  # Flaky / connection refused from CI runner IPs
+  "https://www\\.jsonrpc\\.org",
   # Flaky: the host intermittently stops responding entirely (connection hangs
   # well past our 20s timeout) while the cited paper is still published there.
   "https://www\\.diva-portal\\.org",
@@ -74,11 +80,15 @@ exclude_path = [
   ".git",
   "dist",
   "build",
-  # The specification/ tree is copied into docs/public/specification/ at build time
-  # (see the "Copy schemas" step in docs.yml). Check only the original source copies
-  # because the published copies have broken relative links due to being nested
-  # deeper inside docs/public/.
+  # MkDocs build output directory
+  "^site/",
+  # The specification/ tree is copied into docs/public/specification/ and
+  # docs/site/public/specification/ at build time (see docs.yml and
+  # docs/site/scripts/prepare-spec-assets.mjs). Check only the original source
+  # copies because the published copies have broken relative links due to being
+  # nested deeper inside docs/.
   "^docs/public/specification",
+  "^docs/site/public/specification",
   # Exclude Python virtual environment directories
   "\\.venv",
   "venv",

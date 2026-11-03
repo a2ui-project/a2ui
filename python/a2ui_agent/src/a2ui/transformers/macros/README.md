@@ -113,9 +113,11 @@ format_strategy = ExpressFormat([inference_catalog], surface_id="main")
 system_prompt = format_strategy.prompt_generator.generate()
 
 # 4. Invoke your LLM with system_prompt...
-# When the model outputs Express DSL, parse it with the standard parser. It
-# returns typed AgentToRendererMessage models:
-typed_messages = format_strategy.parser.compile(llm_output)
+# When the model outputs Express DSL, compile it with the format's parser. It
+# returns typed AgentToRendererMessage models. `compile` only translates the
+# notation; use `parse_response` to also check the messages against the
+# catalogs and a renderer state:
+typed_messages = format_strategy.create_parser().compile(llm_output)
 
 # 5. Lower the typed messages to transport primitives using the expander:
 transport_messages = expander.transform_to_transport(typed_messages)

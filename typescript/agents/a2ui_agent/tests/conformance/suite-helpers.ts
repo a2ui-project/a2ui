@@ -28,13 +28,20 @@ import {expect, test} from 'vitest';
 import {CatalogApi} from '../../src/internal/web-core.js';
 import {
   A2uiCatalogError,
+  A2uiCompilationError,
+  A2uiCompilationParseError,
+  A2uiCompilationValidationError,
+  A2uiError,
   A2uiValidationError,
+  AgentToRendererMessage,
   CatalogConfig,
   CatalogTransformer,
   ComponentPruningTransformer,
   FileSystemCatalogProvider,
   FunctionPruningTransformer,
   ParseError,
+  Parser,
+  validatePayload,
 } from '../../src/index.js';
 import {CONFORMANCE_ROOT, LoadedCase} from './loader.js';
 
@@ -52,6 +59,18 @@ export interface CatalogRegistration {
 }
 
 /** Resolves a path the suites give relative to `conformance/`. */
+/** The suite's category for an error, or the error's class name if it has none. */
+export function categoryOf(error: unknown): string {
+  if (error instanceof ParseError || error instanceof A2uiCompilationParseError) {
+    return 'ParseError';
+  }
+  if (error instanceof A2uiValidationError || error instanceof A2uiCompilationValidationError) {
+    return 'ValidationError';
+  }
+  if (error instanceof A2uiCatalogError) return 'CatalogError';
+  return (error as Error).constructor.name;
+}
+
 export function conformancePath(relative: string): string {
   return path.resolve(CONFORMANCE_ROOT, relative);
 }
@@ -65,6 +84,29 @@ export function errorClassFor(testCase: LoadedCase): new (...args: never[]) => E
     throw new Error(`Unknown error category '${category}' in case ${testCase.name}`);
   }
   return errorClass;
+}
+
+/**
+ * Compiles one block and checks its messages on their own.
+ *
+ * A conformance `compile` case fixes the messages an agent sends for one block, so they are
+ * checked the way `validatePayload` checks a payload: a surface that the block updates
+ * without creating is assumed to exist. A failure to compile that isn't an `A2uiError` is
+ * thrown as `A2uiCompilationError`, as `parseResponse` throws it.
+ */
+export function compileChecked(parser: Parser, content: string): AgentToRendererMessage[] {
+  let messages: AgentToRendererMessage[];
+  try {
+    messages = parser.compile(content);
+  } catch (e) {
+    if (e instanceof A2uiError) throw e;
+    const reason = e instanceof Error ? e.message : String(e);
+    throw new A2uiCompilationError(`Failed to compile A2UI block: ${reason}`, {
+      rawContent: content,
+    });
+  }
+  validatePayload(parser.catalogs, messages);
+  return messages;
 }
 
 /** Loads the registrations a case lists into catalog configs, with their transformers. */

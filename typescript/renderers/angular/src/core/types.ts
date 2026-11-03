@@ -75,9 +75,18 @@ type InferredInterfaceToProps<InferredSchema> = {
       : BoundProperty<DynamicSchemaValueToRaw<InferredSchema[K]>>;
 };
 
+/** Structured validation result emitted by check rules. */
+export interface CheckValidationResult {
+  valid: boolean;
+  message: string;
+  code?: string;
+  severity: 'error' | 'warning' | 'info';
+}
+
 interface CheckProps {
   isValid: boolean;
   validationErrors: string[];
+  validationResults?: CheckValidationResult[];
 }
 
 /** The binder can add some properties to the Props object. This util adds them to the type. */

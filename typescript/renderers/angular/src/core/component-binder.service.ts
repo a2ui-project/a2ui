@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
+import {Injectable, inject, Signal as AngularSignal, EnvironmentInjector} from '@angular/core';
 import {
-  DestroyRef,
-  Injectable,
-  inject,
-  Signal as AngularSignal,
-  EnvironmentInjector,
-} from '@angular/core';
-import {ComponentContext, computed} from '@a2ui/web_core/v0_9';
+  ComponentContext,
+  type ComponentNode,
+  ResolvedBinding,
+  computed,
+  getValue,
+  isComponentNode,
+  isWritable,
+  peekValue,
+} from '@a2ui/web_core/v0_9';
 import {BoundProperty, ComponentTemplate} from './types';
 import {assertAngularSignal, initializeAngularReactivity} from './reactivity';
 
@@ -29,64 +32,177 @@ import {assertAngularSignal, initializeAngularReactivity} from './reactivity';
 export interface Child {
   id: string;
   basePath: string;
+  /**
+   * The resolved node for this child when the parent was bound from a
+   * `ComponentNode`. Hosts render it directly instead of searching the tree.
+   */
+  node?: ComponentNode;
 }
 
 /**
- * Binds A2UI ComponentModel properties to reactive Angular Signals.
+ * Binds the resolved properties of a `ComponentNode` to reactive Angular Signals.
  *
- * This service is used by {@link ComponentHostComponent} to resolve data bindings
- * from the A2UI DataContext and expose them as Angular Signals. It ensures that
- * property updates from the A2UI protocol are correctly reflected in Angular
- * components and provides callbacks for updating the data model.
+ * `NodeResolver` already resolves every property of a node: dynamic values arrive
+ * as `ResolvedBinding` instances (writable ones carry their setter), actions as
+ * ready-to-call closures, child properties as live `ComponentNode` references, and
+ * `checks` as `isValid`, `validationErrors`, and `validationResults`. This service
+ * is a thin adapter that exposes each entry of `node.props` as a {@link BoundProperty}
+ * for {@link ComponentHostComponent} and {@link AngularWcHost}.
  */
 @Injectable({
   providedIn: 'root',
 })
 export class ComponentBinder {
-  private destroyRef = inject(DestroyRef);
+  private readonly boundCleanups = new WeakMap<Record<string, BoundProperty>, Array<() => void>>();
 
   constructor() {
     initializeAngularReactivity(inject(EnvironmentInjector));
   }
 
   /**
-   * Binds all properties of a component to an object of Angular Signals.
+   * Binds all properties of a resolved `ComponentNode` to an object of Angular Signals.
    *
+   * Reads only from `node.props`; no additional `DataContext` subscriptions are created.
+   *
+   * @param node The resolved ComponentNode.
+   * @returns A map of property names to reactive `BoundProperty` wrappers.
+   */
+  bindNode(node: ComponentNode): Record<string, BoundProperty> {
+    const rawProps = node.context?.componentModel.properties ?? {};
+    const bound: Record<string, BoundProperty<unknown>> = {};
+    for (const key of Object.keys(peekValue(node.props))) {
+      bound[key] = this.bindNodeProperty(node, key, rawProps[key]);
+    }
+    return bound;
+  }
+
+  private bindNodeProperty(
+    node: ComponentNode,
+    key: string,
+    rawVal: unknown,
+  ): BoundProperty<unknown> {
+    const valueSignal = computed(() =>
+      this.unwrapNodePropValue(key, getValue(node.props)[key], node.dataPath),
+    );
+    assertAngularSignal(valueSignal);
+    return {
+      value: valueSignal as AngularSignal<unknown>,
+      raw: rawVal,
+      template: this.extractNodeTemplate(key, rawVal),
+      onUpdate: (newValue: unknown) => {
+        const binding = peekValue(node.props)[key];
+        if (binding instanceof ResolvedBinding && isWritable(binding)) {
+          binding.set(newValue);
+        }
+      },
+    };
+  }
+
+  private extractNodeTemplate(key: string, rawVal: unknown): ComponentTemplate | undefined {
+    if (key !== 'children' || !isChildListTemplateObject(rawVal)) {
+      return undefined;
+    }
+    const path = rawVal['@path'] ?? rawVal.path;
+    return rawVal.componentId && path ? {id: rawVal.componentId, path} : undefined;
+  }
+
+  private unwrapNodePropValue(key: string, val: unknown, defaultBasePath: string): unknown {
+    if (val instanceof ResolvedBinding) {
+      return this.unwrapNodePropValue(key, val.value, defaultBasePath);
+    }
+    if (isComponentNode(val)) {
+      return toChild(val);
+    }
+    if (Array.isArray(val)) {
+      if (key === 'children') {
+        return val.map(item =>
+          isComponentNode(item) ? toChild(item) : this.normalizeChildItem(item, defaultBasePath),
+        );
+      }
+      return val.map(item => this.unwrapNodePropValue(key, item, defaultBasePath));
+    }
+    if (['child', 'trigger', 'content'].includes(key)) {
+      return this.normalizeChildItem(val, defaultBasePath);
+    }
+    if (val && typeof val === 'object' && Object.getPrototypeOf(val) === Object.prototype) {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(val)) {
+        out[k] = this.unwrapNodePropValue(k, v, defaultBasePath);
+      }
+      return out;
+    }
+    return val;
+  }
+
+  /**
+   * Unsubscribes any reactive signal subscriptions created by {@link bind}.
+   *
+   * Property maps returned by {@link bindNode} hold no subscriptions of their own, so
+   * calling this with one of them is a no-op.
+   *
+   * @param bound The bound property map returned by {@link bind} or {@link bindNode}.
+   */
+  unbind(bound: Record<string, BoundProperty> | undefined): void {
+    if (!bound) return;
+    const cleanups = this.boundCleanups.get(bound);
+    if (!cleanups) return;
+    this.boundCleanups.delete(bound);
+    for (const cleanup of cleanups) {
+      cleanup();
+    }
+  }
+
+  /**
+   * Binds all properties of a component to an object of Angular Signals from its
+   * `ComponentContext`, resolving data bindings through the `DataContext` directly.
+   *
+   * @deprecated Hosts bind from the resolved `ComponentNode` via {@link bindNode}. This
+   *   path remains for elements that are given a `ComponentContext` without a node and
+   *   will be removed in a future release.
    * @param context The ComponentContext containing the model and data context.
    * @returns An object where each key corresponds to a component prop and its value is an Angular Signal.
    */
   bind(context: ComponentContext): Record<string, BoundProperty> {
     const props = context.componentModel.properties;
     const bound: Record<string, BoundProperty<unknown>> = {};
+    const cleanups: Array<() => void> = [];
 
     for (const key of Object.keys(props)) {
       const value = props[key];
-      bound[key] = this.bindProperty(key, value, context);
+      bound[key] = this.bindProperty(key, value, context, cleanups);
 
       if (key === 'checks') {
-        const checkProps = this.bindChecks(value, context);
+        const checkProps = this.bindChecks(value, context, cleanups);
         bound['isValid'] = checkProps.isValid;
         bound['validationErrors'] = checkProps.validationErrors;
       }
     }
 
+    if (cleanups.length > 0) {
+      this.boundCleanups.set(bound, cleanups);
+    }
     return bound;
   }
 
-  private bindProperty(key: string, value: any, context: ComponentContext): BoundProperty<unknown> {
+  private bindProperty(
+    key: string,
+    value: any,
+    context: ComponentContext,
+    cleanups: Array<() => void>,
+  ): BoundProperty<unknown> {
     const isChildListTemplate =
       value && typeof value === 'object' && 'componentId' in value && 'path' in value;
     const isBoundPath =
       value && typeof value === 'object' && 'path' in value && !('componentId' in value);
 
     const baseSignal = isChildListTemplate
-      ? this.createChildListSignal(value, context)
+      ? this.createChildListSignal(value, context, cleanups)
       : context.dataContext.resolveSignal(value);
 
     const {valueSignal, template} = this.transformStructuralSignal(key, value, baseSignal, context);
 
     if (valueSignal?.unsubscribe) {
-      this.destroyRef.onDestroy(() => valueSignal.unsubscribe!());
+      cleanups.push(() => valueSignal.unsubscribe!());
     }
 
     return {
@@ -102,8 +218,12 @@ export class ComponentBinder {
   private createChildListSignal(
     value: {componentId: string; path: string},
     context: ComponentContext,
+    cleanups: Array<() => void>,
   ) {
     const listSig = context.dataContext.resolveSignal({path: value.path});
+    if (listSig?.unsubscribe) {
+      cleanups.push(() => listSig.unsubscribe!());
+    }
     assertAngularSignal(listSig);
 
     const listContext = context.dataContext.nested(value.path);
@@ -162,6 +282,7 @@ export class ComponentBinder {
   private bindChecks(
     value: unknown,
     context: ComponentContext,
+    cleanups: Array<() => void>,
   ): {isValid: BoundProperty<unknown>; validationErrors: BoundProperty<unknown>} {
     const checksArray = Array.isArray(value) ? value : [];
 
@@ -170,6 +291,12 @@ export class ComponentBinder {
       const message = rule.message ?? 'Validation failed';
       const conditionSig = context.dataContext.resolveSignal(condition);
       const messageSig = context.dataContext.resolveSignal(message);
+      if (conditionSig?.unsubscribe) {
+        cleanups.push(() => conditionSig.unsubscribe!());
+      }
+      if (messageSig?.unsubscribe) {
+        cleanups.push(() => messageSig.unsubscribe!());
+      }
       return {conditionSig, messageSig};
     });
 
@@ -228,4 +355,20 @@ export class ComponentBinder {
       errorMessage: (messageSig() as string) || 'Validation failed',
     };
   }
+}
+
+function toChild(node: ComponentNode): Child {
+  return {id: node.componentId, basePath: node.dataPath, node};
+}
+
+function isChildListTemplateObject(
+  value: unknown,
+): value is {componentId: string; path?: string; '@path'?: string} {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.hasOwn(value, 'componentId') &&
+    (Object.hasOwn(value, 'path') || Object.hasOwn(value, '@path'))
+  );
 }

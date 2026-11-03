@@ -30,7 +30,7 @@ graph TD
     Facade["High-Level Application Facade<br/>(A2uiGenerator / A2uiRequestProcessor)"]
     Transformers["Catalog Transformers<br/>(Component / Function Allowlist Rules)"]
     Formats["Inference Formats<br/>(DirectJson / Express / More to be added)"]
-    Parsers["Parser Engine<br/>(wrap, unwrap, compile, decompile, parse_response, parse_chunk)"]
+    Parsers["Parser Engine<br/>(wrap, unwrap, compile, decompile, parse_response, open_stream)"]
     CoreModels["Core Data Models & Validation<br/>(a2ui_core Catalog, MessageProcessor & PayloadValidator)"]
 
     Facade --> Transformers
@@ -46,7 +46,7 @@ graph TD
    - **Catalog Transformers**: Standalone rule sets (`CatalogTransformer`, `ComponentPruningTransformer`, `FunctionPruningTransformer`) for filtering component definitions and function signatures from pristine catalogs.
    - **Inference Formats**: Strategy facades (`InferenceFormat`, `InferenceFormatFactory`) pairing format-specific prompt generators (`PromptGenerator`) and parsers (`Parser`). Supported strategies include `DirectJsonFormat` and `ExpressFormat`.
    - **Prompt Generators**: Format builders consuming transformed catalogs and prompt examples to generate system instruction snippets.
-   - **Parsers**: Response extraction engines performing tag detection (`has_format_content`), tag unwrapping (`unwrap`) and wrapping (`wrap`), syntax compilation (`compile`) and decompilation (`decompile`). A format whose notation can be read incrementally also implements streaming chunk processing (`parse_chunk`).
+   - **Parsers**: Response extraction engines performing tag detection (`has_format_content`), tag unwrapping (`unwrap`) and wrapping (`wrap`), syntax compilation (`compile`) and decompilation (`decompile`). A format whose notation can be read incrementally also opens a `ResponseStream` that reads a response chunk by chunk (`open_stream`).
    - **Validation Layer**: Reaches `a2ui_core` validation through `MessageProcessor`, which holds every active catalog, resolves each item to the catalog it belongs to, and delegates the item to that catalog's `PayloadValidator`. Protocol version branching (`v0_8`, `v0_9`, `v0_9_1`, `v1_0`) is handled by the core version adapters.
 2. **Encapsulated Application Processor**:
    - `CatalogConfig`: Configuration dataclass pairing a resolved `Catalog` with the custom transformers to apply to it. A `CatalogProvider` (`FileSystemCatalogProvider`, `InMemoryCatalogProvider`) is how a catalog document becomes that `Catalog`, but the config holds the result rather than the provider.
@@ -71,7 +71,7 @@ a2ui_agent/
 │   ├── direct_json/           # Self-contained Direct JSON format package
 │   │   ├── format             # DirectJsonFormat, DirectJsonFormatFactory
 │   │   ├── prompt_generator   # DirectJsonPromptGenerator
-│   │   └── parser             # DirectJsonParser class, including parse_chunk streaming
+│   │   └── parser             # DirectJsonParser class, including open_stream streaming
 │   └── express/               # Self-contained Express DSL format package
 │       ├── format             # ExpressFormat, ExpressFormatFactory
 │       ├── compiler           # ExpressCompiler class
@@ -167,6 +167,8 @@ The interface is `generate()` alone. Application code gets a prompt generator fr
 
 Every format's generator renders the prompt example turns it is given in the order given. Each turn is the list of `AgentToRendererMessage` objects making it up. An example carries no label of its own: what the model learns from it is the payload, so a description would be the prompt author's prose rather than part of the contract.
 
+A generator lists only agent-callable functions as `callRendererFunction` targets (see [Agent-callable functions](#agent-callable-functions)).
+
 ```python
 class PromptGenerator(ABC):
     """Abstract base class for format-specific prompt generators."""
@@ -247,8 +249,9 @@ class Parser(ABC):
         """Reports whether the content carries a block written in this format.
 
         A caller uses this to decide whether a response is this format's business at all,
-        without paying for a parse. It reads the sentinel tags only and never compiles.
-        Another format's tags do not count.
+        without paying for a parse. It tokenizes blocks without compiling. Another format's
+        tags do not count. A block recovered by `unwrap` when its opening sentinel tag was
+        omitted (closed by this format's closing tag) also counts as a complete block.
 
         Args:
             content: Raw string response emitted by the LLM, possibly partial.
@@ -271,19 +274,28 @@ class Parser(ABC):
         """Tokenizes the LLM response into an ordered list of RawResponsePart objects, extracting raw format content between sentinel tags while preserving chronological order.
 
         Content outside this format's sentinel tags, including another format's tags, is a TextPart.
+        Markdown fences and backticks wrapping inline-code sentinel tags are stripped from block
+        edges, and a closing tag on a single-line comment line closes the block.
+        If the model omits the opening sentinel tag but emits a closing sentinel tag after a fenced
+        block or a line that begins a format payload, at most one such block is recovered in
+        one-shot unwrapping (streaming parsers require the opening sentinel tag).
 
         Args:
             content: Raw string response emitted by the LLM.
 
         Returns:
             An ordered list of RawResponsePart objects representing alternating slices of
-            conversational text and tagged A2UI payload blocks exactly as emitted by the LLM.
+            conversational text and cleaned format payload blocks.
         """
         pass
 
     @abstractmethod
     def compile(self, format_content: str) -> list[AgentToRendererMessage]:
         """Compiles a raw format content string into a list of validated A2UI message structures.
+
+        Compile-time repairs tolerate stray unescaped line breaks inside object keys,
+        identifier/reference properties, at single-line string edges, and in data paths or
+        split identifiers when the joined name resolves.
 
         Args:
             format_content: The uncompiled raw payload string (e.g. raw JSON or DSL expression).
@@ -330,35 +342,104 @@ class Parser(ABC):
 
     @property
     def supports_streaming(self) -> bool:
-        """Whether this parser can read a response incrementally through parse_chunk.
+        """Whether this parser can read a response incrementally through open_stream.
 
-        A format can only stream if a partial block already means something. Direct JSON
-        can, because an unfinished object can be healed and re-read as it grows. Express
-        cannot: its notation resolves references across the whole block, so a block is
-        read once it is closed and not before. A parser that returns False here buffers
-        the response and is parsed whole through parse_response.
+        Direct JSON and Express both stream incrementally: Direct JSON heals partial JSON
+        objects as they arrive, and Express compiles complete top-level statements and
+        heals progressive string literals as chunks arrive. A parser that returns False
+        here buffers the response and is parsed whole through parse_response.
         """
         return False
 
-    def parse_chunk(self, chunk: str, wrapped: bool = True) -> list[ResponsePart]:
-        """Processes streaming response chunks incrementally.
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: Optional[RendererState] = None,
+        after_rejected_block: Literal["end", "continue"] = "end",
+    ) -> ResponseStream:
+        """Opens a stream that reads one response chunk by chunk.
 
         Implemented only by parsers whose supports_streaming is True. The default refuses,
         so that a caller handed a non-streaming parser fails at the call rather than
         silently receiving nothing.
 
         Args:
-            chunk: Incremental text chunk received from the LLM stream.
-            wrapped: Whether the output stream is expected to be wrapped inside format sentinel tags.
-
-        Returns:
-            List of newly parsed ResponsePart objects (incremental delta) extracted since the last chunk.
+            wrapped: False if the whole response is one block, without tags.
+            state: The renderer state to check the messages against and apply them to. A
+                new, empty state for this stream when None.
+            after_rejected_block: What the stream does once it rejects a block. "end" ends
+                the stream: feed or close raises. "continue" returns an ErrorPart in place
+                of the block and reads on: the messages the block emitted before it was
+                rejected stay, the rest of the block is skipped, and the text and blocks
+                after it are read as usual. A block is rejected when it cannot be read or
+                the state rejects one of its messages; any other error ends the stream
+                either way.
 
         Raises:
             NotImplementedError: If this format does not support streaming.
         """
         raise NotImplementedError
 ```
+
+#### `ResponseStream`
+
+A stream reads one streamed response. It holds the text buffers of the response and the `RendererState` its messages are applied to. Each message it emits, whether `feed` and `close` return it or a raised error carries it in `partial_results`, has been applied to the state, in the order emitted, and no other message has, so the state mirrors what a renderer that received the emitted parts holds.
+
+```python
+@dataclass
+class ErrorPart:
+    """A block the stream rejected and read past, in place of the block.
+
+    Only a stream opened with after_rejected_block="continue" returns one.
+    """
+    error: A2uiError
+
+StreamPart = Union[TextPart, A2uiPart, ErrorPart]
+
+class ResponseStream(ABC):
+    """Reads one streamed model response, chunk by chunk."""
+
+    @property
+    @abstractmethod
+    def state(self) -> RendererState:
+        """The state the stream's messages are applied to."""
+
+    @property
+    @abstractmethod
+    def is_in_block(self) -> bool:
+        """Whether the response read so far ends inside a block.
+
+        True after an opening tag and before its closing tag, and, for an unwrapped
+        response, until the stream ends. Text held back because it could start a tag is
+        not inside a block. False once the stream has ended. A caller that joins the chunks
+        of a paused and resumed response reads it to tell whether it may add text between
+        them, such as a space, which inside a block could break the block.
+        """
+
+    @abstractmethod
+    def feed(self, chunk: str) -> list[StreamPart]:
+        """Reads the next chunk and returns the parts that became ready.
+
+        If it raises, the stream has ended, and the error's partial_results holds the parts
+        the chunk made ready before the failure. They have been applied to the state like
+        the parts of any earlier chunk, so the caller shows them too.
+        """
+
+    @abstractmethod
+    def close(self) -> list[StreamPart]:
+        """Ends the response and returns the parts still held back.
+
+        Text that could still have started a tag is held until then, and an unwrapped
+        response is checked as a whole only then. A block still open is rejected: the
+        stream raises a parse error, or, reading past rejected blocks, returns an ErrorPart
+        for it. A raised error carries partial_results, as for feed.
+        """
+```
+
+An SDK whose type system can say so returns `ErrorPart` only from a stream opened with `after_rejected_block="continue"`, so that the code of a caller that never asks for one does not have to handle it.
+
+The optional [`agent_renderer_app`](../features/agent_renderer_app.blueprint.md) feature adds `RendererState.of` and `StreamedAnswer`, for an app that is both the agent and the renderer. Such an app checks and applies each message once, on the renderer's own `MessageProcessor`, and reads a streamed answer into its text, surfaces and rejected blocks in the order the model wrote them.
 
 ---
 
@@ -393,6 +474,10 @@ and its implementation matrix.
 A stateless check sees one outbound payload at a time, the agent-to-renderer messages the agent is about to send, with nothing else to compare it against. When that payload updates a surface it did not itself create, it carries no component tree, so a reference to a component the agent sent in an earlier payload cannot be resolved and is accepted.
 
 An agent that keeps one `MessageProcessor` across a session and runs its own outbound messages through it holds that tree. References then resolve against the components the surface already has, and cycles are found across the whole surface instead of one payload at a time. The renderer runs these same checks when the payload arrives, so an agent that runs them first catches a bad payload before sending it rather than after.
+
+#### Agent-callable functions
+
+A function is agent-callable when its catalog `allowedCallers` is `"agentOnly"` or `"rendererOrAgent"` (default `"rendererOnly"`). Prompt generators MUST list only agent-callable functions as targets of `callRendererFunction`. Parsers and `ResponseStream`, or the core `MessageProcessor` they delegate to, MUST reject a `callRendererFunction` that names a function that is not agent-callable in the negotiated catalogs with `A2uiValidationError`. `catalog_definition.json` already forbids `requiresUserActivation: true` on agent-callable functions; an SDK MAY also exclude activation-gated functions as a safeguard, as Dart does in [`prompt_generator.dart`](../../dart/a2ui_agent/lib/src/inference_formats/express/prompt_generator.dart).
 
 ---
 
@@ -598,7 +683,7 @@ class A2uiGenerator:
         Args:
             catalogs: List of supported CatalogConfig configurations.
             examples: Optional list of prompt example turns.
-            inference_format_factory: Optional default InferenceFormatFactory (defaults to DirectJsonFormatFactory).
+            inference_format_factory: Optional default InferenceFormatFactory (defaults to ExpressFormatFactory).
         """
         pass
 
@@ -639,7 +724,7 @@ class A2uiRequestProcessor:
         Args:
             catalogs: List of active Catalog instances.
             examples: Optional list of prompt example turns.
-            format_factory: Format factory for instantiating format strategies.
+            format_factory: Format factory for instantiating format strategies (defaults to ExpressFormatFactory).
         """
         pass
 
@@ -697,6 +782,19 @@ def resolve_catalogs(
     The catalogs returned are the transformed ones, so a pruning transformer is visible
     both in the prompt snippet and in what the processor will later accept.
     """
+    pass
+```
+
+#### `read_renderer_capabilities`
+
+`read_renderer_capabilities(metadata, version)` (TypeScript and Dart `readRendererCapabilities`) is transport-neutral. It returns the capabilities object under the version's key (`a2uiClientCapabilities` for v0.8 and v0.9, `a2uiRendererCapabilities` for v1.0, and the bare v0.8 entry), returns `None` when the key is absent (A2UI is off for the turn), ignores another version's key, and raises `A2uiCatalogError` for a non-mapping value or a malformed entry for that version.
+
+```python
+def read_renderer_capabilities(
+    metadata: Optional[Mapping[str, Any]],
+    version: ProtocolVersion = ProtocolVersion.V1_0,
+) -> Optional[A2uiRendererCapabilities]:
+    """Reads and validates renderer capabilities for the given protocol version from a transport metadata mapping."""
     pass
 ```
 
@@ -837,7 +935,7 @@ class DirectJsonParser(Parser):
 
     @property
     def supports_streaming(self) -> bool:
-        """Direct JSON reads incrementally, so this parser implements parse_chunk."""
+        """Direct JSON reads incrementally, so this parser implements open_stream."""
         return True
 
     def compile(self, format_content: str) -> list[AgentToRendererMessage]:
@@ -862,16 +960,15 @@ class DirectJsonParser(Parser):
         """
         pass
 
-    def parse_chunk(self, chunk: str, wrapped: bool = True) -> list[ResponsePart]:
-        """Processes streaming response chunks, auto-healing progressive_keys in real time.
-
-        Args:
-            chunk: Incremental text chunk received from LLM stream.
-            wrapped: Whether output is wrapped in sentinel tags.
-
-        Returns:
-            List of newly parsed ResponsePart objects.
-        """
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: Optional[RendererState] = None,
+        after_rejected_block: Literal["end", "continue"] = "end",
+    ) -> ResponseStream:
+        """Opens a stream that reads one response, auto-healing progressive_keys in real
+        time. See Parser.open_stream."""
         pass
 ```
 
@@ -885,25 +982,53 @@ The Express format package under `a2ui/inference_formats/express/` contains:
 
 - `format`: `ExpressFormatFactory` (subclassing `InferenceFormatFactory`) and `ExpressFormat` (subclassing `InferenceFormat`).
 - `prompt_generator`: `ExpressPromptGenerator` (subclassing `PromptGenerator`), rendering compact positional signatures for catalog components and functions into prompt instructions.
-- `compiler`: `ExpressCompiler`, lexing and parsing the DSL expressions found between `<a2ui>` tags into standard `AgentToRendererMessage` list structures.
+- `compiler`: `ExpressCompiler`, lexing and parsing the DSL expressions found between `<a2ui>` tags into standard `AgentToRendererMessage` list structures, both in single-shot mode and incrementally across streaming chunks.
 - `decompiler`: `ExpressDecompiler`, converting `AgentToRendererMessage` payload lists back into Express DSL string format.
-- `parser`: `ExpressParser` (subclassing `Parser`), delegating compilation and decompilation to `ExpressCompiler` and `ExpressDecompiler`.
+- `parser`: `ExpressParser` (subclassing `Parser`), delegating compilation and decompilation to `ExpressCompiler` and `ExpressDecompiler`, and opening `ExpressResponseStream` sessions via `open_stream()`.
+- `response_stream`: `ExpressResponseStream` (subclassing `ResponseStream`), incrementally unwrapping `<a2ui>` blocks, scanning statement boundaries, healing progressive string properties, and emitting delta surface messages.
 
 ```python
+DEFAULT_EXPRESS_PROGRESSIVE_KEYS: frozenset[str] = frozenset({"text"})
+
 class ExpressFormatFactory(InferenceFormatFactory):
     """Factory for instantiating ExpressFormat strategies bound to active catalogs."""
 
-    def __init__(self, allowed_messages: Optional[Sequence[str]] = None):
+    def __init__(
+        self,
+        allowed_messages: Optional[Sequence[str]] = None,
+        progressive_keys: Optional[Set[str]] = DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
+    ):
         """Initializes ExpressFormatFactory.
 
         Args:
             allowed_messages: Optional list of allowed payload envelope names. The
                 prompt teaches only the statements that compile to them.
+            progressive_keys: String property keys whose partial values are healed
+                while streaming (defaults to {"text"}).
         """
         self.allowed_messages = allowed_messages
+        self.progressive_keys = progressive_keys
 ```
 
-Express does not stream. `ExpressParser.supports_streaming` is False and it does not implement `parse_chunk`: an Express block resolves references across its whole body, so a partial block names components that are not yet defined and cannot be compiled into anything. An agent using Express buffers the response and parses it whole.
+#### Incremental Streaming (`ExpressResponseStream`)
+
+`ExpressFormat.supports_streaming` and `ExpressParser.supports_streaming` are `True`. Calling `ExpressParser.open_stream(wrapped=True, state=None)` returns an `ExpressResponseStream` that processes incoming token chunks under five rules:
+
+1. **Statement-Level Boundary Scanning**: Inside an `<a2ui>` block, complete statements (assignments, `surface(...)`, `deleteSurface(...)`, and standalone function calls) are split at top-level statement boundaries outside strings, comments, and nested delimiters, and compiled as soon as they arrive.
+2. **Progressive String Healing (`progressive_keys`)**: When the trailing incomplete fragment of an open `<a2ui>` block is inside an unclosed string literal for a component argument whose property name is in `progressive_keys` (such as `Text("partial...` or `Text(text="partial...`), or for a data path assignment whose last segment is in `progressive_keys` (such as `$/text = "partial...` or `$/items/0/text = "partial...`), the stream heals the unclosed string literal and parentheses on a scratch copy and emits the updated component or data path value immediately. The healed value is always a string prefix of the final value, and the full value replaces it when the string closes. Any other data path assignment waits for its statement to complete, as a Direct JSON value under a key outside `progressive_keys` does. URL prefixes (`http://`, `https://`, `data:`) are never closed early.
+3. **Pre-`root` Gating on New Surfaces**: For a surface not yet present in `RendererState` (and without `update=true`), `$/path` assignments and bottom-up child component definitions appearing before `root = ...` are compiled into the scope session and held until `root = ...` arrives, then flushed together with `root` in the initial surface creation batch.
+4. **Hybrid v1.0 Envelope & Delta Updates**: When an `<a2ui>` block opens and closes within a single `feed()` call, it emits the single-shot `createSurface(components, dataModel)` message. When a block spans multiple chunks, the first ready batch on a new surface emits `createSurface` (or in v0.9: `[createSurface, updateComponents, updateDataModel(path="/", value=...)]` in that chunk's `A2uiPart`), and subsequent chunks emit delta `updateComponents` (containing only newly compiled or mutated components) and per-path `updateDataModel` messages.
+5. **Forward Component References vs. Value Variables**: Forward component ID references in `ComponentId` and `ChildList` slots emit immediately using the variable name as the provisional ID (re-emitting the parent component if the referenced child later declares an explicit `id="..."`). Components that reference an undefined value variable (`Event`, function call, `_template`, check, map, or primitive) wait until that variable is defined. At `</a2ui>`, any still-undefined reference or broken topology raises `A2uiCompilationValidationError` inside a `RendererState` transaction. Unlike one-shot `parse_response`, which checks topology after all blocks in the response have been applied and can recover a single block whose opening `<a2ui>` tag was omitted, `open_stream` requires the opening `<a2ui>` sentinel tag in `wrapped=True` mode, strips Markdown fences and inline backticks placed either inside or immediately outside `<a2ui>` and `</a2ui>`, and checks surface topology as each block closes.
+
+For protocol v1.0 and later, `surface(...)` and every component call accept one reserved keyword argument, `extensions=`, that compiles to the envelope's `metadata: {extensions: ...}` container (`createSurface.metadata` or `ComponentCommon.metadata`). The compiler validates each key as a UAX #31 identifier and rejects the block otherwise, and the decompiler emits `extensions=` back for any envelope that carries `metadata.extensions`. The keyword is catalog-agnostic and is never listed in the default prompt instructions, so an agent that does not use extensions spends no prompt tokens on it. There is no `metadata=` keyword: the v1.0 common envelope already appears as a `metadata` property on every component schema, so a `metadata=` keyword would be ambiguous between the property and the envelope.
+
+#### Data Model Compilation and Decompilation
+
+`ExpressCompiler` distinguishes between surface creation scopes and surface update scopes when compiling data path assignments (`$/... = ...`):
+
+- **Surface creation scopes** (`root` is assigned and `update=true` is not set): all `$/...` assignments in the scope are folded into `createSurface.dataModel` (or a single initial root `updateDataModel` message with `path: "/"` in v0.9). Path folding traverses existing lists and auto-vivifies lists when an unassigned segment is followed by a canonical non-negative integer segment (`0` through `10000`), so overriding a list element or nested item property within the same scope mutates the list in place rather than replacing it with a map. When a path segment already holds a map, a numeric next segment sets a string key on that map, and assigning past the end of a list pads intermediate slots with `null`.
+- **Surface update scopes** (`root` is omitted or `surface(..., update=true)` is set): each `$/path = value` assignment emits its own `updateDataModel` message targeting `path: "/path"` in statement order, while `$/ = {...}` (or `$ = {...}`) targets `path: "/"` to replace the root data model. Assigning a non-map value to `$/` raises a validation error in both creation and update scopes. Re-assigning the same path within a scope replaces the earlier value at the later statement's position.
+- **Decompilation**: `ExpressDecompiler` flattens `createSurface.dataModel` (and the v0.9 initial root `updateDataModel` coalesced into `createSurface`) into sorted per-leaf `$/... = ...` assignments, while standalone `updateDataModel` messages decompile directly as `{path} = {value}` (`$/ = {...}` at root) to preserve replace semantics. Numeric list index segments are accepted in data paths (`$/items/0 = ...`).
 
 #### Grammar and parser generation
 
@@ -956,11 +1081,12 @@ The suites covering this document live under `conformance/agent/`:
 | `<format>/decompiler.yaml`            | `Parser.decompile`: how messages are written back into that format                              |
 | `<format>/response_parser.yaml`       | `Parser.wrap`, `unwrap` and `parse_response`: where a payload begins and ends                   |
 | `<format>/prompt_generator.yaml`      | `PromptGenerator.generate`: what the system prompt snippet has to tell the model                |
-| `direct_json/response_streaming.yaml` | `Parser.parse_chunk`, for the one format that streams                                           |
+| `direct_json/response_streaming.yaml` | `Parser.open_stream` and `ResponseStream`, for incremental Direct JSON streaming                |
+| `express/response_streaming.yaml`     | `Parser.open_stream` and `ResponseStream`, for incremental Express DSL streaming                |
 | `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                    |
 | `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs` |
 
-There is no `express/response_streaming.yaml`, because Express does not stream. Suites under `conformance/agent/legacy/` describe the earlier interface still implemented by `python/a2ui_agent` and `kotlin/agent_sdk_legacy`, and stay until those SDKs move to the interface above.
+Suites under `conformance/agent/legacy/` describe the earlier interface of `kotlin/agent_sdk_legacy`, which runs them. `python/a2ui_agent` implements the current interface above and runs none of them. The TypeScript agent harness runs the subset of `legacy/parser.yaml` and `legacy/inference_format.yaml` that the current suites do not supersede ([`loader.ts`](../../typescript/agents/a2ui_agent/tests/conformance/loader.ts)).
 
 Where a suite fixes something this document leaves open, the decision is stated in that suite's header rather than left for a reader to infer from the cases.
 

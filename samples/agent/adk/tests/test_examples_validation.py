@@ -55,6 +55,17 @@ SAMPLE_CONFIGS = [
         )],
         "validate": True,
     },
+    # The agent also validates its v0.8 examples at startup (agent.py), so an
+    # invalid one stops the server.
+    {
+        "name": "restaurant_finder (v0.8)",
+        "path": SAMPLES_DIR / "restaurant_finder",
+        "catalogs": [(
+            lambda: CatalogConfig(BasicCatalog(ProtocolVersion.V0_8)),
+            "examples/0.8",
+        )],
+        "validate": True,
+    },
 ]
 
 

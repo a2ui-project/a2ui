@@ -235,7 +235,16 @@ Because `formatString` contains dynamic expressions embedded _within_ a string l
 
 **Description:** Validates a value against a regular expression.
 
-**Logic:** Instantiate a regular expression using `args.pattern`. Test the `args.value` string against it. Return `true` if it matches, `false` otherwise.
+**Logic:** Parse and validate `args.pattern` against the **A2UI regex dialect** before matching it against `args.value` (see [The `regex` function](../../../specification/v1_0/docs/a2ui_protocol.md#the-regex-function)):
+
+- **Dialect:** A portable subset of ECMAScript `Pattern` syntax evaluated in Unicode mode (`u`) with no other flags. Matching is case-sensitive, `.` excludes line terminators (U+000A, U+000D, U+2028, U+2029), `^` and `$` match only at the start and end of the value (`$` does not match before a trailing newline), `\d`, `\w`, and `\b` are ASCII-only, and matching uses search semantics (`RegExp.prototype.test`). Backreferences (`\1`-`\9`, `\k<name>`), lookbehind (`(?<=`, `(?<!`), named groups (`(?<name>`), Unicode property escapes (`\p{...}`, `\P{...}`), `\cX`, legacy octal escapes, and inline flags are not allowed and fail with `EXPRESSION_ERROR`.
+- **Safety rules (rejected with `EXPRESSION_ERROR` before matching):**
+  1. Pattern length exceeds 256 code points.
+  2. A quantifier whose upper bound is above 1 (`?` and `{0,1}` have upper bound 1) applies to a subexpression containing an unbounded quantifier (`*`, `+`, `{n,}`).
+  3. An unbounded quantifier applies to an alternation where two branches can start with the same character (after unwrapping groups).
+  4. Two unbounded-quantified atoms with overlapping character sets are adjacent in one concatenation, with only zero-width assertions or items that can match the empty string between them (a group whose only content is one quantified atom counts as that atom).
+- **Value length cap:** If `args.value` exceeds 4,096 code points, return `{"valid": false}` (or `false` in v0.9) without evaluating the pattern or reporting an error.
+- **Return value:** Otherwise, test `args.value` against the compiled pattern and return `{"valid": true}` if it matches or `{"valid": false}` if it does not (or `true` / `false` in v0.9).
 
 ### `length`
 

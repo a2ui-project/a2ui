@@ -53,6 +53,7 @@ graph TD
 
 - **`JsonCatalog`**: Loads raw JSON schemas directly, compiling schema-validated references dynamically for prompt injection.
 - **`ModelCatalog`**: Compiles catalog rules based on structured Pydantic or standard object class configurations.
+- **`Catalog.derive`**: Builds a catalog under a new ID from named entries of an existing catalog and new entries. It does not keep the source's `$id`, title, description or instructions, since the basic catalog's instructions, for example, name its ID in their examples.
 
 #### 5. Basic Catalog (`src/a2ui/core/basic_catalog`)
 

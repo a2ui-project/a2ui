@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -98,6 +98,22 @@ void main() {
 
     _slider(tester).onChanged!(4.6);
     expect(harness.data('/n'), isA<int>().having((n) => n, 'value', 5));
+  });
+
+  testWidgets('writes min plus a whole number over a whole range from a '
+      'fractional min', (tester) async {
+    final SurfaceHarness harness = await _pumpSlider(
+      tester,
+      {
+        'min': 0.1,
+        'max': 4.1,
+        'value': {'path': '/n'},
+      },
+      data: {'n': 0.1},
+    );
+
+    _slider(tester).onChanged!(2.2);
+    expect(harness.data('/n'), 2.1);
   });
 
   testWidgets('writes a whole value from 2^53 up as a double', (tester) async {

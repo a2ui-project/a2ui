@@ -20,9 +20,50 @@ signatures, and requirements directly from standard catalog JSON schemas.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
-from a2ui.core import Catalog, CatalogApi, inline_local_refs
+from a2ui.core import (
+    A2uiCatalogError,
+    Catalog,
+    CatalogApi,
+    get_common_types_schema_map,
+    inline_local_refs,
+    to_protocol_version,
+)
+
+_COMMON_DEF_RE = re.compile(r"(?:^|/)common_types\.json#/(?:\$defs|definitions)/(\w+)$")
+
+
+def _common_def_name(ref: Any) -> str | None:
+    """Returns the common type a `$ref` names, or None if it is not one."""
+    if not isinstance(ref, str):
+        return None
+    m = _COMMON_DEF_RE.search(ref)
+    return m.group(1) if m else None
+
+
+def is_action_slot(schema: Any) -> bool:
+    """Checks whether a property schema is an Action slot.
+
+    A property is an action slot when its schema references the common `Action`
+    def, directly or through `oneOf`/`anyOf`/`allOf`.
+
+    Args:
+        schema: The property JSON schema to inspect.
+
+    Returns:
+        True if the schema references the common `Action` type.
+    """
+    if not isinstance(schema, dict):
+        return False
+    if _common_def_name(schema.get("$ref")) == "Action":
+        return True
+    for key in ("allOf", "oneOf", "anyOf"):
+        subs = schema.get(key)
+        if isinstance(subs, list) and any(is_action_slot(sub) for sub in subs):
+            return True
+    return False
 
 
 def _find_enum(s: Any) -> list[Any] | None:
@@ -41,7 +82,15 @@ def _find_enum(s: Any) -> list[Any] | None:
 
 
 def _ordered_component_sub_schemas(schema: Any) -> list[dict[str, Any]]:
-    """Returns component sub-schemas with specific definitions before common mixins."""
+    """Returns component sub-schemas with specific definitions before common mixins.
+
+    Walks the component schema and its nested `allOf` entries, including the
+    `allOf` of an inlined local mixin such as a `$defs` entry that composes
+    `ComponentCommon` with extra properties. A sub-schema whose `properties`
+    contain `component` is specific; the others are common mixins. Within each
+    group, sub-schemas keep their pre-order position, so positional argument
+    order is consistent across protocol versions.
+    """
     if not isinstance(schema, dict):
         return []
     specific: list[dict[str, Any]] = []
@@ -101,9 +150,15 @@ class CatalogSchemaHelper:
         # crawler read both kinds of catalog the same way while references to
         # common types, such as `Checkable`, stay intact.
         catalog_schema = dict(catalog.to_json() or {})
-        self.catalog = inline_local_refs(
-            catalog_schema, catalog_schema, peers=catalog.peer_catalogs
-        )
+        self.catalog = inline_local_refs(catalog_schema, catalog_schema)
+        try:
+            self.common_types: dict[str, Any] = get_common_types_schema_map(
+                to_protocol_version(catalog.protocol_version)
+            )
+            self.common_types_loaded: bool = True
+        except (A2uiCatalogError, ValueError):
+            self.common_types = {}
+            self.common_types_loaded = False
         self.components = dict(self.catalog.get("components", {}))
         self.functions = dict(self.catalog.get("functions", {}))
         self.component_properties: dict[str, list[str]] = {}
@@ -122,42 +177,47 @@ class CatalogSchemaHelper:
         self.component_property_enums = {}
 
         for name, schema in self.components.items():
-            props = {}
-            reqs = []
+            props: dict[str, Any] = {}
+            reqs: list[str] = []
             is_checkable = False
 
-            # Crawl allOf and root schema for properties.
+            # Crawl the root schema and its nested allOf for properties.
             # Prioritize specific component definition schemas over common mixins
             # (such as CatalogComponentCommon which contains 'weight') so positional
-            # argument order is consistent across protocol versions.
-            sub_schemas = _ordered_component_sub_schemas(schema)
-
-            for sub in sub_schemas:
-                if not isinstance(sub, dict):
-                    continue
-                if "$ref" in sub:
-                    ref = sub["$ref"]
-                    if "Checkable" in ref:
-                        is_checkable = True
-                if "properties" in sub and isinstance(sub["properties"], dict):
-                    for pk, pv in sub["properties"].items():
-                        if pk not in props:
-                            props[pk] = pv
-                            enum_val = _find_enum(pv)
-                            if enum_val:
-                                self.component_property_enums[(name, pk)] = enum_val
-                if "required" in sub and isinstance(sub["required"], list):
-                    for r in sub["required"]:
+            # argument order is consistent across protocol versions. A property
+            # keeps the position of its first occurrence; its schema comes from
+            # `get_property_schema`, where the component's own definition wins.
+            for sub in _ordered_component_sub_schemas(schema):
+                ref = sub.get("$ref")
+                if isinstance(ref, str) and "Checkable" in ref:
+                    is_checkable = True
+                sub_props = sub.get("properties")
+                if isinstance(sub_props, dict):
+                    for pk, pv in sub_props.items():
+                        props.setdefault(pk, pv)
+                sub_reqs = sub.get("required")
+                if isinstance(sub_reqs, list):
+                    for r in sub_reqs:
                         if r not in reqs:
                             reqs.append(r)
 
-            # Filter out structural properties component, id, and catalogId
-            ordered_keys = []
-            for k in props:
-                if k not in ["component", "id", "catalogId"]:
-                    ordered_keys.append(k)
+            # Filter out structural properties component, id, and catalogId,
+            # and checks, which a checkable component lists last.
+            excluded = {"component", "id", "catalogId"}
+            if is_checkable:
+                excluded.add("checks")
+            ordered_keys = [k for k in props if k not in excluded]
 
-            # If it's checkable, add checks at the end
+            # The enum comes from the definition that wins for the property:
+            # the component's own one over an `allOf` sub-schema, so an
+            # inherited enum does not outlive an own definition without one.
+            for k in ordered_keys:
+                enum_val = _find_enum(self.get_property_schema(name, k))
+                if enum_val:
+                    self.component_property_enums[(name, k)] = enum_val
+
+            # If it's checkable, add checks at the end, once, even when the
+            # component also defines it itself.
             if is_checkable:
                 ordered_keys.append("checks")
 
@@ -276,14 +336,22 @@ class CatalogSchemaHelper:
     def get_property_schema(
         self, component_name: str, property_name: str
     ) -> dict[str, Any] | None:
-        """Crawls all sub-schemas of a component to retrieve a property's schema definition."""
+        """Crawls all sub-schemas of a component to retrieve a property's schema definition.
+
+        The component's own definition wins over its `allOf` sub-schemas, which
+        are searched, including nested ones, in the same order that
+        `get_component_properties` lists their properties.
+        """
         schema = self.components.get(component_name)
         if not schema or not isinstance(schema, dict):
             return None
 
-        sub_schemas = _ordered_component_sub_schemas(schema)
+        own_props = schema.get("properties")
+        if isinstance(own_props, dict) and property_name in own_props:
+            res = own_props[property_name]
+            return res if isinstance(res, dict) else None
 
-        for sub in sub_schemas:
+        for sub in _ordered_component_sub_schemas(schema):
             if (
                 isinstance(sub, dict)
                 and "properties" in sub
@@ -319,3 +387,195 @@ class CatalogSchemaHelper:
             return None
 
         return _crawl_ref(p_schema)
+
+    def _lookup_common_def(self, def_name: str) -> Any:
+        defs = self.common_types.get("$defs") or self.common_types.get("definitions")
+        return defs.get(def_name) if isinstance(defs, dict) else None
+
+    def _resolve_json_pointer(self, root: dict[str, Any], pointer: str) -> Any:
+        if not pointer.startswith("#/"):
+            return None
+        current: Any = root
+        for part in pointer[2:].split("/"):
+            if not isinstance(current, dict):
+                return None
+            unescaped = part.replace("~1", "/").replace("~0", "~")
+            current = current.get(unescaped)
+        return current
+
+    def accepts_number(self, schema: Any) -> bool:
+        """Checks whether a property schema accepts a numeric value by resolving $refs."""
+        visited: set[int] = set()
+
+        def _check(s: Any, in_common_types: bool) -> bool:
+            if not isinstance(s, dict):
+                return False
+            obj_id = id(s)
+            if obj_id in visited:
+                return False
+            visited.add(obj_id)
+
+            s_type = s.get("type")
+            if s_type in ("number", "integer"):
+                return True
+            if isinstance(s_type, list) and any(
+                t in ("number", "integer") for t in s_type
+            ):
+                return True
+
+            const_val = s.get("const")
+            if isinstance(const_val, (int, float)) and not isinstance(const_val, bool):
+                return True
+
+            enum_val = s.get("enum")
+            if isinstance(enum_val, list) and any(
+                isinstance(v, (int, float)) and not isinstance(v, bool)
+                for v in enum_val
+            ):
+                return True
+
+            ref = s.get("$ref")
+            if isinstance(ref, str):
+                m = _COMMON_DEF_RE.search(ref)
+                if m:
+                    resolved = self._lookup_common_def(m.group(1))
+                    if resolved is None:
+                        return True
+                    if _check(resolved, True):
+                        return True
+                elif in_common_types and (
+                    ref.startswith("#/$defs/") or ref.startswith("#/definitions/")
+                ):
+                    name = ref[8:] if ref.startswith("#/$defs/") else ref[14:]
+                    resolved = self._lookup_common_def(name)
+                    if resolved is None:
+                        return True
+                    if _check(resolved, True):
+                        return True
+                elif ref.startswith("#/"):
+                    resolved = self._resolve_json_pointer(self.catalog, ref)
+                    if resolved is None:
+                        return True
+                    if _check(resolved, False):
+                        return True
+                elif ref.startswith("catalog.json#/"):
+                    resolved = self._resolve_json_pointer(self.catalog, ref[12:])
+                    if resolved is None:
+                        return True
+                    if _check(resolved, False):
+                        return True
+                else:
+                    return True
+
+            for key in ("allOf", "oneOf", "anyOf"):
+                subs = s.get(key)
+                if isinstance(subs, list):
+                    for sub in subs:
+                        if _check(sub, in_common_types):
+                            return True
+
+            type_keys = {
+                "type",
+                "const",
+                "enum",
+                "$ref",
+                "allOf",
+                "oneOf",
+                "anyOf",
+                "properties",
+                "items",
+                "prefixItems",
+                "not",
+            }
+            if not any(k in s for k in type_keys):
+                return True
+
+            return False
+
+        return _check(schema, False)
+
+    def resolve_item_schema(self, schema: Any) -> dict[str, Any] | None:
+        """Resolves the schema of an array's items.
+
+        Follows `$ref` (into both the common types and the catalog document),
+        `allOf`, `oneOf` and `anyOf` to find the schema declared at that
+        position.
+
+        Args:
+            schema: The array's JSON schema.
+
+        Returns:
+            The resolved item schema, or None if none is declared.
+        """
+        return self._resolve_at(schema, None)
+
+    def resolve_property_schema(self, schema: Any, name: str) -> dict[str, Any] | None:
+        """Resolves the schema of an object's property.
+
+        Follows `$ref` (into both the common types and the catalog document),
+        `allOf`, `oneOf` and `anyOf` to find the schema declared at that
+        position, and falls back to `additionalProperties` when the property
+        is not declared. A property named `items` is looked up as a property,
+        not as the array items.
+
+        Args:
+            schema: The object's JSON schema.
+            name: The property name.
+
+        Returns:
+            The resolved property schema, or None if none is declared.
+        """
+        return self._resolve_at(schema, name)
+
+    def _resolve_at(self, schema: Any, prop: str | None) -> dict[str, Any] | None:
+        """Resolves the schema at a property, or at the array items when `prop` is None."""
+        visited: set[int] = set()
+
+        def _resolve(s: Any, in_common_types: bool) -> dict[str, Any] | None:
+            if not isinstance(s, dict) or id(s) in visited:
+                return None
+            visited.add(id(s))
+
+            if prop is None:
+                items = s.get("items")
+                if isinstance(items, dict):
+                    return items
+            else:
+                props = s.get("properties")
+                declared = props.get(prop) if isinstance(props, dict) else None
+                if isinstance(declared, dict):
+                    return declared
+                additional = s.get("additionalProperties")
+                if isinstance(additional, dict):
+                    return additional
+
+            ref = s.get("$ref")
+            if isinstance(ref, str):
+                def_name = _common_def_name(ref)
+                if def_name:
+                    found = _resolve(self._lookup_common_def(def_name), True)
+                elif in_common_types and (
+                    ref.startswith("#/$defs/") or ref.startswith("#/definitions/")
+                ):
+                    name = ref[8:] if ref.startswith("#/$defs/") else ref[14:]
+                    found = _resolve(self._lookup_common_def(name), True)
+                elif ref.startswith("#/"):
+                    found = _resolve(
+                        self._resolve_json_pointer(self.catalog, ref), False
+                    )
+                else:
+                    found = None
+                if found:
+                    return found
+
+            for combinator in ("allOf", "oneOf", "anyOf"):
+                subs = s.get(combinator)
+                if isinstance(subs, list):
+                    for sub in subs:
+                        found = _resolve(sub, in_common_types)
+                        if found:
+                            return found
+
+            return None
+
+        return _resolve(schema, False)

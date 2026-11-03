@@ -90,6 +90,23 @@ struct ExpressionsConformanceTests {
     #expect(executed > 0, "No cases of expressions.yaml could be executed")
   }
 
+  /// Runs the `validate` cases of `core/expressions.yaml`, which render `formatString` templates
+  /// on a v1.0 surface and compare the resolved component properties.
+  @MainActor
+  @Test func expressionsValidateConformance() throws {
+    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/expressions.yaml")
+    let testCases = ConformanceTestHelper.parseTestCases(from: rawYAML)
+
+    var executed = 0
+
+    for testCase in testCases where testCase.action == "validate" {
+      executed += 1
+      try ConformanceTestHelper.runValidateCase(testCase)
+    }
+
+    #expect(executed > 0, "No validate case of expressions.yaml could be executed")
+  }
+
   /// Joins adjacent literal strings and drops empty string literals.
   private func joinLiterals(_ parts: [JSONValue]) -> [JSONValue] {
     var joined: [JSONValue] = []

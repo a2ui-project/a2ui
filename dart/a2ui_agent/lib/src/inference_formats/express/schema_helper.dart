@@ -37,8 +37,8 @@ class CatalogSchemaHelper {
   /// The properties a positional argument can fill, in schema order.
   ///
   /// Specific component properties come first, followed by common mixin
-  /// properties such as `accessibility` and `weight`. Structural properties
-  /// (`id`, `component`, `checks`) are excluded.
+  /// properties such as `weight`. Structural properties
+  /// (`id`, `component`, `checks`) and `accessibility` are excluded.
   List<String> properties(String component) => _signature(component).properties;
 
   /// The properties the component requires, beyond `component` and `id`.
@@ -51,6 +51,132 @@ class CatalogSchemaHelper {
   /// The schema of one of [properties].
   Map<String, Object?>? propertySchema(String component, String property) =>
       _signature(component).schemas[property];
+
+  /// Whether common types were loaded into the catalog validation schema.
+  bool get commonTypesLoaded =>
+      catalog.validationSchema[r'$defs'] is Map &&
+      (catalog.validationSchema[r'$defs'] as Map).isNotEmpty;
+
+  /// Whether [schema] accepts a number literal, resolving `$ref`s against
+  /// [catalog]'s validation schema definitions.
+  bool acceptsNumber(Map<String, Object?>? schema) {
+    final visited = <Object>{};
+    final Object? defsObj = catalog.validationSchema[r'$defs'];
+    final Map<Object?, Object?>? defs = defsObj is Map ? defsObj : null;
+
+    bool check(Map<String, Object?>? s) {
+      if (s == null || !visited.add(s)) return false;
+      final Object? type = s['type'];
+      if (type == 'number' || type == 'integer') return true;
+      if (type is List &&
+          (type.contains('number') || type.contains('integer'))) {
+        return true;
+      }
+
+      if (s['const'] is num) return true;
+
+      final Object? enumVal = s['enum'];
+      if (enumVal is List && enumVal.any((v) => v is num)) return true;
+
+      final String? ref = _refName(s);
+      if (ref != null) {
+        if (defs == null) return true;
+        final Object? resolved = defs[ref];
+        if (resolved is Map) {
+          if (check(resolved.cast<String, Object?>())) return true;
+        } else {
+          return true;
+        }
+      }
+
+      for (final Map<String, Object?> alt in _alternatives(s)) {
+        if (check(alt)) return true;
+      }
+
+      const typeKeys = [
+        'type',
+        'const',
+        'enum',
+        r'$ref',
+        'allOf',
+        'oneOf',
+        'anyOf',
+        'properties',
+        'items',
+        'prefixItems',
+        'not',
+      ];
+      if (!typeKeys.any(s.containsKey)) {
+        return true;
+      }
+
+      return false;
+    }
+
+    return check(schema);
+  }
+
+  /// The schema the catalog declares for the items of an array, or null if
+  /// it declares none.
+  ///
+  /// Follows `$ref`s into the definitions of [catalog]'s validation schema,
+  /// which bundles the common types, and the members of `allOf`, `oneOf` and
+  /// `anyOf`, so that a nested slot such as `items: [{label, action}]` is
+  /// found whichever way the catalog writes it.
+  Map<String, Object?>? resolveItemSchema(Map<String, Object?>? schema) =>
+      _resolveAt(schema, null);
+
+  /// The schema the catalog declares for the property [name] of an object,
+  /// or `additionalProperties` when it declares no such property, or null.
+  ///
+  /// Follows `$ref`s and the members of `allOf`, `oneOf` and `anyOf` as
+  /// [resolveItemSchema] does. A property named `items` is looked up as a
+  /// property, not as the array items.
+  Map<String, Object?>? resolvePropertySchema(
+    Map<String, Object?>? schema,
+    String name,
+  ) => _resolveAt(schema, name);
+
+  /// The schema at the property [property], or at the array items when
+  /// [property] is null.
+  Map<String, Object?>? _resolveAt(
+    Map<String, Object?>? schema,
+    String? property,
+  ) {
+    final Object? defsObj = catalog.validationSchema[r'$defs'];
+    final Map<Object?, Object?>? defs = defsObj is Map ? defsObj : null;
+    // A definition may refer to itself, so each is followed once.
+    final visitedRefs = <String>{};
+
+    Map<String, Object?>? resolve(Map<String, Object?>? s) {
+      if (s == null) return null;
+      if (property == null) {
+        if (s['items'] case final Map<Object?, Object?> items) {
+          return items.cast<String, Object?>();
+        }
+      } else {
+        if (_properties(s)[property] case final Map<Object?, Object?> found) {
+          return found.cast<String, Object?>();
+        }
+        if (s['additionalProperties'] case final Map<Object?, Object?> more) {
+          return more.cast<String, Object?>();
+        }
+      }
+      if (_refName(s) case final String ref when visitedRefs.add(ref)) {
+        if (defs?[ref] case final Map<Object?, Object?> target) {
+          if (resolve(target.cast<String, Object?>()) case final found?) {
+            return found;
+          }
+        }
+      }
+      for (final Map<String, Object?> alt in _alternatives(s)) {
+        if (resolve(alt) case final found?) return found;
+      }
+      return null;
+    }
+
+    return resolve(schema);
+  }
 
   /// The component's own description, if its schema has one.
   String? componentDescription(String component) {
@@ -71,7 +197,8 @@ class CatalogSchemaHelper {
   /// The parameters the function requires.
   List<String> requiredParameters(String function) => [
     for (final Object? name
-        in _functionArgsSchema(function)['required'] as List<Object?>? ??
+        in catalog.functions[function]!.argumentSchema['required']
+                as List<Object?>? ??
             const [])
       name! as String,
   ];
@@ -81,26 +208,14 @@ class CatalogSchemaHelper {
       _parameterSchemas(function)[parameter];
 
   Map<String, Map<String, Object?>> _parameterSchemas(String function) {
-    final Object? properties = _functionArgsSchema(function)['properties'];
+    final Object? properties =
+        catalog.functions[function]!.argumentSchema['properties'];
     if (properties is! Map) return const {};
     return {
       for (final MapEntry<Object?, Object?> entry in properties.entries)
         if (entry.value is Map)
           entry.key! as String: (entry.value! as Map).cast<String, Object?>(),
     };
-  }
-
-  Map<String, Object?> _functionArgsSchema(String function) {
-    final Object? fnMap =
-        (catalog.validationSchema['functions']
-            as Map<Object?, Object?>?)?[function];
-    if (fnMap is Map) {
-      final Object? props = fnMap['properties'];
-      if (props is Map && props['args'] is Map) {
-        return (props['args']! as Map).cast<String, Object?>();
-      }
-    }
-    return catalog.functions[function]!.argumentSchema.value;
   }
 
   _ComponentSignature _signature(String component) =>
@@ -130,7 +245,7 @@ class CatalogSchemaHelper {
             if (!commonKeys.contains(key)) key,
         ];
         final List<String> commonProperties = [
-          for (final key in const ['accessibility', 'weight'])
+          for (final key in const ['weight'])
             if (schemas.containsKey(key)) key,
         ];
         final orderedProperties = [...specificProperties, ...commonProperties];

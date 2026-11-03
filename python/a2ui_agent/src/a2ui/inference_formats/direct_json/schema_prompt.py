@@ -14,11 +14,11 @@
 
 """The schema prompt text that the Direct JSON format shows the model."""
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 import json
 
 from a2ui import constants
-from a2ui.core import A2uiCatalogError, CatalogApi, inline_local_refs, link_catalogs
+from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.common import to_protocol_version
 from a2ui.utils import (
     load_agent_to_renderer_schema,
@@ -29,7 +29,7 @@ from a2ui.utils import (
 
 
 def schema_to_prompt(
-    catalogs: Sequence[CatalogApi],
+    catalogs: Iterable[CatalogApi],
     allowed_messages: Sequence[str] | None = None,
 ) -> str:
     """Returns the prompt text that describes catalogs to the model.
@@ -58,6 +58,61 @@ def schema_to_prompt(
         protocol versions, or their protocol version isn't one this SDK
         defines.
     """
+    catalogs = _checked_catalogs(catalogs)
+    return _schema_block(
+        _protocol_schema_sections(catalogs, allowed_messages)
+        + _catalog_schema_sections(catalogs)
+    )
+
+
+def protocol_schema_prompt(
+    catalogs: Iterable[CatalogApi],
+    allowed_messages: Sequence[str] | None = None,
+) -> str:
+    """Returns a schema block with only the protocol schemas for catalogs.
+
+    The block holds the agent-to-renderer schema and the common types that the
+    catalogs or that schema reference, as `schema_to_prompt` writes them, but
+    no catalog schema. Pair it with `catalog_schema_prompt` to describe the
+    catalogs themselves.
+
+    Args:
+      catalogs: The catalogs whose protocol version and common type use decide
+        what the block holds. They must share a protocol version.
+      allowed_messages: The messages to keep in the agent-to-renderer schema,
+        as in `schema_to_prompt`.
+
+    Returns:
+      The schema block text.
+
+    Raises:
+      A2uiCatalogError: As `schema_to_prompt` raises it.
+    """
+    catalogs = _checked_catalogs(catalogs)
+    return _schema_block(_protocol_schema_sections(catalogs, allowed_messages))
+
+
+def catalog_schema_prompt(catalogs: Iterable[CatalogApi]) -> str:
+    """Returns a schema block with only the catalog schemas, one per catalog.
+
+    The block holds no protocol schema; `protocol_schema_prompt` writes those.
+
+    Args:
+      catalogs: The catalogs to describe, which share a protocol version, in
+        the order the block lists them.
+
+    Returns:
+      The schema block text.
+
+    Raises:
+      A2uiCatalogError: As `schema_to_prompt` raises it.
+    """
+    return _schema_block(_catalog_schema_sections(_checked_catalogs(catalogs)))
+
+
+def _checked_catalogs(catalogs: Iterable[CatalogApi]) -> list[CatalogApi]:
+    """Returns catalogs as a list after checking they can share one schema prompt."""
+    catalogs = list(catalogs)
     if not catalogs:
         raise A2uiCatalogError("The schema prompt needs at least one catalog.")
     versions = {to_protocol_version(c.protocol_version) for c in catalogs}
@@ -66,45 +121,50 @@ def schema_to_prompt(
             "The schema prompt's catalogs target different protocol versions:"
             f" {sorted(v.value for v in versions)}."
         )
+    return catalogs
 
+
+def _protocol_schema_sections(
+    catalogs: Sequence[CatalogApi],
+    allowed_messages: Sequence[str] | None,
+) -> list[str]:
+    """Returns the agent-to-renderer and common types sections for catalogs."""
     version = catalogs[0].protocol_version
     a2r_schema = load_agent_to_renderer_schema(version)
     if allowed_messages is not None:
         a2r_schema = prune_messages_schema(a2r_schema, version, allowed_messages)
 
-    catalogs = link_catalogs(catalogs)
     catalog_docs = [c.to_json() for c in catalogs]
-    peer_resolved_docs = [
-        inline_local_refs(
-            {k: v for k, v in doc.items() if k in ("components", "functions", "theme")},
-            doc,
-            peers=c.peer_catalogs,
-        )
-        for c, doc in zip(catalogs, catalog_docs)
-        if c.peer_catalogs
-    ]
     common_types_schema = prune_common_types_schema(
         load_common_types_schema(version),
         *catalog_docs,
-        *peer_resolved_docs,
         a2r_schema,
     )
-
-    all_schemas = [constants.A2UI_SCHEMA_BLOCK_START]
 
     agent_renderer_str = (
         json.dumps(a2r_schema, separators=(",", ":")) if a2r_schema else "{}"
     )
-    all_schemas.append(f"### Agent to Renderer Schema:\n{agent_renderer_str}")
+    sections = [f"### Agent to Renderer Schema:\n{agent_renderer_str}"]
 
     if common_types_schema.get("$defs"):
         common_str = json.dumps(common_types_schema, separators=(",", ":"))
-        all_schemas.append(f"### Common Types Schema:\n{common_str}")
+        sections.append(f"### Common Types Schema:\n{common_str}")
 
-    for catalog_doc in catalog_docs:
-        catalog_str = json.dumps(catalog_doc, separators=(",", ":"))
-        all_schemas.append(f"### Catalog Schema:\n{catalog_str}")
+    return sections
 
-    all_schemas.append(constants.A2UI_SCHEMA_BLOCK_END)
 
-    return "\n\n".join(all_schemas)
+def _catalog_schema_sections(catalogs: Sequence[CatalogApi]) -> list[str]:
+    """Returns one catalog schema section per catalog."""
+    return [
+        "### Catalog Schema:\n" + json.dumps(c.to_json(), separators=(",", ":"))
+        for c in catalogs
+    ]
+
+
+def _schema_block(sections: Sequence[str]) -> str:
+    """Wraps sections between the schema block start and end lines."""
+    return "\n\n".join([
+        constants.A2UI_SCHEMA_BLOCK_START,
+        *sections,
+        constants.A2UI_SCHEMA_BLOCK_END,
+    ])

@@ -161,7 +161,7 @@ void main() {
 
     for (final (String label, _RendererCatalog catalog, String path) in [
       ('v0.9', v09, 'specification/v0_9/catalogs/basic/catalog.json'),
-      ('v1.0', v10, 'catalogs/basic/v1/catalog.json'),
+      ('1.0', v10, 'catalogs/basic/v1/catalog.json'),
     ]) {
       test('$label implements every published function, and no other', () {
         final Map<String, Object?> document = published(path);
@@ -296,12 +296,22 @@ void main() {
   });
 
   group('truthiness', () {
-    for (final falsy in <Object?>[0, 0.0, '', null, false]) {
+    for (final falsy in <Object?>[
+      0,
+      0.0,
+      '',
+      'false',
+      'a',
+      null,
+      false,
+      <Object?>[],
+      {},
+    ]) {
       test('not($falsy) is true', () {
         expect(_call(v10, 'not', {'value': falsy}), isTrue);
       });
     }
-    for (final truthy in <Object?>[1, -1, 'a', true, <Object?>[], {}]) {
+    for (final truthy in <Object?>[1, -1, 'true', 'True', 'TRUE', true]) {
       test('not($truthy) is false', () {
         expect(_call(v10, 'not', {'value': truthy}), isFalse);
       });
@@ -310,9 +320,15 @@ void main() {
     test('and and or coerce values', () {
       expect(
         _call(v09, 'and', {
-          'values': [1, 'yes'],
+          'values': [1, 'true'],
         }),
         isTrue,
+      );
+      expect(
+        _call(v09, 'and', {
+          'values': [1, 'yes'],
+        }),
+        isFalse,
       );
       expect(
         _call(v09, 'and', {
@@ -329,6 +345,12 @@ void main() {
       expect(
         _call(v09, 'or', {
           'values': [0, 'x'],
+        }),
+        isFalse,
+      );
+      expect(
+        _call(v09, 'or', {
+          'values': [0, 'True'],
         }),
         isTrue,
       );
@@ -359,8 +381,8 @@ void main() {
         expect(truthy({'valid': true}), isTrue);
         expect(truthy({'valid': false}), isFalse);
         expect(truthy({'valid': 'yes'}), isFalse);
-        expect(truthy({'other': 1}), isTrue);
-        expect(truthy(<String, Object?>{}), isTrue);
+        expect(truthy({'other': 1}), isFalse);
+        expect(truthy(<String, Object?>{}), isFalse);
       });
 
       test('not(required(value)) inverts the validity', () {
@@ -399,6 +421,74 @@ void main() {
         expect(buttonEnabled(terms: true, email: '', phone: '555'), isTrue);
       });
 
+      test('invoke checks a result operand as its validity', () {
+        final DataContext context = _contextFor(
+          v10,
+          protocolVersion: A2uiProtocolVersion.v1_0,
+        );
+        expect(
+          v10.invoke(
+              'and',
+              {
+                'values': [required('x'), required('')],
+              },
+              context),
+          isFalse,
+        );
+        expect(
+          v10.invoke(
+              'or',
+              {
+                'values': [required(''), required('x')],
+              },
+              context),
+          isTrue,
+        );
+        expect(v10.invoke('not', {'value': required('')}, context), isTrue);
+      });
+
+      test(
+          'invoke checks a result object from the data model as its '
+          'validity', () {
+        final DataContext context = _contextFor(
+          v10,
+          protocolVersion: A2uiProtocolVersion.v1_0,
+        );
+        expect(
+          v10.invoke(
+              'not',
+              {
+                'value': {'valid': false, 'message': 'Too short.'},
+              },
+              context),
+          isTrue,
+        );
+        expect(
+          v10.invoke(
+              'and',
+              {
+                'values': [
+                  {'valid': true},
+                  {'valid': true, 'severity': 'warning', 'fieldPath': '/email'},
+                ],
+              },
+              context),
+          isTrue,
+        );
+      });
+
+      test('a v0.9 invoke also coerces a result object by its validity', () {
+        expect(
+          v09.invoke(
+              'not',
+              {
+                'value': {'valid': false},
+              },
+              _contextFor(v09)),
+          isTrue,
+        );
+      });
+
       test('v0.9 validators return booleans, so the result is unchanged', () {
         Object? requiredV09(Object? value) =>
             _call(v09, 'required', {'value': value});
@@ -416,12 +506,12 @@ void main() {
         );
       });
 
-      test('v0.9 treats a {valid} map as a plain, truthy object', () {
+      test('v0.9 coerces a {valid} map by its validity', () {
         expect(
           _call(v09, 'not', {
             'value': {'valid': false},
           }),
-          isFalse,
+          isTrue,
         );
         expect(
           _call(v09, 'and', {
@@ -430,12 +520,21 @@ void main() {
               {'valid': false},
             ],
           }),
-          isTrue,
+          isFalse,
         );
         expect(
           _call(v09, 'or', {
             'values': [
               {'valid': false},
+              0,
+            ],
+          }),
+          isFalse,
+        );
+        expect(
+          _call(v09, 'or', {
+            'values': [
+              {'valid': true},
               0,
             ],
           }),
@@ -605,7 +704,13 @@ void main() {
       );
       expect(
         () => _call(v09, 'regex', {'value': 'abc', 'pattern': '[invalid('}),
-        throwsA(isA<A2uiExpressionError>()),
+        throwsA(
+          isA<A2uiExpressionError>().having(
+            (e) => e.details,
+            'details',
+            isA<String>(),
+          ),
+        ),
       );
     });
   });
@@ -629,6 +734,29 @@ void main() {
 
     test('returns an empty string for a non-number', () {
       expect(_call(v10, 'formatNumber', {'value': 'nope'}), '');
+    });
+
+    test('reads a validation result as grouping by its validity', () {
+      for (final name in ['formatNumber', 'formatCurrency']) {
+        expect(
+          _call(v10, name, {
+            'value': 1234,
+            'currency': 'USD',
+            'grouping': const ValidationResult(valid: false),
+          }),
+          isNot(contains(',')),
+          reason: name,
+        );
+        expect(
+          _call(v10, name, {
+            'value': 1234,
+            'currency': 'USD',
+            'grouping': {'valid': true},
+          }),
+          contains(','),
+          reason: name,
+        );
+      }
     });
 
     test('uses the catalog locale', () {

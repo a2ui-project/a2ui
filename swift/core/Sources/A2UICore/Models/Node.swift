@@ -12,47 +12,179 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import Observation
 import OrderedJSON
 
-/// An immutable, thread-safe resolved component representation.
-public struct Node: Identifiable, Equatable, Sendable {
-  public let id: String
-  public let type: String
-  public let catalogID: String?
-  public let properties: [String: any Resolved]
+/// A persistent, observable backing store for a resolved component node.
+@MainActor
+package final class NodeBox: Observable {
+  private let registrar = ObservationRegistrar()
+
+  nonisolated let id: String
+  nonisolated let type: String
+  nonisolated let catalogID: String?
+  private var _properties: [String: any Resolved]
+  private var _metadata: [String: JSONValue]?
+  package private(set) var revision: UInt64 = 0
+
+  var properties: [String: any Resolved] {
+    registrar.access(self, keyPath: \.properties)
+    return _properties
+  }
+
+  var metadata: [String: JSONValue]? {
+    registrar.access(self, keyPath: \.metadata)
+    return _metadata
+  }
+
+  nonisolated init(
+    id: String,
+    type: String,
+    catalogID: String? = nil,
+    properties: [String: any Resolved],
+    metadata: [String: JSONValue]? = nil
+  ) {
+    self.id = id
+    self.type = type
+    self.catalogID = catalogID
+    self._properties = properties
+    self._metadata = metadata
+  }
+
+  /// Updates the box's resolved properties and metadata in-place, notifying `Observation`
+  /// observers only for the storage (`properties` or `metadata`) that changed.
+  func updateProperties(
+    _ newProperties: [String: any Resolved],
+    metadata newMetadata: [String: JSONValue]? = nil
+  ) {
+    let propsChanged = !Self.arePropertiesShallowEqual(_properties, newProperties)
+    let metaChanged = !MetadataValidator.areEqual(_metadata, newMetadata)
+    if propsChanged {
+      registrar.withMutation(of: self, keyPath: \.properties) {
+        _properties = newProperties
+      }
+    } else {
+      _properties = newProperties
+    }
+    if metaChanged {
+      registrar.withMutation(of: self, keyPath: \.metadata) {
+        _metadata = newMetadata
+      }
+    } else {
+      _metadata = newMetadata
+    }
+    if propsChanged || metaChanged {
+      revision &+= 1
+    }
+  }
+
+  /// Updates the box's metadata in-place without re-resolving properties or child subtrees.
+  func updateMetadata(_ newMetadata: [String: JSONValue]?) {
+    guard !MetadataValidator.areEqual(_metadata, newMetadata) else { return }
+    registrar.withMutation(of: self, keyPath: \.metadata) {
+      _metadata = newMetadata
+    }
+    revision &+= 1
+  }
+
+  private static func arePropertiesShallowEqual(
+    _ lhs: [String: any Resolved],
+    _ rhs: [String: any Resolved]
+  ) -> Bool {
+    guard lhs.count == rhs.count else { return false }
+    for (key, lhsVal) in lhs {
+      guard let rhsVal = rhs[key], areValuesShallowEqual(lhsVal, rhsVal) else { return false }
+    }
+    return true
+  }
+
+  private static func areValuesShallowEqual(
+    _ lhs: any Resolved,
+    _ rhs: any Resolved
+  ) -> Bool {
+    if let lhsNode = lhs as? Node, let rhsNode = rhs as? Node {
+      return lhsNode.box === rhsNode.box
+    }
+    if let lhsNodes = lhs as? [Node], let rhsNodes = rhs as? [Node] {
+      return lhsNodes.count == rhsNodes.count
+        && zip(lhsNodes, rhsNodes).allSatisfy { $0.box === $1.box }
+    }
+    if let lhsDict = lhs as? ResolvedDictionary, let rhsDict = rhs as? ResolvedDictionary {
+      return arePropertiesShallowEqual(lhsDict.storage, rhsDict.storage)
+    }
+    if let lhsArr = lhs as? ResolvedArray, let rhsArr = rhs as? ResolvedArray {
+      return lhsArr.elements.count == rhsArr.elements.count
+        && zip(lhsArr.elements, rhsArr.elements).allSatisfy { areValuesShallowEqual($0, $1) }
+    }
+    return lhs.isEqual(to: rhs)
+  }
+}
+
+/// A resolved component representation.
+public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
+  package let box: NodeBox
+
+  public var id: String { box.id }
+  public var type: String { box.type }
+  public var catalogID: String? { box.catalogID }
+  @MainActor
+  public var properties: [String: any Resolved] { box.properties }
+  @MainActor
+  public var metadata: [String: JSONValue]? { box.metadata }
+  @MainActor
+  public var extensions: [String: JSONValue]? { MetadataValidator.extensions(from: box.metadata) }
 
   /// Creates a new resolved component node.
   public init(
     id: String,
     type: String,
     catalogID: String? = nil,
-    properties: [String: any Resolved]
+    properties: [String: any Resolved],
+    metadata: [String: JSONValue]? = nil
   ) {
-    self.id = id
-    self.type = type
-    self.catalogID = catalogID
-    self.properties = properties
+    self.box = NodeBox(
+      id: id,
+      type: type,
+      catalogID: catalogID,
+      properties: properties,
+      metadata: metadata
+    )
   }
 
+  /// Updates the backing box's resolved properties and metadata in-place.
+  @MainActor
+  func updateProperties(
+    _ newProperties: [String: any Resolved],
+    metadata newMetadata: [String: JSONValue]? = nil
+  ) {
+    box.updateProperties(newProperties, metadata: newMetadata)
+  }
+
+  /// Updates the backing box's metadata in-place.
+  @MainActor
+  func updateMetadata(_ newMetadata: [String: JSONValue]?) {
+    box.updateMetadata(newMetadata)
+  }
+
+  @MainActor
   public static func == (lhs: Node, rhs: Node) -> Bool {
-    guard lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID else {
-      return false
+    if lhs.box === rhs.box {
+      return true
     }
-    guard lhs.properties.count == rhs.properties.count else {
+    guard lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID,
+      MetadataValidator.areEqual(lhs.metadata, rhs.metadata),
+      lhs.properties.count == rhs.properties.count
+    else {
       return false
     }
     for (key, lhsVal) in lhs.properties {
-      guard let rhsVal = rhs.properties[key] else {
-        return false
-      }
-      guard lhsVal.isEqual(to: rhsVal) else {
-        return false
-      }
+      guard let rhsVal = rhs.properties[key], lhsVal.isEqual(to: rhsVal) else { return false }
     }
     return true
   }
 }
 
+@MainActor
 extension Node {
   /// All resolved child nodes found by scanning the node's properties.
   ///
@@ -94,6 +226,7 @@ extension Node {
 
 // MARK: - Typed Property Accessors
 
+@MainActor
 extension Node {
   /// Returns the resolved string value for the given property key.
   ///
@@ -173,8 +306,15 @@ extension Node {
   }
 
   /// Returns the resolved action for the given property key.
+  @available(*, deprecated, renamed: "action(for:userActivation:)")
   public func action(for key: String) -> ResolvedAction? {
     properties[key] as? ResolvedAction
+  }
+
+  /// Returns the resolved action for the given property key, gated on `userActivation`
+  /// when the action invokes a local function that requires user activation.
+  public func action(for key: String, userActivation: Bool) -> ResolvedAction? {
+    (properties[key] as? ResolvedAction)?.withUserActivation(userActivation)
   }
 
   /// Returns the single child `Node` for the given property key.
@@ -263,4 +403,10 @@ extension Node {
   }
 }
 
-extension Node: Resolved {}
+extension Node: @preconcurrency Resolved {
+  @MainActor
+  public func isEqual(to other: any Resolved) -> Bool {
+    guard let otherNode = other as? Node else { return false }
+    return self == otherNode
+  }
+}

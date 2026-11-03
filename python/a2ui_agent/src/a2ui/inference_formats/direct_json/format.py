@@ -68,13 +68,8 @@ class DirectJsonFormat(InferenceFormat):
 
     @property
     def supports_streaming(self) -> bool:
-        """Direct JSON parsers read a response incrementally through parse_chunk."""
+        """Direct JSON parsers read a response incrementally through open_stream."""
         return True
-
-    @property
-    def parser(self) -> DirectJsonParser:
-        """Creates a parser instance configured for this Direct JSON format."""
-        return self.create_parser()
 
     @property
     def catalogs(self) -> list[CatalogApi]:

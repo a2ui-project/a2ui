@@ -23,13 +23,22 @@ import 'package:video_player/video_player.dart';
 class MediaPlayer extends StatefulWidget {
   /// Creates a player for [url]. A null or empty one loads nothing, and a URL
   /// that is not `http` or `https` shows a failure.
-  const MediaPlayer({super.key, required this.url, this.showVideo = false});
+  const MediaPlayer({
+    super.key,
+    required this.url,
+    this.showVideo = false,
+    this.posterUrl,
+  });
 
   /// The URL of the media.
   final String? url;
 
   /// Whether to show the video frame.
   final bool showVideo;
+
+  /// The URL of an `http` or `https` image the video frame shows until
+  /// playback starts, unless the media fails.
+  final String? posterUrl;
 
   @override
   State<MediaPlayer> createState() => _MediaPlayerState();
@@ -38,6 +47,9 @@ class MediaPlayer extends StatefulWidget {
 class _MediaPlayerState extends State<MediaPlayer> {
   VideoPlayerController? _controller;
   bool _failed = false;
+
+  /// Whether the media at the current URL has been played.
+  bool _played = false;
 
   @override
   void initState() {
@@ -65,6 +77,7 @@ class _MediaPlayerState extends State<MediaPlayer> {
         ? Uri.tryParse(url)
         : null;
     _failed = url.isNotEmpty && uri == null;
+    _played = false;
     final VideoPlayerController? controller = _controller = uri == null
         ? null
         : VideoPlayerController.networkUrl(uri);
@@ -94,7 +107,17 @@ class _MediaPlayerState extends State<MediaPlayer> {
     final VideoPlayerValue? value = failed ? null : controller?.value;
     final bool ready = value?.isInitialized ?? false;
     final bool playing = value?.isPlaying ?? false;
+    final bool started =
+        ready && (_played || playing || value!.position > Duration.zero);
     final Color errorColor = Theme.of(context).colorScheme.error;
+    final Widget blank = ColoredBox(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: failed ? const Icon(Icons.videocam_off) : null,
+    );
+    final String poster = widget.posterUrl ?? '';
+    final bool hasPoster =
+        !failed &&
+        (poster.startsWith('http://') || poster.startsWith('https://'));
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -102,14 +125,17 @@ class _MediaPlayerState extends State<MediaPlayer> {
         if (widget.showVideo)
           AspectRatio(
             aspectRatio: ready ? value!.aspectRatio : 16 / 9,
-            child: ready
+            child: started || (ready && !hasPoster)
                 ? VideoPlayer(controller!)
-                : ColoredBox(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
-                    child: failed ? const Icon(Icons.videocam_off) : null,
-                  ),
+                : hasPoster
+                ? Image.network(
+                    poster,
+                    fit: BoxFit.cover,
+                    excludeFromSemantics: true,
+                    errorBuilder: (context, error, stackTrace) =>
+                        ready ? VideoPlayer(controller!) : blank,
+                  )
+                : blank,
           ),
         Row(
           children: [
@@ -119,9 +145,14 @@ class _MediaPlayerState extends State<MediaPlayer> {
               IconButton(
                 tooltip: playing ? 'Pause' : 'Play',
                 icon: Icon(playing ? Icons.pause : Icons.play_arrow),
-                onPressed: ready
-                    ? () => playing ? controller!.pause() : controller!.play()
-                    : null,
+                onPressed: !ready
+                    ? null
+                    : playing
+                    ? controller!.pause
+                    : () {
+                        _played = true;
+                        unawaited(controller!.play());
+                      },
               ),
             Expanded(
               child: value == null || controller == null

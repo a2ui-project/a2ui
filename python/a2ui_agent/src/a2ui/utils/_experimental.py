@@ -39,7 +39,12 @@ _MESSAGE = (
 
 def _is_suppressed() -> bool:
     value = os.environ.get(SUPPRESS_ENV_VAR)
-    return value is not None and value.strip().lower() in ("1", "true", "yes", "on")
+    return value is not None and value.strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
 
 
 def _warn(name: str) -> None:

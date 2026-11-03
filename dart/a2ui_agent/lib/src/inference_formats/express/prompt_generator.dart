@@ -63,18 +63,16 @@ class ExpressPromptGenerator extends PromptGenerator {
   /// has no Express notation; see [ExpressDecompiler.decompile].
   @override
   String generate() {
-    if (this.catalogs.isEmpty) {
+    if (catalogs.isEmpty) {
       throw A2uiCatalogError('An Express prompt needs at least one catalog.');
     }
-    // The decompiler holds linked copies, which resolve cross-catalog
-    // references; [catalogs] stay as they are.
-    final decompiler = ExpressDecompiler(this.catalogs);
-    final List<CatalogApi> catalogs = decompiler.catalogs;
+    final decompiler = ExpressDecompiler(catalogs);
     final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
     final bool v1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
     final buffer = StringBuffer(
       _rules(
         resolveAllowedMessages(allowedMessages, version),
+        v1: v1,
         callable: v1 ? _agentCallable(catalogs) : const [],
       ),
     );
@@ -89,7 +87,7 @@ class ExpressPromptGenerator extends PromptGenerator {
         ..write(section(catalogs.single, '##'));
     } else {
       buffer.write(v1 ? _catalogsV1(catalogs) : _catalogsV0_9(catalogs));
-      for (final catalog in catalogs) {
+      for (final CatalogApi catalog in catalogs) {
         buffer
           ..write('\n\n## Catalog `${catalog.id}`\n\n')
           ..write(section(catalog, '###'));
@@ -365,7 +363,11 @@ String _indent(String text) => text.replaceAll('\n', '\n    ');
 /// if any statement may use it, such as the rule for strings. The rule for
 /// standalone function calls names the [callable] functions, and is left out
 /// when there are none.
-String _rules(List<String> allowed, {required List<String> callable}) {
+String _rules(
+  List<String> allowed, {
+  required bool v1,
+  required List<String> callable,
+}) {
   final bool creates = allowed.contains('createSurface');
   final bool components = creates || allowed.contains('updateComponents');
   final bool data = allowed.contains('updateDataModel');
@@ -373,7 +375,7 @@ String _rules(List<String> allowed, {required List<String> callable}) {
     if (components) _componentsRule,
     if (creates) _rootRule,
     ..._valueRules,
-    if (components) ..._callRules,
+    if (components) ...(v1 ? _callRulesV1 : _callRulesV0_9),
     if (data) _dataModelRule,
     if (components) _templateRule,
     if (allowed.contains('deleteSurface')) _deleteSurfaceRule,
@@ -400,7 +402,7 @@ const String _contract = '''# A2UI Express DSL Output Contract
 
 You must output the user interface using A2UI Express.
 
-IMPORTANT: You MUST always surround the entire A2UI Express block with the sentinel tags `<a2ui>` and `</a2ui>`.
+IMPORTANT: You MUST always surround the entire A2UI Express block with the literal sentinel tags `<a2ui>` and `</a2ui>` (always include both the opening and closing tags; do NOT wrap the tags in backticks or replace the opening tag with a markdown code fence such as ```a2ui).
 
 The host compiler will compile your A2UI Express output into the correct JSON envelopes automatically.
 
@@ -436,13 +438,35 @@ Prefix relative list scopes with '$', e.g., $firstName.
 A lone '$' represents an empty relative path which resolves to the root of the current context (e.g. inside a template, representing the entire item itself).''',
 ];
 
-const List<String> _callRules = [
-  r'''Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").''',
-  r'''Action events: represent server-side actions using the Event helper:
-Event("save_deal", {rep: $/form/rep})''',
-  'Nested functions: call client functions directly using catalog '
-      'signatures, for example myFunction("value").',
+const List<String> _callRulesV0_9 = [
+  _validationRule,
+  _actionEventsRuleV0_9,
+  _nestedFunctionsRule,
 ];
+
+const List<String> _callRulesV1 = [
+  _validationRule,
+  _actionEventsRuleV1,
+  _nestedFunctionsRule,
+];
+
+const String _validationRule =
+    r'''Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").''';
+
+const String _actionEventsRuleV0_9 =
+    r'''Action events: represent server-side actions using the Event helper:
+Event("save_deal", {rep: $/form/rep})''';
+
+const String _actionEventsRuleV1 =
+    r'''Action events: represent server-side actions using the Event helper, `Event(name, context?, userMessage=...)`:
+Event("save_deal", {rep: $/form/rep})
+Event("reply", userMessage="Replying now")
+Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)
+The context map is optional. Pass `userMessage=` as a keyword argument (a string, `$path` binding, or function call) to set the message shown on the user's behalf when the event fires.''';
+
+const String _nestedFunctionsRule =
+    'Nested functions: call client functions directly using catalog '
+    'signatures, for example myFunction("value").';
 
 const String _dataModelRule =
     r'Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.';

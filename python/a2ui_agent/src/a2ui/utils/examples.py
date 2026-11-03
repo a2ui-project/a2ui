@@ -26,7 +26,7 @@ from a2ui.constants import ENCODING
 from a2ui.core import A2uiCatalogError, A2uiError, CatalogApi
 
 from ._paths import to_local_path
-from .validation import validate_payload
+from .renderer_state import validate_payload
 
 
 def resolve_examples_path(path: str | None) -> str | None:

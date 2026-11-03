@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.astro/
+public/specification/
+public/assets/
+public/CNAME
+public/llms.txt

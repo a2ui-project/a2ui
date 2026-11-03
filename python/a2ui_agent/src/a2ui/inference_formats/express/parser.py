@@ -16,8 +16,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from collections.abc import Sequence
+from typing import Literal
 from typing import Type
+from typing import overload
 
 from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 from a2ui.core import CatalogApi
@@ -30,15 +33,22 @@ from a2ui.parser import BlockLexer
 from a2ui.parser import Parser
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
+from a2ui.parser import ResponsePart
+from a2ui.parser import StreamPart
 from a2ui.parser import TextPart
+from a2ui.utils import RendererState
 
 from .compiler import ExpressCompiler
 from .decompiler import ExpressDecompiler
 from .errors import ExpressParseError
 from .errors import ExpressValidationError
+from .response_stream import DEFAULT_EXPRESS_PROGRESSIVE_KEYS
+from .response_stream import ExpressResponseStream
 
 
-def _compilation_error_class(error: BaseException) -> Type[A2uiCompilationError]:
+def _compilation_error_class(
+    error: BaseException,
+) -> Type[A2uiCompilationError]:
     """Picks the compilation error the compiler's failure belongs under."""
     if isinstance(error, ExpressValidationError):
         return A2uiCompilationValidationError
@@ -57,15 +67,62 @@ class ExpressParser(Parser):
         catalogs: Sequence[CatalogApi],
         surface_id: str = "main",
         version: str | None = None,
+        progressive_keys: Collection[str] | None = DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
     ):
         self._catalogs = check_mixed_catalogs(catalogs)
         self.surface_id = surface_id
         self.version = version
+        self.progressive_keys: frozenset[str] = (
+            frozenset(progressive_keys)
+            if progressive_keys is not None
+            else DEFAULT_EXPRESS_PROGRESSIVE_KEYS
+        )
 
     @property
     def catalogs(self) -> list[CatalogApi]:
         """A copy of the catalogs the parser holds, in the order it received them."""
         return list(self._catalogs)
+
+    @property
+    def supports_streaming(self) -> bool:
+        """Whether this parser supports incremental streaming via `open_stream`."""
+        return True
+
+    @overload
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end"] = "end",
+    ) -> ExpressResponseStream[ResponsePart]:
+        ...
+
+    @overload
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end", "continue"],
+    ) -> ExpressResponseStream[StreamPart]:
+        ...
+
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end", "continue"] = "end",
+    ) -> ExpressResponseStream[StreamPart]:
+        """Opens a stream that incrementally compiles Express DSL as chunks arrive."""
+        return ExpressResponseStream(
+            self,
+            wrapped=wrapped,
+            state=state,
+            progressive_keys=self.progressive_keys,
+            after_rejected_block=after_rejected_block,
+        )
 
     def has_format_content(self, content: str, complete: bool = False) -> bool:
         """Checks whether the given content string contains A2UI Express sentinel tags."""
@@ -94,15 +151,19 @@ class ExpressParser(Parser):
         lexer = BlockLexer(
             open_tag=A2UI_INFERENCE_OPEN_TAG,
             close_tag=A2UI_INFERENCE_CLOSE_TAG,
-            string_delimiters={"'", '"'},
-            single_line_comments={"#"},
+            # Strings and comments as Express.g4 reads them: strings are
+            # double-quoted only, so an apostrophe never opens one, and a quote
+            # or close tag inside a `/* */` comment does not affect the block.
+            string_delimiters={'"'},
+            single_line_comments={"#", "//", "--"},
+            block_comments=[("/*", "*/")],
         )
         return lexer.tokenize(content)
 
     def compile(
         self, format_content: str, *, is_final: bool = True
     ) -> list[AgentToRendererMessage]:
-        """Compiles raw Express DSL to structured A2UI messages."""
+        """Compiles raw Express DSL into A2UI messages."""
         compiler = ExpressCompiler(self._catalogs, version=self.version)
         try:
             return compiler.compile(
@@ -127,12 +188,6 @@ class ExpressParser(Parser):
                 help_message=help_msg,
                 details=details,
             ) from e
-
-    def _compile_raw_part(
-        self, raw_part: RawResponsePart
-    ) -> list[AgentToRendererMessage]:
-        assert isinstance(raw_part.part, RawA2uiPart)
-        return self.compile(raw_part.part.a2ui_raw, is_final=raw_part.is_final)
 
     def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
         """Decompiles structured A2UI payload messages into this format's raw notation."""

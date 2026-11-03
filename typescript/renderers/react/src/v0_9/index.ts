@@ -18,11 +18,13 @@ export {
   A2uiSurface,
   createBinderlessComponentImplementation,
   createComponentImplementation,
+  MarkdownComponentContext,
   MarkdownContext,
   useMarkdownRenderer,
   useSignalValue,
 } from '../index';
 export type {
+  MarkdownComponentProps,
   NodeBuildChild,
   NodeViewProps,
   ReactA2uiComponentProps,

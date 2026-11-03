@@ -21,18 +21,27 @@
  * signatures and instruction blocks.
  */
 
-import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
+import {AgentToRendererMessage, CatalogApi, isAtLeastVersion} from '../../internal/web-core.js';
 import {PromptGenerator} from '../../prompt/generator.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 import {buildSchemaHelpers, catalogsDefining, resolveExpressVersion} from './catalogs.js';
 import {ExpressDecompiler, RawNumber} from './decompiler.js';
 import {CatalogSchemaHelper, commonDefName} from './schema-helper.js';
 
-export const EXPRESS_RULES = `# A2UI Express DSL Output Contract
+const EVENT_RULE_V10 = `8. Action events: represent server-side actions using the Event helper, \`Event(name, context?, userMessage=...)\`:
+   Event("save_deal", {rep: $/form/rep})
+   Event("reply", userMessage="Replying now")
+   Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)
+   The context map is optional. Pass \`userMessage=\` as a keyword argument (a string, \`$path\` binding, or function call) to set the message shown on the user's behalf when the event fires.`;
+
+const EVENT_RULE_PRE_V10 = `8. Action events: represent server-side actions using the Event helper:
+   Event("save_deal", {rep: $/form/rep})`;
+
+const EXPRESS_RULES_PREFIX = `# A2UI Express DSL Output Contract
 
 You must output the user interface using A2UI Express.
 
-IMPORTANT: You MUST always surround the entire A2UI Express block with the sentinel tags \`<a2ui>\` and \`</a2ui>\`.
+IMPORTANT: You MUST always surround the entire A2UI Express block with the literal sentinel tags \`<a2ui>\` and \`</a2ui>\` (always include both the opening and closing tags; do NOT wrap the tags in backticks or replace the opening tag with a markdown code fence such as \`\`\`a2ui).
 
 The host compiler will compile your A2UI Express output into the correct JSON envelopes automatically.
 
@@ -54,7 +63,7 @@ The host compiler will compile your A2UI Express output into the correct JSON en
    - Numbers: write as integers or decimals, e.g., 42
    - Booleans: write true or false
    - Null values: write null
-   - Dates & Times: Values for date-time properties must strictly use RFC 3339 format with a timezone offset (e.g. "2026-03-14T00:00:00Z").
+   - Dates & Times: Values for date-time inputs (e.g. in DateTimeInput) must strictly use RFC 3339 format with a timezone offset (e.g. "2026-03-14T00:00:00Z").
 
 4. Lists: represent as arrays, e.g., [child1, child2].
 
@@ -64,30 +73,65 @@ The host compiler will compile your A2UI Express output into the correct JSON en
    Prefix relative list scopes with '$', e.g., $firstName.
    A lone '$' represents an empty relative path which resolves to the root of the current context (e.g. inside a template, representing the entire item itself).
 
-7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").
+7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").`;
 
-8. Action events: represent server-side actions using the Event helper:
-   Event("save_deal", {rep: $/form/rep})
-
-9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
+const EXPRESS_RULES_SUFFIX = `9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
 
 10. Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.
 
 11. Dynamic list templates: If a component expects a template child list, represent it using the _template helper:
     _template($/path/to/list, itemTemplate)
     And define the template component variable on another line, utilizing relative path references prefixed with $:
-    itemTemplate = ComponentA($url)
+    itemTemplate = Image($url)
 
 12. To delete a user interface surface, output the standalone \`deleteSurface(surfaceId)\` command (no variable assignment):
     deleteSurface("dashboard-surface-1")
 
 13. Static properties: Arguments annotated with '(static)' in the signatures below MUST be defined as literal values or arrays inline. You CANNOT use a dynamic data binding path (prefixed by $) for these arguments.
 
-14. Required actions: Action parameters (or parameters annotated in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.
+14. Required actions: Parameters named 'action' (or annotated in component signatures) are strictly required. You must pass a valid Event (e.g. Event("click")) or function call. If no specific action is described in the user request, you must provide a dummy click event like Event("click") instead of passing null or omitting the parameter.
 
 15. Surface targeting: Output \`surface(surfaceId)\` to specify or target a user interface surface:
     surface("dashboard-surface-1")
     root = ComponentA(...)`;
+
+export const EXPRESS_RULES = `${EXPRESS_RULES_PREFIX}\n\n${EVENT_RULE_V10}\n\n${EXPRESS_RULES_SUFFIX}`;
+
+const EXPRESS_RULES_PRE_V10 = `${EXPRESS_RULES_PREFIX}\n\n${EVENT_RULE_PRE_V10}\n\n${EXPRESS_RULES_SUFFIX}`;
+
+/**
+ * Rule 15's example line. `generateBaseRules` replaces its placeholder name with a
+ * component the active catalogs define, as Python's `_ROOT_EXAMPLE_LINE` does.
+ */
+const ROOT_EXAMPLE_LINE = 'root = ComponentA(...)';
+
+/**
+ * Picks the component that rule 15's `root = ...(...)` example names.
+ *
+ * The name is read from the catalogs, so the example never shows a component the model
+ * can't use. It is the first component that holds a single child reference, as a container
+ * such as a card does, or else the first component.
+ *
+ * @returns The component name, or undefined if the catalogs define no component.
+ */
+function exampleRootComponent(catalogs: readonly CatalogApi[]): string | undefined {
+  for (const catalog of catalogs) {
+    for (const name of catalog.components.keys()) {
+      const refs = Object.hasOwn(catalog.componentRefMap, name)
+        ? catalog.componentRefMap[name]
+        : undefined;
+      if (refs !== undefined && refs.singleRefs.size > 0) {
+        return name;
+      }
+    }
+  }
+  for (const catalog of catalogs) {
+    for (const name of catalog.components.keys()) {
+      return name;
+    }
+  }
+  return undefined;
+}
 
 /** The message types a fenced JSON example may contain to be rewritten as Express. */
 const TRANSLATABLE_MESSAGE_TYPES = [
@@ -169,8 +213,7 @@ function withDefaultCatalog(
     if (!rawMsg || typeof rawMsg !== 'object') {
       return rawMsg;
     }
-    const msg = rawMsg as unknown as Record<string, unknown>;
-    const copy: Record<string, unknown> = {...msg};
+    const copy: Record<string, unknown> = {...rawMsg};
 
     if (copy.createSurface && typeof copy.createSurface === 'object') {
       const cs = copy.createSurface as Record<string, unknown>;
@@ -313,13 +356,13 @@ export class ExpressPromptGenerator extends PromptGenerator {
   /**
    * Returns the core syntax contract and grammar rules for A2UI Express.
    *
-   * Verbatim matches `EXPRESS_RULES` (and express_base_rules.txt) when no allowlist of
-   * message types was given. Otherwise, filters out envelope-specific instructions
-   * accordingly.
+   * Matches `EXPRESS_RULES` (and express_base_rules.txt) when no allowlist of message
+   * types was given, except that rule 15's `root = ...(...)` example names a component of
+   * the active catalogs. Otherwise, also filters out envelope-specific instructions.
    */
   generateBaseRules(): string {
     const allowedMessages = this.allowedMessages;
-    let rules = EXPRESS_RULES;
+    let rules = isAtLeastVersion(this.version, '1.0') ? EXPRESS_RULES : EXPRESS_RULES_PRE_V10;
     let wantsComponentsOrData = true;
 
     if (allowedMessages) {
@@ -355,6 +398,11 @@ export class ExpressPromptGenerator extends PromptGenerator {
           );
         }
       }
+    }
+
+    const rootComponent = exampleRootComponent(this.catalogs);
+    if (rootComponent !== undefined) {
+      rules = rules.replace(ROOT_EXAMPLE_LINE, `root = ${rootComponent}(...)`);
     }
 
     const lines = [rules];
@@ -637,7 +685,9 @@ export class ExpressPromptGenerator extends PromptGenerator {
   private decompileMessages(messages: AgentToRendererMessage[], catalog?: CatalogApi): string {
     const decompiler = new ExpressDecompiler(this.catalogs, this.version);
     const normalized = withDefaultCatalog(messages, catalog?.id);
-    return decompiler.wrapDecompiledBlocks([decompiler.decompile(normalized)]);
+    return decompiler.wrap([
+      {type: 'a2ui', a2uiRaw: decompiler.decompile(normalized), isFinal: true},
+    ]);
   }
 
   protected renderExamples(catalog: CatalogApi): string {
@@ -657,7 +707,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
         for (const turn of exampleMessages as AgentToRendererMessage[][]) {
           const dsl = decompiler.decompile(withDefaultCatalog(turn, catalog.id));
           if (dsl) {
-            blocks.push(decompiler.wrapDecompiledBlocks([dsl]));
+            blocks.push(decompiler.wrap([{type: 'a2ui', a2uiRaw: dsl, isFinal: true}]));
           }
         }
         return blocks.join('\n\n');

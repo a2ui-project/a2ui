@@ -476,6 +476,73 @@
                     text:
                       literalString: Reachable
 
+- name: test_v08_topology_plain_string_property_not_treated_as_child_ref
+  description: Tests that a plain string property whose value happens to match another component's ID does not make that component reachable in v0.8 strict mode. Text.usageHint is an enum, not a child reference, even when a component has the ID it names.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  Column:
+                    children:
+                      explicitList: [title]
+              - id: title
+                component:
+                  Text:
+                    text:
+                      literalString: Heading
+                    usageHint: h1
+              - id: h1
+                component:
+                  Text:
+                    text:
+                      literalString: Still orphaned
+      expectError:
+        category: ValidationError
+        message: h1
+
+- name: test_v08_topology_plain_string_property_does_not_close_cycle
+  description: Tests that a plain string property whose value happens to match an ancestor's ID is not read as a reference that closes a cycle in v0.8 strict mode. Here root -> h1 -> title is a tree, and title's usageHint names h1.
+  action: validate
+  protocolVersion: v0.8
+  catalogPaths:
+    - specification/v0_8/json/standard_catalog_definition.json
+  strictMode: true
+  steps:
+    - messages:
+        - beginRendering:
+            surfaceId: s1
+            root: root
+        - surfaceUpdate:
+            surfaceId: s1
+            components:
+              - id: root
+                component:
+                  Column:
+                    children:
+                      explicitList: [h1]
+              - id: h1
+                component:
+                  Column:
+                    children:
+                      explicitList: [title]
+              - id: title
+                component:
+                  Text:
+                    text:
+                      literalString: Heading
+                    usageHint: h1
+
 - name: test_v08_invalid_data_model_path_error
   description: Tests that a dataModelUpdate path with an invalid JSON Pointer escape ('~2') fails validation in v0.8.
   action: validate

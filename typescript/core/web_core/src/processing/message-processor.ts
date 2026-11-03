@@ -16,15 +16,35 @@
 
 import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener} from '../state/surface-model.js';
-import {Catalog, ComponentApi, linkCatalogs} from '../catalog/types.js';
+import {Catalog, ComponentApi} from '../catalog/types.js';
+import {exclusiveUnionOverride} from '../catalog/exclusive_union.js';
 import {cleanSchemaNode} from '../catalog/schema_generator.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {DataModel} from '../state/data-model.js';
 import {Subscription} from '../common/events.js';
+import {A2uiMetadata, validateMetadata} from '../common/metadata.js';
+import {batchWrite} from '../reactivity/signals.js';
 
-import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
+import {
+  A2uiCatalogError,
+  A2uiDataError,
+  A2uiError,
+  A2uiIntegrityError,
+  A2uiValidationError,
+} from '../errors.js';
+import {
+  ErrorEnvelopeContext,
+  RendererErrorMessage,
+  extractEnvelopeErrorContext,
+  mapErrorToRendererMessage,
+} from './message-error-mapper.js';
+import {
+  RecordedGraphBound,
+  recordComponentGraphBound,
+  validateComponentGraph,
+} from '../state/validation-helpers.js';
 import {defaultVersionAdapterFactory} from './adapters/factory.js';
 import {compareSemVer, isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {
@@ -39,6 +59,7 @@ import {
 import {
   isCatalogVersionCompatible,
   ProtocolVersion,
+  VersionAdapter,
   VersionAdapterResolver,
 } from './adapters/base.js';
 import {RendererCapabilities} from '../v1_0/schema/index.js';
@@ -62,7 +83,7 @@ import {
 } from '../rpc/index.js';
 import {DataContext} from '../resolution/data-context.js';
 import {
-  getComponentReferences,
+  RELAXED_PATH_PATTERN,
   RELAXED_VALIDATION,
   STRICT_VALIDATION,
   validateRecursionAndPaths,
@@ -103,14 +124,32 @@ export {STRICT_VALIDATION, RELAXED_VALIDATION, A2uiRpcError, RpcErrorCode};
 export interface ExecutionContext {
   /** Whether execution occurs in an active user gesture context. */
   isUserActivated?: boolean;
+  /**
+   * The validation rules for this call, in place of the processor's own. The
+   * rules the config leaves out default to the strict ones, as for
+   * `MessageProcessorOptions.validationConfig`. An agent that checks its
+   * messages against a renderer's processor passes the rules it checks by,
+   * whatever rules the renderer was created with.
+   */
+  validationConfig?: ValidationConfig;
 }
 
 /**
  * Options for generating renderer capabilities.
  */
 export interface CapabilitiesOptions {
-  /** Protocol versions to generate capabilities for. Required; must contain at least one version. */
-  versions: ProtocolVersion[];
+  /**
+   * Protocol versions to generate capabilities for. `getRendererCapabilities`
+   * requires at least one; `getClientCapabilities` defaults to `['v0.9']`.
+   */
+  versions?: ProtocolVersion[];
+  /**
+   * Single protocol version to generate capabilities for.
+   *
+   * @deprecated Use `versions`. Kept for callers of the pre-1.0
+   *   `getClientCapabilities({version})` signature.
+   */
+  version?: ProtocolVersion;
   /** Whether full definitions of all catalogs will be included inline. */
   includeInlineCatalogs?: boolean;
   /**
@@ -134,6 +173,10 @@ export interface MessageProcessorOptions {
   validationConfig?: ValidationConfig;
   /** Listener receiving outbound renderer messages intended for the agent. Required for callAgentFunction. */
   outboundListener?: OutboundMessageListener;
+  /** Optional listener invoked with a structured outbound ErrorMessage whenever message processing fails. */
+  errorHandler?: (error: RendererErrorMessage) => void;
+  /** When true, processing errors are emitted to errorHandler/onError without re-throwing. */
+  reportErrorsOnly?: boolean;
   /** Default timeout in milliseconds for callAgentFunction requests (default: 30000ms). */
   defaultTimeoutMs?: number;
 }
@@ -155,15 +198,23 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly rpc: RpcHandler;
   private readonly adapterRegistry: VersionAdapterResolver;
-  private readonly validationConfig?: ValidationConfig;
-  private readonly catalogs: Catalog<any>[];
+  private readonly registeredCatalogs: Catalog<any>[];
+  /** The processor's own rules, or the rules of the call in progress. */
+  private validationConfig?: ValidationConfig;
+  private readonly defaultVersion?: ProtocolVersion;
+  private readonly errorHandler?: (error: RendererErrorMessage) => void;
+  private readonly reportErrorsOnly: boolean;
+  /** Whether outbound messages, and so `callAgentFunction`, can reach the agent. */
+  private readonly hasOutboundListener: boolean;
+  /**
+   * What the last check of each surface's components found, under a config
+   * that defers the reference and reachability checks, with the number of
+   * changes the components had seen once that batch was applied.
+   */
+  private readonly graphBounds = new WeakMap<SurfaceComponentsModel, RecordedGraphBound>();
 
   /**
    * Initializes a new `MessageProcessor` instance.
-   *
-   * The processor works with copies of `catalogs` linked to each other, so
-   * that cross-catalog `$ref`s resolve (see `linkCatalogs`); the catalogs
-   * passed in are not changed.
    *
    * @param catalogs List of available component catalogs.
    * @param actionHandler Global handler for actions dispatched from all surfaces.
@@ -174,28 +225,32 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     private actionHandler?: ActionListener,
     options?: MessageProcessorOptions,
   ) {
-    this.catalogs = linkCatalogs(catalogs);
+    this.registeredCatalogs = catalogs;
     this.model = new SurfaceGroupModel<T>();
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
+    this.defaultVersion = options?.version;
+    this.errorHandler = options?.errorHandler;
+    this.reportErrorsOnly = options?.reportErrorsOnly ?? false;
     this.rpc = new RpcHandler({
-      catalogs: this.catalogs,
+      catalogs: this.registeredCatalogs,
       outboundListener: options?.outboundListener,
       defaultTimeoutMs: options?.defaultTimeoutMs,
     });
-    if (options?.validationConfig) {
-      this.validationConfig = {
-        allowOrphanComponents: false,
-        allowDanglingReferences: false,
-        allowMissingRoot: false,
-        allowUnknownElements: false,
-        ...options.validationConfig,
-      };
-    } else {
-      this.validationConfig = undefined;
-    }
+    this.hasOutboundListener = Boolean(options?.outboundListener);
+    this.validationConfig = options?.validationConfig
+      ? withStrictDefaults(options.validationConfig)
+      : undefined;
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
+    this.model.onSurfaceDeleted.subscribe(surfaceId => {
+      this.rpc.cancelSurfaceCalls(surfaceId);
+    });
+  }
+
+  /** The catalogs the processor was created with, in priority order. */
+  get catalogs(): Catalog<T>[] {
+    return [...this.registeredCatalogs];
   }
 
   /**
@@ -218,6 +273,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Disposes the MessageProcessor, tearing down active surfaces and rejecting pending RPC calls.
    */
   dispose(): void {
+    this.model.dispose();
     this.rpc.dispose();
   }
 
@@ -228,21 +284,21 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @returns The capabilities object.
    */
   getRendererCapabilities(options: CapabilitiesOptions): RendererCapabilities {
-    if (!options?.versions || options.versions.length === 0) {
+    const versions = options?.versions ?? (options?.version ? [options.version] : undefined);
+    if (!versions || versions.length === 0) {
       throw new A2uiValidationError(
         'At least one protocol version must be provided in CapabilitiesOptions to generate renderer capabilities.',
       );
     }
-    const versions = options.versions;
     const result: Record<string, any> = {};
 
     for (const ver of versions) {
       const versionCaps: Record<string, any> = {
-        supportedCatalogIds: this.catalogs.map(c => c.id),
+        supportedCatalogIds: this.registeredCatalogs.map(c => c.id),
       };
 
       const inlineCatalogs = options?.includeInlineCatalogs
-        ? this.catalogs.map(c => {
+        ? this.registeredCatalogs.map(c => {
             if (compareSemVer(ver, '1.0') >= 0) {
               return this.generateInlineCatalog(c);
             }
@@ -267,11 +323,16 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Generates the client/renderer capabilities object for the current processor.
    *
    * @deprecated Use `getRendererCapabilities` instead.
-   * @param options Configuration for capability generation.
+   * @param options Configuration for capability generation. Defaults to
+   *   `{versions: ['v0.9']}`, the only version the pre-1.0 method knew.
    * @returns The capabilities object.
    */
-  getClientCapabilities(options: CapabilitiesOptions): RendererCapabilities {
-    return this.getRendererCapabilities(options);
+  getClientCapabilities(options?: CapabilitiesOptions): RendererCapabilities {
+    const versions =
+      options?.versions && options.versions.length > 0
+        ? options.versions
+        : [options?.version ?? 'v0.9'];
+    return this.getRendererCapabilities({...options, versions});
   }
 
   /**
@@ -312,6 +373,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         const rawZod = zodToJsonSchema(comp.schema, {
           target: 'jsonSchema2019-09',
           $refStrategy: 'none',
+          override: exclusiveUnionOverride,
         }) as Record<string, unknown>;
         cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
         props = (rawZod.properties as Record<string, unknown>) || {};
@@ -341,6 +403,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         const rawZod = zodToJsonSchema(fn.schema, {
           target: 'jsonSchema2019-09',
           $refStrategy: 'none',
+          override: exclusiveUnionOverride,
         }) as Record<string, unknown>;
         cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
         paramSchema = rawZod;
@@ -358,6 +421,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const rawTheme = zodToJsonSchema(catalog.themeSchema, {
         target: 'jsonSchema2019-09',
         $refStrategy: 'none',
+        override: exclusiveUnionOverride,
       }) as Record<string, unknown>;
       cleanSchemaNode(rawTheme, undefined, {stripAdditionalProperties: true});
       theme = (rawTheme.properties as Record<string, unknown>) || undefined;
@@ -412,7 +476,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       if (surface.protocolVersion) {
         const canonical = toCanonicalVersion(surface.protocolVersion);
         const canonicalVer = (
-          canonical ? `v${canonical}` : surface.protocolVersion
+          canonical
+            ? compareSemVer(canonical, '1.0') >= 0
+              ? canonical
+              : `v${canonical}`
+            : surface.protocolVersion
         ) as ProtocolVersion;
         versionsSet.add(canonicalVer);
       }
@@ -426,7 +494,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     const verStr =
-      versionsSet.size === 1 ? (versionsSet.values().next().value as ProtocolVersion) : 'v1.0';
+      versionsSet.size === 1 ? (versionsSet.values().next().value as ProtocolVersion) : '1.0';
     const surfaces: Record<string, unknown> = {};
     for (const surface of enabledSurfaces) {
       surfaces[surface.id] = surface.dataModel.get('/');
@@ -506,10 +574,59 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param context Contextual execution options.
    */
   processMessages(messages: ProcessableMessagePayload, context?: ExecutionContext): void {
-    const operations = this.prepareOperations(messages);
-    for (const op of operations) {
-      this.processOperation(op, context);
-    }
+    this.withValidationConfig(context, () => {
+      const initialContext = extractEnvelopeErrorContext(
+        Array.isArray(messages) ? messages[0] : messages,
+        this.defaultVersion,
+      );
+      let currentContext = initialContext;
+      try {
+        const operations = this.prepareOperations(messages, ctx => {
+          currentContext = ctx;
+        });
+        for (const op of operations) {
+          currentContext = this.contextFromOperation(op, initialContext);
+          this.processOperation(op, context);
+        }
+      } catch (err: unknown) {
+        this.handleProcessingError(err, currentContext);
+        if (!this.reportErrorsOnly) {
+          throw err;
+        }
+      }
+    });
+  }
+
+  /**
+   * Processes one or more messages, catching any validation or processing errors
+   * and returning them as spec-compliant outbound `RendererErrorMessage` objects instead
+   * of throwing.
+   *
+   * @param messages Array of messages or single message payload to process.
+   * @param context Optional execution context.
+   * @returns Array of `RendererErrorMessage` envelopes produced by failed messages.
+   */
+  processMessagesWithErrors(messages: unknown, context?: ExecutionContext): RendererErrorMessage[] {
+    return this.withValidationConfig(context, () => {
+      const items = Array.isArray(messages) ? messages : [messages];
+      const errors: RendererErrorMessage[] = [];
+      for (const item of items) {
+        const itemEnvelopeContext = extractEnvelopeErrorContext(item, this.defaultVersion);
+        let currentContext = itemEnvelopeContext;
+        try {
+          const operations = this.prepareOperations(item as ProcessableMessagePayload, ctx => {
+            currentContext = ctx;
+          });
+          for (const op of operations) {
+            currentContext = this.contextFromOperation(op, itemEnvelopeContext);
+            this.processOperation(op, context);
+          }
+        } catch (err: unknown) {
+          errors.push(this.handleProcessingError(err, currentContext));
+        }
+      }
+      return errors;
+    });
   }
 
   /**
@@ -523,34 +640,189 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     messages: ProcessableMessagePayload,
     context?: ExecutionContext,
   ): Promise<RendererFunctionResponseMessage[]> {
-    const operations = this.prepareOperations(messages);
-    const responses: RendererFunctionResponseMessage[] = [];
-    for (const op of operations) {
-      const resp = await this.processOperationAsync(op, context);
-      if (resp) {
-        responses.push(resp);
+    const initialContext = extractEnvelopeErrorContext(
+      Array.isArray(messages) ? messages[0] : messages,
+      this.defaultVersion,
+    );
+    let currentContext = initialContext;
+    try {
+      const operations = this.withValidationConfig(context, () =>
+        this.prepareOperations(messages, ctx => {
+          currentContext = ctx;
+        }),
+      );
+      const responses: RendererFunctionResponseMessage[] = [];
+      for (const op of operations) {
+        currentContext = this.contextFromOperation(op, initialContext);
+        const resp = await this.processOperationAsync(op, context);
+        if (resp) {
+          responses.push(resp);
+        }
       }
+      return responses;
+    } catch (err: unknown) {
+      this.handleProcessingError(err, currentContext);
+      if (!this.reportErrorsOnly) {
+        throw err;
+      }
+      return [];
     }
-    return responses;
   }
 
-  private prepareOperations(messages: ProcessableMessagePayload): InternalOperation[] {
-    if (!messages || (Array.isArray(messages) && messages.length === 0)) return [];
+  private contextFromOperation(
+    op: InternalOperation,
+    fallback: ErrorEnvelopeContext,
+  ): ErrorEnvelopeContext {
+    const opContext = (op as {envelopeContext?: ErrorEnvelopeContext}).envelopeContext ?? fallback;
+    const surfaceId = 'surfaceId' in op && op.surfaceId ? op.surfaceId : opContext.surfaceId;
+    const functionCallId =
+      'functionCallId' in op && op.functionCallId ? op.functionCallId : opContext.functionCallId;
+    const opVersion = 'version' in op ? op.version : undefined;
+    const surfaceVersion = surfaceId
+      ? this.model.getSurface(surfaceId)?.protocolVersion
+      : undefined;
+    return {
+      surfaceId,
+      functionCallId,
+      actionType: op.type,
+      version: opVersion ?? surfaceVersion ?? opContext.version ?? this.defaultVersion,
+    };
+  }
+
+  private handleProcessingError(err: unknown, context: ErrorEnvelopeContext): RendererErrorMessage {
+    const errorMsg = mapErrorToRendererMessage(err, context);
+    const payload = {
+      code: errorMsg.error.code,
+      message: errorMsg.error.message,
+      surfaceId: errorMsg.error.surfaceId,
+      details: err instanceof A2uiValidationError ? err.details : undefined,
+    };
+    const surface = errorMsg.error.surfaceId
+      ? this.model.getSurface(errorMsg.error.surfaceId)
+      : undefined;
+    if (surface) {
+      surface.dispatchError(payload);
+    } else {
+      this.model.emitError(payload);
+    }
+    this.errorHandler?.(errorMsg);
+    return errorMsg;
+  }
+
+  private extractSingleMessageOperations(item: unknown): InternalOperation[] {
+    const envelopeContext = extractEnvelopeErrorContext(item, this.defaultVersion);
+    let adapter: VersionAdapter;
+    try {
+      adapter = this.adapterRegistry.resolveFromPayload(item);
+    } catch (err) {
+      if (this.isImplicitV09Payload(item)) {
+        const hasV091 = this.catalogs.some(
+          c => c.protocolVersion === '0.9.1' || c.protocolVersion === 'v0.9.1',
+        );
+        adapter = this.adapterRegistry.getAdapter(hasV091 ? 'v0.9.1' : 'v0.9');
+      } else {
+        throw err;
+      }
+    }
+    const itemOps = adapter.extractOperations(item);
+    const itemVer = envelopeContext.version;
+    for (const op of itemOps) {
+      if (itemVer && toCanonicalVersion(itemVer)) {
+        if (!('version' in op && op.version)) {
+          (op as {version?: string}).version = itemVer;
+        }
+      }
+      (op as {envelopeContext?: ErrorEnvelopeContext}).envelopeContext = envelopeContext;
+    }
+    return itemOps;
+  }
+
+  /**
+   * Runs `fn` under the validation config of `context`, if it has one.
+   *
+   * `fn` must be synchronous: the config of a call is in effect only until
+   * `fn` returns, so an asynchronous call applies it around each synchronous
+   * step.
+   */
+  private withValidationConfig<R>(context: ExecutionContext | undefined, fn: () => R): R {
+    const config = context?.validationConfig;
+    if (!config) return fn();
+    const own = this.validationConfig;
+    this.validationConfig = withStrictDefaults(config);
+    try {
+      return fn();
+    } finally {
+      this.validationConfig = own;
+    }
+  }
+
+  private prepareSingleItem(
+    item: ProcessableMessagePayload,
+    onItemContext?: (ctx: ErrorEnvelopeContext) => void,
+  ): InternalOperation[] {
+    onItemContext?.(extractEnvelopeErrorContext(item, this.defaultVersion));
 
     if (this.validationConfig) {
-      validateRecursionAndPaths(messages);
+      validateRecursionAndPaths(item);
     }
 
     if (this.validationConfig?.targetVersion) {
-      this.validateTargetVersion(messages);
+      this.validateTargetVersion(item);
     }
 
-    if (isInternalOperation(messages)) {
-      return [messages];
+    if (isInternalOperation(item)) {
+      return [item];
     }
 
-    const adapter = this.adapterRegistry.resolveFromPayload(messages);
-    return adapter.extractOperations(messages);
+    return this.extractSingleMessageOperations(item);
+  }
+
+  private prepareOperations(
+    messages: ProcessableMessagePayload,
+    onItemContext?: (ctx: ErrorEnvelopeContext) => void,
+  ): InternalOperation[] {
+    if (!messages || (Array.isArray(messages) && messages.length === 0)) return [];
+
+    if (Array.isArray(messages)) {
+      return messages.flatMap(item =>
+        this.prepareSingleItem(item as ProcessableMessagePayload, onItemContext),
+      );
+    }
+
+    return this.prepareSingleItem(messages, onItemContext);
+  }
+
+  /**
+   * Whether `messages` is a v0.9 payload that omits its `version`.
+   *
+   * Pre-1.0 renderers accepted such payloads, and agents written against them
+   * still send them. The fallback applies only when every registered catalog
+   * is pre-1.0 and validation is off, so a processor that handles v1.0
+   * traffic keeps rejecting unversioned messages.
+   */
+  private isImplicitV09Payload(messages: unknown): boolean {
+    if (
+      this.validationConfig ||
+      this.catalogs.length === 0 ||
+      this.catalogs.some(c => isAtLeastVersion(c.protocolVersion, '1.0'))
+    ) {
+      return false;
+    }
+    let item = Array.isArray(messages) ? messages[0] : messages;
+    if (
+      typeof item === 'object' &&
+      item !== null &&
+      'messages' in item &&
+      Array.isArray((item as {messages?: unknown}).messages)
+    ) {
+      item = (item as {messages: unknown[]}).messages[0];
+    }
+    if (typeof item !== 'object' || item === null || 'version' in item) {
+      return false;
+    }
+    return ['createSurface', 'updateComponents', 'updateDataModel', 'deleteSurface'].some(
+      key => key in item,
+    );
   }
 
   private validateTargetVersion(messages: ProcessableMessagePayload): void {
@@ -606,7 +878,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         break;
       case 'agentFunctionResponse':
         this.rpc.handleAgentFunctionResponse({
-          version: (op.version ?? 'v1.0') as 'v1.0',
+          version: (op.version ?? '1.0') as '1.0',
           agentFunctionResponse: {
             functionCallId: op.functionCallId,
             value: op.value,
@@ -634,13 +906,15 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const surface = this.model.surfacesMap.get(op.surfaceId);
       return surface ? new DataContext(surface, '/') : undefined;
     }
-    const targetCatalog = op.catalogId ? this.catalogs.find(c => c.id === op.catalogId) : undefined;
+    const targetCatalog = op.catalogId
+      ? this.registeredCatalogs.find(c => c.id === op.catalogId)
+      : undefined;
     if (!targetCatalog) {
       return undefined;
     }
     const fallbackSurfaceId = `_rpc_fallback_${op.functionCallId || 'default'}`;
     const availableCatalogs = new Map<string, Catalog<T>>();
-    for (const cat of this.catalogs) {
+    for (const cat of this.registeredCatalogs) {
       if (
         targetCatalog?.protocolVersion &&
         cat.protocolVersion &&
@@ -669,12 +943,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const dataContext = this.resolveRpcDataContext(op);
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
-        version: (op.version ?? 'v1.0') as 'v1.0',
+        version: (op.version ?? '1.0') as '1.0',
         callRendererFunction: {
           ...(op.surfaceId !== undefined ? {surfaceId: op.surfaceId} : {}),
           functionCallId: op.functionCallId,
           callFunction: {
-            call: op.call,
+            '@call': op.call,
             catalogId: op.catalogId,
             args: op.args,
           },
@@ -686,7 +960,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       return;
     }
 
-    this.applyStateOperation(op);
+    this.withValidationConfig(context, () => this.applyStateOperation(op));
   }
 
   private async processOperationAsync(
@@ -697,12 +971,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const dataContext = this.resolveRpcDataContext(op);
       const isUserActivated = context?.isUserActivated ?? op.isUserActivated ?? false;
       const callMsg: CallRendererFunctionMessage = {
-        version: (op.version ?? 'v1.0') as 'v1.0',
+        version: (op.version ?? '1.0') as '1.0',
         callRendererFunction: {
           ...(op.surfaceId !== undefined ? {surfaceId: op.surfaceId} : {}),
           functionCallId: op.functionCallId,
           callFunction: {
-            call: op.call,
+            '@call': op.call,
             catalogId: op.catalogId,
             args: op.args,
           },
@@ -711,8 +985,37 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       return await this.rpc.handleCallRendererFunction(callMsg, dataContext, isUserActivated);
     }
 
-    this.applyStateOperation(op);
+    this.withValidationConfig(context, () => this.applyStateOperation(op));
     return null;
+  }
+
+  private validateSurfaceTheme(
+    theme: unknown,
+    catalog: Catalog<T> | undefined,
+    surfaceId: string,
+  ): unknown {
+    if (!theme || !catalog?.themeSchema) {
+      return theme;
+    }
+    try {
+      return new PayloadValidator(catalog, this.validationConfig).validateTheme(theme);
+    } catch (err: unknown) {
+      if (err instanceof A2uiValidationError) {
+        const details = Array.isArray(err.details)
+          ? err.details.map(d => (typeof d === 'object' && d !== null ? {...d, surfaceId} : d))
+          : err.details;
+        throw new A2uiValidationError(
+          err.message.replace(
+            /^Validation failed for theme:/,
+            `Validation failed for theme on surface '${surfaceId}':`,
+          ),
+          details,
+          err.code,
+          {path: err.path, surfaceId},
+        );
+      }
+      throw err;
+    }
   }
 
   private processCreateSurfaceOp(op: InternalCreateSurfaceOp): void {
@@ -725,12 +1028,16 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       catalogId === undefined && msgVersion !== undefined && isAtLeastVersion(msgVersion, '1.0');
     const catalog = noDefaultCatalog
       ? undefined
-      : resolveSurfaceDefaultCatalog(this.catalogs, catalogId, msgVersion);
+      : resolveSurfaceDefaultCatalog(this.registeredCatalogs, catalogId, msgVersion);
     if (!catalog && !noDefaultCatalog) {
       if (catalogId !== undefined) {
-        throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
+        throw new A2uiCatalogError(`Catalog not found: ${catalogId}`, 'CATALOG_ERROR', {surfaceId});
       }
-      throw new A2uiCatalogError(`No default catalog available for surface '${surfaceId}'.`);
+      throw new A2uiCatalogError(
+        `No default catalog available for surface '${surfaceId}'.`,
+        'CATALOG_ERROR',
+        {surfaceId},
+      );
     }
 
     if (
@@ -738,32 +1045,23 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       msgVersion &&
       !isCatalogVersionCompatible(catalog.protocolVersion, msgVersion)
     ) {
-      throw new A2uiValidationError(
-        `Surface '${surfaceId}' catalog '${catalogId ?? catalog.id}' specification version (${catalog.protocolVersion}) does not match message protocol version (${msgVersion}).`,
-      );
+      const mismatchMsg = `Surface '${surfaceId}' catalog '${catalogId ?? catalog.id}' specification version (${catalog.protocolVersion}) does not match message protocol version (${msgVersion}).`;
+      if (isAtLeastVersion(msgVersion, '1.0')) {
+        throw new A2uiCatalogError(mismatchMsg, 'CATALOG_ERROR', {surfaceId});
+      }
+      throw new A2uiValidationError(mismatchMsg, undefined, 'VALIDATION_ERROR', {surfaceId});
     }
 
     if (this.model.getSurface(surfaceId)) {
-      throw new A2uiIntegrityError(`Surface ${surfaceId} already exists.`);
+      throw new A2uiIntegrityError(
+        `Surface ${surfaceId} already exists.`,
+        undefined,
+        'INTEGRITY_ERROR',
+        {surfaceId},
+      );
     }
 
-    let validatedTheme = theme;
-    if (theme && catalog?.themeSchema) {
-      try {
-        validatedTheme = new PayloadValidator(catalog, this.validationConfig).validateTheme(theme);
-      } catch (err: unknown) {
-        if (err instanceof A2uiValidationError) {
-          throw new A2uiValidationError(
-            err.message.replace(
-              /^Validation failed for theme:/,
-              `Validation failed for theme on surface '${surfaceId}':`,
-            ),
-            err.details,
-          );
-        }
-        throw err;
-      }
-    }
+    const validatedTheme = this.validateSurfaceTheme(theme, catalog, surfaceId);
 
     const surfaceVersion = catalog?.protocolVersion ?? msgVersion;
 
@@ -771,7 +1069,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     // those speaking a compatible protocol version can be resolved against this
     // surface, so filter once here rather than at every lookup.
     const availableCatalogs = new Map<string, Catalog<T>>(
-      this.catalogs
+      this.registeredCatalogs
         .filter(c => isCatalogVersionCompatible(c.protocolVersion, surfaceVersion))
         .map(c => [c.id, c] as const),
     );
@@ -787,6 +1085,22 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       op.metadata,
       surfaceVersion,
     );
+    // From v1.0, a function the renderer does not implement runs on the agent.
+    // Without an outbound listener there is no way to reach it, so such calls
+    // keep failing locally.
+    if (this.hasOutboundListener && isAtLeastVersion(surface.protocolVersion, '1.0')) {
+      // A call that resumes after the surface was deleted (for example, an
+      // action that awaited an argument) is cancelled instead of being sent.
+      surface.agentFunctionCaller = call =>
+        this.model.getSurface(surfaceId) === surface
+          ? this.rpc.callAgentFunction(surfaceId, call, {version: surface.protocolVersion})
+          : Promise.reject(
+              new A2uiRpcError(
+                `Pending calls for surface '${surfaceId}' were cancelled.`,
+                RpcErrorCode.CANCELLED,
+              ),
+            );
+    }
     this.model.addSurface(surface);
 
     if (dataModel) {
@@ -807,6 +1121,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
   private processDeleteSurfaceOp(op: InternalDeleteSurfaceOp): void {
     if (!op.surfaceId) return;
+    // Deleting the surface cancels its pending calls through the
+    // `onSurfaceDeleted` subscription set up in the constructor.
     this.model.deleteSurface(op.surfaceId);
   }
 
@@ -823,13 +1139,23 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     const targetCatalog = this.resolveComponentCatalog(comp, surface);
+    if ('metadata' in comp && comp['metadata'] !== undefined) {
+      validateMetadata(comp['metadata']);
+    }
 
     // A partial update names no component type; the existing model supplies it.
     const existing = surface.componentsModel.get(id);
+    // Pre-1.0 renderers checked nested calls only when validation was turned
+    // on, so a pre-1.0 surface without a `validationConfig` keeps that
+    // behavior and resolves unknown functions at evaluation time instead.
+    const skipNestedFunctions =
+      !this.validationConfig && !isAtLeastVersion(surface.protocolVersion, '1.0');
     new PayloadValidator(targetCatalog, this.validationConfig).validateComponent(
       this.componentPayloadForValidation(comp, surface, targetCatalog),
       existing?.type,
+      {skipNestedFunctions},
     );
+    if (skipNestedFunctions) return;
     // `validateComponent` walks the nested calls, even in a component type
     // the catalog doesn't define, and checks those that run in the
     // component's catalog; the pass below checks the rest.
@@ -932,6 +1258,71 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @throws {A2uiValidationError} If a call fails validation against the
    *   catalog it resolves to.
    */
+  private validateSingleNestedCall(
+    record: Record<string, unknown>,
+    name: string,
+    surface: SurfaceModel<T>,
+    componentCatalog: Catalog<T>,
+    currentPath: string,
+  ): void {
+    const rawCatalogId = record['catalogId'];
+    if (rawCatalogId !== undefined && typeof rawCatalogId !== 'string') {
+      throw new A2uiValidationError(
+        nonStringCatalogIdMessage(name),
+        undefined,
+        'VALIDATION_ERROR',
+        {path: currentPath || undefined, surfaceId: surface.id},
+      );
+    }
+    const target = this.resolveNestedCallCatalog(surface, rawCatalogId, name, currentPath);
+    const checked = nestedCallRunsInCatalog(rawCatalogId, componentCatalog.id, {
+      catalogIsDefault: componentCatalog === surface.defaultCatalog,
+    });
+    if (!checked) {
+      this.validateExternalCatalogFunction(target, name, record['args'], surface.id, currentPath);
+    }
+  }
+
+  private resolveNestedCallCatalog(
+    surface: SurfaceModel<T>,
+    catalogId: string | undefined,
+    name: string,
+    currentPath: string,
+  ): Catalog<T> {
+    try {
+      return this.resolveSurfaceItemCatalog(surface, catalogId, `Function call '${name}'`);
+    } catch (err: unknown) {
+      if (err instanceof A2uiError) {
+        err.surfaceId = surface.id;
+        if (currentPath) err.path = currentPath;
+      }
+      throw err;
+    }
+  }
+
+  private validateExternalCatalogFunction(
+    target: Catalog<T>,
+    name: string,
+    rawArgs: unknown,
+    surfaceId: string,
+    currentPath: string,
+  ): void {
+    try {
+      new PayloadValidator(target, this.validationConfig).validateFunction(
+        name,
+        (rawArgs ?? {}) as Record<string, unknown>,
+      );
+    } catch (err: unknown) {
+      if (err instanceof A2uiError) {
+        err.surfaceId = surfaceId;
+        if (currentPath) {
+          err.path = err.path && err.path !== '/' ? `${currentPath}${err.path}` : currentPath;
+        }
+      }
+      throw err;
+    }
+  }
+
   private validateNestedFunctionCalls(
     comp: Record<string, unknown>,
     surface: SurfaceModel<T>,
@@ -939,53 +1330,30 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   ): void {
     if (!isAtLeastVersion(surface.protocolVersion, '1.0')) return;
 
-    const visit = (node: unknown): void => {
+    const visit = (node: unknown, currentPath: string): void => {
       if (Array.isArray(node)) {
-        node.forEach(visit);
+        for (let i = 0; i < node.length; i++) {
+          visit(node[i], `${currentPath}/${i}`);
+        }
         return;
       }
       if (typeof node !== 'object' || node === null) return;
 
       const record = node as Record<string, unknown>;
       const name = record['@call'];
-      // An empty name is not skipped: `validateFunction` rejects it as an
-      // invalid identifier.
       if (typeof name === 'string' && !name.startsWith('@')) {
-        // Any string, the empty string included, names a catalog, exactly as
-        // `DataContext` resolves the call at runtime.
-        const rawCatalogId = record['catalogId'];
-        if (rawCatalogId !== undefined && typeof rawCatalogId !== 'string') {
-          // Component validation throws this same error before this pass;
-          // kept so the catalog lookup below never sees a non-string ID.
-          throw new A2uiValidationError(nonStringCatalogIdMessage(name));
-        }
-        const catalogId = rawCatalogId;
-        const target = this.resolveSurfaceItemCatalog(
-          surface,
-          catalogId,
-          `Function call '${name}'`,
-        );
-        // Component validation already checked a call that runs in the
-        // component's catalog.
-        const checked = nestedCallRunsInCatalog(catalogId, componentCatalog.id, {
-          catalogIsDefault: componentCatalog === surface.defaultCatalog,
-        });
-        if (!checked) {
-          const rawArgs = record['args'];
-          new PayloadValidator(target, this.validationConfig).validateFunction(
-            name,
-            (rawArgs ?? {}) as Record<string, unknown>,
-          );
-        }
+        this.validateSingleNestedCall(record, name, surface, componentCatalog, currentPath);
       }
-      Object.values(record).forEach(visit);
+      for (const [k, v] of Object.entries(record)) {
+        visit(v, `${currentPath}/${k}`);
+      }
     };
 
     for (const [key, value] of Object.entries(comp)) {
       if (key === 'id' || key === 'component' || key === 'catalogId' || key === 'metadata') {
         continue;
       }
-      visit(value);
+      visit(value, `/${key}`);
     }
   }
 
@@ -1010,7 +1378,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     subject: string,
   ): Catalog<T> {
     if (catalogId !== undefined && !surface.availableCatalogs.has(catalogId)) {
-      const known = this.catalogs.find(c => c.id === catalogId);
+      const known = this.registeredCatalogs.find(c => c.id === catalogId);
       if (known) {
         throw new A2uiCatalogError(
           `${subject} names catalog '${catalogId}', whose specification version (${known.protocolVersion}) does not match surface '${surface.id}' version (${surface.protocolVersion}).`,
@@ -1042,8 +1410,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         );
         surface.componentsModel.addComponent(newComponent);
       } else {
-        existing.metadata = metadata;
-        existing.properties = properties;
+        batchWrite(() => {
+          existing.applyUpdate(properties, metadata);
+        });
       }
     } else {
       if (typeof component !== 'string' || !component) {
@@ -1054,32 +1423,90 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
   }
 
+  private rebaseComponentValidationError(err: unknown, index: number, surfaceId: string): void {
+    if (!(err instanceof A2uiError)) return;
+    if (!err.surfaceId) err.surfaceId = surfaceId;
+    if (!(err instanceof A2uiValidationError)) return;
+    err.path =
+      err.path && err.path !== '/' ? `/components/${index}${err.path}` : `/components/${index}`;
+    if (Array.isArray(err.details)) {
+      for (const d of err.details) {
+        if (typeof d === 'object' && d !== null && !('surfaceId' in d)) {
+          (d as {surfaceId?: string}).surfaceId = surfaceId;
+        }
+      }
+    }
+  }
+
+  private validateComponentsBatch(op: InternalUpdateComponentsOp, surface: SurfaceModel<T>): void {
+    const seenBatchIds = new Set<string>();
+    for (let i = 0; i < op.components.length; i++) {
+      const comp = op.components[i];
+      if (comp && typeof comp === 'object' && typeof comp.id === 'string') {
+        if (seenBatchIds.has(comp.id)) {
+          throw new A2uiIntegrityError(
+            `Duplicate component ID: '${comp.id}'`,
+            [comp.id],
+            'INTEGRITY_ERROR',
+            {surfaceId: op.surfaceId, path: `/components/${i}/id`},
+          );
+        }
+        seenBatchIds.add(comp.id);
+      }
+      try {
+        this.validateComponentProperties(comp, surface);
+      } catch (err: unknown) {
+        this.rebaseComponentValidationError(err, i, op.surfaceId);
+        throw err;
+      }
+    }
+  }
+
+  private validateSurfaceComponentGraph(
+    op: InternalUpdateComponentsOp,
+    surface: SurfaceModel<T>,
+  ): ReturnType<typeof validateComponentGraph> {
+    try {
+      return validateComponentGraph(
+        surface,
+        op.components,
+        this.validationConfig,
+        (comp, s) => this.resolveComponentCatalog(comp, s),
+        this.graphBounds,
+      );
+    } catch (err: unknown) {
+      if (err instanceof A2uiError && !err.surfaceId) {
+        err.surfaceId = op.surfaceId;
+      }
+      throw err;
+    }
+  }
+
   private processUpdateComponentsOp(op: InternalUpdateComponentsOp): void {
     if (!op.surfaceId) return;
 
     const surface = this.model.getSurface(op.surfaceId);
     if (!surface) {
-      throw new A2uiIntegrityError(`Surface not found for message: ${op.surfaceId}`);
+      throw new A2uiIntegrityError(
+        `Surface not found for message: ${op.surfaceId}`,
+        undefined,
+        'INTEGRITY_ERROR',
+        {surfaceId: op.surfaceId},
+      );
     }
 
     // 1. Validation pass: validate all components before mutating state
-    const seenBatchIds = new Set<string>();
-    for (const comp of op.components) {
-      if (comp && typeof comp === 'object' && typeof comp.id === 'string') {
-        if (seenBatchIds.has(comp.id)) {
-          throw new A2uiIntegrityError(`Duplicate component ID: '${comp.id}'`, [comp.id]);
-        }
-        seenBatchIds.add(comp.id);
-      }
-      this.validateComponentProperties(comp, surface);
-    }
-
-    this.validateCompositionConstraints(surface, op.components);
-    this.validateCandidateTopology(surface, op.components);
+    this.validateComponentsBatch(op, surface);
+    const bound = this.validateSurfaceComponentGraph(op, surface);
 
     // 2. Mutation pass: apply state updates
-    for (const comp of op.components) {
-      this.applyComponentUpdate(comp, surface);
+    batchWrite(() => {
+      for (const comp of op.components) {
+        this.applyComponentUpdate(comp, surface);
+      }
+    });
+    if (bound) {
+      recordComponentGraphBound(surface.componentsModel, bound, this.graphBounds);
     }
   }
 
@@ -1088,202 +1515,44 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     const surface = this.model.getSurface(op.surfaceId);
     if (!surface) {
-      throw new A2uiIntegrityError(`Surface not found for message: ${op.surfaceId}`);
+      throw new A2uiIntegrityError(
+        `Surface not found for message: ${op.surfaceId}`,
+        undefined,
+        'INTEGRITY_ERROR',
+        {surfaceId: op.surfaceId},
+      );
+    }
+
+    if (
+      op.path !== undefined &&
+      op.path !== '' &&
+      (!op.path.startsWith('/') || !RELAXED_PATH_PATTERN.test(op.path))
+    ) {
+      const msg = `Invalid path syntax: '${op.path}' (path must be a valid RFC 6901 JSON Pointer starting with '/')`;
+      throw new A2uiValidationError(
+        msg,
+        [{path: '/path', code: 'invalid_value', message: msg, surfaceId: op.surfaceId}],
+        'VALIDATION_ERROR',
+        {path: '/path', surfaceId: op.surfaceId},
+      );
     }
 
     const path = op.path || '/';
     const value = op.value;
-    surface.dataModel.set(path, value);
-  }
-
-  private validateParentConstraints(
-    id: string,
-    componentType: string,
-    allowedParents: string[],
-    parents?: Array<{parentId: string; parentType: string}>,
-  ): void {
-    if (!parents || parents.length === 0) {
-      const isRoot = id === 'root';
-      const enforceTopLevel =
-        isRoot || (this.validationConfig && this.validationConfig.allowOrphanComponents === false);
-      if (enforceTopLevel && !allowedParents.includes('Surface')) {
-        throw new A2uiValidationError(
-          `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(allowedParents)}.`,
-          undefined,
-          'UNALLOWED_PARENT',
-        );
+    try {
+      surface.dataModel.set(path, value);
+    } catch (err: unknown) {
+      if (err instanceof A2uiDataError && !err.surfaceId) {
+        err.surfaceId = op.surfaceId;
       }
-      return;
+      throw err;
     }
-
-    for (const parentInfo of parents) {
-      if (!allowedParents.includes(parentInfo.parentType)) {
-        throw new A2uiValidationError(
-          `Component '${id}' (${componentType}) cannot be placed under parent '${parentInfo.parentId}' (${parentInfo.parentType || 'unknown'}). Allowed parents: ${JSON.stringify(allowedParents)}.`,
-          undefined,
-          'UNALLOWED_PARENT',
-        );
-      }
-    }
-  }
-
-  private validateChildConstraints(
-    id: string,
-    componentType: string,
-    allowedChildren: string[],
-    children: string[],
-    typeMap: Map<string, string>,
-  ): void {
-    for (const childId of children) {
-      const childType = typeMap.get(childId);
-      if (childType && !allowedChildren.includes(childType)) {
-        throw new A2uiValidationError(
-          `Container '${id}' (${componentType}) cannot contain child '${childId}' (${childType}). Allowed children: ${JSON.stringify(allowedChildren)}.`,
-          undefined,
-          'UNALLOWED_CHILD',
-        );
-      }
-    }
-  }
-
-  private buildCompositionTopology(
-    surface: SurfaceModel<T>,
-    newComponents: Array<Record<string, unknown>>,
-  ) {
-    const typeMap = new Map<string, string>();
-    const compCatalogMap = new Map<string, Catalog<T>>();
-    const childMap = new Map<string, string[]>();
-
-    for (const [id, model] of surface.componentsModel.entries) {
-      typeMap.set(id, model.type);
-      compCatalogMap.set(id, model.catalog as Catalog<T>);
-      const children = surface.componentsModel.getChildIds(id);
-      if (children.length > 0) {
-        childMap.set(id, children);
-      }
-    }
-
-    for (const comp of newComponents) {
-      const {id, component, ...props} = comp;
-      if (typeof id !== 'string') continue;
-
-      const compCatalog = this.resolveComponentCatalog(comp, surface);
-      compCatalogMap.set(id, compCatalog);
-      const existing = surface.componentsModel.get(id);
-      const compType = (typeof component === 'string' ? component : existing?.type) ?? '';
-      if (compType) {
-        typeMap.set(id, compType);
-      }
-      const compDef = {id, component: compType, ...props};
-      const children = Array.from(getComponentReferences(compDef, compCatalog as Catalog<any>)).map(
-        ([childId]) => childId,
-      );
-      if (children.length > 0) {
-        childMap.set(id, children);
-      } else {
-        childMap.delete(id);
-      }
-    }
-
-    const parentMap = new Map<string, Array<{parentId: string; parentType: string}>>();
-    for (const [parentId, children] of childMap.entries()) {
-      const parentType = typeMap.get(parentId) || 'Unknown';
-      for (const childId of children) {
-        const parents = parentMap.get(childId) ?? [];
-        parents.push({parentId, parentType});
-        parentMap.set(childId, parents);
-      }
-    }
-
-    return {typeMap, compCatalogMap, childMap, parentMap};
-  }
-
-  private validateCompositionConstraints(
-    surface: SurfaceModel<T>,
-    newComponents: Array<Record<string, unknown>>,
-  ): void {
-    const {typeMap, compCatalogMap, childMap, parentMap} = this.buildCompositionTopology(
-      surface,
-      newComponents,
-    );
-
-    for (const [id, componentType] of typeMap.entries()) {
-      const compCatalog = compCatalogMap.get(id);
-      const componentApi = compCatalog?.components.get(componentType);
-      if (!componentApi) continue;
-
-      if (componentApi.allowedParents && componentApi.allowedParents.length > 0) {
-        this.validateParentConstraints(
-          id,
-          componentType,
-          componentApi.allowedParents,
-          parentMap.get(id),
-        );
-      }
-
-      if (componentApi.allowedChildren && componentApi.allowedChildren.length > 0) {
-        this.validateChildConstraints(
-          id,
-          componentType,
-          componentApi.allowedChildren,
-          childMap.get(id) || [],
-          typeMap,
-        );
-      }
-    }
-  }
-
-  private validateCandidateTopology(
-    surface: SurfaceModel<T>,
-    newComponents: Array<Record<string, unknown>>,
-  ): void {
-    if (!this.validationConfig) return;
-
-    const candidateModel = new SurfaceComponentsModel(surface.defaultCatalog);
-    for (const [id, comp] of surface.componentsModel.entries) {
-      candidateModel.addComponent(
-        new ComponentModel(id, comp.type, comp.properties, comp.catalog as Catalog<T>),
-      );
-    }
-
-    for (const comp of newComponents) {
-      const {id, component, ...properties} = comp;
-      if (typeof id !== 'string' || !id) continue;
-
-      const targetCatalog = this.resolveComponentCatalog(comp, surface);
-      delete properties.catalogId;
-      delete properties.metadata;
-
-      const existing = candidateModel.get(id);
-      const componentType = (typeof component === 'string' ? component : existing?.type) || '';
-      if (!componentType) continue;
-
-      if (existing) {
-        if (componentType !== existing.type || existing.catalog.id !== targetCatalog.id) {
-          candidateModel.removeComponent(id);
-          candidateModel.addComponent(
-            new ComponentModel(id, componentType, properties, targetCatalog),
-          );
-        } else {
-          existing.properties = properties;
-        }
-      } else {
-        candidateModel.addComponent(
-          new ComponentModel(id, componentType, properties, targetCatalog),
-        );
-      }
-    }
-
-    candidateModel.validateTopology({
-      ...this.validationConfig,
-      rootId: this.validationConfig.rootId ?? surface.rootId,
-    });
   }
 }
 
-function extractComponentMetadata(rawMetadata: unknown): Record<string, unknown> | undefined {
+function extractComponentMetadata(rawMetadata: unknown): A2uiMetadata | undefined {
   if (rawMetadata && typeof rawMetadata === 'object' && !Array.isArray(rawMetadata)) {
-    return rawMetadata as Record<string, unknown>;
+    return rawMetadata as A2uiMetadata;
   }
   return undefined;
 }
@@ -1301,4 +1570,15 @@ function resolveSurfaceDefaultCatalog<T extends ComponentApi>(
       msgVersion ? isCatalogVersionCompatible(c.protocolVersion, msgVersion) : true,
     ) ?? catalogs[0]
   );
+}
+
+/** A config with the checks it leaves out set to the strict ones. */
+function withStrictDefaults(config: ValidationConfig): ValidationConfig {
+  return {
+    allowOrphanComponents: false,
+    allowDanglingReferences: false,
+    allowMissingRoot: false,
+    allowUnknownElements: false,
+    ...config,
+  };
 }

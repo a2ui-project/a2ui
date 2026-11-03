@@ -18,15 +18,20 @@ import * as assert from 'node:assert';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {describe, it} from 'node:test';
+import {isDeepStrictEqual} from 'node:util';
 
 import {z} from 'zod';
 
 import {basicCatalog as v10BasicCatalog} from '../catalogs/basic/v1/catalog.js';
 import {A2uiText as V10Text} from '../catalogs/basic/v1/components/index.js';
+import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
+import {MessageProcessor, STRICT_VALIDATION} from '../processing/message-processor.js';
 import {basicCatalog as v08BasicCatalog} from '../v0_8/basic_catalog/catalog.js';
 import {basicCatalog as v09BasicCatalog} from '../v0_9/basic_catalog/catalog.js';
 import {A2uiText as V09Text} from '../v0_9/basic_catalog/components/index.js';
+import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
+import {generateValidationSchema} from './schema_generator.js';
 import {DEFAULT_PROTOCOL_VERSION} from './schema_loader.js';
 import {spec, specDef} from './spec_annotations.js';
 import {
@@ -48,6 +53,172 @@ function plain<E extends ComponentApi | FunctionApi>(entry: E): E {
   return {...entry, schema: entry.schema.describe(entry.schema.description as string)};
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function resolvePointer(root: Record<string, unknown>, pointer: string): unknown {
+  if (!pointer || pointer === '/') return root;
+  return pointer
+    .replace(/^\//, '')
+    .split('/')
+    .map(part => part.replace(/~1/g, '/').replace(/~0/g, '~'))
+    .reduce<unknown>((cur, seg) => (isPlainRecord(cur) ? cur[seg] : undefined), root);
+}
+
+/**
+ * Evaluates a JSON value against a JSON Schema 2020-12 subset, tracking
+ * evaluated object properties across `$ref`, `allOf`, `oneOf`, `anyOf`, and
+ * `unevaluatedProperties`.
+ */
+function evaluateJsonSchema(
+  value: unknown,
+  schema: unknown,
+  docName: string,
+  docs: Readonly<Record<string, Record<string, unknown>>>,
+): {valid: boolean; evaluatedProps: Set<string>} {
+  const fail = {valid: false, evaluatedProps: new Set<string>()};
+  if (typeof schema === 'boolean') {
+    if (!schema) return fail;
+    return {
+      valid: true,
+      evaluatedProps: isPlainRecord(value) ? new Set(Object.keys(value)) : new Set(),
+    };
+  }
+  if (!isPlainRecord(schema)) return fail;
+
+  if (typeof schema.type === 'string') {
+    const ok =
+      (schema.type === 'object' && isPlainRecord(value)) ||
+      (schema.type === 'string' && typeof value === 'string') ||
+      (schema.type === 'number' && typeof value === 'number') ||
+      (schema.type === 'integer' && typeof value === 'number' && Number.isInteger(value)) ||
+      (schema.type === 'boolean' && typeof value === 'boolean') ||
+      (schema.type === 'array' && Array.isArray(value)) ||
+      (schema.type === 'null' && value === null);
+    if (!ok) return fail;
+  }
+  if (Object.hasOwn(schema, 'const') && !isDeepStrictEqual(value, schema.const)) return fail;
+  if (Array.isArray(schema.enum) && !schema.enum.some(entry => isDeepStrictEqual(value, entry))) {
+    return fail;
+  }
+
+  const evaluatedProps = new Set<string>();
+  const localEvaluated = new Set<string>();
+
+  if (isPlainRecord(value)) {
+    if (Array.isArray(schema.required)) {
+      for (const reqKey of schema.required) {
+        if (typeof reqKey === 'string' && !Object.hasOwn(value, reqKey)) return fail;
+      }
+    }
+    if (isPlainRecord(schema.properties)) {
+      for (const [propKey, propSchema] of Object.entries(schema.properties)) {
+        if (Object.hasOwn(value, propKey)) {
+          if (!evaluateJsonSchema(value[propKey], propSchema, docName, docs).valid) return fail;
+          localEvaluated.add(propKey);
+          evaluatedProps.add(propKey);
+        }
+      }
+    }
+    if (isPlainRecord(schema.patternProperties)) {
+      for (const [pattern, patSchema] of Object.entries(schema.patternProperties)) {
+        const regex = new RegExp(pattern, 'u');
+        for (const propKey of Object.keys(value)) {
+          if (regex.test(propKey)) {
+            if (!evaluateJsonSchema(value[propKey], patSchema, docName, docs).valid) return fail;
+            localEvaluated.add(propKey);
+            evaluatedProps.add(propKey);
+          }
+        }
+      }
+    }
+    if (
+      Object.hasOwn(schema, 'additionalProperties') &&
+      schema.additionalProperties !== undefined
+    ) {
+      for (const propKey of Object.keys(value)) {
+        if (!localEvaluated.has(propKey)) {
+          if (
+            !evaluateJsonSchema(value[propKey], schema.additionalProperties, docName, docs).valid
+          ) {
+            return fail;
+          }
+          evaluatedProps.add(propKey);
+        }
+      }
+    }
+  }
+
+  if (Array.isArray(value) && schema.items !== undefined) {
+    for (const item of value) {
+      if (!evaluateJsonSchema(item, schema.items, docName, docs).valid) return fail;
+    }
+  }
+
+  if (typeof schema.$ref === 'string') {
+    const hashIdx = schema.$ref.indexOf('#');
+    const refDoc = hashIdx === -1 ? schema.$ref : schema.$ref.slice(0, hashIdx);
+    const pointer = hashIdx === -1 ? '' : schema.$ref.slice(hashIdx + 1);
+    const targetDocName = refDoc || docName;
+    const targetRoot = docs[targetDocName];
+    if (!targetRoot) throw new Error(`Unknown schema document: ${targetDocName}`);
+    const targetSchema = resolvePointer(targetRoot, pointer);
+    if (targetSchema === undefined) {
+      throw new Error(`Unresolved $ref: ${schema.$ref} in ${targetDocName}`);
+    }
+    const refResult = evaluateJsonSchema(value, targetSchema, targetDocName, docs);
+    if (!refResult.valid) return fail;
+    for (const p of refResult.evaluatedProps) evaluatedProps.add(p);
+  }
+
+  if (Array.isArray(schema.allOf)) {
+    for (const sub of schema.allOf) {
+      const subResult = evaluateJsonSchema(value, sub, docName, docs);
+      if (!subResult.valid) return fail;
+      for (const p of subResult.evaluatedProps) evaluatedProps.add(p);
+    }
+  }
+  if (Array.isArray(schema.oneOf)) {
+    const matches = schema.oneOf
+      .map(sub => evaluateJsonSchema(value, sub, docName, docs))
+      .filter(r => r.valid);
+    if (matches.length !== 1) return fail;
+    for (const p of matches[0].evaluatedProps) evaluatedProps.add(p);
+  }
+  if (Array.isArray(schema.anyOf)) {
+    const matches = schema.anyOf
+      .map(sub => evaluateJsonSchema(value, sub, docName, docs))
+      .filter(r => r.valid);
+    if (matches.length === 0) return fail;
+    for (const m of matches) {
+      for (const p of m.evaluatedProps) evaluatedProps.add(p);
+    }
+  }
+  if (Object.hasOwn(schema, 'not') && schema.not !== undefined) {
+    if (evaluateJsonSchema(value, schema.not, docName, docs).valid) return fail;
+  }
+
+  if (
+    isPlainRecord(value) &&
+    Object.hasOwn(schema, 'unevaluatedProperties') &&
+    schema.unevaluatedProperties !== undefined
+  ) {
+    for (const propKey of Object.keys(value)) {
+      if (!evaluatedProps.has(propKey)) {
+        if (
+          !evaluateJsonSchema(value[propKey], schema.unevaluatedProperties, docName, docs).valid
+        ) {
+          return fail;
+        }
+        evaluatedProps.add(propKey);
+      }
+    }
+  }
+
+  return {valid: true, evaluatedProps};
+}
+
 function collectRefs(node: unknown, refs: string[] = []): string[] {
   if (Array.isArray(node)) {
     for (const item of node) collectRefs(item, refs);
@@ -62,6 +233,8 @@ function collectRefs(node: unknown, refs: string[] = []): string[] {
 const PUBLISHED_CATALOGS = [
   'catalogs/basic/v1/catalog.json',
   'catalogs/mcp/catalog.json',
+  'catalogs/vegachart/v0_9/catalog.json',
+  'catalogs/vegachart/v1/catalog.json',
   'specification/v0_9/catalogs/basic/catalog.json',
   'specification/v0_9/catalogs/minimal/catalog.json',
   'specification/v0_9_1/catalogs/basic/catalog.json',
@@ -196,7 +369,7 @@ describe('Catalog.toJson', () => {
   for (const [label, builtin, catalogPath] of [
     ['v0.8', v08BasicCatalog, 'specification/v0_8/json/standard_catalog_definition.json'],
     ['v0.9', v09BasicCatalog, 'specification/v0_9/catalogs/basic/catalog.json'],
-    ['v1.0', v10BasicCatalog, 'catalogs/basic/v1/catalog.json'],
+    ['1.0', v10BasicCatalog, 'catalogs/basic/v1/catalog.json'],
   ] as const) {
     it(`returns the published document for the built-in ${label} basic catalog`, () => {
       assert.deepStrictEqual(builtin.toJson(), readRepoJson(catalogPath));
@@ -261,6 +434,50 @@ describe('Catalog.toJson', () => {
     assert.deepStrictEqual(text.properties.component, {const: 'Text'});
     assert.ok(text.required.includes('component'));
     assert.ok(!('id' in text.properties));
+    assert.strictEqual(Object.hasOwn(text, 'unevaluatedProperties'), false);
+  });
+
+  it('omits unevaluatedProperties: false and catchall subschemas on v1.0 code-defined components while keeping v0.9 closed and passthrough open', () => {
+    const DefaultComp: ComponentApi = {
+      name: 'DefaultComp',
+      schema: z.object({label: z.string(), weight: z.number().optional()}),
+    };
+    const StrictComp: ComponentApi = {
+      name: 'StrictComp',
+      schema: z.object({label: z.string()}).strict(),
+    };
+    const OpenComp: ComponentApi = {
+      name: 'OpenComp',
+      schema: z.object({label: z.string()}).passthrough(),
+    };
+    const CatchallComp: ComponentApi = {
+      name: 'CatchallComp',
+      schema: z.object({label: z.string()}).catchall(z.number()),
+    };
+
+    const v10Doc = new Catalog('https://example.com/v10-closure', '1.0', [
+      DefaultComp,
+      StrictComp,
+      OpenComp,
+      CatchallComp,
+    ]).toJson();
+    const v10Comps = v10Doc.components as Record<string, Record<string, unknown>>;
+    assert.strictEqual(Object.hasOwn(v10Comps.DefaultComp, 'unevaluatedProperties'), false);
+    assert.strictEqual(Object.hasOwn(v10Comps.StrictComp, 'unevaluatedProperties'), false);
+    assert.strictEqual(v10Comps.OpenComp.unevaluatedProperties, true);
+    assert.strictEqual(Object.hasOwn(v10Comps.CatchallComp, 'unevaluatedProperties'), false);
+
+    const v09Doc = new Catalog('https://example.com/v09-closure', '0.9', [
+      DefaultComp,
+      StrictComp,
+      OpenComp,
+      CatchallComp,
+    ]).toJson();
+    const v09Comps = v09Doc.components as Record<string, Record<string, unknown>>;
+    assert.strictEqual(v09Comps.DefaultComp.unevaluatedProperties, false);
+    assert.strictEqual(v09Comps.StrictComp.unevaluatedProperties, false);
+    assert.strictEqual(v09Comps.OpenComp.unevaluatedProperties, true);
+    assert.deepStrictEqual(v09Comps.CatchallComp.unevaluatedProperties, {type: 'number'});
   });
 
   it('serializes code-defined functions in the call shape of the protocol version', () => {
@@ -306,7 +523,7 @@ describe('Catalog.toJson', () => {
   });
 
   it('emits metadata given to a code-defined catalog', () => {
-    const out = new Catalog('https://example.com/meta', 'v1.0', [], [], {
+    const out = new Catalog('https://example.com/meta', '1.0', [], [], {
       schemaUri: 'https://json-schema.org/draft/2020-12/schema',
       schemaId: 'https://example.com/meta.json',
       title: 'Meta',
@@ -375,6 +592,239 @@ describe('Catalog.validationSchema', () => {
   });
 });
 
+describe('union export', () => {
+  const OVERLAPPING_BRANCHES = [{type: 'string', enum: ['md', 'lg']}, {type: 'string'}];
+
+  /** Whether the catalog's `Box` component accepts `radius`. */
+  function acceptsRadius(
+    catalog: {readonly components: ReadonlyMap<string, ComponentApi>},
+    radius: unknown,
+  ): boolean {
+    return catalog.components.get('Box')!.schema.safeParse({radius}).success;
+  }
+
+  /** The `radius` property of the `Box` component in a catalog document. */
+  function radiusSchema(document: Record<string, any>): Record<string, unknown> {
+    return document.components.Box.properties.radius;
+  }
+
+  /** A catalog document with a `Box` whose `radius` is the given union. */
+  function boxDocument(version: string, radius: Record<string, unknown>): Record<string, any> {
+    return {
+      catalogId: 'https://example.org/catalog.json',
+      protocolVersion: version,
+      components: {
+        Box: {
+          type: 'object',
+          properties: {component: {const: 'Box'}, radius},
+          required: ['component', 'radius'],
+          unevaluatedProperties: false,
+        },
+      },
+      $defs: {
+        anyComponent: {
+          oneOf: [{$ref: '#/components/Box'}],
+          discriminator: {propertyName: 'component'},
+        },
+        anyFunction: {not: {}},
+      },
+    };
+  }
+
+  for (const version of ['v0.9', '1.0']) {
+    it(`exports z.union as anyOf and keeps its accepted values on reload in ${version}`, () => {
+      const schema = z.object({radius: z.union([z.enum(['md', 'lg']), z.string()])});
+      const original = new Catalog('https://example.org/catalog.json', version, [
+        {name: 'Box', schema},
+      ]);
+      const document = original.toJson();
+      assert.deepStrictEqual(radiusSchema(document), {anyOf: OVERLAPPING_BRANCHES});
+
+      const reloaded = Catalog.fromJson(document);
+      for (const catalog of [original, reloaded]) {
+        assert.strictEqual(acceptsRadius(catalog, 'md'), true);
+        assert.strictEqual(acceptsRadius(catalog, '12px'), true);
+        assert.strictEqual(acceptsRadius(catalog, false), false);
+      }
+      const validation = original.validationSchema.components as Record<string, any>;
+      assert.deepStrictEqual(validation.Box.properties.radius, {anyOf: OVERLAPPING_BRANCHES});
+    });
+
+    it(`keeps an authored oneOf exclusive and writes it back as oneOf in ${version}`, () => {
+      const document = boxDocument(version, {oneOf: OVERLAPPING_BRANCHES});
+      const loaded = Catalog.fromJson(document);
+      assert.strictEqual(acceptsRadius(loaded, 'md'), false, 'md matches both branches');
+      assert.strictEqual(acceptsRadius(loaded, '12px'), true);
+      assert.strictEqual(acceptsRadius(loaded, false), false);
+      assert.deepStrictEqual(radiusSchema(loaded.toJson()), {oneOf: OVERLAPPING_BRANCHES});
+      assert.deepStrictEqual(Catalog.fromJson(loaded.toJson()).toJson(), loaded.toJson());
+
+      // A catalog defined in code from the loaded schema keeps it exclusive.
+      const reused = new Catalog('https://example.org/reused.json', version, [
+        {name: 'Box', schema: loaded.components.get('Box')!.schema},
+      ]);
+      assert.deepStrictEqual(radiusSchema(reused.toJson()), {oneOf: OVERLAPPING_BRANCHES});
+      const validation = reused.validationSchema.components as Record<string, any>;
+      assert.deepStrictEqual(validation.Box.properties.radius, {oneOf: OVERLAPPING_BRANCHES});
+      const reloaded = Catalog.fromJson(reused.toJson());
+      assert.strictEqual(acceptsRadius(reloaded, 'md'), false);
+      assert.strictEqual(acceptsRadius(reloaded, '12px'), true);
+    });
+
+    it(`keeps an authored anyOf inclusive in ${version}`, () => {
+      const document = boxDocument(version, {anyOf: OVERLAPPING_BRANCHES});
+      const loaded = Catalog.fromJson(document);
+      assert.strictEqual(acceptsRadius(loaded, 'md'), true);
+      assert.deepStrictEqual(radiusSchema(loaded.toJson()), {anyOf: OVERLAPPING_BRANCHES});
+    });
+
+    it(`writes a specification-shaped union as oneOf only when its branches are disjoint in ${version}`, () => {
+      const boxSchema = spec(
+        z
+          .object({
+            radius: z.union([z.enum(['md', 'lg']), z.string()]),
+            size: z.union([z.number(), z.object({token: z.string()}).strict()]),
+          })
+          .strict(),
+        {mixins: []},
+      );
+      const catalog = new Catalog('https://example.org/shaped.json', version, [
+        {name: 'Box', schema: boxSchema},
+      ]);
+      const document = catalog.toJson();
+      const box = (document.components as Record<string, any>).Box;
+      // A v1.0 definition without mixins lists its properties itself; a v0.9
+      // one lists them in its `allOf`.
+      const properties = (box.properties ??
+        box.allOf.find((m: any) => m.properties).properties) as Record<string, unknown>;
+      assert.deepStrictEqual(properties.radius, {anyOf: OVERLAPPING_BRANCHES});
+      assert.deepStrictEqual(properties.size, {
+        oneOf: [
+          {type: 'number'},
+          {
+            type: 'object',
+            properties: {token: {type: 'string'}},
+            required: ['token'],
+            additionalProperties: false,
+          },
+        ],
+      });
+      const reloaded = Catalog.fromJson(document).components.get('Box')!.schema;
+      assert.strictEqual(reloaded.safeParse({radius: 'md', size: 1}).success, true);
+      assert.strictEqual(reloaded.safeParse({radius: 'md', size: {token: 'x'}}).success, true);
+      assert.strictEqual(reloaded.safeParse({radius: 'md', size: 'x'}).success, false);
+    });
+
+    it(`keeps a loaded oneOf with a description and default exclusive when reused in ${version}`, () => {
+      const radius = {
+        oneOf: OVERLAPPING_BRANCHES,
+        description: 'The corner radius.',
+        default: '12px',
+      };
+      const loaded = Catalog.fromJson(boxDocument(version, radius));
+      assert.strictEqual(acceptsRadius(loaded, 'md'), false);
+      assert.strictEqual(acceptsRadius(loaded, '12px'), true);
+
+      const reused = new Catalog('https://example.org/reused.json', version, [
+        {name: 'Box', schema: loaded.components.get('Box')!.schema},
+      ]);
+      assert.deepStrictEqual(radiusSchema(reused.toJson()), radius);
+      const validation = reused.validationSchema.components as Record<string, any>;
+      assert.deepStrictEqual(validation.Box.properties.radius, radius);
+    });
+
+    it(`writes function arguments as anyOf, or as oneOf when exclusive, in ${version}`, () => {
+      const branches = [z.enum(['md', 'lg']), z.string()] as const;
+      const fn = createFunctionImplementation(
+        {
+          name: 'round',
+          returnType: 'string',
+          schema: z.object({
+            inclusive: z.union(branches),
+            exclusive: exclusiveUnion(branches),
+          }),
+        },
+        () => '',
+      );
+      const catalog = new Catalog('https://example.org/functions.json', version, [], [fn]);
+      const args = (catalog.toJson().functions as Record<string, any>).round.properties.args;
+      assert.deepStrictEqual(args.properties.inclusive, {anyOf: OVERLAPPING_BRANCHES});
+      assert.deepStrictEqual(args.properties.exclusive, {oneOf: OVERLAPPING_BRANCHES});
+
+      const reloaded = Catalog.fromJson(catalog.toJson()).functions.get('round')!.schema;
+      assert.strictEqual(reloaded.safeParse({inclusive: 'md', exclusive: '12px'}).success, true);
+      assert.strictEqual(reloaded.safeParse({inclusive: 'md', exclusive: 'md'}).success, false);
+    });
+
+    describe(`specification-shaped union keyword in ${version}`, () => {
+      /** A branch whose definition is exactly `json`. */
+      const raw = (json: Record<string, unknown>) => spec(z.any(), {keywords: json});
+      /** A branch that references a definition of the common types. */
+      const commonRef = (name: string) => z.any().describe(`REF:#/$defs/${name}`);
+
+      /** The keyword the document writes for a shaped component's `value` union. */
+      function unionKeyword(union: z.ZodTypeAny): string {
+        const schema = spec(z.object({value: union}).strict(), {mixins: []});
+        const catalog = new Catalog('https://example.org/shaped.json', version, [
+          {name: 'Box', schema},
+        ]);
+        const box = (catalog.toJson().components as Record<string, any>).Box;
+        const properties = box.properties ?? box.allOf.find((m: any) => m.properties).properties;
+        const keywords = Object.keys(properties.value).filter(k => k === 'oneOf' || k === 'anyOf');
+        assert.strictEqual(keywords.length, 1, JSON.stringify(properties.value));
+        return keywords[0];
+      }
+
+      const overlapping: Record<string, z.ZodTypeAny> = {
+        'integer and number': z.union([z.number().int(), z.number()]),
+        'open objects requiring different keys': z.union([
+          z.object({a: z.string()}),
+          z.object({b: z.string()}),
+        ]),
+        "a closed object that allows the other's required key": z.union([
+          z.object({a: z.string(), b: z.string().optional()}).strict(),
+          z.object({a: z.string()}),
+        ]),
+        'an enum and a const that share a value': z.union([z.enum(['a', 'b']), z.literal('b')]),
+        'a reference to an unknown common type': z.union([commonRef('NoSuchDef'), z.number()]),
+        "a catalog's own definition named like a common type": z.union([
+          raw({$ref: '#/$defs/DataBinding'}),
+          z.number(),
+        ]),
+        'object values that differ only in key order': z.union([
+          raw({enum: [{a: 1, b: 2}]}),
+          raw({const: {b: 2, a: 1}}),
+        ]),
+        'three branches of which two overlap': z.union([z.number(), z.string(), z.enum(['a'])]),
+      };
+      for (const [name, union] of Object.entries(overlapping)) {
+        it(`writes anyOf for ${name}`, () => assert.strictEqual(unionKeyword(union), 'anyOf'));
+      }
+
+      const disjoint: Record<string, z.ZodTypeAny> = {
+        'consts with no shared value': z.union([z.literal('a'), z.literal('b')]),
+        'enums with no shared value': z.union([z.enum(['a', 'b']), z.enum(['c'])]),
+        'a closed object and a branch requiring a key it does not allow': z.union([
+          z.object({a: z.string()}).strict(),
+          z.object({b: z.string()}),
+        ]),
+        'open objects whose required discriminators differ': z.union([
+          z.object({kind: z.literal('a'), x: z.string()}),
+          z.object({kind: z.literal('b'), y: z.string()}),
+        ]),
+        'a discriminated union': z.discriminatedUnion('kind', [
+          z.object({kind: z.literal('a')}),
+          z.object({kind: z.literal('b')}),
+        ]),
+        'a common type reference and a number': z.union([commonRef('DataBinding'), z.number()]),
+      };
+      for (const [name, union] of Object.entries(disjoint)) {
+        it(`writes oneOf for ${name}`, () => assert.strictEqual(unionKeyword(union), 'oneOf'));
+      }
+    });
+  }
+});
+
 describe('Catalog.fromJson', () => {
   it('lets a protocolVersion argument take precedence over the declared one', () => {
     const document = {
@@ -408,7 +858,7 @@ describe('Catalog.fromJson', () => {
     assert.strictEqual(catalog.functionsLayout, 'map');
     // The unions list exactly the entries, so they are computed, not kept.
     assert.deepStrictEqual(catalog.unions, {anyComponent: true, anyFunction: true});
-    assert.deepStrictEqual(catalog.defs, {});
+    assert.deepStrictEqual(catalog.defs, {Weight: document.$defs.Weight});
     assert.strictEqual(catalog.extensionFields, undefined);
     const checkBox = catalog.components.get('CheckBox');
     const openUrl = catalog.functions.get('openUrl');
@@ -535,6 +985,228 @@ describe('Catalog.fromJson', () => {
     }
   });
 
+  it('round-trips v1.0 code-defined components through toJson without rejecting ComponentCommon fields', () => {
+    const Banner: ComponentApi = {
+      name: 'Banner',
+      schema: z.object({
+        text: z.string().describe('REF:common_types.json#/$defs/DynamicString'),
+        weight: z.number().optional(),
+      }),
+    };
+    const StrictBanner: ComponentApi = {
+      name: 'StrictBanner',
+      schema: z
+        .object({
+          text: z.string().describe('REF:common_types.json#/$defs/DynamicString'),
+          weight: z.number().optional(),
+        })
+        .strict(),
+    };
+    const OpenBanner: ComponentApi = {
+      name: 'OpenBanner',
+      schema: z.object({text: z.string()}).passthrough(),
+    };
+    const CatchallBanner: ComponentApi = {
+      name: 'CatchallBanner',
+      schema: z
+        .object({
+          text: z.string().describe('REF:common_types.json#/$defs/DynamicString'),
+          weight: z.number().optional(),
+        })
+        .catchall(z.number()),
+    };
+
+    const originalCatalog = new Catalog('https://example.com/v10-roundtrip.json', '1.0', [
+      Banner,
+      StrictBanner,
+      OpenBanner,
+      CatchallBanner,
+    ]);
+    const serializedDoc = originalCatalog.toJson();
+    const roundTripped = Catalog.fromJson(serializedDoc);
+
+    const {protocolVersion, ...reloadedValidation} = roundTripped.validationSchema;
+    assert.strictEqual(protocolVersion, '1.0');
+    assert.deepStrictEqual(reloadedValidation, originalCatalog.validationSchema);
+
+    const basePayload = {
+      id: 'root',
+      catalogId: roundTripped.id,
+      accessibility: {
+        label: 'Welcome banner',
+        description: 'Primary surface greeting',
+        live: 'polite',
+      },
+      metadata: {extensions: {vendor_ext: {featured: true}}},
+      text: 'Hello world',
+      weight: 2,
+    };
+
+    // 1. Validate against official v1.0 protocol schemas (agent_to_renderer.json#/$defs/Component).
+    const agentToRenderer = readRepoJson('specification/v1_0/json/agent_to_renderer.json');
+    const commonTypes = readRepoJson('specification/v1_0/json/common_types.json');
+    for (const catalogDoc of [serializedDoc, roundTripped.toJson()]) {
+      const protocolDocs = {
+        'agent_to_renderer.json': agentToRenderer,
+        'common_types.json': commonTypes,
+        'catalog.json': catalogDoc,
+      };
+      const componentWireSchema = agentToRenderer.$defs.Component;
+      for (const closedType of ['Banner', 'StrictBanner', 'CatchallBanner'] as const) {
+        assert.strictEqual(
+          evaluateJsonSchema(
+            {...basePayload, component: closedType},
+            componentWireSchema,
+            'agent_to_renderer.json',
+            protocolDocs,
+          ).valid,
+          true,
+        );
+        assert.strictEqual(
+          evaluateJsonSchema(
+            {...basePayload, component: closedType, undeclared: 'nope'},
+            componentWireSchema,
+            'agent_to_renderer.json',
+            protocolDocs,
+          ).valid,
+          false,
+        );
+      }
+      assert.strictEqual(
+        evaluateJsonSchema(
+          {
+            id: 'root',
+            component: 'OpenBanner',
+            catalogId: roundTripped.id,
+            accessibility: basePayload.accessibility,
+            metadata: basePayload.metadata,
+            text: 'Hello world',
+            customExtra: 42,
+          },
+          componentWireSchema,
+          'agent_to_renderer.json',
+          protocolDocs,
+        ).valid,
+        true,
+      );
+    }
+
+    // 2. Validate against originalCatalog.validationSchema, roundTripped.validationSchema,
+    //    and generateValidationSchema().
+    const bundledEnvelopeSchema = {
+      type: 'object',
+      allOf: [{$ref: 'common_types.json#/$defs/ComponentCommon'}, {$ref: '#/$defs/anyComponent'}],
+      unevaluatedProperties: false,
+    };
+    for (const validationSchema of [
+      originalCatalog.validationSchema,
+      roundTripped.validationSchema,
+    ]) {
+      const validationDocs = {
+        'validation.json': validationSchema,
+        'common_types.json': commonTypes,
+      };
+      assert.strictEqual(
+        evaluateJsonSchema(
+          {...basePayload, component: 'Banner'},
+          {$ref: '#/$defs/anyComponent'},
+          'validation.json',
+          validationDocs,
+        ).valid,
+        true,
+      );
+      for (const closedType of ['Banner', 'StrictBanner', 'CatchallBanner'] as const) {
+        assert.strictEqual(
+          evaluateJsonSchema(
+            {...basePayload, component: closedType},
+            bundledEnvelopeSchema,
+            'validation.json',
+            validationDocs,
+          ).valid,
+          true,
+        );
+        assert.strictEqual(
+          evaluateJsonSchema(
+            {...basePayload, component: closedType, undeclared: 'nope'},
+            bundledEnvelopeSchema,
+            'validation.json',
+            validationDocs,
+          ).valid,
+          false,
+        );
+      }
+    }
+    const envelopeWrapped = generateValidationSchema(roundTripped, {
+      componentEnvelopeRef: 'common_types.json#/$defs/ComponentCommon',
+    });
+    const wrappedComponents = envelopeWrapped.components as Record<string, unknown>;
+    assert.strictEqual(
+      evaluateJsonSchema(
+        {...basePayload, component: 'Banner'},
+        wrappedComponents.Banner,
+        'wrapped.json',
+        {'wrapped.json': envelopeWrapped, 'common_types.json': commonTypes},
+      ).valid,
+      true,
+    );
+
+    // 3. Validate runtime processing via MessageProcessor with STRICT_VALIDATION.
+    const processor = new MessageProcessor([roundTripped as Catalog<ComponentApi>], undefined, {
+      validationConfig: STRICT_VALIDATION,
+    });
+    processor.processMessages({
+      version: '1.0',
+      createSurface: {surfaceId: 's1', catalogId: roundTripped.id},
+    });
+    for (const closedType of ['Banner', 'StrictBanner', 'CatchallBanner'] as const) {
+      processor.processMessages({
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 's1',
+          components: [{...basePayload, component: closedType}],
+        },
+      });
+      assert.strictEqual(
+        processor.model.getSurface('s1')?.componentsModel.get('root')?.type,
+        closedType,
+      );
+
+      assert.throws(
+        () =>
+          processor.processMessages({
+            version: '1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{...basePayload, component: closedType, undeclared: 'nope'}],
+            },
+          }),
+        A2uiValidationError,
+      );
+    }
+
+    processor.processMessages({
+      version: '1.0',
+      updateComponents: {
+        surfaceId: 's1',
+        components: [
+          {
+            id: 'root',
+            component: 'OpenBanner',
+            catalogId: roundTripped.id,
+            accessibility: basePayload.accessibility,
+            metadata: basePayload.metadata,
+            text: 'Hello world',
+            customExtra: 42,
+          },
+        ],
+      },
+    });
+    assert.strictEqual(
+      processor.model.getSurface('s1')?.componentsModel.get('root')?.type,
+      'OpenBanner',
+    );
+  });
+
   it('is what the deprecated fromSchema returns', () => {
     const document = readRepoJson('catalogs/mcp/catalog.json');
     assert.deepStrictEqual(Catalog.fromSchema(document).toJson(), document);
@@ -658,8 +1330,11 @@ describe('entry definitions', () => {
 
   it('writes a loaded entry as its definition, and a spread copy from its schema', () => {
     const document = readRepoJson('catalogs/basic/v1/catalog.json');
-    const loadedText = Catalog.fromJson(document).components.get('Text')!;
-    const reused = new Catalog('https://example.com/reused', '1.0', [loadedText]);
+    const loaded = Catalog.fromJson(document);
+    const loadedText = loaded.components.get('Text')!;
+    const reused = new Catalog('https://example.com/reused', '1.0', [loadedText], [], {
+      defs: loaded.defs,
+    });
     assert.deepStrictEqual(
       (reused.toJson().components as Record<string, unknown>).Text,
       document.components.Text,
@@ -873,6 +1548,86 @@ describe('specification annotations', () => {
       assert.deepStrictEqual(docFn.required, valFn.required);
     }
   });
+
+  it('requires args when every branch of a union function argument schema requires arguments', () => {
+    const unionSchema = z.union([
+      z.object({kind: z.literal('a'), value: z.string()}),
+      z.object({kind: z.literal('b'), count: z.number()}),
+    ]);
+    const choose = createFunctionImplementation(
+      {
+        name: 'choose',
+        returnType: 'string',
+        schema: unionSchema,
+      },
+      () => 'result',
+    );
+    const chooseSpec = createFunctionImplementation(
+      {
+        name: 'chooseSpec',
+        returnType: 'string',
+        schema: spec(unionSchema, {}),
+      },
+      () => 'result',
+    );
+    for (const [version, callKey] of [
+      ['0.9', 'call'],
+      ['1.0', '@call'],
+    ] as const) {
+      const cat = new Catalog(
+        `https://example.com/union-required/${version}`,
+        version,
+        [],
+        [choose, chooseSpec],
+      );
+      const docFns = cat.toJson().functions as Record<string, any>;
+      const valFns = cat.validationSchema.functions as Record<string, any>;
+      assert.deepStrictEqual(docFns.choose.required, [callKey, 'args']);
+      assert.deepStrictEqual(valFns.choose.required, [callKey, 'args']);
+      assert.deepStrictEqual(docFns.chooseSpec.required, [callKey, 'args']);
+      assert.deepStrictEqual(valFns.chooseSpec.required, [callKey, 'args']);
+    }
+  });
+
+  it('omits args from required when at least one branch of a union function schema has no required arguments', () => {
+    const optionalBranchUnion = z.union([
+      z.object({kind: z.literal('a'), value: z.string()}),
+      z.object({format: z.string().optional()}),
+    ]);
+    const chooseOptional = createFunctionImplementation(
+      {
+        name: 'chooseOptional',
+        returnType: 'string',
+        schema: optionalBranchUnion,
+      },
+      () => 'result',
+    );
+    const chooseOptionalSpec = createFunctionImplementation(
+      {
+        name: 'chooseOptionalSpec',
+        returnType: 'string',
+        schema: spec(optionalBranchUnion, {}),
+      },
+      () => 'result',
+    );
+    for (const [version, callKey] of [
+      ['0.9', 'call'],
+      ['1.0', '@call'],
+    ] as const) {
+      const cat = new Catalog(
+        `https://example.com/union-optional/${version}`,
+        version,
+        [],
+        [chooseOptional, chooseOptionalSpec],
+      );
+      const docFns = cat.toJson().functions as Record<string, any>;
+      const valFns = cat.validationSchema.functions as Record<string, any>;
+      assert.deepStrictEqual(docFns.chooseOptional.required, [callKey]);
+      assert.deepStrictEqual(valFns.chooseOptional.required, [callKey]);
+      assert.deepStrictEqual(docFns.chooseOptionalSpec.required, [callKey]);
+      assert.deepStrictEqual(valFns.chooseOptionalSpec.required, [callKey]);
+    }
+  });
 });
 
 describe('built-in basic catalogs', () => {
@@ -913,7 +1668,7 @@ describe('built-in basic catalogs', () => {
   for (const [label, builtin] of [
     ['v0.8', v08BasicCatalog],
     ['v0.9', v09BasicCatalog],
-    ['v1.0', v10BasicCatalog],
+    ['1.0', v10BasicCatalog],
   ] as const) {
     it(`keeps the ${label} Zod schemas in line with the published document`, () => {
       // Copies of the entries without their annotations are generated from Zod.
@@ -942,4 +1697,169 @@ describe('built-in basic catalogs', () => {
       }
     });
   }
+
+  it('preserves specDef references across .describe(), avoids leaking def metadata, and resolves union disjointness', () => {
+    const ColorToken = specDef('ColorToken', z.enum(['primary', 'secondary']).default('primary'), {
+      keywords: {title: 'ColorToken'},
+    });
+    const ColorValue = specDef('ColorValue', z.union([ColorToken, z.number()]));
+    const BoxComponent: ComponentApi = {
+      name: 'Box',
+      schema: spec(
+        z
+          .object({
+            id: z.string(),
+            component: z.literal('Box'),
+            color: ColorValue.describe('Override color description').optional(),
+            token: ColorToken.optional(),
+          })
+          .strict(),
+        {mixins: []},
+      ),
+    };
+    const cat = new Catalog('https://example.com/cat', '1.0', [BoxComponent], []);
+    const doc = cat.toJson();
+    const defs = doc.$defs as Record<string, any>;
+    assert.deepStrictEqual(defs.ColorToken, {
+      type: 'string',
+      enum: ['primary', 'secondary'],
+      title: 'ColorToken',
+      default: 'primary',
+    });
+    assert.deepStrictEqual(defs.ColorValue, {
+      oneOf: [{$ref: '#/$defs/ColorToken'}, {type: 'number'}],
+    });
+    const boxProps = (doc.components as Record<string, any>).Box.properties;
+    assert.deepStrictEqual(boxProps.color, {
+      $ref: '#/$defs/ColorValue',
+      description: 'Override color description',
+    });
+    assert.deepStrictEqual(boxProps.token, {
+      $ref: '#/$defs/ColorToken',
+    });
+  });
+
+  it('validates LeafDefinitionSchema and ComponentDefinitionSchema against catalog_schema_relaxation.json', async () => {
+    const {LeafDefinitionSchema, ComponentDefinitionSchema} =
+      await import('../v1_0/schema/catalog-definition.js');
+    const suite = readRepoJson('specification/v1_0/test/cases/catalog_schema_relaxation.json');
+    const validCatalog = suite.tests[0].data;
+    for (const [defName, defSchema] of Object.entries(validCatalog.$defs)) {
+      if (defName === 'anyComponent' || defName === 'anyFunction') continue;
+      assert.strictEqual(
+        LeafDefinitionSchema.safeParse(defSchema).success,
+        true,
+        `Expected valid leaf def ${defName} to pass LeafDefinitionSchema`,
+      );
+    }
+    for (const [compName, compSchema] of Object.entries(validCatalog.components)) {
+      assert.strictEqual(
+        ComponentDefinitionSchema.safeParse(compSchema).success,
+        true,
+        `Expected valid component ${compName} to pass ComponentDefinitionSchema`,
+      );
+    }
+    assert.strictEqual(
+      LeafDefinitionSchema.safeParse(suite.tests[1].data.$defs.BadComponentDef).success,
+      false,
+    );
+    assert.strictEqual(
+      LeafDefinitionSchema.safeParse(suite.tests[2].data.$defs.BadWrappedComponentDef).success,
+      false,
+    );
+    assert.strictEqual(
+      ComponentDefinitionSchema.safeParse(suite.tests[3].data.components.Card).success,
+      false,
+    );
+    assert.strictEqual(
+      ComponentDefinitionSchema.safeParse(suite.tests[4].data.components.Card).success,
+      false,
+    );
+  });
+});
+
+describe('Catalog.derive', () => {
+  const basic = Catalog.fromJson(readRepoJson('catalogs/basic/v1/catalog.json'));
+  const label: ComponentApi = {name: 'Label', schema: z.object({text: z.string()})};
+
+  it('keeps the named entries and adds new ones under the new ID', () => {
+    const derived = basic.derive({
+      catalogId: 'https://example.com/chat',
+      components: ['Text', 'Button', label],
+      functions: ['openUrl'],
+    });
+
+    assert.strictEqual(derived.id, 'https://example.com/chat');
+    assert.strictEqual(derived.protocolVersion, basic.protocolVersion);
+    assert.deepStrictEqual([...derived.components.keys()], ['Text', 'Button', 'Label']);
+    assert.strictEqual(derived.components.get('Text'), basic.components.get('Text'));
+    assert.strictEqual(derived.components.get('Label'), label);
+    assert.deepStrictEqual([...derived.functions.keys()], ['openUrl']);
+    assert.strictEqual(derived.themeSchema, basic.themeSchema);
+    const out = derived.toJson();
+    assert.strictEqual(out.catalogId, 'https://example.com/chat');
+    assert.deepStrictEqual(Object.keys(out.components as object), ['Text', 'Button', 'Label']);
+  });
+
+  it("drops the source's $id, title, description and instructions", () => {
+    const out = basic.derive({catalogId: 'https://example.com/chat'}).toJson();
+
+    assert.strictEqual(out.$schema, basic.schemaUri);
+    assert.ok(!('$id' in out));
+    assert.ok(!('title' in out));
+    assert.ok(!('description' in out));
+    assert.ok(!('instructions' in out));
+  });
+
+  it('takes the instructions it is given', () => {
+    const derived = basic.derive({
+      catalogId: 'https://example.com/chat',
+      instructions: 'Be brief.',
+    });
+
+    assert.strictEqual(derived.instructions, 'Be brief.');
+    assert.strictEqual(derived.toJson().instructions, 'Be brief.');
+  });
+
+  it('keeps every entry of a kind it is given no list for', () => {
+    const derived = basic.derive({catalogId: 'https://example.com/chat'});
+
+    assert.deepStrictEqual([...derived.components.keys()], [...basic.components.keys()]);
+    assert.deepStrictEqual([...derived.functions.keys()], [...basic.functions.keys()]);
+  });
+
+  it("replaces the source's entry with a new entry of the same name", () => {
+    const text: ComponentApi = {name: 'Text', schema: z.object({text: z.string()})};
+
+    const derived = basic.derive({
+      catalogId: 'https://example.com/chat',
+      components: [text],
+    });
+
+    assert.strictEqual(derived.components.get('Text'), text);
+  });
+
+  it('throws for a name the source has no entry of', () => {
+    assert.throws(
+      () => basic.derive({catalogId: 'https://example.com/chat', components: ['Nope']}),
+      (e: unknown) =>
+        e instanceof A2uiCatalogError &&
+        e.message.includes("has no component 'Nope'") &&
+        e.message.includes('https://example.com/chat'),
+    );
+    assert.throws(
+      () => basic.derive({catalogId: 'https://example.com/chat', functions: ['nope']}),
+      (e: unknown) => e instanceof A2uiCatalogError && e.message.includes("has no function 'nope'"),
+    );
+  });
+
+  it('drops authored $defs that only left-out entries referenced', () => {
+    const loaded = Catalog.fromJson(readRepoJson('specification/v0_9/catalogs/basic/catalog.json'));
+
+    const derived = loaded.derive({catalogId: 'https://example.com/chat', components: []});
+
+    const defs = derived.toJson().$defs as Record<string, unknown>;
+    assert.ok(!('CatalogComponentCommon' in defs));
+    assert.ok('theme' in defs);
+  });
 });

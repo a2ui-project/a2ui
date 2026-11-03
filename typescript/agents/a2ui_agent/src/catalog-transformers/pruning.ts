@@ -27,10 +27,10 @@ export class ComponentPruningTransformer implements CatalogTransformer {
   /**
    * Initializes a ComponentPruningTransformer.
    *
-   * @param allowedComponents List of allowed component names.
+   * @param allowedComponents List of allowed component names, or null to allow none.
    */
-  constructor(allowedComponents: string[]) {
-    this.allowedComponents = new Set(allowedComponents);
+  constructor(allowedComponents: string[] | null) {
+    this.allowedComponents = new Set(allowedComponents ?? []);
   }
 
   /**
@@ -64,10 +64,10 @@ export class FunctionPruningTransformer implements CatalogTransformer {
   /**
    * Initializes a FunctionPruningTransformer.
    *
-   * @param allowedFunctions List of allowed function names.
+   * @param allowedFunctions List of allowed function names, or null to allow none.
    */
-  constructor(allowedFunctions: string[]) {
-    this.allowedFunctions = new Set(allowedFunctions);
+  constructor(allowedFunctions: string[] | null) {
+    this.allowedFunctions = new Set(allowedFunctions ?? []);
   }
 
   /**

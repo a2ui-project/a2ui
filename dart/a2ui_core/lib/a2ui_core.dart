@@ -28,6 +28,7 @@ export 'src/core/component_model.dart';
 // State management.
 export 'src/core/data_model.dart';
 export 'src/core/messages.dart';
+export 'src/core/metadata.dart' hide mergeActionMetadata, sameJsonValue;
 export 'src/core/renderer_capabilities.dart';
 export 'src/core/surface_group_model.dart';
 export 'src/core/surface_model.dart';
@@ -49,19 +50,22 @@ export 'src/processing/adapters/v0_9_adapter.dart';
 export 'src/processing/adapters/v1_0_adapter.dart';
 export 'src/processing/adapters/version_adapter.dart';
 // Processing & expressions.
+export 'src/processing/message_error_mapper.dart';
 export 'src/processing/operations.dart';
 export 'src/processing/processor.dart';
 // Resolution & rendering support.
 export 'src/resolution/component_context.dart';
 export 'src/resolution/component_node.dart'
     hide MutableComponentNode, sameValue;
-export 'src/resolution/data_context.dart' hide createSurfaceDataContext;
+export 'src/resolution/data_context.dart'
+    hide createSurfaceDataContext, dataContextWithoutAgentCalls;
 export 'src/resolution/generic_binder.dart';
 export 'src/resolution/node_resolver.dart';
 export 'src/resolution/resolved_binding.dart';
 export 'src/rpc/rpc_handler.dart';
 // Payload validation.
-export 'src/validation/component_graph.dart' show checkDuplicateComponentIds;
+export 'src/validation/component_graph.dart'
+    show checkDuplicateComponentIds, checkPathsAndRecursion;
 export 'src/validation/schema_resolution.dart'
     show inlineLocalRefs, resolveSchemaRefs;
 export 'src/validation/validation_config.dart';

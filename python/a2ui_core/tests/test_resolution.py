@@ -21,8 +21,9 @@ from a2ui.core.resolution import (
     DataContext,
     GenericBinder,
     MissingDataBindingWarning,
+    coerce_dynamic_boolean,
 )
-from a2ui.core.catalog import Catalog
+from a2ui.core.catalog import Catalog, FunctionImplementation
 from a2ui.core.basic_catalog import BasicCatalog, v0_9
 from a2ui.core.schema.v0_9.common_types import DynamicString, StrictBaseModel
 
@@ -54,6 +55,75 @@ def test_component_context_from_surface():
     with pytest.raises(ValueError, match="Component not found"):
         ComponentContext.from_surface(surface, "missing")
 
+    surface.dispose()
+
+
+def test_component_context_dispatch_action_callback_signatures(monkeypatch):
+    import inspect
+
+    cat = BasicCatalog("0.9")
+    surface = SurfaceModel("s1", cat)
+    c1 = ComponentModel("c1", "Button", cat, {"label": "Click"})
+    surface.components_model.add_component(c1)
+    data_ctx = DataContext(surface=surface)
+    meta = {"extensions": {"trace_id": "abc"}}
+
+    recorded: list[tuple[str, Any, str, Any]] = []
+
+    def two_arg(act: dict[str, Any], cid: str) -> None:
+        recorded.append(("two_arg", act, cid, None))
+
+    def three_arg(
+        act: dict[str, Any], cid: str, metadata: dict[str, Any] | None = None
+    ) -> None:
+        recorded.append(("three_arg", act, cid, metadata))
+
+    def var_args(*args: Any) -> None:
+        recorded.append(("var_args", args[0], args[1], args[2]))
+
+    def kw_only(
+        act: dict[str, Any], cid: str, *, metadata: dict[str, Any] | None = None
+    ) -> None:
+        recorded.append(("kw_only", act, cid, metadata))
+
+    def var_kwargs(act: dict[str, Any], cid: str, **kwargs: Any) -> None:
+        recorded.append(("var_kwargs", act, cid, kwargs.get("metadata")))
+
+    for cb in (two_arg, three_arg, var_args, kw_only, var_kwargs):
+        ctx = ComponentContext(
+            c1, data_ctx, surface.components_model, dispatch_action_callback=cb
+        )
+        ctx.dispatch_action({"name": "tap"}, metadata=meta)
+
+    assert recorded == [
+        ("two_arg", {"name": "tap"}, "c1", None),
+        ("three_arg", {"name": "tap"}, "c1", meta),
+        ("var_args", {"name": "tap"}, "c1", meta),
+        ("kw_only", {"name": "tap"}, "c1", meta),
+        ("var_kwargs", {"name": "tap"}, "c1", meta),
+    ]
+
+    # Callables where inspect.signature raises ValueError or TypeError fall back to 2-arg call.
+    fallback_calls: list[tuple[dict[str, Any], str]] = []
+
+    def uninspectable(act: dict[str, Any], cid: str) -> None:
+        fallback_calls.append((act, cid))
+
+    for exc_cls in (ValueError, TypeError):
+        monkeypatch.setattr(
+            inspect,
+            "signature",
+            lambda _fn, _exc=exc_cls: (_ for _ in ()).throw(_exc("no signature")),
+        )
+        ctx = ComponentContext(
+            c1,
+            data_ctx,
+            surface.components_model,
+            dispatch_action_callback=uninspectable,
+        )
+        ctx.dispatch_action({"name": "tap"}, metadata=meta)
+
+    assert fallback_calls == [({"name": "tap"}, "c1"), ({"name": "tap"}, "c1")]
     surface.dispose()
 
 
@@ -275,7 +345,41 @@ def test_generic_binder_checks_validation():
     binder.dispose()
 
 
-def test_expression_parser_literals_and_interpolation():
+def test_generic_binder_path_bound_check_keeps_data_model_message():
+    """A path-bound ValidationResult keeps its own message; the rule message
+    is the fallback. (An evaluated check gives the rule message precedence.)"""
+    cat = BasicCatalog("1.0")
+    data_model = DataModel({
+        "check": {
+            "valid": False,
+            "code": "FROM_DATA",
+            "message": "Message from the data model",
+        }
+    })
+    comp = ComponentModel(
+        "field_1",
+        "TextField",
+        cat,
+        {
+            "label": "Field",
+            "checks": [{
+                "condition": {"@path": "/check"},
+                "message": "Rule fallback message",
+            }],
+        },
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model, protocol_version="1.0")
+    binder = GenericBinder(ComponentContext(comp, DataContext(surface, path="/")))
+
+    assert binder.current_props["validationErrors"] == ["Message from the data model"]
+
+    data_model.set("/check", {"valid": False})
+    assert binder.current_props["validationErrors"] == ["Rule fallback message"]
+
+    data_model.set("/check", False)
+    assert binder.current_props["validationErrors"] == ["Rule fallback message"]
+
+    binder.dispose()
     from a2ui.core.expressions.expression_parser import ExpressionParser
 
     parser = ExpressionParser()
@@ -325,17 +429,20 @@ def test_string_interpolation_complex_execution():
                 _format_string,
             )
 
-            self.functions["add"] = (
-                lambda args, context, abort_signal=None: args["a"] + args["b"]
+            self.functions["add"] = lambda args, context, abort_signal=None: (
+                args["a"] + args["b"]
             )
-            self.functions["formatString"] = (
-                lambda args, context, abort_signal=None: _format_string(args, context)
+            self.functions["formatString"] = lambda args, context, abort_signal=None: (
+                _format_string(args, context)
             )
 
     cat1 = MockCatalog()
     surface = SurfaceModel("s1", cat1, data_model=data_model)
     ctx = DataContext(surface, path="/")
-    expr = {"call": "formatString", "args": {"value": "Calculated: ${add(a: 5, b: 7)}"}}
+    expr = {
+        "call": "formatString",
+        "args": {"value": "Calculated: ${add(a: 5, b: 7)}"},
+    }
 
     resolved = ctx.resolve_dynamic_value(expr)
     assert resolved == "Calculated: 12"
@@ -348,15 +455,13 @@ def test_subscribe_dynamic_value_chained_functions():
 
         def __init__(self):
             super().__init__("string", "v0_9_1", [], [])
-            self.functions["trim"] = (
-                lambda args, context, abort_signal=None: args.get("value", "").strip()
+            self.functions["trim"] = lambda args, context, abort_signal=None: (
+                args.get("value", "").strip()
                 if isinstance(args.get("value", ""), str)
                 else args.get("value", "")
             )
-            self.functions["capitalize"] = (
-                lambda args, context, abort_signal=None: args.get(
-                    "value", ""
-                ).capitalize()
+            self.functions["capitalize"] = lambda args, context, abort_signal=None: (
+                args.get("value", "").capitalize()
                 if isinstance(args.get("value", ""), str)
                 else args.get("value", "")
             )
@@ -519,6 +624,244 @@ def test_data_context_v10_nested_validators_feed_logical_functions():
     assert errors == []
 
 
+def _required(value: Any) -> dict[str, Any]:
+    return {"@call": "required", "args": {"value": value}}
+
+
+def test_data_context_v10_coerces_validation_result_to_dynamic_boolean():
+    """From v1.0 a ``ValidationResult`` resolved into a ``DynamicBoolean``
+    argument is read by its validity, in every function, not only in
+    ``and``/``or``/``not``: a dict is truthy, so ``formatNumber`` would
+    otherwise group when ``grouping`` is a failing validation."""
+    from a2ui.core.basic_catalog import v1_0
+
+    errors: list[dict[str, Any]] = []
+    surface = SurfaceModel("s1", v1_0.BasicCatalog(), data_model=DataModel({}))
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    ctx = DataContext(surface, path="/")
+
+    def format_number(grouping: Any) -> dict[str, Any]:
+        return {
+            "@call": "formatNumber",
+            "args": {"value": 1234, "decimals": 0, "grouping": grouping},
+        }
+
+    assert ctx.resolve_dynamic_value(format_number(_required(""))) == "1234"
+    assert ctx.resolve_dynamic_value(format_number(_required("x"))) == "1,234"
+    assert errors == []
+
+
+def test_data_context_v10_coerces_validation_result_in_document_function():
+    """The coercion follows a function schema read from a catalog document,
+    where a ``DynamicBoolean`` is a ``$ref`` into the common types."""
+    from a2ui.core.catalog import FunctionImplementation
+
+    seen: list[dict[str, Any]] = []
+
+    def echo(args: dict[str, Any], *_: Any) -> dict[str, Any]:
+        seen.append(args)
+        return args
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "on": {"$ref": "common_types.json#/$defs/DynamicBoolean"},
+            "all": {
+                "type": "array",
+                "items": {"$ref": "common_types.json#/$defs/DynamicBoolean"},
+            },
+            "payload": {"$ref": "common_types.json#/$defs/DynamicValue"},
+        },
+        "required": ["on"],
+    }
+    catalog = Catalog(
+        catalog_id="custom",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="echo", return_type="object", schema=schema, execute=echo
+            )
+        ],
+    )
+    errors: list[dict[str, Any]] = []
+    surface = SurfaceModel(
+        "s1",
+        catalog,
+        data_model=DataModel({"result": {"valid": False, "message": "no"}}),
+    )
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    ctx = DataContext(surface, path="/")
+
+    result = ctx.resolve_dynamic_value({
+        "@call": "echo",
+        "args": {
+            "on": {"@path": "/result"},
+            "all": [{"@path": "/result"}, True],
+            "payload": {"@path": "/result"},
+        },
+    })
+
+    assert errors == []
+    assert result == {
+        "on": False,
+        "all": [False, True],
+        "payload": {"valid": False, "message": "no"},
+    }
+
+
+def test_data_context_v10_coerces_validation_result_in_optional_list():
+    """An optional ``list[DynamicBoolean]`` field is coerced item by item,
+    like a required one."""
+    from pydantic import Field
+
+    from a2ui.core.catalog import FunctionImplementation
+    from a2ui.core.schema.v1_0 import DynamicBoolean, StrictBaseModel
+
+    class NestedFlags(StrictBaseModel):
+        inner: DynamicBoolean | None = Field(default=None)
+
+    class FlagsArgs(StrictBaseModel):
+        flags: list[DynamicBoolean] | None = Field(default=None)
+        flag: DynamicBoolean | None = Field(default=None)
+        nested: NestedFlags | None = Field(default=None)
+
+    seen: list[dict[str, Any]] = []
+
+    def echo(args: dict[str, Any], *_: Any) -> dict[str, Any]:
+        seen.append(args)
+        return args
+
+    catalog = Catalog(
+        catalog_id="custom",
+        protocol_version="1.0",
+        functions=[
+            FunctionImplementation(
+                name="echo",
+                return_type="object",
+                schema=FlagsArgs,
+                execute=echo,
+            )
+        ],
+    )
+    surface = SurfaceModel(
+        "s1",
+        catalog,
+        data_model=DataModel({"bad": {"valid": False}, "good": {"valid": True}}),
+    )
+    errors: list[dict[str, Any]] = []
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    ctx = DataContext(surface, path="/")
+
+    result = ctx.resolve_dynamic_value({
+        "@call": "echo",
+        "args": {
+            "flags": [{"@path": "/bad"}, True],
+            "flag": {"@path": "/good"},
+            "nested": {"inner": {"@path": "/bad"}},
+        },
+    })
+
+    assert errors == []
+    assert result == {
+        "flags": [False, True],
+        "flag": True,
+        "nested": {"inner": False},
+    }
+
+
+def test_data_context_v09_coerces_valid_objects_in_dynamic_boolean():
+    """In v0.9 as in v1.0, a ``ValidationResult`` object resolved into a
+    ``DynamicBoolean`` argument is coerced by its ``valid`` boolean."""
+    catalog = v0_9.BasicCatalog()
+    surface = SurfaceModel(
+        "s1", catalog, data_model=DataModel({"flag": {"valid": False}})
+    )
+    ctx = DataContext(surface, path="/")
+
+    assert (
+        ctx.resolve_dynamic_value({"call": "not", "args": {"value": {"path": "/flag"}}})
+        is True
+    )
+
+
+def test_dynamic_boolean_coercion_table_for_properties_and_arguments():
+    """Verifies ``coerce_dynamic_boolean`` across every row of the coercion
+    table for both component property resolution and function arguments."""
+    from a2ui.core.basic_catalog import v1_0
+    from a2ui.core.catalog import ComponentApi
+    from a2ui.core.schema.v1_0.common_types import DynamicValue
+
+    cases: list[tuple[Any, bool]] = [
+        (True, True),
+        (False, False),
+        ({"valid": True}, True),
+        ({"valid": False, "message": "Invalid"}, False),
+        ("true", True),
+        ("True", True),
+        ("TRUE", True),
+        ("false", False),
+        ("FALSE", False),
+        ("hello", False),
+        ("", False),
+        ("1", False),
+        (1, True),
+        (-2, True),
+        (0.5, True),
+        (0, False),
+        (0.0, False),
+        (float("nan"), False),
+        (None, False),
+        ({}, False),
+        ({"other": 1}, False),
+        ({"valid": "yes"}, False),
+        ([], False),
+        ([True], False),
+    ]
+
+    for raw, expected in cases:
+        assert coerce_dynamic_boolean(raw) is expected, f"Failed for {raw!r}"
+
+    catalog = v1_0.BasicCatalog()
+    surface = SurfaceModel("s1", catalog, data_model=DataModel({"flag": True}))
+    comp = ComponentModel(
+        "c1",
+        "CheckBox",
+        catalog,
+        {"label": "Flag", "value": {"@path": "/flag"}},
+    )
+    surface.components_model.add_component(comp)
+    comp_ctx = ComponentContext.from_surface(surface, "c1")
+    binder = GenericBinder(comp_ctx)
+    ctx = DataContext(surface, path="/")
+
+    for raw, expected in cases:
+        surface.data_model.set("/flag", raw)
+        assert binder.snapshot["value"] is expected, f"Property failed for {raw!r}"
+        if isinstance(raw, float) and raw != raw:
+            continue
+        assert ctx.resolve_dynamic_value(
+            {"@call": "not", "args": {"value": {"@path": "/flag"}}}
+        ) is (not expected), f"Argument failed for {raw!r}"
+
+    class _PolymorphicBox(StrictBaseModel):
+        id: str
+        component: str
+        any_val: DynamicValue
+
+    custom_cat = Catalog(
+        "custom", "1.0", components=[ComponentApi("PolyBox", _PolymorphicBox)]
+    )
+    poly_surface = SurfaceModel("s2", custom_cat, data_model=DataModel({"v": "hello"}))
+    poly_comp = ComponentModel(
+        "p1", "PolyBox", custom_cat, {"any_val": {"@path": "/v"}}
+    )
+    poly_surface.components_model.add_component(poly_comp)
+    poly_binder = GenericBinder(ComponentContext.from_surface(poly_surface, "p1"))
+    assert poly_binder.snapshot["any_val"] == "hello"
+    poly_surface.data_model.set("/v", 42)
+    assert poly_binder.snapshot["any_val"] == 42
+
+
 def test_data_context_validates_arguments_as_written():
     """An argument the schema does not declare is rejected before resolution."""
     from a2ui.core.basic_catalog import v1_0
@@ -541,7 +884,7 @@ def test_data_context_validates_arguments_as_written():
 
 def test_data_context_index_function_on_surface_without_default_catalog():
     """@index belongs to no catalog, so it runs without a default catalog."""
-    surface = SurfaceModel("s1", None, protocol_version="v1.0")
+    surface = SurfaceModel("s1", None, protocol_version="1.0")
     ctx = DataContext(surface, path="/items/2")
 
     value = ctx.resolve_dynamic_value({"@call": "@index", "args": {"offset": 1}})
@@ -579,6 +922,65 @@ def test_data_context_system_function_without_catalog_id_still_runs():
     assert errors == []
 
 
+def _allowed_callers_context(
+    allowed_callers: str,
+) -> tuple[DataContext, list[str], list[dict[str, Any]]]:
+    """A v1.0 context whose catalog has a `lookup` function with the given
+    `allowedCallers`, and the calls that reached its body and the errors the
+    surface reported."""
+    calls: list[str] = []
+    errors: list[dict[str, Any]] = []
+
+    def lookup(args: dict[str, Any], ctx: Any, abort: Any) -> str:
+        calls.append("lookup")
+        return "secret"
+
+    fn = FunctionImplementation(
+        name="lookup",
+        return_type="string",
+        execute=lookup,
+        allowed_callers=allowed_callers,  # type: ignore[arg-type]
+    )
+    surface = SurfaceModel(
+        "s1", Catalog("test", protocol_version="1.0", functions=[fn])
+    )
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    return DataContext(surface, path="/"), calls, errors
+
+
+def test_data_context_refuses_agent_only_function_in_binding_and_action():
+    """An agentOnly function is restricted to agent-initiated
+    callRendererFunction, so a binding or an action that calls it is reported
+    as an EXPRESSION_ERROR and its body never runs."""
+    ctx, calls, errors = _allowed_callers_context("agentOnly")
+
+    assert ctx.resolve_dynamic_value({"@call": "lookup", "args": {}}) is None
+    assert ctx.resolve_action({"functionCall": {"@call": "lookup", "args": {}}}) is None
+
+    assert calls == []
+    assert [(e["code"], e["expression"]) for e in errors] == [
+        ("EXPRESSION_ERROR", "lookup"),
+        ("EXPRESSION_ERROR", "lookup"),
+    ]
+    for err in errors:
+        assert "cannot be called by renderer (allowedCallers is agentOnly)" in (
+            err["message"]
+        )
+
+
+def test_data_context_runs_renderer_or_agent_function_in_binding_and_action():
+    ctx, calls, errors = _allowed_callers_context("rendererOrAgent")
+
+    assert ctx.resolve_dynamic_value({"@call": "lookup", "args": {}}) == "secret"
+    assert (
+        ctx.resolve_action({"functionCall": {"@call": "lookup", "args": {}}})
+        == "secret"
+    )
+
+    assert calls == ["lookup", "lookup"]
+    assert errors == []
+
+
 def test_surface_model_protocol_version():
     """The protocol version defaults to the default catalog's, else is explicit."""
     from a2ui.core.basic_catalog import v1_0
@@ -586,9 +988,9 @@ def test_surface_model_protocol_version():
     assert SurfaceModel("s1", v1_0.BasicCatalog()).protocol_version == (
         v1_0.BasicCatalog().protocol_version
     )
-    no_default = SurfaceModel("s2", None, protocol_version="v1.0")
+    no_default = SurfaceModel("s2", None, protocol_version="1.0")
     assert no_default.default_catalog is None
-    assert no_default.protocol_version == "v1.0"
+    assert no_default.protocol_version == "1.0"
     assert no_default.available_catalogs == {}
 
 
@@ -1014,6 +1416,61 @@ def test_generic_binder_nested_list_dynamic_update():
     binder.dispose()
 
 
+def test_generic_binder_binds_action_inside_list_item():
+    cat = BasicCatalog("0.9")
+    data_model = DataModel({"card": {"id": "c1"}})
+    comp = ComponentModel(
+        "carousel",
+        "Carousel",
+        cat,
+        {
+            "items": [{
+                "name": "first",
+                "action": {
+                    "event": {
+                        "name": "open_card",
+                        "context": {"cardId": {"path": "/card/id"}},
+                    }
+                },
+            }]
+        },
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    ctx = DataContext(surface, path="/")
+    context = ComponentContext(comp, ctx)
+
+    dispatched_actions: list[dict[str, Any]] = []
+    surface.on_action.subscribe(lambda act: dispatched_actions.append(act))
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "action": {"$ref": "common_types.json#/$defs/Action"},
+                    },
+                },
+            },
+        },
+    }
+    binder = GenericBinder(context, schema=schema)
+
+    item = binder.current_props["items"][0]
+    assert item["name"] == "first"
+    assert callable(item["action"])
+
+    item["action"]()
+    assert len(dispatched_actions) == 1
+    assert dispatched_actions[0]["name"] == "open_card"
+    assert dispatched_actions[0]["context"] == {"cardId": "c1"}
+    assert dispatched_actions[0]["sourceComponentId"] == "carousel"
+    binder.dispose()
+
+
 def test_data_context_resolve_action_resolves_user_message():
     cat = BasicCatalog("0.9")
     data_model = DataModel({"inputMsg": "Hello Agent"})
@@ -1141,7 +1598,9 @@ def test_generic_binder_v10_literal_path_no_setter():
 
 
 def test_adapt_ast_part_for_v10_preserves_arg_names():
-    from a2ui.core.basic_catalog.v1_0.function_impls import _adapt_ast_part_for_v10
+    from a2ui.core.basic_catalog.v1_0.function_impls import (
+        _adapt_ast_part_for_v10,
+    )
 
     part = {
         "call": "myFunction",
@@ -1177,7 +1636,10 @@ def test_generic_binder_binds_catalog_defined_dynamic_defs():
         "$defs": {
             "DynamicDate": {
                 "oneOf": [
-                    {"type": "object", "properties": {"year": {"type": "integer"}}},
+                    {
+                        "type": "object",
+                        "properties": {"year": {"type": "integer"}},
+                    },
                     {"$ref": f"{common_types}#/$defs/DataBinding"},
                     {
                         "allOf": [
@@ -1194,3 +1656,65 @@ def test_generic_binder_binds_catalog_defined_dynamic_defs():
     assert binder.current_props["value"] == {"year": 2024, "month": 5, "day": 1}
     assert callable(binder.current_props.get("setValue"))
     binder.dispose()
+
+
+def _boom(args: dict[str, Any], ctx: Any = None, abort: Any = None) -> Any:
+    raise RuntimeError("boom")
+
+
+def _action_button(
+    action: dict[str, Any],
+) -> tuple[GenericBinder, SurfaceModel]:
+    from a2ui.core.basic_catalog import v1_0
+
+    cat = v1_0.BasicCatalog()
+    cat.functions["boom"] = FunctionImplementation(name="boom", execute=_boom)
+    surface = SurfaceModel("s1", cat)
+    comp = ComponentModel("b1", "Button", cat, {"child": "t", "action": action})
+    return (
+        GenericBinder(ComponentContext(comp, DataContext(surface, "/"))),
+        surface,
+    )
+
+
+def test_generic_binder_action_closure_classifies_local_errors_as_execution():
+    """A local function that raises in an action closure is an EXECUTION_ERROR."""
+    binder, surface = _action_button({"functionCall": {"@call": "boom", "args": {}}})
+    errors: list[dict[str, Any]] = []
+    surface.on_error.subscribe(errors.append)
+
+    assert binder.current_props["action"]() is None
+    assert [e["code"] for e in errors] == ["EXECUTION_ERROR"]
+
+
+def test_event_action_local_error_is_execution_error():
+    binder, surface = _action_button(
+        {
+            "event": {
+                "name": "go",
+                "context": {"x": {"@call": "boom", "args": {}}},
+            }
+        }
+    )
+    errors: list[dict[str, Any]] = []
+    actions: list[dict[str, Any]] = []
+    surface.on_error.subscribe(errors.append)
+    surface.on_action.subscribe(actions.append)
+
+    binder.current_props["action"]()
+    assert [e["code"] for e in errors] == ["EXECUTION_ERROR"]
+    assert actions == []
+
+
+@pytest.mark.asyncio
+async def test_generic_binder_action_closure_returns_no_pending_object():
+    import asyncio
+
+    binder, surface = _action_button(
+        {"functionCall": {"@call": "remoteFn", "args": {}}}
+    )
+    loop = asyncio.get_running_loop()
+    surface.agent_function_caller = lambda call: loop.create_future()
+
+    result = binder.current_props["action"]()
+    assert result is None, "the closure returns the current value, not a signal"

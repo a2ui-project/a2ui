@@ -135,3 +135,11 @@ export class A2uiCompilationValidationError extends A2uiCompilationError {
     this.name = 'A2uiCompilationValidationError';
   }
 }
+
+/** Attaches the parts read before an `A2uiError` to it, and returns the error. */
+export function withPartialResults(e: unknown, parts: ResponsePart[]): unknown {
+  if (e instanceof A2uiError) {
+    (e as A2uiError & {partialResults?: ResponsePart[]}).partialResults = parts;
+  }
+  return e;
+}

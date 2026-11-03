@@ -51,24 +51,30 @@ public struct A2UIText: View {
       .a2uiAccessibilityElement(for: node, children: .combine)
   }
 
+  /// Returns the font for a heading level, used by both the `h1`–`h5` variants and Markdown
+  /// headings.
+  ///
+  /// Headings map to semantic text styles so they scale with Dynamic Type along with body
+  /// text. Levels deeper than 5 use a semibold subheadline.
+  public static func headingFont(level: Int) -> Font {
+    switch level {
+    case 1: return .largeTitle
+    case 2: return .title
+    case 3: return .title2
+    case 4: return .title3
+    case 5: return .headline
+    default: return .subheadline.weight(.semibold)
+    }
+  }
+
   @ViewBuilder
   private func textForVariant(_ text: String, variant: String) -> some View {
     switch variant {
-    case "h1":
+    case "h1", "h2", "h3", "h4", "h5":
+      let level = Int(variant.dropFirst()) ?? 1
       Text(attributedMarkdown(text))
-        .font(.system(size: 32, weight: .bold))
-    case "h2":
-      Text(attributedMarkdown(text))
-        .font(.system(size: 26, weight: .bold))
-    case "h3":
-      Text(attributedMarkdown(text))
-        .font(.system(size: 22, weight: .semibold))
-    case "h4":
-      Text(attributedMarkdown(text))
-        .font(.system(size: 18, weight: .semibold))
-    case "h5":
-      Text(attributedMarkdown(text))
-        .font(.system(size: 16, weight: .medium))
+        .font(Self.headingFont(level: level))
+        .a2uiHeading(level: level)
     case "caption":
       Text(attributedMarkdown(text))
         .font(.caption)
@@ -77,6 +83,28 @@ public struct A2UIText: View {
     default:
       MarkdownBlockView(text: text)
     }
+  }
+}
+
+extension View {
+  /// Marks this view as a heading for assistive technologies, so VoiceOver announces it as one
+  /// and lists it in the headings rotor, like the `<h1>`–`<h5>` elements of the web renderer.
+  ///
+  /// Levels deeper than 6 are reported as level 6, the deepest level SwiftUI supports.
+  fileprivate func a2uiHeading(level: Int) -> some View {
+    let headingLevel: AccessibilityHeadingLevel =
+      switch level {
+      case 1: .h1
+      case 2: .h2
+      case 3: .h3
+      case 4: .h4
+      case 5: .h5
+      default: .h6
+      }
+    return
+      self
+      .accessibilityAddTraits(.isHeader)
+      .accessibilityHeading(headingLevel)
   }
 }
 
@@ -138,18 +166,9 @@ struct MarkdownBlockView: View {
   private func renderBlock(_ block: MarkdownBlock) -> some View {
     switch block {
     case .heading(let level, let hText):
-      let font: Font = {
-        switch level {
-        case 1: return .system(size: 32, weight: .bold)
-        case 2: return .system(size: 26, weight: .bold)
-        case 3: return .system(size: 22, weight: .semibold)
-        case 4: return .system(size: 18, weight: .semibold)
-        case 5: return .system(size: 16, weight: .medium)
-        default: return .system(size: 14, weight: .bold)
-        }
-      }()
       Text(attributedMarkdown(hText))
-        .font(font)
+        .font(A2UIText.headingFont(level: level))
+        .a2uiHeading(level: level)
 
     case .unorderedList(let items):
       VStack(alignment: .leading, spacing: 4) {

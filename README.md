@@ -151,6 +151,48 @@ Use the AG-UI CLI with your framework or harness of choice (Google Chat, ADK, La
 
 For Flutter, check out the [GenUI SDK](https://github.com/flutter/genui), which uses A2UI under the hood. See [docs/public/reference/renderers.md](docs/public/reference/renderers.md) for the full list of client implementations.
 
+## Packages
+
+These packages are developed in this repository. Packages marked "Not published yet" can be used from source.
+
+### Python
+
+| Package                              | Description                                                                                        | Version                                                                                               |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| [a2ui-core](python/a2ui_core/)       | Protocol messages, data model, data binding and catalog validation.                                | [![PyPI](https://img.shields.io/pypi/v/a2ui-core.svg)](https://pypi.org/project/a2ui-core/)           |
+| [a2ui-agent-sdk](python/a2ui_agent/) | Agent SDK: teaches the LLM a catalog and parses its response into A2UI messages.                   | [![PyPI](https://img.shields.io/pypi/v/a2ui-agent-sdk.svg)](https://pypi.org/project/a2ui-agent-sdk/) |
+| [a2ui-a2a](python/a2ui_a2a/)         | Connects the agent SDK to the [Agent-to-Agent (A2A) protocol](https://a2a-protocol.org).           | Not published yet                                                                                     |
+| [a2ui-adk](python/a2ui_adk/)         | Connects the agent SDK to the [Agent Development Kit (ADK)](https://github.com/google/adk-python). | Not published yet                                                                                     |
+
+### TypeScript
+
+| Package                                                | Description                                                                     | Version                                                                                                       |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| [@a2ui/web_core](typescript/core/web_core/)            | Protocol messages, state management and catalogs shared by the web renderers.   | [![npm](https://img.shields.io/npm/v/@a2ui/web_core.svg)](https://www.npmjs.com/package/@a2ui/web_core)       |
+| [@a2ui/lit](typescript/renderers/lit/)                 | Lit (web components) renderer.                                                  | [![npm](https://img.shields.io/npm/v/@a2ui/lit.svg)](https://www.npmjs.com/package/@a2ui/lit)                 |
+| [@a2ui/angular](typescript/renderers/angular/)         | Angular renderer.                                                               | [![npm](https://img.shields.io/npm/v/@a2ui/angular.svg)](https://www.npmjs.com/package/@a2ui/angular)         |
+| [@a2ui/react](typescript/renderers/react/)             | React renderer.                                                                 | [![npm](https://img.shields.io/npm/v/@a2ui/react.svg)](https://www.npmjs.com/package/@a2ui/react)             |
+| [@a2ui/markdown-it](typescript/renderers/markdown-it/) | Markdown rendering with markdown-it and DOMPurify, shared by the web renderers. | [![npm](https://img.shields.io/npm/v/@a2ui/markdown-it.svg)](https://www.npmjs.com/package/@a2ui/markdown-it) |
+| [@a2ui/agent](typescript/agents/a2ui_agent/)           | Agent SDK for TypeScript and Node.js.                                           | Not published yet                                                                                             |
+
+### Dart and Flutter
+
+| Package                            | Description                                                                           | Version                                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| [a2ui_core](dart/a2ui_core/)       | Protocol messages, data model, data binding and expressions for renderers and agents. | [![pub](https://img.shields.io/pub/v/a2ui_core.svg)](https://pub.dev/packages/a2ui_core)   |
+| [a2ui_agent](dart/a2ui_agent/)     | Agent SDK: teaches the LLM a catalog and parses its response into A2UI messages.      | [![pub](https://img.shields.io/pub/v/a2ui_agent.svg)](https://pub.dev/packages/a2ui_agent) |
+| [a2ui_flutter](dart/a2ui_flutter/) | Flutter renderer.                                                                     | Not published yet                                                                          |
+| [a2ui_cli](dart/a2ui_cli/)         | Developer tool that generates typesafe component code from a catalog.                 | Not published yet                                                                          |
+
+### Swift
+
+The Swift libraries are built by the [Package.swift](Package.swift) at the root of this repository.
+
+| Package                                            | Description                                                  | Version           |
+| -------------------------------------------------- | ------------------------------------------------------------ | ----------------- |
+| [A2UISwiftCore, BasicCatalog](swift/core/)         | Message processor, data model and basic catalog definitions. | Not published yet |
+| [A2UISwiftUI, BasicCatalogSwiftUI](swift/swiftui/) | SwiftUI renderer and basic catalog views.                    | Not published yet |
+
 ## Roadmap
 
 We hope to work with the community on the following:

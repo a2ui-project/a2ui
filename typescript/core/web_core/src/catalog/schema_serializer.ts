@@ -19,12 +19,14 @@ import type {z} from 'zod';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
+import {exclusiveUnionOverride} from './exclusive_union.js';
 import {loadedDefinition} from './json_entries.js';
 import {getSpecAnnotation, type JsonSchemaObject} from './spec_annotations.js';
 import {
   DEFAULT_COMMON_TYPES_URI,
   isSpecComponentSchema,
   isSpecFunctionSchema,
+  schemaRequiresArgs,
   SpecShaper,
 } from './spec_shape.js';
 import type {CatalogUnions, ComponentApi, FunctionApi} from './types.js';
@@ -260,10 +262,6 @@ function rewriteRefMarkers(
     return;
   }
 
-  if (Array.isArray(node.anyOf)) {
-    node.oneOf = node.anyOf;
-    delete node.anyOf;
-  }
   for (const key of ['additionalProperties', 'unevaluatedProperties']) {
     const value = node[key];
     if (isObject(value) && Object.keys(value).length === 0) node[key] = true;
@@ -286,6 +284,7 @@ function zodToUnbundledJson(
   const json = zodToJsonSchema(schema, {
     target: 'jsonSchema2019-09',
     $refStrategy: 'none',
+    override: exclusiveUnionOverride,
   }) as JsonObject;
   delete json.definitions;
   delete json.$defs;
@@ -312,6 +311,7 @@ function serializeComponentModel(
   name: string,
   comp: ComponentApi,
   localDefs: ReadonlySet<string>,
+  isAtLeastV10: boolean,
   commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
 ): JsonObject {
   const json = zodToUnbundledJson(comp.schema, localDefs, commonTypesUri);
@@ -324,17 +324,32 @@ function serializeComponentModel(
     ? (json.required as string[]).filter(r => r !== 'component' && r !== 'id')
     : [];
   const extra = json.unevaluatedProperties ?? json.additionalProperties;
+  // From v1.0 the protocol's Component envelope combines the entry with
+  // ComponentCommon in a sibling `allOf` branch under an outer
+  // `unevaluatedProperties: false` (and forbids wrapping ComponentCommon
+  // inside individual component entries), so emitting `false` or a catchall
+  // subschema on the entry itself would apply to ComponentCommon fields.
+  const closure = isAtLeastV10
+    ? extra === true
+      ? true
+      : undefined
+    : typeof extra === 'boolean' || isObject(extra)
+      ? extra
+      : false;
   const result: JsonObject = {
     type: 'object',
     properties: {component: {const: name}, ...props},
     required: ['component', ...required],
-    unevaluatedProperties: typeof extra === 'boolean' || isObject(extra) ? extra : false,
+    ...(closure !== undefined ? {unevaluatedProperties: closure} : {}),
   };
   if (comp.allowedParents && comp.allowedParents.length > 0) {
     result.allowedParents = [...comp.allowedParents];
   }
   if (comp.allowedChildren && comp.allowedChildren.length > 0) {
     result.allowedChildren = [...comp.allowedChildren];
+  }
+  if (comp.metadata !== undefined) {
+    result.metadata = deepCopyJson(comp.metadata);
   }
   return result;
 }
@@ -350,6 +365,7 @@ function serializeFunctionModel(
   isAtLeastV10: boolean,
   asListItem: boolean,
   commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
+  defs?: Readonly<JsonObject>,
 ): JsonObject {
   const args = zodToUnbundledJson(fn.schema, localDefs, commonTypesUri);
   if (asListItem) {
@@ -367,7 +383,7 @@ function serializeFunctionModel(
   closeObjectSchema(args);
   // A call to a function without required parameters may omit `args`, as in
   // the validation schema.
-  const argsRequired = Array.isArray(args.required) && args.required.length > 0;
+  const argsRequired = schemaRequiresArgs(args, defs);
   const result: JsonObject = {type: 'object'};
   if (fn.description) result.description = fn.description;
   if (isAtLeastV10) {
@@ -484,6 +500,9 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
       comp.allowedParents,
       comp.allowedChildren,
     );
+    if (comp.metadata !== undefined) {
+      schema['metadata'] = deepCopyJson(comp.metadata);
+    }
     shapedComponents.set(name, deepFreeze(schema));
     for (const [defName, defModel] of catalogDefs) computedDefs.set(defName, defModel);
   }
@@ -495,9 +514,26 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
     computedDefs.set(defName, defModel);
   }
 
+  const functions = new Map<string, JsonSchemaObject | undefined>();
+  const rawFunctions = new Map<string, FunctionApi>();
+  for (const [name, fn] of catalog.functions) {
+    if (!loadedDefinition(fn) && isSpecFunctionSchema(fn.schema)) {
+      rawFunctions.set(name, fn);
+      // Pre-scan function schema for any referenced catalog $defs models.
+      shaper.toJson(fn.schema, computedDefs);
+    }
+  }
+
   const defs: JsonObject = {...catalog.defs};
-  for (const [defName, defModel] of computedDefs) {
-    if (!(defName in defs)) defs[defName] = shaper.defSchema(defModel);
+  const serializedDefs = new Set<string>();
+  while (
+    [...computedDefs.keys()].some(defName => !serializedDefs.has(defName) && !(defName in defs))
+  ) {
+    for (const [defName, defModel] of [...computedDefs]) {
+      if (serializedDefs.has(defName) || defName in defs) continue;
+      serializedDefs.add(defName);
+      defs[defName] = shaper.defSchema(defModel, computedDefs);
+    }
   }
   const extensionFields: JsonObject = {...catalog.extensionFields};
   if (catalog.themeLocation === 'styles' && catalog.themeSchema && !hasAuthoredTheme(catalog)) {
@@ -509,14 +545,13 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
   for (const [name, comp] of catalog.components) {
     components.set(name, shapedComponents.get(name) ?? entryDefinition(comp, defs));
   }
-  const functions = new Map<string, JsonSchemaObject | undefined>();
   for (const [name, fn] of catalog.functions) {
     const loaded = entryDefinition(fn, defs);
     functions.set(
       name,
       loaded ??
-        (!loadedDefinition(fn) && isSpecFunctionSchema(fn.schema)
-          ? deepFreeze(shaper.functionSchema(name, fn))
+        (rawFunctions.has(name)
+          ? deepFreeze(shaper.functionSchema(name, fn, defs, computedDefs))
           : undefined),
     );
   }
@@ -573,7 +608,7 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
       const definition = model.components.get(name);
       components[name] = definition
         ? deepCopyJson(definition)
-        : serializeComponentModel(name, comp, localDefs, commonTypesUri);
+        : serializeComponentModel(name, comp, localDefs, isAtLeastV10, commonTypesUri);
     }
     doc.components = components;
   }
@@ -590,7 +625,15 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
       const definition = model.functions.get(name);
       return definition && isFunctionListItem(definition)
         ? deepCopyJson(definition)
-        : serializeFunctionModel(name, fn, localDefs, isAtLeastV10, true, commonTypesUri);
+        : serializeFunctionModel(
+            name,
+            fn,
+            localDefs,
+            isAtLeastV10,
+            true,
+            commonTypesUri,
+            model.defs,
+          );
     });
   } else if (catalog.functionsLayout === 'map' || functionEntries.length > 0) {
     const functions: JsonObject = {};
@@ -599,7 +642,15 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
       functions[name] =
         definition && !isFunctionListItem(definition)
           ? deepCopyJson(definition)
-          : serializeFunctionModel(name, fn, localDefs, isAtLeastV10, false, commonTypesUri);
+          : serializeFunctionModel(
+              name,
+              fn,
+              localDefs,
+              isAtLeastV10,
+              false,
+              commonTypesUri,
+              model.defs,
+            );
     }
     doc.functions = functions;
   }

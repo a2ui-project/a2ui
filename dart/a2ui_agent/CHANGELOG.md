@@ -2,18 +2,244 @@
 
 ## Unreleased
 
-- Support cross-catalog `$ref` references across peer catalogs in
-  `resolveCatalogs`, `validatePayloads`, `DirectJsonPromptGenerator` (preserving
-  unbundled external `$ref`s in `Catalog.toJson()` while retaining transitive
-  `common_types.json` definitions), and the Express format (`ExpressPromptGenerator`,
-  `ExpressCompiler`, and `ExpressDecompiler`). Each links copies of the
-  catalogs with `linkCatalogs` and never changes the catalogs it is given:
-  `resolveCatalogs` returns linked copies, linked with every registered
-  catalog as declared and as transformed, and `ExpressCompiler.catalogs` and
-  `ExpressDecompiler.catalogs` hold linked copies. An inline catalog the agent
-  does not accept is linked with nothing.
+- Remove `(Agent to UI)` from the embedded v0.9 `server_to_client.json` and v1.0
+  `agent_to_renderer.json` schema descriptions in `DirectJsonPromptGenerator`
+  ([#1605](https://github.com/a2ui-project/a2ui/pull/1605)).
+- Add incremental streaming support for the Express inference format via
+  `ExpressResponseStream` (`ExpressFormat.supportsStreaming` and
+  `ExpressParser.supportsStreaming` now return `true`). `ExpressFormatFactory`,
+  `ExpressFormat`, and `ExpressParser` accept `progressiveKeys` (defaulting to
+  `defaultExpressProgressiveKeys = {'text'}`) to heal unclosed string literals
+  in matching component properties and data path assignments as chunks arrive,
+  while gating initial `createSurface` emission on `root = ...` for new
+  surfaces, emitting delta `updateComponents` and per-path `updateDataModel`
+  messages on subsequent chunks, and holding statements with unresolved value
+  variables until defined ([#2896](https://github.com/a2ui-project/a2ui/issues/2896)).
+  `surface(...)` also accepts `update=` and `sendDataModel=` keyword arguments
+  to update an existing surface without emitting `createSurface` or to request
+  client data model echoing on surface creation.
+- Breaking: Use `'1.0'` (without a `'v'` prefix) as the `version` field on
+  v1.0 protocol messages and capabilities in `ExpressCompiler`,
+  `ExpressDecompiler`, `DirectJsonParser`, `RendererState`, `resolveCatalogs`,
+  and prompt examples ([#3097](https://github.com/a2ui-project/a2ui/issues/3097),
+  [#3726](https://github.com/a2ui-project/a2ui/pull/3726)).
+- Support the reserved `extensions=` keyword argument on `surface(...)` and component calls in v1.0 A2UI Express (`ExpressCompiler` and `ExpressDecompiler`), compiling to and decompiling from `metadata.extensions` with UAX 31 extension key validation ([#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)).
+
+- Bumped `a2ui_core` constraint to `^0.4.0`.
+
+- Breaking: In `ExpressCompiler`, data path assignments (`$/... = ...`) in
+  scopes that update a surface (scopes without a `root` assignment) now emit one
+  targeted `updateDataModel` message per assigned path at its JSON Pointer
+  `path` instead of folding all assignments into a single root `updateDataModel`
+  with `path: "/"` (which replaced the entire surface data model on the
+  renderer). Surface-creating scopes continue to fold data path assignments into
+  a single root data model and now support list element traversal, canonical
+  numeric-segment list auto-vivification, and full root replacement via
+  `$/ = {...}`. `ExpressDecompiler` now writes standalone `updateDataModel`
+  messages as `{path} = {value}` (`$/ = {...}` at root) so map replacements
+  round-trip without merging into sibling keys, accepts numeric path segments in
+  `updateDataModel` (such as `/items/0`), and sorts map keys when flattening
+  surface-creation data models into leaf assignments.
+- Breaking: when `ResponseStream.feed` or `close` throws an `A2uiError`, the
+  error's `partialResults` holds the parts the call made ready before the
+  failure, and they stay applied to the stream's `RendererState`. Before, a
+  chunk that finished a block and then failed in the next one threw without
+  those parts and rolled them back. Show `error.partialResults` before ending
+  the stream ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- An `A2uiError` that `Parser.parseResponse` throws carries `partialResults`
+  too: the parts before the failing block, or only the text when a tree
+  check fails, since that check spans every block. None of them is applied
+  to the state ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Breaking: `ResponseStream` is now `ResponseReader<ResponsePart>`, and a
+  class that implements it adds `isInBlock`. `ResponsePart` extends the new
+  sealed `StreamPart`. Code that names `ResponseStream` or
+  `DirectJsonResponseStream` compiles unchanged ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `Parser.openContinuingStream` and
+  `A2uiRequestProcessor.openContinuingStream`, which open a
+  `ContinuingResponseStream` (`ResponseReader<StreamPart>`;
+  `DirectJsonContinuingResponseStream` for direct JSON and
+  `ExpressContinuingResponseStream` for Express) that reads past a
+  rejected block. It returns an `ErrorPart` in place of the block, skips the
+  rest of it, and reads the text and blocks after it; the messages the block
+  emitted before it was rejected stay in the state. A block still open when
+  the response ends is returned as an `ErrorPart` too ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `ResponseReader.isInBlock`, which tells whether the response read so
+  far ends inside a block, so a client that joins the chunks of a paused and
+  resumed response can tell whether a space between them could break a block
+  ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `RendererState.of`, a state that checks messages by its own rules and
+  applies them to the `MessageProcessor` an app renders from, for an app that
+  is both agent and renderer. A rollback takes a message back out of the
+  processor's model, a `callRendererFunction` reaches the processor only once
+  the outermost `apply` or transaction it was applied in succeeds, and
+  `dispose` leaves the processor's surfaces to its owner ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `StreamedAnswer`, which reads one streamed answer into a renderer's
+  `MessageProcessor` through `RendererState.of`, reading past rejected blocks,
+  and keeps its `parts` in the order the model wrote them: text
+  (`AnswerTextPart`), one part per surface it creates (`AnswerSurfacePart`),
+  and an `AnswerErrorPart` per rejected block ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Requires the `a2ui_core` release after 0.4.0, whose
+  `MessageProcessor.processMessages` takes a `validationConfig` for one call,
+  which `RendererState.of` uses. The release that publishes this version
+  raises the `a2ui_core` constraint along with that `a2ui_core` release; until
+  then the workspace resolves `a2ui_core` from this repository.
+- Breaking: `Event(...)` in Express no longer accepts the event name as a
+  `name=` keyword argument; pass it positionally, as the TypeScript and Python
+  compilers require. A keyword `Event` does not define now throws
+  `A2uiValidationError`.
+- `ExpressCompiler` accepts `userMessage=` and `context=` keyword arguments on
+  `Event(...)`, compiling `userMessage` to the v1.0 `event.userMessage` field,
+  and throws `A2uiValidationError` for `userMessage` before v1.0 and for any
+  keyword `Event` does not define, where it used to drop them. A function call
+  in an action slot nested inside a list item or object property (such as
+  `items: [{label, action: openUrl(...)}]`) is now compiled as a
+  `functionCall` action. `ExpressDecompiler` writes `userMessage=` back, and
+  `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in
+  rule 8 for v1.0+ catalogs
+  ([#3598](https://github.com/a2ui-project/a2ui/issues/3598),
+  [#3690](https://github.com/a2ui-project/a2ui/issues/3690),
+  [#3867](https://github.com/a2ui-project/a2ui/pull/3867)).
+- `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
+  `ExpressParser.unwrap` remove the backticks left at the edges of a block when
+  a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or
+  `` `<a2ui-json>` ... `</a2ui-json>` ``) and drop text made of nothing but
+  backticks. In one-shot unwrapping (`unwrap` and `parseResponse`), they also
+  recover at most one block closed with a closing tag when the model opened the
+  block with a Markdown code fence or omitted the opening tag;
+  `DirectJsonParser.hasFormatContent` and `ExpressParser.hasFormatContent`
+  delegate to `unwrap` and count recovered blocks as complete format blocks.
+- The Direct JSON and Express compilers strip stray unescaped line breaks inside
+  JSON object keys and identifier/reference properties (`id`, `component`,
+  `child`, `children` items, `surfaceId`, `catalogId`, and `componentId`,
+  leaving user data under `updateDataModel` values and `createSurface.dataModel` untouched), at the edges of
+  single-line Express strings, and inside Express data paths and line-wrapped
+  identifiers (outside strings and comments, when the joined name resolves to
+  a declared variable), accept SQL/Lua-style `--` comments in Express, and map
+  a trailing numeric positional argument across optional enum properties when a
+  component schema declares a single later numeric property.
+- Express `IDENTIFIER` and `CHECK` tokens now follow UAX 31
+  (`[\p{XID_Start}_] [\p{XID_Continue}]*`) rather than ASCII-only letters,
+  digits, and underscores. In `ExpressDecompiler`, non-identifier component ids
+  before protocol v1.0 (such as `title-heading`) and reserved-word component
+  ids in any version (`true`, `false`, `null`, `_`) are written with a derived
+  variable name and `id="..."` so they round-trip through `ExpressCompiler`;
+  from v1.0 onward, component ids that are not valid UAX 31 identifiers throw
+  `A2uiValidationError`.
+- Express number literals follow the grammar of the core `${...}` expression
+  parsers: an optional sign, digits with an optional fraction (`.5`, `1.`) and
+  an optional exponent (`1e6`, `2.5E-7`). A literal outside the double range
+  (`1e999`) throws `A2uiParseError`. `ExpressDecompiler` now writes doubles
+  that need exponent notation (`1e-7`, `1e+21`) instead of throwing, and
+  throws `A2uiValidationError` only for non-finite values
+  ([#3019](https://github.com/a2ui-project/a2ui/issues/3019)).
+- Requires the next release of `a2ui_core`, which adds
+  `SurfaceComponentsModel.insertComponent`, `insertComponents`,
+  `saveReferenceFields` and `restoreReferenceFields` and
+  `SurfaceGroupModel.detachSurface`, and exports
+  `checkPathsAndRecursion` and `checkDuplicateComponentIds`. The release that
+  publishes this version raises the `a2ui_core` constraint to `^0.3.1` along
+  with that `a2ui_core` release; until then the workspace resolves
+  `a2ui_core` from this repository.
+- Breaking: `A2uiGenerator.inferenceFormatFactory` and
+  `A2uiRequestProcessor.formatFactory` default to `ExpressFormatFactory`
+  instead of `DirectJsonFormatFactory`.
+- The Express compiler throws `A2uiValidationError` for a check on a
+  component whose schema declares no `checks`, such as
+  `Text("hi", ?required($/name))`, rather than writing `checks` onto it.
+- Add `RendererState`, the agent's mirror of the surfaces a renderer holds.
+  It wraps one `MessageProcessor` for its whole life and checks each message
+  against everything applied before it, so an agent that keeps one state for
+  a conversation catches a reference to a component no turn sent, a cycle
+  with components from an earlier turn, or a new component that nothing
+  reaches.
+  - `apply` checks messages and applies them. The call is atomic: if a
+    message is rejected, the state is left as it was. An update to a surface
+    the state never saw created is rejected, as a renderer would reject it.
+  - `transaction` makes several calls atomic. Transactions nest: a failed
+    inner transaction undoes only what it applied, and the outer one goes
+    on.
+  - Being atomic costs what the messages change, not the size of the
+    surfaces they touch: the state keeps an undo log of what each message
+    replaced instead of copying a surface, so the time to apply n messages
+    to one surface grows with n. A deleted surface is kept aside until the
+    outermost call ends, so a rollback puts the same surface back. A rollback
+    keeps the order of a surface's components and of the keys of its data
+    model, restores the fields its references are read through, and undoes
+    the whole log even if one step of it fails, rethrowing the error that
+    caused the rollback.
+  - `checkTopology` checks the trees of the given surfaces: the root exists,
+    every reference resolves, and every component added or replaced since
+    the last check is reachable from the root. A component that an update
+    detached, by rewriting its parent's children, is accepted, since the
+    protocol has no message that removes one component.
+  - `markChecked` stops holding the components each surface changed against
+    later `checkTopology` calls. A stream that fails after emitting messages,
+    and a block cut off at the end of a response, mark their surfaces
+    checked: the renderer holds those components and no message removes one,
+    so later turns aren't required to make them reachable. Dangling
+    references and a missing root are still reported.
+  - `dispose` releases the surfaces the state holds.
+- Add `validatePayload`, which checks one payload with no record of earlier
+  ones, such as the argument of a tool call. It runs on a short-lived
+  `RendererState` that assumes a surface the payload only updates exists, and
+  replaces the processor that payload checks built for every call.
+- Breaking: `Parser.parseResponse` and `A2uiRequestProcessor.parseResponse`
+  take an optional `state` and check every message they compile against it.
+  Without one, a call checks the response against a new, empty state, as a
+  chat turn that shows new UI, so an update to a surface the response does
+  not create is rejected; `Parser.parseResponse` accepted it before. A
+  canvas agent keeps one state for the conversation and passes it on every
+  turn. The response is applied to the state all or nothing, and the trees of
+  every surface it touches, including surfaces it only updates, are checked
+  once every block is applied, unless a block is cut off by the end of the
+  response; the components of a cut-off block are marked checked. Express
+  output is checked the same way, which rejects inline child ids that collide
+  with assigned variables and check lists on components that declare none.
+- Breaking: a parser holds no state, so one parser reads every response of a
+  request. `Parser.parseChunk` is removed: open a stream for each response
+  with `parser.openStream(wrapped: ...)`, call `feed(chunk)` for each chunk,
+  and `close()` after the last one. `Parser.openStream` and
+  `A2uiRequestProcessor.openStream` return a `ResponseStream`, and the direct
+  JSON parser a `DirectJsonResponseStream`:
+  - Each message the stream emits is checked against the stream's state and
+    applied to it as it is emitted, so the state mirrors what the renderer
+    received even when the response fails part way.
+  - When a block closes, the trees of the surfaces it touched are checked,
+    which a streamed response skipped before: a component nothing reaches, a
+    dangling reference or a cycle now throws.
+  - Only `updateComponents` and `updateDataModel` are emitted while they grow;
+    any other message, such as `createSurface`, `deleteSurface` or
+    `callRendererFunction`, is held until its object closes, so it is emitted
+    once. A message for a surface that does not exist yet is held back, as a
+    renderer would reject it, and the block throws when it closes.
+  - `close` emits the text held back as a possible tag, throws
+    `A2uiParseError` if a block is still open, and checks the tree of an
+    unwrapped stream.
+  - A stream that throws has ended: `feed` then throws `StateError`, and
+    `close` returns nothing. The messages it emitted stay in its state, and
+    their components are marked checked.
+- Breaking: `Parser.compile` only translates a block into messages. It
+  reports what the notation gets wrong, but `DirectJsonParser.compile` no
+  longer checks components, function calls, themes or catalog ids against the
+  catalogs; `parseResponse(block, wrapped: false)` compiles and checks one
+  block. A `Parser` subclass implements the new `catalogs` getter.
+- The v1.0 schema in the direct JSON prompt no longer says that `createSurface`
+  needs later messages for its components and data. They can be sent inline in
+  `createSurface` or in later `updateComponents` and `updateDataModel` messages.
+  [#3678](https://github.com/a2ui-project/a2ui/pull/3678)
+- `A2uiRequestProcessor` reuses one parser, which its `parser` getter
+  returns. `createState` creates an empty `RendererState` for the active
+  catalogs. A processor can be bound to a state, through its `state`
+  constructor parameter or `A2uiGenerator.createProcessor(..., state: ...)`,
+  so that `parseResponse` and `openStream` use it when a call passes none.
+  A state for other catalogs throws `A2uiCatalogError`.
+  `A2uiRequestProcessor.acceptsState` tells whether a state holds the
+  processor's catalogs, so an agent that keeps a state per conversation can
+  tell when to make a new one.
+  `A2uiRequestProcessor.parseResponse` also takes `wrapped`.
 - `CatalogConfig.transformedCatalog` is computed on first access and then
-  reused, so every request sees the same transformed catalog.
+  reused, so every request sees the same transformed catalog
+  ([#3575](https://github.com/a2ui-project/a2ui/pull/3575)).
 - Implemented protocol v1.0. The SDK reads and writes the protocol version
   that the active catalogs target, rather than always v0.9:
   - `FileSystemCatalogProvider` and `InMemoryCatalogProvider` load documents
@@ -37,9 +263,9 @@
   - The Express prompt explains how to name a catalog, lists the functions
     the agent may call, and carries each catalog's `instructions`.
   - A `callRendererFunction` may call only a function whose `allowedCallers`
-    lets the agent call it and that needs no user activation. `compile`,
-    `parseChunk` and `parseResponse` all check it through `a2ui_core`'s
-    `MessageProcessor.checkRendererFunctionCall`, so a streamed call the
+    lets the agent call it and that needs no user activation. `RendererState`,
+    `openStream`, `parseResponse` and `ExpressCompiler.compile` all check it
+    through `a2ui_core`'s `MessageProcessor.forAgent`, so a streamed call the
     renderer would reject is never emitted.
   - The direct JSON parser holds a streamed v1.0 component back until it
     closes; `bufferIncompleteComponents` applies only before v1.0.
@@ -55,22 +281,18 @@
   Catalogs of v0.9 and v0.9.1, which share message shapes, mix as v0.9, there
   and in `resolveCatalogs`.
 - Payload checks run through `a2ui_core`'s `MessageProcessor.forAgent`.
-- The direct JSON parser emits a streamed message other than
-  `updateComponents` and `updateDataModel` once, after it closes.
-- The direct JSON parser's `parseChunk` reads and checks only what each
-  chunk adds, rather than the whole block so far: a message once it closes,
-  and a growing `updateComponents` for its new components. The time to
-  stream a payload grows with its size rather than with its square:
-  streaming 6.4 KB in 16-byte chunks takes about 0.1 s rather than 1.4 s,
-  and 105 KB about 0.3 s. A message that grows is emitted again with the
-  components it emitted before, as the same objects.
+- `DirectJsonResponseStream` reads and checks only what each chunk adds,
+  rather than the whole block so far: a message once it closes, after which
+  it is not read again, a growing `updateComponents` for its new components,
+  and a growing `updateDataModel` for the lists and maps its value gains,
+  with the value applied once it closes. The time to stream a payload grows
+  with its size rather than with its square: streaming 6.4 KB in 16-byte
+  chunks takes about 0.1 s rather than 1.4 s, and 105 KB about 0.3 s. A
+  message that grows is emitted again with the components it emitted
+  before, as the same objects.
 - The Express decompiler rejects a check condition with extra fields rather
   than dropping them.
 - The Express prompt gives each function's description.
-- Direct JSON `compile` checks each surface the payload creates whole: no
-  message before its `createSurface`, no missing or unreachable component,
-  and no cycle. `parseChunk` may emit a block's messages before these checks
-  reject the block.
 - A streamed string cut inside an escaped surrogate pair is cut before the
   pair rather than healed with U+FFFD.
 - The Express compiler rejects an inline component whose id another
@@ -110,10 +332,12 @@
   Express component signatures (after component-specific properties) so
   positional arguments map to component properties while supporting common
   properties via keyword arguments; previously they were omitted.
-- `A2uiRequestProcessor` checks each example as one render: a surface may
-  arrive across several `updateComponents` messages of the example, and must
-  have a root, resolved references and every component reachable from the
-  root once the whole example is applied. Undeclared component types,
+- `A2uiRequestProcessor` checks each example with `validatePayload`, as one
+  render: a surface the example creates may arrive across several
+  `updateComponents` messages, and must have a root, resolved references and
+  every component reachable from the root once the whole example is applied.
+  An example may also update a surface it does not create, which is assumed
+  to exist; such an example was rejected before. Undeclared component types,
   duplicate ids, cycles and malformed data-model paths are still rejected per
   message.
 - `DirectJsonParser`, `DirectJsonFormat` and `DirectJsonFormatFactory` take
@@ -121,6 +345,9 @@
   emitted only once its JSON object closes, as v1.0 requires, and progressive
   keys heal only values outside components. It is false by default, which keeps
   the v0.9 behavior of healing a component while it streams.
+- `DirectJsonParser` rejects a number out of the range of a double, such as
+  `1e400`, with `A2uiParseError`. A streamed response used to throw a
+  `JsonUnsupportedObjectError` for it.
 - The Direct JSON message reader and the Express decompiler continue to
   reject a `createSurface` message without a `catalogId` with
   `A2uiValidationError`. The check moved into the agent SDK now that
@@ -143,6 +370,10 @@
   as part of a string or comment.
 - An Express integer too large for `int` compiles to a double instead of
   throwing `FormatException`.
+- The Direct JSON prompt rule says the JSON part is a JSON array of A2UI
+  messages, each following the schema, instead of "a single, raw JSON object
+  (usually a list of A2UI messages)" that "MUST validate" against it
+  ([#3721](https://github.com/a2ui-project/a2ui/pull/3721)).
 
 ## 0.0.1-wip005
 

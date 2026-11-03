@@ -60,20 +60,13 @@ void main() {
 /// v1.0 streaming cases that rely on what v0.9 cannot state: a component
 /// naming its own catalog, or a `createSurface` carrying components and a
 /// data model, which only lowering a whole payload can split.
-const Set<String> _v1OnlyStreamingCases = {
+const Set<String> _v1OnlyCases = {
+  'test_compile_json_newline_in_create_surface_data_model_preserved',
   'test_stream_create_surface_inline_components_v10',
   'test_stream_create_surface_inline_components_in_small_chunks_v10',
   'test_stream_multi_catalog_resolution_v10',
   'test_stream_component_catalog_id_arrives_late_v10',
   'test_stream_catalog_id_split_across_chunks_v10',
-};
-
-/// Streaming cases that state a rule of v1.0 alone, which a v0.9 parser
-/// does not follow, so they run as written in v1.0 only.
-const Map<String, String> _v1StreamingRules = {
-  'test_stream_component_without_catalog_uses_surface_catalog_v10':
-      'Raising on the chunk that closes an invalid component is a v1.0 rule; '
-      'before v1.0 the error is raised when the block closes.',
 };
 
 /// Whether the catalogs of [testCase] target v1.0, as most cases' do.
@@ -90,11 +83,8 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
     return 'This SDK does not implement v0.8.';
   }
   if (version == SuiteVersion.v0_9) {
-    if (_v1OnlyStreamingCases.contains(testCase['name'])) {
-      return 'v0.9 cannot state what the case streams.';
-    }
-    if (_v1StreamingRules[testCase['name']] case final String reason) {
-      return reason;
+    if (_v1OnlyCases.contains(testCase['name'])) {
+      return 'v0.9 cannot state what the case carries.';
     }
     if (testCase['action'] == 'generate_prompt_snippet') {
       return 'The snippet embeds the schemas of the catalogs\' version, so '
@@ -166,6 +156,11 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       return format.createParser().wrap(
         rawParts(testCase['parts']! as List<Object?>),
       );
+    case 'has_format_content':
+      return format.createParser().hasFormatContent(
+        testCase['input']! as String,
+        complete: args['complete'] as bool? ?? false,
+      );
     case 'unwrap':
       // Unwrapping keeps the payload as written, so it is not lowered.
       return [
@@ -176,7 +171,7 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       ];
     case 'compile':
       return version.messagesJson(
-        format.createParser().compile(input!),
+        compileChecked(format.createParser(), input!),
         injectedCatalogId: catalogId,
       );
     case 'decompile':
@@ -196,12 +191,17 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
   }
 }
 
-/// Feeds the steps of a `parse_chunk` case to one parser, checking what each
-/// yields, and then the whole response to another parser in one call when
-/// the case asks.
+/// Feeds the steps of a `parse_chunk` case to one stream, checking what each
+/// yields, whether the stream is then inside a block, and the partial results
+/// of a step that fails. Then checks what closing the stream yields, and
+/// parses the whole response with a new parser in one call when the case
+/// asks.
+///
+/// A case with `after_rejected_block: continue` reads through
+/// [Parser.openContinuingStream].
 ///
 /// A case whose catalog declares v0.9 is written in that version, so its
-/// chunks and what the parser yields are compared as they are, without
+/// chunks and what the stream yields are compared as they are, without
 /// lowering or lifting.
 void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
@@ -210,9 +210,19 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
       ? SuiteVersion.v1_0
       : version;
   final String? catalogId = written.injectedCatalog(testCase);
-  List<Object?> lift(List<ResponsePart> parts) =>
+  List<Object?> lift(List<StreamPart> parts) =>
       written.partsJson(parts, injectedCatalogId: catalogId);
   final Parser parser = _format(testCase, version).createParser();
+  final ResponseReader<StreamPart> stream =
+      args['after_rejected_block'] == 'continue'
+      ? parser.openContinuingStream(wrapped: wrapped)
+      : parser.openStream(wrapped: wrapped);
+  void expectInBlock(Map<String, Object?> step, int i) {
+    if (step['expect_in_block'] case final bool inBlock) {
+      expect(stream.isInBlock, inBlock, reason: 'step $i: in block');
+    }
+  }
+
   final chunks = <String>[];
   final yielded = <Object?>[];
   for (final (int i, Object? step)
@@ -224,30 +234,72 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
     );
     chunks.add(chunk);
     if (stepCase['expect_error'] case final Object error) {
+      A2uiError? thrown;
       expectThrowsCategory(
-        () => parser.parseChunk(chunk, wrapped: wrapped),
+        () {
+          try {
+            stream.feed(chunk);
+          } on A2uiError catch (e) {
+            thrown = e;
+            rethrow;
+          }
+        },
         error,
         reason: 'step $i',
       );
+      if (stepCase['expect_partial_results'] case final Object partial) {
+        expect(
+          lift(thrown!.partialResults),
+          partial,
+          reason: 'step $i: partial results',
+        );
+      }
+      expectInBlock(stepCase, i);
       return;
     }
-    final List<Object?> parts = lift(
-      parser.parseChunk(chunk, wrapped: wrapped),
-    );
+    final List<Object?> parts = lift(stream.feed(chunk));
     expect(parts, stepCase['expect'], reason: 'step $i: ${stepCase['input']}');
+    expectInBlock(stepCase, i);
     yielded.addAll(parts);
   }
+  final List<Object?> closed = lift(stream.close());
+  if (testCase['expect_close'] case final Object expected) {
+    expect(closed, expected, reason: 'close');
+  }
+  yielded.addAll(closed);
   if (testCase['expect_matches_single_shot'] == true) {
     expect(
-      lift(
-        _format(
-          testCase,
-          version,
-        ).createParser().parseResponse(chunks.join(), wrapped: wrapped),
+      _mergeAdjacentText(yielded),
+      _mergeAdjacentText(
+        lift(
+          _format(
+            testCase,
+            version,
+          ).createParser().parseResponse(chunks.join(), wrapped: wrapped),
+        ),
       ),
-      yielded,
     );
   }
+}
+
+List<Object?> _mergeAdjacentText(List<Object?> parts) {
+  final merged = <Object?>[];
+  for (final part in parts) {
+    if (merged.isNotEmpty &&
+        merged.last is Map<String, Object?> &&
+        part is Map<String, Object?> &&
+        (merged.last as Map<String, Object?>).containsKey('text') &&
+        part.containsKey('text')) {
+      final lastMap = Map<String, Object?>.from(
+        merged.last as Map<String, Object?>,
+      );
+      lastMap['text'] = '${lastMap['text']}${part['text']}';
+      merged[merged.length - 1] = lastMap;
+    } else {
+      merged.add(part);
+    }
+  }
+  return merged;
 }
 
 void _checkWrapped(
@@ -283,10 +335,10 @@ void _checkDecompiled(
     expect(output, contains(text));
   }
   if (testCase['expect_round_trip'] == true) {
-    final List<AgentToRendererMessage> recompiled = _format(
-      testCase,
-      version,
-    ).createParser().compile(output);
+    final List<AgentToRendererMessage> recompiled = compileChecked(
+      _format(testCase, version).createParser(),
+      output,
+    );
     expect(
       version.messagesJson(recompiled),
       testCase['messages'],

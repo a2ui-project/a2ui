@@ -33,15 +33,24 @@ extension BasicCatalogImplementation {
 /// SwiftUI component view for the A2UI Basic Catalog `Video` component.
 public struct A2UIVideo: View {
   public let node: Node
-  @State private var player: AVPlayer?
+  @StateObject private var model: A2UIVideoPlayerModel
   @State private var isShowingPoster: Bool = true
 
-  public init(node: Node) {
+  public init(
+    node: Node,
+    model: @autoclosure @escaping () -> A2UIVideoPlayerModel = A2UIVideoPlayerModel()
+  ) {
     self.node = node
+    self._model = StateObject(wrappedValue: model())
   }
 
   private var urlString: String {
     node.string(for: "url") ?? ""
+  }
+
+  private var resolvedURL: URL? {
+    guard !urlString.isEmpty else { return nil }
+    return URL(string: urlString)
   }
 
   /// The optional poster image URL string resolved from the `posterUrl` property.
@@ -51,7 +60,7 @@ public struct A2UIVideo: View {
 
   public var body: some View {
     Group {
-      if let player {
+      if let player = model.player {
         ZStack {
           VideoPlayer(player: player)
             .frame(minHeight: 220)
@@ -103,34 +112,14 @@ public struct A2UIVideo: View {
       }
     }
     .onAppear {
-      updatePlayer()
+      model.load(url: resolvedURL)
     }
-    .onChange(of: urlString) { _ in
+    .onChange(of: urlString) {
       isShowingPoster = true
-      updatePlayer()
-    }
-    .onChange(of: posterURLString) { _ in
-      isShowingPoster = true
+      model.load(url: resolvedURL)
     }
     .onDisappear {
-      player?.pause()
-      player = nil
+      model.cleanUp()
     }
-  }
-
-  private func updatePlayer() {
-    guard let url = URL(string: urlString), !urlString.isEmpty else {
-      player?.pause()
-      player = nil
-      return
-    }
-    if let currentItem = player?.currentItem,
-      let asset = currentItem.asset as? AVURLAsset,
-      asset.url == url
-    {
-      return
-    }
-    player?.pause()
-    player = AVPlayer(url: url)
   }
 }

@@ -48,9 +48,17 @@ export {
   type RawResponsePart,
   type A2uiPart,
   type ResponsePart,
+  type ErrorPart,
+  type StreamPart,
 } from './parser/response-part.js';
 
-export {Parser} from './parser/parser.js';
+export {
+  type ContinuingStreamOptions,
+  type ParseOptions,
+  type StreamOptions,
+  Parser,
+} from './parser/parser.js';
+export {type ResponseStream} from './parser/response-stream.js';
 
 export {PromptGenerator} from './prompt/generator.js';
 
@@ -74,15 +82,24 @@ export {CatalogConfig} from './processor/catalog-config.js';
 
 export {resolveCatalogs} from './utils/catalog-resolver.js';
 
+// Renderer state and payload validation
+export {RendererState} from './utils/renderer-state.js';
+export {validatePayload} from './utils/validation.js';
+
+// The surface model of web_core. Re-exported because `RendererState.getSurface` returns it.
+export type {SurfaceModel} from './internal/web-core.js';
+
 // Direct JSON inference format
-export {DirectJsonFormat, DirectJsonFormatFactory} from './inference-formats/direct-json/format.js';
-export {DirectJsonParser} from './inference-formats/direct-json/parser.js';
-export type {
-  DirectJsonStreamProcessorFactory,
-  DirectJsonStreamProcessorOptions,
-  DirectJsonStreamProcessor,
-} from './inference-formats/direct-json/streaming-types.js';
-export {DirectJsonStreamProcessorImpl} from './inference-formats/direct-json/streaming.js';
+export {
+  type DirectJsonFormatOptions,
+  DirectJsonFormat,
+  DirectJsonFormatFactory,
+} from './inference-formats/direct-json/format.js';
+export {
+  type DirectJsonParserOptions,
+  DirectJsonParser,
+} from './inference-formats/direct-json/parser.js';
+export {DirectJsonResponseStream} from './inference-formats/direct-json/response-stream.js';
 export {DirectJsonPromptGenerator} from './inference-formats/direct-json/prompt-generator.js';
 export type {DirectJsonExamples} from './inference-formats/direct-json/prompt-generator.js';
 export {DirectJsonDecompiler} from './inference-formats/direct-json/decompiler.js';
@@ -90,10 +107,17 @@ export {DirectJsonDecompiler} from './inference-formats/direct-json/decompiler.j
 // Express inference format
 export {
   type ExpressFormatOptions,
+  type ExpressFormatFactoryOptions,
   ExpressFormat,
   ExpressFormatFactory,
 } from './inference-formats/express/format.js';
-export {ExpressParser} from './inference-formats/express/parser.js';
+export {type ExpressParserOptions, ExpressParser} from './inference-formats/express/parser.js';
+export {
+  DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
+  type ExpressStreamOptions,
+  type ExpressStreamSource,
+  ExpressResponseStream,
+} from './inference-formats/express/response-stream.js';
 export {ExpressPromptGenerator} from './inference-formats/express/prompt-generator.js';
 export {ExpressDecompiler} from './inference-formats/express/decompiler.js';
 export {
@@ -112,10 +136,28 @@ export {
   ExpressDuplicateParamError,
   ExpressForbiddenDatabindingError,
   ExpressIdCollisionError,
-  ExpressInvalidIdentifierError,
   ExpressUnknownCatalogError,
 } from './inference-formats/express/errors.js';
 
 // Facades
 export {A2uiGenerator} from './processor/generator.js';
-export {A2uiRequestProcessor} from './processor/processor.js';
+export {type A2uiRequestProcessorOptions, A2uiRequestProcessor} from './processor/processor.js';
+export {
+  type AnswerPart,
+  type AnswerSurfacePart,
+  type AnswerTextPart,
+  type StreamedAnswerOptions,
+  StreamedAnswer,
+} from './processor/streamed-answer.js';
+
+// Skill generator
+export {
+  type GenerateCatalogSkillOptions,
+  type GenerateCoreSkillOptions,
+  type GenerateSkillOptions,
+  type GenerateSkillSetOptions,
+  type SkillOptions,
+  Skill,
+  SkillGenerator,
+  SkillSet,
+} from './skill/index.js';

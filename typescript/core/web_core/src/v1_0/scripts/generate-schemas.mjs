@@ -47,6 +47,7 @@ function generateCommonTypes() {
   let commonTs =
     getHeader(VERSION_TAG, SCRIPT_SOURCE) +
     "import {z} from 'zod';\n" +
+    "import {isValidUax31Identifier} from '../../common/uax31.js';\n" +
     "import {markChildRef} from '../../types/child-ref-helpers.js';\n\n";
 
   const defKeys = [
@@ -157,7 +158,7 @@ export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;`;
   .record(z.string(), z.unknown())
   .superRefine((value, ctx) => {
     for (const key in value) {
-      if (!key.match(/^[\\p{XID_Start}_][\\p{XID_Continue}:-]*$/u)) {
+      if (!isValidUax31Identifier(key)) {
         ctx.addIssue({
           path: [key],
           code: z.ZodIssueCode.custom,
@@ -247,6 +248,49 @@ function generateCatalogDefinition({pureCommonNames, helperNames}) {
       );
     }
 
+    if (name === 'LeafDefinition') {
+      // json-schema-to-zod drops required: ['const'] on an object without properties
+      // and loses array "contains" inside "not".
+      code = code.replace(
+        /z\.object\(\{\s*["']component["']:\s*z\.record\(z\.string\(\),\s*z\.any\(\)\)\s*\}\)/,
+        "z.object({'component': z.record(z.string(), z.any()).refine(c => 'const' in c)})",
+      );
+      code = code.replace(
+        /z\.object\(\{\s*["']allOf["']:\s*z\.array\(z\.any\(\)\)\s*\}\)/,
+        `z.object({
+          'allOf': z.array(z.any()).refine(
+            arr =>
+              arr.some(
+                item =>
+                  Boolean(
+                    item &&
+                      typeof item === 'object' &&
+                      'properties' in item &&
+                      item.properties &&
+                      typeof item.properties === 'object' &&
+                      'component' in item.properties &&
+                      item.properties.component &&
+                      typeof item.properties.component === 'object' &&
+                      'const' in item.properties.component,
+                  ),
+              ),
+            'Contains component schema',
+          ),
+        })`,
+      );
+    }
+
+    if (name === 'ComponentDefinition') {
+      // json-schema-to-zod ignores root-level "not" when combined with allOf/properties.
+      code = code.replace(
+        '.describe("Describes a component\'s validation schema and composition constraints.")',
+        `.refine(
+          val => !('anyOf' in val) && !('oneOf' in val),
+          'ComponentDefinition must not have root-level anyOf or oneOf.',
+        ).describe("Describes a component's validation schema and composition constraints.")`,
+      );
+    }
+
     code += `\nexport type ${name}Input = z.input<typeof ${name}Schema>;`;
     bodyCode += code + '\n\n';
   }
@@ -333,7 +377,7 @@ function generateOutgoingMessageSchemas({pureCommonNames, helperNames}) {
     const objSchema = {
       type: 'object',
       properties: {
-        version: {const: 'v1.0'},
+        version: {const: '1.0'},
         [msgProp]: propDef,
       },
       required: ['version', msgProp],
@@ -373,7 +417,7 @@ function generateOutgoingMessageSchemas({pureCommonNames, helperNames}) {
  */
 function generateCapabilitiesSchemas() {
   const rcJson = JSON.parse(readFileSync(join(specDir, 'renderer_capabilities.json'), 'utf8'));
-  const v10Props = rcJson.properties['v1.0'];
+  const v10Props = rcJson.properties['1.0'];
   let v10Code = compileDefToZod(v10Props, 'V10RendererCapabilities');
   v10Code = v10Code.replace(/\.passthrough\(\)/g, '.strict()');
 
