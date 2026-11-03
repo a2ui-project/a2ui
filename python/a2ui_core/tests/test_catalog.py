@@ -198,11 +198,12 @@ def test_additional_properties_handling_with_models():
         )
 
 
-@pytest.mark.skip(
+@pytest.mark.xfail(
+    strict=True,
     reason=(
         "PayloadValidator checks model components with Pydantic model_validate,"
         " which ignores json_schema_extra={'unevaluatedProperties': False}."
-    )
+    ),
 )
 def test_unevaluated_properties_handling_with_models():
     class DefaultBox(BaseModel):

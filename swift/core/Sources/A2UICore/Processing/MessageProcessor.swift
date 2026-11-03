@@ -172,7 +172,11 @@ public final class MessageProcessor: ObservableObject {
     /// If true, full definitions of all catalogs will be included as inline catalogs.
     public var includeInlineCatalogs: Bool
 
-    /// Optional JSON Schema `$ref` used as the base envelope for inline component schemas.
+    /// Optional JSON Schema `$ref` used as the base envelope for inline component schemas
+    /// before v1.0. Defaults to `common_types.json#/$defs/ComponentCommon`.
+    ///
+    /// v1.0 inline catalogs ignore it: v1.0 composes `ComponentCommon` in the message envelope,
+    /// so catalog components must not wrap it again.
     public var componentEnvelopeRef: String?
 
     /// Creates a capabilities option instance with explicit protocol versions.
@@ -180,7 +184,8 @@ public final class MessageProcessor: ObservableObject {
     /// - Parameters:
     ///   - versions: Protocol versions to generate capabilities for (must not be empty).
     ///   - includeInlineCatalogs: Whether to include inline catalog definitions.
-    ///   - componentEnvelopeRef: Optional JSON Schema `$ref` for component envelopes.
+    ///   - componentEnvelopeRef: Optional JSON Schema `$ref` for component envelopes before
+    ///     v1.0.
     public init(
       versions: [A2UIProtocolVersion],
       includeInlineCatalogs: Bool = false,
@@ -196,7 +201,8 @@ public final class MessageProcessor: ObservableObject {
     /// - Parameters:
     ///   - protocolVersion: The `A2UIProtocolVersion` enum case.
     ///   - includeInlineCatalogs: Whether to include inline catalog definitions.
-    ///   - componentEnvelopeRef: Optional JSON Schema `$ref` for component envelopes.
+    ///   - componentEnvelopeRef: Optional JSON Schema `$ref` for component envelopes before
+    ///     v1.0.
     public init(
       protocolVersion: A2UIProtocolVersion,
       includeInlineCatalogs: Bool = false,
@@ -254,7 +260,11 @@ public final class MessageProcessor: ObservableObject {
   ) -> JSONValue {
     let envelopeRef =
       options.componentEnvelopeRef ?? "common_types.json#/$defs/ComponentCommon"
-    let componentsDictionary = generateInlineComponents(catalog, envelopeRef: envelopeRef)
+    let componentsDictionary = generateInlineComponents(
+      catalog,
+      version: version,
+      envelopeRef: envelopeRef
+    )
 
     var catalogDictionary: OrderedDictionary<String, JSONValue> = [:]
     if version.isAtLeastV10 {
@@ -271,7 +281,10 @@ public final class MessageProcessor: ObservableObject {
 
     if !catalog.functions.isEmpty {
       if version.isAtLeastV10 {
-        catalogDictionary["functions"] = .object(generateV10InlineFunctions(catalog))
+        let functionsDictionary = generateV10InlineFunctions(catalog)
+        if !functionsDictionary.isEmpty {
+          catalogDictionary["functions"] = .object(functionsDictionary)
+        }
       } else {
         catalogDictionary["functions"] = .array(generateV09InlineFunctions(catalog))
       }
@@ -288,6 +301,7 @@ public final class MessageProcessor: ObservableObject {
 
   private func generateInlineComponents(
     _ catalog: AnyCatalog,
+    version: A2UIProtocolVersion,
     envelopeRef: String
   ) -> OrderedDictionary<String, JSONValue> {
     var componentsDictionary: OrderedDictionary<String, JSONValue> = [:]
@@ -296,6 +310,7 @@ public final class MessageProcessor: ObservableObject {
       componentsDictionary[name] = buildInlineComponentSchema(
         name: name,
         componentAPI: componentAPI,
+        version: version,
         envelopeRef: envelopeRef
       )
     }
@@ -305,6 +320,7 @@ public final class MessageProcessor: ObservableObject {
   private func buildInlineComponentSchema(
     name: String,
     componentAPI: AnyComponentAPI,
+    version: A2UIProtocolVersion,
     envelopeRef: String
   ) -> JSONValue {
     let schemaJSON = schemaToJSONValue(componentAPI.schema) ?? .object([:])
@@ -326,6 +342,33 @@ public final class MessageProcessor: ObservableObject {
       }
     }
 
+    // v1.0 composes ComponentCommon in the message envelope (`agent_to_renderer.json`), so
+    // its catalog components are plain schemas. Before v1.0, each component carries it.
+    if version.isAtLeastV10 {
+      var componentSchema: OrderedDictionary<String, JSONValue> = [
+        "type": .string("object")
+      ]
+      if let description = processedSchema["description"]?.stringValue {
+        componentSchema["description"] = .string(description)
+      }
+      componentSchema["properties"] = .object(properties)
+      componentSchema["required"] = .array(required)
+      // `JSONSchema.Schema` drops these A2UI keywords, so they come from the component API.
+      if let allowedParents = componentAPI.allowedParents {
+        componentSchema["allowedParents"] = .array(allowedParents.map { .string($0) })
+      }
+      if let allowedChildren = componentAPI.allowedChildren {
+        componentSchema["allowedChildren"] = .array(allowedChildren.map { .string($0) })
+      }
+      if let metadata = componentAPI.metadata {
+        var orderedMetadata: OrderedDictionary<String, JSONValue> = [:]
+        for key in metadata.keys.sorted() {
+          orderedMetadata[key] = metadata[key]
+        }
+        componentSchema["metadata"] = .object(orderedMetadata)
+      }
+      return .object(componentSchema)
+    }
     return .object([
       "allOf": .array([
         .object(["$ref": .string(envelopeRef)]),
@@ -341,7 +384,9 @@ public final class MessageProcessor: ObservableObject {
     _ catalog: AnyCatalog
   ) -> OrderedDictionary<String, JSONValue> {
     var functionsDict: OrderedDictionary<String, JSONValue> = [:]
-    for key in catalog.functions.keys.sorted() {
+    // The `@` namespace is reserved for system functions such as `@index`, which every v1.0
+    // catalog provides and no catalog may declare.
+    for key in catalog.functions.keys.sorted() where !key.hasPrefix("@") {
       guard let functionImplementation = catalog.functions[key] else { continue }
       let functionAPI = functionImplementation.api
       functionsDict[functionAPI.name] = buildV10InlineFunction(functionAPI)

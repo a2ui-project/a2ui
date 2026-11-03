@@ -26,6 +26,7 @@ import {computed, isSignal, getValue, Signal} from '../reactivity/signals.js';
 import {createFunctionImplementation, FunctionImplementation} from '../catalog/types.js';
 import {A2uiExpressionError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
+import {withoutAgentRouting} from '../resolution/data-context-internal.js';
 import {isAtLeastVersion} from './semver.js';
 import {isSafeRegex} from '../v0_9/basic_catalog/functions/safe_regex.js';
 
@@ -454,12 +455,16 @@ export function executeFormatString(
     context.surface?.protocolVersion ?? context.surface?.defaultCatalog?.protocolVersion,
     '1.0',
   );
+  // A template part never waits for the agent: from v1.0, a part that calls
+  // a function the renderer does not implement fails with an
+  // `EXPRESSION_ERROR` naming it, sends nothing, and renders empty.
+  const partContext = atLeastV10 ? withoutAgentRouting(context) : context;
   const dynamicParts = parts.map(part => {
     if (typeof part !== 'object' || part === null || Array.isArray(part)) {
       return part;
     }
     const adapted = atLeastV10 ? adaptAstPartForV10(part) : part;
-    return context.resolveSignal(adapted);
+    return partContext.resolveSignal(adapted);
   });
 
   return computed(() => {
