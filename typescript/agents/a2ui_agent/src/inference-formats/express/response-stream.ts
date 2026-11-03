@@ -263,7 +263,7 @@ export function cleanExpressPayload(block: string, end: number): string | undefi
   if (stripped.startsWith('```') && !stripped.includes('\n')) {
     return undefined;
   }
-  const withoutLeading = text.replace(LEADING_FENCE_RE, '');
+  const withoutLeading = text.replace(LEADING_FENCE_RE, '').replace(/^`+/, '').trimStart();
   return withoutLeading.replace(TRAILING_FENCE_RE, '');
 }
 
@@ -1036,10 +1036,11 @@ export class ExpressResponseStream<
     let models: AgentToRendererMessage[] = [];
     this.state.transaction(() => {
       if (!this.session.hasEmitted && this.initialSurfaces.size === 0) {
+        const trimmed = payload.trim();
         try {
-          models = this.parser.compile(payload, true);
+          models = this.parser.compile(trimmed, true);
         } catch (e) {
-          throw wrapExpressCompilationError(e, payload);
+          throw wrapExpressCompilationError(e, trimmed);
         }
         this.apply(models);
       } else {
@@ -1067,7 +1068,7 @@ export class ExpressResponseStream<
         cachePrefix,
       });
     } catch (e) {
-      throw wrapExpressCompilationError(e, source);
+      throw wrapExpressCompilationError(e, source.trim());
     }
   }
 
