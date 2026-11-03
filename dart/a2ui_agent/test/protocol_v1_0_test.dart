@@ -1056,21 +1056,13 @@ void main() {
       expect(parser.compile(block), [isA<CallRendererFunctionMessage>()]);
     });
 
-    test('has no notation for a renderer call on a surface, a response to '
-        "the renderer's call, or surface metadata", () {
+    test('has no notation for a renderer call on a surface or a response to '
+        "the renderer's call", () {
       final decompiler = ExpressDecompiler([basic]);
       for (final Map<String, Object?> body in [
         callRendererFunction('formatString', {'value': 'Hi'}, surfaceId: 's'),
         {
           'agentFunctionResponse': {'functionCallId': 'call_1', 'value': 1},
-        },
-        {
-          'createSurface': {
-            ...helloSurface['createSurface']! as Map<String, Object?>,
-            'metadata': {
-              'extensions': {'theme': 'dark'},
-            },
-          },
         },
       ]) {
         expect(
@@ -1079,6 +1071,26 @@ void main() {
           reason: '$body',
         );
       }
+    });
+
+    test('round-trips surface metadata through extensions={...}', () {
+      final parser = ExpressParser([basic]);
+      final AgentToRendererMessage withMetadata = message({
+        'createSurface': {
+          ...helloSurface['createSurface']! as Map<String, Object?>,
+          'metadata': {
+            'extensions': {'theme': 'dark'},
+          },
+        },
+      });
+      final String block = parser.decompile([withMetadata]);
+      expect(
+        block,
+        'surface("s", extensions={theme: "dark"})\nroot = Text("Hello")',
+      );
+      expect(parser.compile(block).map((m) => m.toJson()).toList(), [
+        withMetadata.toJson(),
+      ]);
     });
 
     test('teaches the functions the agent may call on their own', () {
@@ -1353,6 +1365,68 @@ void main() {
         contains(
           'Only these functions can be called this way: '
           '`percent`.',
+        ),
+      );
+    });
+
+    test('waits for a forward-referenced surface(extensions=...) variable and '
+        'rejects extensions on non-creating scopes when streaming', () {
+      final parser = ExpressParser([basic]);
+      final ResponseStream stream = parser.openStream();
+      expect(
+        stream.feed(
+          '<a2ui>\nsurface("s1", extensions=ext)\nroot = Text("Hello")\n',
+        ),
+        isEmpty,
+      );
+      final List<ResponsePart> parts = stream.feed(
+        'ext = {surfaceTheme: "dark"}\n</a2ui>',
+      );
+      expect(parts, hasLength(1));
+      final create =
+          (parts.single as A2uiPart).a2ui.single as CreateSurfaceMessage;
+      expect(create.metadata, {
+        'extensions': {'surfaceTheme': 'dark'},
+      });
+      expect(stream.close(), isEmpty);
+
+      final state = RendererState([basic]);
+      final ResponseStream seed = parser.openStream(state: state);
+      seed.feed('<a2ui>\nsurface("s1")\nroot = Text("Initial")\n</a2ui>');
+      expect(seed.close(), isEmpty);
+
+      final ResponseStream updateWithoutRoot = parser.openStream(state: state);
+      expect(
+        updateWithoutRoot.feed(
+          '<a2ui>\nsurface("s1", extensions={surfaceTheme: "dark"})\n'
+          'c1 = Text("Updated")\n',
+        ),
+        isEmpty,
+      );
+      expect(
+        () => updateWithoutRoot.feed('</a2ui>'),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('surface-creating scope'),
+          ),
+        ),
+      );
+
+      final ResponseStream explicitUpdate = parser.openStream(state: state);
+      expect(
+        () => explicitUpdate.feed(
+          '<a2ui>\n'
+          'surface("s1", update=true, extensions={surfaceTheme: "dark"})\n'
+          'c1 = Text("Updated")\n</a2ui>',
+        ),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('surface() with update=true does not accept extensions'),
+          ),
         ),
       );
     });

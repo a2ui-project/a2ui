@@ -384,6 +384,7 @@ class NodeResolver<T extends ComponentApi> {
           NodeState.unknownType,
           type: model.type,
           occurrence: occurrence,
+          metadata: computed(() => model.metadataSignal.value),
         ),
         edgeKey: edgeKey,
         parent: parent,
@@ -408,6 +409,7 @@ class NodeResolver<T extends ComponentApi> {
           NodeState.unknownType,
           type: model.type,
           occurrence: occurrence,
+          metadata: computed(() => model.metadataSignal.value),
         ),
         edgeKey: edgeKey,
         parent: parent,
@@ -436,6 +438,8 @@ class NodeResolver<T extends ComponentApi> {
         dataPath,
         const {},
         api,
+        NodeState.resolved,
+        computed(() => model.metadataSignal.value),
       )..context = context,
       edgeKey: edgeKey,
       parent: parent,
@@ -495,6 +499,7 @@ class NodeResolver<T extends ComponentApi> {
     NodeState state, {
     String type = placeholderType,
     int occurrence = 1,
+    ReadonlySignal<Map<String, Object?>?>? metadata,
   }) {
     return MutableComponentNode<T>(
       _instanceIdFor(componentId, dataPath, occurrence),
@@ -504,6 +509,7 @@ class NodeResolver<T extends ComponentApi> {
       const {},
       null,
       state,
+      metadata,
     );
   }
 

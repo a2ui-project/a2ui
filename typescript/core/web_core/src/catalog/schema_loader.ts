@@ -16,6 +16,7 @@
 
 import {z} from 'zod';
 
+import {validateMetadata} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {assertUax31Identifier} from '../common/uax31.js';
 import {A2uiCatalogError} from '../errors.js';
@@ -594,7 +595,10 @@ function convertPropertiesToShape(
       defCache,
     );
     if (!requiredSet.has(propName)) {
-      shape[propName] = zodField.optional();
+      // A property with a `default` already accepts a missing value, and
+      // `optional()` would skip the default. Leaving it unwrapped applies the
+      // default on parse, as a `.default()` in a catalog defined in code does.
+      shape[propName] = zodField instanceof z.ZodDefault ? zodField : zodField.optional();
     } else if (zodField.safeParse(undefined).success) {
       // A schema that accepts any value, such as `{}`, also accepts a missing
       // key, which `required` rules out.
@@ -1153,6 +1157,14 @@ function parseCatalogComponents(
             propName,
             `property identifier: '${propName}' in component '${name}'`,
           );
+        }
+      }
+      const rawMeta = rawComp.metadata;
+      if (rawMeta !== undefined) {
+        try {
+          validateMetadata(rawMeta);
+        } catch (err) {
+          throw new A2uiCatalogError(err instanceof Error ? err.message : String(err));
         }
       }
     }

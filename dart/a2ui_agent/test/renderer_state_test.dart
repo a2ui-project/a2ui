@@ -1192,7 +1192,9 @@ void main() {
             surfaceId: 's',
             catalogId: BasicCatalog.v1_0Id,
             metadata: {
-              'm': {1: 'one'},
+              'extensions': {
+                'm': {1: 'one'},
+              },
             },
           ),
         ]);
@@ -1205,7 +1207,9 @@ void main() {
         throwsStateError,
       );
       expect(state.getSurface('s')!.metadata, {
-        'm': {1: 'one'},
+        'extensions': {
+          'm': {1: 'one'},
+        },
       });
     });
 

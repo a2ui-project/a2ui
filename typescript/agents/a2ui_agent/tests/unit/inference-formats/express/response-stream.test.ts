@@ -432,4 +432,45 @@ describe('ExpressResponseStream unit tests', () => {
       expect(coalesceText(streamBySize(parser, response, size))).toEqual(expected);
     }
   });
+
+  it('defers createSurface until a forward-referenced surface(extensions=...) variable arrives', () => {
+    const parser = new ExpressParser([v10Catalog]);
+    const stream = parser.openStream();
+    expect(stream.feed('<a2ui>\nsurface("s1", extensions=ext)\nroot = Text("Hello")\n')).toEqual(
+      [],
+    );
+    expect(stream.feed('ext = {surfaceTheme: "dark"}\n</a2ui>')).toEqual([
+      {
+        type: 'a2ui',
+        a2ui: [
+          {
+            version: '1.0',
+            createSurface: {
+              surfaceId: 's1',
+              catalogId: v10Catalog.id,
+              components: [{id: 'root', component: 'Text', text: 'Hello'}],
+              metadata: {extensions: {surfaceTheme: 'dark'}},
+            },
+          },
+        ],
+      },
+    ]);
+    expect(stream.close()).toEqual([]);
+  });
+
+  it('rejects surface(extensions=...) on a non-creating scope when streaming an existing surface', () => {
+    const parser = new ExpressParser([v10Catalog]);
+    const state = new RendererState([v10Catalog]);
+    const seedStream = parser.openStream({state});
+    seedStream.feed('<a2ui>\nsurface("s1")\nroot = Text("Initial")\n</a2ui>');
+    expect(seedStream.close()).toEqual([]);
+
+    const updateStream = parser.openStream({state});
+    expect(
+      updateStream.feed(
+        '<a2ui>\nsurface("s1", extensions={surfaceTheme: "dark"})\nc1 = Text("Updated")\n',
+      ),
+    ).toEqual([]);
+    expect(() => updateStream.feed('</a2ui>')).toThrow(/surface-creating scope/);
+  });
 });

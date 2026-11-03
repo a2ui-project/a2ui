@@ -39,15 +39,22 @@ class NodeView extends StatefulWidget {
 }
 
 class _NodeViewState extends State<NodeView> with SignalState {
-  late void Function() _unsubscribe;
+  late void Function() _unsubscribeProps;
   final List<void Function()> _accessibilityUnsubscribes = [];
+  void Function()? _disposeBuildEffect;
 
   void _subscribe() {
-    _unsubscribe = listenAfterFirst(widget.node.props, (_) {
+    _unsubscribeProps = listenAfterFirst(widget.node.props, (_) {
       _subscribeAccessibility();
       signalChanged();
     });
     _subscribeAccessibility();
+  }
+
+  void _unsubscribe() {
+    _unsubscribeProps();
+    _disposeBuildEffect?.call();
+    _disposeBuildEffect = null;
   }
 
   void _subscribeAccessibility() {
@@ -102,13 +109,23 @@ class _NodeViewState extends State<NodeView> with SignalState {
 
   @override
   Widget build(BuildContext context) {
+    _disposeBuildEffect?.call();
+    _disposeBuildEffect = null;
     final ComponentNode<ComponentImplementation> node = widget.node;
-    return switch (node.state) {
-      NodeState.resolved => _buildResolved(context, node),
-      NodeState.pending ||
-      NodeState.unknownType ||
-      NodeState.cyclic => const SizedBox.shrink(),
-    };
+    if (node.state != NodeState.resolved) {
+      return const SizedBox.shrink();
+    }
+    late final Widget built;
+    var isInitialBuild = true;
+    _disposeBuildEffect = effect(() {
+      if (isInitialBuild) {
+        built = _buildResolved(context, node);
+        isInitialBuild = false;
+      } else {
+        signalChanged();
+      }
+    });
+    return built;
   }
 }
 

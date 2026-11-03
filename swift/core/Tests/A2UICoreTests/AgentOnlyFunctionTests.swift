@@ -112,7 +112,7 @@ struct AgentOnlyFunctionTests {
     }
     #expect(error.code == "EXPRESSION_ERROR")
     #expect(error.expression == "agentOnly")
-    #expect(error.message.contains("not allowed"))
+    #expect(error.message.contains("cannot be called by renderer"))
   }
 
   @Test(arguments: ["label", "checks", "onClick"])

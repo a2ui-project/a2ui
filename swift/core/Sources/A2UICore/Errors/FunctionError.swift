@@ -23,6 +23,8 @@ public enum FunctionError: Error, Sendable, Equatable, CustomStringConvertible, 
   case executionFailed(name: String, message: String)
   case timeout(callID: String)
   case cancelled(callID: String)
+  /// The pending calls of a surface were cancelled, such as when the surface was deleted.
+  case surfaceCallsCancelled(surfaceID: String)
   case disposed(callID: String)
   case duplicate(callID: String)
   case noListener(name: String)
@@ -42,7 +44,7 @@ public enum FunctionError: Error, Sendable, Equatable, CustomStringConvertible, 
       return "EXECUTION_ERROR"
     case .timeout:
       return "TIMEOUT"
-    case .cancelled:
+    case .cancelled, .surfaceCallsCancelled:
       return "CANCELLED"
     case .disposed:
       return "DISPOSED"
@@ -71,6 +73,8 @@ public enum FunctionError: Error, Sendable, Equatable, CustomStringConvertible, 
       return "Function call timed out: \(callID)"
     case .cancelled(let callID):
       return "Function call cancelled: \(callID)"
+    case .surfaceCallsCancelled(let surfaceID):
+      return "Pending calls for surface '\(surfaceID)' were cancelled."
     case .disposed(let callID):
       return "Function call disposed: \(callID)"
     case .duplicate(let callID):
@@ -78,7 +82,7 @@ public enum FunctionError: Error, Sendable, Equatable, CustomStringConvertible, 
     case .noListener(let name):
       return "No outbound listener registered to invoke function '\(name)'"
     case .callerDisallowed(let name, let caller):
-      return "Caller '\(caller)' is not allowed to invoke function '\(name)'"
+      return "Function '\(name)' cannot be called by \(caller)"
     case .remoteError(let code, let message):
       return "Remote function error (\(code)): \(message)"
     }

@@ -348,7 +348,7 @@ class GenericBinder:
         self.listeners: set[Callable[[dict[str, Any]], None]] = set()
         self.current_props: dict[str, Any] = {}
         self.comp_unsub: Callable[[], None] | None = None
-        self._action_closures: dict[str, tuple[Any, Callable[[], Any]]] = {}
+        self._action_closures: dict[str, tuple[Any, Callable[..., Any]]] = {}
 
         resolved_schema = schema
         cat = context.component_model.catalog
@@ -378,9 +378,19 @@ class GenericBinder:
         sub = self.context.component_model.on_updated.subscribe(
             lambda _: self._rebuild_all_bindings()
         )
-        self.comp_unsub = lambda: sub.unsubscribe()
+        self.comp_unsub = sub.unsubscribe
 
         self._rebuild_all_bindings()
+
+    @property
+    def metadata(self) -> dict[str, Any] | None:
+        """Returns the component's metadata object (defensive copy), or None."""
+        return self.context.metadata
+
+    @property
+    def extensions(self) -> dict[str, Any] | None:
+        """Returns the component's metadata extensions dictionary (defensive copy), or None."""
+        return self.context.extensions
 
     @property
     def snapshot(self) -> dict[str, Any]:
@@ -593,13 +603,13 @@ class GenericBinder:
             bound.unsubscribe()
         return bound.value
 
-    def _bind_action(self, value: Any, path: list[str]) -> Callable[[], Any]:
+    def _bind_action(self, value: Any, path: list[str]) -> Callable[..., Any]:
         cache_key = "/".join(path)
         cached = self._action_closures.get(cache_key)
         if cached is not None and cached[0] == value:
             return cached[1]
 
-        def closure() -> Any:
+        def closure(metadata: dict[str, Any] | None = None) -> Any:
             if isinstance(value, dict):
                 fc = (
                     value["functionCall"]
@@ -608,9 +618,16 @@ class GenericBinder:
                 )
                 call_name = fc.get("@call") or fc.get("call")
                 if isinstance(call_name, str):
-                    return self.context.data_context.resolve_dynamic_value(fc)
+                    # Runs as an action: a local function that raises is an
+                    # EXECUTION_ERROR, and user activation applies. The
+                    # closure returns the result's current value, None while
+                    # an agent function's answer is pending.
+                    result = self.context.data_context.resolve_action(value)
+                    if hasattr(result, "subscribe") and callable(result.subscribe):
+                        return result.peek() if hasattr(result, "peek") else None
+                    return result
             resolved = self.context.data_context.resolve_action(value)
-            return self.context.dispatch_action(resolved)
+            return self.context.dispatch_action(resolved, metadata=metadata)
 
         self._action_closures[cache_key] = (value, closure)
         return closure
@@ -656,9 +673,11 @@ class GenericBinder:
 
     @staticmethod
     def _compute_validation_summary(
-        rule_results: list[dict[str, Any]],
+        rule_results: list[dict[str, Any] | None],
     ) -> tuple[bool, list[str], list[dict[str, Any]], dict[str, Any]]:
-        failed_rules = [r for r in rule_results if not r["valid"]]
+        # A rule whose condition waits for an agent call (None) does not
+        # fail while it is pending.
+        failed_rules = [r for r in rule_results if r is not None and not r["valid"]]
         error_rules = [r for r in failed_rules if r.get("severity", "error") == "error"]
         is_valid = len(error_rules) == 0
         validation_errors = [r["message"] for r in error_rules if r.get("message")]
@@ -680,7 +699,7 @@ class GenericBinder:
         is_sync: bool,
     ) -> Any:
         rules = value if isinstance(value, list) else []
-        rule_results: list[dict[str, Any]] = [
+        rule_results: list[dict[str, Any] | None] = [
             {"valid": True, "message": "", "severity": "error"} for _ in rules
         ]
         parent_path = path[:-1]
@@ -723,28 +742,35 @@ class GenericBinder:
             # the rule message is only the fallback.
             explicit_msg = None if self._is_path_bound(condition) else rule_msg
             fallback_msg = rule_msg or "Validation failed"
-            rule_results[idx]["message"] = fallback_msg
 
-            def make_on_change(
+            def rule_result(
+                state: Any, exp_msg: str | None, fb_msg: str
+            ) -> dict[str, Any] | None:
+                # A condition waiting for an agent call has no result yet.
+                # Once the call settles the rule is evaluated; a call that
+                # failed leaves the condition None, which fails the rule.
+                if state.pending:
+                    return None
+                return self._process_rule_val(state.value, exp_msg, fb_msg)
+
+            def make_on_state(
                 i: int, exp_msg: str | None, fb_msg: str
-            ) -> Callable[[Any], None]:
-                def on_change(new_val: Any) -> None:
-                    rule_results[i] = self._process_rule_val(new_val, exp_msg, fb_msg)
+            ) -> Callable[[Any, bool], None]:
+                def on_state(state: Any, _value_changed: bool) -> None:
+                    rule_results[i] = rule_result(state, exp_msg, fb_msg)
                     _apply_validation_state(reactive=True)
 
-                return on_change
+                return on_state
 
-            bound = self.context.data_context.subscribe_dynamic_value(
-                condition, make_on_change(idx, explicit_msg, fallback_msg)
+            bound = self.context.data_context.subscribe_dynamic_state(
+                condition, make_on_state(idx, explicit_msg, fallback_msg)
             )
             if not is_sync:
                 self.data_listeners.append(bound)
             else:
                 bound.unsubscribe()
 
-            rule_results[idx] = self._process_rule_val(
-                bound.value, explicit_msg, fallback_msg
-            )
+            rule_results[idx] = rule_result(bound.value, explicit_msg, fallback_msg)
 
         _apply_validation_state(reactive=False)
         return value

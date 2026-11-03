@@ -71,6 +71,29 @@ _ID_KEY = "id"
 _FUNCTION_CALL_ID_KEY = "functionCallId"
 _SEND_DATA_MODEL_KEY = "sendDataModel"
 _UPDATE_KEY = "update"
+_EXTENSIONS_KEY = "extensions"
+
+
+def _validate_extensions(
+    extensions: Any, target: str, ctx: "_CompileContext"
+) -> dict[str, Any]:
+    """Validates an `extensions=` keyword argument on a surface or component."""
+    if not ctx.at_least_v10:
+        raise ExpressValidationError(
+            f"{target} sets extensions, which needs A2UI v1.0 or later"
+            f" (target version is {ctx.version})."
+        )
+    if not isinstance(extensions, dict):
+        raise ExpressValidationError(
+            f"{target} extensions must be a map, got: {extensions!r}"
+        )
+    for key in extensions:
+        if not isinstance(key, str) or not is_valid_uax31_identifier(key):
+            raise ExpressValidationError(
+                f"{target} extension key {key!r} is not a valid UAX 31 identifier."
+            )
+    return extensions
+
 
 # Keyword arguments accepted by the reserved `Event(...)` signature.
 _EVENT_KEYWORDS = ("userMessage", "context")
@@ -632,6 +655,7 @@ class _SurfaceScope:
     has_surface_directive: bool = False
     send_data_model: bool | None = None
     is_update: bool = False
+    extensions: Any = None
     raw_symbols: dict[str, Any] = field(default_factory=dict)
     data_path_assignments: dict[str, Any] = field(default_factory=dict)
 
@@ -867,7 +891,7 @@ class ExpressScopeSession:
         statements = self._parse_incremental_statements(
             dsl_text, is_final=is_final, cache_prefix=cache_prefix
         )
-        units = self.compiler._build_units(statements, self.surface_id)
+        units = self.compiler._build_units(statements, self.surface_id, ctx)
         if not units:
             if is_final:
                 raise ExpressUndefinedRootError("root")
@@ -950,7 +974,7 @@ class ExpressScopeSession:
         needs_create = (
             not scope.is_update
             and not state.surface_created
-            and (not surface_exists or has_root)
+            and (not surface_exists or has_root or scope.extensions is not None)
         )
         if needs_create:
             return self._compile_initial_create(
@@ -981,6 +1005,11 @@ class ExpressScopeSession:
         if not has_root:
             if not is_final:
                 return []
+            if scope.extensions is not None:
+                raise ExpressValidationError(
+                    "surface() extensions require a surface-creating scope with a"
+                    " root component."
+                )
             if compiled_data and not compiled_components:
                 return self._compile_incremental_updates(
                     scope,
@@ -996,14 +1025,21 @@ class ExpressScopeSession:
         data_model: dict[str, Any] = {}
         for path_name, val in compiled_data.items():
             _set_nested_path(data_model, path_name, val)
+        try:
+            messages = self.compiler._build_create_messages(
+                scope, compiled_components, data_model, ctx
+            )
+        except _PendingVariableError:
+            if not is_final:
+                return []
+            raise
+        for path_name, val in compiled_data.items():
             state.emitted_data_paths[path_name] = val
         for comp in compiled_components:
             state.emitted_components[comp["id"]] = comp
         state.surface_created = True
         self.has_emitted = True
-        return self.compiler._build_create_messages(
-            scope, compiled_components, data_model, ctx
-        )
+        return messages
 
     def _compile_incremental_updates(
         self,
@@ -1459,7 +1495,7 @@ class ExpressCompiler:
                 f" {target_version}."
             )
         statements = self._parse_statements(dsl_text, is_final)
-        units = self._build_units(statements, surface_id)
+        units = self._build_units(statements, surface_id, ctx)
         if not units:
             raise ExpressUndefinedRootError("root")
 
@@ -1478,7 +1514,7 @@ class ExpressCompiler:
         return to_message_models(result_messages)
 
     def _build_units(
-        self, statements: list[Any], surface_id: str
+        self, statements: list[Any], surface_id: str, ctx: _CompileContext
     ) -> list[_SurfaceScope | _DeleteSurface | _StandaloneCall]:
         """Groups parsed AST statements into surface scopes, deletes, and standalone calls."""
         units: list[_SurfaceScope | _DeleteSurface | _StandaloneCall] = []
@@ -1495,6 +1531,7 @@ class ExpressCompiler:
                     current_scope = self._open_scope(
                         parsed_val,
                         default_surface_id=surface_id,
+                        ctx=ctx,
                     )
                     units.append(current_scope)
                 elif name == _DELETE_SURFACE_STATEMENT:
@@ -1542,6 +1579,7 @@ class ExpressCompiler:
         node: CallNode,
         *,
         default_surface_id: str,
+        ctx: _CompileContext,
     ) -> _SurfaceScope:
         """Opens the scope of a `surface(...)` statement.
 
@@ -1567,11 +1605,24 @@ class ExpressCompiler:
                 f"{_UPDATE_KEY} must be true or false, got:"
                 f" {statement}({_UPDATE_KEY}={is_update!r})"
             )
+        extensions = None
+        if _EXTENSIONS_KEY in node.kwargs:
+            if not ctx.at_least_v10:
+                raise ExpressValidationError(
+                    f"{statement}() sets extensions, which needs A2UI v1.0 or later"
+                    f" (target version is {ctx.version})."
+                )
+            if is_update:
+                raise ExpressValidationError(
+                    f"{statement}() with update=true does not accept extensions."
+                )
+            extensions = node.kwargs[_EXTENSIONS_KEY]
         return _SurfaceScope(
             surface_id=target_surf,
             has_surface_directive=True,
             send_data_model=send_data_model,
             is_update=bool(is_update),
+            extensions=extensions,
         )
 
     def _seed_scope_component_ids(
@@ -1617,6 +1668,11 @@ class ExpressCompiler:
         )
 
         if not is_create:
+            if scope.extensions is not None:
+                raise ExpressValidationError(
+                    "surface() extensions require a surface-creating scope with a"
+                    " root component."
+                )
             data_updates = []
             for path_name, ast_val in scope.data_path_assignments.items():
                 pointer = _to_json_pointer(path_name)
@@ -1658,6 +1714,89 @@ class ExpressCompiler:
 
         return self._build_create_messages(scope, compiled_components, data_model, ctx)
 
+    def _resolve_ast_var(
+        self,
+        node: Any,
+        raw_symbols: dict[str, Any],
+        ctx: _CompileContext,
+        seen: set[str],
+    ) -> Any:
+        cur = node
+        while isinstance(cur, VariableNode):
+            name = cur.name
+            ctx.referenced_vars.add(name)
+            if name in seen:
+                raise ExpressValidationError(f"Variable '{name}' refers to itself.")
+            if name not in raw_symbols:
+                if ctx.allow_pending:
+                    raise _PendingVariableError(name)
+                raise ExpressValidationError(
+                    f"Undefined variable '{name}' in {ctx.version} expression."
+                )
+            seen.add(name)
+            cur = raw_symbols[name]
+        return cur
+
+    def _check_extensions_ast(
+        self,
+        node: Any,
+        raw_symbols: dict[str, Any],
+        target: str,
+        ctx: _CompileContext,
+        seen: set[str],
+    ) -> None:
+        resolved = self._resolve_ast_var(node, raw_symbols, ctx, set(seen))
+        if isinstance(resolved, dict):
+            for v in resolved.values():
+                self._check_extensions_ast(v, raw_symbols, target, ctx, seen)
+        elif isinstance(resolved, list):
+            for item in resolved:
+                self._check_extensions_ast(item, raw_symbols, target, ctx, seen)
+        elif isinstance(resolved, CallNode):
+            cat_id = resolved.kwargs.get("catalogId")
+            if self._defines_component(resolved.name, cat_id):
+                raise ExpressValidationError(
+                    f"{target} extensions cannot contain component '{resolved.name}'."
+                )
+            if (
+                resolved.name
+                in (
+                    "Event",
+                    "_template",
+                    _SURFACE_STATEMENT,
+                    _DELETE_SURFACE_STATEMENT,
+                )
+                and cat_id is None
+            ):
+                raise ExpressValidationError(
+                    f"{target} extensions cannot contain '{resolved.name}()'."
+                )
+            for arg in resolved.args:
+                self._check_extensions_ast(arg, raw_symbols, target, ctx, seen)
+            for kw_val in resolved.kwargs.values():
+                self._check_extensions_ast(kw_val, raw_symbols, target, ctx, seen)
+
+    def _compile_extensions(
+        self,
+        raw_ext: Any,
+        raw_symbols: dict[str, Any],
+        target: str,
+        ctx: _CompileContext,
+    ) -> dict[str, Any]:
+        if not ctx.at_least_v10:
+            raise ExpressValidationError(
+                f"{target} sets extensions, which needs A2UI v1.0 or later"
+                f" (target version is {ctx.version})."
+            )
+        top = self._resolve_ast_var(raw_ext, raw_symbols, ctx, set())
+        if not isinstance(top, dict):
+            raise ExpressValidationError(
+                f"{target} extensions must be a map, got: {top!r}"
+            )
+        self._check_extensions_ast(top, raw_symbols, target, ctx, set())
+        compiled_ext = self._compile_value(raw_ext, raw_symbols, ctx)
+        return _validate_extensions(compiled_ext, target, ctx)
+
     def _build_create_messages(
         self,
         scope: _SurfaceScope,
@@ -1673,6 +1812,11 @@ class ExpressCompiler:
             create["catalogId"] = cat_id
         if scope.send_data_model is not None:
             create[_SEND_DATA_MODEL_KEY] = scope.send_data_model
+        if scope.extensions is not None:
+            compiled_ext = self._compile_extensions(
+                scope.extensions, scope.raw_symbols, "surface()", ctx
+            )
+            create["metadata"] = {"extensions": compiled_ext}
         if ctx.at_least_v10:
             create["components"] = compiled_components
             if data_model:
@@ -1804,9 +1948,19 @@ class ExpressCompiler:
         properties = comp_helper.get_component_properties(comp_name)
         comp_id = _component_id(var_name, ast, at_least_v10=ctx.at_least_v10)
         kwargs.pop(_ID_KEY, None)
+        raw_extensions = (
+            kwargs.pop(_EXTENSIONS_KEY, None)
+            if _EXTENSIONS_KEY not in properties
+            else None
+        )
         comp_dict: dict[str, Any] = {"id": comp_id, "component": comp_name}
         if write_cat_id is not None:
             comp_dict["catalogId"] = write_cat_id
+        if raw_extensions is not None:
+            compiled_ext = self._compile_extensions(
+                raw_extensions, raw_symbols, f"Component '{comp_name}'", ctx
+            )
+            comp_dict["metadata"] = {"extensions": compiled_ext}
 
         sibling_value_path = None
         non_check_properties = [p for p in properties if p != "checks"]

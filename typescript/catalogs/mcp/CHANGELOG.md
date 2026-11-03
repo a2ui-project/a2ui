@@ -1,8 +1,17 @@
 ## Unreleased
 
+## 0.0.2
+
+- **BREAKING CHANGE**: `callMcpTool` returns a payload with `toolName`, `toolInput`, `toolResult`, `structuredContent`, `text` and `json` instead of the raw `CallToolResult`, and writes it to `targetDataPath` when set, where the latest call to a path wins. Recommended migration: read the raw result from the `toolResult` field of the returned payload. [#3728](https://github.com/a2ui-project/a2ui/pull/3728)
+- The `transformData` (standard JMESPath) data function shapes the `callMcpTool` payload into data model updates, and `split` and `regexCapture` turn text results into records, with patterns limited to a portable regular expression subset. Their `*Api` and `*Implementation` are exported for hosts that register functions one by one. [#3736](https://github.com/a2ui-project/a2ui/pull/3736), [#3574](https://github.com/a2ui-project/a2ui/pull/3574)
+- The shared sandbox proxy resets the inner iframe's `sandbox` to the default flags when a resource omits `sandbox`, instead of keeping the previous resource's flags, and keeps host-provided flags as is on `url` resources; `allow-same-origin` is still dropped for inline HTML. [#3432](https://github.com/a2ui-project/a2ui/issues/3432)
+
+## 0.0.1-alpha.2
+
 - Emit `'1.0'` as `version` on synthesized `createSurface` and `updateComponents` messages in `callMcpTool` when creating a standalone MCP App surface, matching the unified v1.0 protocol version wire format. [#3097](https://github.com/a2ui-project/a2ui/issues/3097)
 - The published package contains only the runtime build output; test files and TypeScript build info are no longer included. [#3348](https://github.com/a2ui-project/a2ui/pull/3348)
 - **BREAKING CHANGE**: Hosts set up the catalog once with `configureMcpCatalog`; `createCallMcpToolImplementation`, `CallMcpToolApi` and `A2UI_MIME_TYPE` are removed and `MCP_CATALOG_ID` now identifies the v1.0 catalog (`catalogs/mcp/v1/catalog.json`, bundled as `@a2ui/catalog-mcp/catalog.json`). `callMcpTool` now hands `ui://` MCP App resources to the host. [#3186](https://github.com/a2ui-project/a2ui/pull/3186)
+- The `updateDataModel` data function writes key-value pairs to the surface data model; its `UpdateDataModelApi` and `UpdateDataModelImplementation` are exported for hosts that register functions one by one. [#3573](https://github.com/a2ui-project/a2ui/pull/3573)
 - Add `mcpCatalog`, the v1.0 MCP catalog with the `McpApp` universal component (`A2uiMcpApp`) and `callMcpTool`, ready to hand to a `MessageProcessor`. `McpApp` renders an MCP App in the shared sandbox, binds host data through `data.paths` and dispatches the tools it is allowed to call as A2UI actions. [#2799](https://github.com/a2ui-project/a2ui/pull/2799)
 
 ## 0.0.1-alpha.1

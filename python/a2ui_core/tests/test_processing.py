@@ -315,7 +315,7 @@ async def test_message_processor_call_renderer_function_async_coroutine():
     assert resp[0]["rendererFunctionResponse"]["functionCallId"] == "async_call_1"
 
 
-def test_message_processor_disposal_cancels_pending_calls(mock_catalog):
+def test_rpc_handler_disposal_cancels_pending_calls(mock_catalog):
     from a2ui.core.exceptions import A2uiRpcError, RpcErrorCode
 
     options = MessageProcessorOptions(outbound_listener=lambda msg: None)
@@ -1122,3 +1122,62 @@ def test_v10_merged_errors_keep_distinct_component_errors():
     message = str(excinfo.value)
     assert message.count("'1bad'") == 1
     assert "'text' is a required property" in message
+
+
+def test_v10_message_processor_surface_and_component_metadata():
+    processor, _ = _v10_generated_basic_and_custom_processor()
+    processor.process_messages([{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s_meta",
+            "catalogId": (
+                "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            ),
+            "metadata": {"extensions": {"surfaceExt": {"v": 1}}},
+            "components": [{
+                "id": "root",
+                "component": "Text",
+                "text": "Hello",
+                "metadata": {"extensions": {"compExt": True}},
+            }],
+        },
+    }])
+    surface = processor.model.get_surface("s_meta")
+    assert surface is not None
+    assert surface.metadata == {"extensions": {"surfaceExt": {"v": 1}}}
+    root = surface.components_model.get("root")
+    assert root is not None
+    assert root.metadata == {"extensions": {"compExt": True}}
+    assert "metadata" not in root.properties
+
+    meta_events: list[Any] = []
+    root.on_metadata_changed.subscribe(lambda m: meta_events.append(m))
+
+    processor.process_messages([{
+        "version": "1.0",
+        "updateComponents": {
+            "surfaceId": "s_meta",
+            "components": [{
+                "id": "root",
+                "component": "Text",
+                "text": "Hello",
+                "metadata": {"extensions": {"compExt": False}},
+            }],
+        },
+    }])
+    assert root.metadata == {"extensions": {"compExt": False}}
+    assert meta_events == [{"extensions": {"compExt": False}}]
+
+    with pytest.raises(A2uiValidationError):
+        processor.process_messages([{
+            "version": "1.0",
+            "updateComponents": {
+                "surfaceId": "s_meta",
+                "components": [{
+                    "id": "root",
+                    "component": "Text",
+                    "text": "Hello",
+                    "metadata": {"extensions": {"invalid-key": 1}},
+                }],
+            },
+        }])

@@ -16,6 +16,7 @@ import A2UICore
 import A2UIJSON
 import Foundation
 import JSONSchema
+import Observation
 import OrderedJSON
 import Testing
 
@@ -1073,6 +1074,253 @@ struct NodeResolverTests {
       handler.capturedActions.first?.identity
         == .event(name: "send", context: [:], userMessage: "Updated draft")
     )
+  }
+
+  @Test func nodeMetadataRecoversAndUpdatesInPlaceWithoutReResolvingTree() throws {
+    let buttonSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "type": "string" },
+            "label": { "type": "string" },
+            "action": { "$ref": "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/Action" }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "cat",
+      protocolVersion: "1.0",
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
+    )
+    let handler = ExpressionErrorCaptureHandler()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Button",
+          properties: [
+            "label": .string("Submit"),
+            "action": .object([
+              "event": .object(["name": .string("submit")]),
+              "metadata": .object([
+                "extensions": .object(["baseExt": .integer(1)])
+              ]),
+            ]),
+          ],
+          metadata: ["extensions": .object(["badge": .string("new")])]
+        )
+      ]
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel(),
+      actionHandler: handler,
+      protocolVersion: .v10
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(root.extensions == ["badge": .string("new")])
+    #expect(resolver.lastResolvedNodeCount == 1)
+
+    try componentsModel.setExtension("badge", value: .string("updated"), forComponentID: "root")
+    let updatedRoot = try #require(resolver.resolveTree())
+    #expect(updatedRoot.box === root.box)
+    #expect(updatedRoot.extensions == ["badge": .string("updated")])
+    #expect(resolver.lastResolvedNodeCount == 0)
+
+    let action = try #require(updatedRoot.action(for: "action"))
+    try action(metadata: ["extensions": .object(["callExt": .integer(2)])])
+    #expect(handler.capturedActions.count == 1)
+    #expect(
+      MetadataValidator.areEqual(
+        handler.capturedActions.first?.metadata,
+        [
+          "extensions": .object([
+            "baseExt": .integer(1),
+            "callExt": .integer(2),
+          ])
+        ]
+      )
+    )
+    #expect(throws: A2UIValidationError.self) {
+      try action(metadata: ["extensions": .object(["invalid-key": .integer(1)])])
+    }
+  }
+
+  @Test func observationTrackingFiresOnlyForMutatedNode() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: ["children": .array([.string("first"), .string("second")])]
+        ),
+        "first": ComponentModel(
+          id: "first",
+          type: "Text",
+          properties: ["text": .object(["path": .string("/first")])]
+        ),
+        "second": ComponentModel(
+          id: "second",
+          type: "Text",
+          properties: ["text": .object(["path": .string("/second")])]
+        ),
+      ]
+    )
+    let dataModel = DataModel(
+      initial: .object([
+        "first": .string("One"),
+        "second": .string("Two"),
+        "unused": .string("Idle"),
+      ])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let children = root.children(for: "children")
+    #expect(children.count == 2)
+    let first = children[0]
+    let second = children[1]
+
+    let rootChanges = ObservationCounterBox()
+    let firstChanges = ObservationCounterBox()
+    let firstMetadataChanges = ObservationCounterBox()
+    let secondChanges = ObservationCounterBox()
+
+    func observeRoot() -> [Node] {
+      withObservationTracking {
+        root.children(for: "children")
+      } onChange: {
+        rootChanges.increment()
+      }
+    }
+
+    func observeFirst() -> String? {
+      withObservationTracking {
+        first.string(for: "text")
+      } onChange: {
+        firstChanges.increment()
+      }
+    }
+
+    func observeFirstMetadata() -> [String: JSONValue]? {
+      withObservationTracking {
+        first.extensions
+      } onChange: {
+        firstMetadataChanges.increment()
+      }
+    }
+
+    func observeSecond() -> String? {
+      withObservationTracking {
+        second.string(for: "text")
+      } onChange: {
+        secondChanges.increment()
+      }
+    }
+
+    #expect(observeRoot().map(\.id) == ["first", "second"])
+    #expect(observeFirst() == "One")
+    #expect(observeFirstMetadata() == nil)
+    #expect(observeSecond() == "Two")
+
+    // 1. Mutating sibling /second fires only second's tracker (not first, not root).
+    dataModel.set("/second", value: .string("Two Updated"))
+    _ = try #require(resolver.resolveTree())
+    #expect(firstChanges.count == 0)
+    #expect(firstMetadataChanges.count == 0)
+    #expect(secondChanges.count == 1)
+    #expect(rootChanges.count == 0)
+    #expect(observeSecond() == "Two Updated")
+
+    // 2. Mutating /first fires only first's property tracker (not metadata, second, or root).
+    dataModel.set("/first", value: .string("One Updated"))
+    _ = try #require(resolver.resolveTree())
+    #expect(firstChanges.count == 1)
+    #expect(firstMetadataChanges.count == 0)
+    #expect(secondChanges.count == 1)
+    #expect(rootChanges.count == 0)
+    #expect(observeFirst() == "One Updated")
+
+    // 3. Updating first's metadata fires only firstMetadataChanges (not firstChanges!).
+    try componentsModel.setExtension("badge", value: .string("new"), forComponentID: "first")
+    #expect(firstMetadataChanges.count == 1)
+    #expect(firstChanges.count == 1)
+    #expect(observeFirstMetadata() == ["badge": .string("new")])
+
+    // 4. No-op data writes and re-resolutions producing shallow-equal properties do not fire.
+    dataModel.set("/first", value: .string("One Updated"))
+    dataModel.set("/unused", value: .string("Still Unused"))
+    _ = try #require(resolver.resolveTree())
+    #expect(firstChanges.count == 1)
+    #expect(firstMetadataChanges.count == 1)
+    #expect(secondChanges.count == 1)
+    #expect(rootChanges.count == 0)
+
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "first",
+        type: "Text",
+        properties: [
+          "text": .object(["path": .string("/first")]),
+          "ignoredNull": .null,
+        ],
+        metadata: ["extensions": .object(["badge": .string("new")])]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(firstChanges.count == 1)
+    #expect(firstMetadataChanges.count == 1)
+
+    // 5. Changing root's child list fires only root's tracker, leaving first and second untouched.
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "third",
+        type: "Text",
+        properties: ["text": .string("Three")]
+      )
+    )
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: [
+          "children": .array([.string("first"), .string("second"), .string("third")])
+        ]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(rootChanges.count == 1)
+    #expect(firstChanges.count == 1)
+    #expect(firstMetadataChanges.count == 1)
+    #expect(secondChanges.count == 1)
+    #expect(observeRoot().map(\.id) == ["first", "second", "third"])
+  }
+}
+
+@MainActor
+private final class ObservationCounterBox {
+  private(set) var count = 0
+
+  nonisolated func increment() {
+    MainActor.assumeIsolated {
+      count += 1
+    }
   }
 }
 

@@ -1308,3 +1308,48 @@ def test_generate_agent_to_renderer_extracts_nested_object_models():
     assert code.index("class CreateSurfaceMetadata") < code.index(
         "class CreateSurface("
     )
+
+
+def test_renderer_to_agent_and_catalog_definition_extract_nested_metadata_models():
+    """`ActionMetadata` and `CatalogMetadata` are generated as typed models."""
+    from a2ui.core.schema.v1_0 import (
+        A2uiRendererAction,
+        ActionMetadata,
+        CatalogMetadata,
+        ComponentDefinition,
+    )
+
+    action = A2uiRendererAction.model_validate({
+        "name": "click",
+        "surfaceId": "s1",
+        "sourceComponentId": "btn",
+        "timestamp": "2026-10-28T00:00:00Z",
+        "context": {},
+        "metadata": {"extensions": {"trace": {"id": "t1"}}},
+    })
+    assert isinstance(action.metadata, ActionMetadata)
+    assert action.metadata.extensions == {"trace": {"id": "t1"}}
+
+    with pytest.raises(ValidationError):
+        A2uiRendererAction.model_validate({
+            "name": "click",
+            "surfaceId": "s1",
+            "sourceComponentId": "btn",
+            "timestamp": "2026-10-28T00:00:00Z",
+            "context": {},
+            "metadata": {"extensions": {"invalid-key!": 1}},
+        })
+
+    comp_def = ComponentDefinition.model_validate({
+        "type": "object",
+        "properties": {"label": {"type": "string"}},
+        "metadata": {"extensions": {"category": "input"}},
+    })
+    assert isinstance(comp_def.metadata, CatalogMetadata)
+    assert comp_def.metadata.extensions == {"category": "input"}
+
+    with pytest.raises(ValidationError):
+        ComponentDefinition.model_validate({
+            "type": "object",
+            "metadata": {"extensions": {"bad-key": 1}},
+        })

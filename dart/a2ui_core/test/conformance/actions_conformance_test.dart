@@ -91,7 +91,31 @@ Future<void> _runDispatchActionCase(Map<String, Object?> testCase) async {
       testCase['sourceComponentId'] as String? ?? 'test_component';
   final Object? rawAction =
       testCase['actionPayload'] ?? testCase['action_data'];
-  await _executeActionPayload(surface, context, rawAction, sourceComponentId);
+  final Map<String, Object?>? dispatchMetadata =
+      (testCase['metadata'] as Map?)?.cast<String, Object?>();
+  final expectError = testCase['expectError'] as Map<String, Object?>?;
+  if (expectError != null && expectError['category'] == 'ValidationError') {
+    await expectLater(
+      () => _executeActionPayload(
+        surface,
+        context,
+        rawAction,
+        sourceComponentId,
+        metadata: dispatchMetadata,
+      ),
+      throwsA(isA<A2uiValidationError>()),
+    );
+    expect(dispatched, isNull);
+    return;
+  }
+
+  await _executeActionPayload(
+    surface,
+    context,
+    rawAction,
+    sourceComponentId,
+    metadata: dispatchMetadata,
+  );
 
   _assertDispatchedAction(testCase, dispatched);
   _assertDispatchedError(testCase, dispatchedError);
@@ -149,8 +173,9 @@ Future<void> _executeActionPayload(
   SurfaceModel<ComponentApi> surface,
   DataContext context,
   Object? rawAction,
-  String sourceComponentId,
-) async {
+  String sourceComponentId, {
+  Map<String, Object?>? metadata,
+}) async {
   if (rawAction is Map &&
       (rawAction['functionCall'] is Map || context.isFunctionCall(rawAction))) {
     final fc = rawAction['functionCall'] is Map
@@ -184,7 +209,11 @@ Future<void> _executeActionPayload(
       ),
     );
   } else {
-    await surface.dispatchAction(resolvedAction, sourceComponentId);
+    await surface.dispatchAction(
+      resolvedAction,
+      sourceComponentId,
+      metadata: metadata,
+    );
   }
 }
 
@@ -215,6 +244,9 @@ void _assertDispatchedAction(
   }
   if (expected.containsKey('userMessage')) {
     expect(dispatched.userMessage, equals(expected['userMessage']));
+  }
+  if (expected.containsKey('metadata')) {
+    expect(dispatched.metadata, equals(expected['metadata']));
   }
 }
 

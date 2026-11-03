@@ -495,6 +495,26 @@ describe('ExpressDecompiler', () => {
       expect(decompileButton({event: {name: 'go', context: null}})).toContain('Event("go")');
     });
 
+    it('preserves an explicit empty context on Event("go", {}) across decompile and compile', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const action = {event: {name: 'go', context: {}}};
+      const msg = {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          components: [
+            {id: 'root', component: 'Button', child: 'label', action},
+            {id: 'label', component: 'Text', text: 'Go'},
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+      const notation = new ExpressDecompiler([catalog], version).decompile([msg]);
+      expect(notation).toContain('Event("go", {})');
+      const recompiled = new ExpressParser([catalog], 's1', version).compile(notation);
+      expect(recompiled).toEqual([msg]);
+    });
+
     it('escapes event names so they compile back unchanged', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const action = {event: {name: 'say "hi" \\ bye', context: {k: 1}}};
@@ -1229,6 +1249,35 @@ describe('ExpressDecompiler', () => {
         },
       } as unknown as AgentToRendererMessage;
       expect(() => decompiler.decompile([unknownExprFn])).toThrow(ExpressUnknownFunctionError);
+    });
+
+    it('decompiles and round-trips surface and component metadata.extensions in v1.0 mode', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler([catalog], version);
+      const parser = new ExpressParser([catalog], 's1', version);
+
+      const msg: AgentToRendererMessage = {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          metadata: {extensions: {agui: {mode: 'live'}}},
+          components: [
+            {
+              id: 'root',
+              component: 'Text',
+              text: 'Hello',
+              metadata: {extensions: {annot: {rank: 1}}},
+            },
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+
+      const dsl = decompiler.decompile([msg]);
+      expect(dsl).toBe(
+        'surface("s1", extensions={agui: {mode: "live"}})\nroot = Text("Hello", extensions={annot: {rank: 1}})',
+      );
+      expect(parser.compile(dsl)).toEqual([msg]);
     });
   });
 });
