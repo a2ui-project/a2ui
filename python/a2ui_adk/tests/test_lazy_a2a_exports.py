@@ -25,9 +25,15 @@ import pytest
 A2A_EXPORTS = [
     "A2uiEventConverter",
     "A2uiPartConverter",
+    "A2uiRpcCallback",
     "A2uiSubagentMap",
+    "AgentFunctionRegistryProvider",
+    "RendererFunctionCallsProvider",
     "SurfaceIdAlreadyExistsError",
     "a2a",
+    "a2ui_rpc_callback",
+    "a2ui_rpc_interceptor",
+    "exclude_a2ui_rpc_from_prompt",
     "orchestration",
 ]
 
@@ -66,6 +72,7 @@ def test_base_exports_work_without_a2a(adk_without_a2a) -> None:
     assert adk_without_a2a.SendA2uiToClientToolset is not None
     assert adk_without_a2a.A2uiInstruction is not None
     assert adk_without_a2a.A2uiProcessorStore is not None
+    assert adk_without_a2a.A2uiRendererCallsStore is not None
 
 
 @pytest.mark.parametrize("name", A2A_EXPORTS)
@@ -98,6 +105,20 @@ def test_get_part_converter_explains_missing_extra(adk_without_a2a) -> None:
     )
     with pytest.raises(ImportError, match=r'pip install "a2ui-adk\[a2a\]"'):
         asyncio.run(toolset.get_part_converter(MagicMock()))
+
+
+def test_toolset_process_llm_request_works_without_a2a(adk_without_a2a) -> None:
+    toolset = adk_without_a2a.SendA2uiToClientToolset(
+        a2ui_enabled=False, a2ui_processor=MagicMock()
+    )
+    llm_request = MagicMock()
+    llm_request.contents = ["unchanged"]
+
+    asyncio.run(
+        toolset.process_llm_request(tool_context=MagicMock(), llm_request=llm_request)
+    )
+
+    assert llm_request.contents == ["unchanged"]
 
 
 def test_unknown_attribute_raises_attribute_error() -> None:
