@@ -12,16 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Agent functions and the agent's side of function RPC (v1.0): functions an
-# agent declares on its copy of a catalog and runs when a renderer sends
-# `callAgentFunction`, and the agent's own calls to renderer functions with
-# `callRendererFunction`.
+# Agent functions (v1.0): functions an agent declares on its copy of a catalog
+# and runs when a renderer sends `callAgentFunction`, and how the agent's
+# `RendererToAgentMessageProcessor` routes the messages a renderer sends.
 #
-# A case declares each agent function with the JSON Schema of its `args` and a
-# scripted behaviour in place of a handler, so every SDK runs the same
-# function: it returns a fixed value, returns the arguments it received,
-# returns the context of the call, or fails. Renderer calls run on a fake
-# clock that only an `advance_ms` step moves, so no case waits on real time.
+# A case declares each agent function with the JSON Schema of its `args` (or
+# `from_api: true` to wrap the catalog's own declaration) and a scripted
+# behaviour in place of a handler, so every SDK runs the same function: it
+# returns a fixed value, returns the arguments it received, returns the
+# context of the call, or fails.
 # See "Writing cases for the agent function suite" in conformance/README.md.
 
 # --- Declaring agent functions ---
@@ -69,6 +68,92 @@
   expect_error:
     category: CatalogError
     message: "formatString"
+
+- name: test_declare_agent_function_from_the_catalog_declaration
+  description: >-
+    An agent function built from a function the catalog declares (from_api) replaces that declaration, keeps its allowedCallers (here rendererOrAgent), and leaves the catalog document as it was.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+      agent_functions:
+        notify:
+          from_api: true
+          behavior: {returns: null}
+  expect:
+    functions: [notify]
+    agent_functions: [notify]
+    document_functions: [notify]
+
+- name: test_declare_agent_function_from_an_undeclared_function_is_a_catalog_error
+  description: >-
+    An agent function built from a declaration (from_api) that the catalog does not have is refused, so a foreign declaration can't leak into the catalog.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          from_api: true
+          returnType: number
+          args:
+            type: object
+            properties:
+              base: {type: string}
+            required: [base]
+          behavior: {returns: 1.08}
+  expect_error:
+    category: CatalogError
+    message: "fetchFxRate"
+
+- name: test_declare_agent_function_from_an_agent_only_declaration_is_a_catalog_error
+  description: >-
+    A function whose allowedCallers is agentOnly is never called by a renderer, so it can't become an agent function.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog:
+        catalogId: conformance/agent_only
+        protocolVersion: "1.0"
+        components: {}
+        functions:
+          resetLedger:
+            type: object
+            description: Clears the ledger.
+            returnType: void
+            allowedCallers: agentOnly
+            properties:
+              "@call": {const: resetLedger}
+              args: {type: object, properties: {}}
+            required: ["@call", "args"]
+      agent_functions:
+        resetLedger:
+          from_api: true
+          behavior: {returns: null}
+  expect_error:
+    category: CatalogError
+    message: "resetLedger"
+
+- name: test_declare_two_agent_functions_with_one_name_is_a_catalog_error
+  description: >-
+    Two agent functions may not share a name. The second entry uses `name` to give itself the first one's name.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          returnType: number
+          args: {type: object, properties: {base: {type: string}}}
+          behavior: {returns: 1.08}
+        fetchFxRateAgain:
+          name: fetchFxRate
+          returnType: number
+          args: {type: object, properties: {base: {type: string}}}
+          behavior: {returns: 1.09}
+  expect_error:
+    category: CatalogError
+    message: "fetchFxRate"
 
 # --- Answering callAgentFunction ---
 
@@ -417,34 +502,6 @@
       code: PROVIDER_NOT_FOUND
       message: "no rate provider for EUR"
 
-- name: test_handle_agent_function_that_only_the_agent_may_call
-  description: >-
-    A renderer may not call a function whose allowedCallers is agentOnly, so the call gets INVALID_FUNCTION_CALL and the handler does not run.
-  action: handle_agent_function
-  args:
-    catalogs:
-      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-        agent_functions:
-          resetLedger:
-            returnType: void
-            allowedCallers: agentOnly
-            args: {type: object, properties: {}}
-            behavior: {returns: null}
-    message:
-      version: "1.0"
-      callAgentFunction:
-        surfaceId: s1
-        functionCallId: a-1
-        callFunction:
-          "@call": resetLedger
-          catalogId: conformance/simplified
-          args: {}
-  expect:
-    functionCallId: a-1
-    error:
-      code: INVALID_FUNCTION_CALL
-      message: agentOnly
-
 - name: test_handle_agent_function_picks_the_catalog_the_call_names
   description: >-
     Two catalogs may each register an agent function of the same name, and a call runs the one in the catalog it names.
@@ -602,6 +659,30 @@
   expect_error:
     category: ValidationError
 
+- name: test_handle_agent_function_built_from_the_catalog_declaration
+  description: >-
+    An agent function built from the catalog's own declaration (from_api) validates the call against that declaration and runs.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+        agent_functions:
+          notify:
+            from_api: true
+            behavior: {returns_args: true}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: n-1
+        callFunction:
+          "@call": notify
+          catalogId: conformance/agent_functions
+          args: {message: Saved}
+  expect:
+    functionCallId: n-1
+    value: {message: Saved}
+
 # --- Validating model output that calls agent functions ---
 
 - name: test_validate_payload_with_a_call_to_a_declared_agent_function
@@ -696,209 +777,226 @@
   expect_error:
     category: ValidationError
 
-# --- Calling renderer functions ---
+# --- Routing renderer messages ---
 
-- name: test_call_renderer_function_builds_the_message_without_waiting
+- name: test_process_action_with_its_callback
   description: >-
-    A call returns its callRendererFunction message at once, with a generated functionCallId and the catalogId the message requires, and stays pending until the renderer answers.
-  action: call_renderer_function
-  steps:
-    - call:
-        label: a
-        catalogId: conformance/agent_functions
-        name: notify
-        args: {message: Saved}
+    With on_action set, an action is validated, handed to the callback, and handled with no replies.
+  action: process_renderer_message
+  args:
+    callbacks: [action]
+    message:
+      version: "1.0"
+      action:
+        name: submit
         surfaceId: s1
-      expect_message:
+        sourceComponentId: b1
+        timestamp: "2026-01-01T00:00:00Z"
+        context: {}
+  expect:
+    handled: true
+    callback:
+      kind: action
+      message:
         version: "1.0"
-        callRendererFunction:
+        action:
+          name: submit
           surfaceId: s1
-          callFunction:
-            "@call": notify
-            catalogId: conformance/agent_functions
-            args: {message: Saved}
-      expect_calls:
-        a: pending
-      expect_pending_count: 1
+          sourceComponentId: b1
+          timestamp: "2026-01-01T00:00:00Z"
+          context: {}
 
-- name: test_call_renderer_function_without_surface_or_args
+- name: test_process_action_without_its_callback
   description: >-
-    A call made without a surface leaves surfaceId out of the message, and one made without arguments sends empty args.
-  action: call_renderer_function
-  steps:
-    - call:
-        label: a
-        catalogId: conformance/agent_functions
-        name: now
-      expect_message:
+    Without on_action, an action is not handled, so a framework passes it on to the model's turn.
+  action: process_renderer_message
+  args:
+    callbacks: [error, rendererFunctionResponse]
+    message:
+      version: "1.0"
+      action:
+        name: submit
+        surfaceId: s1
+        sourceComponentId: b1
+        timestamp: "2026-01-01T00:00:00Z"
+        context: {}
+  expect:
+    handled: false
+
+- name: test_process_error_with_its_callback
+  description: With on_error set, an error message is validated, handed to the callback, and handled with no replies.
+  action: process_renderer_message
+  args:
+    callbacks: [error]
+    message:
+      version: "1.0"
+      error:
+        code: EXPRESSION_ERROR
+        message: formatDate failed
+        surfaceId: s1
+  expect:
+    handled: true
+    callback:
+      kind: error
+      message:
         version: "1.0"
-        callRendererFunction:
-          callFunction:
-            "@call": now
-            catalogId: conformance/agent_functions
-            args: {}
-      expect_calls:
-        a: pending
+        error:
+          code: EXPRESSION_ERROR
+          message: formatDate failed
+          surfaceId: s1
 
-- name: test_call_renderer_function_settled_by_its_response
-  description: >-
-    A rendererFunctionResponse settles the call whose functionCallId it copies with its value, and leaves the other calls pending.
-  action: call_renderer_function
-  steps:
-    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
-    - call: {label: b, catalogId: conformance/agent_functions, name: getTimezone}
-      expect_pending_count: 2
-    - respond: {call: b, value: Europe/Paris}
-      expect_calls:
-        a: pending
-        b: {value: Europe/Paris}
-      expect_pending_count: 1
-    - respond: {call: a, value: {language: fr, region: FR}}
-      expect_calls:
-        a: {value: {language: fr, region: FR}}
-        b: {value: Europe/Paris}
-      expect_pending_count: 0
-
-- name: test_call_renderer_function_settled_with_a_null_value
-  description: A response whose value is null settles the call with null.
-  action: call_renderer_function
-  steps:
-    - call: {label: a, catalogId: conformance/agent_functions, name: getSelection}
-    - respond: {call: a, value: null}
-      expect_calls:
-        a: {value: null}
-
-- name: test_call_renderer_function_failed_by_an_error_response
-  description: A response that carries an error fails the call with the renderer's code.
-  action: call_renderer_function
-  steps:
-    - call: {label: a, catalogId: conformance/agent_functions, name: getLocation}
-    - respond:
-        call: a
-        error: {code: PERMISSION_DENIED, message: "The user declined."}
-      expect_calls:
-        a: {error: {code: PERMISSION_DENIED, message: "The user declined."}}
-      expect_pending_count: 0
-
-- name: test_call_renderer_function_ignores_an_unknown_response
-  description: >-
-    A response whose functionCallId matches no call comes from the network, so it is ignored without failing, and the pending calls stay pending.
-  action: call_renderer_function
-  steps:
-    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
-    - respond: {functionCallId: never-sent, value: en}
-      expect_calls:
-        a: pending
-      expect_pending_count: 1
-
-- name: test_call_renderer_function_ignores_a_duplicate_response
-  description: A second response to a settled call is ignored, and the call keeps the first value.
-  action: call_renderer_function
-  steps:
-    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
-    - respond: {call: a, value: en}
-    - respond: {call: a, value: fr}
-      expect_calls:
-        a: {value: en}
-
-- name: test_call_renderer_function_times_out_after_thirty_seconds_by_default
-  description: >-
-    A call waits 30 seconds for its response by default, the same as the renderer waits for the agent, then fails with TIMEOUT and stops being pending.
-  action: call_renderer_function
-  steps:
-    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
-    - advance_ms: 29999
-      expect_calls:
-        a: pending
-    - advance_ms: 1
-      expect_calls:
-        a: {error: {code: TIMEOUT}}
-      expect_pending_count: 0
-
-- name: test_call_renderer_function_ignores_a_late_response
-  description: A response that arrives after its call timed out is ignored, and the call stays failed.
-  action: call_renderer_function
-  steps:
-    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale, timeout_ms: 100}
-    - advance_ms: 100
-      expect_calls:
-        a: {error: {code: TIMEOUT}}
-    - respond: {call: a, value: en}
-      expect_calls:
-        a: {error: {code: TIMEOUT}}
-
-- name: test_call_renderer_function_with_its_own_timeout
-  description: A timeout given to one call replaces the default for that call only.
-  action: call_renderer_function
-  steps:
-    - call: {label: short, catalogId: conformance/agent_functions, name: getLocale, timeout_ms: 500}
-    - call: {label: default, catalogId: conformance/agent_functions, name: getTimezone}
-    - advance_ms: 500
-      expect_calls:
-        short: {error: {code: TIMEOUT}}
-        default: pending
-
-- name: test_call_renderer_function_with_a_default_timeout
-  description: A default timeout given when the calls are set up applies to every call that sets none of its own.
-  action: call_renderer_function
+- name: test_process_error_without_its_callback
+  description: Without on_error, an error message is not handled.
+  action: process_renderer_message
   args:
-    default_timeout_ms: 2000
-  steps:
-    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
-    - advance_ms: 1999
-      expect_calls:
-        a: pending
-    - advance_ms: 1
-      expect_calls:
-        a: {error: {code: TIMEOUT}}
+    message:
+      version: "1.0"
+      error:
+        code: EXPRESSION_ERROR
+        message: formatDate failed
+        surfaceId: s1
+  expect:
+    handled: false
 
-- name: test_call_renderer_function_settled_before_its_timeout
-  description: A call that is answered in time does not time out later.
-  action: call_renderer_function
-  steps:
-    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale, timeout_ms: 1000}
-    - advance_ms: 400
-    - respond: {call: a, value: en}
-    - advance_ms: 1000
-      expect_calls:
-        a: {value: en}
-
-- name: test_call_renderer_function_dispose_fails_pending_calls
+- name: test_process_renderer_function_response_with_its_callback
   description: >-
-    Disposing the calls fails every pending call with CANCELLED and the reason given, leaves settled calls alone, refuses later calls with DISPOSED, and ignores later responses.
-  action: call_renderer_function
-  steps:
-    - call: {label: done, catalogId: conformance/agent_functions, name: getLocale}
-    - call: {label: a, catalogId: conformance/agent_functions, name: getTimezone}
-    - call: {label: b, catalogId: conformance/agent_functions, name: getLocation}
-    - respond: {call: done, value: en}
-    - dispose: {reason: "the session ended"}
-      expect_calls:
-        done: {value: en}
-        a: {error: {code: CANCELLED, message: "the session ended"}}
-        b: {error: {code: CANCELLED, message: "the session ended"}}
-      expect_pending_count: 0
-    - respond: {call: a, value: Europe/Paris}
-      expect_calls:
-        a: {error: {code: CANCELLED}}
-    - call: {label: c, catalogId: conformance/agent_functions, name: getLocale}
-      expect_error: {code: DISPOSED}
-
-- name: test_call_renderer_function_limits_pending_calls
-  description: >-
-    With a limit on pending calls, a call beyond it fails with TOO_MANY_PENDING instead of piling up, and settling a call makes room for another.
-  action: call_renderer_function
+    With on_renderer_function_response set, a rendererFunctionResponse is validated, handed to the callback, and handled with no replies.
+  action: process_renderer_message
   args:
-    max_pending: 2
-  steps:
-    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
-    - call: {label: b, catalogId: conformance/agent_functions, name: getTimezone}
-    - call: {label: c, catalogId: conformance/agent_functions, name: getLocation}
-      expect_error: {code: TOO_MANY_PENDING}
-      expect_pending_count: 2
-    - respond: {call: a, value: en}
-    - call: {label: d, catalogId: conformance/agent_functions, name: getLocation}
-      expect_calls:
-        b: pending
-        d: pending
-      expect_pending_count: 2
+    callbacks: [rendererFunctionResponse]
+    message:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: r-1
+        value: "12:00"
+  expect:
+    handled: true
+    callback:
+      kind: rendererFunctionResponse
+      message:
+        version: "1.0"
+        rendererFunctionResponse:
+          functionCallId: r-1
+          value: "12:00"
+
+- name: test_process_renderer_function_response_without_its_callback
+  description: Without on_renderer_function_response, a rendererFunctionResponse is not handled.
+  action: process_renderer_message
+  args:
+    callbacks: [action]
+    message:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: r-1
+        value: "12:00"
+  expect:
+    handled: false
+
+- name: test_process_malformed_action_with_its_callback
+  description: >-
+    With on_action set, an action that fails its schema is a validation error, and the callback does not run.
+  action: process_renderer_message
+  args:
+    callbacks: [action]
+    message:
+      version: "1.0"
+      action:
+        name: submit
+  expect_error:
+    category: ValidationError
+
+- name: test_process_message_with_an_unknown_key
+  description: A message that is none of the renderer-to-agent messages is a validation error.
+  action: process_renderer_message
+  args:
+    callbacks: [action, error, rendererFunctionResponse]
+    message:
+      version: "1.0"
+      updateComponents:
+        surfaceId: s1
+        components: []
+  expect_error:
+    category: ValidationError
+
+- name: test_process_call_agent_function_is_always_handled
+  description: >-
+    A callAgentFunction is handled without any callback, with exactly one agentFunctionResponse.
+  action: process_renderer_message
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          returnType: number
+          args: {type: object, properties: {base: {type: string}}}
+          behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: p-1
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect:
+    handled: true
+    replies:
+      - version: "1.0"
+        agentFunctionResponse:
+          functionCallId: p-1
+          value: 1.08
+
+- name: test_process_call_agent_function_with_an_empty_call_id
+  description: >-
+    A callAgentFunction with an empty functionCallId can't be answered, so processing it is a validation error.
+  action: process_renderer_message
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          returnType: number
+          args: {type: object, properties: {base: {type: string}}}
+          behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: ""
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect_error:
+    category: ValidationError
+
+- name: test_process_call_agent_function_with_an_empty_surface_id
+  description: >-
+    A callAgentFunction with an empty surfaceId is answered with INVALID_FUNCTION_CALL, and the handler does not run.
+  action: process_renderer_message
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          returnType: number
+          args: {type: object, properties: {base: {type: string}}}
+          behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: ""
+        functionCallId: p-2
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect:
+    handled: true
+    replies:
+      - version: "1.0"
+        agentFunctionResponse:
+          functionCallId: p-2
+          error:
+            code: INVALID_FUNCTION_CALL
