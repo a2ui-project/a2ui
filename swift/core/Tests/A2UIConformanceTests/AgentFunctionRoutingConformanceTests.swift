@@ -72,9 +72,17 @@ struct AgentFunctionRoutingConformanceTests {
       }
       if let reason = Self.knownDivergences[name] {
         print("Skipping \(name): \(reason)")
+        ConformanceManifest.record(suite: Self.suite, name: name, status: .skipped, reason: reason)
         continue
       }
-      try await run(testCase, name: name)
+      do {
+        try await run(testCase, name: name)
+        ConformanceManifest.record(suite: Self.suite, name: name, status: .passed)
+      } catch {
+        ConformanceManifest.record(
+          suite: Self.suite, name: name, status: .failed, reason: "\(error)")
+        throw error
+      }
     }
   }
 
