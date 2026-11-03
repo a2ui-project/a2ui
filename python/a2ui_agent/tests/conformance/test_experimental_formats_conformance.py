@@ -32,9 +32,7 @@ EXPERIMENTAL_FORMAT_SUITES: tuple[str, ...] = (
     "agent/atom/compiler.yaml",
 )
 
-cases_experimental_formats = get_marked_conformance_cases(
-    *EXPERIMENTAL_FORMAT_SUITES
-)
+cases_experimental_formats = get_marked_conformance_cases(*EXPERIMENTAL_FORMAT_SUITES)
 
 
 @pytest.mark.parametrize("suite, test_case", cases_experimental_formats)

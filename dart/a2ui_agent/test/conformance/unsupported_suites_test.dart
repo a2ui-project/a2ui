@@ -44,7 +44,8 @@ const Set<String> activeAgentSuites = {
 /// `agent/**/*.yaml` suites not executed in the default `dart-agent` test run,
 /// paired with the reason recorded in the executed-case manifest.
 const Map<String, String> unsupportedAgentSuites = {
-  'agent/atom/compiler.yaml': 'Elemental and Atom are experimental and Python-only',
+  'agent/atom/compiler.yaml':
+      'Elemental and Atom are experimental and Python-only',
   'agent/builder/builder.yaml':
       'The fluent builder AST suite targets the Python builder API, which '
       'a2ui_agent for Dart does not implement.',

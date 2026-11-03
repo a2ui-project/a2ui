@@ -106,7 +106,7 @@
         dataModel: {}
   expect_contains:
     - '(surface "s1")'
-    - '(Card'
+    - "(Card"
     - '(Text :id "body" :text "Hello")'
   expect_round_trip: true
 

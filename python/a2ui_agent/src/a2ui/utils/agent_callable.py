@@ -99,9 +99,7 @@ def check_agent_callable(
         return
     raw_catalog_id = call_fn.get("catalogId")
     catalog_id = (
-        raw_catalog_id
-        if isinstance(raw_catalog_id, str) and raw_catalog_id
-        else None
+        raw_catalog_id if isinstance(raw_catalog_id, str) and raw_catalog_id else None
     )
     fn = _find_function(raw_name, catalog_id, catalogs)
     if fn is None:
