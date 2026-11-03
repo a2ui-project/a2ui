@@ -864,10 +864,11 @@ struct MessageProcessorTests {
               {
                 "type": "object",
                 "properties": {
-                  "count": { "type": ["number", "object"] }
+                  "count": { "$ref": "https://a2ui.org/schemas/v1_0/common_types.json#/$defs/DynamicNumber" }
                 }
               }
-              """
+              """,
+            remoteSchemas: A2UICommonSchema.allSchemas
           )
         )
       ]
@@ -923,7 +924,7 @@ struct MessageProcessorTests {
     #expect(surface.dataModel.get("/x~1y/c")?.intValue == 2)
     #expect(handler.capturedErrors.isEmpty)
     #expect(resolver != nil)
-    #expect(surface.rootNode?.int(for: "count") == 2)
+    #expect(surface.rootNode?.double(for: "count") == 2)
   }
 
   @Test func processPayloadResolvesLenientV10VersionOnError() throws {
