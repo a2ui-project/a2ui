@@ -60,12 +60,10 @@ def recording_with_action(golden: dict, tmp_path: Path) -> Path:
     recording = json.loads(RECORDING_PATH.read_text(encoding="utf-8"))
     action = json.loads(json.dumps(golden["turns"][0]["expectOutbound"][0]))
     action["action"]["timestamp"] = "2026-01-01T00:00:00Z"
-    action_turn = json.dumps(
-        {
-            "a2ui": {"messages": [action]},
-            "metadata": {"a2uiRendererDataModel": {"version": "1.0", "surfaces": {}}},
-        }
-    )
+    action_turn = json.dumps({
+        "a2ui": {"messages": [action]},
+        "metadata": {"a2uiRendererDataModel": {"version": "1.0", "surfaces": {}}},
+    })
     recording["requests"] = [recording["request"], action_turn]
     recording["format"] = "direct_json"
     recording["protocolVersion"] = "1.0"
@@ -175,16 +173,14 @@ def test_cli_output_feeds_the_outcome_comparer(
 ):
     output = tmp_path / "newsletter_signup.yaml"
     assert (
-        import_main(
-            [
-                "--input",
-                str(recording_with_action),
-                "--output",
-                str(output),
-                "--name",
-                golden["name"],
-            ]
-        )
+        import_main([
+            "--input",
+            str(recording_with_action),
+            "--output",
+            str(output),
+            "--name",
+            golden["name"],
+        ])
         == 0
     )
     written = yaml.safe_load(output.read_text(encoding="utf-8"))
@@ -192,16 +188,14 @@ def test_cli_output_feeds_the_outcome_comparer(
 
     report = tmp_path / "report.md"
     assert (
-        compare_main(
-            [
-                "--golden",
-                str(GOLDEN_PATH),
-                "--recorded",
-                str(output),
-                "--report",
-                str(report),
-            ]
-        )
+        compare_main([
+            "--golden",
+            str(GOLDEN_PATH),
+            "--recorded",
+            str(output),
+            "--report",
+            str(report),
+        ])
         == 0
     )
     assert "All scenario outcomes match." in report.read_text(encoding="utf-8")

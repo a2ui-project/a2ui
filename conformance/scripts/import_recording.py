@@ -115,9 +115,11 @@ def _wildcard_renderer_values(value: Any) -> Any:
     """Replaces the values the renderer picks with `{"$match": "any"}`."""
     if isinstance(value, dict):
         return {
-            key: {"$match": "any"}
-            if key in _WILDCARD_KEYS
-            else _wildcard_renderer_values(item)
+            key: (
+                {"$match": "any"}
+                if key in _WILDCARD_KEYS
+                else _wildcard_renderer_values(item)
+            )
             for key, item in value.items()
         }
     if isinstance(value, list):
@@ -209,13 +211,11 @@ def import_chunk_recording(
                     f"{path}: the first request already carries renderer messages"
                 )
             turns[-1]["expectOutbound"] = _wildcard_renderer_values(outbound)
-        turns.append(
-            {
-                "userText": user_text,
-                "modelChunks": {format_name: list(chunks)},
-                "expectWire": _parse_chunks(parser, state, list(chunks)),
-            }
-        )
+        turns.append({
+            "userText": user_text,
+            "modelChunks": {format_name: list(chunks)},
+            "expectWire": _parse_chunks(parser, state, list(chunks)),
+        })
 
     return {
         "name": name or _scenario_name(path),
@@ -257,9 +257,11 @@ def import_wire_recording(
         {
             "userText": turn.get("userText"),
             "modelChunks": {},
-            "expectWire": [{"a2ui": list(turn.get("messages", []))}]
-            if turn.get("messages")
-            else [],
+            "expectWire": (
+                [{"a2ui": list(turn.get("messages", []))}]
+                if turn.get("messages")
+                else []
+            ),
         }
         for turn in recorded_turns
     ]
