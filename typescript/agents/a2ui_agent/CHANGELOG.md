@@ -1,6 +1,6 @@
 ## Unreleased
 
-- `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in rule 8 for v1.0+ catalogs, while keeping the two-argument `Event(name, context)` rule for pre-v1.0 catalogs ([#3690](https://github.com/a2ui-project/a2ui/issues/3690)).
+- `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in rule 8 for v1.0+ catalogs, while keeping the two-argument `Event(name, context)` rule for pre-v1.0 catalogs ([#3690](https://github.com/a2ui-project/a2ui/issues/3690), [#3867](https://github.com/a2ui-project/a2ui/pull/3867)).
 
 ## 0.1.0
 

@@ -94,7 +94,8 @@
   `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in
   rule 8 for v1.0+ catalogs
   ([#3598](https://github.com/a2ui-project/a2ui/issues/3598),
-  [#3690](https://github.com/a2ui-project/a2ui/issues/3690)).
+  [#3690](https://github.com/a2ui-project/a2ui/issues/3690),
+  [#3867](https://github.com/a2ui-project/a2ui/pull/3867)).
 - `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
   `ExpressParser.unwrap` remove the backticks left at the edges of a block when
   a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or
