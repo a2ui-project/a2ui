@@ -122,70 +122,6 @@ UNRUNNABLE_SUITES: dict[str, str] = {
     "core/adapter_conformance.yaml": "UI framework adapter suite",
 }
 
-# Individual `<suite>#<case>` entries that exercise a real behavioural gap in
-# the Python core SDK. Executed strictly and recorded as `xfailed`.
-EXPECTED_FAILURES: dict[str, str] = {
-    "core/functions.yaml#test_evaluate_function_regex_v10_dollar_does_not_match_before_trailing_newline": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_digit_class_ascii_only": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_word_class_ascii_only": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_word_boundary_ascii_only": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_braced_unicode_escape": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_backreference": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_lookbehind": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_named_group": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_inline_flag": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_unicode_property": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_nested_quantifier_plus": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_nested_quantifier_bounded_outer": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_overlapping_alternation_prefix": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_overlapping_alternation_class": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_adjacent_overlap_direct": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_adjacent_overlap_across_nullable": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_rejects_257_code_point_pattern": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v10_value_exceeding_4096_code_points_returns_invalid": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v09_rejects_nested_quantifier": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-    "core/functions.yaml#test_evaluate_function_regex_v09_value_exceeding_4096_code_points_returns_false": (
-        "A2UI regex subset and static safety guard not yet implemented in Python."
-    ),
-}
 # Actions that time an operation rather than check what it returns. Their cases
 # run in `test_conformance_timing`, which is marked `performance` and so runs
 # only under `uv run pytest -m performance` (see timing_harness.py).
@@ -871,18 +807,7 @@ def test_all_suites_load() -> None:
     CONFORMANCE_CASES,
     ids=[c[0] for c in CONFORMANCE_CASES],
 )
-def test_conformance_suite(
-    test_id: str,
-    rel_path: str,
-    case: dict[str, Any],
-    request: pytest.FixtureRequest,
-) -> None:
-    case_key = f"{rel_path}#{case.get('name', '')}"
-    if case_key in EXPECTED_FAILURES:
-        request.node.add_marker(
-            pytest.mark.xfail(reason=EXPECTED_FAILURES[case_key], strict=True)
-        )
-
+def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) -> None:
     ver = resolve_protocol_version(case)
     if ver and ver not in SUPPORTED_PROTOCOL_VERSIONS:
         pytest.fail(
@@ -2734,12 +2659,4 @@ def validate_evaluate_function_case(case: dict[str, Any]) -> None:
     else:
         result = _invoke()
         expected = case.get("expect")
-        if (
-            isinstance(expected, dict)
-            and set(expected.keys()) == {"valid"}
-            and isinstance(result, dict)
-            and "valid" in result
-        ):
-            assert result["valid"] == expected["valid"]
-        else:
-            assert result == expected
+        assert result == expected
