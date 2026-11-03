@@ -554,20 +554,13 @@ export class NodeResolver<
       return;
     }
     const raw = record.lastBinderProps ?? record.binder?.snapshot ?? {};
-    const next: NodeProps = {...raw};
-    const newEdges = new Map<string, MutableComponentNode>();
-
-    // The binder merges rebuilt props over previous ones and never drops a
-    // key the component's properties no longer contain. Ref props drive child
-    // lifecycles, so their presence must follow the component model exactly.
     const modelProps = record.componentModel?.properties;
-    if (modelProps) {
-      for (const key of record.refFields.keys()) {
-        if (key in next && !(key in modelProps)) {
-          delete next[key];
-        }
-      }
-    }
+    // Prune omitted keys here too in case materialize runs before the binder's
+    // onUpdated listener rebuilds lastBinderProps.
+    const next: NodeProps = modelProps
+      ? pruneOmittedProps(raw, modelProps, record.behavior)
+      : {...raw};
+    const newEdges = new Map<string, MutableComponentNode>();
 
     // Ordinal per (componentId, dataPath) within this rebuild, so repeated
     // references to one component get distinct instance ids.
@@ -890,4 +883,59 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   // non-literal object as always-changed instead.
   const proto = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
+}
+
+const VALIDATION_STATE_KEYS = new Set(['isValid', 'validationErrors', 'validationResults']);
+
+/**
+ * Returns a copy of `resolved` containing only properties still present on
+ * `rawProps`, plus binder-synthesized dynamic setters and validation state for
+ * active `CHECKABLE` fields at each object schema level.
+ */
+function pruneOmittedProps(
+  resolved: Record<string, unknown>,
+  rawProps: Record<string, unknown>,
+  behavior?: BehaviorNode,
+): Record<string, unknown> {
+  const shape = behavior?.type === 'OBJECT' ? behavior.shape : undefined;
+  let hasActiveCheckable = false;
+  const dynamicSetterNames = new Set<string>();
+  if (shape) {
+    for (const [key, childBehavior] of Object.entries(shape)) {
+      if (childBehavior.type === 'DYNAMIC') {
+        dynamicSetterNames.add(`set${key.charAt(0).toUpperCase()}${key.slice(1)}`);
+      } else if (
+        childBehavior.type === 'CHECKABLE' &&
+        Object.hasOwn(rawProps, key) &&
+        rawProps[key] !== undefined &&
+        rawProps[key] !== null
+      ) {
+        hasActiveCheckable = true;
+      }
+    }
+  }
+
+  const out: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(resolved)) {
+    if (!Object.hasOwn(rawProps, key)) {
+      if (dynamicSetterNames.has(key) || (hasActiveCheckable && VALIDATION_STATE_KEYS.has(key))) {
+        out[key] = val;
+      }
+      continue;
+    }
+    out[key] = pruneOmittedValue(val, rawProps[key], shape?.[key]);
+  }
+  return out;
+}
+
+function pruneOmittedValue(resolved: unknown, rawValue: unknown, behavior?: BehaviorNode): unknown {
+  if (behavior?.type === 'OBJECT' && isPlainObject(resolved) && isPlainObject(rawValue)) {
+    return pruneOmittedProps(resolved, rawValue, behavior);
+  }
+  if (behavior?.type === 'ARRAY' && Array.isArray(resolved) && Array.isArray(rawValue)) {
+    return resolved
+      .slice(0, rawValue.length)
+      .map((item, index) => pruneOmittedValue(item, rawValue[index], behavior.element));
+  }
+  return resolved;
 }

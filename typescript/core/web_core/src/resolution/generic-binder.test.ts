@@ -1518,3 +1518,257 @@ describe('getSafeChildList helper function', () => {
     assert.strictEqual(safe[MAX_DYNAMIC_CHILD_LIST_SIZE - 1], MAX_DYNAMIC_CHILD_LIST_SIZE - 1);
   });
 });
+
+describe('GenericBinder omitted property pruning on update (#3779)', () => {
+  it('prunes omitted scalar, nested object, array, dynamic-bound, and action properties while preserving dynamic setters', async () => {
+    const catalog = new Catalog('test', '0.9', [], []);
+    const surface = new SurfaceModel('s1', catalog);
+    surface.dataModel.set('/val', 'initial-val');
+    surface.dataModel.set('/a11yLabel', 'Save');
+
+    const schema = z.object({
+      variant: z.string().optional(),
+      tags: z.array(z.string()).optional(),
+      accessibility: z
+        .object({
+          label: CommonSchemas.DynamicString.optional(),
+          description: z.string().optional(),
+        })
+        .optional(),
+      value: CommonSchemas.DynamicString.optional(),
+      onTap: CommonSchemas.Action.optional(),
+      keepAction: CommonSchemas.Action.optional(),
+    });
+
+    const compModel = new ComponentModel(
+      'c1',
+      'Widget',
+      {
+        variant: 'primary',
+        tags: ['alpha', 'beta'],
+        accessibility: {
+          label: {path: '/a11yLabel'},
+          description: 'Submit the form',
+        },
+        value: {path: '/val'},
+        onTap: {event: {name: 'tap_evt'}},
+        keepAction: {event: {name: 'keep_evt'}},
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<{
+      variant?: string;
+      tags?: string[];
+      accessibility?: {
+        label?: string;
+        setLabel: (v: string) => void;
+        description?: string;
+      };
+      value?: string;
+      setValue: (v: string) => void;
+      onTap?: () => Promise<void>;
+      keepAction?: () => Promise<void>;
+    }>(new ComponentContext(surface, 'c1'), schema);
+
+    let notifications = 0;
+    const sub = binder.subscribe(() => {
+      notifications++;
+    });
+
+    const initialTapClosure = binder.snapshot.onTap;
+    const initialKeepClosure = binder.snapshot.keepAction;
+    assert.strictEqual(typeof initialTapClosure, 'function');
+    assert.strictEqual(typeof initialKeepClosure, 'function');
+    assert.strictEqual(binder.snapshot.variant, 'primary');
+    assert.deepStrictEqual(binder.snapshot.tags, ['alpha', 'beta']);
+    assert.strictEqual(binder.snapshot.value, 'initial-val');
+    assert.strictEqual(binder.snapshot.accessibility?.label, 'Save');
+    assert.strictEqual(binder.snapshot.accessibility?.description, 'Submit the form');
+
+    // Update omitting variant, tags, accessibility.description, value, and onTap
+    compModel.properties = {
+      accessibility: {
+        label: {path: '/a11yLabel'},
+      },
+      keepAction: {event: {name: 'keep_evt'}},
+    };
+
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'variant'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'tags'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'value'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'onTap'), false);
+    assert.ok(binder.snapshot.accessibility);
+    assert.strictEqual(Object.hasOwn(binder.snapshot.accessibility, 'description'), false);
+    assert.strictEqual(binder.snapshot.accessibility.label, 'Save');
+
+    // Dynamic setter remains intact and becomes a safe no-op when omitted
+    assert.strictEqual(typeof binder.snapshot.setValue, 'function');
+    binder.snapshot.setValue('should-not-write');
+    assert.strictEqual(surface.dataModel.get('/val'), 'initial-val');
+
+    // Unchanged action keeps closure identity
+    assert.strictEqual(binder.snapshot.keepAction, initialKeepClosure);
+
+    // Updating the old bound path does not notify or resurrect the omitted property
+    const notificationsBeforeDataWrite = notifications;
+    surface.dataModel.set('/val', 'updated-val');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(notifications, notificationsBeforeDataWrite);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'value'), false);
+
+    // Re-adding onTap creates a new closure because the omitted one was evicted
+    compModel.properties = {
+      onTap: {event: {name: 'tap_evt'}},
+      keepAction: {event: {name: 'keep_evt'}},
+    };
+    assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    assert.notStrictEqual(binder.snapshot.onTap, initialTapClosure);
+    assert.strictEqual(binder.snapshot.keepAction, initialKeepClosure);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'accessibility'), false);
+
+    // Updating /a11yLabel after omitting accessibility does not notify or resurrect it
+    const notificationsBeforeA11yWrite = notifications;
+    surface.dataModel.set('/a11yLabel', 'Cancel');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(notifications, notificationsBeforeA11yWrite);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'accessibility'), false);
+
+    sub.unsubscribe();
+    surface.dispose();
+  });
+
+  it('preserves top-level and nested checkable validation state when checks remain and prunes it when omitted', async () => {
+    const required: FunctionImplementation = {
+      name: 'required',
+      returnType: 'boolean',
+      schema: z.object({value: z.unknown()}),
+      execute: (args: Record<string, unknown>) => Boolean(args.value),
+    };
+    const catalog = new Catalog('test-v1', '1.0', [], [required]);
+    const surface = new SurfaceModel('s1', catalog);
+    surface.dataModel.set('/v', '');
+
+    const schema = z.object({
+      value: CommonSchemas.DynamicString.optional(),
+      extra: z.string().optional(),
+      checks: CommonSchemas.Checkable.shape.checks,
+      nested: z
+        .object({
+          checks: CommonSchemas.Checkable.shape.checks,
+        })
+        .optional(),
+    });
+
+    const checkRule = (message: string) => [
+      {
+        condition: {'@call': 'required', args: {value: {'@path': '/v'}}},
+        message,
+      },
+    ];
+
+    const compModel = new ComponentModel(
+      'c1',
+      'ValidatedInput',
+      {
+        value: {'@path': '/v'},
+        extra: 'temporary',
+        checks: checkRule('Top required'),
+        nested: {
+          checks: checkRule('Nested required'),
+        },
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c1'),
+      schema,
+    );
+
+    // Synchronous initial snapshot includes both top-level and nested validation state
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Top required']);
+    assert.strictEqual((binder.snapshot.nested as Record<string, unknown>).isValid, false);
+    assert.deepStrictEqual((binder.snapshot.nested as Record<string, unknown>).validationErrors, [
+      'Nested required',
+    ]);
+
+    const sub = binder.subscribe(() => {});
+
+    // Component update omitting `extra` preserves validation state while `checks` remain
+    compModel.properties = {
+      value: {'@path': '/v'},
+      checks: checkRule('Top required'),
+      nested: {
+        checks: checkRule('Nested required'),
+      },
+    };
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'extra'), false);
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Top required']);
+    assert.strictEqual((binder.snapshot.nested as Record<string, unknown>).isValid, false);
+    assert.deepStrictEqual((binder.snapshot.nested as Record<string, unknown>).validationErrors, [
+      'Nested required',
+    ]);
+
+    // Reactive data update updates both top-level and nested validation state
+    surface.dataModel.set('/v', 'non-empty');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+    assert.deepStrictEqual(binder.snapshot.validationResults, []);
+    assert.strictEqual((binder.snapshot.nested as Record<string, unknown>).isValid, true);
+    assert.deepStrictEqual(
+      (binder.snapshot.nested as Record<string, unknown>).validationErrors,
+      [],
+    );
+
+    // Component update omitting `checks`, `nested`, and `value` clears validation state
+    compModel.properties = {};
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'value'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'checks'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'isValid'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'validationErrors'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'validationResults'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'nested'), false);
+
+    // Subsequent updates to /v do not resurrect validation state or value
+    surface.dataModel.set('/v', '');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'isValid'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'validationErrors'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'validationResults'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'value'), false);
+
+    sub.unsubscribe();
+    surface.dispose();
+  });
+
+  it('prunes omitted properties for STATIC schemas without aliasing componentModel.properties', () => {
+    const catalog = new Catalog('test-static', '0.9', [], []);
+    const surface = new SurfaceModel('s1', catalog);
+    const compModel = new ComponentModel('c1', 'OpenBox', {a: 1, b: 2}, catalog);
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c1'),
+      z.record(z.unknown()),
+    );
+
+    assert.notStrictEqual(binder.snapshot, compModel.properties);
+    assert.deepStrictEqual(binder.snapshot, {a: 1, b: 2});
+
+    const sub = binder.subscribe(() => {});
+    compModel.properties = {a: 1};
+
+    assert.notStrictEqual(binder.snapshot, compModel.properties);
+    assert.deepStrictEqual(binder.snapshot, {a: 1});
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'b'), false);
+
+    sub.unsubscribe();
+    surface.dispose();
+  });
+});
