@@ -1,0 +1,97 @@
+---
+title: 'Ecosystem Renderers & Tools'
+description: 'Community renderers, agent libraries, and ecosystem tooling for A2UI.'
+---
+
+import {Aside} from '@astrojs/starlight/components';
+
+This page lists community renderers, agent libraries, and related projects built around the A2UI protocol.
+
+<Aside type="note" title="Community maintenance">
+  Third-party projects listed here are maintained by their respective authors and organizations, not
+  by the core A2UI maintainers. Check each repository for license terms, protocol version support,
+  and release status.
+</Aside>
+
+<Aside type="tip" title="Official SDKs">
+  For first-party SDKs maintained by the A2UI team, see the [Agent SDKs](../../concepts/agent-sdks/)
+  guide (TypeScript, Python, Dart) and [Renderer SDKs](../../concepts/renderer-sdks/) guide (Web
+  with React, Lit, and Angular; Flutter; Swift; and Jetpack Compose), as well as the official
+  [`@a2ui/react`](https://www.npmjs.com/package/@a2ui/react) package.
+</Aside>
+
+## Community renderers
+
+The following table lists client-side renderers implemented and maintained by the community across web, mobile, desktop, and terminal environments.
+
+| Renderer                                                                                                                                                                                                               | Platform / Framework                                      | Versions         | Status       | Description                                                                                                       |
+| :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------- | :--------------- | :----------- | :---------------------------------------------------------------------------------------------------------------- |
+| **[easyops-cn/a2ui-sdk](https://github.com/easyops-cn/a2ui-sdk)**<br />(`@a2ui-sdk/react`) · [Docs](https://a2ui-sdk.js.org/)                                                                                          | React (Web)                                               | `v0.8`           | Active       | React renderer with Radix UI primitives and Tailwind CSS styling.                                                 |
+| **[lmee/A2UI-Android](https://github.com/lmee/A2UI-Android)**                                                                                                                                                          | Android (Compose)                                         | `v0.8`           | Active       | Jetpack Compose renderer covering Android 5.0+ with 20+ components and accessibility support.                     |
+| **[sivamrudram-eng/a2ui-react-native](https://github.com/sivamrudram-eng/a2ui-react-native)**                                                                                                                          | React Native                                              | `v0.8`           | Active       | React Native renderer supporting iOS and Android clients from a single TypeScript codebase.                       |
+| **[zhama/a2ui](https://www.npmjs.com/package/@zhama/a2ui)**                                                                                                                                                            | React (Web)                                               | `v0.8`           | Active       | React web renderer published on npm.                                                                              |
+| **[jem-computer/A2UI-react](https://github.com/jem-computer/A2UI-react)**                                                                                                                                              | React (Web)                                               | `v0.8`           | Active       | Community React web renderer implementation.                                                                      |
+| **[BBC6BAE9/a2ui-swift](https://github.com/BBC6BAE9/a2ui-swift)**                                                                                                                                                      | Apple native (SwiftUI, UIKit, AppKit)                     | `v0.8`, `v0.9.x` | Active       | Native Apple renderer for iOS, iPadOS, macOS, tvOS, visionOS, and watchOS following Human Interface Guidelines.   |
+| **[shawnwang15/a2ui-vue](https://github.com/shawnwang15/a2ui-vue)**<br />(`a2ui-vue`) · [Docs](https://shawnwang15.github.io/a2ui-vue/en/)                                                                             | Vue (Web)                                                 | `v0.8`, `v0.9.x` | Active       | Vue web renderer with interactive documentation and demos.                                                        |
+| **[AGenUI/AGenUI](https://github.com/AGenUI/AGenUI)**<br />[Website](https://genui.amap.com/)                                                                                                                          | iOS, Android, HarmonyOS                                   | `v0.9.x`         | Active       | Cross-platform native renderer powered by a shared C++ core, with custom Table, Carousel, and Web components.     |
+| **[lynx-family/lynx-stack](https://github.com/lynx-family/lynx-stack/tree/main/packages/genui/a2ui)**<br />(`@lynx-js/genui`) · [Docs](https://lynxjs.org/next/react/genui/a2ui.html)                                  | Lynx (Mobile, Web, Desktop)                               | `v0.9.x`         | Active       | ReactLynx renderer for cross-platform apps, processing messages via a MessageStore.                               |
+| **[BoteAI/a2ui](https://github.com/BoteAI/a2ui)**<br />(`@boteai/a2ui-render`)                                                                                                                                         | React (Web)                                               | `v0.8`, `v0.9.x` | Active       | Community React renderer package.                                                                                 |
+| **[kokoro-ele/a2ui-ink](https://github.com/kokoro-ele/a2ui-ink)**<br />(`@evanyu/a2ui-ink`)                                                                                                                            | Terminal / CLI (Ink)                                      | `v0.9.x`         | Active       | Terminal UI renderer built on Ink for rendering A2UI components in command-line environments.                     |
+| **[yessGlory17/generative-mui](https://github.com/yessGlory17/generative-mui)**<br />(`@yessglory/generative-mui-react`)                                                                                               | React + Material UI (Web)                                 | `v0.9.x`         | Active       | Material UI renderer that inherits the host app ThemeProvider, with validation checks and streaming placeholders. |
+| **[ChaliceForAuri/a2ui-svelte](https://github.com/ChaliceForAuri/a2ui-svelte)**<br />(`svelte-a2ui`) · [Demo](https://chaliceforauri.github.io/a2ui-svelte/)                                                           | Svelte 5 (Web)                                            | `v1.0`           | Active       | Svelte 5 runes renderer targeting v1.0 Candidate spec, supporting HTTP JSONL/SSE and A2A transports.              |
+| **[Language-Lit/material3-expressive-a2ui](https://github.com/Language-Lit/material3-expressive-a2ui)**<br />(`@language-lit/material3-expressive-a2ui`)<br />[Demo & Docs](https://m3e.language-lit.com/a2ui/)        | React + Material 3 Expressive (Web)                       | `v0.9.x`         | Active       | Material 3 Expressive React renderer built on `@a2ui/web_core`.                                                   |
+| **[uny/a2ui-compose](https://github.com/uny/a2ui-compose)**<br />(`dev.ynagai.a2ui:a2ui-material3`)<br />[Docs](https://uny.github.io/a2ui-compose/) · [Maven](https://central.sonatype.com/namespace/dev.ynagai.a2ui) | Compose Multiplatform (Android, iOS, desktop, macOS, Web) | `v1.0`           | Active       | Compose Multiplatform renderer for desktop, mobile, and web from a single codebase.                               |
+| **[xpert-ai/a2ui-react](https://www.npmjs.com/package/@xpert-ai/a2ui-react)**<br />(`@xpert-ai/a2ui-react`)                                                                                                            | React (Web)                                               | —                | Early stage  | React renderer built with ShadCN UI components.                                                                   |
+| **[josh-english-2k18/a2ui-3d-renderer](https://github.com/josh-english-2k18/a2ui-3d-renderer)**                                                                                                                        | WebGL / Three.js                                          | —                | Experimental | Three.js and WebGL 3D renderer for A2UI surfaces.                                                                 |
+| **[AINative-Studio/ai-kit-a2ui](https://github.com/AINative-Studio/ai-kit-a2ui)**                                                                                                                                      | React (Web)                                               | —                | Early stage  | React and ShadCN renderer designed for the AIKit framework.                                                       |
+
+## Agent libraries
+
+The following server-side libraries assist in generating and validating A2UI payloads:
+
+| Project                                                                                                                                                            | Language   | Status | Description                                                                                                                                                                 |
+| :----------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------- | :----- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[Max-Health-Inc/prefab](https://github.com/Max-Health-Inc/prefab)**<br />(`@maxhealth.tech/prefab`) · [Docs](https://max-health-inc.github.io/prefab/guide/a2ui) | TypeScript | Active | Server-side component library that generates A2UI payloads from a typed component tree, validates catalog compatibility, and serves A2UI over MCP as an `a2ui://` resource. |
+
+## Related generative UI projects
+
+The following projects are related generative UI tools that interact with or support the A2UI protocol:
+
+| Project                                                                                                                                                               | Platform                                   | Description                                                                                                                                                                                                                                                                                          |
+| :-------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[vercel-labs/json-render](https://github.com/vercel-labs/json-render)**<br />(`@json-render/*`) · [Docs](https://json-render.dev/)                                  | React, Vue, Svelte, Solid, React Native    | Generative UI framework by Vercel that uses its own JSON schema with Zod-based component catalogs, streaming, and cross-platform rendering; includes an [A2UI adapter](https://json-render.dev/docs/a2ui).                                                                                           |
+| **[thesysdev/openui](https://github.com/thesysdev/openui/tree/main/packages/a2ui)**<br />(`@openuidev/a2ui`) · [Docs](https://www.openui.com/docs/api-reference/a2ui) | Framework-agnostic core with React adapter | Experimental generative UI profile from OpenUI that follows A2UI v1.0 surface and envelope lifecycles while sending component updates as [OpenUI Lang](https://www.openui.com/docs/openui-lang) statements rather than Basic Catalog JSON (not compatible with standard A2UI agents out of the box). |
+
+## Community showcase and contributing
+
+The A2UI project welcomes community submissions and third-party tooling.
+
+### How to submit a project
+
+Follow these steps to submit a renderer, library, or tool for inclusion in this directory:
+
+1. Create a fork of the [a2ui-project/a2ui](https://github.com/a2ui-project/a2ui) repository on GitHub.
+2. Sign the [Google Contributor License Agreement](https://cla.developers.google.com/) if you have not already done so.
+3. Add your project row to `docs/site/src/content/docs/ecosystem/renderers.mdx` with package details, platform support, supported protocol versions, and repository links.
+4. Open a pull request against `a2ui-project/a2ui` with a description of the project and verification details or demo links.
+5. Share your project on [GitHub Discussions](https://github.com/a2ui-project/a2ui/discussions) with an optional demo video or walkthrough.
+
+### Listing criteria
+
+Submissions are evaluated against the following guidelines:
+
+1. The project should have an open-source repository, typically licensed under Apache 2.0 or MIT.
+2. Documentation must explicitly state supported protocol versions (`v0.8`, `v0.9` / `v0.9.1`, or `v1.0`).
+3. Client renderers should support core layout, text, input, and action components.
+4. The repository should include clear installation instructions and a minimal runnable example.
+5. Projects should reflect active maintenance. Projects that are no longer maintained should be marked as archived.
+
+### Code of conduct and participation
+
+All community members and contributors are expected to follow [Google's Open Source Community Guidelines](https://opensource.google/conduct/) as described in [CONTRIBUTING.md](https://github.com/a2ui-project/a2ui/blob/main/CONTRIBUTING.md).
+
+For discussions and general questions, participate in [GitHub Discussions](https://github.com/a2ui-project/a2ui/discussions).
+
+To report bugs or feature requests, use [GitHub Issues](https://github.com/a2ui-project/a2ui/issues).
+
+To report security vulnerabilities, do not open a public issue. Follow the instructions in [Google Vulnerability Reporting](https://g.co/vulnz) or contact the project maintainers privately.
