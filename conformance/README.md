@@ -103,6 +103,8 @@ Every conformance test runner must declare two top-level configuration variables
 1. **`SUPPORTED_PROTOCOL_VERSIONS`**: A set/list of A2UI protocol versions supported by the SDK or harness (e.g. `{'0.8', '0.9', '1.0'}`). Test cases specifying a version outside this set are skipped cleanly.
 2. **`SKIP_TEST_NAMES`**: A transition skip list containing test case names to temporarily skip during active feature transitions. At the start of a feature migration, test names for unimplemented features are added to this set and progressively removed as feature implementations complete. Skipped tests are logged as `[SKIPPED]` without marking test runs as failures.
 
+When `A2UI_CONFORMANCE_MANIFEST_DIR` is set in CI, each harness writes one JSON Lines record per executed or skipped case to that directory, validated against [`executed_case_manifest.schema.json`](executed_case_manifest.schema.json), and [`scripts/check_executed_cases.py`](scripts/check_executed_cases.py) compares the recorded cases against the suite globs in [`manifest_corpora.json`](manifest_corpora.json). See [Executed-case manifest](conformance_harness_implementation_guide.md#5-executed-case-manifest) in the harness implementation guide for the record format, strict dispatch rules, and comparer flags.
+
 Client-side implementations run these suites too:
 
 > **Note**: Conformance tests provide the primary verification of protocol and inference format specifications across languages. Unit tests in SDK packages are reserved for language-specific implementation residue (e.g., exception types, thread-safety, stream lifecycle). To test everything, both unit tests and conformance tests must be run.
