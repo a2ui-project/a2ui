@@ -929,7 +929,8 @@ public final class NodeResolver: Sendable {
       childIdentities: [:],
       readValues: [:],
       templateCounts: [:],
-      directChildInstances: []
+      directChildInstances: [],
+      agentCalls: []
     )
     registerNodeDependencies(record)
 
