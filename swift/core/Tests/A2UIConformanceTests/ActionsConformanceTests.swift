@@ -182,7 +182,7 @@ struct ActionsConformanceTests {
       functionHandler: handler,
       protocolVersion: protocolVersion,
       index: index,
-      userActivation: userActivation
+      isUserActivated: userActivation
     )
 
     let rawAction =

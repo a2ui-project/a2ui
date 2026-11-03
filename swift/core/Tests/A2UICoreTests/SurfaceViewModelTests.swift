@@ -817,7 +817,7 @@ struct SurfaceViewModelTests {
     #expect(error.expression == "noSuchFunction")
   }
 
-  @Test func actionCallingThrowingFunctionReportsExpressionError() throws {
+  @Test func actionCallingThrowingFunctionReportsExecutionError() throws {
     let (processor, surface, handler) = try makeProcessor()
     processor.updateComponents(
       surfaceID: surface.surfaceID,
@@ -837,7 +837,11 @@ struct SurfaceViewModelTests {
 
     #expect(handler.capturedActions.isEmpty)
     #expect(handler.capturedErrors.count == 1)
-    let error = try #require(expressionErrors(handler).first)
+    guard case .generic(let error) = handler.capturedErrors.first else {
+      Issue.record("Expected a generic error, got \(handler.capturedErrors)")
+      return
+    }
+    #expect(error.code == "EXECUTION_ERROR", "a local function that throws in an action")
     #expect(error.surfaceID == surface.surfaceID)
     #expect(error.message.contains("boom"))
     #expect(error.expression == "fail")
