@@ -37,7 +37,11 @@ import {ComponentBinder} from './component-binder.service';
 import {ComponentHostComponent} from './component-host.component';
 import {initializeAngularReactivity} from './reactivity';
 import {AngularWcHost} from '../catalog/angular_wc_host';
-import {AngularCatalog, createComponentImplementation} from '../catalog/types';
+import {
+  AngularCatalog,
+  type AngularComponentImplementation,
+  createComponentImplementation,
+} from '../catalog/types';
 
 const CardApi = {name: 'Card', schema: z.object({})} satisfies ComponentApi;
 const FieldApi = {
@@ -77,7 +81,7 @@ function flush(fixture: ComponentFixture<unknown>) {
 }
 
 describe('host accessibility', () => {
-  let surface: SurfaceModel<any>;
+  let surface: SurfaceModel<AngularComponentImplementation>;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
