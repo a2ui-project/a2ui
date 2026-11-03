@@ -98,6 +98,8 @@ describe('spec_annotations', () => {
     } finally {
       if (originalPrototypeDescribe) {
         Object.defineProperty(z.ZodType.prototype, 'describe', originalPrototypeDescribe);
+      } else {
+        delete (z.ZodType.prototype as {describe?: unknown}).describe;
       }
     }
   });
