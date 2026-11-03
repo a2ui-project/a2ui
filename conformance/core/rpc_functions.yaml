@@ -358,20 +358,29 @@
     error:
       message: "catalogId"
 
-- name: test_rpc_agent_function_response_inbound
-  description: Verifies inbound agentFunctionResponse message processing by MessageProcessor.
+- name: test_rpc_agent_function_response_correlates_pending_call
+  description: Verifies an outbound callAgentFunction correlates with and resolves from a matching inbound agentFunctionResponse.
   catalog:
     protocolVersion: "1.0"
   action: handle_rpc
   args:
-    message:
+    outboundCall:
+      surfaceId: "main_surface"
+      functionCallId: "call-201"
+      callFunction:
+        "@call": "fetchData"
+        catalogId: "basic"
+        args:
+          query: "status"
+    inboundResponse:
       version: "1.0"
       agentFunctionResponse:
         functionCallId: "call-201"
         value:
           status: "verified"
   expect:
-    response: null
+    result:
+      status: "verified"
 
 - name: test_rpc_call_renderer_function_invalid_argument_schema
   description: Verifies callRendererFunction returns INVALID_FUNCTION_CALL when argument schema validation fails.
@@ -474,6 +483,107 @@
         args: {}
   expectError:
     code: "DUPLICATE"
+
+- name: test_rpc_call_agent_function_cancelled
+  description: Verifies cancelling an in-flight callAgentFunction rejects with CANCELLED error code.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    outboundCall:
+      surfaceId: "main_surface"
+      functionCallId: "call-cancel-1"
+      callFunction:
+        "@call": "fetchData"
+        catalogId: "basic"
+        args: {}
+    afterCall: "cancel"
+  expectError:
+    code: "CANCELLED"
+
+- name: test_rpc_call_agent_function_disposed
+  description: Verifies disposing RPC state rejects callAgentFunction with DISPOSED error code.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    outboundCall:
+      surfaceId: "main_surface"
+      functionCallId: "call-disposed-1"
+      callFunction:
+        "@call": "fetchData"
+        catalogId: "basic"
+        args: {}
+    afterCall: "dispose"
+  expectError:
+    code: "DISPOSED"
+
+- name: test_rpc_call_agent_function_no_listener
+  description: Verifies callAgentFunction without an outbound listener rejects with NO_LISTENER error code.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    outboundCall:
+      surfaceId: "main_surface"
+      functionCallId: "call-no-listener-1"
+      callFunction:
+        "@call": "fetchData"
+        catalogId: "basic"
+        args: {}
+    outboundListener: false
+  expectError:
+    code: "NO_LISTENER"
+
+- name: test_rpc_call_agent_function_late_response_after_timeout_ignored
+  description: Verifies a late agentFunctionResponse arriving after callAgentFunction times out is ignored without mutating settled state.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    outboundCall:
+      surfaceId: "main_surface"
+      functionCallId: "call-late-timeout-1"
+      timeoutMs: 10
+      callFunction:
+        "@call": "longRunningTask"
+        catalogId: "basic"
+        args: {}
+    lateInboundResponse:
+      version: "1.0"
+      agentFunctionResponse:
+        functionCallId: "call-late-timeout-1"
+        value:
+          status: "too-late"
+  expect:
+    lateResponseIgnored: true
+  expectError:
+    code: "TIMEOUT"
+
+- name: test_rpc_call_agent_function_late_response_after_dispose_ignored
+  description: Verifies a late agentFunctionResponse arriving after RPC state is disposed is ignored without mutating settled state.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    outboundCall:
+      surfaceId: "main_surface"
+      functionCallId: "call-late-dispose-1"
+      callFunction:
+        "@call": "fetchData"
+        catalogId: "basic"
+        args: {}
+    afterCall: "dispose"
+    lateInboundResponse:
+      version: "1.0"
+      agentFunctionResponse:
+        functionCallId: "call-late-dispose-1"
+        value:
+          status: "too-late"
+  expect:
+    lateResponseIgnored: true
+  expectError:
+    code: "DISPOSED"
 
 - name: test_rpc_call_renderer_function_with_surface_id_and_dynamic_args
   description: Verifies callRendererFunction with surfaceId resolves @path and @call in callFunction.args against the target surface's root DataContext (/).
@@ -640,3 +750,146 @@
             orderId: "ord-99"
     result:
       accepted: true
+
+- name: test_rpc_ui_binding_agent_error_resolves_null
+  description: Verifies that when a dynamic value binding calling an agent function receives an error response, the binding resolves to null, sibling components render intact, and the surface reports EXPRESSION_ERROR with the failed call's functionCallId.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    uiBindingScenario:
+      surfaceId: "main_surface"
+      catalogId: "store_catalog"
+      components:
+        - id: "root"
+          component: "Column"
+          children:
+            - "bound_text"
+            - "sibling_text"
+        - id: "bound_text"
+          component: "Text"
+          text:
+            "@call": "remoteTitle"
+            catalogId: "store_catalog"
+            args:
+              itemId: "item-42"
+        - id: "sibling_text"
+          component: "Text"
+          text: "Static subtitle"
+      observe:
+        componentId: "bound_text"
+        property: "text"
+      inboundResponseError:
+        code: "EXECUTION_ERROR"
+        message: "Backend unavailable"
+  expect:
+    initialValue: null
+    outboundCall:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: "main_surface"
+        callFunction:
+          "@call": "remoteTitle"
+          catalogId: "store_catalog"
+          args:
+            itemId: "item-42"
+    resolvedValue: null
+    siblings:
+      sibling_text:
+        text: "Static subtitle"
+    surfaceError:
+      code: "EXPRESSION_ERROR"
+      functionCallId: "$outboundCallId"
+
+- name: test_rpc_ui_check_agent_error_invalidates_rule
+  description: Verifies that when a CheckRule condition calling an agent function receives an error response, the check rule evaluates to invalid with the rule's message and the surface reports EXPRESSION_ERROR with the failed call's functionCallId.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    uiBindingScenario:
+      surfaceId: "main_surface"
+      catalogId: "store_catalog"
+      component:
+        id: "root"
+        component: "TextField"
+        label: "Username"
+        value: "ada"
+        checks:
+          - condition:
+              "@call": "remoteCheck"
+              catalogId: "store_catalog"
+              args:
+                username: "ada"
+            message: "Name is taken"
+      inboundResponseError:
+        code: "EXECUTION_ERROR"
+        message: "Directory service unavailable"
+  expect:
+    outboundCall:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: "main_surface"
+        callFunction:
+          "@call": "remoteCheck"
+          catalogId: "store_catalog"
+          args:
+            username: "ada"
+    validationResult:
+      valid: false
+      message: "Name is taken"
+    surfaceError:
+      code: "EXPRESSION_ERROR"
+      functionCallId: "$outboundCallId"
+
+- name: test_rpc_ui_action_agent_error_halts_pipeline
+  description: Verifies that when an agent function call in an action pipeline receives an error response, earlier effects are preserved, the remaining pipeline halts, and the surface reports EXPRESSION_ERROR with the failed call's functionCallId.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    uiActionFallbackScenario:
+      surfaceId: "main_surface"
+      catalogId: "store_catalog"
+      localFunctions:
+        markStarted:
+          returnType: "boolean"
+          effect:
+            setData:
+              path: "/started"
+              value: true
+        finish:
+          returnType: "boolean"
+          effect:
+            setData:
+              path: "/finished"
+              value: true
+      actionPayload:
+        functionCall:
+          "@call": "finish"
+          catalogId: "store_catalog"
+          args:
+            steps:
+              - "@call": "markStarted"
+                catalogId: "store_catalog"
+                args: {}
+              - "@call": "remoteStep"
+                catalogId: "store_catalog"
+                args: {}
+      inboundResponseError:
+        code: "EXECUTION_ERROR"
+        message: "Remote step failed"
+  expect:
+    outboundCall:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: "main_surface"
+        callFunction:
+          "@call": "remoteStep"
+          catalogId: "store_catalog"
+          args: {}
+    dataModel:
+      started: true
+    surfaceError:
+      code: "EXPRESSION_ERROR"
+      functionCallId: "$outboundCallId"
