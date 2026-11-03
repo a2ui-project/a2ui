@@ -25,11 +25,9 @@ import 'package:test/test.dart';
 void main() {
   const A2uiProtocolVersion v1_0 = A2uiProtocolVersion.v1_0;
 
-  final basicDocument =
-      jsonDecode(
-            File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
-          )
-          as Map<String, Object?>;
+  final basicDocument = jsonDecode(
+    File('../../catalogs/basic/v1/catalog.json').readAsStringSync(),
+  ) as Map<String, Object?>;
   final CatalogApi basic = InMemoryCatalogProvider(basicDocument).load();
   final CatalogApi v0_9Basic = const FileSystemCatalogProvider(
     '../../specification/v0_9/catalogs/basic/catalog.json',
@@ -900,9 +898,8 @@ void main() {
     });
 
     test('compiles a standalone function call into a callRendererFunction', () {
-      final List<ResponsePart> parts = express(
-        catalogs: [callable],
-      ).parseResponse('<a2ui>\nformatString("Hello")\n</a2ui>');
+      final List<ResponsePart> parts = express(catalogs: [callable])
+          .parseResponse('<a2ui>\nformatString("Hello")\n</a2ui>');
       expect(
         (parts.single as A2uiPart).a2ui.single,
         isA<CallRendererFunctionMessage>(),
@@ -1157,9 +1154,8 @@ void main() {
         },
       ]);
       expect(
-        (components(
-              'root = Text(formatString("Hi"), catalogId="${basic.id}")',
-            ).single
+        (components('root = Text(formatString("Hi"), catalogId="${basic.id}")')
+                .single
             as Map)['text'],
         {
           '@call': 'formatString',

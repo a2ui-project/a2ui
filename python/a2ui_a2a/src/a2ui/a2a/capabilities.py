@@ -31,50 +31,50 @@ def renderer_capabilities_from_message(
     message: Message | None,
     version: ProtocolVersion | str = ProtocolVersion.V1_0,
 ) -> dict[str, Any] | None:
-  """Reads and validates renderer capabilities for ``version`` from an A2A ``Message``.
+    """Reads and validates renderer capabilities for ``version`` from an A2A ``Message``.
 
-  Checks ``message.metadata`` first, then each :class:`DataPart`'s ``metadata``,
-  and finally each :class:`DataPart`'s ``data["metadata"]`` (legacy fallback).
-  The first source carrying the version's capabilities key wins.
+    Checks ``message.metadata`` first, then each :class:`DataPart`'s ``metadata``,
+    and finally each :class:`DataPart`'s ``data["metadata"]`` (legacy fallback).
+    The first source carrying the version's capabilities key wins.
 
-  Args:
-    message: The inbound A2A message, or ``None``.
-    version: The A2UI protocol version to read capabilities for.
+    Args:
+      message: The inbound A2A message, or ``None``.
+      version: The A2UI protocol version to read capabilities for.
 
-  Returns:
-    A version-keyed capabilities dictionary accepted unchanged by
-    :func:`resolve_catalogs`, or ``None`` if absent.
+    Returns:
+      A version-keyed capabilities dictionary accepted unchanged by
+      :func:`resolve_catalogs`, or ``None`` if absent.
 
-  Raises:
-    A2uiCatalogError: If ``version`` is unsupported or a capabilities entry is
-      malformed.
-  """
-  if message is None:
+    Raises:
+      A2uiCatalogError: If ``version`` is unsupported or a capabilities entry is
+        malformed.
+    """
+    if message is None:
+        return read_renderer_capabilities(None, version)
+
+    if message.metadata is not None:
+        capabilities = read_renderer_capabilities(message.metadata, version)
+        if capabilities is not None:
+            return capabilities
+
+    data_parts: list[DataPart] = []
+    for part in message.parts or []:
+        inner = part.root if isinstance(part, Part) else part
+        if isinstance(inner, DataPart):
+            data_parts.append(inner)
+
+    for data_part in data_parts:
+        if data_part.metadata is not None:
+            capabilities = read_renderer_capabilities(data_part.metadata, version)
+            if capabilities is not None:
+                return capabilities
+
+    for data_part in data_parts:
+        if isinstance(data_part.data, Mapping) and "metadata" in data_part.data:
+            capabilities = read_renderer_capabilities(
+                data_part.data.get("metadata"), version
+            )
+            if capabilities is not None:
+                return capabilities
+
     return read_renderer_capabilities(None, version)
-
-  if message.metadata is not None:
-    capabilities = read_renderer_capabilities(message.metadata, version)
-    if capabilities is not None:
-      return capabilities
-
-  data_parts: list[DataPart] = []
-  for part in message.parts or []:
-    inner = part.root if isinstance(part, Part) else part
-    if isinstance(inner, DataPart):
-      data_parts.append(inner)
-
-  for data_part in data_parts:
-    if data_part.metadata is not None:
-      capabilities = read_renderer_capabilities(data_part.metadata, version)
-      if capabilities is not None:
-        return capabilities
-
-  for data_part in data_parts:
-    if isinstance(data_part.data, Mapping) and "metadata" in data_part.data:
-      capabilities = read_renderer_capabilities(
-          data_part.data.get("metadata"), version
-      )
-      if capabilities is not None:
-        return capabilities
-
-  return read_renderer_capabilities(None, version)

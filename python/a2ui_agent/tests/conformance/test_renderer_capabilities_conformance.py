@@ -46,30 +46,28 @@ _ERROR_CATEGORIES: dict[str, type[Exception]] = {
 
 
 def _load_cases(suite: str) -> list[Any]:
-  cases = load_conformance_yaml(suite)
-  assert isinstance(cases, list) and cases, f"Empty suite: {suite}"
-  return case_params(suite, cases)
+    cases = load_conformance_yaml(suite)
+    assert isinstance(cases, list) and cases, f"Empty suite: {suite}"
+    return case_params(suite, cases)
 
 
 @pytest.mark.parametrize("suite, case", _load_cases(_SUITE))
-def test_renderer_capabilities_conformance(
-    suite: str, case: dict[str, Any]
-) -> None:
-  del suite
-  assert case["action"] == "read_renderer_capabilities"
-  assert_known_keys(case, _CASE_KEYS, "read_renderer_capabilities case")
-  args = case["args"]
-  metadata = args.get("metadata")
-  version = args["version"]
+def test_renderer_capabilities_conformance(suite: str, case: dict[str, Any]) -> None:
+    del suite
+    assert case["action"] == "read_renderer_capabilities"
+    assert_known_keys(case, _CASE_KEYS, "read_renderer_capabilities case")
+    args = case["args"]
+    metadata = args.get("metadata")
+    version = args["version"]
 
-  if "expect_error" in case:
-    assert_known_keys(case["expect_error"], _EXPECT_ERROR_KEYS, "expect_error")
-    with pytest.raises(
-        _ERROR_CATEGORIES[case["expect_error"]["category"]],
-        match=case["expect_error"].get("message"),
-    ):
-      read_renderer_capabilities(metadata, version)
-    return
+    if "expect_error" in case:
+        assert_known_keys(case["expect_error"], _EXPECT_ERROR_KEYS, "expect_error")
+        with pytest.raises(
+            _ERROR_CATEGORIES[case["expect_error"]["category"]],
+            match=case["expect_error"].get("message"),
+        ):
+            read_renderer_capabilities(metadata, version)
+        return
 
-  result = read_renderer_capabilities(metadata, version)
-  assert result == case["expect"]
+    result = read_renderer_capabilities(metadata, version)
+    assert result == case["expect"]

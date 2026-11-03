@@ -313,9 +313,9 @@ bool caseDeclaresV1(Map<String, Object?> args) =>
     ].any((Object? entry) {
       final Object? path = entry is Map ? entry['catalog'] : entry;
       if (path is! String) return false;
-      final document =
-          jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
-              as Map<String, Object?>;
+      final document = jsonDecode(
+        File('$conformanceRoot/$path').readAsStringSync(),
+      ) as Map<String, Object?>;
       return _isVersionAtLeast1_0(document['protocolVersion']);
     });
 
@@ -326,9 +326,9 @@ String? caseCatalogVersion(Map<String, Object?> args) {
       args['catalog'] ?? (args['catalogs'] as List?)?.firstOrNull;
   final Object? path = entry is Map ? entry['catalog'] : entry;
   if (path is! String) return null;
-  final document =
-      jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
-          as Map<String, Object?>;
+  final document = jsonDecode(
+    File('$conformanceRoot/$path').readAsStringSync(),
+  ) as Map<String, Object?>;
   return document['protocolVersion']?.toString();
 }
 
@@ -523,9 +523,9 @@ List<AgentToRendererMessage> loadExample(String path) => lowerMessages(
 /// without lowering to v0.9.
 List<AgentToRendererMessage> loadExampleUnlowered(String path) =>
     AgentToRendererMessage.parseAll([
-      for (final Object? item
-          in jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
-              as List<Object?>)
+      for (final Object? item in jsonDecode(
+        File('$conformanceRoot/$path').readAsStringSync(),
+      ) as List<Object?>)
         Map<String, Object?>.from(item! as Map),
     ], protocolVersion: A2uiProtocolVersion.v1_0).messages;
 
@@ -772,9 +772,8 @@ Object? _plain(Object? node) => switch (node) {
 /// directory.
 final String conformanceRoot = () {
   Directory dir = Directory.current;
-  while (!File(
-    '${dir.path}/conformance/conformance_schema.json',
-  ).existsSync()) {
+  while (!File('${dir.path}/conformance/conformance_schema.json')
+      .existsSync()) {
     if (dir.parent.path == dir.path) {
       throw StateError('No conformance/ directory above ${Directory.current}.');
     }

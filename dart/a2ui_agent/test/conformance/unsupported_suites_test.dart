@@ -46,25 +46,25 @@ const Set<String> activeAgentSuites = {
 const Map<String, String> unsupportedAgentSuites = {
   'agent/builder/builder.yaml':
       'The fluent builder AST suite targets the Python builder API, which '
-          'a2ui_agent for Dart does not implement.',
+      'a2ui_agent for Dart does not implement.',
   'agent/direct_json/scaling.yaml':
       'Timing suite tagged performance; runs in the performance job with '
-          'dart test -P performance.',
+      'dart test -P performance.',
   'agent/express/scaling.yaml':
       'Timing suite tagged performance; runs in the performance job with '
-          'dart test -P performance.',
+      'dart test -P performance.',
   'agent/legacy/inference_format.yaml':
       'Pre-blueprint legacy suite retained only for backward compatibility; '
-          'superseded by the current agent suites.',
+      'superseded by the current agent suites.',
   'agent/legacy/parser.yaml':
       'Pre-blueprint legacy suite retained only for backward compatibility; '
-          'superseded by the current agent suites.',
+      'superseded by the current agent suites.',
   'agent/legacy/streaming_parser.yaml':
       'Pre-blueprint legacy suite retained only for backward compatibility; '
-          'superseded by the current agent suites.',
+      'superseded by the current agent suites.',
   'agent/macros/macros.yaml':
       'The composite macro suite targets the Python macro API, which '
-          'a2ui_agent for Dart does not implement.',
+      'a2ui_agent for Dart does not implement.',
   'agent/skill.yaml':
       'a2ui_agent for Dart does not implement the skill generation API.',
 };
@@ -91,13 +91,15 @@ void main() {
       expect(
         activeAgentSuites.intersection(unsupported),
         isEmpty,
-        reason: 'A suite cannot be in both activeAgentSuites and '
+        reason:
+            'A suite cannot be in both activeAgentSuites and '
             'unsupportedAgentSuites.',
       );
       expect(
         activeAgentSuites.union(unsupported),
         equals(onDisk),
-        reason: 'Every conformance/agent/**/*.yaml file must be in '
+        reason:
+            'Every conformance/agent/**/*.yaml file must be in '
             'activeAgentSuites or unsupportedAgentSuites.',
       );
     });
