@@ -989,7 +989,8 @@ List<FunctionApi> basicFunctionSignaturesV1_0() => [
             },
             'pattern': <String, Object?>{
               'type': 'string',
-              'description': 'The regex pattern to match against.',
+              'description':
+                  "The regular expression to search for in the value. Uses the A2UI regex dialect: a portable subset of ECMAScript pattern syntax in Unicode mode with no flags. Matching is case-sensitive, '.' excludes line terminators, and '^' and '\$' match only at the ends of the value. Backreferences, lookbehind, named groups and '\\p{...}' are not allowed. Patterns longer than 256 code points or that could backtrack catastrophically are rejected.",
             },
           },
           'required': <Object?>[
