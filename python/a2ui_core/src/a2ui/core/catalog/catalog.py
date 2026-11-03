@@ -2732,8 +2732,10 @@ class Catalog(Generic[TComponent, TFunction]):
 
             allowed_callers = spec.get("allowedCallers")
             requires_user_activation = spec.get("requiresUserActivation")
+            # The rule exists only in the v1.0 catalog_definition.json.
             if (
-                requires_user_activation is True
+                validate_identifiers
+                and requires_user_activation is True
                 and allowed_callers is not None
                 and allowed_callers != "rendererOnly"
             ):

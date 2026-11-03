@@ -368,6 +368,29 @@ struct MessageProcessorTests {
     #expect(titleProp?["type"] == nil)
   }
 
+  @Test func getRendererCapabilitiesRejectsUserActivationFunctionCallableByAgent() throws {
+    let schema = try Schema(instance: "{\"type\": \"object\"}")
+    let catalog = Catalog(
+      id: "cat-bad-callers",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Button", schema: schema)],
+      functions: [TestUserActivationFunction(schema: schema, allowedCallers: .rendererOrAgent)]
+    )
+    let processor = MessageProcessor(catalogs: [catalog])
+    #expect(throws: A2UICatalogError.self) {
+      _ = try processor.getRendererCapabilities(
+        options: MessageProcessor.CapabilitiesOptions(
+          protocolVersion: .v10,
+          includeInlineCatalogs: true
+        )
+      )
+    }
+    // Without inline catalogs nothing is advertised, so nothing is checked.
+    _ = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(protocolVersion: .v10)
+    )
+  }
+
   @Test func getRendererCapabilitiesGeneratesFunctionsAndThemeSchema() throws {
     let funcSchema = try Schema(
       instance: """
@@ -962,6 +985,24 @@ private struct TestOpenURLFunction: FunctionImplementation {
       returnType: .void,
       schema: schema,
       allowedCallers: .rendererOnly,
+      requiresUserActivation: true
+    )
+  }
+
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    .null
+  }
+}
+
+private struct TestUserActivationFunction: FunctionImplementation {
+  let api: FunctionAPI
+
+  init(schema: Schema, allowedCallers: AllowedCallers) {
+    self.api = FunctionAPI(
+      name: "openUrl",
+      returnType: .void,
+      schema: schema,
+      allowedCallers: allowedCallers,
       requiresUserActivation: true
     )
   }

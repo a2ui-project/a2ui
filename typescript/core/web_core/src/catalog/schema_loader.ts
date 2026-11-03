@@ -1019,7 +1019,12 @@ function parseFunctionDefinitions(
     }
   };
 
+  /**
+   * Rejects requiresUserActivation=true with callers other than rendererOnly.
+   * The rule exists only in the v1.0 catalog_definition.json.
+   */
   const assertUserActivationCallers = (entry: FunctionApi): void => {
+    if (!atLeastV10) return;
     if (
       entry.requiresUserActivation === true &&
       entry.allowedCallers !== undefined &&

@@ -323,14 +323,24 @@ struct CatalogConformanceTests {
       allowedNames: allowedFuncNames,
       context: context
     )
-    let catalog = Catalog(
+    if A2UIProtocolVersion(rawValue: protocolVersion)?.isAtLeastV10 == true {
+      // The v1.0 caller rule covers every declared function, including one that
+      // `$defs.anyFunction` leaves out, as `fromJson` checks it in the other SDKs.
+      let declaredFunctions = buildCatalogFunctions(
+        rawSchema: rawSchema,
+        allowedNames: nil,
+        context: context
+      )
+      for function in declaredFunctions {
+        try function.api.validateCallerConstraints()
+      }
+    }
+    return Catalog(
       id: catalogID,
       protocolVersion: protocolVersion,
       components: components,
       functions: functions
     )
-    try catalog.validateFunctionCallerConstraints()
-    return catalog
   }
 
   private func loadCommonTypes(
@@ -493,7 +503,8 @@ struct CatalogConformanceTests {
     if let expectedVersion = expect["protocolVersion"] as? String {
       let normalizedExpected = expectedVersion == "v1.0" ? "1.0" : expectedVersion
       #expect(
-        loaded.resolvedProtocolVersion == normalizedExpected || loaded.resolvedProtocolVersion == expectedVersion,
+        loaded.resolvedProtocolVersion == normalizedExpected
+          || loaded.resolvedProtocolVersion == expectedVersion,
         "[\(caseName)] protocolVersion mismatch"
       )
     }
@@ -570,10 +581,12 @@ struct CatalogConformanceTests {
     caseName: String
   ) {
     if let expParents = spec["allowedParents"] as? [String] {
-      #expect(comp.allowedParents == expParents, "[\(caseName)] \(comp.name) allowedParents mismatch")
+      #expect(
+        comp.allowedParents == expParents, "[\(caseName)] \(comp.name) allowedParents mismatch")
     }
     if let expChildren = spec["allowedChildren"] as? [String] {
-      #expect(comp.allowedChildren == expChildren, "[\(caseName)] \(comp.name) allowedChildren mismatch")
+      #expect(
+        comp.allowedChildren == expChildren, "[\(caseName)] \(comp.name) allowedChildren mismatch")
     }
     if let expDesc = spec["description"] as? String {
       let actualDesc =
@@ -678,7 +691,9 @@ struct CatalogConformanceTests {
     if let invalidComps = expect["invalidComponents"] as? [[String: Any]] {
       for comp in invalidComps {
         let jsonComp = ConformanceTestHelper.toJSONValue(comp)
-        #expect(throws: (any Error).self, "[\(caseName)] Expected component \(comp) to fail validation") {
+        #expect(
+          throws: (any Error).self, "[\(caseName)] Expected component \(comp) to fail validation"
+        ) {
           try validator.validateComponent(jsonComp)
         }
       }

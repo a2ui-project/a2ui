@@ -186,6 +186,41 @@
     catalogId: "https://a2ui.org/catalogs/v10/user_activation_renderer_only"
     functions: [openUrl, copyToClipboard]
 
+- name: test_v10_catalog_from_json_user_activation_error_in_function_left_out_of_union
+  description: Tests that a v1.0 catalog function with requiresUserActivation set to true and allowedCallers set to agentOnly raises CatalogError even when $defs.anyFunction leaves the function out.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_left_out_of_union"
+    functions:
+      good:
+        returnType: void
+      bad:
+        returnType: void
+        allowedCallers: agentOnly
+        requiresUserActivation: true
+    $defs:
+      anyFunction:
+        oneOf: [{$ref: "#/functions/good"}]
+  expectError:
+    category: "CatalogError"
+    message: "requiresUserActivation"
+
+- name: test_v09_catalog_from_json_user_activation_agent_only_loads
+  description: Tests that a v0.9 catalog function with requiresUserActivation set to true and allowedCallers set to agentOnly loads, because only the v1.0 catalog_definition.json restricts that pair.
+  action: from_json
+  catalog:
+    protocolVersion: "v0.9"
+    catalogId: "https://a2ui.org/catalogs/v09/user_activation_agent_only"
+    functions:
+      openUrl:
+        returnType: void
+        allowedCallers: agentOnly
+        requiresUserActivation: true
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v09/user_activation_agent_only"
+    functions: [openUrl]
+
 - name: test_v10_catalog_from_json_uax31_validation
   description: Tests parsing valid UAX#31 component and function identifiers in a v1.0 catalog.
   action: from_json

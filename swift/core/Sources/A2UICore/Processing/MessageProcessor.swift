@@ -219,7 +219,9 @@ public final class MessageProcessor: ObservableObject {
   ///
   /// - Parameter options: Configuration options for capability generation.
   /// - Returns: A `JSONValue` representing the capabilities structure keyed by protocol version.
-  /// - Throws: `A2UIValidationError` if `options.versions` is empty.
+  /// - Throws: `A2UIValidationError` if `options.versions` is empty, or ``A2UICatalogError``
+  ///   if a v1.0 inline catalog has a function that sets `requiresUserActivation` to `true`
+  ///   while `allowedCallers` is not `.rendererOnly`.
   public func getRendererCapabilities(
     options: CapabilitiesOptions
   ) throws -> JSONValue {
@@ -241,6 +243,13 @@ public final class MessageProcessor: ObservableObject {
       ]
 
       if options.includeInlineCatalogs {
+        if version.isAtLeastV10 {
+          // The v1.0 `catalog_definition.json` rejects a function that requires user
+          // activation unless only the renderer may call it, so don't advertise one.
+          for catalog in compatibleCatalogs {
+            try catalog.validateFunctionCallerConstraints()
+          }
+        }
         let inlineCatalogs = compatibleCatalogs.map {
           generateInlineCatalog($0, for: version, options: options)
         }

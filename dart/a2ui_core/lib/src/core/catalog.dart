@@ -575,6 +575,11 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       defs,
     );
     final Object? rawFunctions = json['functions'];
+    if (version?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false) {
+      // Before `$defs.anyFunction` filters the functions, as Python and
+      // TypeScript do, so a left-out function cannot hide an invalid pair.
+      _checkAllUserActivationCallers(rawFunctions, rawId);
+    }
     final List<FunctionApi> functions = _parseFunctions(
       rawFunctions,
       rawId,
@@ -997,12 +1002,6 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           rawName,
           catalogId,
         );
-        _checkUserActivationCallers(
-          allowedCallers,
-          requiresUserActivation,
-          rawName,
-          catalogId,
-        );
         functions.add(
           FunctionApi(
             name: rawName,
@@ -1071,12 +1070,6 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         fnName,
         catalogId,
       );
-      _checkUserActivationCallers(
-        allowedCallers,
-        requiresUserActivation,
-        fnName,
-        catalogId,
-      );
       functions.add(
         FunctionApi(
           name: fnName,
@@ -1090,6 +1083,37 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       );
     }
     return functions;
+  }
+
+  /// Checks every function of the document's `functions` [raw], whether or
+  /// not `$defs.anyFunction` keeps it, against the v1.0 rule that
+  /// `requiresUserActivation: true` requires `allowedCallers: rendererOnly`.
+  static void _checkAllUserActivationCallers(Object? raw, String catalogId) {
+    final Iterable<(String, Map<Object?, Object?>)> definitions = switch (raw) {
+      final List<Object?> list => [
+          for (final Object? entry in list)
+            if (entry is Map && entry['name'] is String)
+              (entry['name']! as String, entry),
+        ],
+      final Map<Object?, Object?> map => [
+          for (final MapEntry<Object?, Object?> entry in map.entries)
+            if (entry.key is String && entry.value is Map)
+              (entry.key! as String, entry.value! as Map<Object?, Object?>),
+        ],
+      _ => const [],
+    };
+    for (final (String name, Map<Object?, Object?> definition) in definitions) {
+      _checkUserActivationCallers(
+        _parseAllowedCallers(definition['allowedCallers'], name, catalogId),
+        _parseRequiresUserActivation(
+          definition['requiresUserActivation'],
+          name,
+          catalogId,
+        ),
+        name,
+        catalogId,
+      );
+    }
   }
 
   static void _checkUserActivationCallers(
