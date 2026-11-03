@@ -435,6 +435,26 @@ if state is None or not processor.accepts_state(state):
     state = states[session_id] = processor.create_state()
 ```
 
+#### 4e. Showing the Model's Thinking
+
+If your app shows the model's thinking to the user while the answer is on its
+way, much of that thinking is about A2UI: the code the model plans to write,
+its data model and the checks it runs. Pass each thought through
+`remove_a2ui_thinking` before showing it. The function removes every sentence
+with inline code, a data path such as `$/form/name`, or a protocol term such
+as A2UI, JSON or data model, and keeps the rest:
+
+```python
+from a2ui.processor import remove_a2ui_thinking
+
+shown = remove_a2ui_thinking(thought)
+if shown.strip():
+    show_thinking(shown)
+```
+
+The terms also match a sentence about the user's own code or JSON, so an agent
+whose users ask about code should show the thinking unfiltered.
+
 ## Use Cases
 
 ### 1. Simple Agents with Static Schemas

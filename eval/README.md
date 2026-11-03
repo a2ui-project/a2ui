@@ -136,16 +136,9 @@ uv run main.py --strategies express --max-validation-retries 2
 
 ### Thinking about the user's request
 
-`thinking_scorer` measures how much of the model's thinking is about A2UI rather than the user's request (issue [#3576](https://github.com/a2ui-project/a2ui/issues/3576)). It reads the thinking the model showed with its first answer, splits it into sentences, and scores the share of sentences that mention protocol terms such as JSON, schema, catalog or surface ID. Lower is better. The log reports two metrics: `a2ui_share`, the mean of that share, and `free_of_a2ui`, the share of samples whose thinking mentions no protocol term. A sample whose model showed no thinking is left out of both. The scorer runs on every task and does not affect whether a sample passes.
+`thinking_scorer` measures how much of the model's thinking is about A2UI rather than the user's request (issue [#3576](https://github.com/a2ui-project/a2ui/issues/3576)). It reads the thinking the model showed with its first answer and scores the share of its characters, not counting whitespace, that the SDK's `remove_a2ui_thinking` would hide from the user: sentences with inline code, a data path, or a protocol term such as JSON or data model. Lower is better. The log reports two metrics: `a2ui_share`, the mean of that share, and `free_of_a2ui`, the share of samples with nothing to hide. A sample whose model showed no thinking is left out of both. The scorer runs on every task and does not affect whether a sample passes.
 
 Only the strategies that are one inference format (`direct`, `express`, `elemental`, `atom`) record the thinking. Gemini models return their thought summaries by default. Other providers may need `--thinking-budget`, or return no thinking at all.
-
-`--user-focused-thinking` creates the prompt with the SDK's `user_focused_thinking` option, which starts and ends the snippet with a rule asking the model to think about the user's request. To see whether the rule helps, run the same samples with and without it and compare `a2ui_share`, along with the pass rate:
-
-```bash
-uv run main.py --strategies direct,express --tier smoke
-uv run main.py --strategies direct,express --tier smoke --user-focused-thinking
-```
 
 ### Skipping the judge
 

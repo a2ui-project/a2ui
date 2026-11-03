@@ -5,11 +5,11 @@
 - Remove `(Agent to UI)` from the embedded v0.9 `server_to_client.json` and v1.0
   `agent_to_renderer.json` schema descriptions in `DirectJsonPromptGenerator`
   ([#1605](https://github.com/a2ui-project/a2ui/pull/1605)).
-- Add `userFocusedThinking` to `A2uiGenerator` and `A2uiRequestProcessor`. When
-  it is `true`, `promptSnippet` starts and ends with a rule asking the model to
-  think about the user's request rather than the A2UI format, for an app that
-  shows the model's thinking. [#3576](https://github.com/a2ui-project/a2ui/issues/3576),
-  [#3874](https://github.com/a2ui-project/a2ui/pull/3874)
+- Add `removeA2uiThinking`. It removes the sentences about A2UI (inline code,
+  data paths and protocol terms such as JSON or data model) from one of the
+  model's thoughts, for an app that shows the model's thinking to the user
+  ([#3576](https://github.com/a2ui-project/a2ui/issues/3576),
+  [#3874](https://github.com/a2ui-project/a2ui/pull/3874)).
 - Add incremental streaming support for the Express inference format via
   `ExpressResponseStream` (`ExpressFormat.supportsStreaming` and
   `ExpressParser.supportsStreaming` now return `true`). `ExpressFormatFactory`,

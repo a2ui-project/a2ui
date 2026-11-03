@@ -94,6 +94,18 @@ final String llmOutput = await callLlm(processor.promptSnippet, userMessage);
 final List<ResponsePart> parts = processor.parseResponse(llmOutput);
 ```
 
+If your app shows the model's thinking to the user while the answer is on its
+way, pass each thought through `removeA2uiThinking` before showing it. It
+removes every sentence with inline code, a data path such as `$/form/name`, or
+a protocol term such as A2UI, JSON or data model, so the user reads about
+their request. The terms also match a sentence about the user's own code or
+JSON, so an agent whose users ask about code should show the thinking
+unfiltered.
+
+```dart
+final String shown = removeA2uiThinking(thought);
+```
+
 To show the UI while the model is still writing it, read the Express or direct
 JSON response as it streams, through a stream opened for that response. Each
 part carries the text, or the messages, that are new or changed since the
@@ -203,15 +215,17 @@ final List<ResponsePart> parts = processor.parseResponse(
 [test/conformance](test/conformance) runs every shared agent suite this API
 covers: those under [conformance/agent/direct_json](../../conformance/agent/direct_json)
 and [conformance/agent/express](../../conformance/agent/express), and
-`catalog_provider.yaml`, `catalog_resolution.yaml`, `catalog_transformer.yaml`
-and `request_processor.yaml` under [conformance/agent](../../conformance/agent).
+`catalog_provider.yaml`, `catalog_resolution.yaml`, `catalog_transformer.yaml`,
+`request_processor.yaml` and `thinking.yaml` under
+[conformance/agent](../../conformance/agent).
 They are written against v1.0, and each runs twice: as written in v1.0, and
 lowered to v0.9, where the harness lowers what a case hands the package to
 v0.9 and lifts what it returns back to v1.0 before comparing; see
 [test/conformance/suites.dart](test/conformance/suites.dart). Cases that need
 something v0.9 or this API does not have are skipped with the reason.
 [conformance/agent/multi_catalog_formats.yaml](../../conformance/agent/multi_catalog_formats.yaml)
-runs as written in v1.0 only.
+runs as written in v1.0 only, and `thinking.yaml`, which names no protocol
+version, runs once.
 
 The `scaling.yaml` suites time parsing rather than check what it returns, and
 a slow or loaded machine can fail them, so their tests are tagged
