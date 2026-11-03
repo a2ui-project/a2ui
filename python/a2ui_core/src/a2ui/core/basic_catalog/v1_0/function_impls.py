@@ -231,7 +231,13 @@ def _format_string(
                 if getattr(context, "at_least_v10", False)
                 else part
             )
-            resolved = context.resolve_dynamic_value(dyn_part)
+            # A template part never waits for, sends to, or reads a cached
+            # answer from the agent: a part that calls a function the
+            # renderer doesn't implement is an error and renders empty.
+            resolve = getattr(
+                context, "resolve_without_agent", context.resolve_dynamic_value
+            )
+            resolved = resolve(dyn_part)
         else:
             resolved = part
         resolved_parts.append(_to_str(resolved))
