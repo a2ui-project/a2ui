@@ -172,4 +172,18 @@ for part in processor.parse_response(response_text):
 
 `parse_response` raises `A2uiParseError` when a block cannot be read and `A2uiValidationError` when a message does not match the catalog; the `restaurant_finder` sample catches these and asks the model to try again.
 
+## Showing the Model's Thinking
+
+If your client shows the model's thinking to the user while the answer is on its way, much of that thinking is about A2UI: the code the model plans to write, its data model, and the checks it runs. Pass each thought through `remove_a2ui_thinking` before sending it to the client. It removes every sentence with inline code, a data path such as `$/form/name`, or a protocol term such as A2UI, JSON or data model, so the user reads about their request:
+
+```python
+from a2ui.processor import remove_a2ui_thinking
+
+shown = remove_a2ui_thinking(thought)
+if shown.strip():
+    send_to_client(shown)
+```
+
+`A2uiEventConverter` in `a2ui-adk[a2a]` does this for every thought it sends over A2A. The TypeScript and Dart agent SDKs have the same function, `removeA2uiThinking`. The terms also match a sentence about the user's own code or JSON, so an agent whose users ask about code should show the thinking unfiltered.
+
 TODO: Continue this guide with examples of how to send the output to the client renderer without the A2A extension.
