@@ -93,6 +93,7 @@ struct NodeResolutionConformanceTests {
   ]
 
   private static let knownExpectKeys: Set<String> = [
+    "created_emissions",
     "data",
     "destroyed",
     "emissions",
@@ -154,21 +155,23 @@ struct NodeResolutionConformanceTests {
       actionHandler: capture,
       validationConfig: .relaxed
     )
-    let surface = SurfaceViewModel(
-      surfaceID: "s",
-      catalogs: catalogs,
-      defaultCatalogID: "basic",
-      actionHandler: capture,
-      protocolVersion: version
-    )
-    processor.surfaceGroupModel.addSurface(surface)
-
-    applyFixture(fixture, to: surface)
+    if (fixture["surface"] as? Bool) != false {
+      let surface = SurfaceViewModel(
+        surfaceID: "s",
+        catalogs: catalogs,
+        defaultCatalogID: "basic",
+        actionHandler: capture,
+        protocolVersion: version
+      )
+      processor.surfaceGroupModel.addSurface(surface)
+      applyFixture(fixture, to: surface)
+    }
 
     if let initialExpect = testCase["expect"] as? [String: Any] {
       try assertStepExpectations(
         initialExpect,
         surface: processor.surfaceGroupModel["s"],
+        beforeBoxes: [],
         capture: capture,
         caseName: name
       )
@@ -176,12 +179,17 @@ struct NodeResolutionConformanceTests {
 
     let steps = (testCase["steps"] as? [[String: Any]]) ?? []
     for step in steps {
+      let beforeBoxes = Set(
+        collectMountedNodes(from: processor.surfaceGroupModel["s"]?.rootNode)
+          .values.map { ObjectIdentifier($0.box) }
+      )
       capture.clearStep()
       try executeStep(step, processor: processor, caseName: name)
       if let stepExpect = step["expect"] as? [String: Any] {
         try assertStepExpectations(
           stepExpect,
           surface: processor.surfaceGroupModel["s"],
+          beforeBoxes: beforeBoxes,
           capture: capture,
           caseName: name
         )
@@ -467,9 +475,49 @@ struct NodeResolutionConformanceTests {
     return nodes.indices.contains(idx) ? nodes[idx] : nil
   }
 
+  private func collectMountedNodes(from root: Node?) -> [String: Node] {
+    var result: [String: Node] = [:]
+    guard let root else { return result }
+    func visit(_ value: any Resolved, path: String) {
+      if let node = value as? Node {
+        result[path] = node
+        for (key, propVal) in node.properties {
+          visit(propVal, path: "\(path)/\(key)")
+        }
+      } else if let nodes = value as? [Node] {
+        for (idx, child) in nodes.enumerated() {
+          visit(child, path: "\(path)/\(idx)")
+        }
+      } else if let arr = value as? ResolvedArray {
+        for (idx, elem) in arr.elements.enumerated() {
+          visit(elem, path: "\(path)/\(idx)")
+        }
+      } else if let dict = value as? ResolvedDictionary {
+        for (key, elem) in dict.storage {
+          visit(elem, path: "\(path)/\(key)")
+        }
+      }
+    }
+    visit(root, path: "root")
+    return result
+  }
+
+  private func collectCreatedPropsEmissions(
+    from root: Node?,
+    beforeBoxes: Set<ObjectIdentifier>
+  ) -> [String: Int] {
+    var result: [String: Int] = [:]
+    for (path, node) in collectMountedNodes(from: root)
+    where !beforeBoxes.contains(ObjectIdentifier(node.box)) {
+      result[path] = Int(node.box.propsRevision)
+    }
+    return result
+  }
+
   private func assertStepExpectations(
     _ expect: [String: Any],
     surface: SurfaceViewModel?,
+    beforeBoxes: Set<ObjectIdentifier>,
     capture: NodeResolutionActionCapture,
     caseName: String
   ) throws {
@@ -481,6 +529,19 @@ struct NodeResolutionConformanceTests {
     )
     if let expectedNodes = expect["nodes"] as? [String: Any] {
       try assertExpectedNodes(expectedNodes, surface: surface, caseName: caseName)
+    }
+    if let expectedCreatedEmissions = expect["created_emissions"] as? [String: Int] {
+      let actualCreated = collectCreatedPropsEmissions(
+        from: surface?.rootNode,
+        beforeBoxes: beforeBoxes
+      )
+      #expect(
+        actualCreated == expectedCreatedEmissions,
+        """
+        [\(caseName)] created_emissions mismatch: got \(actualCreated), \
+        expected \(expectedCreatedEmissions)
+        """
+      )
     }
     if let expectedData = expect["data"] as? [String: Any], let surface {
       for (path, rawVal) in expectedData {

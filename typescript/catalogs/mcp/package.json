@@ -1,7 +1,7 @@
 {
   "name": "@a2ui/catalog-mcp",
-  "version": "0.0.2",
-  "description": "(experimental) A2UI MCP catalog: calls MCP tools and applies the A2UI messages found in their results and UI resources.",
+  "version": "0.0.3",
+  "description": "A2UI MCP catalog: calls MCP tools and applies the A2UI messages found in their results and UI resources.",
   "homepage": "https://a2ui.org/",
   "repository": {
     "directory": "typescript/catalogs/mcp",
