@@ -40,7 +40,12 @@ import {
 } from './data-context.js';
 import {Catalog, createFunctionImplementation} from '../catalog/types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
-import {A2uiCatalogError, A2uiExpressionError, A2uiValidationError} from '../errors.js';
+import {
+  A2uiCatalogError,
+  A2uiExpressionError,
+  A2uiRpcError,
+  A2uiValidationError,
+} from '../errors.js';
 
 const createTestDataContext = (
   model: DataModel,
@@ -1661,11 +1666,61 @@ describe('DataContext asynchronous function arguments', () => {
     assert.strictEqual(peekValue(sig), undefined);
     assert.strictEqual(errors.length, 0);
     await flush();
-    assert.strictEqual(peekValue(sig), undefined);
+    assert.strictEqual(peekValue(sig), null);
     assert.strictEqual(errors.length, 1);
     assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
     assert.strictEqual(errors[0].message, 'inner failure');
     sig.unsubscribe?.();
+  });
+
+  it('resolves a failed agent binding to null and reports EXPRESSION_ERROR with functionCallId', async () => {
+    surface.agentFunctionCaller = () =>
+      Promise.reject(new A2uiRpcError('remote failure', 'EXECUTION_ERROR', 'call-99'));
+    const sig = ctx.resolveSignal(call('remoteFn', {}));
+    assert.strictEqual(peekValue(sig), undefined);
+    await flush();
+    assert.strictEqual(peekValue(sig), null);
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.strictEqual((errors[0] as {functionCallId?: string}).functionCallId, 'call-99');
+    assert.strictEqual((errors[0] as {surfaceId?: string}).surfaceId, undefined);
+    sig.unsubscribe?.();
+  });
+
+  it('halts an action pipeline on an agent failure while keeping earlier effects', async () => {
+    const markStarted = createFunctionImplementation(
+      {name: 'markStarted', returnType: 'boolean', schema: z.object({})},
+      (_args, c) => {
+        c.set('/started', true);
+        return true;
+      },
+    );
+    const finish = createFunctionImplementation(
+      {name: 'finish', returnType: 'boolean', schema: z.object({'steps': z.array(z.any())})},
+      (_args, c) => {
+        c.set('/finished', true);
+        return true;
+      },
+    );
+    const cat = new Catalog('cat', '1.0', [], [markStarted, finish]);
+    const actionSurface = new SurfaceModel('s-act', cat);
+    actionSurface.agentFunctionCaller = () =>
+      Promise.reject(new A2uiRpcError('step failed', 'EXECUTION_ERROR', 'call-step-1'));
+    const actionErrors: Array<{code: string; functionCallId?: string}> = [];
+    actionSurface.onError.subscribe(e => {
+      actionErrors.push(e);
+    });
+    const actionCtx = new DataContext(actionSurface, '/');
+    const result = await actionCtx.resolveAction({
+      functionCall: call('finish', {
+        steps: [call('markStarted', {}), call('remoteStep', {})],
+      }),
+    });
+    assert.strictEqual(result, undefined);
+    assert.deepStrictEqual(actionSurface.dataModel.get('/'), {started: true});
+    assert.strictEqual(actionErrors.length, 1);
+    assert.strictEqual(actionErrors[0].code, 'EXPRESSION_ERROR');
+    assert.strictEqual(actionErrors[0].functionCallId, 'call-step-1');
   });
 
   it('leaves a thenable alone when resolving a value synchronously', () => {

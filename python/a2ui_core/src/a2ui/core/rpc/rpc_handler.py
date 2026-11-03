@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Any, TypeVar, Union, cast
 
 from ..catalog import CatalogApi
+from ..common.event_loop import get_or_create_event_loop
 from ..exceptions import A2uiRpcError, RpcErrorCode
 from ..processing.adapters import is_catalog_version_compatible
 from ..resolution.data_context import DataContext
@@ -41,6 +42,10 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 OutboundListener = Callable[[dict[str, Any]], Union[None, Awaitable[None]]]
+
+# The response message when a nested argument of an agent-initiated call
+# fails with an error that has no message of its own.
+_UNRESOLVED_ARGUMENT_MESSAGE = "An argument of the function call could not be resolved."
 
 
 @dataclass
@@ -147,7 +152,9 @@ class RpcHandler:
                 self._pending_agent_calls.pop(call_id, None)
                 pending.reject(
                     A2uiRpcError(
-                        f"Call '{call_id}' was cancelled.",
+                        f"Pending calls for surface '{surface_id}' were cancelled."
+                        if surface_id is not None
+                        else f"Call '{call_id}' was cancelled.",
                         function_call_id=call_id,
                         code=RpcErrorCode.CANCELLED.value,
                     )
@@ -372,19 +379,21 @@ class RpcHandler:
                     and err.get("code") in ("EXPRESSION_ERROR", "EXECUTION_ERROR")
                 ):
                     expression_error = str(
-                        err.get("message")
-                        or "An error occurred during function execution."
+                        err.get("message") or _UNRESOLVED_ARGUMENT_MESSAGE
                     )
 
             error_sub = on_error.subscribe(_on_expr_err)
 
         resolved_args = args
         try:
-            resolved_args = {
-                k: context.resolve_dynamic_value(v) for k, v in args.items()
-            }
+            # An agent's arguments never route back to the agent, nor read
+            # its cached answers: an unimplemented function fails here.
+            resolve = getattr(
+                context, "resolve_without_agent", context.resolve_dynamic_value
+            )
+            resolved_args = {k: resolve(v) for k, v in args.items()}
         except Exception as e:
-            expression_error = str(e) or "An error occurred during function execution."
+            expression_error = str(e) or _UNRESOLVED_ARGUMENT_MESSAGE
         finally:
             if error_sub is not None and hasattr(error_sub, "unsubscribe"):
                 error_sub.unsubscribe()
@@ -811,15 +820,7 @@ class RpcHandler:
 
     def _get_or_create_loop(self) -> asyncio.AbstractEventLoop:
         """Retrieves or creates an event loop safely."""
-        try:
-            return asyncio.get_running_loop()
-        except RuntimeError:
-            try:
-                return asyncio.get_event_loop_policy().get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                return loop
+        return get_or_create_event_loop()
 
     def _create_timeout_timer(
         self,

@@ -750,3 +750,146 @@
             orderId: "ord-99"
     result:
       accepted: true
+
+- name: test_rpc_ui_binding_agent_error_resolves_null
+  description: Verifies that when a dynamic value binding calling an agent function receives an error response, the binding resolves to null, sibling components render intact, and the surface reports EXPRESSION_ERROR with the failed call's functionCallId.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    uiBindingScenario:
+      surfaceId: "main_surface"
+      catalogId: "store_catalog"
+      components:
+        - id: "root"
+          component: "Column"
+          children:
+            - "bound_text"
+            - "sibling_text"
+        - id: "bound_text"
+          component: "Text"
+          text:
+            "@call": "remoteTitle"
+            catalogId: "store_catalog"
+            args:
+              itemId: "item-42"
+        - id: "sibling_text"
+          component: "Text"
+          text: "Static subtitle"
+      observe:
+        componentId: "bound_text"
+        property: "text"
+      inboundResponseError:
+        code: "EXECUTION_ERROR"
+        message: "Backend unavailable"
+  expect:
+    initialValue: null
+    outboundCall:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: "main_surface"
+        callFunction:
+          "@call": "remoteTitle"
+          catalogId: "store_catalog"
+          args:
+            itemId: "item-42"
+    resolvedValue: null
+    siblings:
+      sibling_text:
+        text: "Static subtitle"
+    surfaceError:
+      code: "EXPRESSION_ERROR"
+      functionCallId: "$outboundCallId"
+
+- name: test_rpc_ui_check_agent_error_invalidates_rule
+  description: Verifies that when a CheckRule condition calling an agent function receives an error response, the check rule evaluates to invalid with the rule's message and the surface reports EXPRESSION_ERROR with the failed call's functionCallId.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    uiBindingScenario:
+      surfaceId: "main_surface"
+      catalogId: "store_catalog"
+      component:
+        id: "root"
+        component: "TextField"
+        label: "Username"
+        value: "ada"
+        checks:
+          - condition:
+              "@call": "remoteCheck"
+              catalogId: "store_catalog"
+              args:
+                username: "ada"
+            message: "Name is taken"
+      inboundResponseError:
+        code: "EXECUTION_ERROR"
+        message: "Directory service unavailable"
+  expect:
+    outboundCall:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: "main_surface"
+        callFunction:
+          "@call": "remoteCheck"
+          catalogId: "store_catalog"
+          args:
+            username: "ada"
+    validationResult:
+      valid: false
+      message: "Name is taken"
+    surfaceError:
+      code: "EXPRESSION_ERROR"
+      functionCallId: "$outboundCallId"
+
+- name: test_rpc_ui_action_agent_error_halts_pipeline
+  description: Verifies that when an agent function call in an action pipeline receives an error response, earlier effects are preserved, the remaining pipeline halts, and the surface reports EXPRESSION_ERROR with the failed call's functionCallId.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    uiActionFallbackScenario:
+      surfaceId: "main_surface"
+      catalogId: "store_catalog"
+      localFunctions:
+        markStarted:
+          returnType: "boolean"
+          effect:
+            setData:
+              path: "/started"
+              value: true
+        finish:
+          returnType: "boolean"
+          effect:
+            setData:
+              path: "/finished"
+              value: true
+      actionPayload:
+        functionCall:
+          "@call": "finish"
+          catalogId: "store_catalog"
+          args:
+            steps:
+              - "@call": "markStarted"
+                catalogId: "store_catalog"
+                args: {}
+              - "@call": "remoteStep"
+                catalogId: "store_catalog"
+                args: {}
+      inboundResponseError:
+        code: "EXECUTION_ERROR"
+        message: "Remote step failed"
+  expect:
+    outboundCall:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: "main_surface"
+        callFunction:
+          "@call": "remoteStep"
+          catalogId: "store_catalog"
+          args: {}
+    dataModel:
+      started: true
+    surfaceError:
+      code: "EXPRESSION_ERROR"
+      functionCallId: "$outboundCallId"

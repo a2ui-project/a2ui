@@ -265,7 +265,11 @@ struct RPCHandlerTests {
       _ = try await task.value
       Issue.record("Expected error to be thrown")
     } catch let error as FunctionError {
-      #expect(error == .remoteError(code: "INVALID_USER", message: "User does not exist"))
+      #expect(
+        error
+          == .remoteError(code: "INVALID_USER", message: "User does not exist", callID: callID)
+      )
+      #expect(error.functionCallID == callID)
     }
   }
 

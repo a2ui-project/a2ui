@@ -33,6 +33,8 @@ private final class RPCErrorCaptureHandler: ActionHandling, @unchecked Sendable 
 
 private final class OutboundMessageBox: @unchecked Sendable {
   var lastMessage: RendererToAgentMessage?
+  var lastAgentCall: CallAgentFunctionMessage?
+  var lastActionResult: JSONValue?
 }
 
 /// Runs the shared `conformance/core/rpc_functions.yaml` suite.
@@ -85,19 +87,26 @@ struct RPCConformanceTests {
   private static let knownUIBindingKeys: Set<String> = [
     "catalogId",
     "component",
+    "components",
+    "inboundResponseError",
     "inboundResponseValue",
+    "localFunctions",
+    "observe",
     "surfaceId",
   ]
 
   private static let knownUIActionKeys: Set<String> = [
     "actionPayload",
     "catalogId",
+    "inboundResponseError",
     "inboundResponseValue",
+    "localFunctions",
     "surfaceId",
   ]
 
   private static let knownExpectKeys: Set<String> = [
     "correlatedCallId",
+    "dataModel",
     "error",
     "initialValue",
     "lateResponseIgnored",
@@ -105,6 +114,9 @@ struct RPCConformanceTests {
     "resolvedValue",
     "response",
     "result",
+    "siblings",
+    "surfaceError",
+    "validationResult",
   ]
 
   private static let knownExpectErrorKeys: Set<String> = [
@@ -158,16 +170,14 @@ struct RPCConformanceTests {
     if let uiBinding = testCase.args?["uiBindingScenario"] {
       try await runUIBindingScenario(
         testCase: testCase,
-        scenario: uiBinding,
-        rpcHandler: rpcHandler
+        scenario: uiBinding
       )
     }
 
     if let uiActionFallback = testCase.args?["uiActionFallbackScenario"] {
       try await runUIActionFallbackScenario(
         testCase: testCase,
-        scenario: uiActionFallback,
-        rpcHandler: rpcHandler
+        scenario: uiActionFallback
       )
     }
   }
@@ -780,103 +790,365 @@ struct RPCConformanceTests {
 
   private func runUIBindingScenario(
     testCase: ConformanceTestCase,
-    scenario: JSONValue,
-    rpcHandler: RPCHandler
+    scenario: JSONValue
   ) async throws {
     let surfaceID = scenario["surfaceId"]?.stringValue ?? "main_surface"
     let catalogID = scenario["catalogId"]?.stringValue ?? "store_catalog"
-    let textExpr = scenario["component"]?["text"]
-    let fnName = textExpr?["@call"]?.stringValue ?? ""
-    let rawArgs = textExpr?["args"]?.objectValue ?? [:]
-    let argsDict = Dictionary(uniqueKeysWithValues: rawArgs.map { ($0.key, $0.value) })
-    let inboundVal = scenario["inboundResponseValue"] ?? .null
+    let (processor, surface, errorHandler, box) = makeUIScenarioHarness(
+      surfaceID: surfaceID,
+      catalogID: catalogID,
+      scenario: scenario
+    )
 
-    let box = OutboundMessageBox()
-    var callTask: Task<JSONValue, any Error>!
-    await withCheckedContinuation { (started: CheckedContinuation<Void, Never>) in
-      callTask = Task {
-        try await rpcHandler.callAgentFunction(
-          surfaceID: surfaceID,
-          functionName: fnName,
-          catalogID: catalogID,
-          functionCallID: "ui-bind-1",
-          args: argsDict,
-          version: .v10,
-          timeoutSeconds: 5.0,
-          sendOutbound: { message in
-            box.lastMessage = message
-            started.resume()
-          }
-        )
-      }
+    var rawComponents: [JSONValue] = []
+    if let comps = scenario["components"]?.arrayValue {
+      rawComponents = comps
+    } else if let singleComp = scenario["component"] {
+      rawComponents = [singleComp]
+    }
+    if !rawComponents.contains(where: { $0["id"]?.stringValue == "root" }),
+      let firstID = rawComponents.first?["id"]?.stringValue
+    {
+      rawComponents.insert(
+        .object([
+          "id": .string("root"),
+          "component": .string("Column"),
+          "children": .array([.string(firstID)]),
+        ]),
+        at: 0
+      )
+    }
+    applyScenarioComponents(rawComponents, to: surface)
+
+    let observe = scenario["observe"]
+    let targetCompID =
+      observe?["componentId"]?.stringValue
+      ?? scenario["component"]?["id"]?.stringValue
+      ?? "root"
+    let targetProp = observe?["property"]?.stringValue ?? "text"
+
+    if let expectedInitial = testCase.expect?["initialValue"] {
+      let initialStr = findNode(id: targetCompID, in: surface.rootNode)?.string(for: targetProp)
+      let actualInitial = initialStr.map(JSONValue.string) ?? .null
+      #expect(
+        actualInitial == expectedInitial,
+        "[\(testCase.name)] initialValue mismatch"
+      )
     }
 
-    assertOutboundCallAgentMatches(
-      captured: box.lastMessage,
+    let actualCall = try await awaitScenarioAgentCall(
+      box: box,
+      processor: processor,
+      scenario: scenario,
       expectedOutbound: testCase.expect?["outboundCall"],
       testName: testCase.name
     )
 
-    rpcHandler.handleAgentResponse(
-      AgentFunctionResponseMessage(
-        functionCallID: "ui-bind-1",
-        value: inboundVal,
-        version: .v10
+    if let expectedResolved = testCase.expect?["resolvedValue"] {
+      let resolvedStr = findNode(id: targetCompID, in: surface.rootNode)?.string(for: targetProp)
+      let actualResolved = resolvedStr.map(JSONValue.string) ?? .null
+      #expect(
+        actualResolved == expectedResolved,
+        "[\(testCase.name)] resolvedValue mismatch"
       )
+    }
+
+    if let expectedSiblings = testCase.expect?["siblings"]?.objectValue {
+      for (sibID, expectedPropsVal) in expectedSiblings {
+        let sibNode = findNode(id: sibID, in: surface.rootNode)
+        #expect(sibNode != nil, "[\(testCase.name)] Missing sibling node '\(sibID)'")
+        for (propKey, expPropVal) in expectedPropsVal.objectValue ?? [:] {
+          let actualPropVal = sibNode?.string(for: propKey).map(JSONValue.string) ?? .null
+          #expect(
+            actualPropVal == expPropVal,
+            "[\(testCase.name)] Sibling '\(sibID).\(propKey)' mismatch"
+          )
+        }
+      }
+    }
+
+    if let expectedValidation = testCase.expect?["validationResult"]?.objectValue {
+      let targetNode = findNode(id: targetCompID, in: surface.rootNode)
+      if let expValid = expectedValidation["valid"]?.boolValue {
+        #expect(
+          targetNode?.isValid == expValid,
+          "[\(testCase.name)] validationResult.valid mismatch"
+        )
+      }
+      if let expMsg = expectedValidation["message"]?.stringValue {
+        #expect(
+          targetNode?.validationErrors.contains(expMsg) == true,
+          "[\(testCase.name)] validationResult.message mismatch"
+        )
+      }
+    }
+
+    assertScenarioSurfaceError(
+      expectedSurfaceError: testCase.expect?["surfaceError"],
+      errorHandler: errorHandler,
+      outboundCallID: actualCall.functionCallID,
+      testName: testCase.name
     )
-    let resolved = try await callTask.value
-    #expect(
-      resolved == testCase.expect?["resolvedValue"], "[\(testCase.name)] resolvedValue mismatch")
   }
 
   private func runUIActionFallbackScenario(
     testCase: ConformanceTestCase,
-    scenario: JSONValue,
-    rpcHandler: RPCHandler
+    scenario: JSONValue
   ) async throws {
     let surfaceID = scenario["surfaceId"]?.stringValue ?? "main_surface"
     let fnCall = scenario["actionPayload"]?["functionCall"]
-    let fnName = fnCall?["@call"]?.stringValue ?? ""
-    let catalogID = fnCall?["catalogId"]?.stringValue
-    let rawArgs = fnCall?["args"]?.objectValue ?? [:]
-    let argsDict = Dictionary(uniqueKeysWithValues: rawArgs.map { ($0.key, $0.value) })
-    let inboundVal = scenario["inboundResponseValue"] ?? .null
+    let catalogID =
+      scenario["catalogId"]?.stringValue
+      ?? fnCall?["catalogId"]?.stringValue
+      ?? "store_catalog"
+    let (processor, surface, errorHandler, box) = makeUIScenarioHarness(
+      surfaceID: surfaceID,
+      catalogID: catalogID,
+      scenario: scenario
+    )
 
-    let box = OutboundMessageBox()
-    var callTask: Task<JSONValue, any Error>!
-    await withCheckedContinuation { (started: CheckedContinuation<Void, Never>) in
-      callTask = Task {
-        try await rpcHandler.callAgentFunction(
-          surfaceID: surfaceID,
-          functionName: fnName,
-          catalogID: catalogID,
-          functionCallID: "ui-action-1",
-          args: argsDict,
-          version: .v10,
-          timeoutSeconds: 5.0,
-          sendOutbound: { message in
-            box.lastMessage = message
-            started.resume()
-          }
-        )
+    if let baseCaller = surface.agentFunctionCaller {
+      surface.agentFunctionCaller = { call in
+        let val = try await baseCaller(call)
+        box.lastActionResult = val
+        return val
       }
     }
 
-    assertOutboundCallAgentMatches(
-      captured: box.lastMessage,
+    let actionPayload = scenario["actionPayload"] ?? .object([:])
+    applyScenarioComponents(
+      [
+        .object([
+          "id": .string("root"),
+          "component": .string("Button"),
+          "child": .string("btn_label"),
+          "action": actionPayload,
+        ]),
+        .object([
+          "id": .string("btn_label"),
+          "component": .string("Text"),
+          "text": .string("Trigger"),
+        ]),
+      ],
+      to: surface
+    )
+
+    let action = try #require(
+      surface.rootNode?.action(for: "action"),
+      "[\(testCase.name)] Expected resolved Button action"
+    )
+    action()
+
+    let actualCall = try await awaitScenarioAgentCall(
+      box: box,
+      processor: processor,
+      scenario: scenario,
       expectedOutbound: testCase.expect?["outboundCall"],
       testName: testCase.name
     )
 
-    rpcHandler.handleAgentResponse(
-      AgentFunctionResponseMessage(
-        functionCallID: "ui-action-1",
-        value: inboundVal,
-        version: .v10
+    if let expectedResult = testCase.expect?["result"] {
+      #expect(
+        box.lastActionResult == expectedResult,
+        "[\(testCase.name)] result mismatch"
       )
+    }
+
+    if let expectedDataModel = testCase.expect?["dataModel"] {
+      #expect(
+        surface.dataModel.data == expectedDataModel,
+        "[\(testCase.name)] dataModel mismatch"
+      )
+    }
+
+    assertScenarioSurfaceError(
+      expectedSurfaceError: testCase.expect?["surfaceError"],
+      errorHandler: errorHandler,
+      outboundCallID: actualCall.functionCallID,
+      testName: testCase.name
     )
-    let result = try await callTask.value
-    #expect(result == testCase.expect?["result"], "[\(testCase.name)] result mismatch")
+  }
+
+  private func makeUIScenarioHarness(
+    surfaceID: String,
+    catalogID: String,
+    scenario: JSONValue
+  ) -> (
+    processor: MessageProcessor,
+    surface: SurfaceViewModel,
+    errorHandler: RPCErrorCaptureHandler,
+    box: OutboundMessageBox
+  ) {
+    let baseCatalog = BasicCatalog.makeCatalog(version: .v10)
+    var functions: [any FunctionImplementation] = Array(baseCatalog.functions.values)
+    if let localFns = scenario["localFunctions"]?.objectValue {
+      for (fnName, spec) in localFns {
+        let returnType =
+          spec["returnType"]?.stringValue.flatMap { FunctionReturnType(rawValue: $0) } ?? .any
+        let setData = spec["effect"]?["setData"]
+        functions.append(
+          ConformanceMockRPCFunction(name: fnName, returnType: returnType) { _, context in
+            if let path = setData?["path"]?.stringValue, let val = setData?["value"] {
+              context.set(path, value: val)
+              return val
+            }
+            return .boolean(true)
+          }
+        )
+      }
+    }
+    let components = Array(baseCatalog.components.values)
+    var catalogsDict: [String: AnyCatalog] = [:]
+    for id in Set(["basic", catalogID]) {
+      catalogsDict[id] = Catalog(
+        id: id,
+        protocolVersion: "1.0",
+        components: components,
+        functions: functions,
+        themeSchema: baseCatalog.themeSchema
+      ).eraseToAnyCatalog()
+    }
+
+    let errorHandler = RPCErrorCaptureHandler()
+    let processor = MessageProcessor(
+      catalogs: Array(catalogsDict.values),
+      actionHandler: errorHandler,
+      validationConfig: .relaxed
+    )
+    let surface = SurfaceViewModel(
+      surfaceID: surfaceID,
+      catalogs: catalogsDict,
+      defaultCatalogID: catalogID,
+      actionHandler: errorHandler,
+      protocolVersion: .v10
+    )
+    processor.surfaceGroupModel.addSurface(surface)
+
+    let box = OutboundMessageBox()
+    processor.outboundListener = { message in
+      MainActor.assumeIsolated {
+        box.lastMessage = message
+        if case .callAgentFunction(let callMsg) = message {
+          box.lastAgentCall = callMsg
+        }
+      }
+    }
+    return (processor, surface, errorHandler, box)
+  }
+
+  private func applyScenarioComponents(_ rawComponents: [JSONValue], to surface: SurfaceViewModel) {
+    var models: [ComponentModel] = []
+    for compVal in rawComponents {
+      guard let compDict = compVal.objectValue,
+        let id = compDict["id"]?.stringValue,
+        let type = compDict["component"]?.stringValue
+      else { continue }
+      var props: [String: JSONValue] = [:]
+      for (key, val) in compDict
+      where key != "id" && key != "component" && key != "catalogId" && key != "metadata" {
+        props[key] = val
+      }
+      models.append(
+        ComponentModel(
+          id: id,
+          type: type,
+          catalogID: compDict["catalogId"]?.stringValue,
+          properties: props
+        )
+      )
+    }
+    if !models.isEmpty {
+      surface.componentsModel.applyBatch(adding: models)
+    }
+  }
+
+  private func findNode(id targetID: String, in node: Node?) -> Node? {
+    guard let node else { return nil }
+    if node.id == targetID {
+      return node
+    }
+    for child in node.allChildNodes {
+      if let found = findNode(id: targetID, in: child) {
+        return found
+      }
+    }
+    return nil
+  }
+
+  private func awaitScenarioAgentCall(
+    box: OutboundMessageBox,
+    processor: MessageProcessor,
+    scenario: JSONValue,
+    expectedOutbound: JSONValue?,
+    testName: String
+  ) async throws -> CallAgentFunctionMessage {
+    for _ in 0..<200 where box.lastAgentCall == nil {
+      await Task.yield()
+      if box.lastAgentCall != nil { break }
+      try? await Task.sleep(nanoseconds: 5_000_000)
+    }
+    let actualCall = try #require(
+      box.lastAgentCall,
+      "[\(testName)] Timed out waiting for outbound callAgentFunction"
+    )
+    assertOutboundCallAgentMatches(
+      captured: .callAgentFunction(actualCall),
+      expectedOutbound: expectedOutbound,
+      testName: testName
+    )
+
+    if let errObj = scenario["inboundResponseError"] {
+      processor.rpcHandler.handleAgentResponse(
+        AgentFunctionResponseMessage(
+          functionCallID: actualCall.functionCallID,
+          error: FunctionErrorPayload(
+            code: errObj["code"]?.stringValue ?? "EXECUTION_ERROR",
+            message: errObj["message"]?.stringValue ?? "RPC error"
+          ),
+          version: .v10
+        )
+      )
+    } else {
+      let inboundVal = scenario["inboundResponseValue"] ?? .null
+      processor.rpcHandler.handleAgentResponse(
+        AgentFunctionResponseMessage(
+          functionCallID: actualCall.functionCallID,
+          value: inboundVal,
+          version: .v10
+        )
+      )
+    }
+    for _ in 0..<20 {
+      await Task.yield()
+    }
+    return actualCall
+  }
+
+  private func assertScenarioSurfaceError(
+    expectedSurfaceError: JSONValue?,
+    errorHandler: RPCErrorCaptureHandler,
+    outboundCallID: String,
+    testName: String
+  ) {
+    guard let expectedSurfaceErr = expectedSurfaceError?.objectValue else { return }
+    let genericErrors: [GenericError] = errorHandler.capturedErrors.compactMap {
+      guard case .generic(let err) = $0 else { return nil }
+      return err
+    }
+    guard let lastErr = genericErrors.last else {
+      Issue.record("[\(testName)] Expected surfaceError, but no generic error was captured")
+      return
+    }
+    if let expCode = expectedSurfaceErr["code"]?.stringValue {
+      #expect(lastErr.code == expCode, "[\(testName)] surfaceError.code mismatch")
+    }
+    if let expCallID = expectedSurfaceErr["functionCallId"]?.stringValue {
+      let resolvedExpCallID = expCallID == "$outboundCallId" ? outboundCallID : expCallID
+      #expect(
+        lastErr.functionCallID == resolvedExpCallID,
+        "[\(testName)] surfaceError.functionCallId mismatch"
+      )
+    }
   }
 
   private func assertOutboundCallAgentMatches(
@@ -904,18 +1176,19 @@ struct RPCConformanceTests {
 
 private final class ConformanceMockRPCFunction: FunctionImplementation, Sendable {
   let api: FunctionAPI
-  private let handler: @Sendable ([String: JSONValue], DataContext) throws -> JSONValue
+  private let handler: @MainActor @Sendable ([String: JSONValue], DataContext) throws -> JSONValue
 
   init(
     name: String,
+    returnType: FunctionReturnType = .any,
     schema: Schema? = nil,
     allowedCallers: AllowedCallers = .rendererOrAgent,
     requiresUserActivation: Bool = false,
-    handler: @escaping @Sendable ([String: JSONValue], DataContext) throws -> JSONValue
+    handler: @escaping @MainActor @Sendable ([String: JSONValue], DataContext) throws -> JSONValue
   ) {
     self.api = FunctionAPI(
       name: name,
-      returnType: .any,
+      returnType: returnType,
       schema: schema ?? (try! Schema(instance: "{}")),
       allowedCallers: allowedCallers,
       requiresUserActivation: requiresUserActivation
@@ -923,6 +1196,7 @@ private final class ConformanceMockRPCFunction: FunctionImplementation, Sendable
     self.handler = handler
   }
 
+  @MainActor
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     try handler(arguments, context)
   }

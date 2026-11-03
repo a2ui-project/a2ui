@@ -59,6 +59,7 @@ public final class NodeResolver: Sendable {
     var readValues: [String: JSONValue?]
     var templateCounts: [String: Int]
     var directChildInstances: Set<String>
+    var agentCalls: Set<AgentFunctionCall>
   }
 
   /// The number of `resolveNode` invocations executed during the most recent `resolveTree()` pass.
@@ -87,6 +88,43 @@ public final class NodeResolver: Sendable {
   private var currentComponentID: String?
   private var currentPropertyPath: String?
   private var modelCancellables = Set<AnyCancellable>()
+
+  /// The surface that sends calls to functions the renderer does not implement to the agent, and
+  /// keeps their results; ``SurfaceViewModel`` sets itself.
+  ///
+  /// The resolver records which nodes make each such call, and resolves them again when the call
+  /// settles.
+  weak var agentCallHost: SurfaceViewModel? {
+    didSet {
+      agentCallCancellable = agentCallHost?.agentCallCache.settledCallSubject
+        .sink { [weak self] call in
+          self?.markAgentCallSettled(call)
+        }
+    }
+  }
+  private var agentCallCancellable: AnyCancellable?
+
+  /// Agent function calls made while resolving a node, keyed to the nodes that made them.
+  private var nodesByAgentCall: [AgentFunctionCall: Set<String>] = [:]
+  /// The agent calls the node being resolved makes.
+  private var currentNodeAgentCalls: Set<AgentFunctionCall>?
+  /// The agent calls the action being run makes.
+  private var currentActionAgentCalls: Set<AgentFunctionCall>?
+  /// The agent calls the condition of the check rule being resolved makes.
+  private var currentCheckAgentCalls: Set<AgentFunctionCall>?
+  /// Per-action cache used while running an imperative action so action calls never read from or
+  /// populate the surface-wide reactive ``AgentCallCache``.
+  private var currentActionCallCache: AgentCallCache?
+  /// Agent calls settled since the last pass, whose nodes must be resolved again.
+  private var dirtyAgentCalls: Set<AgentFunctionCall> = []
+  private var isDisposed = false
+  private let agentCallSettledSubject = PassthroughSubject<Void, Never>()
+
+  /// Publishes when a call that a resolved node makes settles, so that the tree should be
+  /// resolved again to pick up the result or the failure. ``SurfaceViewModel`` rebuilds its tree.
+  var agentFunctionResultPublisher: AnyPublisher<Void, Never> {
+    agentCallSettledSubject.eraseToAnyPublisher()
+  }
 
   /// Whether this resolver follows v1.0 rules.
   ///
@@ -278,6 +316,11 @@ public final class NodeResolver: Sendable {
     resolvedInCurrentPass.removeAll()
     reportedExpressionErrors.removeAll()
     currentPassExpressionErrors.removeAll()
+    for call in nodesByAgentCall.keys {
+      agentCallHost?.agentCallCache.forgetFailure(call)
+    }
+    nodesByAgentCall.removeAll()
+    dirtyAgentCalls.removeAll()
   }
 
   private func resolveIncrementalChanges(
@@ -286,14 +329,21 @@ public final class NodeResolver: Sendable {
   ) -> Node? {
     let changedCompIDs = dirtyComponentIDs
     let changedDataPaths = dirtyDataPaths
+    let changedAgentCalls = dirtyAgentCalls
     dirtyComponentIDs.removeAll()
     dirtyDataPaths.removeAll()
+    dirtyAgentCalls.removeAll()
 
-    guard !changedCompIDs.isEmpty || !changedDataPaths.isEmpty else {
+    guard !changedCompIDs.isEmpty || !changedDataPaths.isEmpty || !changedAgentCalls.isEmpty
+    else {
       return activeNodes["root"]
     }
 
     var affectedNodeIDs: Set<String> = []
+
+    for call in changedAgentCalls {
+      affectedNodeIDs.formUnion(nodesByAgentCall[call] ?? [])
+    }
 
     for compID in changedCompIDs {
       let currentComp = components[compID]
@@ -527,6 +577,9 @@ public final class NodeResolver: Sendable {
       where !record.templateCounts.keys.contains(oldTemplatePath) {
         nodesByTemplatePath[oldTemplatePath]?.remove(nodeKey)
       }
+      for oldCall in oldRecord.agentCalls where !record.agentCalls.contains(oldCall) {
+        unregisterAgentCall(oldCall, for: nodeKey)
+      }
 
       removedChildren = oldRecord.directChildInstances.subtracting(record.directChildInstances)
       let addedChildren = record.directChildInstances.subtracting(oldRecord.directChildInstances)
@@ -552,6 +605,9 @@ public final class NodeResolver: Sendable {
     }
     for templatePath in record.templateCounts.keys {
       nodesByTemplatePath[templatePath, default: []].insert(nodeKey)
+    }
+    for call in record.agentCalls {
+      nodesByAgentCall[call, default: []].insert(nodeKey)
     }
 
     for removedChild in removedChildren {
@@ -588,6 +644,9 @@ public final class NodeResolver: Sendable {
     for templatePath in record.templateCounts.keys {
       nodesByTemplatePath[templatePath]?.remove(nodeKey)
     }
+    for call in record.agentCalls {
+      unregisterAgentCall(call, for: nodeKey)
+    }
 
     for childNodeKey in record.directChildInstances {
       parentsByChildInstanceID[childNodeKey]?.remove(nodeKey)
@@ -596,6 +655,28 @@ public final class NodeResolver: Sendable {
         pruneSubtree(childNodeKey, protectedNodeKeys: protectedNodeKeys)
       }
     }
+  }
+
+  /// Removes a node from the nodes making an agent call.
+  private func unregisterAgentCall(_ call: AgentFunctionCall, for nodeKey: String) {
+    nodesByAgentCall[call]?.remove(nodeKey)
+    if nodesByAgentCall[call]?.isEmpty ?? true {
+      nodesByAgentCall.removeValue(forKey: call)
+      // A call that failed for nodes is sent again once a node makes it anew.
+      agentCallHost?.agentCallCache.forgetFailure(call)
+    }
+  }
+
+  /// Disposes the resolver: cancels model change subscriptions, clears cached resolution state,
+  /// and suppresses late async callbacks.
+  public func dispose() {
+    isDisposed = true
+    modelCancellables.removeAll()
+    agentCallCancellable = nil
+    nodesByAgentCall.removeAll()
+    dirtyAgentCalls.removeAll()
+    activeNodes.removeAll()
+    nodeRecords.removeAll()
   }
 
   private func cachedSchema(
@@ -663,12 +744,14 @@ public final class NodeResolver: Sendable {
     let previousTemplateCounts = currentNodeTemplateCounts
     let previousChildIdentities = currentNodeChildIdentities
     let previousDirectChildren = currentNodeDirectChildren
+    let previousAgentCalls = currentNodeAgentCalls
     let previousPassErrors = currentPassExpressionErrors
     currentComponentID = nodeKey
     currentNodeReadValues = [:]
     currentNodeTemplateCounts = [:]
     currentNodeChildIdentities = [:]
     currentNodeDirectChildren = []
+    currentNodeAgentCalls = []
     currentPassExpressionErrors = []
     defer {
       if isResolvingTree {
@@ -682,6 +765,7 @@ public final class NodeResolver: Sendable {
       currentNodeTemplateCounts = previousTemplateCounts
       currentNodeChildIdentities = previousChildIdentities
       currentNodeDirectChildren = previousDirectChildren
+      currentNodeAgentCalls = previousAgentCalls
       currentPassExpressionErrors = previousPassErrors
     }
 
@@ -744,7 +828,8 @@ public final class NodeResolver: Sendable {
       childIdentities: currentNodeChildIdentities ?? [:],
       readValues: currentNodeReadValues ?? [:],
       templateCounts: currentNodeTemplateCounts ?? [:],
-      directChildInstances: currentNodeDirectChildren ?? []
+      directChildInstances: currentNodeDirectChildren ?? [],
+      agentCalls: currentNodeAgentCalls ?? []
     )
     registerNodeDependencies(record)
 
@@ -1430,13 +1515,31 @@ public final class NodeResolver: Sendable {
       )
     }
 
+    let previousCheckAgentCalls = currentCheckAgentCalls
+    currentCheckAgentCalls = []
     let evaluated = evaluateDynamicValue(conditionJSON, basePath: basePath, index: index)
+    let agentCalls = currentCheckAgentCalls ?? []
+    currentCheckAgentCalls = previousCheckAgentCalls
+    // A condition waiting on the agent neither passes nor fails until the call settles.
+    if evaluated == .null, agentCalls.contains(where: isAgentCallPending) {
+      return ResolvedCheck(
+        condition: DataBinding(identity: .literal(conditionJSON), value: nil, set: { _ in }),
+        message: explicitRuleMessage ?? fallbackMessage,
+        isPending: true
+      )
+    }
     return makeEvaluatedCheck(
       conditionJSON: conditionJSON,
       evaluated: evaluated,
       fallbackMessage: fallbackMessage,
       explicitRuleMessage: explicitRuleMessage
     )
+  }
+
+  /// Whether `call`, routed to the agent from a binding or check, awaits the agent's response.
+  private func isAgentCallPending(_ call: AgentFunctionCall) -> Bool {
+    guard case .pending = agentCallHost?.agentCallCache[call] else { return false }
+    return true
   }
 
   private func makePathBoundCheck(
@@ -1590,6 +1693,8 @@ public final class NodeResolver: Sendable {
     componentID: String
   ) -> ResolvedAction {
     let contextDictionary = eventObject["context"]?.dictionaryValue
+    // The entries of `context`, in the order the decoded object holds them.
+    let contextEntries = eventObject["context"]?.objectValue
     let userMessageValue = eventObject["userMessage"]
     let rawMetadata = eventObject["metadata"] ?? outerObject["metadata"]
     let actionMetadata = try? MetadataValidator.validate(
@@ -1612,14 +1717,6 @@ public final class NodeResolver: Sendable {
         guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
           return
         }
-        let resolvedContext = self.evaluateActionContext(
-          contextDictionary,
-          basePath: basePath,
-          index: index
-        )
-        let resolvedUserMessage = userMessageValue.flatMap {
-          self.evaluateDynamicValue($0, basePath: basePath, index: index).stringValue
-        }
         let validatedBase = try MetadataValidator.validate(
           rawMetadata,
           pathPrefix: "action.metadata"
@@ -1628,17 +1725,15 @@ public final class NodeResolver: Sendable {
           base: validatedBase,
           override: callMetadata
         )
-        let triggerAction = ResolvedAction(
-          identity: .event(
-            name: name,
-            context: resolvedContext,
-            userMessage: resolvedUserMessage
-          ),
-          sourceComponentID: componentID,
+        self.runEventAction(
+          name: name,
+          contextEntries: contextEntries,
+          userMessageValue: userMessageValue,
           metadata: mergedMetadata,
-          trigger: {}
+          basePath: basePath,
+          index: index,
+          componentID: componentID
         )
-        self.actionHandler?.handle(action: triggerAction, from: self.surfaceID)
       }
     )
   }
@@ -1663,7 +1758,7 @@ public final class NodeResolver: Sendable {
         guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
           return
         }
-        _ = self.evaluateDynamicValue(functionCallValue, basePath: basePath, index: index)
+        self.runActionFunctionCall(functionCallValue, basePath: basePath, index: index)
       }
     )
   }
@@ -1690,14 +1785,260 @@ public final class NodeResolver: Sendable {
     return false
   }
 
-  private func evaluateActionContext(
-    _ contextDictionary: [String: JSONValue]?,
+  /// The outcome of resolving one value of an action: an entry of an event's `context`, its
+  /// `userMessage`, or the function call of an action.
+  private enum ActionValueResolution {
+    /// The value resolved.
+    case resolved(JSONValue)
+    /// The value waits on these calls routed to the agent.
+    case pending(Set<AgentFunctionCall>)
+    /// A call failed, and its error was reported. The action stops.
+    case failed
+  }
+
+  /// Resolves one value of an action run in response to a user gesture, with `actionCache`
+  /// holding the agent's answers for this run of the action.
+  private func resolveActionValue(
+    _ value: JSONValue,
+    in context: DataContext,
+    actionCache: AgentCallCache
+  ) -> ActionValueResolution {
+    let previousActionCallCache = currentActionCallCache
+    let previousActionAgentCalls = currentActionAgentCalls
+    currentActionCallCache = actionCache
+    currentActionAgentCalls = []
+    let resolved = context.resolveDynamicValue(value)
+    let agentCalls = currentActionAgentCalls ?? []
+    currentActionCallCache = previousActionCallCache
+    currentActionAgentCalls = previousActionAgentCalls
+
+    if context.hasFailedFunctionCall {
+      actionCache.stop()
+      return .failed
+    }
+    let pendingCalls = agentCalls.filter { call in
+      if case .pending = actionCache[call] { return true }
+      return false
+    }
+    return pendingCalls.isEmpty ? .resolved(resolved) : .pending(pendingCalls)
+  }
+
+  /// Runs `resume` once every call in `calls` has been answered, unless one of them fails or the
+  /// action stops first.
+  private func resumeAction(
+    after calls: Set<AgentFunctionCall>,
+    in actionCache: AgentCallCache,
+    _ resume: @escaping @MainActor () -> Void
+  ) {
+    Task { @MainActor in
+      for call in calls {
+        guard await actionCache.awaitSettlement(of: call), !actionCache.isStopped else { return }
+      }
+      resume()
+    }
+  }
+
+  /// Runs an event action, waiting for any agent function calls in `context` or `userMessage` to
+  /// settle before dispatching the event. When no agent calls are pending, the event is
+  /// dispatched synchronously.
+  ///
+  /// The `context` entries are resolved one at a time, in the order the `context` object holds
+  /// them, then `userMessage`. That is the payload's order unless the JSON decoder reordered the
+  /// keys, as Foundation's `JSONDecoder` may. An entry that waits on the agent is awaited before
+  /// the next entry is resolved, so no later entry sends a call before it settles. The first entry
+  /// that fails stops the action: no later entry is
+  /// resolved, and the event isn't dispatched. Each run resolves the entries again, reading the
+  /// answers already received from `actionCache`.
+  ///
+  /// A `userMessage` that resolves to null is absent. One that resolves to any other non-string,
+  /// whether at once or after an agent call, stops the action with an `INVALID_ACTION` error, and
+  /// the event isn't dispatched.
+  private func runEventAction(
+    name: String,
+    contextEntries: OrderedDictionary<String, JSONValue>?,
+    userMessageValue: JSONValue?,
+    metadata: [String: JSONValue]?,
     basePath: String?,
-    index: Int?
-  ) -> [String: JSONValue] {
-    guard let contextDictionary else { return [:] }
-    return contextDictionary.mapValues {
-      evaluateDynamicValue($0, basePath: basePath, index: index)
+    index: Int?,
+    componentID: String,
+    actionCache: AgentCallCache = AgentCallCache()
+  ) {
+    guard !isDisposed, !actionCache.isStopped else { return }
+    let context = DataContext(
+      dataModel: dataModel,
+      path: basePath ?? "",
+      functionHandler: self,
+      protocolVersion: effectiveProtocolVersion,
+      index: index,
+      isUserActivated: true
+    )
+    let resume: @MainActor () -> Void = { [weak self] in
+      self?.runEventAction(
+        name: name,
+        contextEntries: contextEntries,
+        userMessageValue: userMessageValue,
+        metadata: metadata,
+        basePath: basePath,
+        index: index,
+        componentID: componentID,
+        actionCache: actionCache
+      )
+    }
+    var resolvedContext: [String: JSONValue] = [:]
+    for (key, value) in contextEntries ?? [:] {
+      if let reason = invalidDynamicValueReason(value) {
+        actionCache.stop()
+        reportInvalidEventValue("Action event context entry '\(key)' is invalid: \(reason)")
+        return
+      }
+      switch resolveActionValue(value, in: context, actionCache: actionCache) {
+      case .resolved(let resolved):
+        resolvedContext[key] = resolved
+      case .pending(let calls):
+        resumeAction(after: calls, in: actionCache, resume)
+        return
+      case .failed:
+        return
+      }
+    }
+    var resolvedUserMessage: String?
+    if let userMessageValue {
+      if let reason = invalidDynamicValueReason(userMessageValue) {
+        actionCache.stop()
+        reportInvalidEventValue("Action event userMessage is invalid: \(reason)")
+        return
+      }
+      switch resolveActionValue(userMessageValue, in: context, actionCache: actionCache) {
+      case .resolved(.null):
+        // A `userMessage` that resolves to null, such as a missing path, is absent.
+        resolvedUserMessage = nil
+      case .resolved(let resolved):
+        guard let message = resolved.stringValue else {
+          reportInvalidUserMessage()
+          return
+        }
+        resolvedUserMessage = message
+      case .pending(let calls):
+        resumeAction(after: calls, in: actionCache, resume)
+        return
+      case .failed:
+        return
+      }
+    }
+    let triggerAction = ResolvedAction(
+      identity: .event(
+        name: name,
+        context: resolvedContext,
+        userMessage: resolvedUserMessage
+      ),
+      sourceComponentID: componentID,
+      metadata: metadata,
+      trigger: {}
+    )
+    actionHandler?.handle(action: triggerAction, from: surfaceID)
+  }
+
+  /// Returns why `value` isn't a well-formed dynamic value, or `nil` if it is.
+  ///
+  /// From v1.0, an object key that starts with `@` must be `@path` or `@call` (`@@` escapes a
+  /// literal `@`). A data binding's path and a function call's name must be strings, and a
+  /// function call's `args` must be an object. Nested values are checked too.
+  private func invalidDynamicValueReason(_ value: JSONValue) -> String? {
+    let pathKey = atLeastV10 ? "@path" : "path"
+    let callKey = atLeastV10 ? "@call" : "call"
+    switch value {
+    case .array(let elements):
+      return elements.lazy.compactMap { self.invalidDynamicValueReason($0) }.first
+    case .object(let members):
+      if atLeastV10,
+        let unknownKey = members.keys.first(where: {
+          $0.hasPrefix("@") && !$0.hasPrefix("@@") && $0 != "@path" && $0 != "@call"
+        })
+      {
+        return "'\(unknownKey)' is not a known expression key."
+      }
+      if let path = members[pathKey], path.stringValue == nil,
+        atLeastV10 || members["componentId"] == nil
+      {
+        return "'\(pathKey)' must be a string."
+      }
+      if let call = members[callKey] {
+        guard let name = call.stringValue else {
+          return "'\(callKey)' must be a string."
+        }
+        if let args = members["args"], args.objectValue == nil {
+          return "the 'args' of '\(name)' must be an object."
+        }
+      }
+      return members.values.lazy.compactMap { self.invalidDynamicValueReason($0) }.first
+    default:
+      return nil
+    }
+  }
+
+  /// Reports a malformed `context` entry or `userMessage` of an event action.
+  private func reportInvalidEventValue(_ message: String) {
+    actionHandler?.handle(
+      error: .generic(
+        GenericError(
+          code: "EXPRESSION_ERROR",
+          surfaceID: surfaceID,
+          message: message,
+          version: effectiveProtocolVersion ?? .v10
+        )
+      ),
+      from: surfaceID
+    )
+  }
+
+  /// Reports an event action whose `userMessage` didn't resolve to a string.
+  private func reportInvalidUserMessage() {
+    actionHandler?.handle(
+      error: .generic(
+        GenericError(
+          code: "INVALID_ACTION",
+          surfaceID: surfaceID,
+          message: "Action event 'userMessage' must resolve to a string.",
+          version: effectiveProtocolVersion ?? .v10
+        )
+      ),
+      from: surfaceID
+    )
+  }
+
+  /// Runs the function call of an action, in response to a user gesture.
+  ///
+  /// Each action invocation uses its own `actionCache`, so action calls never read from or write
+  /// to the surface-wide reactive ``AgentCallCache`` or share in-flight calls across clicks. A
+  /// function call whose arguments include calls routed to the agent runs once those calls have
+  /// settled in `actionCache`. The run stops at the first call that fails, after reporting its
+  /// error once; the failures of sibling calls that settle later are not reported.
+  private func runActionFunctionCall(
+    _ functionCall: JSONValue,
+    basePath: String?,
+    index: Int?,
+    actionCache: AgentCallCache = AgentCallCache()
+  ) {
+    guard !isDisposed, !actionCache.isStopped else { return }
+    let context = DataContext(
+      dataModel: dataModel,
+      path: basePath ?? "",
+      functionHandler: self,
+      protocolVersion: effectiveProtocolVersion,
+      index: index,
+      isUserActivated: true
+    )
+    // Run again only once the agent calls in the arguments settle. A call sent to the agent
+    // itself, rather than deferred, needs no second run.
+    let resolution = resolveActionValue(functionCall, in: context, actionCache: actionCache)
+    guard case .pending(let calls) = resolution, context.hasDeferredFunctionCall else { return }
+    resumeAction(after: calls, in: actionCache) { [weak self] in
+      self?.runActionFunctionCall(
+        functionCall,
+        basePath: basePath,
+        index: index,
+        actionCache: actionCache
+      )
     }
   }
 
@@ -1861,10 +2202,86 @@ extension NodeResolver: FunctionHandler {
     }
   }
 
+  /// Returns the catalog a v1.0 call is sent to the agent with: the catalog it names, else the
+  /// default catalog. Returns `nil` before v1.0, or when the surface has no
+  /// ``SurfaceViewModel/agentFunctionCaller``.
+  public func agentFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
+    guard atLeastV10, agentCallHost?.agentFunctionCaller != nil else { return nil }
+    return catalogID ?? defaultCatalogID
+  }
+
+  /// Sends a call to the agent through the surface, returning its result if available.
+  ///
+  /// While a node is being resolved, the call is recorded as a dependency of that node, and the
+  /// node is resolved again when the agent answers it (see ``agentFunctionResultPublisher``).
+  /// For reactive bindings and checks, the surface keeps the result so an identical call made
+  /// again reads it instead of being sent again. For imperative actions, each action invocation
+  /// uses its own ``currentActionCallCache`` and always sends a fresh call.
+  ///
+  /// An agent error or timeout is reported as an `EXPRESSION_ERROR`, and the value is `null`.
+  ///
+  /// - Returns: The agent's result if already received, else `nil`.
+  public func agentFunctionValue(for call: AgentFunctionCall) -> JSONValue? {
+    guard !isDisposed else { return nil }
+    let hadCallInCurrentPass = currentNodeAgentCalls?.contains(call) == true
+    currentNodeAgentCalls?.insert(call)
+    currentActionAgentCalls?.insert(call)
+    currentCheckAgentCalls?.insert(call)
+    guard let agentCallHost else {
+      handleFunctionError(FunctionError.noListener(name: call.name), functionName: call.name)
+      return nil
+    }
+    if let actionCache = currentActionCallCache {
+      return agentCallHost.actionAgentFunctionValue(for: call, in: actionCache)
+    }
+    if let nodeKey = currentComponentID,
+      !hadCallInCurrentPass,
+      !(nodesByAgentCall[call]?.contains(nodeKey) ?? false)
+    {
+      agentCallHost.agentCallCache.forgetFailure(call)
+    }
+    return agentCallHost.agentFunctionValue(
+      for: call,
+      isRequestedByNode: currentNodeAgentCalls != nil
+    )
+  }
+
+  /// Makes the next ``resolveTree()`` resolve every node again, discarding cached resolutions.
+  func setNeedsFullResolve() {
+    needsFullResolve = true
+  }
+
+  /// Whether a resolved node makes `call`.
+  func hasNodes(makingAgentCall call: AgentFunctionCall) -> Bool {
+    nodesByAgentCall[call] != nil
+  }
+
+  /// Marks the nodes making `call` for resolution once it has settled, and publishes on
+  /// ``agentFunctionResultPublisher`` if there are any.
+  ///
+  /// A failed call is resolved again too, so that a check waiting on it becomes invalid.
+  private func markAgentCallSettled(_ call: AgentFunctionCall) {
+    guard nodesByAgentCall[call] != nil else { return }
+    dirtyAgentCalls.insert(call)
+    agentCallSettledSubject.send()
+  }
+
   /// Reports a failed function call: unresolvable catalogs map through `MessageErrorMapper`
   /// (`CATALOG_ERROR`), while missing functions and errors thrown by `evaluate` are reported as
-  /// `EXPRESSION_ERROR`, matching the other core SDKs.
+  /// `EXPRESSION_ERROR`, matching the other core SDKs. A local function that throws while an
+  /// action runs is reported as `EXECUTION_ERROR`. A call cancelled with the RPC code
+  /// `CANCELLED`, such as when its surface is deleted, reports nothing.
   public func handleFunctionError(_ error: any Error, functionName: String) {
+    guard !isDisposed else { return }
+    var error = error
+    var code = "EXPRESSION_ERROR"
+    if let executionError = error as? ActionExecutionError {
+      error = executionError.underlying
+      code = "EXECUTION_ERROR"
+    }
+    if let functionError = error as? FunctionError, functionError.rpcCode == "CANCELLED" {
+      return
+    }
     let version = effectiveProtocolVersion ?? .v09
     let rendererError: RendererError
     if let catalogError = error as? A2UICatalogError {
@@ -1882,15 +2299,27 @@ extension NodeResolver: FunctionHandler {
       } else {
         message = String(describing: error)
       }
-      rendererError = .generic(
-        GenericError(
-          code: "EXPRESSION_ERROR",
-          surfaceID: surfaceID,
-          message: message,
-          expression: functionName,
-          version: version
+      if let functionCallID = (error as? FunctionError)?.functionCallID {
+        rendererError = .generic(
+          GenericError(
+            code: code,
+            functionCallID: functionCallID,
+            message: message,
+            expression: functionName,
+            version: version
+          )
         )
-      )
+      } else {
+        rendererError = .generic(
+          GenericError(
+            code: code,
+            surfaceID: surfaceID,
+            message: message,
+            expression: functionName,
+            version: version
+          )
+        )
+      }
     }
     let dedupeKey =
       "\(currentComponentID ?? ""):\(currentPropertyPath ?? ""):\(functionName):\(rendererError)"
@@ -1901,12 +2330,5 @@ extension NodeResolver: FunctionHandler {
       }
     }
     actionHandler?.handle(error: rendererError, from: surfaceID)
-  }
-
-  /// Cancels model change subscriptions and clears cached resolution state.
-  public func dispose() {
-    modelCancellables.removeAll()
-    activeNodes.removeAll()
-    nodeRecords.removeAll()
   }
 }

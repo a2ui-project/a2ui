@@ -25,14 +25,22 @@ public struct ResolvedCheck: Resolved, Equatable, Sendable {
   /// Optional structured validation result from evaluating a v1.0 function or data model path.
   public let validationResult: ValidationResult?
 
+  /// Whether the condition awaits the agent's response to a function call routed to it.
+  ///
+  /// A pending check neither passes nor fails: it doesn't make its component invalid, and it is
+  /// evaluated again once the call settles.
+  public let isPending: Bool
+
   public init(
     condition: DataBinding<Bool>,
     message: String,
-    validationResult: ValidationResult? = nil
+    validationResult: ValidationResult? = nil,
+    isPending: Bool = false
   ) {
     self.condition = condition
     self.message = message
     self.validationResult = validationResult
+    self.isPending = isPending
   }
 
   /// Whether the check's condition passed (evaluated to `true` or to a valid result).
@@ -54,14 +62,15 @@ public struct ResolvedCheck: Resolved, Equatable, Sendable {
   ///
   /// Only an `error`-severity failure makes a check invalid. A failure with `warning` or `info`
   /// severity is a non-blocking hint: it appears in ``Node/validationResults`` but not in
-  /// ``Node/validationErrors``, and it neither disables a component nor stops its action.
+  /// ``Node/validationErrors``, and it neither disables a component nor stops its action. A
+  /// pending check (see ``isPending``) isn't a failure.
   public var isValid: Bool {
-    passed || severity != .error
+    passed || severity != .error || isPending
   }
 
   public static func == (lhs: ResolvedCheck, rhs: ResolvedCheck) -> Bool {
     lhs.condition == rhs.condition && lhs.message == rhs.message
-      && lhs.validationResult == rhs.validationResult
+      && lhs.validationResult == rhs.validationResult && lhs.isPending == rhs.isPending
   }
 }
 
@@ -93,6 +102,11 @@ extension Node {
     checks.compactMap { $0.isValid ? nil : $0.message }
   }
 
+  /// Whether a check on this node awaits the agent's response (see ``ResolvedCheck/isPending``).
+  public var isValidationPending: Bool {
+    checks.contains { $0.isPending }
+  }
+
   /// Every check that currently fails, whatever its severity, in check order.
   ///
   /// Each result carries the check's resolved message and its effective severity (`.error`
@@ -100,7 +114,7 @@ extension Node {
   /// non-blocking hints.
   public var validationResults: [ValidationResult] {
     checks.compactMap { check in
-      guard !check.passed else { return nil }
+      guard !check.passed, !check.isPending else { return nil }
       return ValidationResult(
         valid: false,
         code: check.validationResult?.code,

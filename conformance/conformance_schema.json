@@ -2137,6 +2137,7 @@
     "RpcUiScenario": {
       "type": "object",
       "description": "UI binding or action fallback scenario for `handle_rpc` conformance cases.",
+      "required": ["surfaceId", "catalogId"],
       "properties": {
         "surfaceId": {"type": "string"},
         "catalogId": {"type": "string"},
@@ -2152,7 +2153,33 @@
           "required": ["componentId", "property"],
           "additionalProperties": false
         },
-        "localFunctions": {"type": "object"},
+        "localFunctions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "returnType": {"type": "string"},
+              "effect": {
+                "type": "object",
+                "properties": {
+                  "setData": {
+                    "type": "object",
+                    "properties": {
+                      "path": {"type": "string"},
+                      "value": {}
+                    },
+                    "required": ["path", "value"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["setData"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["returnType", "effect"],
+            "additionalProperties": false
+          }
+        },
         "inboundResponseValue": {},
         "inboundResponseError": {
           "type": "object",
@@ -2164,6 +2191,21 @@
           "additionalProperties": false
         }
       },
+      "allOf": [
+        {
+          "oneOf": [
+            {"required": ["component"]},
+            {"required": ["components"]},
+            {"required": ["actionPayload"]}
+          ]
+        },
+        {
+          "oneOf": [
+            {"required": ["inboundResponseValue"]},
+            {"required": ["inboundResponseError"]}
+          ]
+        }
+      ],
       "additionalProperties": false
     },
     "HandleRpcTest": {
@@ -2240,10 +2282,22 @@
               "type": "boolean",
               "description": "When true, asserts that `lateInboundResponse` does not throw, emits no error envelope, and leaves the settled result unchanged."
             },
-            "siblings": {"type": "object"},
+            "siblings": {
+              "type": "object",
+              "additionalProperties": {"type": "object"}
+            },
             "validationResult": {"type": "object"},
             "dataModel": {"type": "object"},
-            "surfaceError": {"type": "object"},
+            "surfaceError": {
+              "type": "object",
+              "properties": {
+                "code": {"type": "string"},
+                "functionCallId": {"type": "string"},
+                "message": {"type": "string"}
+              },
+              "required": ["code"],
+              "additionalProperties": false
+            },
             "parts": {"type": "array", "items": {"type": "object"}}
           },
           "additionalProperties": false

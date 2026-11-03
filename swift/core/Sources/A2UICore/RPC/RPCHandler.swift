@@ -24,6 +24,7 @@ import OrderedJSON
 public final class RPCHandler {
 
   private struct PendingCall {
+    let surfaceID: String
     let continuation: CheckedContinuation<JSONValue, any Error>
     let timeoutTask: Task<Void, Never>?
   }
@@ -104,7 +105,8 @@ public final class RPCHandler {
       )
     }
 
-    guard let function = catalog.functions[callName] else {
+    // A schema-only declaration has no renderer implementation, so the renderer can't run it.
+    guard let function = catalog.functions[callName], function.hasLocalImplementation else {
       let errorPayload = FunctionErrorPayload(
         code: .invalidFunctionCall,
         message: "Function not found: \(callName)"
@@ -173,7 +175,7 @@ public final class RPCHandler {
     if let capturedError = argHandler.capturedError {
       let errorPayload = FunctionErrorPayload(
         code: .executionError,
-        message: String(describing: capturedError)
+        message: Self.argumentErrorMessage(capturedError)
       )
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
@@ -215,6 +217,21 @@ public final class RPCHandler {
         version: message.version
       )
     }
+  }
+
+  /// The message of an error that a nested argument of an agent-initiated call failed with, or a
+  /// descriptive fallback when the error has none.
+  private static func argumentErrorMessage(_ error: any Error) -> String {
+    let message: String
+    if let a2uiError = error as? any A2UIError {
+      message = a2uiError.message
+    } else if let description = (error as? any LocalizedError)?.errorDescription {
+      message = description
+    } else {
+      message = String(describing: error)
+    }
+    guard message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return message }
+    return "An argument of the function call could not be resolved."
   }
 
   // MARK: - Outgoing Calls (Renderer -> Agent)
@@ -278,6 +295,7 @@ public final class RPCHandler {
         }
 
         self.pendingCalls[callID] = PendingCall(
+          surfaceID: surfaceID,
           continuation: continuation,
           timeoutTask: timeoutTask
         )
@@ -307,12 +325,27 @@ public final class RPCHandler {
 
     if let error = response.error {
       pending.continuation.resume(
-        throwing: FunctionError.remoteError(code: error.code, message: error.message)
+        throwing: FunctionError.remoteError(
+          code: error.code,
+          message: error.message,
+          callID: response.functionCallID
+        )
       )
     } else if let value = response.value {
       pending.continuation.resume(returning: value)
     } else {
       pending.continuation.resume(returning: .null)
+    }
+  }
+
+  /// Cancels all active pending calls for a specific surface, throwing
+  /// `FunctionError.surfaceCallsCancelled`.
+  public func cancelPendingCalls(forSurfaceID surfaceID: String) {
+    let error = FunctionError.surfaceCallsCancelled(surfaceID: surfaceID)
+    for (callID, pending) in pendingCalls where pending.surfaceID == surfaceID {
+      pendingCalls.removeValue(forKey: callID)
+      pending.timeoutTask?.cancel()
+      pending.continuation.resume(throwing: error)
     }
   }
 

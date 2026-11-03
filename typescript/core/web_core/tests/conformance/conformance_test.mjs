@@ -40,14 +40,7 @@ import {
 import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
 import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
 import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
-import {
-  effect,
-  getValue,
-  isSignal,
-  peekValue,
-  setValue,
-  signal,
-} from '../../dist/src/reactivity/signals.js';
+import {effect, getValue, isSignal, peekValue} from '../../dist/src/reactivity/signals.js';
 import {DataContext} from '../../dist/src/resolution/data-context.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
@@ -697,15 +690,27 @@ const RPC_KNOWN_KEYS = {
     'uiBindingScenario',
     'userActivationPresent',
   ]),
-  uiBindingScenario: new Set(['catalogId', 'component', 'inboundResponseValue', 'surfaceId']),
+  uiBindingScenario: new Set([
+    'catalogId',
+    'component',
+    'components',
+    'inboundResponseError',
+    'inboundResponseValue',
+    'localFunctions',
+    'observe',
+    'surfaceId',
+  ]),
   uiActionFallbackScenario: new Set([
     'actionPayload',
     'catalogId',
+    'inboundResponseError',
     'inboundResponseValue',
+    'localFunctions',
     'surfaceId',
   ]),
   expect: new Set([
     'correlatedCallId',
+    'dataModel',
     'error',
     'initialValue',
     'lateResponseIgnored',
@@ -713,8 +718,36 @@ const RPC_KNOWN_KEYS = {
     'resolvedValue',
     'response',
     'result',
+    'siblings',
+    'surfaceError',
+    'validationResult',
   ]),
 };
+
+function buildScenarioLocalFunctions(localFunctions, getSurface) {
+  const fns = [];
+  for (const [fnName, spec] of Object.entries(localFunctions ?? {})) {
+    fns.push(
+      createFunctionImplementation(
+        {
+          name: fnName,
+          returnType: spec.returnType || 'any',
+          schema: z.record(z.string(), z.any()).optional().default({}),
+        },
+        () => {
+          const setData = spec.effect?.setData;
+          if (setData) {
+            const surface = getSurface();
+            surface.dataModel.set(setData.path, setData.value);
+          }
+          if (spec.returnType === 'boolean') return true;
+          return null;
+        },
+      ),
+    );
+  }
+  return fns;
+}
 
 async function validateRpcTestCase(testCase) {
   assertKnownKeys(testCase, RPC_KNOWN_KEYS.case, 'handle_rpc');
@@ -846,42 +879,28 @@ async function validateRpcTestCase(testCase) {
 
   if (args.uiBindingScenario) {
     const scenario = args.uiBindingScenario;
-    const callName =
-      scenario.component?.text?.['@call'] ||
-      scenario.component?.text?.call ||
-      'fetchRemoteGreeting';
+    const components = scenario.components ?? [scenario.component];
     const procRef = {current: null};
-    const agentBindingFn = createFunctionImplementation(
-      {
-        name: callName,
-        returnType: 'string',
-        schema: z.record(z.string(), z.any()).optional().default({}),
-      },
-      fnArgs => {
-        const sig = signal(null);
-        void procRef.current
-          .callAgentFunction(scenario.surfaceId, {
-            '@call': callName,
-            catalogId: scenario.catalogId,
-            args: fnArgs,
-          })
-          .then(val => setValue(sig, val));
-        return sig;
-      },
+    const localFns = buildScenarioLocalFunctions(scenario.localFunctions, () =>
+      procRef.current.getSurface(scenario.surfaceId),
     );
     const storeCat = new Catalog(
       scenario.catalogId,
       '1.0',
       v1_0Components,
-      [agentBindingFn],
+      localFns,
       undefined,
       undefined,
     );
+    const surfaceErrors = [];
     procRef.current = new MessageProcessor([storeCat, v1_0BasicCatalog], undefined, {
       version: '1.0',
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
+    });
+    procRef.current.model.onError.subscribe(err => {
+      surfaceErrors.push(err);
     });
     procRef.current.processMessages([
       {
@@ -889,32 +908,82 @@ async function validateRpcTestCase(testCase) {
         createSurface: {
           surfaceId: scenario.surfaceId,
           catalogId: scenario.catalogId,
-          components: [scenario.component],
+          components,
         },
       },
     ]);
     const surface = procRef.current.getSurface(scenario.surfaceId);
     const resolved = collectResolvedNodes(surface);
     try {
-      const rootNode = resolved.nodes.get(scenario.component.id);
-      const initialText = normalizeComponentRefs(peekValue(rootNode.props).text);
-      assert.strictEqual(initialText ?? null, expect.initialValue);
+      const observeId = scenario.observe?.componentId ?? scenario.component?.id ?? 'root';
+      const observeProp = scenario.observe?.property ?? 'text';
+      const targetNode = resolved.nodes.get(observeId);
+      if (expect.initialValue !== undefined) {
+        const initialVal = normalizeComponentRefs(peekValue(targetNode.props)[observeProp]);
+        assert.strictEqual(initialVal ?? null, expect.initialValue);
+      }
+      await new Promise(resolve => setTimeout(resolve, 0));
       assert.ok(sentOutboundMsg?.callAgentFunction, 'Expected outbound callAgentFunction');
       assert.strictEqual(sentOutboundMsg.version, expect.outboundCall.version);
       assert.strictEqual(
         sentOutboundMsg.callAgentFunction.surfaceId,
         expect.outboundCall.callAgentFunction.surfaceId,
       );
+      assert.deepStrictEqual(
+        sentOutboundMsg.callAgentFunction.callFunction,
+        expect.outboundCall.callAgentFunction.callFunction,
+      );
+      const callId = sentOutboundMsg.callAgentFunction.functionCallId;
+      const responsePayload = scenario.inboundResponseError
+        ? {functionCallId: callId, error: scenario.inboundResponseError}
+        : {functionCallId: callId, value: scenario.inboundResponseValue};
       procRef.current.processMessages({
         version: '1.0',
-        agentFunctionResponse: {
-          functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
-          value: scenario.inboundResponseValue,
-        },
+        agentFunctionResponse: responsePayload,
       });
       await new Promise(resolve => setTimeout(resolve, 0));
-      const updatedText = normalizeComponentRefs(peekValue(rootNode.props).text);
-      assert.strictEqual(updatedText, expect.resolvedValue);
+      if (expect.resolvedValue !== undefined) {
+        const updatedVal = normalizeComponentRefs(peekValue(targetNode.props)[observeProp]);
+        assert.strictEqual(updatedVal ?? null, expect.resolvedValue);
+      }
+      if (expect.siblings) {
+        for (const [sibId, expectedProps] of Object.entries(expect.siblings)) {
+          const sibNode = resolved.nodes.get(sibId);
+          assert.ok(sibNode, `Expected sibling node '${sibId}' to be resolved`);
+          const sibProps = peekValue(sibNode.props);
+          for (const [propKey, expVal] of Object.entries(expectedProps)) {
+            assert.deepStrictEqual(normalizeComponentRefs(sibProps[propKey]), expVal);
+          }
+        }
+      }
+      if (expect.validationResult) {
+        const nodeProps = peekValue(targetNode.props);
+        const firstResult = Array.isArray(nodeProps.validationResults)
+          ? nodeProps.validationResults[0]
+          : undefined;
+        if (expect.validationResult.valid !== undefined) {
+          assert.strictEqual(firstResult?.valid, expect.validationResult.valid);
+        }
+        if (expect.validationResult.message !== undefined) {
+          assert.strictEqual(firstResult?.message, expect.validationResult.message);
+        }
+        if (expect.validationResult.errors !== undefined) {
+          assert.deepStrictEqual(nodeProps.validationErrors, expect.validationResult.errors);
+        }
+      }
+      if (expect.surfaceError) {
+        assert.ok(surfaceErrors.length > 0, 'Expected a surface error to be dispatched');
+        const err = surfaceErrors[surfaceErrors.length - 1];
+        assert.strictEqual(err.code, expect.surfaceError.code);
+        if (expect.surfaceError.functionCallId !== undefined) {
+          const expectedCallId =
+            expect.surfaceError.functionCallId === '$outboundCallId'
+              ? callId
+              : expect.surfaceError.functionCallId;
+          assert.strictEqual(err.functionCallId, expectedCallId);
+          assert.strictEqual(err.surfaceId, undefined);
+        }
+      }
     } finally {
       resolved.dispose();
     }
@@ -923,35 +992,27 @@ async function validateRpcTestCase(testCase) {
 
   if (args.uiActionFallbackScenario) {
     const scenario = args.uiActionFallbackScenario;
-    const fc = scenario.actionPayload.functionCall;
-    const callName = fc['@call'] || fc.call;
     const procRef = {current: null};
-    const agentActionFn = createFunctionImplementation(
-      {
-        name: callName,
-        returnType: 'any',
-        schema: z.record(z.string(), z.any()).optional().default({}),
-      },
-      fnArgs =>
-        procRef.current.callAgentFunction(scenario.surfaceId, {
-          '@call': callName,
-          catalogId: scenario.catalogId,
-          args: fnArgs,
-        }),
+    const localFns = buildScenarioLocalFunctions(scenario.localFunctions, () =>
+      procRef.current.getSurface(scenario.surfaceId),
     );
     const storeCat = new Catalog(
       scenario.catalogId,
       '1.0',
       v1_0Components,
-      [agentActionFn],
+      localFns,
       undefined,
       undefined,
     );
+    const surfaceErrors = [];
     procRef.current = new MessageProcessor([storeCat], undefined, {
       version: '1.0',
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
+    });
+    procRef.current.model.onError.subscribe(err => {
+      surfaceErrors.push(err);
     });
     procRef.current.processMessages([
       {
@@ -964,22 +1025,49 @@ async function validateRpcTestCase(testCase) {
     ]);
     const surface = procRef.current.getSurface(scenario.surfaceId);
     const ctx = new DataContext(surface, '/');
-    const actionPromise = ctx.resolveAction(scenario.actionPayload);
+    const actionPromise = Promise.resolve(ctx.resolveAction(scenario.actionPayload));
+    await new Promise(resolve => setTimeout(resolve, 0));
     assert.ok(sentOutboundMsg?.callAgentFunction, 'Expected outbound callAgentFunction');
     assert.strictEqual(sentOutboundMsg.version, expect.outboundCall.version);
     assert.strictEqual(
       sentOutboundMsg.callAgentFunction.surfaceId,
       expect.outboundCall.callAgentFunction.surfaceId,
     );
+    assert.deepStrictEqual(
+      sentOutboundMsg.callAgentFunction.callFunction,
+      expect.outboundCall.callAgentFunction.callFunction,
+    );
+    const callId = sentOutboundMsg.callAgentFunction.functionCallId;
+    const responsePayload = scenario.inboundResponseError
+      ? {functionCallId: callId, error: scenario.inboundResponseError}
+      : {functionCallId: callId, value: scenario.inboundResponseValue};
     procRef.current.processMessages({
       version: '1.0',
-      agentFunctionResponse: {
-        functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
-        value: scenario.inboundResponseValue,
-      },
+      agentFunctionResponse: responsePayload,
     });
     const result = await actionPromise;
-    assert.deepStrictEqual(result, expect.result);
+    if (expect.result !== undefined) {
+      assert.deepStrictEqual(result ?? null, expect.result);
+    }
+    if (expect.dataModel !== undefined) {
+      assert.deepStrictEqual(
+        JSON.parse(JSON.stringify(surface.dataModel.get('/'))),
+        expect.dataModel,
+      );
+    }
+    if (expect.surfaceError) {
+      assert.ok(surfaceErrors.length > 0, 'Expected a surface error to be dispatched');
+      const err = surfaceErrors[surfaceErrors.length - 1];
+      assert.strictEqual(err.code, expect.surfaceError.code);
+      if (expect.surfaceError.functionCallId !== undefined) {
+        const expectedCallId =
+          expect.surfaceError.functionCallId === '$outboundCallId'
+            ? callId
+            : expect.surfaceError.functionCallId;
+        assert.strictEqual(err.functionCallId, expectedCallId);
+        assert.strictEqual(err.surfaceId, undefined);
+      }
+    }
     return;
   }
 

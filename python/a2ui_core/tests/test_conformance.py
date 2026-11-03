@@ -136,15 +136,6 @@ EXPECTED_FAILURES: dict[str, str] = {
         "Python core v0.8 topology checks read a string property as a child"
         " reference when it names a component on the surface."
     ),
-    "core/rpc_functions.yaml#test_rpc_ui_binding_triggers_call_agent_function_async_resolution": (
-        "Python DataContext does not route undeclared component binding"
-        " function calls through MessageProcessor.call_agent_function."
-    ),
-    "core/rpc_functions.yaml#test_rpc_ui_action_missing_local_function_fallback_to_agent": (
-        "Python DataContext.resolve_action does not fall back to"
-        " MessageProcessor.call_agent_function when a function is not"
-        " registered locally."
-    ),
 }
 
 _CASE_METADATA_KEYS: frozenset[str] = frozenset({
@@ -2457,6 +2448,7 @@ _HANDLE_RPC_ARGS_KEYS: frozenset[str] = frozenset({
 })
 _HANDLE_RPC_EXPECT_KEYS: frozenset[str] = frozenset({
     "correlatedCallId",
+    "dataModel",
     "error",
     "initialValue",
     "lateResponseIgnored",
@@ -2464,17 +2456,26 @@ _HANDLE_RPC_EXPECT_KEYS: frozenset[str] = frozenset({
     "resolvedValue",
     "response",
     "result",
+    "siblings",
+    "surfaceError",
+    "validationResult",
 })
 _UI_BINDING_SCENARIO_KEYS: frozenset[str] = frozenset({
     "catalogId",
     "component",
+    "components",
+    "inboundResponseError",
     "inboundResponseValue",
+    "localFunctions",
+    "observe",
     "surfaceId",
 })
 _UI_ACTION_FALLBACK_SCENARIO_KEYS: frozenset[str] = frozenset({
     "actionPayload",
     "catalogId",
+    "inboundResponseError",
     "inboundResponseValue",
+    "localFunctions",
     "surfaceId",
 })
 
@@ -2686,12 +2687,91 @@ def _assert_outbound_call_agent_message(
     return call_id
 
 
+def _build_scenario_local_functions(
+    local_funcs_spec: dict[str, Any] | None,
+) -> list[Any]:
+    from a2ui.core.catalog import FunctionImplementation
+
+    if not isinstance(local_funcs_spec, dict):
+        return []
+    funcs: list[FunctionImplementation[Any]] = []
+    for fn_name, spec in local_funcs_spec.items():
+        ret_type = spec.get("returnType", "any")
+        set_data = (spec.get("effect") or {}).get("setData")
+
+        def _make_exec(sd: dict[str, Any] | None) -> Callable[..., Any]:
+            def _exec(
+                _args: dict[str, Any], ctx: DataContext, _abort: Any = None
+            ) -> Any:
+                if isinstance(sd, dict) and isinstance(sd.get("path"), str):
+                    ctx.set(sd["path"], sd.get("value"))
+                return None
+
+            return _exec
+
+        funcs.append(
+            FunctionImplementation(
+                name=fn_name,
+                return_type=ret_type,
+                schema={"type": "object"},
+                execute=_make_exec(set_data),
+            )
+        )
+    return funcs
+
+
+def _find_node_by_id(node: Any, component_id: str) -> Any:
+    from a2ui.core.resolution import is_component_node
+
+    if node is None:
+        return None
+    if is_component_node(node) and node.component_id == component_id:
+        return node
+    if is_component_node(node):
+        for val in node.props.values():
+            found = _find_node_by_id(val, component_id)
+            if found is not None:
+                return found
+    elif isinstance(node, list):
+        for item in node:
+            found = _find_node_by_id(item, component_id)
+            if found is not None:
+                return found
+    elif isinstance(node, dict):
+        for val in node.values():
+            found = _find_node_by_id(val, component_id)
+            if found is not None:
+                return found
+    return None
+
+
+def _assert_surface_error(
+    surface_errors: list[dict[str, Any]],
+    expected_err: dict[str, Any] | None,
+    outbound_call_id: str,
+) -> None:
+    if expected_err is None:
+        return
+    assert surface_errors, "Expected a surfaceError to be emitted, got none"
+    actual = surface_errors[0]
+    if "code" in expected_err:
+        assert actual.get("code") == expected_err["code"]
+    if "functionCallId" in expected_err:
+        exp_id = (
+            outbound_call_id
+            if expected_err["functionCallId"] == "$outboundCallId"
+            else expected_err["functionCallId"]
+        )
+        assert actual.get("functionCallId") == exp_id
+
+
 def _run_ui_binding_scenario(
     scenario: dict[str, Any],
     expected: dict[str, Any],
     processor: MessageProcessor,
     outbound_messages: list[dict[str, Any]],
 ) -> None:
+    import asyncio
     from a2ui.core.resolution import NodeResolver, ResolvedBinding
     from a2ui.core.state import ComponentModel
 
@@ -2700,57 +2780,126 @@ def _run_ui_binding_scenario(
     )
     surface_id = scenario["surfaceId"]
     scenario_cat_id = scenario["catalogId"]
+    local_funcs = _build_scenario_local_functions(scenario.get("localFunctions"))
     scenario_cat = Catalog(
         catalog_id=scenario_cat_id,
         protocol_version="1.0",
         components=list(v10_catalog.components.values()),
-        functions=[],
+        functions=local_funcs,
     )
-    surface = SurfaceModel(
-        surface_id=surface_id,
-        default_catalog=scenario_cat,
-        available_catalogs={scenario_cat_id: scenario_cat},
-        protocol_version="1.0",
-    )
-    processor.model.add_surface(surface)
-    comp = dict(scenario["component"])
-    comp_id = comp.pop("id")
-    comp_type = comp.pop("component")
-    surface.components_model.add_component(
-        ComponentModel(comp_id, comp_type, scenario_cat, comp)
-    )
-    resolver = NodeResolver(surface, scenario_cat)
-    try:
-        root = resolver.root
-        assert root is not None, "Expected root ComponentNode to be mounted"
-        initial_binding = root.props.get("text")
-        initial_val = (
-            initial_binding.value
-            if isinstance(initial_binding, ResolvedBinding)
-            else initial_binding
-        )
-        assert initial_val == expected.get("initialValue")
+    processor.catalogs = [*processor.catalogs, scenario_cat]
+    processor.rpc.catalogs = [*processor.rpc.catalogs, scenario_cat]
 
-        call_id = _assert_outbound_call_agent_message(
-            outbound_messages, expected["outboundCall"]
-        )
+    async def _run() -> None:
         processor.process_messages({
             "version": "1.0",
-            "agentFunctionResponse": {
-                "functionCallId": call_id,
-                "value": scenario["inboundResponseValue"],
+            "createSurface": {
+                "surfaceId": surface_id,
+                "catalogId": scenario_cat_id,
             },
         })
-        resolved_binding = root.props.get("text")
-        resolved_val = (
-            resolved_binding.value
-            if isinstance(resolved_binding, ResolvedBinding)
-            else resolved_binding
+        surface = processor.model.get_surface(surface_id)
+        assert surface is not None
+        surface_errors: list[dict[str, Any]] = []
+        surface.on_error.subscribe(surface_errors.append)
+
+        raw_comps = (
+            scenario["components"]
+            if isinstance(scenario.get("components"), list)
+            else ([scenario["component"]] if "component" in scenario else [])
         )
-        assert resolved_val == expected.get("resolvedValue")
-    finally:
-        resolver.dispose()
-        surface.dispose()
+        for raw_comp in raw_comps:
+            comp = dict(raw_comp)
+            comp_id = comp.pop("id")
+            comp_type = comp.pop("component")
+            surface.components_model.add_component(
+                ComponentModel(comp_id, comp_type, scenario_cat, comp)
+            )
+
+        resolver = NodeResolver(surface, scenario_cat)
+        try:
+            for _ in range(5):
+                await asyncio.sleep(0)
+            root = resolver.root
+            assert root is not None, "Expected root ComponentNode to be mounted"
+            obs_spec = scenario.get("observe") or {}
+            obs_id = obs_spec.get("componentId", "root")
+            obs_prop = obs_spec.get("property", "text")
+            obs_node = _find_node_by_id(root, obs_id)
+            assert obs_node is not None, f"Observed component '{obs_id}' not found"
+
+            if "initialValue" in expected:
+                initial_binding = obs_node.props.get(obs_prop)
+                initial_val = (
+                    initial_binding.value
+                    if isinstance(initial_binding, ResolvedBinding)
+                    else initial_binding
+                )
+                assert initial_val == expected.get("initialValue")
+
+            call_id = _assert_outbound_call_agent_message(
+                outbound_messages, expected["outboundCall"]
+            )
+            resp_payload: dict[str, Any] = {"functionCallId": call_id}
+            if "inboundResponseError" in scenario:
+                resp_payload["error"] = scenario["inboundResponseError"]
+            else:
+                resp_payload["value"] = scenario.get("inboundResponseValue")
+
+            processor.process_messages({
+                "version": "1.0",
+                "agentFunctionResponse": resp_payload,
+            })
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+            obs_node = _find_node_by_id(resolver.root, obs_id)
+            assert obs_node is not None
+
+            if "resolvedValue" in expected:
+                resolved_binding = obs_node.props.get(obs_prop)
+                resolved_val = (
+                    resolved_binding.value
+                    if isinstance(resolved_binding, ResolvedBinding)
+                    else resolved_binding
+                )
+                assert resolved_val == expected.get("resolvedValue")
+
+            if isinstance(expected.get("siblings"), dict):
+                for sib_id, sib_props in expected["siblings"].items():
+                    sib_node = _find_node_by_id(resolver.root, sib_id)
+                    assert sib_node is not None, f"Sibling '{sib_id}' not found"
+                    for prop_k, prop_v in sib_props.items():
+                        raw_p = sib_node.props.get(prop_k)
+                        actual_p = (
+                            raw_p.value if isinstance(raw_p, ResolvedBinding) else raw_p
+                        )
+                        assert actual_p == prop_v
+
+            if isinstance(expected.get("validationResult"), dict):
+                exp_vr = expected["validationResult"]
+                if "valid" in exp_vr:
+                    assert obs_node.is_valid == exp_vr["valid"]
+                if "message" in exp_vr:
+                    first_msg = (
+                        obs_node.validation_results[0].get("message")
+                        if obs_node.validation_results
+                        else (
+                            obs_node.validation_errors[0]
+                            if obs_node.validation_errors
+                            else None
+                        )
+                    )
+                    assert first_msg == exp_vr["message"]
+                if "errors" in exp_vr:
+                    assert obs_node.validation_errors == exp_vr["errors"]
+
+            _assert_surface_error(surface_errors, expected.get("surfaceError"), call_id)
+        finally:
+            resolver.dispose()
+            surface.dispose()
+
+    asyncio.run(_run())
 
 
 def _run_ui_action_fallback_scenario(
@@ -2769,40 +2918,66 @@ def _run_ui_action_fallback_scenario(
     )
     surface_id = scenario["surfaceId"]
     scenario_cat_id = scenario["catalogId"]
+    local_funcs = _build_scenario_local_functions(scenario.get("localFunctions"))
     scenario_cat = Catalog(
         catalog_id=scenario_cat_id,
         protocol_version="1.0",
         components=[],
-        functions=[],
+        functions=local_funcs,
     )
-    surface = SurfaceModel(
-        surface_id=surface_id,
-        default_catalog=scenario_cat,
-        available_catalogs={scenario_cat_id: scenario_cat},
-        protocol_version="1.0",
-    )
-    processor.model.add_surface(surface)
-    context = DataContext(surface=surface, path="/")
+    processor.catalogs = [*processor.catalogs, scenario_cat]
+    processor.rpc.catalogs = [*processor.rpc.catalogs, scenario_cat]
 
     async def _run() -> None:
-        action_res = context.resolve_action(scenario["actionPayload"])
-        call_id = _assert_outbound_call_agent_message(
-            outbound_messages, expected["outboundCall"]
-        )
         processor.process_messages({
             "version": "1.0",
-            "agentFunctionResponse": {
-                "functionCallId": call_id,
-                "value": scenario["inboundResponseValue"],
+            "createSurface": {
+                "surfaceId": surface_id,
+                "catalogId": scenario_cat_id,
             },
         })
-        result = await action_res if inspect.isawaitable(action_res) else action_res
-        assert result == expected.get("result")
+        surface = processor.model.get_surface(surface_id)
+        assert surface is not None
+        surface_errors: list[dict[str, Any]] = []
+        surface.on_error.subscribe(surface_errors.append)
+        context = DataContext(surface=surface, path="/")
+        try:
+            action_res = context.resolve_action(scenario["actionPayload"])
+            for _ in range(5):
+                await asyncio.sleep(0)
+            call_id = _assert_outbound_call_agent_message(
+                outbound_messages, expected["outboundCall"]
+            )
+            resp_payload: dict[str, Any] = {"functionCallId": call_id}
+            if "inboundResponseError" in scenario:
+                resp_payload["error"] = scenario["inboundResponseError"]
+            else:
+                resp_payload["value"] = scenario.get("inboundResponseValue")
 
-    try:
-        asyncio.run(_run())
-    finally:
-        surface.dispose()
+            processor.process_messages({
+                "version": "1.0",
+                "agentFunctionResponse": resp_payload,
+            })
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+            if "result" in expected:
+                if hasattr(action_res, "peek") and callable(action_res.peek):
+                    result = action_res.peek()
+                elif inspect.isawaitable(action_res):
+                    result = await action_res
+                else:
+                    result = action_res
+                assert result == expected.get("result")
+
+            if "dataModel" in expected:
+                assert surface.data_model.get("/") == expected["dataModel"]
+
+            _assert_surface_error(surface_errors, expected.get("surfaceError"), call_id)
+        finally:
+            surface.dispose()
+
+    asyncio.run(_run())
 
 
 def validate_handle_rpc_case(case: dict[str, Any]) -> None:
