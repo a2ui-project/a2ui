@@ -40,7 +40,7 @@ public struct ComponentNodeView: View {
       renderedView
         .modifier(ComponentAccessibilityHostModifier(node: node))
     } else {
-      let _ = Self.logMissingViewBuilder(for: node)
+      let _ = Self.logMissingViewBuilder(for: node, defaultCatalogID: defaultCatalogID)
       EmptyView()
     }
   }
@@ -56,13 +56,20 @@ public struct ComponentNodeView: View {
   /// A type missing from the surface's catalog was already reported to the agent by the
   /// resolver as `UNKNOWN_COMPONENT_TYPE`. A catalog type with no view builder is a host setup
   /// mismatch that only this log points at.
-  @MainActor private static func logMissingViewBuilder(for node: Node) {
-    let catalogID = node.catalogID ?? "default"
+  @MainActor private static func logMissingViewBuilder(
+    for node: Node,
+    defaultCatalogID: String?
+  ) {
+    let catalogID = node.catalogID ?? defaultCatalogID ?? "default"
     guard loggedMissingViewBuilders.insert("\(catalogID)/\(node.type)").inserted else {
       return
     }
-    let message = "No view builder for component type '\(node.type)' in catalog '\(catalogID)'."
-    logger.warning("\(message, privacy: .public)")
+    logger.warning(
+      """
+      No view builder for component type '\(node.type, privacy: .public)' \
+      in catalog '\(catalogID, privacy: .public)'.
+      """
+    )
   }
 }
 
