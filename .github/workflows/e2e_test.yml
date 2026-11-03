@@ -109,6 +109,8 @@ jobs:
         run: ./scripts/create_issue.sh "E2E drift" "e2e_drift" e2e-recordings/drift.md
       - name: Fail the job if the script did not exit 0
         if: steps.e2e.outputs.exit_code != '0'
+        env:
+          EXIT_CODE: ${{ steps.e2e.outputs.exit_code }}
         run: |
-          echo "::error::./scripts/e2e_test.sh exited ${{ steps.e2e.outputs.exit_code }}"
+          echo "::error::./scripts/e2e_test.sh exited $EXIT_CODE"
           exit 1
