@@ -296,6 +296,37 @@ export function prepareRef(node, parentDefName, lazyEdges, topologicalOrder) {
   return res;
 }
 
+/** Keys that describe a value without constraining it. */
+const ANNOTATION_KEYS = new Set(['$comment', 'deprecated', 'description', 'examples', 'title']);
+
+/**
+ * Collects the schemas of required properties that accept any value.
+ *
+ * json-schema-to-zod compiles such a schema to `z.any()`, and Zod lets a key be missing when
+ * its schema accepts `undefined`, so the property would not be required.
+ *
+ * @param {unknown} node Prepared schema node.
+ * @param {Set<object>} [found] The schemas collected so far.
+ * @returns {Set<object>} The schemas.
+ */
+function requiredAnyValueSchemas(node, found = new Set()) {
+  if (!node || typeof node !== 'object') return found;
+  if (node.properties && Array.isArray(node.required)) {
+    for (const key of node.required) {
+      const schema = node.properties[key];
+      if (
+        schema &&
+        typeof schema === 'object' &&
+        Object.keys(schema).every(k => ANNOTATION_KEYS.has(k))
+      ) {
+        found.add(schema);
+      }
+    }
+  }
+  for (const child of Object.values(node)) requiredAnyValueSchemas(child, found);
+  return found;
+}
+
 /**
  * Compiles a single schema definition into Zod TypeScript code.
  *
@@ -309,10 +340,17 @@ export function prepareRef(node, parentDefName, lazyEdges, topologicalOrder) {
  */
 export function compileDefToZod(rawDef, name, options = {}) {
   const prep = prepareRef(rawDef, name, options.lazyEdges, options.topologicalOrder);
+  const requiredAnyValue = requiredAnyValueSchemas(prep);
   const zOptions = {
     module: 'esm',
     name: `${name}Schema`,
     noImport: true,
+    // A required property that accepts any value rejects a missing key.
+    parserOverride: schema =>
+      requiredAnyValue.has(schema)
+        ? "z.any().refine(value => value !== undefined, 'Required')" +
+          (schema.description ? `.describe(${JSON.stringify(schema.description)})` : '')
+        : undefined,
   };
   if (options.emitType !== false) {
     zOptions.type = options.type || name;
