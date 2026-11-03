@@ -450,7 +450,7 @@
               "$ref": "#/$defs/Weight"
             }
           },
-          "required": ["component", "label"]
+          "required": ["component", "label", "value"]
         }
       ]
     },

@@ -614,4 +614,83 @@ describe('MessageProcessor Dependency Injection', () => {
         /message must contain exactly one update action/.test(err.message),
     );
   });
+
+  it('scopes union validation errors to the active action branch without dumping unrelated branches', () => {
+    const v10 = VersionAdapterFactory.getAdapter('v1.0');
+    assert.throws(
+      () =>
+        v10.extractOperations({
+          version: '1.0',
+          callRendererFunction: {
+            functionCallId: 'f1',
+            callFunction: {'@call': 'formatString', args: {value: 'x'}},
+          },
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof A2uiValidationError);
+        assert.strictEqual(
+          err.message,
+          'Invalid 1.0 message: callRendererFunction.callFunction.catalogId: Expected string, received undefined',
+        );
+        assert.strictEqual(err.functionCallId, 'f1');
+        return true;
+      },
+    );
+
+    assert.throws(
+      () =>
+        v10.extractOperations({
+          version: 'v1.0',
+          callRendererFunction: {
+            functionCallId: 'f1',
+            callFunction: {'@call': 'formatString', args: {value: 'x'}},
+          },
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof A2uiValidationError);
+        assert.strictEqual(
+          err.message,
+          'Invalid 1.0 message: version: Invalid literal value, expected "1.0"; callRendererFunction.callFunction.catalogId: Expected string, received undefined',
+        );
+        return true;
+      },
+    );
+
+    assert.throws(
+      () =>
+        v10.extractOperations({
+          version: '1.0',
+          callRendererFunction: {
+            functionCallId: 'f1',
+            callFunction: {'@call': 'formatString', catalogId: 'cat-1', args: {value: 'x'}},
+          },
+          extraField: true,
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof A2uiValidationError);
+        assert.strictEqual(
+          err.message,
+          "Invalid 1.0 message: root: Unrecognized key(s) in object: 'extraField'",
+        );
+        return true;
+      },
+    );
+
+    const v09 = VersionAdapterFactory.getAdapter('v0.9');
+    assert.throws(
+      () =>
+        v09.extractOperations({
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1'},
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof A2uiValidationError);
+        assert.strictEqual(
+          err.message,
+          'Invalid v0.9 message: createSurface.catalogId: Expected string, received undefined',
+        );
+        return true;
+      },
+    );
+  });
 });
