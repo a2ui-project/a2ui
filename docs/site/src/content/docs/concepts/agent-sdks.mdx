@@ -1,11 +1,36 @@
 ---
 title: 'Agent SDKs'
-description: 'Overview of official Agent SDKs across TypeScript, Python, and Dart for A2UI.'
+description: 'Official A2UI Agent SDKs, framework adapters, Core SDK dependencies, and server-side responsibilities across TypeScript, Python, and Dart.'
 ---
 
-import {Aside} from '@astrojs/starlight/components';
+An A2UI Agent SDK connects a language model or server-side agent to the A2UI protocol by generating catalog-driven prompt instructions, compiling model output into wire messages, and validating surface state before messages leave the server. Official Agent SDKs are published for TypeScript, Python, and Dart.
 
-<Aside type="note" title="Work in Progress">
-  This page is currently being authored. Refer to the site outline in the repository for the
-  specification and planned content.
-</Aside>
+## Available Agent SDKs
+
+| Language   | Packages and roles                                                                                        | Protocol versions        | GitHub source                                                                                                                                                                                                                                                                                                                                                     | Published packages                                                                                                                                                                                                                                    |
+| :--------- | :-------------------------------------------------------------------------------------------------------- | :----------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TypeScript | `@a2ui/agent` (Agent)<br/>`@a2ui/web_core` (Core)                                                         | `v0.9.1`, `v1.0`         | [`typescript/agents/a2ui_agent`](https://github.com/a2ui-project/a2ui/tree/main/typescript/agents/a2ui_agent)<br/>[`typescript/core/web_core`](https://github.com/a2ui-project/a2ui/tree/main/typescript/core/web_core)                                                                                                                                           | [npm: `@a2ui/agent`](https://www.npmjs.com/package/@a2ui/agent)<br/>[npm: `@a2ui/web_core`](https://www.npmjs.com/package/@a2ui/web_core)                                                                                                             |
+| Python     | `a2ui-agent-sdk` (Agent)<br/>`a2ui-adk` (ADK adapter)<br/>`a2ui-a2a` (A2A helpers)<br/>`a2ui-core` (Core) | `v0.8`, `v0.9.1`, `v1.0` | [`python/a2ui_agent`](https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_agent)<br/>[`python/a2ui_adk`](https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_adk)<br/>[`python/a2ui_a2a`](https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_a2a)<br/>[`python/a2ui_core`](https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_core) | [PyPI: `a2ui-agent-sdk`](https://pypi.org/project/a2ui-agent-sdk/)<br/>[PyPI: `a2ui-adk`](https://pypi.org/project/a2ui-adk/)<br/>[PyPI: `a2ui-a2a`](https://pypi.org/project/a2ui-a2a/)<br/>[PyPI: `a2ui-core`](https://pypi.org/project/a2ui-core/) |
+| Dart       | `a2ui_agent` (Agent)<br/>`a2ui_core` (Core)                                                               | `v0.9.1`, `v1.0`         | [`dart/a2ui_agent`](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_agent)<br/>[`dart/a2ui_core`](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_core)                                                                                                                                                                                         | [pub.dev: `a2ui_agent`](https://pub.dev/packages/a2ui_agent)<br/>[pub.dev: `a2ui_core`](https://pub.dev/packages/a2ui_core)                                                                                                                           |
+
+All `v0.9.1` packages accept `"v0.9"` wire envelopes and catalog IDs (`@a2ui/web_core` also includes legacy `v0.8` schemas). Swift and Kotlin AndroidX target client-side rendering and are listed in [Renderer SDKs](/concepts/renderer-sdks/); for legacy `v0.8` and `v0.9` JVM servers, [`kotlin/agent_sdk_legacy`](https://github.com/a2ui-project/a2ui/tree/main/kotlin/agent_sdk_legacy) remains in the repository.
+
+## Core SDK foundation
+
+Every Agent SDK builds on its language's Core SDK, which implements the [wire message](/concepts/messages/) models, [`Catalog`](/concepts/catalogs/) schemas, [surface `DataModel` and binding](/concepts/data-binding/) evaluators, and validation rules shared with client renderers. Sharing one Core SDK per language keeps server-side validation identical to client-side message processing.
+
+## What an Agent SDK does
+
+Your application controls model selection, tool execution, and conversation state, while the Agent SDK abstracts `v0.9.1` and `v1.0` wire differences behind `A2uiGenerator` and handles five protocol tasks:
+
+1. Negotiates active [`Catalog`](/concepts/catalogs/) definitions and protocol versions against the capabilities reported by the client renderer (see [Overview](/concepts/overview/)).
+2. Generates skills, system prompt instructions, and examples directly from catalog schemas and `instructions`, replacing hand-written prompts that go out of date when components change.
+3. Compiles streaming or batch model output from [swappable inference formats](/concepts/inference-formats/) (such as compact Express syntax, which cuts output tokens without client changes, or chunk-healed Direct JSON) into standard A2UI [wire messages](/concepts/messages/).
+4. Validates outgoing messages statefully against `RendererState` on the server so broken component IDs, placement violations, or schema mismatches can be fed back to the model for self-correction before transmission.
+5. Provides optional server-side `@macro` expansion (`MacroExpander` in `a2ui-agent-sdk`) and integrates with agent frameworks and transports including [Google ADK](https://github.com/google/adk-python) (`a2ui-adk`) and the [A2A protocol](https://a2a-protocol.org/) (`a2ui-a2a`).
+
+## Next steps
+
+1. Follow [How to Integrate with My Agent Server](/guides/agent-integration/) to install an Agent SDK, configure `A2uiGenerator`, negotiate client capabilities, and handle user actions.
+2. Browse [Ecosystem Renderers & Tools](/ecosystem/renderers/) for community agent libraries and transport adapters.
+3. Read [`blueprints/modules/`](https://github.com/a2ui-project/a2ui/tree/main/blueprints/modules) and the YAML conformance suites in [`conformance/`](https://github.com/a2ui-project/a2ui/tree/main/conformance) if you are implementing an Agent SDK in another language.
