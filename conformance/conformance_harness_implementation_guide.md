@@ -79,7 +79,11 @@ Configure two top-level constants in your runner as described in [README.md](REA
 Follow three safeguards so your test suite never hides regressions behind green results:
 
 1. Assert in every suite file that the loaded case list is not empty. If a file path breaks during refactoring, the suite fails immediately instead of passing zero tests.
-2. Throw an unhandled-action error in the `default` branch of every `action` dispatcher. Leaving out a `default` branch lets newly added actions pass without running any assertions. The Python Core harness goes one step further and fails when a suite file has no handler at all unless the file is listed in `UNRUNNABLE_SUITES` with a reason.
+2. Enforce the strict dispatch rule across every dispatcher and handler:
+   1. An unknown `action`, step `op`, `args` key, scenario key, step key, or `expect*` key fails the case with `Unknown <kind> '<key>' in <suite>#<case>`. The case-level metadata keys `name`, `description`, and `features` are always accepted and ignored.
+   2. The only escape is a per-harness `UNSUPPORTED` map from `"<action>"` or `"<action>.<key path>"` to a reason. A matching case is recorded as `skipped` with that reason, never as `passed`. An `UNSUPPORTED` or expected-failure entry that matches no case fails the run.
+   3. Each handler declares its keys in one table next to the handler (Python `_KNOWN_KEYS: dict[str, frozenset[str]]`, TypeScript `KNOWN_KEYS` `Map`, Dart `const Map<String, Set<String>>`, Swift `static let knownKeys: [String: Set<String>]`) and calls one helper: Python `_assert_known_keys(obj: Mapping[str, Any], allowed: frozenset[str], where: str) -> None`, TypeScript `assertKnownKeys(obj, allowed, where)`, Dart `void assertKnownKeys(Map<String, Object?> obj, Set<String> allowed, String where)`, Swift `func assertKnownKeys(_ obj: [String: Any], _ allowed: Set<String>, _ where: String) throws`.
+   4. Every harness writes the [executed-case manifest](#5-executed-case-manifest), and CI runs the comparer in the same job right after the tests.
 3. Separate unimplemented capabilities from defects in implemented code, following [typescript/agents/a2ui_agent/tests/conformance/loader.ts](../typescript/agents/a2ui_agent/tests/conformance/loader.ts) and [dart/a2ui_core/test/conformance/conformance_harness.dart](../dart/a2ui_core/test/conformance/conformance_harness.dart). Mark unsupported versions or unbuilt modules as `[SKIPPED]`, and mark known bugs with a strict expected-failure marker (`pytest.mark.xfail(strict=True)`, Vitest `test.fails`, or a name-to-reason `expectedFailures` map). When a code change fixes a known bug, a strict expected failure fails CI right away so you delete the stale entry.
 
 ### 3. Mapping error categories
@@ -105,6 +109,38 @@ Pay close attention to class inheritance if your target language supports only s
 ### 4. Timing cases
 
 The `scaling.yaml` suites and `core/message_processor_scaling.yaml` time an operation rather than check its result. A `measure_growth` case times `operation` on a `PayloadTemplate` expanded at two `sizes`, n and 4n, and expects the larger run to take at most `max_ratio` times as long. A `measure_overhead` case times streaming a payload against compiling it. Tag these tests so regular unit test runs skip them and CI runs them in an isolated job. The Dart packages tag them `performance` (`dart test -P performance`), the Python packages mark them `performance` (`uv run pytest -m performance`), and the TypeScript packages run them with `yarn test:timing` through [typescript/core/web_core/tests/timing/timing.mjs](../typescript/core/web_core/tests/timing/timing.mjs). Build catalogs and formats outside the timer and expand the template (`repeat` segments replacing `{i}` joined by `separator`). Run one untimed warmup pass, then alternate at least five measured runs of each size before comparing medians. Avoid forcing a major garbage collection inside the loop: in V8 or the JVM, a forced full GC between runs can deoptimize compiled code and push `4n` past `max_ratio`.
+
+### 5. Executed-case manifest
+
+Every conformance harness records each case it runs or skips so CI can verify that no suite or case was silently dropped. When the `A2UI_CONFORMANCE_MANIFEST_DIR` environment variable is set, the harness appends one JSON Lines record per finished case to `$A2UI_CONFORMANCE_MANIFEST_DIR/<harness>-<suffix>.jsonl` (where `<suffix>` is the process ID or test-file name so parallel runners do not share a file handle). When `A2UI_CONFORMANCE_MANIFEST_DIR` is not set, no manifest files are written.
+
+Each line is validated against [executed_case_manifest.schema.json](executed_case_manifest.schema.json):
+
+```json
+{"harness": "python-core", "suite": "core/rpc_functions.yaml", "case": "test_rpc_call_agent_function_timeout_handling", "status": "passed"}
+{"harness": "dart-core", "suite": "core/common_types.yaml", "case": "test_dynamic_string_accepts_binding", "status": "skipped", "reason": "validate_common_type is not implemented in this harness yet"}
+```
+
+- `harness`: Harness identifier (`python-core`, `web_core`, `dart-core`, `swift-core`, or the agent/adapter harness name).
+- `suite`: Suite path relative to `conformance/`, using forward slashes.
+- `case`: Case `name`, or test `id` for `{macros, tests}` map-form suites.
+- `status`: `passed`, `failed`, `skipped`, or `xfailed`.
+- `reason`: Required and non-empty when `status` is `skipped` or `xfailed`.
+
+Suite corpora (`core`, `agent`, `extensions`, and `adapter`) are listed in [manifest_corpora.json](manifest_corpora.json). Every Core harness must account for every case in `core/*.yaml`, recording the adapter suites (`core/adapter_conformance.yaml` and `core/accessibility.yaml`) as `skipped` with a reason when run headlessly. After the test step finishes, CI runs the comparer:
+
+```bash
+uv run --project conformance python conformance/scripts/check_executed_cases.py \
+  --manifest-dir "$A2UI_CONFORMANCE_MANIFEST_DIR" \
+  --harness python-core \
+  --corpus core \
+  [--corpus adapter] \
+  [--only SUITE_GLOB] \
+  [--exclude SUITE=REASON] \
+  [--matrix-out FILE.md]
+```
+
+The comparer fails on any `MISSING` (corpus case without a record), `DUPLICATE` (two records for one suite and case), `UNKNOWN_CASE` (record names a case the suite does not contain), `UNREASONED` (`skipped` or `xfailed` without a reason), `INVALID_RECORD` (schema validation failure), or `FAILED` (`status: "failed"`) finding, including when the manifest directory is empty. Records for suites outside the requested corpora are ignored. Repeat `--only SUITE_GLOB` to narrow a corpus to suites matching a glob when a harness covers only part of a corpus (such as `--corpus extensions --only 'extensions/a2a/**'`). Repeat `--exclude SUITE=REASON` for suites that a test runner filters out before harness code executes (such as performance-tagged suites in Dart and Swift); the comparer prints each excluded suite and reason.
 
 ## Implementation order across tiers
 

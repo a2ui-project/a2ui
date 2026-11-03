@@ -241,4 +241,57 @@ describe('A2uiSurface', () => {
 
     document.body.removeChild(el);
   });
+
+  it('should dispose the previous NodeResolver when swapping surface models', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [{id: 'root', component: 'Text', text: 'First Surface'}],
+        },
+      },
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 'second-surface',
+          catalogId: basicCatalog.id,
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'second-surface',
+          components: [{id: 'root', component: 'Text', text: 'Second Surface'}],
+        },
+      },
+    ]);
+
+    const secondSurfaceModel = processor.model.getSurface('second-surface')!;
+    const preMountListeners = (surfaceModel.componentsModel.onCreated as any).listeners.size;
+
+    const el = document.createElement('a2ui-surface') as unknown as A2uiSurface;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, s => {
+      s.surface = surfaceModel;
+    });
+    assert.ok((surfaceModel.componentsModel.onCreated as any).listeners.size > preMountListeners);
+    assert.strictEqual(el.rootNode?.context?.dataContext.surface, surfaceModel);
+
+    await asyncUpdate(el, s => {
+      s.surface = secondSurfaceModel;
+    });
+
+    assert.strictEqual(
+      (surfaceModel.componentsModel.onCreated as any).listeners.size,
+      preMountListeners,
+    );
+    assert.strictEqual(el.rootNode?.context?.dataContext.surface, secondSurfaceModel);
+    const childEl = el.querySelector('a2ui-basic-text') as any;
+    assert.ok(childEl);
+    assert.strictEqual(childEl.node?.context?.dataContext.surface, secondSurfaceModel);
+
+    document.body.removeChild(el);
+  });
 });
