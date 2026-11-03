@@ -2548,11 +2548,11 @@
 <li><code>params.acceptsInlineCatalogs</code> (optional): A boolean indicating if the agent can accept an <code>inlineCatalogs</code> array in the renderer's <code>a2uiRendererCapabilities</code>. If omitted, this defaults to <code>false</code>.</li>
 </ul>
 <h2 id="a2a-extension-activation">A2A Extension activation<a class="headerlink" href="#a2a-extension-activation" title="Permanent link">&para;</a></h2>
-<p>Activating the A2UI extension is optional. Renderers and agents can negotiate A2UI support using <code>message.metadata["a2uiRendererCapabilities"]</code> and A2A <code>DataPart.data.metadata["mimeType"] = "application/a2ui+json"</code>.</p>
+<p>Activating the A2UI extension is optional. Renderers and agents can negotiate A2UI support using <code>message.metadata["a2uiRendererCapabilities"]</code> and A2A <code>DataPart.metadata["mimeType"] = "application/a2ui+json"</code>.</p>
 <p>Specifically:</p>
 <ul>
 <li>If a renderer includes <code>message.metadata["a2uiRendererCapabilities"]</code>, the agent can use this object to determine the supported A2UI protocol version and catalogs.</li>
-<li>If an agent returns A2A <code>DataPart.data.metadata["mimeType"] = "application/a2ui+json"</code>, the renderer knows the payload contains A2UI messages.</li>
+<li>If an agent returns A2A <code>DataPart.metadata["mimeType"] = "application/a2ui+json"</code>, the renderer knows the payload contains A2UI messages.</li>
 </ul>
 <p>While explicit activation is not required, renderers can still explicitly activate the extension using the transport-defined A2A extension activation mechanism. The <a href="https://a2a-protocol.org/latest/topics/extensions/">A2A Extensions Guide</a> defines this process.</p>
 <p>Note: You should not use <code>accepted_output_modes: ['a2ui']</code> (which is not an A2UI standard) to trigger A2UI.</p>
@@ -2647,7 +2647,7 @@
 <p>Agents and renderers encode A2UI messages as an A2A <code>DataPart</code>.</p>
 <p>To identify a <code>DataPart</code> as containing A2UI data, it must have the following metadata:</p>
 <ul>
-<li><code>DataPart.data.metadata["mimeType"] = "application/a2ui+json"</code></li>
+<li><code>DataPart.metadata["mimeType"] = "application/a2ui+json"</code></li>
 </ul>
 <p>The <code>data</code> field of the <code>DataPart</code> contains a list of A2UI JSON messages (e.g., <code>createSurface</code>, <code>updateComponents</code>, <code>action</code>). It MUST be an array of messages.</p>
 <h3 id="processing-rules">Processing Rules<a class="headerlink" href="#processing-rules" title="Permanent link">&para;</a></h3>

@@ -2548,11 +2548,11 @@
 <li><code>params.acceptsInlineCatalogs</code> (optional): A boolean indicating if the agent can accept an <code>inlineCatalogs</code> array in the client's <code>a2uiClientCapabilities</code>. If omitted, this defaults to <code>false</code>.</li>
 </ul>
 <h2 id="a2a-extension-activation">A2A Extension activation<a class="headerlink" href="#a2a-extension-activation" title="Permanent link">&para;</a></h2>
-<p>Activating the A2UI extension is optional. Clients and agents can negotiate A2UI support using <code>message.metadata["a2uiClientCapabilities"]</code> A2A <code>DataPart.data.metadata["mimeType"] = "application/a2ui+json"</code>.</p>
+<p>Activating the A2UI extension is optional. Clients and agents can negotiate A2UI support using <code>message.metadata["a2uiClientCapabilities"]</code> and A2A <code>DataPart.metadata["mimeType"] = "application/a2ui+json"</code>.</p>
 <p>Specifically:</p>
 <ul>
 <li>If a client includes <code>message.metadata["a2uiClientCapabilities"]</code>, the agent can use this object to determine the supported A2UI protocol version and catalogs.</li>
-<li>If an agent returns A2A A2A <code>DataPart.data.metadata["mimeType"] = "application/a2ui+json"</code>, the client knows the payload contains A2UI messages.</li>
+<li>If an agent returns A2A <code>DataPart.metadata["mimeType"] = "application/a2ui+json"</code>, the client knows the payload contains A2UI messages.</li>
 </ul>
 <p>While explicit activation is not required, clients can still explicitly activate the extension using the transport-defined A2A extension activation mechanism. The <a href="https://a2a-protocol.org/latest/topics/extensions/">A2A Extensions Guide</a> defines this process.</p>
 <p>Note: You should not use <code>accepted_output_modes: ['a2ui']</code> (which is not an A2UI standard) to trigger A2UI.</p>
@@ -2645,7 +2645,7 @@
 <p>Agents and clients encode A2UI messages as an A2A <code>DataPart</code>.</p>
 <p>To identify a <code>DataPart</code> as containing A2UI data, it must have the following metadata:</p>
 <ul>
-<li><code>DataPart.data.metadata["mimeType"] = "application/a2ui+json"</code></li>
+<li><code>DataPart.metadata["mimeType"] = "application/a2ui+json"</code></li>
 </ul>
 <p>The <code>data</code> field of the <code>DataPart</code> contains a list of A2UI JSON messages (e.g., <code>createSurface</code>, <code>updateComponents</code>, <code>action</code>). It MUST be an array of messages.</p>
 <h3 id="processing-rules">Processing Rules<a class="headerlink" href="#processing-rules" title="Permanent link">&para;</a></h3>
@@ -2670,20 +2670,19 @@
 </span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">        </span><span class="nt">&quot;surfaceId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;example_surface&quot;</span><span class="p">,</span>
 </span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">        </span><span class="nt">&quot;components&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
 </span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">          </span><span class="p">{</span>
-</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w">            </span><span class="nt">&quot;Text&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="w">              </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;root&quot;</span><span class="p">,</span>
-</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="w">              </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Hello!&quot;</span>
-</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="w">            </span><span class="p">}</span>
-</span><span id="__span-5-20"><a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="w">          </span><span class="p">}</span>
-</span><span id="__span-5-21"><a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a><span class="w">        </span><span class="p">]</span>
-</span><span id="__span-5-22"><a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="w">      </span><span class="p">}</span>
-</span><span id="__span-5-23"><a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-5-24"><a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="w">  </span><span class="p">],</span>
-</span><span id="__span-5-25"><a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="w">  </span><span class="nt">&quot;kind&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;data&quot;</span><span class="p">,</span>
-</span><span id="__span-5-26"><a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="w">  </span><span class="nt">&quot;metadata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-27"><a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a><span class="w">    </span><span class="nt">&quot;mimeType&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;application/a2ui+json&quot;</span>
-</span><span id="__span-5-28"><a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-5-29"><a id="__codelineno-5-29" name="__codelineno-5-29" href="#__codelineno-5-29"></a><span class="p">}</span>
+</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w">            </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;root&quot;</span><span class="p">,</span>
+</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="w">            </span><span class="nt">&quot;component&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Text&quot;</span><span class="p">,</span>
+</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="w">            </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Hello!&quot;</span>
+</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="w">          </span><span class="p">}</span>
+</span><span id="__span-5-20"><a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="w">        </span><span class="p">]</span>
+</span><span id="__span-5-21"><a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-5-22"><a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-5-23"><a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a><span class="w">  </span><span class="p">],</span>
+</span><span id="__span-5-24"><a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="w">  </span><span class="nt">&quot;kind&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;data&quot;</span><span class="p">,</span>
+</span><span id="__span-5-25"><a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="w">  </span><span class="nt">&quot;metadata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-26"><a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="w">    </span><span class="nt">&quot;mimeType&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;application/a2ui+json&quot;</span>
+</span><span id="__span-5-27"><a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-5-28"><a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a><span class="p">}</span>
 </span></code></pre></div>
 <h3 id="client-to-server-events">Client-to-server events<a class="headerlink" href="#client-to-server-events" title="Permanent link">&para;</a></h3>
 <p>When a client (or an agent forwarding an event) sends a message to an agent, it also uses a <code>DataPart</code> with the same <code>application/a2ui+json</code> MIME type. However, the <code>data</code> payload must validate against the <a href="../v0_9_1/json/client_to_server_list.json">Client-to-Server Message List Schema</a>.</p>
