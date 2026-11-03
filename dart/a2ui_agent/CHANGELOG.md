@@ -29,6 +29,12 @@
 - Remove `(Agent to UI)` from the embedded v0.9 `server_to_client.json` and v1.0
   `agent_to_renderer.json` schema descriptions in `DirectJsonPromptGenerator`
   ([#1605](https://github.com/a2ui-project/a2ui/pull/1605)).
+- Added v1.0 bidirectional function RPC helpers (`AgentFunctionRegistry`,
+  `RendererFunctionCalls`, `defaultRendererCallTimeout`, and
+  `RendererMessageRouter`) and re-exported `AgentFunction`,
+  `AgentFunctionContext`, `AgentFunctionHandler`, `A2uiRpcError`,
+  `RpcErrorCode`, and the v1.0 function RPC message types from
+  `package:a2ui_agent/a2ui_agent.dart`.
 - Add incremental streaming support for the Express inference format via
   `ExpressResponseStream` (`ExpressFormat.supportsStreaming` and
   `ExpressParser.supportsStreaming` now return `true`). `ExpressFormatFactory`,

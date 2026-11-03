@@ -21,6 +21,21 @@
 /// renderer.
 library;
 
+export 'package:a2ui_core/a2ui_core.dart'
+    show
+        A2uiFunctionResponse,
+        A2uiFunctionResponseError,
+        A2uiRpcError,
+        AgentFunction,
+        AgentFunctionContext,
+        AgentFunctionHandler,
+        AgentFunctionResponseMessage,
+        CallAgentFunctionMessage,
+        CallRendererFunctionMessage,
+        RendererFunctionResponseMessage,
+        RendererToAgentMessage,
+        RpcErrorCode;
+
 export 'src/catalog_transformers/base.dart';
 export 'src/catalog_transformers/pruning.dart';
 export 'src/inference_format.dart';
@@ -46,6 +61,9 @@ export 'src/processor/generator.dart';
 export 'src/processor/processor.dart';
 export 'src/processor/streamed_answer.dart';
 export 'src/prompt/generator.dart';
+export 'src/rpc/agent_function_registry.dart';
+export 'src/rpc/renderer_function_calls.dart';
+export 'src/rpc/router.dart';
 export 'src/utils/catalog_resolver.dart';
 export 'src/utils/renderer_state.dart' show RendererState;
 export 'src/utils/validation.dart';
