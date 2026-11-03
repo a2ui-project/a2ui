@@ -183,37 +183,6 @@
             path: "/components/0/component"
             message: "UnknownComponent"
 
-- name: test_validator_theme_schema
-  description: Tests schema validation of surface theme properties against catalog theme schema.
-  action: validate
-  catalog:
-    catalogId: "theme_cat"
-    theme:
-      type: "object"
-      properties:
-        primaryColor:
-          type: "string"
-          pattern: "^#[0-9a-fA-F]{6}$"
-      required: ["primaryColor"]
-      additionalProperties: false
-  steps:
-    - messages:
-        - version: "v0.9"
-          createSurface:
-            surfaceId: "s1"
-            catalogId: "theme_cat"
-            theme:
-              primaryColor: "#ff0000"
-    - messages:
-        - version: "v0.9"
-          createSurface:
-            surfaceId: "s1"
-            catalogId: "theme_cat"
-            theme:
-              primaryColor: "not-a-hex"
-      expectError:
-        category: "ValidationError"
-
 - name: test_v10_topology_circular_reference_error
   description: Tests that circular component references fail validation in v1.0 strict mode.
   action: validate

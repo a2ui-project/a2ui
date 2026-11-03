@@ -29,6 +29,7 @@ public enum FunctionError: Error, Sendable, Equatable, CustomStringConvertible, 
   case duplicate(callID: String)
   case noListener(name: String)
   case callerDisallowed(name: String, caller: String)
+  case userActivationRequired(name: String)
   case remoteError(code: String, message: String, callID: String? = nil)
 
   /// The `functionCallId` associated with this error, if it originated from an RPC call.
@@ -53,7 +54,8 @@ public enum FunctionError: Error, Sendable, Equatable, CustomStringConvertible, 
       .missingArgument,
       .invalidArgumentType,
       .securityConstraintViolation,
-      .callerDisallowed:
+      .callerDisallowed,
+      .userActivationRequired:
       return "INVALID_FUNCTION_CALL"
     case .executionFailed:
       return "EXECUTION_ERROR"
@@ -98,6 +100,8 @@ public enum FunctionError: Error, Sendable, Equatable, CustomStringConvertible, 
       return "No outbound listener registered to invoke function '\(name)'"
     case .callerDisallowed(let name, let caller):
       return "Function '\(name)' cannot be called by \(caller)"
+    case .userActivationRequired(let name):
+      return "Function '\(name)' requires user activation context to execute."
     case .remoteError(let code, let message, _):
       return "Remote function error (\(code)): \(message)"
     }

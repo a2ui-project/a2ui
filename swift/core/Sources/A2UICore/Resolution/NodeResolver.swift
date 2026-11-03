@@ -1303,7 +1303,8 @@ public final class NodeResolver: Sendable {
   private func evaluateDynamicValue(
     _ value: JSONValue,
     basePath: String?,
-    index: Int? = nil
+    index: Int? = nil,
+    userActivation: Bool = false
   ) -> JSONValue {
     let currentData = dataModel.data
     let previousReadHook = dataModel.onReadPath
@@ -1320,7 +1321,8 @@ public final class NodeResolver: Sendable {
       path: basePath ?? "",
       functionHandler: self,
       protocolVersion: effectiveProtocolVersion,
-      index: index
+      index: index,
+      isUserActivated: userActivation
     )
     return context.resolveDynamicValue(value)
   }
@@ -1363,7 +1365,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      let resolvedValue = readData(absPath, from: data)?.boolValue
+      let resolvedValue = readData(absPath, from: data)?.coercedDynamicBoolean ?? false
       return DataBinding<Bool>(
         identity: .path(absPath),
         value: resolvedValue,
@@ -1372,7 +1374,9 @@ public final class NodeResolver: Sendable {
         }
       )
     }
-    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, index: index).boolValue
+    let resolvedValue = evaluateDynamicValue(
+      value, basePath: basePath, index: index
+    ).coercedDynamicBoolean
     return DataBinding<Bool>(
       identity: .literal(value),
       value: resolvedValue,
@@ -1737,7 +1741,7 @@ public final class NodeResolver: Sendable {
       dataContextPath: basePath,
       rawUserMessage: userMessageValue,
       metadata: actionMetadata,
-      triggerWithMetadata: { [weak self] callMetadata in
+      triggerWithUserActivation: { [weak self] userActivation, callMetadata in
         guard let self else { return }
         guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
           return
@@ -1757,7 +1761,8 @@ public final class NodeResolver: Sendable {
           metadata: mergedMetadata,
           basePath: basePath,
           index: index,
-          componentID: componentID
+          componentID: componentID,
+          isUserActivated: userActivation
         )
       }
     )
@@ -1778,12 +1783,17 @@ public final class NodeResolver: Sendable {
       identity: unresolvedIdentity,
       sourceComponentID: componentID,
       dataContextPath: basePath,
-      trigger: { [weak self] in
+      triggerWithUserActivation: { [weak self] userActivation, _ in
         guard let self else { return }
         guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
           return
         }
-        self.runActionFunctionCall(functionCallValue, basePath: basePath, index: index)
+        self.runActionFunctionCall(
+          functionCallValue,
+          basePath: basePath,
+          index: index,
+          isUserActivated: userActivation
+        )
       }
     )
   }
@@ -1886,6 +1896,7 @@ public final class NodeResolver: Sendable {
     basePath: String?,
     index: Int?,
     componentID: String,
+    isUserActivated: Bool = true,
     actionCache: AgentCallCache = AgentCallCache()
   ) {
     guard !isDisposed, !actionCache.isStopped else { return }
@@ -1895,7 +1906,7 @@ public final class NodeResolver: Sendable {
       functionHandler: self,
       protocolVersion: effectiveProtocolVersion,
       index: index,
-      isUserActivated: true
+      isUserActivated: isUserActivated
     )
     let resume: @MainActor () -> Void = { [weak self] in
       self?.runEventAction(
@@ -1906,6 +1917,7 @@ public final class NodeResolver: Sendable {
         basePath: basePath,
         index: index,
         componentID: componentID,
+        isUserActivated: isUserActivated,
         actionCache: actionCache
       )
     }
@@ -2042,6 +2054,7 @@ public final class NodeResolver: Sendable {
     _ functionCall: JSONValue,
     basePath: String?,
     index: Int?,
+    isUserActivated: Bool = true,
     actionCache: AgentCallCache = AgentCallCache()
   ) {
     guard !isDisposed, !actionCache.isStopped else { return }
@@ -2051,7 +2064,7 @@ public final class NodeResolver: Sendable {
       functionHandler: self,
       protocolVersion: effectiveProtocolVersion,
       index: index,
-      isUserActivated: true
+      isUserActivated: isUserActivated
     )
     // Run again only once the agent calls in the arguments settle. A call sent to the agent
     // itself, rather than deferred, needs no second run.
@@ -2062,6 +2075,7 @@ public final class NodeResolver: Sendable {
         functionCall,
         basePath: basePath,
         index: index,
+        isUserActivated: isUserActivated,
         actionCache: actionCache
       )
     }
