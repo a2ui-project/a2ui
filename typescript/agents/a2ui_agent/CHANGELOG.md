@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: `RendererState`, `validatePayload`, and response parsers (`DirectJsonParser`, `ExpressParser`, and their streaming counterparts) now reject `callRendererFunction` messages that target a `rendererOnly` function or a function with `requiresUserActivation: true` with `A2uiValidationError`. Exported `agentCallableFunctions` and `checkAgentCallable`.
+
 ## 0.1.0
 
 - **BREAKING CHANGE**: Remove duplicate and non-idiomatic APIs across `@a2ui/agent` ([#3592](https://github.com/a2ui-project/a2ui/issues/3592), [#3758](https://github.com/a2ui-project/a2ui/pull/3758)):

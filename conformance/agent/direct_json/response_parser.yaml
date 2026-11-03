@@ -490,3 +490,95 @@
     <a2ui-json>here is your surface</a2ui-json>
   expect_error:
     category: "ParseError"
+
+- name: test_parse_response_call_renderer_function_renderer_or_agent_succeeds
+  description: A callRendererFunction message calling a rendererOrAgent function succeeds.
+  action: parse_response
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+  input: '<a2ui-json>[{"version": "1.0", "callRendererFunction": {"functionCallId": "call_1", "callFunction": {"catalogId": "conformance/allowed_callers", "@call": "showToast", "args": {"message": "Saved"}}}}]</a2ui-json>'
+  expect:
+    - a2ui:
+        - version: "1.0"
+          callRendererFunction:
+            functionCallId: "call_1"
+            callFunction:
+              catalogId: "conformance/allowed_callers"
+              "@call": "showToast"
+              args:
+                message: "Saved"
+
+- name: test_parse_response_call_renderer_function_agent_only_succeeds
+  description: A callRendererFunction message calling an agentOnly function succeeds.
+  action: parse_response
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+  input: '<a2ui-json>[{"version": "1.0", "callRendererFunction": {"functionCallId": "call_1", "callFunction": {"catalogId": "conformance/allowed_callers", "@call": "notifyAgent", "args": {"message": "Ping"}}}}]</a2ui-json>'
+  expect:
+    - a2ui:
+        - version: "1.0"
+          callRendererFunction:
+            functionCallId: "call_1"
+            callFunction:
+              catalogId: "conformance/allowed_callers"
+              "@call": "notifyAgent"
+              args:
+                message: "Ping"
+
+- name: test_parse_response_call_renderer_function_renderer_only_is_validation_error
+  description: A callRendererFunction message calling a rendererOnly function is rejected with a ValidationError naming the function.
+  action: parse_response
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+  input: '<a2ui-json>[{"version": "1.0", "callRendererFunction": {"functionCallId": "call_1", "callFunction": {"catalogId": "conformance/allowed_callers", "@call": "formatValue", "args": {"value": "abc"}}}}]</a2ui-json>'
+  expect_error:
+    category: "ValidationError"
+    message: "formatValue"
+
+- name: test_parse_response_call_renderer_function_user_activation_is_validation_error
+  description: A callRendererFunction message calling a function that requires user activation is rejected with a ValidationError naming the function.
+  action: parse_response
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+  input: '<a2ui-json>[{"version": "1.0", "callRendererFunction": {"functionCallId": "call_1", "callFunction": {"catalogId": "conformance/allowed_callers", "@call": "launch", "args": {"url": "https://example.com"}}}}]</a2ui-json>'
+  expect_error:
+    category: "ValidationError"
+    message: "launch"
+
+- name: test_parse_response_renderer_only_function_in_component_check_succeeds
+  description: A rendererOnly function inside a component check rule is allowed in Direct JSON.
+  action: parse_response
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+  input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "default_surface", "catalogId": "conformance/allowed_callers"}}, {"version": "1.0", "updateComponents": {"surfaceId": "default_surface", "components": [{"id": "root", "component": "Button", "child": "label", "action": {"event": {"name": "submit"}}, "checks": [{"condition": {"@call": "formatValue", "args": {"value": {"@path": "/name"}}}, "message": "Invalid value"}]}, {"id": "label", "component": "Text", "text": "Submit"}]}}]</a2ui-json>'
+  expect:
+    - a2ui:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "default_surface"
+            catalogId: "conformance/allowed_callers"
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "default_surface"
+            components:
+              - id: "root"
+                component: "Button"
+                child: "label"
+                action:
+                  event:
+                    name: "submit"
+                checks:
+                  - condition:
+                      "@call": "formatValue"
+                      args:
+                        value:
+                          "@path": "/name"
+                    message: "Invalid value"
+              - id: "label"
+                component: "Text"
+                text: "Submit"

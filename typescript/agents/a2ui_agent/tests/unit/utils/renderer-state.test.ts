@@ -875,4 +875,78 @@ describe('RendererState.of', () => {
   it("rejects a processor whose catalogs can't make a state", () => {
     expect(() => RendererState.of(new MessageProcessor([]))).toThrow(A2uiCatalogError);
   });
+
+  it('leaves state unchanged inside a transaction when a disallowed callRendererFunction is rejected', () => {
+    const catalog = new InMemoryCatalogProvider(
+      {
+        catalogId: 'https://example.com/allowed_callers',
+        components: {
+          Text: {
+            type: 'object',
+            properties: {
+              component: {const: 'Text'},
+              text: {type: 'string'},
+            },
+            required: ['component', 'text'],
+          },
+        },
+        functions: {
+          formatValue: {
+            type: 'object',
+            returnType: 'string',
+            properties: {
+              '@call': {const: 'formatValue'},
+              args: {
+                type: 'object',
+                properties: {value: {type: 'string'}},
+                required: ['value'],
+                unevaluatedProperties: false,
+              },
+            },
+            required: ['@call', 'args'],
+          },
+        },
+      },
+      '1.0',
+    ).load();
+    const state = new RendererState([catalog]);
+    state.apply([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's',
+          catalogId: 'https://example.com/allowed_callers',
+          components: [{id: 'root', component: 'Text', text: 'Hi'}],
+        },
+      },
+    ]);
+    const before = snapshot(state);
+
+    expect(() =>
+      state.transaction(() => {
+        state.apply([
+          {
+            version: '1.0',
+            updateComponents: {
+              surfaceId: 's',
+              components: [{id: 'root', component: 'Text', text: 'Changed'}],
+            },
+          },
+          {
+            version: '1.0',
+            callRendererFunction: {
+              functionCallId: 'call_1',
+              callFunction: {
+                catalogId: 'https://example.com/allowed_callers',
+                '@call': 'formatValue',
+                args: {value: 'abc'},
+              },
+            },
+          },
+        ]);
+      }),
+    ).toThrow(/formatValue/);
+
+    expect(snapshot(state)).toEqual(before);
+  });
 });

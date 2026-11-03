@@ -73,6 +73,23 @@ def custom_catalog_v10():
                     "required": ["id", "component", "child"],
                 },
             },
+            "functions": {
+                "notify": {
+                    "type": "object",
+                    "returnType": "void",
+                    "allowedCallers": "rendererOrAgent",
+                    "properties": {
+                        "@call": {"const": "notify"},
+                        "args": {
+                            "type": "object",
+                            "properties": {"message": {"type": "string"}},
+                            "required": ["message"],
+                            "unevaluatedProperties": False,
+                        },
+                    },
+                    "required": ["@call", "args"],
+                },
+            },
         },
         protocol_version="1.0",
         catalog_id=CUSTOM_ID,
@@ -599,9 +616,9 @@ def test_v08_surface_update_with_an_unknown_field_fails():
         )
 
 
-def test_v10_message_types(basic_catalog_v10):
+def test_v10_message_types(basic_catalog_v10, custom_catalog_v10):
     """Every v1.0 message type is read, checked and passed through."""
-    parser = DirectJsonParser([basic_catalog_v10])
+    parser = DirectJsonParser([basic_catalog_v10, custom_catalog_v10])
     basic_id = basic_catalog_v10.catalog_id
 
     messages = _stream(
@@ -611,8 +628,8 @@ def test_v10_message_types(basic_catalog_v10):
             + '[{"version": "1.0", "createSurface": {"surfaceId": "s1",'
             f' "catalogId": "{basic_id}"}}}}, {{"version": "1.0",'
             ' "callRendererFunction": {"functionCallId": "c1",'
-            f' "callFunction": {{"@call": "openUrl", "catalogId": "{basic_id}",'
-            ' "args": {"url": "https://a2ui.org"}}}}, {"version": "1.0",'
+            f' "callFunction": {{"@call": "notify", "catalogId": "{CUSTOM_ID}",'
+            ' "args": {"message": "Saved"}}}}, {"version": "1.0",'
             ' "agentFunctionResponse": {"functionCallId": "c2", "value":'
             ' {"success": true}}}, {"version": "1.0", "deleteSurface":'
             ' {"surfaceId": "s1"}}]'
@@ -630,9 +647,9 @@ def test_v10_message_types(basic_catalog_v10):
             "callRendererFunction": {
                 "functionCallId": "c1",
                 "callFunction": {
-                    "@call": "openUrl",
-                    "catalogId": basic_id,
-                    "args": {"url": "https://a2ui.org"},
+                    "@call": "notify",
+                    "catalogId": CUSTOM_ID,
+                    "args": {"message": "Saved"},
                 },
             },
         },

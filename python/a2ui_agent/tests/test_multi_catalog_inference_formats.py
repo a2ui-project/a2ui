@@ -69,6 +69,7 @@ def primary_catalog() -> Catalog:
                 },
                 "sharedFn": {
                     "returnType": "boolean",
+                    "allowedCallers": "rendererOrAgent",
                     "properties": {
                         "args": {
                             "type": "object",
@@ -125,6 +126,7 @@ def secondary_catalog() -> Catalog:
                 },
                 "sharedFn": {
                     "returnType": "boolean",
+                    "allowedCallers": "rendererOrAgent",
                     "properties": {
                         "args": {
                             "type": "object",

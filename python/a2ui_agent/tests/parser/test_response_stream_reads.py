@@ -21,7 +21,7 @@ from typing import Any
 
 import pytest
 
-from a2ui.core import A2uiIntegrityError
+from a2ui.core import A2uiIntegrityError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.direct_json import DirectJsonParser
@@ -176,22 +176,53 @@ def test_a_data_model_update_is_emitted_as_it_grows_and_applied_once_it_closes()
 
 
 def test_a_function_call_is_held_until_its_object_closes():
+    catalog = Catalog.from_json({
+        "catalogId": "test/agent_call",
+        "protocolVersion": "1.0",
+        "components": {
+            "Text": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Text"},
+                    "text": {"type": "string"},
+                },
+                "required": ["component", "text"],
+            }
+        },
+        "functions": {
+            "notify": {
+                "type": "object",
+                "returnType": "void",
+                "allowedCallers": "rendererOrAgent",
+                "properties": {
+                    "@call": {"const": "notify"},
+                    "args": {
+                        "type": "object",
+                        "properties": {"message": {"type": "string"}},
+                        "required": ["message"],
+                        "unevaluatedProperties": False,
+                    },
+                },
+                "required": ["@call", "args"],
+            }
+        },
+    })
     payload = [
-        _create(_V10, "1.0"),
+        _create(catalog, "1.0"),
         {
             "version": "1.0",
             "callRendererFunction": {
                 "functionCallId": "c1",
                 "callFunction": {
-                    "@call": "openUrl",
-                    "args": {"url": "https://a2ui.org"},
-                    "catalogId": _V10.catalog_id,
+                    "@call": "notify",
+                    "args": {"message": "Saved"},
+                    "catalogId": catalog.catalog_id,
                 },
             },
         },
     ]
 
-    _, emitted = _stream(_V10, payload, size=3)
+    _, emitted = _stream(catalog, payload, size=3)
 
     assert [next(k for k in m if k != "version") for m in emitted] == [
         "createSurface",

@@ -828,3 +828,75 @@ def test_a_rollback_finishes_undoing_when_one_undo_fails(caplog):
 
     assert _snapshot(state) == before
     assert "an undo failed" in caplog.text
+
+
+def test_rejected_call_renderer_function_leaves_state_unchanged_in_transaction():
+    catalog = Catalog.from_json({
+        "catalogId": "test/allowed_callers",
+        "protocolVersion": "1.0",
+        "components": {
+            "Text": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "Text"},
+                    "text": {"type": "string"},
+                },
+                "required": ["component", "text"],
+            }
+        },
+        "functions": {
+            "formatValue": {
+                "type": "object",
+                "returnType": "string",
+                "properties": {
+                    "@call": {"const": "formatValue"},
+                    "args": {
+                        "type": "object",
+                        "properties": {"value": {"type": "string"}},
+                        "required": ["value"],
+                        "unevaluatedProperties": False,
+                    },
+                },
+                "required": ["@call", "args"],
+            }
+        },
+    })
+    state = RendererState([catalog])
+    state.apply([
+        {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "s",
+                "catalogId": "test/allowed_callers",
+                "components": [{"id": "root", "component": "Text", "text": "Hi"}],
+            },
+        }
+    ])
+    before = _snapshot(state)
+
+    with pytest.raises(A2uiValidationError, match="formatValue"):
+        with state.transaction():
+            state.apply([
+                {
+                    "version": "1.0",
+                    "updateComponents": {
+                        "surfaceId": "s",
+                        "components": [
+                            {"id": "root", "component": "Text", "text": "Changed"}
+                        ],
+                    },
+                },
+                {
+                    "version": "1.0",
+                    "callRendererFunction": {
+                        "functionCallId": "call_1",
+                        "callFunction": {
+                            "catalogId": "test/allowed_callers",
+                            "@call": "formatValue",
+                            "args": {"value": "abc"},
+                        },
+                    },
+                },
+            ])
+
+    assert _snapshot(state) == before

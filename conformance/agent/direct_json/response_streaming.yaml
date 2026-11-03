@@ -4509,3 +4509,26 @@
                   - id: "root"
                     component: "Text"
                     text: "Hello"
+
+- name: test_stream_second_block_calling_renderer_only_function_fails_v10
+  description: A stream whose second block calls a rendererOnly function yields the first block's parts and then raises ValidationError on the second block.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+  steps:
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "conformance/allowed_callers", "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "main"
+                catalogId: "conformance/allowed_callers"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Hello"
+    - input: '<a2ui-json>[{"version": "1.0", "callRendererFunction": {"functionCallId": "call_1", "callFunction": {"catalogId": "conformance/allowed_callers", "@call": "formatValue", "args": {"value": "abc"}}}}]</a2ui-json>'
+      expect_error:
+        category: "ValidationError"
+        message: "formatValue"

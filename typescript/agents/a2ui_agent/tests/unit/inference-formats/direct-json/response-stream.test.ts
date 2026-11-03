@@ -56,6 +56,23 @@ const customV10 = new InMemoryCatalogProvider(
         required: ['id', 'component', 'child'],
       },
     },
+    functions: {
+      notify: {
+        type: 'object',
+        returnType: 'void',
+        allowedCallers: 'rendererOrAgent',
+        properties: {
+          '@call': {const: 'notify'},
+          args: {
+            type: 'object',
+            properties: {message: {type: 'string'}},
+            required: ['message'],
+            unevaluatedProperties: false,
+          },
+        },
+        required: ['@call', 'args'],
+      },
+    },
   },
   '1.0',
 ).load();
@@ -239,13 +256,13 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('passes every v1.0 message type through', () => {
-    const parser = new DirectJsonParser([basicV10]);
+    const parser = new DirectJsonParser([basicV10, customV10]);
     const id = basicV10.id;
 
     const messages = stream(parser, [
       OPEN +
         `[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "${id}"}}, ` +
-        `{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "openUrl", "catalogId": "${id}", "args": {"url": "https://a2ui.org"}}}}, ` +
+        `{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "notify", "catalogId": "${CUSTOM_ID}", "args": {"message": "Saved"}}}}, ` +
         `{"version": "1.0", "agentFunctionResponse": {"functionCallId": "c2", "value": {"success": true}}}, ` +
         '{"version": "1.0", "deleteSurface": {"surfaceId": "s1"}}]' +
         CLOSE,
@@ -257,7 +274,7 @@ describe('DirectJsonResponseStream', () => {
         version: '1.0',
         callRendererFunction: {
           functionCallId: 'c1',
-          callFunction: {'@call': 'openUrl', catalogId: id, args: {url: 'https://a2ui.org'}},
+          callFunction: {'@call': 'notify', catalogId: CUSTOM_ID, args: {message: 'Saved'}},
         },
       },
       {version: '1.0', agentFunctionResponse: {functionCallId: 'c2', value: {success: true}}},
@@ -316,12 +333,12 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('holds a callRendererFunction until its object closes, and the messages after it', () => {
-    const parser = new DirectJsonParser([basicV10]);
+    const parser = new DirectJsonParser([basicV10, customV10]);
     const id = basicV10.id;
-    const call = `{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "openUrl", "catalogId": "${id}", "args": {"url": "https://a2ui.org"}}}}`;
+    const call = `{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "notify", "catalogId": "${CUSTOM_ID}", "args": {"message": "Saved"}}}}`;
     const update =
       '{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}';
-    const state = new RendererState([basicV10]);
+    const state = new RendererState([basicV10, customV10]);
     state.apply({version: '1.0', createSurface: {surfaceId: 's1', catalogId: id}});
     const opened = parser.openStream({state});
     const cut = call.length - 2;

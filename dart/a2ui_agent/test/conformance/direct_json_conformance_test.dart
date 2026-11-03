@@ -137,11 +137,16 @@ void main() {
 /// data model, which only lowering a whole payload can split.
 const Set<String> _v1OnlyCases = {
   'test_compile_json_newline_in_create_surface_data_model_preserved',
+  'test_parse_response_call_renderer_function_renderer_or_agent_succeeds',
+  'test_parse_response_call_renderer_function_agent_only_succeeds',
+  'test_parse_response_call_renderer_function_renderer_only_is_validation_error',
+  'test_parse_response_call_renderer_function_user_activation_is_validation_error',
   'test_stream_create_surface_inline_components_v10',
   'test_stream_create_surface_inline_components_in_small_chunks_v10',
   'test_stream_multi_catalog_resolution_v10',
   'test_stream_component_catalog_id_arrives_late_v10',
   'test_stream_catalog_id_split_across_chunks_v10',
+  'test_stream_second_block_calling_renderer_only_function_fails_v10',
 };
 
 /// Whether the catalogs of [testCase] target v1.0, as most cases' do.
@@ -212,8 +217,8 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
 InferenceFormat _format(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
   return DirectJsonFormatFactory(
-    allowedMessages: (args['allowed_messages'] as List<Object?>?)
-        ?.cast<String>(),
+    allowedMessages:
+        (args['allowed_messages'] as List<Object?>?)?.cast<String>(),
     progressiveKeys: {
       ...?(args['progressive_keys'] as List<Object?>?)?.cast<String>(),
     },
@@ -242,19 +247,19 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       return format.promptGenerator.generate();
     case 'wrap':
       return format.createParser().wrap(
-        rawParts(testCase['parts']! as List<Object?>),
-      );
+            rawParts(testCase['parts']! as List<Object?>),
+          );
     case 'has_format_content':
       return format.createParser().hasFormatContent(
-        testCase['input']! as String,
-        complete: args['complete'] as bool? ?? false,
-      );
+            testCase['input']! as String,
+            complete: args['complete'] as bool? ?? false,
+          );
     case 'unwrap':
       // Unwrapping keeps the payload as written, so it is not lowered.
       return [
         for (final RawResponsePart part in format.createParser().unwrap(
-          testCase['input']! as String,
-        ))
+              testCase['input']! as String,
+            ))
           rawPartJson(part),
       ];
     case 'compile':
@@ -264,14 +269,14 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       );
     case 'decompile':
       return format.createParser().decompile(
-        version.messages(testCase['messages']! as List<Object?>),
-      );
+            version.messages(testCase['messages']! as List<Object?>),
+          );
     case 'parse_response':
       return version.partsJson(
         format.createParser().parseResponse(
-          input!,
-          wrapped: args['wrapped'] as bool? ?? true,
-        ),
+              input!,
+              wrapped: args['wrapped'] as bool? ?? true,
+            ),
         injectedCatalogId: catalogId,
       );
     default:
@@ -294,17 +299,16 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
 void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
   final bool wrapped = args['wrapped'] as bool? ?? true;
-  final SuiteVersion written = caseCatalogVersion(args) == '0.9'
-      ? SuiteVersion.v1_0
-      : version;
+  final SuiteVersion written =
+      caseCatalogVersion(args) == '0.9' ? SuiteVersion.v1_0 : version;
   final String? catalogId = written.injectedCatalog(testCase);
   List<Object?> lift(List<StreamPart> parts) =>
       written.partsJson(parts, injectedCatalogId: catalogId);
   final Parser parser = _format(testCase, version).createParser();
   final ResponseReader<StreamPart> stream =
       args['after_rejected_block'] == 'continue'
-      ? parser.openContinuingStream(wrapped: wrapped)
-      : parser.openStream(wrapped: wrapped);
+          ? parser.openContinuingStream(wrapped: wrapped)
+          : parser.openStream(wrapped: wrapped);
   void expectInBlock(Map<String, Object?> step, int i) {
     if (step['expect_in_block'] case final bool inBlock) {
       expect(stream.isInBlock, inBlock, reason: 'step $i: in block');
