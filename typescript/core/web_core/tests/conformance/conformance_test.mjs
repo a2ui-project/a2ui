@@ -12,35 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import assert from 'node:assert';
+
 import yaml from 'js-yaml';
-import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
+import {z} from 'zod';
+
 import {Catalog, createFunctionImplementation} from '../../dist/src/catalog/types.js';
-import {PayloadValidator} from '../../dist/src/validation/index.js';
-import {DataModel} from '../../dist/src/state/data-model.js';
-import {SurfaceModel} from '../../dist/src/state/surface-model.js';
-import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
-import {toCanonicalVersion} from '../../dist/src/common/semver.js';
-import {
-  BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS,
-  ThemeSchema as V0_8_ThemeSchema,
-} from '../../dist/src/v0_8/basic_catalog/index.js';
-import {
-  BASIC_COMPONENTS as V0_9_BASIC_COMPONENTS,
-  BASIC_FUNCTIONS as V0_9_BASIC_FUNCTIONS,
-  ThemeSchema as V0_9_ThemeSchema,
-} from '../../dist/src/v0_9/basic_catalog/index.js';
+import {basicCatalog as V1_0_SDK_BASIC_CATALOG} from '../../dist/src/catalogs/basic/v1/catalog.js';
 import {
   BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS,
   BASIC_FUNCTIONS as V1_0_BASIC_FUNCTIONS,
 } from '../../dist/src/catalogs/basic/v1/index.js';
-import {basicCatalog as V1_0_SDK_BASIC_CATALOG} from '../../dist/src/catalogs/basic/v1/catalog.js';
-import {basicCatalog as V0_9_SDK_BASIC_CATALOG} from '../../dist/src/v0_9/basic_catalog/catalog.js';
-import {basicCatalog as V0_8_SDK_BASIC_CATALOG} from '../../dist/src/v0_8/basic_catalog/catalog.js';
-import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
+import {toCanonicalVersion} from '../../dist/src/common/semver.js';
 import {
   A2uiCatalogError,
   A2uiDataError,
@@ -51,18 +37,32 @@ import {
   A2uiStateError,
   A2uiValidationError,
 } from '../../dist/src/errors.js';
+import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
+import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
+import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
+import {effect, getValue, isSignal, peekValue} from '../../dist/src/reactivity/signals.js';
 import {DataContext} from '../../dist/src/resolution/data-context.js';
+import {GenericBinder} from '../../dist/src/resolution/generic-binder.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
+import {DataModel} from '../../dist/src/state/data-model.js';
+import {SurfaceModel} from '../../dist/src/state/surface-model.js';
+import {basicCatalog as V0_8_SDK_BASIC_CATALOG} from '../../dist/src/v0_8/basic_catalog/catalog.js';
 import {
-  getValue,
-  peekValue,
-  effect,
-  isSignal,
-  signal,
-  setValue,
-} from '../../dist/src/reactivity/signals.js';
+  BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS,
+  ThemeSchema as V0_8_ThemeSchema,
+} from '../../dist/src/v0_8/basic_catalog/index.js';
+import {basicCatalog as V0_9_SDK_BASIC_CATALOG} from '../../dist/src/v0_9/basic_catalog/catalog.js';
+import {
+  BASIC_COMPONENTS as V0_9_BASIC_COMPONENTS,
+  BASIC_FUNCTIONS as V0_9_BASIC_FUNCTIONS,
+  ThemeSchema as V0_9_ThemeSchema,
+} from '../../dist/src/v0_9/basic_catalog/index.js';
+import {PayloadValidator} from '../../dist/src/validation/index.js';
 import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolution.js';
+import {ComponentModel} from '../../dist/src/state/component-model.js';
+import {ComponentContext} from '../../dist/src/resolution/component-context.js';
+import {CommonSchemas} from '../../dist/src/types/common-types.js';
 
 // Dedicated basic catalog component definitions per specification version
 const v0_8Components = V0_8_BASIC_COMPONENTS;
@@ -137,7 +137,19 @@ const SKIP_TEST_NAMES = new Set();
  * then case name, with the behaviour that differs. They are reported as
  * skipped with that reason. An entry that matches no case fails the run.
  */
-const KNOWN_DIVERGENCES = new Map();
+const KNOWN_DIVERGENCES = new Map([
+  [
+    'core/agent_function_routing.yaml',
+    new Map([
+      [
+        'test_agent_routing_cancelled_call_is_sent_again_on_unrelated_change',
+        'web_core re-evaluates a nested call only when its own arguments change, so an unrelated ' +
+          'path change does not re-evaluate it; the rule is covered by ' +
+          'test_agent_routing_cancelled_call_is_sent_again_when_its_value_is_rewritten',
+      ],
+    ]),
+  ],
+]);
 
 /**
  * The `expect` keys a `from_json` case may use (`FromJsonExpect` in
@@ -191,31 +203,31 @@ class CaseSkipped extends Error {}
 const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
 
 /**
- * Transition skip list containing specific test suite files to skip during active feature transitions.
- *
- * 'accessibility.yaml' tests ARIA and DOM accessibility tree rendering, which is handled
- * by UI framework renderers (Lit, React, Angular, Flutter, SwiftUI) rather than headless web_core.
- *
- * 'adapter_conformance.yaml' tests UI framework renderers (Lit, React, Angular, Flutter, SwiftUI)
- * rather than headless web_core.
- *
- * 'builder.yaml' covers the agent-side typesafe builder API, which web_core does not implement.
+ * Test suite files to skip during headless web_core conformance runs, mapped to
+ * the reason every case in that suite is recorded as skipped.
  */
-const SKIP_TEST_SUITES = new Set([
-  'accessibility.yaml',
-  'adapter_conformance.yaml',
-  'builder.yaml',
-  'macros.yaml',
+const SKIP_TEST_SUITES = new Map([
+  [
+    'accessibility.yaml',
+    'accessibility tree rendering is handled by UI framework renderers rather than headless web_core',
+  ],
+  [
+    'adapter_conformance.yaml',
+    'UI framework renderer adapter conformance is tested in the renderer packages rather than headless web_core',
+  ],
+  ['builder.yaml', 'typesafe builder API is agent-side only'],
+  ['macros.yaml', 'composite macros are agent-side only'],
 ]);
 
 /**
- * Action types the web_core runner deliberately does not implement, and why.
+ * Action types or `<action>.<key path>` entries the web_core runner
+ * deliberately does not implement, and why.
  *
  * `web_core` is the renderer-side library. It has no inference-format parser,
  * payload fixer or prompt generator, so the agent-side suites cannot be
- * executed here. They previously reached handlers that asserted nothing and so
- * reported as passing; naming them keeps the gap countable and keeps the
- * default `throw` for genuinely unrecognised actions intact.
+ * executed here. Naming them keeps the gap countable and keeps the default
+ * `throw` for genuinely unrecognised actions intact. Every entry must match at
+ * least one case during a run.
  */
 const UNIMPLEMENTED_ACTIONS = new Map([
   ['from_format', 'the Express inference format is implemented in the agent SDK'],
@@ -256,6 +268,78 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['measure_overhead', 'web_core has no streaming inference parser'],
 ]);
 
+const UNSUPPORTED = UNIMPLEMENTED_ACTIONS;
+
+const MANIFEST_DIR = process.env.A2UI_CONFORMANCE_MANIFEST_DIR;
+const MANIFEST_FILE = MANIFEST_DIR
+  ? path.join(MANIFEST_DIR, `web_core-${process.pid}.jsonl`)
+  : null;
+if (MANIFEST_DIR) {
+  fs.mkdirSync(MANIFEST_DIR, {recursive: true});
+}
+
+function recordCase(suite, name, status, reason) {
+  if (!MANIFEST_FILE) return;
+  const entry = {
+    harness: 'web_core',
+    suite: suite.replaceAll('\\', '/'),
+    case: name,
+    status,
+    ...(reason ? {reason} : {}),
+  };
+  fs.appendFileSync(MANIFEST_FILE, `${JSON.stringify(entry)}\n`, 'utf8');
+}
+
+function assertKnownKeys(obj, allowed, where) {
+  if (obj === undefined || obj === null) return;
+  assert.ok(typeof obj === 'object' && !Array.isArray(obj), `${where}: expected object`);
+  const unknown = Object.keys(obj).filter(key => !allowed.has(key));
+  assert.deepStrictEqual(
+    unknown,
+    [],
+    `${where}: unknown keys: ${unknown.map(k => `${where}.${k}`).join(', ')}`,
+  );
+}
+
+function assertKnownKeysList(items, allowed, where) {
+  if (!Array.isArray(items)) return;
+  for (let i = 0; i < items.length; i++) {
+    assertKnownKeys(items[i], allowed, `${where}[${i}]`);
+  }
+}
+
+function assertKnownKeysRecord(record, allowed, where) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return;
+  for (const [key, value] of Object.entries(record)) {
+    assertKnownKeys(value, allowed, `${where}.${key}`);
+  }
+}
+
+function hasNestedKeyPath(obj, dottedPath) {
+  let cur = obj;
+  for (const segment of dottedPath.split('.')) {
+    if (!cur || typeof cur !== 'object' || !Object.hasOwn(cur, segment)) return false;
+    cur = cur[segment];
+  }
+  return cur !== undefined;
+}
+
+function findUnsupportedEntry(testCase, matchedUnsupported) {
+  const {action} = testCase;
+  if (UNSUPPORTED.has(action)) {
+    matchedUnsupported.add(action);
+    return {key: action, reason: UNSUPPORTED.get(action)};
+  }
+  const prefix = `${action}.`;
+  for (const [key, reason] of UNSUPPORTED) {
+    if (key.startsWith(prefix) && hasNestedKeyPath(testCase, key.slice(prefix.length))) {
+      matchedUnsupported.add(key);
+      return {key, reason};
+    }
+  }
+  return null;
+}
+
 function findYamlFiles(dir) {
   let results = [];
   if (!fs.existsSync(dir)) return results;
@@ -276,6 +360,271 @@ function loadYamlFile(filePath) {
   return yaml.load(content, {maxDepth: 1000});
 }
 
+function recordSkippedSuite(filePath, relativePath, suiteSkipReason) {
+  const loaded = loadYamlFile(filePath);
+  const cases = Array.isArray(loaded) ? loaded : (loaded?.tests ?? []);
+  let count = 0;
+  for (const tc of cases) {
+    const caseName = tc?.name || tc?.id;
+    if (caseName) {
+      count++;
+      recordCase(relativePath, caseName, 'skipped', suiteSkipReason);
+    }
+  }
+  return count;
+}
+
+function checkCaseSkip(relativePath, testCase, state) {
+  const {name, catalog, args} = testCase;
+  // The top-level `protocolVersion` is the case's own declaration and wins
+  // over anything inferred from the catalog or the first message.
+  const rawVersion = testCase.protocolVersion || catalog?.protocolVersion || args?.version || '0.8';
+  const version = toCanonicalVersion(rawVersion) || rawVersion;
+
+  if (!SUPPORTED_PROTOCOL_VERSIONS.has(version)) {
+    const reason = `version ${rawVersion} not in SUPPORTED_PROTOCOL_VERSIONS`;
+    console.log(`  ⁃ [SKIPPED] ${name} (${reason})`);
+    return reason;
+  }
+
+  if (SKIP_TEST_NAMES.has(name)) {
+    state.matchedSkippedNames.add(name);
+    const reason =
+      SKIP_TEST_NAMES instanceof Map ? SKIP_TEST_NAMES.get(name) : 'skipped via SKIP_TEST_NAMES';
+    console.log(`  ⁃ [SKIPPED] ${name}`);
+    return reason;
+  }
+
+  const divergence = KNOWN_DIVERGENCES.get(relativePath)?.get(name);
+  if (divergence !== undefined) {
+    state.matchedDivergences.add(`${relativePath}#${name}`);
+    const reason = `known divergence: ${divergence}`;
+    console.log(`  ⁃ [SKIPPED] ${name} (${reason})`);
+    return reason;
+  }
+
+  const unsupported = findUnsupportedEntry(testCase, state.matchedUnsupported);
+  if (unsupported !== null) {
+    state.unrunByAction.set(unsupported.key, (state.unrunByAction.get(unsupported.key) ?? 0) + 1);
+    const reason = `action '${unsupported.key}': ${unsupported.reason}`;
+    console.log(`  ⁃ [SKIPPED] ${name} (${reason})`);
+    return reason;
+  }
+
+  return null;
+}
+
+async function dispatchTestCase(testCase) {
+  const {name, action} = testCase;
+  if (!name || !action) {
+    throw new Error('Test case missing required "name" or "action" property.');
+  }
+  switch (action) {
+    case 'handle_rpc':
+      await validateRpcTestCase(testCase);
+      break;
+    case 'validate':
+      validateValidateTestCase(testCase);
+      break;
+    case 'process_messages':
+      validateProcessMessagesTestCase(testCase);
+      break;
+    case 'get_renderer_capabilities':
+      validateGetRendererCapabilitiesTestCase(testCase);
+      break;
+    case 'validation_schema':
+      validateValidationSchemaTestCase(testCase);
+      break;
+    case 'round_trip':
+      validateRoundTripTestCase(testCase);
+      break;
+    case 'to_json':
+      validateToJsonTestCase(testCase);
+      break;
+    case 'data_model':
+      validateDataModelTestCase(testCase);
+      break;
+    case 'resolve_path':
+      validateResolvePathTestCase(testCase);
+      break;
+    case 'from_json':
+      validateFromJsonTestCase(testCase);
+      break;
+    case 'derive':
+      validateDeriveTestCase(testCase);
+      break;
+    case 'select_catalog':
+      validateSelectCatalogTestCase(testCase);
+      break;
+    case 'parse_expression_template':
+      validateParseExpressionTemplateTestCase(testCase);
+      break;
+    case 'get_renderer_data_model':
+      validateGetRendererDataModelTestCase(testCase);
+      break;
+    case 'resolve_nodes':
+      await runNodeResolutionCase(testCase, CONFORMANCE_ROOT);
+      break;
+    case 'route_agent_function':
+      await validateRouteAgentFunctionTestCase(testCase);
+      break;
+    case 'evaluate_function':
+      validateEvaluateFunctionTestCase(testCase);
+      break;
+    case 'dispatch_action':
+      await validateDispatchActionTestCase(testCase);
+      break;
+    default:
+      throw new Error(`Unhandled action type in conformance harness: '${action}'`);
+  }
+}
+
+async function runSuiteCases(relativePath, testCases, state) {
+  console.log(`\n📄 Suite: ${relativePath} (${testCases.length} test cases)`);
+
+  for (const testCase of testCases) {
+    const {name} = testCase;
+    const skipReason = checkCaseSkip(relativePath, testCase, state);
+    if (skipReason !== null) {
+      state.totalSkipped++;
+      recordCase(relativePath, name, 'skipped', skipReason);
+      continue;
+    }
+
+    state.totalTests++;
+
+    try {
+      await dispatchTestCase(testCase);
+      state.totalPassed++;
+      recordCase(relativePath, name, 'passed');
+      console.log(`  ✓ PASSED: ${name}`);
+    } catch (err) {
+      if (err instanceof CaseSkipped) {
+        state.totalTests--;
+        state.totalSkipped++;
+        recordCase(relativePath, name, 'skipped', err.message);
+        console.log(`  ⁃ [SKIPPED] ${name} (${err.message})`);
+        continue;
+      }
+      state.totalFailed++;
+      recordCase(relativePath, name, 'failed', err.message);
+      const failMessage = `  ✗ FAILED: ${name} - ${err.message}`;
+      console.error(failMessage);
+      state.failures.push({file: relativePath, name, error: err.message});
+    }
+  }
+}
+
+function recordInvariantFailure(state, file, name, error) {
+  state.totalTests++;
+  state.totalFailed++;
+  console.error(`  ✗ FAILED: ${name}: ${error}`);
+  state.failures.push({file, name, error});
+}
+
+function verifyHarnessInvariants(discoveredSuites, state) {
+  for (const suite of REQUIRED_SUITES) {
+    if (!discoveredSuites.has(suite)) {
+      recordInvariantFailure(state, suite, 'Required Suite', 'Required suite was not discovered.');
+    }
+  }
+  for (const [suite, cases] of KNOWN_DIVERGENCES) {
+    for (const name of cases.keys()) {
+      if (!state.matchedDivergences.has(`${suite}#${name}`)) {
+        recordInvariantFailure(state, suite, name, 'Known divergence matches no test case.');
+      }
+    }
+  }
+  for (const key of UNSUPPORTED.keys()) {
+    if (!state.matchedUnsupported.has(key)) {
+      recordInvariantFailure(state, 'UNSUPPORTED', key, 'Unsupported entry matches no test case.');
+    }
+  }
+  for (const suite of SKIP_TEST_SUITES.keys()) {
+    if (!state.matchedSkippedSuites.has(suite)) {
+      recordInvariantFailure(
+        state,
+        suite,
+        'SKIP_TEST_SUITES',
+        'Skipped suite entry matches no suite file.',
+      );
+    }
+  }
+  const skipNameKeys =
+    SKIP_TEST_NAMES instanceof Map ? SKIP_TEST_NAMES.keys() : SKIP_TEST_NAMES.values();
+  for (const name of skipNameKeys) {
+    if (!state.matchedSkippedNames.has(name)) {
+      recordInvariantFailure(
+        state,
+        'SKIP_TEST_NAMES',
+        name,
+        'Skipped test name matches no test case.',
+      );
+    }
+  }
+}
+
+function loadSuiteTestCases(filePath, relativePath, state) {
+  const baseName = path.basename(filePath);
+  const suiteSkipReason = SKIP_TEST_SUITES.get(relativePath) ?? SKIP_TEST_SUITES.get(baseName);
+  if (suiteSkipReason !== undefined) {
+    state.matchedSkippedSuites.add(SKIP_TEST_SUITES.has(relativePath) ? relativePath : baseName);
+    state.totalSkipped += recordSkippedSuite(filePath, relativePath, suiteSkipReason);
+    return null;
+  }
+  let testCases;
+  try {
+    testCases = loadYamlFile(filePath);
+  } catch (err) {
+    recordInvariantFailure(state, relativePath, 'YAML Parsing', err.message);
+    return null;
+  }
+  if (!Array.isArray(testCases)) {
+    recordInvariantFailure(
+      state,
+      relativePath,
+      'Suite Structure',
+      `Content is not an array of test cases (got ${typeof testCases}).`,
+    );
+    return null;
+  }
+  if (REQUIRED_SUITES.has(relativePath) && testCases.length === 0) {
+    recordInvariantFailure(
+      state,
+      relativePath,
+      'Required Suite',
+      'Required suite has no test cases.',
+    );
+    return null;
+  }
+  return testCases;
+}
+
+function finishHarnessRun(state) {
+  console.log('\n=====================================================');
+  console.log(
+    `Conformance Summary: ${state.totalPassed}/${state.totalTests} Passed (${state.totalFailed} Failed, ${state.totalSkipped} Skipped)`,
+  );
+  if (state.unrunByAction.size > 0) {
+    const unrunTotal = [...state.unrunByAction.values()].reduce((a, b) => a + b, 0);
+    console.log(`Not run by design: ${unrunTotal} cases`);
+    for (const [action, count] of [...state.unrunByAction].sort((a, b) => b[1] - a[1])) {
+      console.log(`  ${action}: ${count} (${UNSUPPORTED.get(action)})`);
+    }
+  }
+  console.log('=====================================================');
+
+  if (state.totalFailed > 0) {
+    console.error('\nFailures Summary:');
+    for (const failure of state.failures) {
+      console.error(`- [${failure.file}] ${failure.name}: ${failure.error}`);
+    }
+    process.exit(1);
+  }
+  console.log('🎉 All Web Core conformance test vectors validated successfully!');
+  process.exit(0);
+}
+
 async function runConformanceHarness() {
   console.log('=====================================================');
   console.log('A2UI Web Core TypeScript Conformance Test Harness');
@@ -289,229 +638,112 @@ async function runConformanceHarness() {
     process.exit(1);
   }
 
-  let totalTests = 0;
-  let totalPassed = 0;
-  let totalFailed = 0;
-  let totalSkipped = 0;
-  const failures = [];
-  /** Count of cases skipped per `UNIMPLEMENTED_ACTIONS` entry, for the summary. */
-  const unrunByAction = new Map();
-  /** `KNOWN_DIVERGENCES` entries that matched a case, as `suite#name`. */
-  const matchedDivergences = new Set();
+  const state = {
+    totalTests: 0,
+    totalPassed: 0,
+    totalFailed: 0,
+    totalSkipped: 0,
+    failures: [],
+    unrunByAction: new Map(),
+    matchedDivergences: new Set(),
+    matchedUnsupported: new Set(),
+    matchedSkippedSuites: new Set(),
+    matchedSkippedNames: new Set(),
+  };
   const discoveredSuites = new Set(files.map(file => path.relative(CONFORMANCE_ROOT, file)));
-
-  for (const suite of REQUIRED_SUITES) {
-    if (!discoveredSuites.has(suite)) {
-      totalTests++;
-      totalFailed++;
-      const err = 'Required suite was not discovered.';
-      console.error(`  ✗ FAILED: ${suite}: ${err}`);
-      failures.push({file: suite, name: 'Required Suite', error: err});
-    }
-  }
 
   for (const filePath of files) {
     const relativePath = path.relative(CONFORMANCE_ROOT, filePath);
-    if (SKIP_TEST_SUITES.has(relativePath) || SKIP_TEST_SUITES.has(path.basename(filePath))) {
-      continue;
-    }
-    let testCases;
-    try {
-      testCases = loadYamlFile(filePath);
-    } catch (err) {
-      totalTests++;
-      totalFailed++;
-      const failMessage = `  ✗ FAILED to load ${relativePath}: ${err.message}`;
-      console.error(failMessage);
-      failures.push({file: relativePath, name: 'YAML Parsing', error: err.message});
-      continue;
-    }
-
-    if (!Array.isArray(testCases)) {
-      totalTests++;
-      totalFailed++;
-      const err = `Content is not an array of test cases (got ${typeof testCases}).`;
-      console.error(`  ✗ FAILED to load ${relativePath}: ${err}`);
-      failures.push({file: relativePath, name: 'Suite Structure', error: err});
-      continue;
-    }
-
-    if (REQUIRED_SUITES.has(relativePath) && testCases.length === 0) {
-      totalTests++;
-      totalFailed++;
-      const err = 'Required suite has no test cases.';
-      console.error(`  ✗ FAILED: ${relativePath}: ${err}`);
-      failures.push({file: relativePath, name: 'Required Suite', error: err});
-      continue;
-    }
-
-    console.log(`\n📄 Suite: ${relativePath} (${testCases.length} test cases)`);
-
-    for (const testCase of testCases) {
-      const {name, action, catalog, args} = testCase;
-      // The top-level `protocolVersion` is the case's own declaration and wins
-      // over anything inferred from the catalog or the first message.
-      const rawVersion =
-        testCase.protocolVersion || catalog?.protocolVersion || args?.version || '0.8';
-      const version = toCanonicalVersion(rawVersion) || rawVersion;
-
-      if (!SUPPORTED_PROTOCOL_VERSIONS.has(version)) {
-        totalSkipped++;
-        console.log(
-          `  ⁃ [SKIPPED] ${name} (version ${rawVersion} not in SUPPORTED_PROTOCOL_VERSIONS)`,
-        );
-        continue;
-      }
-
-      if (SKIP_TEST_NAMES.has(name)) {
-        totalSkipped++;
-        console.log(`  ⁃ [SKIPPED] ${name}`);
-        continue;
-      }
-
-      const divergence = KNOWN_DIVERGENCES.get(relativePath)?.get(name);
-      if (divergence !== undefined) {
-        matchedDivergences.add(`${relativePath}#${name}`);
-        totalSkipped++;
-        console.log(`  ⁃ [SKIPPED] ${name} (known divergence: ${divergence})`);
-        continue;
-      }
-
-      if (UNIMPLEMENTED_ACTIONS.has(action)) {
-        totalSkipped++;
-        unrunByAction.set(action, (unrunByAction.get(action) ?? 0) + 1);
-        console.log(
-          `  ⁃ [SKIPPED] ${name} (action '${action}': ${UNIMPLEMENTED_ACTIONS.get(action)})`,
-        );
-        continue;
-      }
-
-      totalTests++;
-
-      try {
-        if (!name || !action) {
-          throw new Error('Test case missing required "name" or "action" property.');
-        }
-
-        // Action-specific test execution dispatch
-        switch (action) {
-          case 'handle_rpc':
-            await validateRpcTestCase(testCase);
-            break;
-          case 'validate':
-            validateValidateTestCase(testCase);
-            break;
-          case 'process_messages':
-            validateProcessMessagesTestCase(testCase);
-            break;
-          case 'get_renderer_capabilities':
-            validateGetRendererCapabilitiesTestCase(testCase);
-            break;
-          case 'validation_schema':
-            validateValidationSchemaTestCase(testCase);
-            break;
-          case 'round_trip':
-            validateRoundTripTestCase(testCase);
-            break;
-          case 'to_json':
-            validateToJsonTestCase(testCase);
-            break;
-          case 'data_model':
-            validateDataModelTestCase(testCase);
-            break;
-          case 'resolve_path':
-            validateResolvePathTestCase(testCase);
-            break;
-          case 'from_json':
-            validateFromJsonTestCase(testCase);
-            break;
-          case 'derive':
-            validateDeriveTestCase(testCase);
-            break;
-          case 'select_catalog':
-            validateSelectCatalogTestCase(testCase);
-            break;
-          case 'accessibility_check':
-            validateAccessibilityCheckTestCase(testCase);
-            break;
-          case 'parse_expression_template':
-            validateParseExpressionTemplateTestCase(testCase);
-            break;
-          case 'get_renderer_data_model':
-            validateGetRendererDataModelTestCase(testCase);
-            break;
-          case 'resolve_nodes':
-            await runNodeResolutionCase(testCase, CONFORMANCE_ROOT);
-            break;
-          case 'evaluate_function':
-            validateEvaluateFunctionTestCase(testCase);
-            break;
-          case 'dispatch_action':
-            await validateDispatchActionTestCase(testCase);
-            break;
-          default:
-            throw new Error(`Unhandled action type in conformance harness: '${action}'`);
-        }
-
-        totalPassed++;
-        console.log(`  ✓ PASSED: ${name}`);
-      } catch (err) {
-        if (err instanceof CaseSkipped) {
-          totalTests--;
-          totalSkipped++;
-          console.log(`  ⁃ [SKIPPED] ${name} (${err.message})`);
-          continue;
-        }
-        totalFailed++;
-        const failMessage = `  ✗ FAILED: ${name} - ${err.message}`;
-        console.error(failMessage);
-        failures.push({file: relativePath, name, error: err.message});
-      }
+    const testCases = loadSuiteTestCases(filePath, relativePath, state);
+    if (testCases !== null) {
+      await runSuiteCases(relativePath, testCases, state);
     }
   }
 
-  for (const [suite, cases] of KNOWN_DIVERGENCES) {
-    for (const name of cases.keys()) {
-      if (!matchedDivergences.has(`${suite}#${name}`)) {
-        totalTests++;
-        totalFailed++;
-        const err = 'Known divergence matches no test case.';
-        console.error(`  ✗ FAILED: ${name}: ${err}`);
-        failures.push({file: suite, name, error: err});
-      }
-    }
-  }
-
-  console.log('\n=====================================================');
-  console.log(
-    `Conformance Summary: ${totalPassed}/${totalTests} Passed (${totalFailed} Failed, ${totalSkipped} Skipped)`,
-  );
-  if (unrunByAction.size > 0) {
-    const unrunTotal = [...unrunByAction.values()].reduce((a, b) => a + b, 0);
-    console.log(`Not run by design: ${unrunTotal} cases`);
-    for (const [action, count] of [...unrunByAction].sort((a, b) => b[1] - a[1])) {
-      console.log(`  ${action}: ${count} (${UNIMPLEMENTED_ACTIONS.get(action)})`);
-    }
-  }
-  console.log('=====================================================');
-
-  if (totalFailed > 0) {
-    console.error('\nFailures Summary:');
-    for (const failure of failures) {
-      console.error(`- [${failure.file}] ${failure.name}: ${failure.error}`);
-    }
-    process.exit(1);
-  } else {
-    console.log('🎉 All Web Core conformance test vectors validated successfully!');
-    process.exit(0);
-  }
+  verifyHarnessInvariants(discoveredSuites, state);
+  finishHarnessRun(state);
 }
 
+const EXPECT_ERROR_KNOWN_KEYS = {
+  error: new Set([
+    'category',
+    'code',
+    'details',
+    'functionCallId',
+    'message',
+    'path',
+    'rendererError',
+    'surfaceId',
+  ]),
+  detail: new Set(['code', 'message', 'path', 'surfaceId']),
+  rendererError: new Set(['error', 'version']),
+  rendererErrorPayload: new Set(['code', 'functionCallId', 'message', 'path', 'surfaceId']),
+};
+
+const RPC_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'description',
+    'expect',
+    'expectError',
+    'features',
+    'name',
+    'protocolVersion',
+  ]),
+  args: new Set([
+    'catalogId',
+    'catalogVersion',
+    'dataModel',
+    'functionMetadata',
+    'inboundResponse',
+    'message',
+    'outboundCall',
+    'secondOutboundCall',
+    'surfaceId',
+    'uiActionFallbackScenario',
+    'uiBindingScenario',
+    'userActivationPresent',
+  ]),
+  uiBindingScenario: new Set(['catalogId', 'component', 'inboundResponseValue', 'surfaceId']),
+  uiActionFallbackScenario: new Set([
+    'actionPayload',
+    'catalogId',
+    'inboundResponseValue',
+    'surfaceId',
+  ]),
+  expect: new Set([
+    'correlatedCallId',
+    'error',
+    'initialValue',
+    'outboundCall',
+    'resolvedValue',
+    'response',
+    'result',
+  ]),
+};
+
 async function validateRpcTestCase(testCase) {
+  assertKnownKeys(testCase, RPC_KNOWN_KEYS.case, 'handle_rpc');
   const {args, expect, expectError} = testCase;
   if (!args) throw new Error('handle_rpc test requires "args" object.');
   if (!expect && !expectError)
     throw new Error('handle_rpc test requires "expect" or "expectError" object.');
+  assertKnownKeys(args, RPC_KNOWN_KEYS.args, 'handle_rpc.args');
+  assertKnownKeys(
+    args.uiBindingScenario,
+    RPC_KNOWN_KEYS.uiBindingScenario,
+    'handle_rpc.args.uiBindingScenario',
+  );
+  assertKnownKeys(
+    args.uiActionFallbackScenario,
+    RPC_KNOWN_KEYS.uiActionFallbackScenario,
+    'handle_rpc.args.uiActionFallbackScenario',
+  );
+  assertKnownKeys(expect, RPC_KNOWN_KEYS.expect, 'handle_rpc.expect');
+  assertKnownKeys(expect?.error, EXPECT_ERROR_KNOWN_KEYS.error, 'handle_rpc.expect.error');
+  assertKnownKeys(expectError, EXPECT_ERROR_KNOWN_KEYS.error, 'handle_rpc.expectError');
 
   const message = args.message;
   const outboundCall = args.outboundCall;
@@ -615,44 +847,22 @@ async function validateRpcTestCase(testCase) {
 
   if (args.uiBindingScenario) {
     const scenario = args.uiBindingScenario;
-    const callName =
-      scenario.component?.text?.['@call'] ||
-      scenario.component?.text?.call ||
-      'fetchRemoteGreeting';
-    const procRef = {current: null};
-    const agentBindingFn = createFunctionImplementation(
-      {
-        name: callName,
-        returnType: 'string',
-        schema: z.record(z.string(), z.any()).optional().default({}),
-      },
-      fnArgs => {
-        const sig = signal(null);
-        void procRef.current
-          .callAgentFunction(scenario.surfaceId, {
-            '@call': callName,
-            catalogId: scenario.catalogId,
-            args: fnArgs,
-          })
-          .then(val => setValue(sig, val));
-        return sig;
-      },
-    );
     const storeCat = new Catalog(
       scenario.catalogId,
       '1.0',
       v1_0Components,
-      [agentBindingFn],
+      [],
       undefined,
       undefined,
     );
-    procRef.current = new MessageProcessor([storeCat, v1_0BasicCatalog], undefined, {
+    const proc = new MessageProcessor([storeCat, v1_0BasicCatalog], undefined, {
       version: '1.0',
+      validationConfig: {allowUnknownElements: true},
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
     });
-    procRef.current.processMessages([
+    proc.processMessages([
       {
         version: '1.0',
         createSurface: {
@@ -662,19 +872,24 @@ async function validateRpcTestCase(testCase) {
         },
       },
     ]);
-    const surface = procRef.current.getSurface(scenario.surfaceId);
+    const surface = proc.getSurface(scenario.surfaceId);
     const resolved = collectResolvedNodes(surface);
     try {
       const rootNode = resolved.nodes.get(scenario.component.id);
       const initialText = normalizeComponentRefs(peekValue(rootNode.props).text);
       assert.strictEqual(initialText ?? null, expect.initialValue);
+      await new Promise(resolve => setTimeout(resolve, 0));
       assert.ok(sentOutboundMsg?.callAgentFunction, 'Expected outbound callAgentFunction');
       assert.strictEqual(sentOutboundMsg.version, expect.outboundCall.version);
       assert.strictEqual(
         sentOutboundMsg.callAgentFunction.surfaceId,
         expect.outboundCall.callAgentFunction.surfaceId,
       );
-      procRef.current.processMessages({
+      assert.deepStrictEqual(
+        sentOutboundMsg.callAgentFunction.callFunction,
+        expect.outboundCall.callAgentFunction.callFunction,
+      );
+      proc.processMessages({
         version: '1.0',
         agentFunctionResponse: {
           functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
@@ -692,37 +907,22 @@ async function validateRpcTestCase(testCase) {
 
   if (args.uiActionFallbackScenario) {
     const scenario = args.uiActionFallbackScenario;
-    const fc = scenario.actionPayload.functionCall;
-    const callName = fc['@call'] || fc.call;
-    const procRef = {current: null};
-    const agentActionFn = createFunctionImplementation(
-      {
-        name: callName,
-        returnType: 'any',
-        schema: z.record(z.string(), z.any()).optional().default({}),
-      },
-      fnArgs =>
-        procRef.current.callAgentFunction(scenario.surfaceId, {
-          '@call': callName,
-          catalogId: scenario.catalogId,
-          args: fnArgs,
-        }),
-    );
     const storeCat = new Catalog(
       scenario.catalogId,
       '1.0',
       v1_0Components,
-      [agentActionFn],
+      [],
       undefined,
       undefined,
     );
-    procRef.current = new MessageProcessor([storeCat], undefined, {
+    const proc = new MessageProcessor([storeCat], undefined, {
       version: '1.0',
+      validationConfig: {allowUnknownElements: true},
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
     });
-    procRef.current.processMessages([
+    proc.processMessages([
       {
         version: '1.0',
         createSurface: {
@@ -731,16 +931,21 @@ async function validateRpcTestCase(testCase) {
         },
       },
     ]);
-    const surface = procRef.current.getSurface(scenario.surfaceId);
+    const surface = proc.getSurface(scenario.surfaceId);
     const ctx = new DataContext(surface, '/');
     const actionPromise = ctx.resolveAction(scenario.actionPayload);
+    await new Promise(resolve => setTimeout(resolve, 0));
     assert.ok(sentOutboundMsg?.callAgentFunction, 'Expected outbound callAgentFunction');
     assert.strictEqual(sentOutboundMsg.version, expect.outboundCall.version);
     assert.strictEqual(
       sentOutboundMsg.callAgentFunction.surfaceId,
       expect.outboundCall.callAgentFunction.surfaceId,
     );
-    procRef.current.processMessages({
+    assert.deepStrictEqual(
+      sentOutboundMsg.callAgentFunction.callFunction,
+      expect.outboundCall.callAgentFunction.callFunction,
+    );
+    proc.processMessages({
       version: '1.0',
       agentFunctionResponse: {
         functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
@@ -909,12 +1114,43 @@ async function validateRpcTestCase(testCase) {
   }
 }
 
+const SELECT_CATALOG_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'description',
+    'expect',
+    'expectError',
+    'expectSelected',
+    'features',
+    'name',
+    'protocolVersion',
+  ]),
+  args: new Set([
+    'acceptsInlineCatalogs',
+    'catalogs',
+    'clientCapabilities',
+    'components',
+    'functionCall',
+    'supportedCatalogs',
+    'surface',
+  ]),
+  surface: new Set(['defaultCatalogId', 'id', 'supportedCatalogIds']),
+  expect: new Set(['catalogId', 'components']),
+};
+
 function validateSelectCatalogTestCase(testCase) {
+  assertKnownKeys(testCase, SELECT_CATALOG_KNOWN_KEYS.case, 'select_catalog');
   const {args, expect, expectSelected, expectError} = testCase;
   if (!args) throw new Error('select_catalog test requires "args" object.');
   if (!expect && !expectSelected && !expectError) {
     throw new Error('select_catalog test requires "expect", "expectSelected", or "expectError".');
   }
+  assertKnownKeys(args, SELECT_CATALOG_KNOWN_KEYS.args, 'select_catalog.args');
+  assertKnownKeys(args.surface, SELECT_CATALOG_KNOWN_KEYS.surface, 'select_catalog.args.surface');
+  assertKnownKeys(expect, SELECT_CATALOG_KNOWN_KEYS.expect, 'select_catalog.expect');
+  assertKnownKeys(expectError, EXPECT_ERROR_KNOWN_KEYS.error, 'select_catalog.expectError');
 
   // Handle agent format catalog selection (supportedCatalogs + clientCapabilities)
   if (args.supportedCatalogs) {
@@ -1123,6 +1359,18 @@ function matchesErrorCategory(err, category) {
 
 function assertExpectedConformanceError(thrown, emittedErrorMsg, expErrObj) {
   if (!expErrObj || typeof expErrObj !== 'object') return;
+  assertKnownKeys(expErrObj, EXPECT_ERROR_KNOWN_KEYS.error, 'expectError');
+  assertKnownKeysList(expErrObj.details, EXPECT_ERROR_KNOWN_KEYS.detail, 'expectError.details');
+  assertKnownKeys(
+    expErrObj.rendererError,
+    EXPECT_ERROR_KNOWN_KEYS.rendererError,
+    'expectError.rendererError',
+  );
+  assertKnownKeys(
+    expErrObj.rendererError?.error,
+    EXPECT_ERROR_KNOWN_KEYS.rendererErrorPayload,
+    'expectError.rendererError.error',
+  );
   if (expErrObj.category) {
     if (!matchesErrorCategory(thrown, expErrObj.category)) {
       throw new Error(
@@ -1336,7 +1584,33 @@ function assertExpectedConformanceError(thrown, emittedErrorMsg, expErrObj) {
   }
 }
 
+const VALIDATE_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'catalog',
+    'catalogPaths',
+    'catalogs',
+    'description',
+    'expect',
+    'expectError',
+    'expectValid',
+    'expect_error',
+    'features',
+    'messages',
+    'name',
+    'payload',
+    'protocolVersion',
+    'steps',
+    'strictMode',
+  ]),
+  step: new Set(['expect', 'expectError', 'expect_error', 'messages', 'payload']),
+  expect: new Set(['surfaces']),
+};
+
 function validateValidateTestCase(testCase) {
+  assertKnownKeys(testCase, VALIDATE_KNOWN_KEYS.case, 'validate');
+  assertKnownKeysList(testCase.steps, VALIDATE_KNOWN_KEYS.step, 'validate.steps');
+  assertKnownKeys(testCase.expect, VALIDATE_KNOWN_KEYS.expect, 'validate.expect');
   const expectError = testCase.expectError || testCase.expect_error;
   const {steps, payload, messages, expect, expectValid} = testCase;
   if (!steps && !payload && !messages) {
@@ -1373,7 +1647,10 @@ function validateValidateTestCase(testCase) {
     const inputMessages =
       step.messages ||
       (Array.isArray(step.payload) ? step.payload : step.payload ? [step.payload] : []);
-    const expErrObj = step.expectError || (i === stepsToRun.length - 1 ? expectError : undefined);
+    const expErrObj =
+      step.expectError ||
+      step.expect_error ||
+      (i === stepsToRun.length - 1 ? expectError : undefined);
     const stepExpect = step.expect || (i === stepsToRun.length - 1 ? expect : undefined);
 
     if (inputMessages.length > 0) {
@@ -1414,6 +1691,26 @@ function validateValidateTestCase(testCase) {
   }
 }
 
+const GET_RENDERER_DATA_MODEL_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'catalogPaths',
+    'catalogs',
+    'description',
+    'expect',
+    'features',
+    'messages',
+    'name',
+    'protocolVersion',
+    'steps',
+  ]),
+  args: new Set(['version']),
+  step: new Set(['messages']),
+  expect: new Set(['surfaces', 'version']),
+};
+
 /**
  * Runs a `get_renderer_data_model` case and compares the emitted payload.
  *
@@ -1427,6 +1724,22 @@ function validateValidateTestCase(testCase) {
  *   `expect` payload.
  */
 function validateGetRendererDataModelTestCase(testCase) {
+  assertKnownKeys(testCase, GET_RENDERER_DATA_MODEL_KNOWN_KEYS.case, 'get_renderer_data_model');
+  assertKnownKeys(
+    testCase.args,
+    GET_RENDERER_DATA_MODEL_KNOWN_KEYS.args,
+    'get_renderer_data_model.args',
+  );
+  assertKnownKeysList(
+    testCase.steps,
+    GET_RENDERER_DATA_MODEL_KNOWN_KEYS.step,
+    'get_renderer_data_model.steps',
+  );
+  assertKnownKeys(
+    testCase.expect,
+    GET_RENDERER_DATA_MODEL_KNOWN_KEYS.expect,
+    'get_renderer_data_model.expect',
+  );
   const {messages, steps, args, expect} = testCase;
   const processor = new MessageProcessor(getCatalogsForTestCase(testCase), undefined, {
     version: resolveProtocolVersion(testCase),
@@ -1451,11 +1764,6 @@ function validateGetRendererDataModelTestCase(testCase) {
     expect,
     'Renderer data model mismatch',
   );
-}
-
-function validateAccessibilityCheckTestCase() {
-  // Accessibility tree rendering is handled by UI framework renderers (Lit, React, Angular, Flutter, SwiftUI),
-  // not headless web_core state engines.
 }
 
 function collectRefs(node, refs = []) {
@@ -1546,7 +1854,28 @@ function assertMatchesBuiltinCatalog(loaded) {
   );
 }
 
+const FROM_JSON_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'catalog',
+    'catalogId',
+    'catalogPath',
+    'catalogSchema',
+    'description',
+    'expect',
+    'expectError',
+    'features',
+    'name',
+    'protocolVersion',
+    'schema',
+  ]),
+  expect: FROM_JSON_EXPECT_KEYS,
+};
+
 function validateFromJsonTestCase(testCase) {
+  assertKnownKeys(testCase, FROM_JSON_KNOWN_KEYS.case, 'from_json');
+  assertKnownKeys(testCase.expect, FROM_JSON_KNOWN_KEYS.expect, 'from_json.expect');
+  assertKnownKeys(testCase.expectError, EXPECT_ERROR_KNOWN_KEYS.error, 'from_json.expectError');
   const rawSchema = testCase.catalogPath
     ? JSON.parse(
         fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', testCase.catalogPath), 'utf8'),
@@ -1583,8 +1912,6 @@ function validateFromJsonTestCase(testCase) {
 
   if (testCase.expect) {
     const expected = testCase.expect;
-    const unknownKeys = Object.keys(expected).filter(key => !FROM_JSON_EXPECT_KEYS.has(key));
-    assert.deepStrictEqual(unknownKeys, [], `Unknown from_json expect keys: ${unknownKeys}`);
     if (expected.catalogId) {
       assert.strictEqual(catalog.id, expected.catalogId);
     }
@@ -1660,11 +1987,31 @@ const DERIVE_EXPECT_KEYS = new Set([
   'theme',
 ]);
 
+const DERIVE_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'catalogPath',
+    'description',
+    'expect',
+    'expectError',
+    'features',
+    'name',
+  ]),
+  args: new Set(['catalogId', 'components', 'functions', 'instructions']),
+  expect: DERIVE_EXPECT_KEYS,
+};
+
 /**
  * Runs a `derive` case: loads the source catalog with `fromJson`, derives a
  * catalog from it, and checks the derived catalog and its `toJson()` document.
  */
 function validateDeriveTestCase(testCase) {
+  assertKnownKeys(testCase, DERIVE_KNOWN_KEYS.case, 'derive');
+  assertKnownKeys(testCase.args, DERIVE_KNOWN_KEYS.args, 'derive.args');
+  assertKnownKeys(testCase.expect, DERIVE_KNOWN_KEYS.expect, 'derive.expect');
+  assertKnownKeys(testCase.expectError, EXPECT_ERROR_KNOWN_KEYS.error, 'derive.expectError');
   const source = Catalog.fromJson(readCaseCatalogDocument(testCase));
   const {catalogId, components, functions, instructions} = testCase.args;
   // A map with one key is a new entry, built by loading it into a catalog of
@@ -1697,8 +2044,6 @@ function validateDeriveTestCase(testCase) {
   }
 
   const expected = testCase.expect;
-  const unknownKeys = Object.keys(expected).filter(key => !DERIVE_EXPECT_KEYS.has(key));
-  assert.deepStrictEqual(unknownKeys, [], `Unknown derive expect keys: ${unknownKeys}`);
   const derived = derive();
   const document = derived.toJson();
   if (expected.catalogId) assert.strictEqual(derived.id, expected.catalogId);
@@ -1728,7 +2073,51 @@ function validateDeriveTestCase(testCase) {
   }
 }
 
+const DATA_MODEL_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'catalog',
+    'description',
+    'expect',
+    'features',
+    'initial',
+    'name',
+    'steps',
+    'watch',
+  ]),
+  step: {
+    get: new Set([
+      'expect',
+      'expectError',
+      'expect_absent',
+      'expect_error',
+      'expect_type',
+      'op',
+      'path',
+    ]),
+    set: new Set([
+      'expectError',
+      'expect_error',
+      'expect_notified',
+      'expect_values',
+      'op',
+      'path',
+      'value',
+    ]),
+    delete: new Set([
+      'expectError',
+      'expect_error',
+      'expect_notified',
+      'expect_values',
+      'op',
+      'path',
+    ]),
+    dispose: new Set(['expectError', 'expect_error', 'op']),
+  },
+};
+
 function validateDataModelTestCase(testCase) {
+  assertKnownKeys(testCase, DATA_MODEL_KNOWN_KEYS.case, 'data_model');
   const {initial, watch, steps, expect: topExpect} = testCase;
   const initialData = initial ? JSON.parse(JSON.stringify(initial)) : {};
   const model = new DataModel(initialData);
@@ -1758,6 +2147,7 @@ function validateDataModelTestCase(testCase) {
 
       const expectErr = step.expect_error || step.expectError;
       if (expectErr) {
+        assertKnownKeys(expectErr, EXPECT_ERROR_KNOWN_KEYS.error, 'data_model.step.expectError');
         assert.throws(
           () => {
             applyDataModelOp(model, step);
@@ -1817,6 +2207,7 @@ function applyDataModelOp(model, step) {
   const {op, path: stepPath, value, expect: stepExpect, expect_absent, expect_type} = step;
   switch (op) {
     case 'get': {
+      assertKnownKeys(step, DATA_MODEL_KNOWN_KEYS.step.get, 'data_model.step.get');
       const actual = model.get(stepPath);
       if (expect_absent === true) {
         assert.strictEqual(
@@ -1843,14 +2234,17 @@ function applyDataModelOp(model, step) {
       break;
     }
     case 'set': {
+      assertKnownKeys(step, DATA_MODEL_KNOWN_KEYS.step.set, 'data_model.step.set');
       model.set(stepPath, value);
       break;
     }
     case 'delete': {
+      assertKnownKeys(step, DATA_MODEL_KNOWN_KEYS.step.delete, 'data_model.step.delete');
       model.set(stepPath, undefined);
       break;
     }
     case 'dispose': {
+      assertKnownKeys(step, DATA_MODEL_KNOWN_KEYS.step.dispose, 'data_model.step.dispose');
       model.dispose();
       break;
     }
@@ -1859,9 +2253,31 @@ function applyDataModelOp(model, step) {
   }
 }
 
+const RESOLVE_PATH_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'description',
+    'expect',
+    'expectError',
+    'features',
+    'name',
+    'protocolVersion',
+  ]),
+  args: new Set(['contextPath', 'context_path', 'path']),
+  expect: new Set(['result']),
+};
+
 function validateResolvePathTestCase(testCase) {
+  assertKnownKeys(testCase, RESOLVE_PATH_KNOWN_KEYS.case, 'resolve_path');
   const {args, expect, expectError} = testCase;
   if (!args) throw new Error('resolve_path test requires "args" object.');
+  assertKnownKeys(args, RESOLVE_PATH_KNOWN_KEYS.args, 'resolve_path.args');
+  assertKnownKeys(expectError, EXPECT_ERROR_KNOWN_KEYS.error, 'resolve_path.expectError');
+  if (expect && typeof expect === 'object') {
+    assertKnownKeys(expect, RESOLVE_PATH_KNOWN_KEYS.expect, 'resolve_path.expect');
+  }
 
   const targetPath = args.path || '';
   const contextPath = args.contextPath || args.context_path;
@@ -1882,7 +2298,35 @@ function validateResolvePathTestCase(testCase) {
   }
 }
 
+const GET_RENDERER_CAPABILITIES_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'catalogPaths',
+    'catalogs',
+    'description',
+    'expect',
+    'features',
+    'name',
+    'protocolVersion',
+  ]),
+  args: new Set(['componentEnvelopeRef', 'includeInlineCatalogs', 'version', 'versions']),
+  expect: new Set(['1.0', 'v0.8', 'v0.9', 'v0.9.1']),
+};
+
 function validateGetRendererCapabilitiesTestCase(testCase) {
+  assertKnownKeys(testCase, GET_RENDERER_CAPABILITIES_KNOWN_KEYS.case, 'get_renderer_capabilities');
+  assertKnownKeys(
+    testCase.args,
+    GET_RENDERER_CAPABILITIES_KNOWN_KEYS.args,
+    'get_renderer_capabilities.args',
+  );
+  assertKnownKeys(
+    testCase.expect,
+    GET_RENDERER_CAPABILITIES_KNOWN_KEYS.expect,
+    'get_renderer_capabilities.expect',
+  );
   if (!testCase.expect) {
     throw new Error('get_renderer_capabilities test requires "expect" object.');
   }
@@ -1928,8 +2372,33 @@ function loadValidationSchemaCatalog(testCase, rawSchema, pVer) {
   return Catalog.fromJson(rawSchema, pVer, testCase.catalogId);
 }
 
+const VALIDATION_SCHEMA_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'catalogFile',
+    'catalogId',
+    'catalogPath',
+    'catalogSchema',
+    'description',
+    'expectError',
+    'expectFile',
+    'features',
+    'name',
+    'protocolVersion',
+    'schema',
+  ]),
+};
+
 /** Runs a `validation_schema` case against its golden `expectFile`. */
 function validateValidationSchemaTestCase(testCase) {
+  assertKnownKeys(testCase, VALIDATION_SCHEMA_KNOWN_KEYS.case, 'validation_schema');
+  assertKnownKeys(
+    testCase.expectError,
+    EXPECT_ERROR_KNOWN_KEYS.error,
+    'validation_schema.expectError',
+  );
   const pVer =
     testCase.protocolVersion || testCase.args?.version || resolveProtocolVersion(testCase);
   const cPath = testCase.catalogPath || testCase.catalogFile;
@@ -2006,7 +2475,22 @@ function assertJsonSetEqual(actual, expected, message) {
   assert.deepStrictEqual(normalizeSetArrays(actual), normalizeSetArrays(expected), message);
 }
 
+const ROUND_TRIP_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'catalog',
+    'catalogFile',
+    'catalogId',
+    'catalogPath',
+    'description',
+    'features',
+    'name',
+    'protocolVersion',
+  ]),
+};
+
 function validateRoundTripTestCase(testCase) {
+  assertKnownKeys(testCase, ROUND_TRIP_KNOWN_KEYS.case, 'round_trip');
   const document = readCaseCatalogDocument(testCase);
   const pVer = testCase.protocolVersion;
   const out = Catalog.fromJson(document, pVer, testCase.catalogId).toJson();
@@ -2015,12 +2499,29 @@ function validateRoundTripTestCase(testCase) {
   assertJsonSetEqual(again, out, 'toJson() is not idempotent.');
 }
 
+const TO_JSON_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'builtinCatalog',
+    'catalog',
+    'catalogFile',
+    'catalogId',
+    'catalogPath',
+    'description',
+    'expectFile',
+    'features',
+    'name',
+    'protocolVersion',
+  ]),
+};
+
 /**
  * Runs a `to_json` case: serializes web_core's own basic catalog
  * (`builtinCatalog: basic`) or the catalog loaded with `fromJson`, and compares
  * the document exactly with `expectFile`.
  */
 function validateToJsonTestCase(testCase) {
+  assertKnownKeys(testCase, TO_JSON_KNOWN_KEYS.case, 'to_json');
   assert.ok(testCase.expectFile, 'to_json case requires expectFile.');
   let catalog;
   if (testCase.builtinCatalog !== undefined) {
@@ -2039,8 +2540,6 @@ function validateToJsonTestCase(testCase) {
     `toJson() differs from ${testCase.expectFile}`,
   );
 }
-
-import {z} from 'zod';
 
 /**
  * Fallback component definitions with permissive schemas (`z.object({}).passthrough()`).
@@ -2572,7 +3071,26 @@ function normalizeComponentRefs(val) {
   return val;
 }
 
+const SURFACE_EXPECT_KNOWN_KEYS = {
+  expect: new Set(['surfaces']),
+  surface: new Set([
+    'components',
+    'dataModel',
+    'exists',
+    'isValid',
+    'metadata',
+    'sendDataModel',
+    'theme',
+    'validationErrors',
+    'validationResult',
+    'validationResults',
+  ]),
+  validationResult: new Set(['code', 'message', 'severity', 'valid']),
+};
+
 function assertSurfacesMatch(processor, expect) {
+  assertKnownKeys(expect, SURFACE_EXPECT_KNOWN_KEYS.expect, 'expect');
+  assertKnownKeysRecord(expect?.surfaces, SURFACE_EXPECT_KNOWN_KEYS.surface, 'expect.surfaces');
   if (expect && expect.surfaces) {
     for (const [surfaceId, expectedSurface] of Object.entries(expect.surfaces)) {
       const surface = processor.getSurface(surfaceId);
@@ -2733,6 +3251,11 @@ function assertSurfacesMatch(processor, expect) {
           }
           if (expectedSurface.validationResult !== undefined) {
             const checkSingleResult = (compId, expRes) => {
+              assertKnownKeys(
+                expRes,
+                SURFACE_EXPECT_KNOWN_KEYS.validationResult,
+                `expect.surfaces.${surfaceId}.validationResult.${compId}`,
+              );
               const firstResult = Array.isArray(getPropsForId(compId).validationResults)
                 ? getPropsForId(compId).validationResults[0]
                 : undefined;
@@ -2788,15 +3311,48 @@ function caseValidationConfig(testCase) {
   if (flags === undefined) {
     return testCase.strictMode ? {validationConfig: STRICT_VALIDATION} : {};
   }
-  const unknown = Object.keys(flags).filter(name => !CASE_VALIDATION_FLAGS.has(name));
-  if (unknown.length > 0) {
-    throw new Error(`Unknown validationConfig flags: ${unknown.join(', ')}`);
-  }
+  assertKnownKeys(flags, CASE_VALIDATION_FLAGS, 'process_messages.validationConfig');
   return {validationConfig: {...STRICT_VALIDATION, ...flags}};
 }
 
+const PROCESS_MESSAGES_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'catalog',
+    'catalogPaths',
+    'catalogs',
+    'description',
+    'expect',
+    'expectError',
+    'expect_error',
+    'features',
+    'messages',
+    'name',
+    'payload',
+    'protocolVersion',
+    'steps',
+    'strictMode',
+    'validationConfig',
+  ]),
+  step: new Set([
+    'expect',
+    'expectError',
+    'expect_error',
+    'message',
+    'messages',
+    'payload',
+    'validationConfig',
+  ]),
+  expect: new Set(['surfaces']),
+  validationConfig: CASE_VALIDATION_FLAGS,
+};
+
 function validateProcessMessagesTestCase(testCase) {
-  const {messages, payload, steps, expect, expectError, protocolVersion} = testCase;
+  assertKnownKeys(testCase, PROCESS_MESSAGES_KNOWN_KEYS.case, 'process_messages');
+  assertKnownKeysList(testCase.steps, PROCESS_MESSAGES_KNOWN_KEYS.step, 'process_messages.steps');
+  assertKnownKeys(testCase.expect, PROCESS_MESSAGES_KNOWN_KEYS.expect, 'process_messages.expect');
+  const {messages, payload, steps, expect, protocolVersion} = testCase;
+  const expectError = testCase.expectError || testCase.expect_error;
 
   const testCatalogs = getCatalogsForTestCase(testCase);
   let lastErrorMsg;
@@ -2839,9 +3395,14 @@ function validateProcessMessagesTestCase(testCase) {
       stepMsgs = normalizeMsgs(stepMsgs);
 
       // A step's validationConfig applies to that call only.
+      assertKnownKeys(
+        step.validationConfig,
+        PROCESS_MESSAGES_KNOWN_KEYS.validationConfig,
+        `process_messages.steps[${i}].validationConfig`,
+      );
       const context = step.validationConfig ? {validationConfig: step.validationConfig} : undefined;
       const stepExpectError =
-        step.expectError || (i === steps.length - 1 ? expectError : undefined);
+        step.expectError || step.expect_error || (i === steps.length - 1 ? expectError : undefined);
       if (stepExpectError) {
         lastErrorMsg = undefined;
         let thrown;
@@ -2907,9 +3468,29 @@ function joinLiterals(parts) {
   return joined.filter(part => part !== '');
 }
 
+const PARSE_EXPRESSION_TEMPLATE_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'description',
+    'expect',
+    'expectError',
+    'expect_error',
+    'features',
+    'input',
+    'name',
+    'protocolVersion',
+  ]),
+};
+
 function validateParseExpressionTemplateTestCase(testCase) {
+  assertKnownKeys(testCase, PARSE_EXPRESSION_TEMPLATE_KNOWN_KEYS.case, 'parse_expression_template');
   const {input, expect, expectError, expect_error} = testCase;
   const errorSpec = expect_error || expectError;
+  assertKnownKeys(
+    errorSpec,
+    EXPECT_ERROR_KNOWN_KEYS.error,
+    'parse_expression_template.expectError',
+  );
   const parser = new ExpressionParser();
 
   if (errorSpec) {
@@ -2952,7 +3533,53 @@ function getBasicCatalog(version) {
   return v0_9BasicCatalog;
 }
 
+const DISPATCH_ACTION_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'actionPayload',
+    'catalog',
+    'catalogPaths',
+    'catalogs',
+    'dataModel',
+    'description',
+    'expectDataModel',
+    'expectDispatched',
+    'expectError',
+    'expect_error',
+    'features',
+    'metadata',
+    'name',
+    'protocolVersion',
+    'scope',
+    'sourceComponentId',
+    'surfaceId',
+    'useBasicCatalog',
+    'userActivation',
+  ]),
+  actionPayload: new Set(['context', 'event', 'functionCall', 'name']),
+  expectDispatched: new Set([
+    'context',
+    'metadata',
+    'name',
+    'sourceComponentId',
+    'surfaceId',
+    'timestampIso8601',
+    'userMessage',
+  ]),
+};
+
 async function validateDispatchActionTestCase(testCase) {
+  assertKnownKeys(testCase, DISPATCH_ACTION_KNOWN_KEYS.case, 'dispatch_action');
+  assertKnownKeys(
+    testCase.actionPayload,
+    DISPATCH_ACTION_KNOWN_KEYS.actionPayload,
+    'dispatch_action.actionPayload',
+  );
+  assertKnownKeys(
+    testCase.expectDispatched,
+    DISPATCH_ACTION_KNOWN_KEYS.expectDispatched,
+    'dispatch_action.expectDispatched',
+  );
   const {
     actionPayload,
     metadata,
@@ -2967,6 +3594,7 @@ async function validateDispatchActionTestCase(testCase) {
     expect_error,
   } = testCase;
   const errorSpec = expect_error || expectError;
+  assertKnownKeys(errorSpec, EXPECT_ERROR_KNOWN_KEYS.error, 'dispatch_action.expectError');
 
   const testCatalogs = getCatalogsForTestCase(testCase);
   const baseCat = testCatalogs[0] || getBasicCatalog(resolveProtocolVersion(testCase) || 'v0.9');
@@ -3175,7 +3803,36 @@ function matchesEvaluateFunctionError(err, errorSpec) {
   return true;
 }
 
+const EVALUATE_FUNCTION_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'catalogId',
+    'catalogPaths',
+    'catalogs',
+    'dataModel',
+    'description',
+    'expect',
+    'expectError',
+    'expect_error',
+    'features',
+    'function',
+    'name',
+    'protocolVersion',
+    'surface',
+    'useBasicCatalog',
+  ]),
+  surface: new Set(['catalogId']),
+};
+
 function validateEvaluateFunctionTestCase(testCase) {
+  assertKnownKeys(testCase, EVALUATE_FUNCTION_KNOWN_KEYS.case, 'evaluate_function');
+  assertKnownKeys(
+    testCase.surface,
+    EVALUATE_FUNCTION_KNOWN_KEYS.surface,
+    'evaluate_function.surface',
+  );
   const {
     function: funcName,
     args = {},
@@ -3185,6 +3842,7 @@ function validateEvaluateFunctionTestCase(testCase) {
     expect_error,
   } = testCase;
   const errorSpec = expect_error || expectError;
+  assertKnownKeys(errorSpec, EXPECT_ERROR_KNOWN_KEYS.error, 'evaluate_function.expectError');
 
   if (testCase.surface) {
     const evaluate = () => evaluateFunctionOnSurface(testCase);
@@ -3256,6 +3914,227 @@ function validateEvaluateFunctionTestCase(testCase) {
     } else {
       globalThis.window = originalWindow;
     }
+  }
+}
+
+/** Lets pending promise callbacks and timers that are already due run. */
+const flushAsyncWork = async () => {
+  for (let i = 0; i < 3; i++) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+};
+
+/**
+ * Builds the catalogs of a `route_agent_function` case.
+ *
+ * `localFunctions` take web_core's basic catalog implementations for the
+ * case's protocol version. `agentFunctions` are declared without an
+ * implementation, as a catalog document loaded with `Catalog.fromJson`
+ * declares them, so they are schema-only.
+ */
+function buildRoutingCatalogs(testCase, version) {
+  const basicFunctions =
+    toCanonicalVersion(version) === '1.0' ? V1_0_BASIC_FUNCTIONS : V0_9_BASIC_FUNCTIONS;
+  return (testCase.catalogs ?? []).map(spec => {
+    const functions = (spec.localFunctions ?? []).map(name => {
+      const fn = basicFunctions.find(candidate => candidate.name === name);
+      if (!fn) throw new Error(`web_core's basic catalog has no function '${name}'.`);
+      return fn;
+    });
+    const agentFunctions = Object.entries(spec.agentFunctions ?? {});
+    if (agentFunctions.length > 0) {
+      const document = Catalog.fromJson({
+        catalogId: spec.catalogId,
+        protocolVersion: version,
+        components: {},
+        functions: Object.fromEntries(
+          agentFunctions.map(([name, declaration]) => [
+            name,
+            {
+              type: 'object',
+              ...(declaration.returnType ? {returnType: declaration.returnType} : {}),
+              ...(declaration.requiresUserActivation ? {requiresUserActivation: true} : {}),
+              ...(declaration.allowedCallers ? {allowedCallers: declaration.allowedCallers} : {}),
+              properties: {'@call': {const: name}, args: declaration.args},
+              required: ['@call', 'args'],
+            },
+          ]),
+        ),
+      });
+      functions.push(...document.functions.values());
+    }
+    return new Catalog(spec.catalogId, version, [], functions);
+  });
+}
+
+/**
+ * Runs a `route_agent_function` case: evaluates function calls on a surface
+ * created through a `MessageProcessor`, answers the `callAgentFunction`
+ * messages the processor sends, and checks the values and reported errors.
+ *
+ * A `binding` subscribes to the call as a dynamic value, as a component
+ * binding does; a `check` subscribes to it as the condition of a check rule,
+ * as the generic binder does; an `action` resolves it as the `functionCall` of
+ * an action, which runs it within a user activation; an `event` resolves an
+ * event action within a user activation and dispatches it, as the generic
+ * binder does for a component's action.
+ */
+async function validateRouteAgentFunctionTestCase(testCase) {
+  const version = resolveProtocolVersion(testCase);
+  const wireVersion =
+    toCanonicalVersion(version) === '1.0' ? '1.0' : `v${toCanonicalVersion(version)}`;
+  const surfaceSpec = testCase.surface ?? {};
+  const outbound = [];
+  const processor = new MessageProcessor(buildRoutingCatalogs(testCase, version), undefined, {
+    outboundListener:
+      surfaceSpec.outboundListener === false ? undefined : message => outbound.push(message),
+  });
+  const createSurface = {surfaceId: 'main'};
+  if (surfaceSpec.catalogId !== undefined) createSurface.catalogId = surfaceSpec.catalogId;
+  processor.processMessages([{version: wireVersion, createSurface}]);
+  const surface = processor.getSurface('main');
+  if (testCase.dataModel !== undefined) surface.dataModel.set('/', testCase.dataModel);
+
+  const errors = [];
+  const errorSubscription = surface.onError.subscribe(err => errors.push(err));
+  const actions = [];
+  const actionSubscription = surface.onAction.subscribe(action => actions.push(action));
+  const ctx = new DataContext(surface, '/');
+  /** Current values of the binding and check evaluations, in order. */
+  const values = [];
+  const evaluations = [];
+  const disposables = [];
+  let outboundSeen = 0;
+  let errorsSeen = 0;
+  let actionsSeen = 0;
+
+  try {
+    for (const [index, step] of (testCase.steps ?? []).entries()) {
+      const label = `step ${index}`;
+      if (step.evaluate !== undefined) {
+        const as = step.as ?? 'binding';
+        if (as === 'action') {
+          const result = ctx.resolveAction({functionCall: step.evaluate});
+          // The action's own outcome is reported on the surface.
+          Promise.resolve(result).catch(() => {});
+        } else if (as === 'event') {
+          const resolved = ctx.resolveAction({event: step.evaluate}, {userActivation: true});
+          if (resolved !== undefined) {
+            // A failure is reported on the surface; the dispatch itself never rejects.
+            surface.dispatchAction(resolved, 'probe').catch(() => {});
+          }
+        } else if (as === 'check') {
+          const probeId = `probe_${evaluations.length}`;
+          const comp = new ComponentModel(probeId, 'Probe', {});
+          surface.componentsModel.addComponent(comp);
+          const binder = new GenericBinder(
+            new ComponentContext(surface, probeId),
+            CommonSchemas.Checkable.describe(''),
+          );
+          const sub = binder.subscribe(() => {});
+          comp.properties = {
+            checks: [{condition: step.evaluate, message: 'Check failed'}],
+          };
+          disposables.push(() => sub.unsubscribe());
+          evaluations.push(() => binder.snapshot.isValid);
+        } else {
+          const slot = values.length;
+          values.push(undefined);
+          const bound = ctx.subscribeDynamicValue(step.evaluate, value => {
+            values[slot] = value;
+          });
+          values[slot] = bound.value;
+          disposables.push(() => bound.unsubscribe());
+          evaluations.push(() => values[slot]);
+        }
+      } else if (step.respond !== undefined) {
+        const {call, ...response} = step.respond;
+        const message = outbound.filter(m => m.callAgentFunction)[call];
+        assert.ok(message, `${label}: no callAgentFunction at index ${call}`);
+        processor.processMessages([
+          {
+            version: '1.0',
+            agentFunctionResponse: {
+              functionCallId: message.callAgentFunction.functionCallId,
+              ...response,
+            },
+          },
+        ]);
+      } else if (step.updateData !== undefined) {
+        surface.dataModel.set(step.updateData.path, step.updateData.value);
+      } else if (step.cancelSurfaceCalls === true) {
+        processor.rpc.cancelSurfaceCalls('main');
+      } else if (step.deleteSurface === true) {
+        processor.processMessages([{version: wireVersion, deleteSurface: {surfaceId: 'main'}}]);
+      } else {
+        throw new Error(
+          `${label}: a step needs 'evaluate', 'respond', 'updateData', 'cancelSurfaceCalls' or 'deleteSurface'.`,
+        );
+      }
+      await flushAsyncWork();
+
+      const sent = outbound.slice(outboundSeen);
+      outboundSeen = outbound.length;
+      for (const message of sent) {
+        assert.ok(message.callAgentFunction, `${label}: unexpected outbound message`);
+        assert.strictEqual(message.callAgentFunction.surfaceId, 'main', `${label}: surfaceId`);
+      }
+      const byJson = (a, b) =>
+        JSON.stringify(sortKeysDeep(a)).localeCompare(JSON.stringify(sortKeysDeep(b)));
+      const sentPayloads = sent.map(message => message.callAgentFunction.callFunction);
+      const expectedPayloads = step.expectOutbound ?? [];
+      assert.deepStrictEqual(
+        step.outboundInAnyOrder ? [...sentPayloads].sort(byJson) : sentPayloads,
+        step.outboundInAnyOrder ? [...expectedPayloads].sort(byJson) : expectedPayloads,
+        `${label}: outbound callFunction payloads`,
+      );
+
+      const reported = errors.slice(errorsSeen);
+      errorsSeen = errors.length;
+      const expectedErrors = step.expectErrors ?? [];
+      assert.strictEqual(
+        reported.length,
+        expectedErrors.length,
+        `${label}: reported errors ${JSON.stringify(reported)}`,
+      );
+      expectedErrors.forEach((expected, i) => {
+        assert.strictEqual(reported[i].code, expected.code, `${label}: error code`);
+        if (expected.message !== undefined) {
+          assert.ok(
+            reported[i].message.includes(expected.message),
+            `${label}: error message '${reported[i].message}' lacks '${expected.message}'`,
+          );
+        }
+      });
+
+      const dispatched = actions.slice(actionsSeen);
+      actionsSeen = actions.length;
+      assert.deepStrictEqual(
+        dispatched.map(action =>
+          JSON.parse(
+            JSON.stringify({
+              name: action.name,
+              context: action.context,
+              userMessage: action.userMessage,
+            }),
+          ),
+        ),
+        step.expectActions ?? [],
+        `${label}: dispatched actions`,
+      );
+
+      if (step.expectValues !== undefined) {
+        const actual = evaluations.map(read => {
+          const value = read();
+          return value === undefined ? null : JSON.parse(JSON.stringify(value));
+        });
+        assert.deepStrictEqual(actual, step.expectValues, `${label}: values`);
+      }
+    }
+  } finally {
+    disposables.forEach(dispose => dispose());
+    errorSubscription.unsubscribe();
+    actionSubscription.unsubscribe();
   }
 }
 

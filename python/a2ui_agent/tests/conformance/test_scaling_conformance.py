@@ -42,14 +42,16 @@ from a2ui.core import A2uiValidationError
 from a2ui.inference_format import InferenceFormat
 from a2ui.utils import RendererState
 
-from .conformance_helpers import load_conformance_yaml
+from .conformance_helpers import case_params, load_conformance_yaml
 from .test_conformance import _catalogs_for, _format_for
+
+SCALING_SKIP_REASON = "timing suite, run by pytest -m performance"
 
 _SUITES = ("agent/direct_json/scaling.yaml", "agent/express/scaling.yaml")
 _CASES = [
-    pytest.param(case, id=case["name"])
+    param
     for suite in _SUITES
-    for case in load_conformance_yaml(suite)
+    for param in case_params(suite, load_conformance_yaml(suite))
 ]
 
 
@@ -145,7 +147,8 @@ def test_scaling_cases_have_handlers() -> None:
     """Every timing case is one `test_scaling_conformance` can run."""
     assert _CASES, "No timing cases found under conformance/agent."
     for param in _CASES:
-        case = param.values[0]
+        _, case = param.values
+        assert isinstance(case, dict)
         assert case["action"] in ("measure_growth", "measure_overhead"), case["name"]
         operations = [case["operation"], case.get("baseline", "compile")]
         assert set(operations) <= {"parse_chunk", "compile"}, case["name"]
@@ -153,8 +156,17 @@ def test_scaling_cases_have_handlers() -> None:
 
 
 @pytest.mark.performance
-@pytest.mark.parametrize("case", _CASES)
-def test_scaling_conformance(case: dict[str, Any], timing: Any) -> None:
+@pytest.mark.parametrize("suite, case", _CASES)
+def test_scaling_conformance(
+    suite: str,
+    case: dict[str, Any],
+    timing: Any,
+    request: pytest.FixtureRequest,
+) -> None:
+    del suite
+    markexpr = (request.config.option.markexpr or "").strip()
+    if "not performance" in markexpr or "performance" not in markexpr:
+        pytest.skip(SCALING_SKIP_REASON)
     if case["action"] == "measure_growth":
         timing.measure_growth(case, _prepare(case))
         return

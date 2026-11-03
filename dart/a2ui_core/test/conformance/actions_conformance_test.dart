@@ -46,6 +46,32 @@ class _TestActionFunction extends FunctionImplementation {
   }
 }
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:dispatch_action': {
+    ...caseMetadataKeys,
+    'actionPayload',
+    'dataModel',
+    'expectDataModel',
+    'expectDispatched',
+    'expectError',
+    'metadata',
+    'protocolVersion',
+    'scope',
+    'sourceComponentId',
+    'surfaceId',
+    'userActivation',
+  },
+  'expectDispatched': {
+    'context',
+    'metadata',
+    'name',
+    'sourceComponentId',
+    'surfaceId',
+    'timestampIso8601',
+    'userMessage',
+  },
+};
+
 /// Runs the shared `conformance/core/actions.yaml` suite against
 /// [DataContext] and [SurfaceModel].
 void main() {
@@ -56,11 +82,11 @@ void main() {
   group('conformance core/actions.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
-    for (final testCase in cases) {
-      test(testCase['name']! as String, () async {
-        await _runCase(testCase);
-      });
-    }
+    runConformanceSuite(
+      cases,
+      _runCase,
+      suite: 'core/actions.yaml',
+    );
   });
 }
 
@@ -68,6 +94,11 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   final String action = testCase['action'] as String? ?? 'dispatch_action';
   switch (action) {
     case 'dispatch_action':
+      assertKnownKeys(
+        testCase,
+        _knownKeys['case:dispatch_action']!,
+        'case:dispatch_action',
+      );
       await _runDispatchActionCase(testCase);
     default:
       throw StateError('Unsupported action: $action');
@@ -94,6 +125,9 @@ Future<void> _runDispatchActionCase(Map<String, Object?> testCase) async {
   final Map<String, Object?>? dispatchMetadata =
       (testCase['metadata'] as Map?)?.cast<String, Object?>();
   final expectError = testCase['expectError'] as Map<String, Object?>?;
+  if (expectError != null) {
+    assertKnownKeys(expectError, knownExpectErrorKeys, 'expectError');
+  }
   if (expectError != null && expectError['category'] == 'ValidationError') {
     await expectLater(
       () => _executeActionPayload(
@@ -228,6 +262,8 @@ void _assertDispatchedAction(
   final expected = (testCase['expectDispatched'] ?? testCase['expected'])
       as Map<String, Object?>?;
   if (expected == null) return;
+  assertKnownKeys(
+      expected, _knownKeys['expectDispatched']!, 'expectDispatched');
   expect(dispatched, isNotNull);
   expect(dispatched!.name, equals(expected['name']));
   if (expected.containsKey('surfaceId')) {
