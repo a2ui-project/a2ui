@@ -619,6 +619,24 @@ void main() {
       );
     });
 
+    test('a nested argument failing without a message has a fallback text',
+        () async {
+      final A2uiFunctionResponse r = await run(
+        handler(),
+        _inbound(
+          'echo',
+          args: {
+            'value': {'@call': 'boomEmpty', 'args': <String, Object?>{}},
+          },
+        ),
+      );
+      expectError(
+        r,
+        RpcErrorCode.executionError,
+        'An argument of the function call could not be resolved.',
+      );
+    });
+
     test('awaits an async implementation', () async {
       final A2uiFunctionResponse r = await run(handler(), _inbound('later'));
       expect(r.value, 42);

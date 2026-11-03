@@ -64,13 +64,14 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Guides**        | How to Define a Catalog                          | **P1**   | `content/docs/guides/defining-a-catalog.mdx`                                                     | `/guides/defining-a-catalog/`                                                                   |
 | **Guides**        | Architecting an A2UI Integration                 | **P2**   | `content/docs/guides/architecting-an-integration.mdx`                                            | `/guides/architecting-an-integration/`                                                          |
 | **Guides**        | How to Improve Latency                           | **P2**   | `content/docs/guides/improving-latency.mdx`                                                      | `/guides/improving-latency/`                                                                    |
+| **Guides**        | MCP Catalog                                      | **P1**   | `content/docs/guides/mcp-catalog.mdx`                                                            | `/guides/mcp-catalog/`                                                                          |
 | **Guides**        | A2UI over MCP                                    | **P1**   | `content/docs/guides/a2ui-over-mcp.md`                                                           | `/guides/a2ui-over-mcp/`                                                                        |
-| **Guides**        | MCP Apps in A2UI Surfaces                        | **P1**   | `content/docs/guides/mcp-apps-in-a2ui.md`                                                        | `/guides/mcp-apps-in-a2ui/`                                                                     |
+| **Guides**        | MCP Apps in A2UI Surfaces                        | **P1**   | `content/docs/guides/mcp-apps-in-a2ui.mdx`                                                       | `/guides/mcp-apps-in-a2ui/`                                                                     |
 | **Guides**        | A2UI Dynamic Rendering within MCP Applications   | **P1**   | `content/docs/guides/a2ui-in-mcp-apps.md`                                                        | `/guides/a2ui-in-mcp-apps/`                                                                     |
 | **Guides**        | Authoring Universal Web Components               | **P1**   | `content/docs/guides/authoring-universal-components.md`                                          | `/guides/authoring-universal-components/`                                                       |
 | **Guides**        | SDK Development                                  | **P2**   | `content/docs/guides/sdk-development.md`                                                         | `/guides/sdk-development/`                                                                      |
 | **Roadmap**       | Roadmap                                          | **P1**   | `content/docs/roadmap.md`                                                                        | `/roadmap/`                                                                                     |
-| **Ecosystem**     | Ecosystem Renderers & Tools                      | **P1**   | `content/docs/ecosystem/renderers.md`                                                            | `/ecosystem/renderers/`                                                                         |
+| **Ecosystem**     | Ecosystem Renderers & Tools                      | **P1**   | `content/docs/ecosystem/renderers.mdx`                                                           | `/ecosystem/renderers/`                                                                         |
 | **Specification** | `<ver>` Protocol Specification                   | **P1**   | `content/docs/specification/<ver>-a2ui.md`                                                       | `/specification/<ver>-a2ui/`                                                                    |
 | **Specification** | `<ver>` Custom Functions Guide                   | **P1**   | `content/docs/specification/<ver>-custom-functions.md`                                           | `/specification/<ver>-custom-functions/`                                                        |
 | **Specification** | `<ver>` SDKs Specification                       | **P1**   | `content/docs/specification/<ver>-sdks.md`                                                       | `/specification/<ver>-sdks/`                                                                    |
@@ -366,6 +367,16 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
     5. **Lever 4 — Tuning Thinking Budget**: Setting `thinking_budget = 0` for structured catalog UI generation to eliminate pre-first-token thinking delay.
     6. **Lever 5 — Unbuffered Transport Flushing**: Disabling proxy buffering and feeding messages incrementally into `MessageProcessor` (`processMessages` / `process_messages` / `process(message:)`).
 
+<a id="mcp-catalog"></a>
+
+#### MCP Catalog (`/guides/mcp-catalog/`) [P1]
+
+- **Sources**: [`typescript/catalogs/mcp/README.md`](../../typescript/catalogs/mcp/README.md), [`catalogs/mcp/README.md`](../../catalogs/mcp/README.md), [`catalogs/mcp/v1/catalog.json`](../../catalogs/mcp/v1/catalog.json), [`catalogs/mcp/v1/examples/`](../../catalogs/mcp/v1/examples/), and `/specification/v1.0/schemas/#mcp_catalog.json`.
+- **Content Outline**:
+    1. **Overview & Quick Setup**: Installing `@a2ui/catalog-mcp`, connecting an MCP `Client` and registering `mcpCatalog` across Lit, React, and Angular (`configureMcpCatalog`), and sharing `catalog.json` with the agent.
+    2. **Calling MCP Tools from UI Surfaces**: Storing output directly via `targetDataPath` (with response-object details and rapid-input protection in an expandable section), filtering JSON with `transformData` and `updateDataModel`, and parsing plain-text output with `split` and `regexCapture`.
+    3. **Embedding Sandboxed `McpApp` Widgets & Advanced Config**: Serving `/a2ui-sandbox/`, adding and styling `McpApp`, and expandable sections for `McpApp` property reference, multi-server routing, custom parsers, and troubleshooting.
+
 <a id="a2ui-over-mcp"></a>
 
 #### A2UI over MCP (`/guides/a2ui-over-mcp/`) [P1]
@@ -376,7 +387,7 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 
 #### MCP Apps in A2UI Surfaces (`/guides/mcp-apps-in-a2ui/`) [P1]
 
-- Port [`docs/public/guides/mcp-apps-in-a2ui.md`](../public/guides/mcp-apps-in-a2ui.md) (Double-Iframe Isolation Pattern).
+- Companion runnable-samples and architecture guide in [`src/content/docs/guides/mcp-apps-in-a2ui.mdx`](src/content/docs/guides/mcp-apps-in-a2ui.mdx), leading with a quick start for the v1.0 Kanban showcase ([`samples/community/mcp/a2ui-kanban/`](../../samples/community/mcp/a2ui-kanban/)) followed by `McpApp` `sandbox="allow-scripts"` double-iframe isolation ([`catalogs/mcp/v1/mcp_app_specification.md`](../../catalogs/mcp/v1/mcp_app_specification.md)) and expandable JSON-RPC 2.0 channel details.
 
 <a id="a2ui-dynamic-rendering-within-mcp-applications"></a>
 
