@@ -82,16 +82,41 @@ struct BasicCatalogConformanceTests {
     let cases = (rawYAML as? [[String: Any]]) ?? []
     #expect(!cases.isEmpty, "core/functions.yaml should hold test cases")
 
+    var executed = 0
     for testCase in cases {
-      guard let action = testCase["action"] as? String, action == "evaluate_function" else {
+      guard let name = testCase["name"] as? String,
+        let action = testCase["action"] as? String
+      else {
+        Issue.record("core/functions.yaml holds a case without a name or an action")
         continue
       }
-      if let surfaceDict = testCase["surface"] as? [String: Any] {
-        try runSurfaceEvaluateFunctionCase(testCase, surfaceDict: surfaceDict)
-      } else {
-        try runDirectEvaluateFunctionCase(testCase)
+
+      switch action {
+      case "validate":
+        executed += 1
+        try runValidateCase(testCase, name: name)
+      case "evaluate_function":
+        executed += 1
+        if let surfaceDict = testCase["surface"] as? [String: Any] {
+          try runSurfaceEvaluateFunctionCase(testCase, surfaceDict: surfaceDict)
+        } else {
+          try runDirectEvaluateFunctionCase(testCase)
+        }
+      default:
+        Issue.record("\(name): unsupported action \(action)")
       }
     }
+
+    #expect(executed == cases.count, "All cases in core/functions.yaml should be executed")
+  }
+
+  /// Runs a `validate` case, which renders basic catalog components that call a function.
+  private func runValidateCase(_ rawCase: [String: Any], name: String) throws {
+    let testCase = try #require(
+      ConformanceTestHelper.parseTestCases(from: [rawCase]).first,
+      "\(name): case could not be parsed"
+    )
+    try ConformanceTestHelper.runValidateCase(testCase)
   }
 
   private func runDirectEvaluateFunctionCase(_ testCase: [String: Any]) throws {
@@ -320,7 +345,8 @@ struct BasicCatalogConformanceTests {
       }
       return ConformanceTestHelper.messageMatches(msg, expected: expectedMessage)
     }
-    #expect(matches, "\(name): expected error containing '\(expectedMessage)', got \(capturedErrors)")
+    #expect(
+      matches, "\(name): expected error containing '\(expectedMessage)', got \(capturedErrors)")
   }
 
   @Test func indexFunctionConformance() throws {
@@ -336,10 +362,11 @@ struct BasicCatalogConformanceTests {
         validationConfig: ValidationConfig(targetVersion: "1.0")
       )
 
-      for step in testCase.steps {
+      for (stepIndex, step) in testCase.steps.enumerated() {
         guard let payload = step.payload else { continue }
         try executeIndexStep(
           step: step,
+          isFinalStep: stepIndex == testCase.steps.count - 1,
           payload: payload,
           testCase: testCase,
           processor: processor,
@@ -351,12 +378,14 @@ struct BasicCatalogConformanceTests {
 
   private func executeIndexStep(
     step: ConformanceStep,
+    isFinalStep: Bool,
     payload: JSONValue,
     testCase: ConformanceTestCase,
     processor: MessageProcessor,
     errorHandler: IndexConformanceErrorHandler
   ) throws {
-    if let expectedError = step.expectError {
+    // The case's expectError applies to the last step only.
+    if let expectedError = step.expectError ?? (isFinalStep ? testCase.expectError : nil) {
       errorHandler.capturedErrors.removeAll()
       var caughtErrorMessage: String?
       do {
