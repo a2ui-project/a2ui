@@ -22,7 +22,11 @@ import {
   STRICT_VALIDATION,
   RpcErrorCode,
 } from './message-processor.js';
-import {extractEnvelopeErrorContext, mapErrorToRendererMessage} from './message-error-mapper.js';
+import {
+  extractEnvelopeErrorContext,
+  mapErrorToRendererMessage,
+  type RendererErrorMessage,
+} from './message-error-mapper.js';
 import {Catalog, ComponentApi, createFunctionImplementation} from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {BasicCatalogThemeSchema} from '../universal/basic_catalog/theme.js';
@@ -2349,6 +2353,97 @@ describe('MessageProcessor', () => {
       assert.strictEqual(handledErrors[0].error.code, 'INVALID_FUNCTION_CALL');
       assert.strictEqual(handledErrors[0].error.functionCallId, 'fn-item-2');
       assert.strictEqual(handledErrors[0].error.surfaceId, undefined);
+    });
+
+    it('rejects callRendererFunction without catalogId with scoped validation error and INVALID_FUNCTION_CALL error report (#3529)', async () => {
+      const v10Cat = new Catalog(
+        'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        '1.0',
+        [],
+        BASIC_FUNCTIONS,
+      );
+      const handledErrors: RendererErrorMessage[] = [];
+      const outboundMessages: unknown[] = [];
+      const proc = new MessageProcessor([v10Cat], undefined, {
+        errorHandler: msg => handledErrors.push(msg),
+        outboundListener: msg => {
+          outboundMessages.push(msg);
+        },
+      });
+
+      const missingCatalogPayload = [
+        {
+          version: '1.0',
+          callRendererFunction: {
+            functionCallId: 'f1',
+            callFunction: {'@call': 'formatString', args: {value: 'x'}},
+          },
+        },
+      ] as unknown as Parameters<typeof proc.processMessages>[0];
+      const expectedMessage =
+        'Invalid 1.0 message: callRendererFunction.callFunction.catalogId: Expected string, received undefined';
+
+      assert.throws(
+        () => proc.processMessages(missingCatalogPayload),
+        (err: unknown) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.strictEqual(err.message, expectedMessage);
+          assert.strictEqual(err.functionCallId, 'f1');
+          return true;
+        },
+      );
+      assert.strictEqual(outboundMessages.length, 0);
+      assert.deepStrictEqual(handledErrors, [
+        {
+          version: '1.0',
+          error: {
+            code: 'INVALID_FUNCTION_CALL',
+            functionCallId: 'f1',
+            message: expectedMessage,
+          },
+        },
+      ]);
+
+      handledErrors.length = 0;
+      await assert.rejects(
+        () => proc.processMessagesAsync(missingCatalogPayload),
+        (err: unknown) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.strictEqual(err.message, expectedMessage);
+          assert.strictEqual(err.functionCallId, 'f1');
+          return true;
+        },
+      );
+      assert.strictEqual(outboundMessages.length, 0);
+      assert.deepStrictEqual(handledErrors, [
+        {
+          version: '1.0',
+          error: {
+            code: 'INVALID_FUNCTION_CALL',
+            functionCallId: 'f1',
+            message: expectedMessage,
+          },
+        },
+      ]);
+
+      const reportOnlyErrors: RendererErrorMessage[] = [];
+      const reportOnlyOutbound: unknown[] = [];
+      const reportOnlyProc = new MessageProcessor([v10Cat], undefined, {
+        reportErrorsOnly: true,
+        errorHandler: msg => reportOnlyErrors.push(msg),
+        outboundListener: msg => {
+          reportOnlyOutbound.push(msg);
+        },
+      });
+
+      reportOnlyProc.processMessages(missingCatalogPayload);
+      const asyncResponses = await reportOnlyProc.processMessagesAsync(missingCatalogPayload);
+      assert.deepStrictEqual(asyncResponses, []);
+      assert.strictEqual(reportOnlyOutbound.length, 0);
+      assert.strictEqual(reportOnlyErrors.length, 2);
+      assert.strictEqual(reportOnlyErrors[0].error.code, 'INVALID_FUNCTION_CALL');
+      assert.strictEqual(reportOnlyErrors[0].error.functionCallId, 'f1');
+      assert.strictEqual(reportOnlyErrors[0].error.message, expectedMessage);
     });
   });
 });

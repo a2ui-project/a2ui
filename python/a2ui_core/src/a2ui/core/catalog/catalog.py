@@ -27,6 +27,7 @@ else:
     from typing_extensions import TypeVar
 from pydantic import BaseModel
 
+from ..common.metadata import clone_metadata, validate_metadata
 from ..common.semver import (
     is_at_least_version,
     parse_semver,
@@ -1267,6 +1268,11 @@ class Catalog(Generic[TComponent, TFunction]):
                 raise A2uiCatalogError(
                     f"Invalid UAX #31 component identifier: '{c.name}'"
                 )
+            if validate_identifiers and getattr(c, "metadata", None) is not None:
+                validate_metadata(
+                    c.metadata,
+                    context=f"component '{c.name}' metadata",
+                )
             self.components[c.name] = c
 
         system_impls = (
@@ -2375,6 +2381,7 @@ class Catalog(Generic[TComponent, TFunction]):
         for key, value in (
             ("allowedParents", component.allowed_parents),
             ("allowedChildren", component.allowed_children),
+            ("metadata", getattr(component, "metadata", None)),
         ):
             if value is not None:
                 entry[key] = copy.deepcopy(value)
@@ -2514,6 +2521,8 @@ class Catalog(Generic[TComponent, TFunction]):
                 schema.setdefault("allowedParents", list(comp.allowed_parents))
             if comp.allowed_children is not None:
                 schema.setdefault("allowedChildren", list(comp.allowed_children))
+            if getattr(comp, "metadata", None) is not None:
+                schema.setdefault("metadata", copy.deepcopy(comp.metadata))
             components[name] = schema
 
         v1 = is_at_least_version(protocol_version, ProtocolVersion.V1_0)
@@ -2659,6 +2668,13 @@ class Catalog(Generic[TComponent, TFunction]):
                             f" component '{name}'"
                         )
 
+            comp_metadata = schema.get("metadata")
+            if validate_identifiers and comp_metadata is not None:
+                validate_metadata(
+                    comp_metadata,
+                    context=f"component '{name}' metadata",
+                )
+
             if not permitted_names or name in permitted_names:
                 inlined_schema = _inline_leaf_catalog_defs(dict(schema), defs_map)
                 components.append(
@@ -2668,6 +2684,11 @@ class Catalog(Generic[TComponent, TFunction]):
                         allowed_parents=schema.get("allowedParents"),
                         allowed_children=schema.get("allowedChildren"),
                         from_document=True,
+                        metadata=(
+                            clone_metadata(comp_metadata)
+                            if isinstance(comp_metadata, Mapping)
+                            else None
+                        ),
                     )
                 )
 

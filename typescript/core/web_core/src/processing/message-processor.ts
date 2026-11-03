@@ -24,6 +24,7 @@ import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {DataModel} from '../state/data-model.js';
 import {Subscription} from '../common/events.js';
+import {A2uiMetadata, validateMetadata} from '../common/metadata.js';
 import {batchWrite} from '../reactivity/signals.js';
 
 import {
@@ -203,6 +204,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private readonly defaultVersion?: ProtocolVersion;
   private readonly errorHandler?: (error: RendererErrorMessage) => void;
   private readonly reportErrorsOnly: boolean;
+  /** Whether outbound messages, and so `callAgentFunction`, can reach the agent. */
+  private readonly hasOutboundListener: boolean;
   /**
    * What the last check of each surface's components found, under a config
    * that defers the reference and reachability checks, with the number of
@@ -236,12 +239,16 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       outboundListener: options?.outboundListener,
       defaultTimeoutMs: options?.defaultTimeoutMs,
     });
+    this.hasOutboundListener = Boolean(options?.outboundListener);
     this.validationConfig = options?.validationConfig
       ? withStrictDefaults(options.validationConfig)
       : undefined;
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
+    this.model.onSurfaceDeleted.subscribe(surfaceId => {
+      this.rpc.cancelSurfaceCalls(surfaceId);
+    });
   }
 
   /** The catalogs the processor holds, in priority order. */
@@ -288,6 +295,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Disposes the MessageProcessor, tearing down active surfaces and rejecting pending RPC calls.
    */
   dispose(): void {
+    this.model.dispose();
     this.rpc.dispose();
   }
 
@@ -1099,6 +1107,22 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       op.metadata,
       surfaceVersion,
     );
+    // From v1.0, a function the renderer does not implement runs on the agent.
+    // Without an outbound listener there is no way to reach it, so such calls
+    // keep failing locally.
+    if (this.hasOutboundListener && isAtLeastVersion(surface.protocolVersion, '1.0')) {
+      // A call that resumes after the surface was deleted (for example, an
+      // action that awaited an argument) is cancelled instead of being sent.
+      surface.agentFunctionCaller = call =>
+        this.model.getSurface(surfaceId) === surface
+          ? this.rpc.callAgentFunction(surfaceId, call, {version: surface.protocolVersion})
+          : Promise.reject(
+              new A2uiRpcError(
+                `Pending calls for surface '${surfaceId}' were cancelled.`,
+                RpcErrorCode.CANCELLED,
+              ),
+            );
+    }
     this.model.addSurface(surface);
 
     if (dataModel) {
@@ -1119,6 +1143,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
   private processDeleteSurfaceOp(op: InternalDeleteSurfaceOp): void {
     if (!op.surfaceId) return;
+    // Deleting the surface cancels its pending calls through the
+    // `onSurfaceDeleted` subscription set up in the constructor.
     this.model.deleteSurface(op.surfaceId);
   }
 
@@ -1135,6 +1161,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     const targetCatalog = this.resolveComponentCatalog(comp, surface);
+    if ('metadata' in comp && comp['metadata'] !== undefined) {
+      validateMetadata(comp['metadata']);
+    }
 
     // A partial update names no component type; the existing model supplies it.
     const existing = surface.componentsModel.get(id);
@@ -1403,8 +1432,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         );
         surface.componentsModel.addComponent(newComponent);
       } else {
-        existing.metadata = metadata;
-        existing.properties = properties;
+        batchWrite(() => {
+          existing.applyUpdate(properties, metadata);
+        });
       }
     } else {
       if (typeof component !== 'string' || !component) {
@@ -1542,9 +1572,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 }
 
-function extractComponentMetadata(rawMetadata: unknown): Record<string, unknown> | undefined {
+function extractComponentMetadata(rawMetadata: unknown): A2uiMetadata | undefined {
   if (rawMetadata && typeof rawMetadata === 'object' && !Array.isArray(rawMetadata)) {
-    return rawMetadata as Record<string, unknown>;
+    return rawMetadata as A2uiMetadata;
   }
   return undefined;
 }

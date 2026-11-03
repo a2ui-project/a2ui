@@ -25,6 +25,7 @@ import '../primitives/uax31.dart';
 import '../resolution/data_context.dart';
 import '../validation/schema_resolution.dart';
 import 'legacy_inline_catalog.dart';
+import 'metadata.dart';
 
 /// A definition of a UI component's API.
 ///
@@ -59,11 +60,15 @@ class ComponentApi {
   /// `allowedChildren`, or null when any child is allowed.
   final List<String>? allowedChildren;
 
+  /// Optional catalog-level component definition metadata (v1.0+).
+  final Map<String, Object?>? metadata;
+
   const ComponentApi({
     required this.name,
     required this.schema,
     this.allowedParents,
     this.allowedChildren,
+    this.metadata,
   });
 }
 
@@ -905,10 +910,19 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       }
       final Object? parents = compVal['allowedParents'];
       final Object? children = compVal['allowedChildren'];
+      final Object? rawMetadata = compVal['metadata'];
+      if (rawMetadata != null) {
+        try {
+          validateMetadata(rawMetadata);
+        } on A2uiValidationError catch (e) {
+          throw A2uiCatalogError(e.message, catalogId: catalogId);
+        }
+      }
       final rawSchema = <String, Object?>{
         for (final MapEntry<Object?, Object?> property in compVal.entries)
           if (property.key != 'allowedParents' &&
-              property.key != 'allowedChildren')
+              property.key != 'allowedChildren' &&
+              property.key != 'metadata')
             property.key! as String: property.value,
       };
       final Map<String, Object?> schema = _markRead(
@@ -931,6 +945,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             compName,
             catalogId,
           ),
+          metadata: cloneMetadata(rawMetadata),
         ),
       );
     }
@@ -1893,6 +1908,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           'allowedParents': [...parents],
         if (component.allowedChildren case final List<String> children)
           'allowedChildren': [...children],
+        if (component.metadata case final Map<String, Object?> meta)
+          'metadata': _deepCopyValue(meta),
       };
 
   /// The catalog document definition of [function]: its

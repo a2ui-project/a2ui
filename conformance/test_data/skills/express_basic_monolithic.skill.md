@@ -152,7 +152,7 @@ Use these exact positional signatures to instantiate components. Do not output p
   - text: The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.
   - variant: A hint for the base text style. Must be one of: 'caption', 'body'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• TextField(label, value?, placeholder?, variant? (static), weight? (static), checks? (static))
+• TextField(label, value, placeholder?, variant? (static), weight? (static), checks? (static))
   - label: The text label for the input field.
   - value: The value of the text field.
   - placeholder: The placeholder text for the input field.
@@ -232,7 +232,7 @@ Examples:
   - other: The default/fallback string (used for general plural cases).
 • regex(value, pattern)
   - Description: Checks that the value matches a regular expression string.
-  - pattern: The regex pattern to match against.
+  - pattern: The regular expression to search for in the value. Uses the A2UI regex dialect: a portable subset of ECMAScript pattern syntax in Unicode mode with no flags. Matching is case-sensitive, '.' excludes line terminators, and '^' and '$' match only at the ends of the value. Backreferences, lookbehind, named groups and '\p{...}' are not allowed. Patterns longer than 256 code points or that could backtrack catastrophically are rejected.
 • required(value)
   - Description: Checks that the value is not null, undefined, or empty.
   - value: The value to check.

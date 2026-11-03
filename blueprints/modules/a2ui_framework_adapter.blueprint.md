@@ -102,7 +102,15 @@ Web adapters that share element implementations across frameworks follow the [un
 
 ## 3. Consuming the Node API
 
-The adapter consumes `NodeResolver`, `ComponentNode`, `ResolvedBinding`, `WritableBinding`, and `NodeAction` as defined in the [node resolution feature blueprint](../features/node_resolution.blueprint.md). Core resolves bindings, child references, actions, and normalized check properties (`isValid`, `validationErrors`, `validationResults`) onto `node.props` before the adapter sees them, and stores envelope `metadata` on `ComponentModel.metadata` (which views ignore unless forwarding it to developer tooling).
+The adapter consumes `NodeResolver`, `ComponentNode`, `ResolvedBinding`, `WritableBinding`, and `NodeAction` as defined in the [node resolution feature blueprint](../features/node_resolution.blueprint.md). Core resolves bindings, child references, actions, and normalized check properties (`isValid`, `validationErrors`, `validationResults`) onto `node.props` before the adapter sees them.
+
+Envelope `metadata` reaches views through three separate channels, so that a telemetry or policy update never re-renders a view that only reads `props`:
+
+- Component instance metadata: the node's read-only reactive `metadata` value. The adapter exposes it through the same reactive primitive it uses for `props` (a hook return value, a lazily subscribed controller getter, a signal input, a listener, or an observed revision), and a view that never reads it never subscribes to it.
+- Catalog definition metadata: `node.impl.metadata`, static for the life of the node.
+- Surface metadata: `SurfaceModel.metadata` and its reactive `metadataSignal` (or the language's equivalent publisher), reached through the adapter's ambient surface context.
+
+When a component implementation dispatches a `NodeAction`, it may pass `ActionDispatchOptions` with `metadata` to attach an `action.metadata` envelope to the outbound action.
 
 On the adapter side, two cross-cutting rules apply when rendering nodes:
 
@@ -415,7 +423,7 @@ The repository maintains language-agnostic conformance tests in [`conformance/`]
 | **Multiple catalogs**          | A surface whose root and one descendant come from two different catalogs renders both, and each implementation receives props shaped by its own catalog's schema.                                                           |
 | **Validation results**         | A check that returns `{valid: false, severity: "error", message}` disables the control and shows the message; one returning `severity: "warning"` leaves the control enabled; a boolean `false` behaves as an error.        |
 | **Accessibility**              | `accessibility.label`, `description`, `live`, and `hidden` reach the platform accessibility API on the focusable element, and an explicit `label` overrides the inferred one.                                               |
-| **Theme ignored**              | A `createSurface` at v1.0 or later that carries a `theme` object renders exactly as one without it.                                                                                                                         |
+| **No theme on v1.0**           | A v1.0 surface exposes no theme and adapters never read one. A v1.0 `createSurface` that carried `theme` and was accepted under relaxed validation renders exactly as one without it.                                       |
 | **Fallback States**            | Pending components, unknown component types and cyclic references render nothing and take no layout space (no gap, no flex share) without crashing, and the adapter reports nothing itself.                                 |
 | **Teardown & Cleanup**         | Unmounting `Surface` or deleting components releases all property subscriptions and frees memory.                                                                                                                           |
 

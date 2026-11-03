@@ -28,7 +28,13 @@ T = TypeVar("T")
 from ..common import is_at_least_version, to_protocol_version
 from ..common.events import EventSource
 from .adapters import is_catalog_version_compatible
-from ..state import SurfaceGroupModel, SurfaceModel, ComponentModel
+from ..state import (
+    AgentFunctionCall,
+    AgentFunctionCaller,
+    ComponentModel,
+    SurfaceGroupModel,
+    SurfaceModel,
+)
 from ..state.validation_helpers import RELAXED_PATH_PATTERN
 from ..validation import (
     PayloadValidator,
@@ -209,6 +215,7 @@ class MessageProcessor:
             outbound_listener=opts.outbound_listener,
             default_timeout_ms=opts.default_timeout_ms,
         )
+        self.model.on_surface_deleted.subscribe(self.rpc.cancel_surface_calls)
         if action_handler:
             self.model.on_action.subscribe(action_handler)
         if self.error_handler:
@@ -363,6 +370,36 @@ class MessageProcessor:
         """Resolves a catalog by catalog_id, or returns None if catalog_id is None or not found."""
         return self.rpc.resolve_catalog(catalog_id)
 
+    def _agent_function_caller(
+        self, surface: SurfaceModel, version: str
+    ) -> AgentFunctionCaller:
+        """Builds the caller that sends a surface's agent function calls.
+
+        Each call is dispatched as a `callAgentFunction` message through the
+        processor's `RpcHandler`, naming the catalog the call resolved to.
+        A call made after the surface was deleted, such as one from an action
+        that resumes later, is not sent: it fails with `CANCELLED`.
+        """
+        surface_id = surface.id
+
+        def _call(call: AgentFunctionCall) -> asyncio.Future[Any]:
+            if self.model.get_surface(surface_id) is not surface:
+                raise A2uiRpcError(
+                    f"Pending calls for surface '{surface_id}' were cancelled.",
+                    code=RpcErrorCode.CANCELLED,
+                )
+            return self.rpc.call_agent_function(
+                surface_id,
+                FunctionCall(  # type: ignore[call-arg]
+                    call=call.call,
+                    catalogId=call.catalog_id,
+                    args=call.args,
+                ),
+                CallOptions(version=version),
+            )
+
+        return _call
+
     @classmethod
     def _generate_legacy_inline_catalog(
         cls,
@@ -457,6 +494,49 @@ class MessageProcessor:
             result["theme"] = theme
         return result
 
+    @classmethod
+    def _generate_inline_catalog(cls, catalog: Any) -> dict[str, Any] | None:
+        """Generates a v1.0 inline catalog from the catalog's `to_json` document.
+
+        The document gets the `catalogId` and the bare semantic version
+        `protocolVersion` (`1.0`, not `v1.0`) that `catalog_definition.json`
+        expects, even when the source document did not declare them, since an
+        undeclared `protocolVersion` reads as `0.9`. Matches web_core.
+
+        Returns:
+            The inline catalog, or None if the catalog has no `to_json` or it
+            does not return a mapping.
+        """
+        to_json = getattr(catalog, "to_json", None)
+        if not callable(to_json):
+            return None
+        raw_document = to_json()
+        if not isinstance(raw_document, Mapping):
+            return None
+        # A shallow copy, so a catalog that hands out its own dict keeps it.
+        document = dict(raw_document)
+        catalog_id = getattr(catalog, "catalog_id", None)
+        if catalog_id is not None and not callable(catalog_id):
+            document["catalogId"] = catalog_id
+        version = document.get("protocolVersion")
+        if not isinstance(version, str) or not version.strip():
+            version = None
+            raw_version = getattr(catalog, "protocol_version", None)
+            if raw_version is not None and not callable(raw_version):
+                try:
+                    version = to_protocol_version(raw_version).value
+                except (TypeError, ValueError):
+                    version = str(raw_version)
+        if version is not None:
+            version = version.strip()
+            if version[:1] in ("v", "V") and version[1:2].isdigit():
+                version = version[1:]
+        if version:
+            document["protocolVersion"] = version
+        else:
+            document.pop("protocolVersion", None)
+        return document
+
     def get_renderer_capabilities(
         self,
         options: CapabilitiesOptions,
@@ -497,9 +577,9 @@ class MessageProcessor:
                 inline_catalogs: list[dict[str, Any]] = []
                 for c in self.catalogs:
                     if is_at_least_version(ver_str, ProtocolVersion.V1_0):
-                        to_json = getattr(c, "to_json", None)
-                        if callable(to_json):
-                            inline_catalogs.append(to_json())
+                        inline = self._generate_inline_catalog(c)
+                        if inline is not None:
+                            inline_catalogs.append(inline)
                     else:
                         inline_catalogs.append(
                             self._generate_legacy_inline_catalog(c, envelope_ref)
@@ -573,6 +653,8 @@ class MessageProcessor:
             if isinstance(op, InternalCreateSurfaceOp):
                 self._process_create_surface_op(op)
             elif isinstance(op, InternalDeleteSurfaceOp):
+                # Deleting the surface cancels its pending agent calls, through
+                # the on_surface_deleted subscription.
                 self.model.delete_surface(op.surface_id)
             elif isinstance(op, InternalUpdateComponentsOp):
                 self._process_update_components_op(op)
@@ -736,9 +818,21 @@ class MessageProcessor:
             theme=theme,
             send_data_model=send_data_model,
             protocol_version=surface_proto_ver,
+            metadata=op.metadata,
         )
         if op.root:
             new_surface.root_id = op.root
+        # From v1.0, a function the renderer does not implement runs on the
+        # agent. Without an outbound listener there is no way to reach it, so
+        # such calls keep failing locally.
+        if (
+            self.rpc.outbound_listener is not None
+            and surface_proto_ver
+            and is_at_least_version(surface_proto_ver, ProtocolVersion.V1_0)
+        ):
+            new_surface.agent_function_caller = self._agent_function_caller(
+                new_surface, _version_label(surface_proto_ver)
+            )
         self.model.add_surface(new_surface)
 
         if op.data_model is not None:
@@ -887,13 +981,17 @@ class MessageProcessor:
                     surface_id=surface_id,
                 )
 
+            raw_metadata = comp_dict.get("metadata") if surface_at_least_v10 else None
             properties = {
                 k: v
                 for k, v in comp_dict.items()
                 if k not in ("id", "component", "catalogId")
+                and not (surface_at_least_v10 and k == "metadata")
             }
 
-            new_comp = ComponentModel(c_id, c_type, comp_catalog, properties)
+            new_comp = ComponentModel(
+                c_id, c_type, comp_catalog, properties, metadata=raw_metadata
+            )
             new_component_models.append(new_comp)
 
         # Catalog resolution errors are raised at once. Argument errors from
@@ -933,7 +1031,7 @@ class MessageProcessor:
                 ):
                     surface.components_model.replace_component(new_comp)
                 else:
-                    existing.properties = new_comp.properties
+                    existing.apply_update(new_comp.properties, new_comp.metadata)
             else:
                 surface.components_model.add_component(new_comp)
         surface.components_model.components_update_applied(new_component_models)
@@ -1150,3 +1248,8 @@ class MessageProcessor:
             if err.surface_id is None:
                 err.surface_id = surface_id
             raise
+
+    def dispose(self) -> None:
+        """Disposes of all active surfaces and cancels pending RPC calls."""
+        self.model.dispose()
+        self.rpc.dispose()
