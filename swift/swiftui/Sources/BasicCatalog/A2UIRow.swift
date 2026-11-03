@@ -33,12 +33,14 @@ extension BasicCatalogImplementation {
 public struct A2UIRow: View {
   public let node: Node
 
+  @Environment(\.a2uiCatalogs) private var catalogs
+
   public init(node: Node) {
     self.node = node
   }
 
   private var children: [Node] {
-    node.children(for: "children")
+    node.renderedChildren(for: "children", in: catalogs)
   }
 
   private var align: String {
