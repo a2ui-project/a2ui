@@ -1,0 +1,264 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Conformance suite for `parse_inbound_message(data, version)` and
+# `format_inbound_for_model(message)`.
+
+- name: v1.0 action message with context formats for model
+  description: v1.0 action message validates and formats action name, surfaceId, sourceComponentId, and context for the model.
+  action: parse_inbound_message
+  args:
+    version: "1.0"
+    message:
+      version: "1.0"
+      action:
+        name: submit_order
+        surfaceId: checkout-surface
+        sourceComponentId: submit-btn
+        timestamp: "2026-03-31T12:00:00Z"
+        context:
+          qty: 2
+          item: espresso
+  expect:
+    kind: action
+    model_input_contains:
+      - submit_order
+      - checkout-surface
+      - submit-btn
+      - '"qty"'
+      - "2"
+      - '"item"'
+      - '"espresso"'
+
+- name: v1.0 validation error message formats path and message for model
+  description: v1.0 VALIDATION_FAILED error message validates and formats code, surfaceId, path, and message for the model.
+  action: parse_inbound_message
+  args:
+    version: "1.0"
+    message:
+      version: "1.0"
+      error:
+        code: VALIDATION_FAILED
+        surfaceId: checkout-surface
+        path: /components/0/text
+        message: Text value cannot be empty
+  expect:
+    kind: error
+    model_input_contains:
+      - VALIDATION_FAILED
+      - checkout-surface
+      - /components/0/text
+      - Text value cannot be empty
+
+- name: v1.0 generic error message with surfaceId formats for model
+  description: v1.0 generic error message validates and formats code, surfaceId, and message for the model.
+  action: parse_inbound_message
+  args:
+    version: "1.0"
+    message:
+      version: "1.0"
+      error:
+        code: INTERNAL_ERROR
+        surfaceId: checkout-surface
+        message: Failed to render chart widget
+  expect:
+    kind: error
+    model_input_contains:
+      - INTERNAL_ERROR
+      - checkout-surface
+      - Failed to render chart widget
+
+- name: v1.0 callAgentFunction message returns null model input
+  description: v1.0 callAgentFunction message validates as an RPC request and returns null for model input.
+  action: parse_inbound_message
+  args:
+    version: "1.0"
+    message:
+      version: "1.0"
+      callAgentFunction:
+        functionCallId: call-101
+        surfaceId: checkout-surface
+        callFunction:
+          "@call": fetchCustomerProfile
+          args:
+            customerId: cust-42
+  expect:
+    kind: callAgentFunction
+    model_input: null
+
+- name: v1.0 rendererFunctionResponse message returns null model input
+  description: v1.0 rendererFunctionResponse message validates as an RPC response and returns null for model input.
+  action: parse_inbound_message
+  args:
+    version: "1.0"
+    message:
+      version: "1.0"
+      rendererFunctionResponse:
+        functionCallId: call-102
+        value:
+          confirmed: true
+  expect:
+    kind: rendererFunctionResponse
+    model_input: null
+
+- name: v0.9 action message with context formats for model
+  description: v0.9 action message validates and formats action details for the model.
+  action: parse_inbound_message
+  args:
+    version: "v0.9"
+    message:
+      version: "v0.9"
+      action:
+        name: book_restaurant
+        surfaceId: booking-surface
+        sourceComponentId: book-btn
+        timestamp: "2026-03-31T12:00:00Z"
+        context:
+          guests: 4
+  expect:
+    kind: action
+    model_input_contains:
+      - book_restaurant
+      - booking-surface
+      - book-btn
+      - '"guests"'
+      - "4"
+
+- name: v0.9 validation error message formats path and message for model
+  description: v0.9 validation error message validates and formats error details for the model.
+  action: parse_inbound_message
+  args:
+    version: "v0.9"
+    message:
+      version: "v0.9"
+      error:
+        code: VALIDATION_FAILED
+        surfaceId: booking-surface
+        path: /partySize
+        message: Party size must be at least 1
+  expect:
+    kind: error
+    model_input_contains:
+      - VALIDATION_FAILED
+      - booking-surface
+      - /partySize
+      - Party size must be at least 1
+
+- name: v0.8 userAction message normalizes kind to action and formats for model
+  description: v0.8 userAction message validates, reports kind as action, and formats action details for the model.
+  action: parse_inbound_message
+  args:
+    version: "v0.8"
+    message:
+      userAction:
+        name: select_table
+        surfaceId: floor-map
+        sourceComponentId: table-7
+        timestamp: "2026-03-31T12:00:00Z"
+        context:
+          seats: 2
+  expect:
+    kind: action
+    model_input_contains:
+      - select_table
+      - floor-map
+      - table-7
+      - '"seats"'
+      - "2"
+
+- name: rejects non-mapping inbound message
+  description: Non-mapping JSON values raise ValidationError.
+  action: parse_inbound_message
+  args:
+    version: "1.0"
+    message:
+      - not
+      - a
+      - mapping
+  expect_error:
+    category: ValidationError
+
+- name: rejects empty inbound object
+  description: An empty object without a message envelope key raises ValidationError.
+  action: parse_inbound_message
+  args:
+    version: "1.0"
+    message: {}
+  expect_error:
+    category: ValidationError
+
+- name: rejects envelope containing two message keys
+  description: An envelope containing both action and error keys raises ValidationError.
+  action: parse_inbound_message
+  args:
+    version: "1.0"
+    message:
+      version: "1.0"
+      action:
+        name: submit_order
+        surfaceId: checkout-surface
+        sourceComponentId: submit-btn
+        timestamp: "2026-03-31T12:00:00Z"
+        context: {}
+      error:
+        code: INTERNAL_ERROR
+        surfaceId: checkout-surface
+        message: Conflicting envelope
+  expect_error:
+    category: ValidationError
+
+- name: rejects envelope with mismatched version field
+  description: An envelope with version v0.9 raises ValidationError when parsed as v1.0.
+  action: parse_inbound_message
+  args:
+    version: "1.0"
+    message:
+      version: "v0.9"
+      action:
+        name: submit_order
+        surfaceId: checkout-surface
+        sourceComponentId: submit-btn
+        timestamp: "2026-03-31T12:00:00Z"
+        context: {}
+  expect_error:
+    category: ValidationError
+
+- name: rejects v1.0 callAgentFunction when parsing as v0.9
+  description: v1.0-only callAgentFunction envelope raises ValidationError when parsed under v0.9.
+  action: parse_inbound_message
+  args:
+    version: "v0.9"
+    message:
+      version: "v0.9"
+      callAgentFunction:
+        functionCallId: call-101
+        surfaceId: booking-surface
+        callFunction:
+          "@call": fetchCustomerProfile
+  expect_error:
+    category: ValidationError
+
+- name: rejects v1.0 callAgentFunction missing functionCallId
+  description: v1.0 callAgentFunction missing required functionCallId raises ValidationError.
+  action: parse_inbound_message
+  args:
+    version: "1.0"
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: checkout-surface
+        callFunction:
+          "@call": fetchCustomerProfile
+  expect_error:
+    category: ValidationError

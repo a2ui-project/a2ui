@@ -23,6 +23,7 @@ library;
 
 export 'src/catalog_transformers/base.dart';
 export 'src/catalog_transformers/pruning.dart';
+export 'src/inbound/inbound_message.dart';
 export 'src/inference_format.dart';
 export 'src/inference_formats/direct_json/format.dart';
 export 'src/inference_formats/direct_json/parser.dart';

@@ -44,6 +44,7 @@ ACTIVE_SUITES: frozenset[str] = frozenset({
     "agent/express/response_parser.yaml",
     "agent/express/response_streaming.yaml",
     "agent/express/scaling.yaml",
+    "agent/inbound_messages.yaml",
     "agent/macros/macros.yaml",
     "agent/multi_catalog_formats.yaml",
     "agent/renderer_capabilities.yaml",

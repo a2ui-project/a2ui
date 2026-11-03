@@ -16,6 +16,7 @@
       {"$ref": "#/$defs/ProvideCatalogTest"},
       {"$ref": "#/$defs/ResolveCatalogsTest"},
       {"$ref": "#/$defs/ReadRendererCapabilitiesTest"},
+      {"$ref": "#/$defs/ParseInboundMessageTest"},
       {"$ref": "#/$defs/GeneratePromptSnippetTest"},
       {"$ref": "#/$defs/HasFormatContentTest"},
       {"$ref": "#/$defs/UnwrapTest"},
@@ -81,6 +82,7 @@
             "parse_chunk",
             "parse_expression_template",
             "parse_full",
+            "parse_inbound_message",
             "parse_response",
             "process_chunk",
             "process_messages",
@@ -1430,6 +1432,48 @@
         "expect": {
           "type": ["object", "null"],
           "description": "The validated renderer capabilities keyed by protocol version, or null when the version's metadata key is absent."
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args"]
+    },
+    "ParseInboundMessageTest": {
+      "type": "object",
+      "description": "Parsing and validating an inbound renderer-to-agent message for a protocol version and formatting it for the model when applicable.",
+      "properties": {
+        "action": {"const": "parse_inbound_message"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "version": {"$ref": "#/$defs/ProtocolVersion"},
+            "message": {
+              "type": ["object", "array", "string", "number", "boolean", "null"],
+              "description": "Raw decoded JSON message received from the renderer."
+            }
+          },
+          "required": ["version", "message"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["action", "error", "callAgentFunction", "rendererFunctionResponse"],
+              "description": "The discriminated inbound message kind."
+            },
+            "model_input_contains": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Substrings that formatInboundForModel(message) must contain."
+            },
+            "model_input": {
+              "type": ["string", "null"],
+              "description": "Exact formatted model input, or null when the message is handled by the RPC/orchestration layer rather than sent to the model."
+            }
+          },
+          "required": ["kind"],
+          "additionalProperties": false
         },
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },

@@ -87,6 +87,15 @@ export {
 } from './utils/renderer-capabilities.js';
 export {resolveCatalogs} from './utils/catalog-resolver.js';
 
+// Inbound renderer-to-agent messages
+export {
+  type InboundMessage,
+  type InboundMessageKind,
+  formatInboundForModel,
+  getInboundMessageKind,
+  parseInboundMessage,
+} from './inbound/inbound-message.js';
+
 // Renderer state and payload validation
 export {RendererState} from './utils/renderer-state.js';
 export {validatePayload} from './utils/validation.js';
