@@ -17,20 +17,22 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
+
 import yaml from 'js-yaml';
+
 import {Catalog, ComponentApi, createFunctionImplementation} from '../../src/catalog/types.js';
 import {A2uiMetadata, ActionDispatchOptions, jsonValueEquals} from '../../src/common/metadata.js';
 import {MessageProcessor} from '../../src/processing/message-processor.js';
+import {batchWrite, effect, getValue, peekValue} from '../../src/reactivity/signals.js';
 import {
   ComponentNode,
-  PLACEHOLDER_TYPE,
   isComponentNode,
+  PLACEHOLDER_TYPE,
 } from '../../src/resolution/component-node.js';
 import {NodeResolver} from '../../src/resolution/node-resolver.js';
-import {ResolvedBinding, isWritable} from '../../src/resolution/resolved-binding.js';
-import {batchWrite, effect, getValue, peekValue} from '../../src/reactivity/signals.js';
+import {isWritable, ResolvedBinding} from '../../src/resolution/resolved-binding.js';
 import {ComponentModel} from '../../src/state/component-model.js';
-import {SurfaceModel, A2uiErrorPayload} from '../../src/state/surface-model.js';
+import {A2uiErrorPayload, SurfaceModel} from '../../src/state/surface-model.js';
 
 type Component = Record<string, unknown> & {id: string; component: string};
 interface Fixture {
@@ -88,6 +90,65 @@ interface Watch {
 }
 
 const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+
+const KNOWN_KEYS = {
+  case: new Set(['action', 'description', 'expect', 'features', 'fixture', 'name', 'steps']),
+  fixture: new Set(['catalog', 'components', 'data', 'surface']),
+  expect: new Set([
+    'created_emissions',
+    'data',
+    'destroyed',
+    'emissions',
+    'errors',
+    'events',
+    'functions',
+    'metadata_emissions',
+    'nodes',
+    'replaced_nodes',
+    'same_nodes',
+  ]),
+  node: new Set([
+    'component_id',
+    'data_path',
+    'isValid',
+    'metadata',
+    'props',
+    'state',
+    'type',
+    'validationErrors',
+    'validationResults',
+  ]),
+  event: new Set(['context', 'metadata', 'name', 'source_component_id']),
+  function: new Set(['args', 'name']),
+  error: new Set(['code', 'message', 'surfaceId']),
+  step: {
+    set_data: new Set(['expect', 'op', 'path', 'value']),
+    update_components: new Set(['components', 'expect', 'op']),
+    remove_component: new Set(['component_id', 'expect', 'op']),
+    write: new Set(['expect', 'node', 'op', 'property', 'value']),
+    invoke: new Set(['expect', 'metadata', 'node', 'op', 'property']),
+    process_messages: new Set(['expect', 'messages', 'op']),
+    dispose: new Set(['expect', 'op']),
+  },
+} as const;
+
+function assertKnownKeys(obj: unknown, allowed: ReadonlySet<string>, where: string): void {
+  if (obj === undefined || obj === null) return;
+  assert.ok(typeof obj === 'object' && !Array.isArray(obj), `${where}: expected object`);
+  const unknown = Object.keys(obj).filter(key => !allowed.has(key));
+  assert.deepEqual(
+    unknown,
+    [],
+    `${where}: unknown keys: ${unknown.map(k => `${where}.${k}`).join(', ')}`,
+  );
+}
+
+function assertKnownKeysList(items: unknown, allowed: ReadonlySet<string>, where: string): void {
+  if (!Array.isArray(items)) return;
+  for (let i = 0; i < items.length; i++) {
+    assertKnownKeys(items[i], allowed, `${where}[${i}]`);
+  }
+}
 
 /** Detached values preserve binding snapshots and name child references by tree position. */
 function normalize(value: unknown, path: string): unknown {
@@ -172,6 +233,7 @@ function checkNodes(
     `${reason}: node paths`,
   );
   for (const [path, fields] of Object.entries(expected.nodes)) {
+    assertKnownKeys(fields, KNOWN_KEYS.node, `${reason}.expect.nodes.${path}`);
     const node = requiredNode(nodes, path);
     const nodeType =
       node.state === 'cyclic' && node.type === PLACEHOLDER_TYPE && surface
@@ -255,6 +317,7 @@ function checkExpectedErrors(
   assert.equal(actualErrors.length, expectedErrors.length, `${reason}: errors count`);
   for (let i = 0; i < expectedErrors.length; i++) {
     const expErr: {code?: string; surfaceId?: string; message?: string} = expectedErrors[i];
+    assertKnownKeys(expErr, KNOWN_KEYS.error, `${reason}.expect.errors[${i}]`);
     const actErr = actualErrors[i];
     if (expErr.code !== undefined) {
       assert.equal(actErr.code, expErr.code, `${reason}: errors[${i}].code`);
@@ -281,18 +344,22 @@ async function executeNodeResolutionStep(
 ): Promise<void> {
   switch (step.op) {
     case 'set_data':
+      assertKnownKeys(step, KNOWN_KEYS.step.set_data, reason);
       assert.ok(ctx.surface, `${reason}: no surface`);
       ctx.surface.dataModel.set(step.path, step.value);
       break;
     case 'update_components':
+      assertKnownKeys(step, KNOWN_KEYS.step.update_components, reason);
       assert.ok(ctx.surface, `${reason}: no surface`);
       updateComponents(ctx.surface, catalog, step.components);
       break;
     case 'remove_component':
+      assertKnownKeys(step, KNOWN_KEYS.step.remove_component, reason);
       assert.ok(ctx.surface, `${reason}: no surface`);
       ctx.surface.componentsModel.removeComponent(step.component_id);
       break;
     case 'write': {
+      assertKnownKeys(step, KNOWN_KEYS.step.write, reason);
       const binding = peekValue(requiredNode(before, step.node).props)[step.property];
       assert.ok(
         binding instanceof ResolvedBinding && isWritable(binding),
@@ -302,6 +369,7 @@ async function executeNodeResolutionStep(
       break;
     }
     case 'invoke': {
+      assertKnownKeys(step, KNOWN_KEYS.step.invoke, reason);
       const action = peekValue(requiredNode(before, step.node).props)[step.property];
       assert.equal(typeof action, 'function', `${reason}: not an action`);
       await (action as (options?: ActionDispatchOptions) => unknown)(
@@ -310,9 +378,11 @@ async function executeNodeResolutionStep(
       break;
     }
     case 'process_messages':
+      assertKnownKeys(step, KNOWN_KEYS.step.process_messages, reason);
       processor.processMessages(step.messages as any);
       break;
     case 'dispose':
+      assertKnownKeys(step, KNOWN_KEYS.step.dispose, reason);
       assert.ok(ctx.resolver, `${reason}: no resolver`);
       ctx.resolver.dispose();
       break;
@@ -399,6 +469,9 @@ function checkExpectation(
   ctx: ResolutionContext,
   reason: string,
 ): void {
+  assertKnownKeys(expected, KNOWN_KEYS.expect, `${reason}.expect`);
+  assertKnownKeysList(expected.events, KNOWN_KEYS.event, `${reason}.expect.events`);
+  assertKnownKeysList(expected.functions, KNOWN_KEYS.function, `${reason}.expect.functions`);
   const after = ctx.resolver ? mountedNodes(ctx.resolver) : new Map<string, ComponentNode>();
   checkNodes(after, expected, reason, ctx.surface);
   const beforeNodes = new Set(before.values());
@@ -479,10 +552,12 @@ export async function runNodeResolutionCase(
   testCase: ConformanceCase,
   conformanceRoot: string,
 ): Promise<void> {
+  assertKnownKeys(testCase, KNOWN_KEYS.case, testCase.name || 'resolve_nodes');
   assert.equal(testCase.action, 'resolve_nodes');
   const fixture = yaml.load(
     readFileSync(join(conformanceRoot, testCase.fixture), 'utf8'),
   ) as Fixture;
+  assertKnownKeys(fixture, KNOWN_KEYS.fixture, `${testCase.name}.fixture`);
   const parsed = Catalog.fromJson(
     JSON.parse(readFileSync(join(conformanceRoot, fixture.catalog), 'utf8')),
   );
