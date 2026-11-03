@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Remove `(Agent to UI)` from the embedded v0.9 `server_to_client.json` and v1.0
+  `agent_to_renderer.json` schema descriptions in `DirectJsonPromptGenerator`
+  ([#1605](https://github.com/a2ui-project/a2ui/pull/1605)).
 - Add incremental streaming support for the Express inference format via
   `ExpressResponseStream` (`ExpressFormat.supportsStreaming` and
   `ExpressParser.supportsStreaming` now return `true`). `ExpressFormatFactory`,
@@ -363,6 +366,10 @@
   as part of a string or comment.
 - An Express integer too large for `int` compiles to a double instead of
   throwing `FormatException`.
+- The Direct JSON prompt rule says the JSON part is a JSON array of A2UI
+  messages, each following the schema, instead of "a single, raw JSON object
+  (usually a list of A2UI messages)" that "MUST validate" against it
+  ([#3721](https://github.com/a2ui-project/a2ui/pull/3721)).
 
 ## 0.0.1-wip005
 

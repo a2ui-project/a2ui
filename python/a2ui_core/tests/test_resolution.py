@@ -1572,3 +1572,55 @@ def test_generic_binder_binds_catalog_defined_dynamic_defs():
     assert binder.current_props["value"] == {"year": 2024, "month": 5, "day": 1}
     assert callable(binder.current_props.get("setValue"))
     binder.dispose()
+
+
+def _boom(args: dict[str, Any], ctx: Any = None, abort: Any = None) -> Any:
+    raise RuntimeError("boom")
+
+
+def _action_button(action: dict[str, Any]) -> tuple[GenericBinder, SurfaceModel]:
+    from a2ui.core.basic_catalog import v1_0
+
+    cat = v1_0.BasicCatalog()
+    cat.functions["boom"] = FunctionImplementation(name="boom", execute=_boom)
+    surface = SurfaceModel("s1", cat)
+    comp = ComponentModel("b1", "Button", cat, {"child": "t", "action": action})
+    return GenericBinder(ComponentContext(comp, DataContext(surface, "/"))), surface
+
+
+def test_generic_binder_action_closure_classifies_local_errors_as_execution():
+    """A local function that raises in an action closure is an EXECUTION_ERROR."""
+    binder, surface = _action_button({"functionCall": {"@call": "boom", "args": {}}})
+    errors: list[dict[str, Any]] = []
+    surface.on_error.subscribe(errors.append)
+
+    assert binder.current_props["action"]() is None
+    assert [e["code"] for e in errors] == ["EXECUTION_ERROR"]
+
+
+def test_event_action_local_error_is_execution_error():
+    binder, surface = _action_button(
+        {"event": {"name": "go", "context": {"x": {"@call": "boom", "args": {}}}}}
+    )
+    errors: list[dict[str, Any]] = []
+    actions: list[dict[str, Any]] = []
+    surface.on_error.subscribe(errors.append)
+    surface.on_action.subscribe(actions.append)
+
+    binder.current_props["action"]()
+    assert [e["code"] for e in errors] == ["EXECUTION_ERROR"]
+    assert actions == []
+
+
+@pytest.mark.asyncio
+async def test_generic_binder_action_closure_returns_no_pending_object():
+    import asyncio
+
+    binder, surface = _action_button(
+        {"functionCall": {"@call": "remoteFn", "args": {}}}
+    )
+    loop = asyncio.get_running_loop()
+    surface.agent_function_caller = lambda call: loop.create_future()
+
+    result = binder.current_props["action"]()
+    assert result is None, "the closure returns the current value, not a signal"
