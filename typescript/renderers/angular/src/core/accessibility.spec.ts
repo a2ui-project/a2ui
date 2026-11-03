@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {Component, EnvironmentInjector, Injector, Type} from '@angular/core';
-import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {z} from 'zod';
+import { Component, EnvironmentInjector, Injector, Type } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { z } from 'zod';
 import {
   CommonSchemas,
   ComponentApi,
@@ -29,28 +29,28 @@ import {
   isWebComponentImplementation,
   registerUniversalElement,
 } from '@a2ui/web_core/v0_9/universal';
-import {AccessibilityTargetDirective, ValidationErrorsDirective} from './accessibility';
-import {A2uiRendererService} from './a2ui-renderer.service';
-import {CatalogComponent} from './catalog_component';
-import {CatalogComponentInstance} from './catalog_component_instance';
-import {ComponentBinder} from './component-binder.service';
-import {ComponentHostComponent} from './component-host.component';
-import {initializeAngularReactivity} from './reactivity';
-import {AngularWcHost} from '../catalog/angular_wc_host';
+import { AccessibilityTargetDirective, ValidationErrorsDirective } from './accessibility';
+import { A2uiRendererService } from './a2ui-renderer.service';
+import { CatalogComponent } from './catalog_component';
+import { CatalogComponentInstance } from './catalog_component_instance';
+import { ComponentBinder } from './component-binder.service';
+import { ComponentHostComponent } from './component-host.component';
+import { initializeAngularReactivity } from './reactivity';
+import { AngularWcHost } from '../catalog/angular_wc_host';
 import {
   AngularCatalog,
   type AngularComponentImplementation,
   createComponentImplementation,
 } from '../catalog/types';
 
-const CardApi = {name: 'Card', schema: z.object({})} satisfies ComponentApi;
+const CardApi = { name: 'Card', schema: z.object({}) } satisfies ComponentApi;
 const FieldApi = {
   name: 'Field',
-  schema: z.object({checks: CommonSchemas.Checkable.shape.checks}),
+  schema: z.object({ checks: CommonSchemas.Checkable.shape.checks }),
 } satisfies ComponentApi;
 
 /** Marks no element, so its host is labelled. */
-@Component({selector: 'test-card', template: '<div class="card">Card</div>'})
+@Component({ selector: 'test-card', template: '<div class="card">Card</div>' })
 class TestCardComponent extends CatalogComponent<typeof CardApi> {}
 
 /** Labels its input and shows its validation errors below it. */
@@ -91,7 +91,7 @@ describe('host accessibility', () => {
         {
           provide: A2uiRendererService,
           useValue: {
-            surfaceGroup: {getSurface: () => surface},
+            surfaceGroup: { getSurface: () => surface },
             useUniversalComponents: false,
           },
         },
@@ -113,7 +113,7 @@ describe('host accessibility', () => {
   describe('ComponentHostComponent', () => {
     it('labels the host as a group when the component marks no element', () => {
       const fixture = renderRoot('Card', {
-        accessibility: {label: 'Featured Deal', description: 'Ends today', live: 'polite'},
+        accessibility: { label: 'Featured Deal', description: 'Ends today', live: 'polite' },
       });
 
       const host = fixture.nativeElement as HTMLElement;
@@ -124,7 +124,7 @@ describe('host accessibility', () => {
     });
 
     it('hides the host and makes it inert', () => {
-      const fixture = renderRoot('Card', {accessibility: {hidden: true}});
+      const fixture = renderRoot('Card', { accessibility: { hidden: true } });
 
       const host = fixture.nativeElement as HTMLElement;
       expect(host.getAttribute('aria-hidden')).toBe('true');
@@ -132,7 +132,7 @@ describe('host accessibility', () => {
     });
 
     it('puts the label on the a2uiAccessibilityTarget element', () => {
-      const fixture = renderRoot('Field', {accessibility: {label: 'Email', live: 'polite'}});
+      const fixture = renderRoot('Field', { accessibility: { label: 'Email', live: 'polite' } });
 
       const host = fixture.nativeElement as HTMLElement;
       const input = host.querySelector('.input')!;
@@ -145,7 +145,7 @@ describe('host accessibility', () => {
     it('marks the target invalid and describes it by the errors element', () => {
       surface.dataModel.set('/ok', false);
       const fixture = renderRoot('Field', {
-        checks: [{condition: {path: '/ok'}, message: 'Fix this'}],
+        checks: [{ condition: { path: '/ok' }, message: 'Fix this' }],
       });
 
       const host = fixture.nativeElement as HTMLElement;
@@ -163,10 +163,10 @@ describe('host accessibility', () => {
     });
 
     it('follows accessibility changes and removal', () => {
-      const fixture = renderRoot('Card', {accessibility: {label: 'Before'}});
+      const fixture = renderRoot('Card', { accessibility: { label: 'Before' } });
       const host = fixture.nativeElement as HTMLElement;
 
-      surface.componentsModel.get('root')!.properties = {accessibility: {label: 'After'}};
+      surface.componentsModel.get('root')!.properties = { accessibility: { label: 'After' } };
       flush(fixture);
       expect(host.getAttribute('aria-label')).toBe('After');
 
@@ -192,11 +192,11 @@ describe('host accessibility', () => {
       document.body.appendChild(el);
       // web_core effects run as Angular effects, on the next tick.
       TestBed.tick();
-      return {el, resolver};
+      return { el, resolver };
     }
 
     it('labels itself as a group when the component marks no element', () => {
-      const {el, resolver} = mountUnderLit('Card', {accessibility: {label: 'Featured Deal'}});
+      const { el, resolver } = mountUnderLit('Card', { accessibility: { label: 'Featured Deal' } });
 
       expect(el.getAttribute('role')).toBe('group');
       expect(el.getAttribute('aria-label')).toBe('Featured Deal');
@@ -207,7 +207,7 @@ describe('host accessibility', () => {
     });
 
     it('drops the label when its node is cleared', () => {
-      const {el, resolver} = mountUnderLit('Card', {accessibility: {label: 'Featured Deal'}});
+      const { el, resolver } = mountUnderLit('Card', { accessibility: { label: 'Featured Deal' } });
 
       el.node = undefined;
 
@@ -218,7 +218,7 @@ describe('host accessibility', () => {
     });
 
     it("puts the label on its component's a2uiAccessibilityTarget element", () => {
-      const {el, resolver} = mountUnderLit('Field', {accessibility: {label: 'Email'}});
+      const { el, resolver } = mountUnderLit('Field', { accessibility: { label: 'Email' } });
 
       expect(el.querySelector('.input')!.getAttribute('aria-label')).toBe('Email');
       expect(el.hasAttribute('aria-label')).toBeFalse();

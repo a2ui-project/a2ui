@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {ApplicationRef} from '@angular/core';
-import {TestBed} from '@angular/core/testing';
-import {getCanvas, loadExample, waitForCondition, Version} from '../utils';
+import { ApplicationRef } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { getCanvas, loadExample, waitForCondition, Version } from '../utils';
 
 /**
  * The 3D geometry example: a canvas renderer inside the sandboxed `McpApp`, driven through its
@@ -55,7 +55,7 @@ describe('Example: MCP App 3D geometry', () => {
     const presetInput = canvas.querySelector('input[placeholder="torusKnot"]') as HTMLInputElement;
     expect(presetInput).toBeTruthy();
     presetInput.value = 'crystal';
-    presetInput.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
+    presetInput.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
 
     // data-model-update reaches the app, which rebuilds the mesh and writes telemetry
     // (data-model-change) and model context (update-model-context) back for the new preset.

@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {TextFieldComponent} from './text-field.component';
-import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '@a2ui/angular';
-import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
-import {By} from '@angular/platform-browser';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TextFieldComponent } from './text-field.component';
+import { A2uiRendererService, A2UI_RENDERER_CONFIG } from '@a2ui/angular';
+import { setComponentProps, createBoundProperty, ComponentToProps } from '@a2ui/angular/testing';
+import { By } from '@angular/platform-browser';
 
 describe('TextFieldComponent', () => {
   let component: TextFieldComponent;
@@ -28,7 +28,10 @@ describe('TextFieldComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [TextFieldComponent],
-      providers: [A2uiRendererService, {provide: A2UI_RENDERER_CONFIG, useValue: {catalogs: []}}],
+      providers: [
+        A2uiRendererService,
+        { provide: A2UI_RENDERER_CONFIG, useValue: { catalogs: [] } },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(TextFieldComponent);
@@ -90,7 +93,7 @@ describe('TextFieldComponent', () => {
     fixture.detectChanges();
     const input = fixture.debugElement.query(By.css('input'));
     input.nativeElement.value = 'newuser';
-    input.triggerEventHandler('input', {target: input.nativeElement});
+    input.triggerEventHandler('input', { target: input.nativeElement });
 
     expect(component.props()['value']!.onUpdate).toHaveBeenCalledWith('newuser');
   });

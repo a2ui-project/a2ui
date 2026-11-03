@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import {ComponentFixture} from '@angular/core/testing';
-import {DemoComponent} from '../../demo.component';
-import {Version, getCanvas, loadExample, wait} from '../utils/test_utils';
+import { ComponentFixture } from '@angular/core/testing';
+import { DemoComponent } from '../../demo.component';
+import { Version, getCanvas, loadExample, wait } from '../utils/test_utils';
 
 describe('Example: Purchase Complete (basic) (v0.8)', () => {
   let textContent: string;
   let fixture: ComponentFixture<DemoComponent>;
 
   beforeEach(async () => {
-    fixture = await loadExample({name: 'Purchase Complete (basic)', version: Version.V0_8});
+    fixture = await loadExample({ name: 'Purchase Complete (basic)', version: Version.V0_8 });
     textContent = getCanvas().textContent;
   });
 

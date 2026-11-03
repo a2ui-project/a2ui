@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import {ComponentFixture} from '@angular/core/testing';
-import {DemoComponent} from '../../demo.component';
-import {getCanvas, loadExample} from '../utils';
+import { ComponentFixture } from '@angular/core/testing';
+import { DemoComponent } from '../../demo.component';
+import { getCanvas, loadExample } from '../utils';
 
 describe('Example: Financial Data Grid', () => {
   let fixture: ComponentFixture<DemoComponent>;
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample({name: 'Financial Data Grid'});
+    fixture = await loadExample({ name: 'Financial Data Grid' });
     textContent = getCanvas().textContent;
   });
 

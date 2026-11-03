@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
-import {DynamicComponent} from '../rendering/dynamic-component';
-import type {DateTimeInputNode, StringValue} from '../types';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { DynamicComponent } from '../rendering/dynamic-component';
+import type { DateTimeInputNode, StringValue } from '../types';
 
 @Component({
   selector: 'a2ui-datetime-input',
@@ -79,12 +79,12 @@ export class DateTimeInput extends DynamicComponent<DateTimeInputNode> {
               valueNode.path as string,
               this.component().dataContextPath,
             ),
-            contents: [{key: '.', valueString: value}],
+            contents: [{ key: '.', valueString: value }],
           },
         },
       ]);
     } else {
-      this.handleAction('change', {value});
+      this.handleAction('change', { value });
     }
   }
 
@@ -93,7 +93,7 @@ export class DateTimeInput extends DynamicComponent<DateTimeInputNode> {
       name,
       context: Object.entries(context).map(([key, val]) => ({
         key,
-        value: typeof val === 'number' ? {literalNumber: val} : {literalString: String(val)},
+        value: typeof val === 'number' ? { literalNumber: val } : { literalString: String(val) },
       })),
     });
   }

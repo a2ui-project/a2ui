@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {TestBed} from '@angular/core/testing';
-import {ComponentBinder} from './component-binder.service';
+import { TestBed } from '@angular/core/testing';
+import { ComponentBinder } from './component-binder.service';
 import {
   Catalog,
   ComponentContext,
@@ -39,7 +39,7 @@ function createComponentContext({
   componentId?: string;
   componentType?: string;
   data?: Record<string, unknown>;
-}): {context: ComponentContext; surface: SurfaceModel} {
+}): { context: ComponentContext; surface: SurfaceModel } {
   const catalog = new Catalog('test-catalog', '0.9', []);
   const surface = new SurfaceModel('test-surface', catalog);
 
@@ -52,7 +52,7 @@ function createComponentContext({
 
   const context = new ComponentContext(surface, componentId);
 
-  return {context, surface};
+  return { context, surface };
 }
 
 describe('ComponentBinder', () => {
@@ -71,12 +71,12 @@ describe('ComponentBinder', () => {
 
   describe('basic property binding', () => {
     it('should bind literal properties to Angular signals', () => {
-      const {context} = createComponentContext({
+      const { context } = createComponentContext({
         properties: {
           text: 'Hello World',
           count: 42,
           enabled: true,
-          config: {theme: 'dark'},
+          config: { theme: 'dark' },
           empty: null,
         },
       });
@@ -86,7 +86,7 @@ describe('ComponentBinder', () => {
       expect(bound['text'].value()).toBe('Hello World');
       expect(bound['count'].value()).toBe(42);
       expect(bound['enabled'].value()).toBe(true);
-      expect(bound['config'].value()).toEqual({theme: 'dark'});
+      expect(bound['config'].value()).toEqual({ theme: 'dark' });
       expect(bound['empty'].value()).toBeNull();
 
       expect(bound['text'].template).toBeUndefined();
@@ -94,9 +94,9 @@ describe('ComponentBinder', () => {
     });
 
     it('should bind path-based properties and setup onUpdate (two-way binding)', () => {
-      const {context, surface} = createComponentContext({
-        properties: {value: {path: '/data/text'}},
-        data: {'/data/text': 'initial-value'},
+      const { context, surface } = createComponentContext({
+        properties: { value: { path: '/data/text' } },
+        data: { '/data/text': 'initial-value' },
       });
 
       const bound = binder.bind(context);
@@ -111,7 +111,7 @@ describe('ComponentBinder', () => {
     });
 
     it('should make onUpdate a no-op for literal properties', () => {
-      const {context} = createComponentContext({
+      const { context } = createComponentContext({
         properties: {
           text: 'literal-text',
         },
@@ -131,16 +131,16 @@ describe('ComponentBinder', () => {
   describe('single child bindings (child, trigger, content)', () => {
     const testSingleChildKey = (key: 'child' | 'trigger' | 'content') => {
       it(`should handle null/falsy value for ${key}`, () => {
-        const {context} = createComponentContext({
-          properties: {[key]: null},
+        const { context } = createComponentContext({
+          properties: { [key]: null },
         });
         const bound = binder.bind(context);
         expect(bound[key].value()).toBeNull();
       });
 
       it(`should resolve string ID to Child object for ${key}`, () => {
-        const {context} = createComponentContext({
-          properties: {[key]: 'my-child-id'},
+        const { context } = createComponentContext({
+          properties: { [key]: 'my-child-id' },
         });
         const bound = binder.bind(context);
         expect(bound[key].value()).toEqual({
@@ -154,8 +154,8 @@ describe('ComponentBinder', () => {
           id: 'custom-child-id',
           basePath: '/different/path',
         };
-        const {context} = createComponentContext({
-          properties: {[key]: existingChild},
+        const { context } = createComponentContext({
+          properties: { [key]: existingChild },
         });
         const bound = binder.bind(context);
         expect(bound[key].value()).toEqual(existingChild);
@@ -169,65 +169,65 @@ describe('ComponentBinder', () => {
 
   describe('children list bindings', () => {
     it('should handle null/falsy or non-array values by returning an empty array', () => {
-      const {context} = createComponentContext({
-        properties: {children: null},
+      const { context } = createComponentContext({
+        properties: { children: null },
       });
       const bound = binder.bind(context);
       expect(bound['children'].value()).toEqual([]);
     });
 
     it('should bind a static array of string child IDs', () => {
-      const {context} = createComponentContext({
-        properties: {children: ['child-1', 'child-2']},
+      const { context } = createComponentContext({
+        properties: { children: ['child-1', 'child-2'] },
       });
       const bound = binder.bind(context);
       expect(bound['children'].value()).toEqual([
-        {id: 'child-1', basePath: '/'},
-        {id: 'child-2', basePath: '/'},
+        { id: 'child-1', basePath: '/' },
+        { id: 'child-2', basePath: '/' },
       ]);
       expect(bound['children'].template).toBeUndefined();
     });
 
     it('should bind a path resolving to an array of child IDs', () => {
-      const {context} = createComponentContext({
-        properties: {children: {path: '/dynamic/list'}},
-        data: {'/dynamic/list': ['child-a', 'child-b']},
+      const { context } = createComponentContext({
+        properties: { children: { path: '/dynamic/list' } },
+        data: { '/dynamic/list': ['child-a', 'child-b'] },
       });
       const bound = binder.bind(context);
       expect(bound['children'].value()).toEqual([
-        {id: 'child-a', basePath: '/'},
-        {id: 'child-b', basePath: '/'},
+        { id: 'child-a', basePath: '/' },
+        { id: 'child-b', basePath: '/' },
       ]);
       expect(bound['children'].template).toBeUndefined();
     });
 
     it('should bind a path resolving to an array of pre-formatted Child objects', () => {
-      const {context} = createComponentContext({
-        properties: {children: {path: '/dynamic/custom-list'}},
+      const { context } = createComponentContext({
+        properties: { children: { path: '/dynamic/custom-list' } },
         data: {
           '/dynamic/custom-list': [
-            {id: 'child-x', basePath: '/custom/x'},
-            {id: 'child-y', basePath: '/custom/y'},
+            { id: 'child-x', basePath: '/custom/x' },
+            { id: 'child-y', basePath: '/custom/y' },
           ],
         },
       });
       const bound = binder.bind(context);
       expect(bound['children'].value()).toEqual([
-        {id: 'child-x', basePath: '/custom/x'},
-        {id: 'child-y', basePath: '/custom/y'},
+        { id: 'child-x', basePath: '/custom/x' },
+        { id: 'child-y', basePath: '/custom/y' },
       ]);
     });
 
     it('should expand ChildList template objects and populate template field', () => {
-      const {context} = createComponentContext({
-        properties: {children: {componentId: 'item-card', path: '/items'}},
-        data: {'/items': ['item1', 'item2', 'item3']},
+      const { context } = createComponentContext({
+        properties: { children: { componentId: 'item-card', path: '/items' } },
+        data: { '/items': ['item1', 'item2', 'item3'] },
       });
       const bound = binder.bind(context);
       expect(bound['children'].value()).toEqual([
-        {id: 'item-card', basePath: '/items/0'},
-        {id: 'item-card', basePath: '/items/1'},
-        {id: 'item-card', basePath: '/items/2'},
+        { id: 'item-card', basePath: '/items/0' },
+        { id: 'item-card', basePath: '/items/1' },
+        { id: 'item-card', basePath: '/items/2' },
       ]);
 
       expect(bound['children'].template).toEqual({
@@ -237,12 +237,12 @@ describe('ComponentBinder', () => {
     });
 
     it('should not leak template to subsequent properties', () => {
-      const {context} = createComponentContext({
+      const { context } = createComponentContext({
         properties: {
-          children: {componentId: 'item-card', path: '/items'},
+          children: { componentId: 'item-card', path: '/items' },
           anotherProp: 'some-literal',
         },
-        data: {'/items': ['item1']},
+        data: { '/items': ['item1'] },
       });
       const bound = binder.bind(context);
 
@@ -256,8 +256,8 @@ describe('ComponentBinder', () => {
 
   describe('validation checks (checks)', () => {
     it('should return isValid=true and empty errors when checks is null/empty', () => {
-      const {context} = createComponentContext({
-        properties: {checks: []},
+      const { context } = createComponentContext({
+        properties: { checks: [] },
       });
       const bound = binder.bind(context);
 
@@ -269,11 +269,11 @@ describe('ComponentBinder', () => {
     });
 
     it('should handle checks with simple condition values (resolved as signals)', () => {
-      const {context, surface} = createComponentContext({
+      const { context, surface } = createComponentContext({
         properties: {
           checks: [
-            {condition: {path: '/form/nameValid'}, message: 'Name must be valid'},
-            {condition: {path: '/form/ageValid'}, message: 'Age must be valid'},
+            { condition: { path: '/form/nameValid' }, message: 'Name must be valid' },
+            { condition: { path: '/form/ageValid' }, message: 'Age must be valid' },
           ],
         },
         data: {
@@ -295,13 +295,13 @@ describe('ComponentBinder', () => {
     });
 
     it('should support shorthand condition rules (condition as the rule object itself)', () => {
-      const {context, surface} = createComponentContext({
+      const { context, surface } = createComponentContext({
         properties: {
           checks: [
-            {path: '/form/singleCheck'}, // Shorthand
+            { path: '/form/singleCheck' }, // Shorthand
           ],
         },
-        data: {'/form/singleCheck': false},
+        data: { '/form/singleCheck': false },
       });
 
       const bound = binder.bind(context);
@@ -315,12 +315,12 @@ describe('ComponentBinder', () => {
     });
 
     it('should evaluate multiple validation errors dynamically', () => {
-      const {context, surface} = createComponentContext({
+      const { context, surface } = createComponentContext({
         properties: {
           checks: [
-            {condition: {path: '/check1'}, message: 'Error 1'},
-            {condition: {path: '/check2'}, message: 'Error 2'},
-            {condition: {path: '/check3'}, message: 'Error 3'},
+            { condition: { path: '/check1' }, message: 'Error 1' },
+            { condition: { path: '/check2' }, message: 'Error 2' },
+            { condition: { path: '/check3' }, message: 'Error 3' },
           ],
         },
         data: {
@@ -347,12 +347,12 @@ describe('ComponentBinder', () => {
     });
 
     it('should resolve dynamic message bindings in check rules', () => {
-      const {context, surface} = createComponentContext({
+      const { context, surface } = createComponentContext({
         properties: {
           checks: [
             {
-              condition: {path: '/form/isValid'},
-              message: {path: '/i18n/errorMsg'},
+              condition: { path: '/form/isValid' },
+              message: { path: '/i18n/errorMsg' },
             },
           ],
         },
@@ -372,11 +372,11 @@ describe('ComponentBinder', () => {
     });
 
     it('should support v1.0 structured CheckResult objects with severity and dynamic message override', () => {
-      const {context, surface} = createComponentContext({
+      const { context, surface } = createComponentContext({
         properties: {
           checks: [
             {
-              condition: {path: '/form/checkResult'},
+              condition: { path: '/form/checkResult' },
               message: 'Static fallback error',
             },
           ],
@@ -436,13 +436,13 @@ describe('ComponentBinder', () => {
       const surface = new SurfaceModel('node-surface', basicCatalog);
       surface.dataModel.set('/userName', 'Initial Name');
       surface.componentsModel.addComponent(
-        new ComponentModel('root', 'Column', {children: ['input-1']}, basicCatalog),
+        new ComponentModel('root', 'Column', { children: ['input-1'] }, basicCatalog),
       );
       surface.componentsModel.addComponent(
         new ComponentModel(
           'input-1',
           'TextField',
-          {label: 'Username', value: {path: '/userName'}},
+          { label: 'Username', value: { path: '/userName' } },
           basicCatalog,
         ),
       );
@@ -483,7 +483,7 @@ describe('ComponentBinder', () => {
       const surface = new SurfaceModel('node-surface-2', basicCatalog);
       surface.dataModel.set('/title', 'A');
       surface.componentsModel.addComponent(
-        new ComponentModel('root', 'Text', {text: {path: '/title'}}, basicCatalog),
+        new ComponentModel('root', 'Text', { text: { path: '/title' } }, basicCatalog),
       );
       const resolver = new NodeResolver(surface, basicCatalog);
       const rootNode = getValue(resolver.rootNode)!;
@@ -507,7 +507,7 @@ describe('ComponentBinder', () => {
         new ComponentModel(
           'root',
           'TextField',
-          {label: 'Name', checks: [{condition: {path: '/ok'}, message: 'Required'}]},
+          { label: 'Name', checks: [{ condition: { path: '/ok' }, message: 'Required' }] },
           basicCatalog,
         ),
       );
@@ -529,12 +529,12 @@ describe('ComponentBinder', () => {
         new ComponentModel(
           'root',
           'Button',
-          {child: 'label', action: {event: {name: 'tap'}}},
+          { child: 'label', action: { event: { name: 'tap' } } },
           basicCatalog,
         ),
       );
       surface.componentsModel.addComponent(
-        new ComponentModel('label', 'Text', {text: 'Tap'}, basicCatalog),
+        new ComponentModel('label', 'Text', { text: 'Tap' }, basicCatalog),
       );
       const resolver = new NodeResolver(surface, basicCatalog);
       const bound = binder.bindNode(getValue(resolver.rootNode)!);
@@ -545,12 +545,12 @@ describe('ComponentBinder', () => {
     });
 
     it('unsubscribes signal subscriptions when unbind is called', () => {
-      const {context} = createComponentContext({
+      const { context } = createComponentContext({
         properties: {
-          text: [{path: '/dynamic/item'}],
-          checks: [{condition: [{path: '/dynamic/check'}], message: 'Failed'}],
+          text: [{ path: '/dynamic/item' }],
+          checks: [{ condition: [{ path: '/dynamic/check' }], message: 'Failed' }],
         },
-        data: {'/dynamic/item': 'A', '/dynamic/check': true},
+        data: { '/dynamic/item': 'A', '/dynamic/check': true },
       });
 
       let unsubscribedCount = 0;

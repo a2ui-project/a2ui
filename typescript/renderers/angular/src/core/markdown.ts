@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {Injectable} from '@angular/core';
+import { Injectable } from '@angular/core';
 import type {
   MarkdownRenderer as MarkdownRendererFn,
   MarkdownRendererOptions,
@@ -34,7 +34,7 @@ export class DefaultMarkdownRenderer extends MarkdownRenderer {
     try {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore - optional peer dependency throws TS1323 under Angular compiler but not under NodeNext
-      const {renderMarkdown} = await import('@a2ui/markdown-it');
+      const { renderMarkdown } = await import('@a2ui/markdown-it');
       return await renderMarkdown(markdown, options);
     } catch {
       if (!DefaultMarkdownRenderer.warningLogged) {
@@ -57,5 +57,5 @@ export function provideMarkdownRenderer(renderFn?: MarkdownRendererFn) {
       },
     };
   }
-  return {provide: MarkdownRenderer, useClass: DefaultMarkdownRenderer};
+  return { provide: MarkdownRenderer, useClass: DefaultMarkdownRenderer };
 }

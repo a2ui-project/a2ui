@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import {ComponentFixture} from '@angular/core/testing';
-import {DemoComponent} from '../../demo.component';
-import {getCanvas, loadExample, wait} from '../utils';
+import { ComponentFixture } from '@angular/core/testing';
+import { DemoComponent } from '../../demo.component';
+import { getCanvas, loadExample, wait } from '../utils';
 
 describe('Example: Notification Permission', () => {
   let fixture: ComponentFixture<DemoComponent>;
@@ -24,7 +24,7 @@ describe('Example: Notification Permission', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample({name: 'Notification Permission'});
+    fixture = await loadExample({ name: 'Notification Permission' });
     component = fixture.componentInstance;
     textContent = getCanvas().textContent;
   });
@@ -50,7 +50,7 @@ describe('Example: Notification Permission', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const yesBtn = buttons.find(b => b.textContent.includes('Yes'))!;
+    const yesBtn = buttons.find((b) => b.textContent.includes('Yes'))!;
     expect(yesBtn).withContext('Should find Yes button').toBeTruthy();
 
     yesBtn.click();
@@ -66,7 +66,7 @@ describe('Example: Notification Permission', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const noBtn = buttons.find(b => b.textContent.includes('No'))!;
+    const noBtn = buttons.find((b) => b.textContent.includes('No'))!;
     expect(noBtn).withContext('Should find No button').toBeTruthy();
 
     noBtn.click();

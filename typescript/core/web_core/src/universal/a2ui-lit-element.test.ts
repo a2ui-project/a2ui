@@ -840,4 +840,130 @@ describe('A2uiLitElement', () => {
     defaultHost.remove();
     regionHost.remove();
   });
+
+  it('preserves component-authored ARIA attributes on accessibilityTarget() and omits aria-describedby when renderValidationErrors() is not rendered', async () => {
+    const NoErrorBlockApi = {
+      name: 'NoErrorBlock',
+      schema: z.object({
+        value: z.string().default(''),
+        checks: CheckableSchema.shape.checks,
+        accessibility: z
+          .object({
+            label: z.string().optional(),
+            description: z.string().optional(),
+          })
+          .optional(),
+      }),
+    };
+
+    class TestNoErrorBlockElement extends A2uiLitElement<typeof NoErrorBlockApi> {
+      protected override readonly api = NoErrorBlockApi;
+
+      protected override accessibilityTarget(): Element | null {
+        return this.querySelector('input');
+      }
+
+      override render() {
+        return html`
+          <input
+            aria-label="Fallback label"
+            aria-describedby="hint-id"
+            .value=${this.controller.props.value ?? ''}
+          />
+        `;
+      }
+    }
+
+    if (!customElements.get('test-no-error-block-element')) {
+      customElements.define('test-no-error-block-element', TestNoErrorBlockElement);
+    }
+
+    const catalog = new Catalog<ComponentApi>('no-error-block-catalog', '1.0', [NoErrorBlockApi]);
+    const proc = new MessageProcessor([catalog]);
+    proc.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'no-error-surface',
+          catalogId: catalog.id,
+        },
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'no-error-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'NoErrorBlock',
+              value: 'bad',
+              checks: [{condition: false, message: 'Invalid'}],
+            },
+          ],
+        },
+      },
+    ]);
+
+    const surf = proc.model.getSurface('no-error-surface')!;
+    const resolver = new NodeResolver(surf, catalog);
+    const rootNode = getValue(resolver.rootNode)!;
+
+    const el = document.createElement('test-no-error-block-element') as TestNoErrorBlockElement;
+    document.body.appendChild(el);
+    await asyncUpdate(el, (e: any) => {
+      e.node = rootNode;
+    });
+
+    const input = el.querySelector('input')!;
+    // Component-authored aria-label and aria-describedby are preserved when
+    // accessibility.label is absent and renderValidationErrors() is not rendered.
+    assert.strictEqual(input.getAttribute('aria-label'), 'Fallback label');
+    assert.strictEqual(input.getAttribute('aria-invalid'), 'true');
+    assert.strictEqual(input.getAttribute('aria-describedby'), 'hint-id');
+
+    // Setting accessibility.label overrides aria-label; clearing it restores the original.
+    proc.processMessages([
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'no-error-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'NoErrorBlock',
+              value: 'bad',
+              checks: [{condition: false, message: 'Invalid'}],
+              accessibility: {label: 'Explicit label'},
+            },
+          ],
+        },
+      },
+    ]);
+    await asyncUpdate(el, () => {});
+    assert.strictEqual(input.getAttribute('aria-label'), 'Explicit label');
+
+    proc.processMessages([
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'no-error-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'NoErrorBlock',
+              value: 'ok',
+              checks: [{condition: true, message: 'Invalid'}],
+            },
+          ],
+        },
+      },
+    ]);
+    await asyncUpdate(el, () => {});
+    assert.strictEqual(input.getAttribute('aria-label'), 'Fallback label');
+    assert.strictEqual(input.hasAttribute('aria-invalid'), false);
+    assert.strictEqual(input.getAttribute('aria-describedby'), 'hint-id');
+
+    el.remove();
+    resolver.dispose();
+  });
 });

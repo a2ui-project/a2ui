@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {ChangeDetectionStrategy, Component, OnInit, input} from '@angular/core';
-import {CatalogComponentInstance} from '../core/catalog_component_instance';
+import { ChangeDetectionStrategy, Component, OnInit, input } from '@angular/core';
+import { CatalogComponentInstance } from '../core/catalog_component_instance';
 
 /**
  * Placeholder Angular component for catalog entries that only provide a Web Component.

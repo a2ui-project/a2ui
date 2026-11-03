@@ -17,6 +17,7 @@
 import {
   type CSSResult,
   css,
+  html,
   LitElement,
   nothing,
   type PropertyValues,
@@ -36,12 +37,10 @@ import {type ComponentId} from '../types/common-types.js';
 import {A2uiController} from './a2ui-controller.js';
 import {
   type CheckableResolvedProps,
-  hasAttributeValue,
   hasValidationErrors,
-  renderValidationErrors as renderValidationErrorsBlock,
+  HostAccessibility,
   type ResolvedAccessibilityAttributes,
-  setHostAccessibilityAttributes,
-} from './basic_catalog/components/accessibility.js';
+} from './host_accessibility.js';
 import {renderA2uiNode} from './render-a2ui-node.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 
@@ -101,8 +100,7 @@ export abstract class A2uiLitElement<
   private _controllerContext?: ComponentContext;
   private _controllerNode?: ComponentNode;
   private fallbackDomId?: string;
-  private _hasDefaultGroupRole = false;
-  private _lastAccessibilityTarget: Element | null = null;
+  private readonly _hostAccessibility = new HostAccessibility(this);
 
   /**
    * Document-unique ID prefix for associating internal labels, controls, and error messages.
@@ -138,16 +136,26 @@ export abstract class A2uiLitElement<
     props?: CheckableResolvedProps,
   ): TemplateResult | typeof nothing {
     const resolvedProps = props ?? (this.controller?.props as CheckableResolvedProps | undefined);
-    return renderValidationErrorsBlock(this.domId, resolvedProps);
+    if (hasValidationErrors(resolvedProps)) {
+      return html`
+        <div id="${this.domId}-error" class="a2ui-validation-errors">
+          ${resolvedProps!.validationErrors!.map(
+            (msg: string) => html`<div class="a2ui-error-message">${msg}</div>`,
+          )}
+        </div>
+      `;
+    }
+    return nothing;
   }
 
   /**
    * Applies host-level and target-level accessibility and validation attributes after render.
    *
-   * Sets `aria-live` and `aria-hidden` on the host element. When `accessibilityTarget()`
-   * returns an element, applies `aria-label`, `aria-description`, `aria-invalid`, and
-   * `aria-describedby` (referencing `#${this.domId}-error`) onto that element. When
-   * `accessibilityTarget()` returns `null` and a `label` or `description` is present,
+   * Sets `aria-live`, `aria-hidden`, and `inert` on the host element. When
+   * `accessibilityTarget()` returns an element, applies `aria-label`, `aria-description`,
+   * `aria-invalid`, and `aria-describedby` (merging `#${this.domId}-error` when the error
+   * element is rendered) onto that element while preserving component-authored attributes.
+   * When `accessibilityTarget()` returns `null` and a `label` or `description` is present,
    * sets `role="group"` on the host (preserving any existing `role` attribute) together
    * with `aria-label` and `aria-description`.
    */
@@ -155,76 +163,18 @@ export abstract class A2uiLitElement<
     accessibility?: ResolvedAccessibilityAttributes,
     checkable?: CheckableResolvedProps,
   ): void {
-    setHostAccessibilityAttributes(this, accessibility);
-    const target = this.accessibilityTarget();
-    const prevTarget = this._lastAccessibilityTarget;
-    if (prevTarget && prevTarget !== target && prevTarget !== this) {
-      prevTarget.removeAttribute('aria-label');
-      prevTarget.removeAttribute('aria-description');
-      prevTarget.removeAttribute('aria-invalid');
-      prevTarget.removeAttribute('aria-describedby');
-    }
-    this._lastAccessibilityTarget = target;
-    const hasLabel = hasAttributeValue(accessibility?.label);
-    const hasDescription = hasAttributeValue(accessibility?.description);
-
-    if (target) {
-      if (target !== this) {
-        if (this._hasDefaultGroupRole && this.getAttribute('role') === 'group') {
-          this.removeAttribute('role');
-        }
-        this._hasDefaultGroupRole = false;
-        this.removeAttribute('aria-label');
-        this.removeAttribute('aria-description');
-      }
-      if (hasLabel) {
-        target.setAttribute('aria-label', String(accessibility?.label));
-      } else {
-        target.removeAttribute('aria-label');
-      }
-      if (hasDescription) {
-        target.setAttribute('aria-description', String(accessibility?.description));
-      } else {
-        target.removeAttribute('aria-description');
-      }
-      if (checkable?.isValid === false) {
-        target.setAttribute('aria-invalid', 'true');
-      } else {
-        target.removeAttribute('aria-invalid');
-      }
-      if (hasValidationErrors(checkable)) {
-        target.setAttribute('aria-describedby', `${this.domId}-error`);
-      } else {
-        target.removeAttribute('aria-describedby');
-      }
-      return;
-    }
-
-    if (hasLabel || hasDescription) {
-      if (!this.hasAttribute('role')) {
-        this.setAttribute('role', 'group');
-        this._hasDefaultGroupRole = true;
-      }
-      if (hasLabel) {
-        this.setAttribute('aria-label', String(accessibility?.label));
-      } else {
-        this.removeAttribute('aria-label');
-      }
-      if (hasDescription) {
-        this.setAttribute('aria-description', String(accessibility?.description));
-      } else {
-        this.removeAttribute('aria-description');
-      }
-    } else {
-      if (this._hasDefaultGroupRole) {
-        if (this.getAttribute('role') === 'group') {
-          this.removeAttribute('role');
-        }
-        this._hasDefaultGroupRole = false;
-      }
-      this.removeAttribute('aria-label');
-      this.removeAttribute('aria-description');
-    }
+    const errorId = `${this.domId}-error`;
+    const errors = this.renderRoot.querySelector(`[id=${JSON.stringify(errorId)}]`);
+    this._hostAccessibility.apply(
+      {
+        accessibility,
+        isValid: checkable?.isValid,
+        validationErrors: checkable?.validationErrors,
+      },
+      this.accessibilityTarget(),
+      errors,
+      errorId,
+    );
   }
 
   /**
