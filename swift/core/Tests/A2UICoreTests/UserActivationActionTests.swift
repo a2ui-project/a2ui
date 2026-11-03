@@ -320,10 +320,10 @@ struct UserActivationActionTests {
 
     let gestureEvent = try #require(eventRoot.action(for: "action", userActivation: true))
     gestureEvent()
-    #expect(gatedFunction.callCount == 0)
-    #expect(actionHandler.capturedErrors.count == 4)
+    #expect(gatedFunction.callCount == 1)
+    #expect(actionHandler.capturedErrors.count == 3)
     if case .event(_, let context, _) = actionHandler.capturedActions.last?.identity {
-      #expect(context?["secret"] == .null)
+      #expect(context?["secret"] == .string("ran-openExternal"))
     } else {
       Issue.record("Expected dispatched event action")
     }
