@@ -26,11 +26,9 @@ import 'package:test/test.dart';
 void main() {
   final CatalogApi basic = Catalog.fromJson(
     jsonDecode(
-          File(
-            '../../specification/v0_9/catalogs/basic/catalog.json',
-          ).readAsStringSync(),
-        )
-        as Map<String, Object?>,
+      File('../../specification/v0_9/catalogs/basic/catalog.json')
+          .readAsStringSync(),
+    ) as Map<String, Object?>,
   );
 
   CreateSurfaceMessage create() => CreateSurfaceMessage(

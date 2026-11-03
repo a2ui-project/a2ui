@@ -2221,12 +2221,7 @@
           "properties": {
             "kind": {
               "type": "string",
-              "enum": [
-                "action",
-                "error",
-                "callAgentFunction",
-                "rendererFunctionResponse"
-              ]
+              "enum": ["action", "error", "callAgentFunction", "rendererFunctionResponse"]
             },
             "model_input_contains": {
               "type": "array",
@@ -2263,10 +2258,7 @@
         "catalogs": {
           "type": "array",
           "items": {
-            "oneOf": [
-              {"$ref": "#/$defs/AgentCatalogRef"},
-              {"$ref": "#/$defs/CatalogRegistration"}
-            ]
+            "oneOf": [{"$ref": "#/$defs/AgentCatalogRef"}, {"$ref": "#/$defs/CatalogRegistration"}]
           },
           "description": "Active catalogs registered on the `RendererState` instance."
         },
@@ -2293,10 +2285,7 @@
               "expectError": {"$ref": "#/$defs/ExpectError"},
               "expect_error": {"$ref": "#/$defs/ExpectError"}
             },
-            "oneOf": [
-              {"required": ["payload"]},
-              {"required": ["response"]}
-            ],
+            "oneOf": [{"required": ["payload"]}, {"required": ["response"]}],
             "additionalProperties": false
           }
         }

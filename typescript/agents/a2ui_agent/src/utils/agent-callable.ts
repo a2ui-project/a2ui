@@ -89,7 +89,7 @@ export function checkAgentCallable(
     return;
   }
   const callRecord = callFn as Record<string, unknown>;
-  const rawName = '@call' in callRecord ? callRecord['@call'] : callRecord['call'];
+  const rawName = Object.hasOwn(callRecord, '@call') ? callRecord['@call'] : callRecord['call'];
   if (typeof rawName !== 'string' || rawName.length === 0) {
     return;
   }

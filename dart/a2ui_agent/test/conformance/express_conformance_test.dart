@@ -164,13 +164,13 @@ const Map<String, String> _v1OnlyCases = {
   'test_decompile_express_two_surfaces_in_two_catalogs': _oneCatalogPerSurface,
   'test_decompile_express_event_action_with_nested_context':
       'A v0.9 DynamicValue holds no map, so a map in an event\'s context runs '
-          'as written in v1.0 only.',
+      'as written in v1.0 only.',
   'test_decompile_express_non_identifier_id_before_v1_0_derives_a_variable':
       'Already written against a v0.9 catalog to test pre-v1.0 component id '
-          'derivation, so it runs as written without lowering.',
+      'derivation, so it runs as written without lowering.',
   'test_decompile_express_non_identifier_id_from_v1_0_is_a_validation_error':
       'Before v1.0, component ids that are not UAX 31 identifiers are derived '
-          'into variables rather than rejected.',
+      'into variables rather than rejected.',
   'test_compile_express_non_identifier_id_from_v1_0_is_a_validation_error':
       'Before v1.0, component ids need not be UAX 31 identifiers.',
   'test_compile_express_map_literal_keeps_keys_named_like_express_constructs':
@@ -185,11 +185,11 @@ const Map<String, String> _v1OnlyCases = {
       _reservedPlainKeys,
   'test_decompile_express_map_with_a_binding_key_beside_other_keys':
       'Lowered to v0.9, the @path key becomes the plain path key, which '
-          'v0.9 reserves for data bindings, so the case runs as written in v1.0 '
-          'only.',
+      'v0.9 reserves for data bindings, so the case runs as written in v1.0 '
+      'only.',
   'test_compile_express_map_with_call_like_keys_still_rejects_bindings':
       'Lowered to v0.9, this SDK does not reject a binding nested in a '
-          'free-form object property.',
+      'free-form object property.',
   'test_compile_express_surface_extensions_variable_reference':
       'Surface extensions are only supported in A2UI v1.0 or later.',
   'test_compile_express_empty_extensions_preserved':
@@ -266,8 +266,8 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
   final Parser parser = _format(testCase, version).createParser();
   final ResponseReader<StreamPart> stream =
       args['after_rejected_block'] == 'continue'
-          ? parser.openContinuingStream(wrapped: wrapped)
-          : parser.openStream(wrapped: wrapped);
+      ? parser.openContinuingStream(wrapped: wrapped)
+      : parser.openStream(wrapped: wrapped);
   void expectInBlock(Map<String, Object?> step, int i) {
     if (step['expect_in_block'] case final bool inBlock) {
       expect(stream.isInBlock, inBlock, reason: 'step $i: in block');
@@ -358,8 +358,8 @@ InferenceFormat _format(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
   final progressiveKeys = args['progressive_keys'] as List<Object?>?;
   return ExpressFormatFactory(
-    allowedMessages:
-        (args['allowed_messages'] as List<Object?>?)?.cast<String>(),
+    allowedMessages: (args['allowed_messages'] as List<Object?>?)
+        ?.cast<String>(),
     progressiveKeys: progressiveKeys == null
         ? defaultExpressProgressiveKeys
         : {for (final Object? key in progressiveKeys) key! as String},
@@ -383,13 +383,13 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       return format.promptGenerator.generate();
     case 'wrap':
       return format.createParser().wrap(
-            rawParts(testCase['parts']! as List<Object?>),
-          );
+        rawParts(testCase['parts']! as List<Object?>),
+      );
     case 'has_format_content':
       return format.createParser().hasFormatContent(
-            input!,
-            complete: args['complete'] as bool? ?? false,
-          );
+        input!,
+        complete: args['complete'] as bool? ?? false,
+      );
     case 'unwrap':
       return [
         for (final RawResponsePart part in format.createParser().unwrap(input!))
@@ -402,14 +402,14 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       );
     case 'decompile':
       return format.createParser().decompile(
-            version.messages(testCase['messages']! as List<Object?>),
-          );
+        version.messages(testCase['messages']! as List<Object?>),
+      );
     case 'parse_response':
       return version.partsJson(
         format.createParser().parseResponse(
-              input!,
-              wrapped: args['wrapped'] as bool? ?? true,
-            ),
+          input!,
+          wrapped: args['wrapped'] as bool? ?? true,
+        ),
         join: true,
       );
     default:

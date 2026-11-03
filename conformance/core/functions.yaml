@@ -1000,9 +1000,10 @@
   catalogPaths:
     - "conformance/test_data/catalogs/allowed_callers_catalog_v1_0.json"
   surface:
-    catalogId: "https://a2ui.org/catalogs/v10/allowed_callers"
-  function: readSessionToken
-  args: {}
+    catalogId: "conformance/allowed_callers"
+  function: notifyAgent
+  args:
+    message: "Ping"
   expectError:
     category: ExpressionError
     message: "cannot be called by renderer"
