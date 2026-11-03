@@ -258,6 +258,28 @@ message that isn't a v1.0 renderer-to-agent message (its `version` must be
 `'1.0'`), or a `callAgentFunction` without a `functionCallId`, throws
 `A2uiValidationError`.
 
+### Calling renderer functions
+
+An agent that keeps a connection to the renderer open, such as a WebSocket,
+can call a renderer function and wait for its result with
+`RendererFunctionCalls`. Its `resolve` settles each call from the renderer's
+`rendererFunctionResponse`:
+
+```dart
+final calls = RendererFunctionCalls();
+final processor = RendererToAgentMessageProcessor(
+  catalogs: catalogs,
+  onRendererFunctionResponse: calls.resolve,
+);
+final (CallRendererFunctionMessage message, Future<Object?> result) = calls
+    .call(catalogId: catalogId, name: 'scrollIntoView', args: {'id': 'row-4'});
+sendToRenderer([message]);
+final Object? value = await result; // or throws A2uiRpcError
+```
+
+A call times out after 30 seconds unless given another timeout. `dispose`
+cancels the calls still pending, for example when the connection closes.
+
 ## Tests
 
 [test/conformance](test/conformance) runs every shared agent suite this API

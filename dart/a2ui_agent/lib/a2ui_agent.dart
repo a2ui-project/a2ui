@@ -32,6 +32,7 @@ export 'package:a2ui_core/a2ui_core.dart'
         AgentFunctionHandler,
         AgentFunctionResponseMessage,
         CallAgentFunctionMessage,
+        CallRendererFunctionMessage,
         ErrorMessage,
         RendererFunctionResponseMessage,
         RendererToAgentMessage,
@@ -62,6 +63,7 @@ export 'src/processor/generator.dart';
 export 'src/processor/processor.dart';
 export 'src/processor/streamed_answer.dart';
 export 'src/prompt/generator.dart';
+export 'src/rpc/renderer_function_calls.dart';
 export 'src/rpc/renderer_to_agent_message_processor.dart';
 export 'src/utils/catalog_resolver.dart';
 export 'src/utils/renderer_state.dart' show RendererState;

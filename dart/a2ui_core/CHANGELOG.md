@@ -44,6 +44,10 @@
   A catalog with agent functions throws `A2uiCatalogError` when an agent
   function's local `$defs` defines a name differently from the catalog's
   `$defs` or from another agent function's local `$defs`.
+- (v1_0) Added `RpcErrorCode.tooManyPending` (`TOO_MANY_PENDING`), which
+  `a2ui_agent`'s `RendererFunctionCalls` reports when an agent has too many
+  calls to renderer functions pending
+  ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
 
 ## 0.5.0
 
