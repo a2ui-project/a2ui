@@ -239,6 +239,8 @@ export class Catalog<
 
 A `Catalog` is immutable once constructed.
 
+An agent's copy of a catalog may also hold agent functions: function definitions with a handler that runs on the agent, added through `copyWith(agentFunctions: [...])` rather than the constructor. They are ordinary entries of `functions`, so validation and serialization treat them like any other declared function, and `agentFunctions` and `rendererFunctions` split `functions` by whether an entry is an agent function. Renderer code never sets them. The optional [`agent_functions`](../features/agent_functions.blueprint.md) feature specifies them.
+
 `TFunction` is instantiated as [`FunctionApi`](#functionapi--functionimplementation) for a schema-only catalog used to validate or describe payloads, and as `FunctionImplementation` for a catalog that can also execute its functions. The schema-only case is named [`CatalogApi`](#catalogapi).
 
 Both parameters default to their constraint, so code that does not care about the concrete component or function type may write `Catalog` unparameterized. The rest of this document does so wherever the distinction is irrelevant.
