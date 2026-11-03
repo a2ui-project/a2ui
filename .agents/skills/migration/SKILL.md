@@ -72,7 +72,7 @@ way as the source.
 
 | Language | From                            | To                                                          | Guide                                                                                                                                                                                                                                                                                                                                    |
 | -------- | ------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dart     | `package:genui` 0.x (A2UI v0.9) | `a2ui_core` + `a2ui_flutter` (+ `a2ui_agent`), v0.9 or v1.0 | [`dart-genui-to-a2ui_1_0/INDEX.md`](dart-genui-to-a2ui_1_0/INDEX.md)                                                                                                                                                                                                                                                                     |
+| Dart     | `package:genui` 0.x (A2UI v0.9) | `a2ui_core` + `a2ui_flutter` (+ `a2ui_agent`), v0.9 or v1.0 | [`references/dart_genui_to_1_0.md`](references/dart_genui_to_1_0.md)                                                                                                                                                                                                                                                                     |
 | any      | protocol v0.8                   | protocol v0.9                                               | [`specification/v0_9/docs/evolution_guide.md`](../../../specification/v0_9/docs/evolution_guide.md); Python payload converter [`samples/agent/adk/migrate_v08_to_v09.py`](../../../samples/agent/adk/migrate_v08_to_v09.py); Lit renderer example in [`typescript/renderers/lit/README.md`](../../../typescript/renderers/lit/README.md) |
 | any      | protocol v0.9                   | protocol v0.9.1                                             | [`specification/v0_9_1/docs/evolution_guide.md`](../../../specification/v0_9_1/docs/evolution_guide.md)                                                                                                                                                                                                                                  |
 | any      | protocol v0.9 / v0.9.1          | protocol v1.0                                               | [`specification/v1_0/docs/evolution_guide.md`](../../../specification/v1_0/docs/evolution_guide.md), then the SDK's `CHANGELOG.md`                                                                                                                                                                                                       |
@@ -114,13 +114,11 @@ guide:
 When you migrate something this skill has no guide for, add one so the next
 migration starts from it:
 
-1. Create `<language>-<from>-to-<to>/INDEX.md` next to this file, named
-   like `dart-genui-to-a2ui_1_0`.
+1. Create `references/<language>_<from>_to_<to>.md` next to this file, named
+   like `references/dart_genui_to_1_0.md`.
 2. Give it the same sections as the existing guide: scope and version
    assumptions, dependencies, a step per layer with before/after code,
-   behavioral differences, tests, a checklist.
-3. Put long tables in sibling files (`api-mapping.md`, `recipes.md`,
-   `behavior-changes.md`) and link them from `INDEX.md`.
-4. Add a row to the table in Step 4.
-5. Follow [`natural-writing`](../natural-writing/SKILL.md) and
+   checklist, API mapping, recipes, and behavior changes.
+3. Add a row to the table in Step 4.
+4. Follow [`natural-writing`](../natural-writing/SKILL.md) and
    [`pr-hygiene`](../pr-hygiene/SKILL.md) for the text and the pull request.
