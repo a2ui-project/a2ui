@@ -38,10 +38,10 @@ describe('AgentFunctionRegistry', () => {
       returnType: 'number',
       handler: () => 100,
     });
-    const cat1 = new Catalog('cat1', '1.0', [], [], {
+    const cat1 = new Catalog('cat1', '1.0', [], []).copyWith({
       agentFunctions: [fnA],
     });
-    const cat2 = new Catalog('cat2', '1.0', [], [], {
+    const cat2 = new Catalog('cat2', '1.0', [], []).copyWith({
       agentFunctions: [fnB],
     });
 
@@ -84,7 +84,7 @@ describe('AgentFunctionRegistry', () => {
       returnType: 'void',
       handler: () => undefined,
     });
-    const cat = new Catalog('cat', '1.0', [], [], {
+    const cat = new Catalog('cat', '1.0', [], []).copyWith({
       agentFunctions: [asyncFn, voidFn],
     });
     const registry = new AgentFunctionRegistry([cat]);
@@ -148,7 +148,7 @@ describe('AgentFunctionRegistry', () => {
         return peak;
       },
     });
-    const cat = new Catalog('cat', '1.0', [], [], {
+    const cat = new Catalog('cat', '1.0', [], []).copyWith({
       agentFunctions: [fn],
     });
     const registry = new AgentFunctionRegistry([cat], {maxConcurrency: 2});
@@ -204,7 +204,7 @@ describe('AgentFunctionRegistry', () => {
         return 'done';
       },
     });
-    const cat = new Catalog('cat', '1.0', [], [], {
+    const cat = new Catalog('cat', '1.0', [], []).copyWith({
       agentFunctions: [slowFn],
     });
     const registry = new AgentFunctionRegistry([cat], {timeoutMs: 20});
@@ -245,7 +245,7 @@ describe('AgentFunctionRegistry', () => {
         return 'done';
       },
     });
-    const cat = new Catalog('cat', '1.0', [], [], {
+    const cat = new Catalog('cat', '1.0', [], []).copyWith({
       agentFunctions: [slowFn],
     });
     const registry = new AgentFunctionRegistry([cat]);
@@ -280,7 +280,7 @@ describe('AgentFunctionRegistry', () => {
         return 'never';
       },
     });
-    const cat = new Catalog('cat', '1.0', [], [], {
+    const cat = new Catalog('cat', '1.0', [], []).copyWith({
       agentFunctions: [fn],
     });
     const registry = new AgentFunctionRegistry([cat]);
@@ -367,7 +367,7 @@ describe('AgentFunctionRegistry', () => {
         throw new A2uiRpcError('rate limit exceeded', 'RATE_LIMITED');
       },
     });
-    const cat = new Catalog('cat', '1.0', [], [], {
+    const cat = new Catalog('cat', '1.0', [], []).copyWith({
       agentFunctions: [fn],
     });
     const registry = new AgentFunctionRegistry([cat]);
@@ -405,7 +405,7 @@ describe('AgentFunctionRegistry', () => {
         return ctx.functionCallId;
       },
     });
-    const cat = new Catalog('cat', '1.0', [], [], {
+    const cat = new Catalog('cat', '1.0', [], []).copyWith({
       agentFunctions: [gatedFn],
     });
     const registry = new AgentFunctionRegistry([cat], {maxConcurrency: 1});

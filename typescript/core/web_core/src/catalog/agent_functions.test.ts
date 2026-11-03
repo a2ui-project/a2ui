@@ -31,6 +31,8 @@ import {
   createAgentFunction,
   isAgentFunction,
   type AgentFunctionContext,
+  type AgentFunctionHandler,
+  type CatalogOptions,
   type FunctionApi,
 } from '../index.js';
 
@@ -53,6 +55,61 @@ function fetchFxRate(name = 'fetchFxRate'): AgentFunction {
     handler,
     description: 'Current exchange rate from base to target.',
   });
+}
+
+/**
+ * A catalog document that declares `consultOracle` and `notify` without
+ * implementing them, as a catalog an agent implements functions of would.
+ */
+const ORACLE_DOC = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  $id: 'https://a2ui.org/test/oracle_catalog.json',
+  protocolVersion: '1.0',
+  catalogId: 'test/oracle',
+  components: {},
+  functions: {
+    consultOracle: {
+      type: 'object',
+      description: 'Asks the oracle a question.',
+      returnType: 'string',
+      allowedCallers: 'rendererOrAgent',
+      properties: {
+        '@call': {const: 'consultOracle'},
+        args: {
+          type: 'object',
+          properties: {question: {type: 'string'}},
+          required: ['question'],
+          unevaluatedProperties: false,
+        },
+      },
+      required: ['@call', 'args'],
+    },
+    notify: {
+      type: 'object',
+      description: 'Shows the user a short message.',
+      returnType: 'void',
+      allowedCallers: 'agentOnly',
+      properties: {
+        '@call': {const: 'notify'},
+        args: {
+          type: 'object',
+          properties: {message: {type: 'string'}},
+          required: ['message'],
+          unevaluatedProperties: false,
+        },
+      },
+      required: ['@call', 'args'],
+    },
+  },
+  $defs: {
+    anyFunction: {
+      oneOf: [{$ref: '#/functions/consultOracle'}, {$ref: '#/functions/notify'}],
+    },
+  },
+};
+
+function loadOracleCatalog(): Catalog<any, FunctionApi> {
+  return Catalog.fromJson(structuredClone(ORACLE_DOC));
 }
 
 function loadBasicCatalog(): Catalog<any, FunctionApi> {
@@ -130,6 +187,29 @@ describe('AgentFunction', () => {
     );
   });
 
+  it('is rendererOnly when built directly, whatever the init says', () => {
+    const fn = new AgentFunction({
+      name: 'fetchFxRate',
+      handler,
+      allowedCallers: 'agentOnly',
+    } as unknown as ConstructorParameters<typeof AgentFunction>[0]);
+
+    assert.strictEqual(fn.allowedCallers, 'rendererOnly');
+    assert.strictEqual(fn.declaration, undefined);
+  });
+
+  it('accepts a handler that takes only the arguments', async () => {
+    const echo: AgentFunctionHandler = args => args['value'];
+    const fn = new AgentFunction({name: 'echo', handler: echo});
+    const context: AgentFunctionContext = {
+      catalogId: 'c',
+      surfaceId: 's',
+      functionCallId: 'call-1',
+    };
+
+    assert.strictEqual(await fn.handler({value: 7}, context), 7);
+  });
+
   it('fromApi keeps the declaration metadata', () => {
     const declaration: FunctionApi = {
       name: 'consultOracle',
@@ -151,6 +231,25 @@ describe('AgentFunction', () => {
     assert.strictEqual(fn.description, 'Asks the oracle.');
   });
 
+  it('fromApi keeps rendererOnly and rendererOrAgent', () => {
+    for (const allowedCallers of ['rendererOnly', 'rendererOrAgent'] as const) {
+      const fn = AgentFunction.fromApi(
+        {name: 'consultOracle', returnType: 'string', schema: FX_RATE_SCHEMA, allowedCallers},
+        handler,
+      );
+      assert.strictEqual(fn.allowedCallers, allowedCallers);
+    }
+  });
+
+  it('fromApi rejects an agentOnly declaration', () => {
+    const notify = loadOracleCatalog().functions.get('notify')!;
+
+    assert.throws(
+      () => AgentFunction.fromApi(notify, handler),
+      (err: unknown) => err instanceof A2uiCatalogError && err.message.includes('agentOnly'),
+    );
+  });
+
   it('fromApi rejects an existing AgentFunction', () => {
     assert.throws(
       () => AgentFunction.fromApi(fetchFxRate(), handler),
@@ -161,25 +260,42 @@ describe('AgentFunction', () => {
 });
 
 describe('Catalog.agentFunctions', () => {
-  it('adds agentFunctions to functions and agentFunctions', () => {
+  it('adds agentFunctions to functions and agentFunctions with copyWith', () => {
     const fx = fetchFxRate();
-    const catalog = new Catalog('c', '1.0', [], [], {agentFunctions: [fx]});
+    const catalog = new Catalog('c', '1.0', [], []).copyWith({agentFunctions: [fx]});
 
     assert.deepStrictEqual([...catalog.functions.entries()], [['fetchFxRate', fx]]);
     assert.deepStrictEqual([...catalog.agentFunctions.entries()], [['fetchFxRate', fx]]);
   });
 
-  it('lists only agent functions in agentFunctions', () => {
+  it('lists only agent functions in agentFunctions and the others in rendererFunctions', () => {
     const local: FunctionApi = {
       name: 'formatRate',
       returnType: 'string',
       schema: FX_RATE_SCHEMA,
     };
     const fx = fetchFxRate();
-    const catalog = new Catalog('c', '1.0', [], [local], {agentFunctions: [fx]});
+    const catalog = new Catalog('c', '1.0', [], [local]).copyWith({agentFunctions: [fx]});
 
     assert.deepStrictEqual([...catalog.functions.keys()], ['formatRate', 'fetchFxRate']);
     assert.deepStrictEqual([...catalog.agentFunctions.entries()], [['fetchFxRate', fx]]);
+    assert.deepStrictEqual([...catalog.rendererFunctions.entries()], [['formatRate', local]]);
+  });
+
+  it('lists every function in rendererFunctions when there are no agent functions', () => {
+    const catalog = loadOracleCatalog();
+
+    assert.deepStrictEqual([...catalog.rendererFunctions.keys()], ['consultOracle', 'notify']);
+    assert.strictEqual(catalog.agentFunctions.size, 0);
+  });
+
+  it('does not take agentFunctions in the constructor options', () => {
+    const catalog = new Catalog('c', '1.0', [], [], {
+      agentFunctions: [fetchFxRate()],
+    } as unknown as CatalogOptions);
+
+    assert.strictEqual(catalog.functions.size, 0);
+    assert.strictEqual(catalog.agentFunctions.size, 0);
   });
 
   it('recognizes an AgentFunction passed directly in functions', () => {
@@ -187,6 +303,7 @@ describe('Catalog.agentFunctions', () => {
     const catalog = new Catalog('c', '1.0', [], [fx]);
 
     assert.deepStrictEqual([...catalog.agentFunctions.entries()], [['fetchFxRate', fx]]);
+    assert.strictEqual(catalog.rendererFunctions.size, 0);
   });
 
   it('rejects an agent function named like another function', () => {
@@ -197,17 +314,42 @@ describe('Catalog.agentFunctions', () => {
     };
 
     assert.throws(
-      () => new Catalog('c', '1.0', [], [local], {agentFunctions: [fetchFxRate()]}),
+      () => new Catalog('c', '1.0', [], [local]).copyWith({agentFunctions: [fetchFxRate()]}),
       (err: unknown) =>
-        err instanceof A2uiCatalogError && err.message.includes('already has a function named'),
+        err instanceof A2uiCatalogError &&
+        err.message.includes("already has a function named 'fetchFxRate'") &&
+        err.message.includes('AgentFunction.fromApi'),
     );
   });
 
-  it('rejects two agent functions with the same name', () => {
+  it('rejects two agent functions with the same name with its own message', () => {
     assert.throws(
-      () => new Catalog('c', '1.0', [], [], {agentFunctions: [fetchFxRate(), fetchFxRate()]}),
+      () =>
+        new Catalog('c', '1.0', [], []).copyWith({
+          agentFunctions: [fetchFxRate(), fetchFxRate()],
+        }),
       (err: unknown) =>
-        err instanceof A2uiCatalogError && err.message.includes('already has a function named'),
+        err instanceof A2uiCatalogError &&
+        err.message.includes("lists 'fetchFxRate' more than once") &&
+        !err.message.includes('fromApi'),
+    );
+  });
+
+  it('rejects two fromApi agent functions wrapping the same declaration', () => {
+    const catalog = loadOracleCatalog();
+    const declaration = catalog.functions.get('consultOracle')!;
+
+    assert.throws(
+      () =>
+        catalog.copyWith({
+          agentFunctions: [
+            AgentFunction.fromApi(declaration, handler),
+            AgentFunction.fromApi(declaration, handler),
+          ],
+        }),
+      (err: unknown) =>
+        err instanceof A2uiCatalogError &&
+        err.message.includes("lists 'consultOracle' more than once"),
     );
   });
 
@@ -234,7 +376,7 @@ describe('Catalog.agentFunctions', () => {
 
     assert.throws(
       () =>
-        new Catalog('c', '1.0', [], [], {
+        new Catalog('c', '1.0', [], []).copyWith({
           agentFunctions: [local as unknown as AgentFunction],
         }),
       (err: unknown) =>
@@ -244,71 +386,70 @@ describe('Catalog.agentFunctions', () => {
 
   it('rejects agent functions before v1.0', () => {
     assert.throws(
-      () => new Catalog('c', '0.9', [], [], {agentFunctions: [fetchFxRate()]}),
+      () => new Catalog('c', '0.9', [], []).copyWith({agentFunctions: [fetchFxRate()]}),
+      (err: unknown) =>
+        err instanceof A2uiCatalogError && err.message.includes('need v1.0 or later'),
+    );
+    assert.throws(
+      () => new Catalog('c', '0.9', [], [fetchFxRate()]),
       (err: unknown) =>
         err instanceof A2uiCatalogError && err.message.includes('need v1.0 or later'),
     );
   });
 
   it('rejects an agent function with an invalid UAX #31 identifier', () => {
+    const empty = new Catalog('c', '1.0', [], []);
     assert.throws(
-      () => new Catalog('c', '1.0', [], [], {agentFunctions: [fetchFxRate('fetch-fx-rate')]}),
+      () => empty.copyWith({agentFunctions: [fetchFxRate('fetch-fx-rate')]}),
       (err: unknown) => err instanceof A2uiCatalogError && err.message.includes('Invalid UAX #31'),
     );
     assert.throws(
-      () => new Catalog('c', '1.0', [], [], {agentFunctions: [fetchFxRate('@index')]}),
+      () => empty.copyWith({agentFunctions: [fetchFxRate('@index')]}),
       (err: unknown) => err instanceof A2uiCatalogError && err.message.includes('Invalid UAX #31'),
     );
   });
 
   it('replaces a declaration in place when bound via AgentFunction.fromApi', () => {
-    const declaration: FunctionApi = {
-      name: 'fetchFxRate',
-      returnType: 'number',
-      schema: FX_RATE_SCHEMA,
-    };
-    const local: FunctionApi = {
-      name: 'formatRate',
-      returnType: 'string',
-      schema: FX_RATE_SCHEMA,
-    };
-    const fx = AgentFunction.fromApi(declaration, handler);
+    const catalog = loadOracleCatalog();
+    const declaration = catalog.functions.get('consultOracle')!;
+    const oracle = AgentFunction.fromApi(declaration, handler);
 
-    const catalog = new Catalog('c', '1.0', [], [declaration, local], {
-      agentFunctions: [fx],
-    });
+    const copy = catalog.copyWith({agentFunctions: [oracle]});
 
-    assert.deepStrictEqual([...catalog.functions.keys()], ['fetchFxRate', 'formatRate']);
-    assert.strictEqual(catalog.functions.get('fetchFxRate'), fx);
-    assert.deepStrictEqual([...catalog.agentFunctions.entries()], [['fetchFxRate', fx]]);
+    assert.deepStrictEqual([...copy.functions.keys()], ['consultOracle', 'notify']);
+    assert.strictEqual(copy.functions.get('consultOracle'), oracle);
+    assert.deepStrictEqual([...copy.agentFunctions.entries()], [['consultOracle', oracle]]);
+    assert.deepStrictEqual([...copy.rendererFunctions.keys()], ['notify']);
+    assert.strictEqual(oracle.allowedCallers, 'rendererOrAgent');
   });
 
   it('rejects an AgentFunction.fromApi entry wrapping a different declaration object', () => {
-    const declaration: FunctionApi = {
-      name: 'fetchFxRate',
-      returnType: 'number',
-      schema: FX_RATE_SCHEMA,
-    };
-    const sameName: FunctionApi = {
-      name: 'fetchFxRate',
-      returnType: 'number',
-      schema: FX_RATE_SCHEMA,
-    };
+    const catalog = loadOracleCatalog();
+    const sameName = loadOracleCatalog().functions.get('consultOracle')!;
 
     assert.throws(
-      () =>
-        new Catalog('c', '1.0', [], [sameName], {
-          agentFunctions: [AgentFunction.fromApi(declaration, handler)],
-        }),
+      () => catalog.copyWith({agentFunctions: [AgentFunction.fromApi(sameName, handler)]}),
       (err: unknown) =>
-        err instanceof A2uiCatalogError && err.message.includes('already has a function named'),
+        err instanceof A2uiCatalogError && err.message.includes("isn't catalog 'test/oracle'"),
+    );
+  });
+
+  it('rejects a fromApi agent function for a function the catalog does not declare', () => {
+    const foreign = loadOracleCatalog().functions.get('consultOracle')!;
+    const catalog = new Catalog('c', '1.0', [], []);
+
+    assert.throws(
+      () => catalog.copyWith({agentFunctions: [AgentFunction.fromApi(foreign, handler)]}),
+      (err: unknown) =>
+        err instanceof A2uiCatalogError &&
+        err.message.includes("has no function named 'consultOracle'"),
     );
   });
 });
 
 describe('Catalog.toJson with agentFunctions', () => {
   it('writes an agent function identically to a declared FunctionApi', () => {
-    const withAgent = new Catalog('c', '1.0', [], [], {
+    const withAgent = new Catalog('c', '1.0', [], []).copyWith({
       agentFunctions: [fetchFxRate()],
     });
     const declared = new Catalog(
@@ -329,15 +470,16 @@ describe('Catalog.toJson with agentFunctions', () => {
   });
 
   it('fromApi keeps a loaded document definition as written', () => {
-    const catalog = loadBasicCatalog();
-    const declaration = catalog.functions.get('formatString')!;
+    const catalog = loadOracleCatalog();
+    const declaration = catalog.functions.get('consultOracle')!;
 
     const replaced = catalog.copyWith({
       agentFunctions: [AgentFunction.fromApi(declaration, handler)],
     });
 
     assert.deepStrictEqual(replaced.toJson(), catalog.toJson());
-    assert.deepStrictEqual([...replaced.agentFunctions.keys()], ['formatString']);
+    assert.deepStrictEqual(replaced.toJson(), ORACLE_DOC);
+    assert.deepStrictEqual([...replaced.agentFunctions.keys()], ['consultOracle']);
   });
 });
 
@@ -378,8 +520,8 @@ describe('Catalog.copyWith and Catalog.derive with agentFunctions', () => {
   });
 
   it('restores declarations when empty agentFunctions are passed to copyWith', () => {
-    const catalog = loadBasicCatalog();
-    const declaration = catalog.functions.get('formatString')!;
+    const catalog = loadOracleCatalog();
+    const declaration = catalog.functions.get('consultOracle')!;
     const withAgent = catalog.copyWith({
       agentFunctions: [AgentFunction.fromApi(declaration, handler), fetchFxRate()],
     });
@@ -387,8 +529,9 @@ describe('Catalog.copyWith and Catalog.derive with agentFunctions', () => {
     const copy = withAgent.copyWith({agentFunctions: []});
 
     assert.strictEqual(copy.agentFunctions.size, 0);
-    assert.strictEqual(copy.functions.get('formatString'), declaration);
+    assert.strictEqual(copy.functions.get('consultOracle'), declaration);
     assert.deepStrictEqual([...copy.functions.keys()], [...catalog.functions.keys()]);
+    assert.deepStrictEqual(copy.toJson(), catalog.toJson());
   });
 
   it('rejects an agent function named like a loaded function in copyWith', () => {

@@ -288,7 +288,9 @@ export class AgentFunctionRegistry {
       );
     }
 
-    if (agentFn.allowedCallers === 'agentOnly') {
+    // An AgentFunction can't be agentOnly; this guards against one that was
+    // built around its constructor.
+    if ((agentFn as {allowedCallers?: string}).allowedCallers === 'agentOnly') {
       return createErrorResponse(
         functionCallId,
         RpcErrorCode.INVALID_FUNCTION_CALL,

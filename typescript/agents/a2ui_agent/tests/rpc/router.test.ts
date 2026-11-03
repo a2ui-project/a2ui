@@ -32,7 +32,7 @@ describe('RendererMessageRouter', () => {
       returnType: 'string',
       handler: () => 'pong',
     });
-    const cat = new Catalog('cat', '1.0', [], [], {
+    const cat = new Catalog('cat', '1.0', [], []).copyWith({
       agentFunctions: [fn],
     });
     const registry = new AgentFunctionRegistry([cat]);

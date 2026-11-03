@@ -134,7 +134,6 @@ function buildCatalogWithAgentFunctions(spec: CatalogWithAgentFunctionsSpec): Ca
           name,
           returnType: (fnSpec.returnType ?? 'any') as never,
           schema: fnSpec.args,
-          allowedCallers: fnSpec.allowedCallers as never,
           requiresUserActivation: fnSpec.requiresUserActivation,
           description: fnSpec.description,
           handler,

@@ -190,6 +190,9 @@ export interface AgentFunctionContext {
 /**
  * Callback that executes an agent function on the agent side.
  *
+ * A handler may take `(args)` or `(args, context)`: one that doesn't need the
+ * call's metadata can leave `context` out.
+ *
  * @param args Validated input arguments (with schema defaults applied).
  * @param context Call metadata including `catalogId`, `surfaceId`, and `functionCallId`.
  * @returns A JSON-compatible result value or a Promise resolving to one.
@@ -201,6 +204,11 @@ export type AgentFunctionHandler<TArgs = Record<string, unknown>, TReturn = unkn
 
 /**
  * Configuration options for constructing an {@link AgentFunction}.
+ *
+ * An agent function built this way is always `rendererOnly`: only the
+ * renderer calls it, with `callAgentFunction`. To bind a handler to a function
+ * the catalog already declares, and keep its `allowedCallers`, use
+ * {@link AgentFunction.fromApi}.
  */
 export interface AgentFunctionInit<
   Schema extends z.ZodTypeAny | Record<string, unknown> = z.ZodTypeAny,
@@ -217,17 +225,10 @@ export interface AgentFunctionInit<
   readonly returnType?: TReturn;
   /** Zod schema or JSON Schema object validating the function's input arguments. */
   readonly schema?: Schema;
-  /** Allowed caller contexts for the function. Defaults to `'rendererOnly'`. */
-  readonly allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
   /** Whether the function requires explicit user interaction before execution. Defaults to `false`. */
   readonly requiresUserActivation?: boolean;
   /** Human-readable description of the function's purpose. */
   readonly description?: string;
-  /**
-   * Original schema-only `FunctionApi` declaration that `AgentFunction.fromApi`
-   * bound a handler to, if any.
-   */
-  readonly declaration?: FunctionApi;
 }
 
 /** Alias for {@link AgentFunctionInit}. */
@@ -239,6 +240,19 @@ export type AgentFunctionOptions<
 const AGENT_FUNCTION_BRAND = Symbol.for('@a2ui/web_core/AgentFunction');
 
 /**
+ * Key of the fields only `AgentFunction.fromApi` passes to the constructor,
+ * so code outside this module can't set them.
+ */
+const FROM_API = Symbol('AgentFunction.fromApi');
+
+interface FromApiInit extends AgentFunctionInit<any, any> {
+  readonly [FROM_API]: {
+    readonly declaration: FunctionApi;
+    readonly allowedCallers?: 'rendererOnly' | 'rendererOrAgent';
+  };
+}
+
+/**
  * A catalog function whose handler runs on the agent rather than the renderer.
  *
  * `AgentFunction` implements {@link FunctionApi} (and intentionally omits
@@ -248,8 +262,11 @@ const AGENT_FUNCTION_BRAND = Symbol.for('@a2ui/web_core/AgentFunction');
  * - If a catalog containing an `AgentFunction` is passed to a renderer,
  *   `Catalog.invoker` sees no local `execute` implementation and routes calls
  *   to the agent via `callAgentFunction`.
- * - On the agent side, `AgentFunctionRegistry` reads `catalog.agentFunctions`
- *   to dispatch incoming `callAgentFunction` messages to `handler`.
+ * - On the agent side, `RendererToAgentMessageProcessor` reads
+ *   `catalog.agentFunctions` to answer incoming `callAgentFunction` messages
+ *   with `handler`.
+ *
+ * Add agent functions to a catalog with `catalog.copyWith({agentFunctions})`.
  */
 export class AgentFunction implements FunctionApi {
   /** @internal */
@@ -262,8 +279,11 @@ export class AgentFunction implements FunctionApi {
   readonly schema: z.ZodTypeAny;
   /** Agent-side handler callback. */
   readonly handler: AgentFunctionHandler<any, any>;
-  /** Allowed caller contexts for the function. */
-  readonly allowedCallers: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
+  /**
+   * Allowed caller contexts for the function: `rendererOnly`, or the
+   * `rendererOrAgent` of a declaration bound with `fromApi`.
+   */
+  readonly allowedCallers: 'rendererOnly' | 'rendererOrAgent';
   /** Whether the function requires explicit user interaction before execution. */
   readonly requiresUserActivation: boolean;
   /** Human-readable description of the function's purpose. */
@@ -271,40 +291,49 @@ export class AgentFunction implements FunctionApi {
   /** Original `FunctionApi` declaration bound via `AgentFunction.fromApi`, if any. */
   readonly declaration?: FunctionApi;
   /** @internal */
-  readonly explicitAllowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
+  readonly explicitAllowedCallers?: 'rendererOnly' | 'rendererOrAgent';
   /** @internal */
   readonly explicitRequiresUserActivation?: boolean;
 
+  /**
+   * Initializes a new `rendererOnly` agent function.
+   *
+   * @param init The function's name, handler and signature.
+   * @throws {TypeError} If `handler` is not callable.
+   */
   constructor(init: AgentFunctionInit<any, any>) {
     if (typeof init?.handler !== 'function') {
       throw new TypeError(`Agent function '${init?.name ?? ''}' requires a callable handler.`);
     }
+    const fromApi = (init as Partial<FromApiInit>)[FROM_API];
     this.name = init.name;
     this.returnType = init.returnType ?? 'any';
     this.schema = resolveAgentFunctionSchema(init.name, init.schema);
     this.handler = init.handler;
-    this.explicitAllowedCallers = init.allowedCallers;
-    this.allowedCallers = init.allowedCallers ?? 'rendererOnly';
+    this.explicitAllowedCallers = fromApi?.allowedCallers;
+    this.allowedCallers = fromApi?.allowedCallers ?? 'rendererOnly';
     this.explicitRequiresUserActivation = init.requiresUserActivation;
     this.requiresUserActivation = init.requiresUserActivation ?? false;
     this.description = init.description;
-    this.declaration = init.declaration;
+    this.declaration = fromApi?.declaration;
   }
 
   /**
-   * Binds an agent-side `handler` to an existing `FunctionApi` declaration
-   * (for example, an entry from `Catalog.fromJson(doc).functions`).
+   * Binds an agent-side `handler` to a function a catalog declares (for
+   * example, an entry from `Catalog.fromJson(doc).functions`).
    *
-   * Preserves the declaration's JSON Schema definition so `Catalog.toJson()`
-   * continues to emit the authored catalog document unchanged, and records
-   * `declaration` so `new Catalog(..., {agentFunctions: [...]})` or
-   * `catalog.copyWith({agentFunctions: [...]})` replaces the declaration
-   * in place.
+   * Keeps the declaration's signature, `allowedCallers` and JSON Schema
+   * definition, so `Catalog.toJson()` continues to emit the authored catalog
+   * document unchanged, and records `declaration` so
+   * `catalog.copyWith({agentFunctions: [...]})` replaces the declaration in
+   * place. That catalog must declare `api`.
    *
    * @param api Existing schema-only function declaration.
    * @param handler Agent-side execution callback.
    * @returns A new `AgentFunction` wrapping `api`.
    * @throws {TypeError} If `api` is already an `AgentFunction` or `handler` is not callable.
+   * @throws {A2uiCatalogError} If `api` is `agentOnly`, which a renderer
+   *   never calls.
    */
   static fromApi<TArgs = Record<string, unknown>, TReturn = unknown>(
     api: FunctionApi,
@@ -313,16 +342,21 @@ export class AgentFunction implements FunctionApi {
     if (isAgentFunction(api)) {
       throw new TypeError(`Function '${api.name}' is already an agent function.`);
     }
-    const fn = new AgentFunction({
+    if (api.allowedCallers === 'agentOnly') {
+      throw new A2uiCatalogError(
+        `Function '${api.name}' is agentOnly, so a renderer never calls it and it can't be an agent function.`,
+      );
+    }
+    const init: FromApiInit = {
       name: api.name,
       returnType: api.returnType,
       schema: api.schema,
       handler: handler as AgentFunctionHandler<any, any>,
-      allowedCallers: api.allowedCallers,
       requiresUserActivation: api.requiresUserActivation,
       description: api.description,
-      declaration: api,
-    });
+      [FROM_API]: {declaration: api, allowedCallers: api.allowedCallers},
+    };
+    const fn = new AgentFunction(init);
     copyLoadedDefinition(api, fn);
     return fn;
   }
@@ -533,12 +567,6 @@ export interface CatalogDocumentOptions {
 export interface CatalogOptions extends CatalogDocumentOptions {
   /** Schema for this catalog's theme parameters. */
   themeSchema?: z.ZodTypeAny;
-  /**
-   * Agent functions to register on this catalog. Each entry is added to
-   * `functions` and `agentFunctions` (or replaces an entry in `functions` in
-   * place when built via `AgentFunction.fromApi`).
-   */
-  agentFunctions?: ReadonlyArray<AgentFunction>;
 }
 
 /** Options for {@link Catalog.copyWith}. */
@@ -556,6 +584,11 @@ export interface CopyWithCatalogOptions<T extends ComponentApi, F extends Functi
    * existing `AgentFunction` entries in this catalog are first restored to
    * their `declaration` (or removed if they had none) before `agentFunctions`
    * are merged in.
+   *
+   * An agent function built with `AgentFunction.fromApi` replaces the
+   * declaration it wraps, which the catalog must have. Any other agent
+   * function is added, and must not take the name of one of the catalog's
+   * functions.
    */
   agentFunctions?: ReadonlyArray<AgentFunction>;
   /** Replacement theme schema. Defaults to this catalog's theme schema. */
@@ -603,6 +636,8 @@ export declare interface CatalogInterface<
   readonly functions: ReadonlyMap<string, F>;
   /** Map of registered agent-side function definitions, keyed by function name. */
   readonly agentFunctions: ReadonlyMap<string, AgentFunction>;
+  /** Map of the functions that run on the renderer (not agent functions), keyed by name. */
+  readonly rendererFunctions: ReadonlyMap<string, F>;
   /** Schema for theme parameters used by this catalog. */
   readonly themeSchema?: z.ZodTypeAny;
   /** System instructions or usage guidelines for this catalog. */
@@ -700,8 +735,15 @@ export class Catalog<
 
   /**
    * Map of agent functions provided by this catalog, keyed by function name.
+   * Each is also in `functions`.
    */
   readonly agentFunctions: ReadonlyMap<string, AgentFunction>;
+
+  /**
+   * Map of this catalog's functions that run on the renderer, keyed by
+   * function name: every entry of `functions` that isn't an agent function.
+   */
+  readonly rendererFunctions: ReadonlyMap<string, F>;
 
   /**
    * Schema for theme parameters used by this catalog.
@@ -1117,13 +1159,18 @@ export class Catalog<
       ? {themeSchema: themeSchemaOrOptions}
       : (themeSchemaOrOptions ?? {});
 
-    const mergedFunctions = mergeAgentFunctions(this.id, functions, options.agentFunctions);
+    if (functions.some(isAgentFunction)) {
+      assertUniqueFunctionNames(this.id, functions);
+    }
     const funcMap = new Map<string, F>();
     const agentFuncMap = new Map<string, AgentFunction>();
-    for (const fn of mergedFunctions) {
+    const rendererFuncMap = new Map<string, F>();
+    for (const fn of functions) {
       funcMap.set(fn.name, fn);
       if (isAgentFunction(fn)) {
         agentFuncMap.set(fn.name, fn);
+      } else {
+        rendererFuncMap.set(fn.name, fn);
       }
     }
     if (agentFuncMap.size > 0) {
@@ -1147,6 +1194,7 @@ export class Catalog<
     }
     this.functions = funcMap;
     this.agentFunctions = agentFuncMap;
+    this.rendererFunctions = rendererFuncMap;
 
     this.themeSchema = options.themeSchema;
     this.instructions = options.instructions ?? resolvedInstructions;
@@ -1248,55 +1296,79 @@ function isZodSchema(value: unknown): value is z.ZodTypeAny {
   );
 }
 
+/**
+ * Throws if two of `functions` share a name. Checked when the list holds an
+ * agent function, so an agent function can't silently replace another
+ * function, or be replaced by one.
+ */
+function assertUniqueFunctionNames(catalogId: string, functions: ReadonlyArray<FunctionApi>): void {
+  const seen = new Set<string>();
+  for (const fn of functions) {
+    if (seen.has(fn.name)) {
+      throw new A2uiCatalogError(
+        `Catalog '${catalogId}' already has a function named '${fn.name}'.`,
+      );
+    }
+    seen.add(fn.name);
+  }
+}
+
+/**
+ * Merges `agentFunctions` into `functions`, as `Catalog.copyWith` does.
+ *
+ * An agent function built with `AgentFunction.fromApi` replaces, in place,
+ * the declaration it wraps. Any other agent function is appended.
+ *
+ * @throws {A2uiCatalogError} If an entry is not an `AgentFunction`, a name
+ *   appears twice in `agentFunctions`, an agent function takes the name of
+ *   another function, or a `fromApi` agent function wraps a declaration
+ *   `functions` doesn't have.
+ */
 function mergeAgentFunctions<F extends FunctionApi>(
   catalogId: string,
   functions: ReadonlyArray<F>,
   agentFunctions: ReadonlyArray<AgentFunction> | undefined,
 ): F[] {
-  if (agentFunctions !== undefined) {
-    for (const item of agentFunctions) {
-      if (!isAgentFunction(item)) {
-        throw new A2uiCatalogError(
-          `Catalog '${catalogId}' agentFunctions entry '${String((item as {name?: unknown})?.name ?? item)}' is not an \`AgentFunction\`.`,
-        );
-      }
-    }
-  }
-  const hasAgentFunctionInFunctions = functions.some(isAgentFunction);
-  if (agentFunctions === undefined && !hasAgentFunctionInFunctions) {
+  if (agentFunctions === undefined) {
     return [...functions];
   }
   const merged: F[] = [...functions];
   const indexByName = new Map<string, number>();
   for (let i = 0; i < merged.length; i++) {
-    const fn = merged[i];
-    if (indexByName.has(fn.name)) {
-      throw new A2uiCatalogError(
-        `Catalog '${catalogId}' already has a function named '${fn.name}'.`,
-      );
-    }
-    indexByName.set(fn.name, i);
-  }
-  if (!agentFunctions || agentFunctions.length === 0) {
-    return merged;
+    indexByName.set(merged[i].name, i);
   }
   const seenAgentNames = new Set<string>();
   for (const agentFn of agentFunctions) {
+    if (!isAgentFunction(agentFn)) {
+      throw new A2uiCatalogError(
+        `Catalog '${catalogId}' agentFunctions entry '${String((agentFn as {name?: unknown})?.name ?? agentFn)}' is not an \`AgentFunction\`.`,
+      );
+    }
     if (seenAgentNames.has(agentFn.name)) {
       throw new A2uiCatalogError(
-        `Catalog '${catalogId}' already has a function named '${agentFn.name}'.`,
+        `agentFunctions lists '${agentFn.name}' more than once; give each agent function its own name.`,
       );
     }
     seenAgentNames.add(agentFn.name);
     const existingIndex = indexByName.get(agentFn.name);
-    if (existingIndex === undefined) {
+    if (agentFn.declaration !== undefined) {
+      if (existingIndex === undefined) {
+        throw new A2uiCatalogError(
+          `Catalog '${catalogId}' has no function named '${agentFn.name}' for AgentFunction.fromApi to bind; build an agent function the catalog doesn't declare with new AgentFunction(...).`,
+        );
+      }
+      if (merged[existingIndex] !== agentFn.declaration) {
+        throw new A2uiCatalogError(
+          `AgentFunction.fromApi bound '${agentFn.name}' to a declaration that isn't catalog '${catalogId}'s; pass AgentFunction.fromApi(catalog.functions.get('${agentFn.name}')!, handler).`,
+        );
+      }
+      merged[existingIndex] = agentFn as unknown as F;
+    } else if (existingIndex === undefined) {
       indexByName.set(agentFn.name, merged.length);
       merged.push(agentFn as unknown as F);
-    } else if (agentFn.declaration !== undefined && merged[existingIndex] === agentFn.declaration) {
-      merged[existingIndex] = agentFn as unknown as F;
     } else {
       throw new A2uiCatalogError(
-        `Catalog '${catalogId}' already has a function named '${agentFn.name}'; pass AgentFunction.fromApi(catalog.functions.get('${agentFn.name}')!, handler) to bind the declared function.`,
+        `Catalog '${catalogId}' already has a function named '${agentFn.name}', so an agent function can't use that name: a renderer that implements the other function would run it instead of calling the agent. Give the agent function its own name, or bind a handler to the declared function with AgentFunction.fromApi(catalog.functions.get('${agentFn.name}')!, handler).`,
       );
     }
   }
