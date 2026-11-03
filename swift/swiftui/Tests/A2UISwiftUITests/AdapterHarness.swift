@@ -861,7 +861,18 @@ enum AdapterHarness {
     else {
       return
     }
-    if let boolValue = step["inputValue"] as? Bool {
+    let targetType = findViewNodeByID(targetID, in: session.currentTree)?.type
+    if targetType == "CheckBox", let boolValue = step["inputValue"] as? Bool {
+      try driver.setToggle(boolValue, componentID: targetID)
+    } else if targetType == "ChoicePicker", let arrValue = step["inputValue"] as? [Any] {
+      try driver.selectChoices(arrValue.compactMap { $0 as? String }, componentID: targetID)
+    } else if targetType == "Slider", let intValue = step["inputValue"] as? Int {
+      try driver.setSliderValue(Double(intValue), componentID: targetID)
+    } else if targetType == "Slider", let dblValue = step["inputValue"] as? Double {
+      try driver.setSliderValue(dblValue, componentID: targetID)
+    } else if targetType == "DateTimeInput", let strValue = step["inputValue"] as? String {
+      try driver.setDateTime(strValue, componentID: targetID)
+    } else if let boolValue = step["inputValue"] as? Bool {
       try driver.setToggle(boolValue, componentID: targetID)
     } else if let strValue = step["inputValue"] as? String {
       try driver.enterText(strValue, componentID: targetID)
@@ -968,8 +979,9 @@ enum AdapterHarness {
     }
     if let expData = step["expectDataModel"], let surface = session.mountedHarness?.surface {
       let expectedJSON = toJSONValue(expData)
-      #expect(surface.viewModel.dataModel.data == expectedJSON, "\(context): dataModel mismatch")
-      if surface.viewModel.dataModel.data != expectedJSON {
+      let matches = jsonValuesEqual(surface.viewModel.dataModel.data, expectedJSON)
+      #expect(matches, "\(context): dataModel mismatch")
+      if !matches {
         throw AdapterConformanceError("\(context): dataModel mismatch")
       }
     }
@@ -1087,9 +1099,12 @@ enum AdapterHarness {
         throw AdapterConformanceError("\(context): text mismatch")
       }
     }
-    if let expValue = expected["value"] as? String {
-      #expect(node.string(for: "value") == expValue, "\(context): value mismatch")
-      if node.string(for: "value") != expValue {
+    if let expValue = expected["value"] {
+      let actualJSON = resolvedValueJSON(for: node, key: "value")
+      let expectedJSON = toJSONValue(expValue)
+      let matches = actualJSON.map { jsonValuesEqual($0, expectedJSON) } ?? false
+      #expect(matches, "\(context): value mismatch")
+      if !matches {
         throw AdapterConformanceError("\(context): value mismatch")
       }
     }
@@ -1609,6 +1624,61 @@ enum AdapterHarness {
     map[baseID] = node
     for child in node.allChildNodes {
       collectNodes(from: child, into: &map)
+    }
+  }
+
+  private static func resolvedValueJSON(for node: A2UICore.Node, key: String) -> JSONValue? {
+    if let boolBinding = node.properties[key] as? DataBinding<Bool> {
+      return boolBinding.value.map { .boolean($0) }
+    }
+    if let dblBinding = node.properties[key] as? DataBinding<Double> {
+      return dblBinding.value.map { .number($0) }
+    }
+    if let intBinding = node.properties[key] as? DataBinding<Int> {
+      return intBinding.value.map { .integer($0) }
+    }
+    if let strBinding = node.properties[key] as? DataBinding<String> {
+      return strBinding.value.map { .string($0) }
+    }
+    if let arrBinding = node.properties[key] as? DataBinding<[String]> {
+      return arrBinding.value.map { .array($0.map { .string($0) }) }
+    }
+    if let jsonVal = node.jsonValue(for: key) {
+      return jsonVal
+    }
+    if let strVal = node.string(for: key) {
+      return .string(strVal)
+    }
+    return nil
+  }
+
+  nonisolated static func jsonValuesEqual(_ lhs: JSONValue, _ rhs: JSONValue) -> Bool {
+    switch (lhs, rhs) {
+    case (.integer(let a), .integer(let b)):
+      return a == b
+    case (.number(let a), .number(let b)):
+      return a == b
+    case (.integer(let a), .number(let b)):
+      return b.rounded() == b && Double(a) == b && Int(exactly: b) == a
+    case (.number(let a), .integer(let b)):
+      return a.rounded() == a && Double(b) == a && Int(exactly: a) == b
+    case (.string(let a), .string(let b)):
+      return a == b
+    case (.boolean(let a), .boolean(let b)):
+      return a == b
+    case (.null, .null):
+      return true
+    case (.array(let a), .array(let b)):
+      guard a.count == b.count else { return false }
+      return zip(a, b).allSatisfy { jsonValuesEqual($0, $1) }
+    case (.object(let a), .object(let b)):
+      guard Set(a.keys) == Set(b.keys) else { return false }
+      return a.keys.allSatisfy { key in
+        guard let lv = a[key], let rv = b[key] else { return false }
+        return jsonValuesEqual(lv, rv)
+      }
+    default:
+      return false
     }
   }
 

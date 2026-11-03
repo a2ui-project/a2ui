@@ -914,6 +914,65 @@ async function performStepOperation(state: HarnessState, step: AdapterStep): Pro
   const targetId = step.targetNode!;
   if (step.op === 'user_input') {
     const compEl = findComponentElement(container, targetId);
+    expect(compEl, `Component element for "${targetId}"`).toBeDefined();
+    const tag = compEl!.tagName.toLowerCase();
+    if (tag === 'a2ui-checkbox' || typeof step.inputValue === 'boolean') {
+      const checkbox = compEl!.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+      expect(checkbox, `Checkbox input for "${targetId}"`).not.toBeNull();
+      await act(async () => {
+        checkbox!.checked = Boolean(step.inputValue);
+        checkbox!.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+      });
+      return;
+    }
+    if (tag === 'a2ui-choicepicker' || Array.isArray(step.inputValue)) {
+      const values = (Array.isArray(step.inputValue) ? step.inputValue : [step.inputValue]).map(
+        String,
+      );
+      const options = Array.from(
+        compEl!.querySelectorAll('input.a2ui-option-input'),
+      ) as HTMLInputElement[];
+      expect(options.length).toBeGreaterThan(0);
+      await act(async () => {
+        for (const opt of options) {
+          const shouldCheck = values.includes(opt.value);
+          if (opt.type === 'radio' ? shouldCheck : opt.checked !== shouldCheck) {
+            opt.checked = shouldCheck;
+            opt.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+          }
+        }
+      });
+      return;
+    }
+    if (tag === 'a2ui-slider') {
+      const slider = compEl!.querySelector('input[type="range"]') as HTMLInputElement | null;
+      expect(slider, `Range input for "${targetId}"`).not.toBeNull();
+      await act(async () => {
+        slider!.value = String(step.inputValue ?? 0);
+        slider!.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
+      });
+      return;
+    }
+    if (tag === 'a2ui-datetimeinput') {
+      const raw = String(step.inputValue ?? '');
+      const [datePart, timePart] = raw.includes('T') ? raw.split('T') : [raw, ''];
+      const dateInput = compEl!.querySelector('input[type="date"]') as HTMLInputElement | null;
+      if (dateInput && datePart) {
+        await act(async () => {
+          dateInput.value = datePart.slice(0, 10);
+          dateInput.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+        });
+        await settleSurfaceDom(container);
+      }
+      const timeInput = compEl!.querySelector('input[type="time"]') as HTMLInputElement | null;
+      if (timeInput && timePart) {
+        await act(async () => {
+          timeInput.value = timePart.slice(0, 5);
+          timeInput.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+        });
+      }
+      return;
+    }
     const input = compEl?.querySelector('input, textarea') as HTMLInputElement | null;
     expect(input, `Input element for "${targetId}"`).not.toBeNull();
     await act(async () => {

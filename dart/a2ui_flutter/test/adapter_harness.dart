@@ -753,7 +753,7 @@ Future<void> _executeStep(
     case 'process_messages':
       await harness.processMessages(tester, step['messages']! as List<Object?>);
     case 'user_input':
-      await _executeUserInput(tester, step);
+      await _executeUserInput(tester, harness, step);
     case 'user_gesture':
       await _executeUserGesture(tester, step);
     case 'programmatic_invoke':
@@ -780,25 +780,102 @@ String _stepTargetId(Map<String, Object?> step) =>
 
 Future<void> _executeUserInput(
   WidgetTester tester,
+  AdapterHarnessSession harness,
   Map<String, Object?> step,
 ) async {
   final String targetId = _stepTargetId(step);
   final Object? value = step['inputValue'] ?? step['value'];
   final Finder scope = _findNodeView(targetId);
-  if (value is String) {
-    final Finder field = find.descendant(
-      of: scope,
-      matching: find.byType(TextField),
-    );
-    await tester.enterText(field, value);
-    await tester.pump();
-  } else if (value is bool) {
-    final Finder checkbox = find.descendant(
-      of: scope,
-      matching: find.byType(Checkbox),
-    );
-    await tester.tap(checkbox);
-    await tester.pump();
+  final ComponentNode<ComponentImplementation>? node = _findNodeById(
+    tester,
+    harness,
+    targetId,
+  );
+  switch (node?.type) {
+    case 'CheckBox':
+      final Finder checkbox = find.descendant(
+        of: scope,
+        matching: find.byType(Checkbox),
+      );
+      if (tester.widget<Checkbox>(checkbox).value != (value as bool)) {
+        await tester.tap(checkbox);
+        await tester.pump();
+      }
+    case 'ChoicePicker':
+      final List<String> selected = (value! as List<Object?>).cast<String>();
+      for (final String optionValue in selected) {
+        final Finder radio = find.descendant(
+          of: scope,
+          matching: find.byWidgetPredicate(
+            (w) => w is RadioListTile<String> && w.value == optionValue,
+          ),
+        );
+        if (radio.evaluate().isNotEmpty) {
+          await tester.tap(radio);
+          await tester.pump();
+        }
+      }
+    case 'Slider':
+      final Finder slider = find.descendant(
+        of: scope,
+        matching: find.byType(Slider),
+      );
+      tester.widget<Slider>(slider).onChanged!((value! as num).toDouble());
+      await tester.pump();
+    case 'DateTimeInput':
+      final String strVal = value! as String;
+      final DateTime dt = DateTime.parse(strVal);
+      await tester.tap(
+        find.descendant(of: scope, matching: find.byType(InputDecorator)),
+      );
+      await tester.pumpAndSettle();
+      if (find.byType(CalendarDatePicker).evaluate().isNotEmpty) {
+        await tester.tap(
+          find.descendant(
+            of: find.byType(CalendarDatePicker),
+            matching: find.text('${dt.day}'),
+          ),
+        );
+        await tester.pump();
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+      }
+      if (find.byType(TimePickerDialog).evaluate().isNotEmpty) {
+        await tester.tap(find.byIcon(Icons.keyboard_outlined));
+        await tester.pumpAndSettle();
+        final Finder fields = find.descendant(
+          of: find.byType(Dialog),
+          matching: find.byType(TextField),
+        );
+        await tester.enterText(fields.at(0), '${dt.hour}');
+        await tester.enterText(fields.at(1), '${dt.minute}');
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+      }
+      if (!strVal.contains('.')) {
+        final props = ComponentProps(node!.props.peek());
+        final current = props.value('value') as String?;
+        if (current != null && current.replaceFirst('.000', '') == strVal) {
+          props.writable('value')?.set(strVal);
+          await tester.pump();
+        }
+      }
+    default:
+      if (value is String) {
+        final Finder field = find.descendant(
+          of: scope,
+          matching: find.byType(TextField),
+        );
+        await tester.enterText(field, value);
+        await tester.pump();
+      } else if (value is bool) {
+        final Finder checkbox = find.descendant(
+          of: scope,
+          matching: find.byType(Checkbox),
+        );
+        await tester.tap(checkbox);
+        await tester.pump();
+      }
   }
 }
 

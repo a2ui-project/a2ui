@@ -269,6 +269,55 @@ final class HostedViewDriver {
     }
   }
 
+  /// Selects `values` on the hosted `ChoicePicker` component identified by `componentID`.
+  func selectChoices(_ values: [String], componentID: String) throws {
+    flush()
+    guard let targetNode = findNode(componentID: componentID) else {
+      throw AdapterConformanceError("Component '\(componentID)' not found in hosted surface")
+    }
+    _ = locateNativeTarget(componentID: componentID)
+    let picker = A2UIChoicePicker(node: targetNode)
+    for value in values {
+      picker.selectionBinding(forOptionValue: value).wrappedValue = true
+    }
+    flush()
+  }
+
+  /// Sets the numeric `value` on the hosted `Slider` component identified by `componentID`.
+  func setSliderValue(_ value: Double, componentID: String) throws {
+    flush()
+    guard let targetNode = findNode(componentID: componentID) else {
+      throw AdapterConformanceError("Component '\(componentID)' not found in hosted surface")
+    }
+    _ = locateNativeTarget(componentID: componentID)
+    targetNode.binding(for: "value", default: 0.0).wrappedValue = value
+    flush()
+  }
+
+  /// Sets the ISO date/time string `value` on the hosted `DateTimeInput` component identified by
+  /// `componentID`.
+  func setDateTime(_ value: String, componentID: String) throws {
+    flush()
+    guard let targetNode = findNode(componentID: componentID) else {
+      throw AdapterConformanceError("Component '\(componentID)' not found in hosted surface")
+    }
+    _ = locateNativeTarget(componentID: componentID)
+    if let parsed = DateTimeInputValue(parsing: value) {
+      let enableDate = targetNode.bool(for: "enableDate") ?? false
+      let enableTime = targetNode.bool(for: "enableTime") ?? false
+      let formatted = DateTimeInputValue.format(
+        parsed.date,
+        enableDate: enableDate,
+        enableTime: enableTime,
+        like: targetNode.string(for: "value")
+      )
+      (targetNode.dataBinding(for: "value") as DataBinding<String>?)?.set(formatted)
+    } else {
+      (targetNode.dataBinding(for: "value") as DataBinding<String>?)?.set(value)
+    }
+    flush()
+  }
+
   /// Returns the hosted accessibility element for `componentID`, or `nil` if the component is
   /// not present in the mounted surface.
   func accessibilityNode(componentID: String) -> AccessibilityElement? {

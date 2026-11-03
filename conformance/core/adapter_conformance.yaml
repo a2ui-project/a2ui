@@ -873,3 +873,210 @@
           - id: "kept_child"
             type: "Text"
             text: "Kept"
+
+- name: two_way_binding_inputs_checkbox_choice_slider_datetime
+  description: Verifies that user_input on CheckBox, ChoicePicker, Slider, and DateTimeInput writes back to bound @path entries in DataModel and updates dependent views.
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  action: render_surface
+  steps:
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              form:
+                agreed: false
+                choice:
+                  - "opt_a"
+                level: 10
+                when: "2025-01-01T08:00:00"
+            components:
+              - id: "root"
+                component: "Column"
+                children:
+                  - "agree_box"
+                  - "choice_picker"
+                  - "level_slider"
+                  - "when_input"
+                  - "summary_text"
+              - id: "agree_box"
+                component: "CheckBox"
+                label: "Agree"
+                value:
+                  "@path": "/form/agreed"
+              - id: "choice_picker"
+                component: "ChoicePicker"
+                label: "Pick one"
+                variant: "mutuallyExclusive"
+                options:
+                  - label: "Option A"
+                    value: "opt_a"
+                  - label: "Option B"
+                    value: "opt_b"
+                value:
+                  "@path": "/form/choice"
+              - id: "level_slider"
+                component: "Slider"
+                label: "Level"
+                min: 0
+                max: 100
+                value:
+                  "@path": "/form/level"
+              - id: "when_input"
+                component: "DateTimeInput"
+                label: "When"
+                enableDate: true
+                enableTime: true
+                value:
+                  "@path": "/form/when"
+              - id: "summary_text"
+                component: "Text"
+                text:
+                  "@call": "formatString"
+                  args:
+                    value: "agreed=${/form/agreed} choice=${/form/choice} level=${/form/level} when=${/form/when}"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "agree_box"
+            type: "CheckBox"
+            value: false
+          - id: "choice_picker"
+            type: "ChoicePicker"
+            value:
+              - "opt_a"
+          - id: "level_slider"
+            type: "Slider"
+            value: 10
+          - id: "when_input"
+            type: "DateTimeInput"
+            value: "2025-01-01T08:00:00"
+          - id: "summary_text"
+            type: "Text"
+            text: "agreed=false choice=[\"opt_a\"] level=10 when=2025-01-01T08:00:00"
+    - op: user_input
+      targetNode: "agree_box"
+      inputValue: true
+      expectDataModel:
+        form:
+          agreed: true
+          choice:
+            - "opt_a"
+          level: 10
+          when: "2025-01-01T08:00:00"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "agree_box"
+            type: "CheckBox"
+            value: true
+          - id: "choice_picker"
+            type: "ChoicePicker"
+            value:
+              - "opt_a"
+          - id: "level_slider"
+            type: "Slider"
+            value: 10
+          - id: "when_input"
+            type: "DateTimeInput"
+            value: "2025-01-01T08:00:00"
+          - id: "summary_text"
+            type: "Text"
+            text: "agreed=true choice=[\"opt_a\"] level=10 when=2025-01-01T08:00:00"
+    - op: user_input
+      targetNode: "choice_picker"
+      inputValue:
+        - "opt_b"
+      expectDataModel:
+        form:
+          agreed: true
+          choice:
+            - "opt_b"
+          level: 10
+          when: "2025-01-01T08:00:00"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "agree_box"
+            type: "CheckBox"
+            value: true
+          - id: "choice_picker"
+            type: "ChoicePicker"
+            value:
+              - "opt_b"
+          - id: "level_slider"
+            type: "Slider"
+            value: 10
+          - id: "when_input"
+            type: "DateTimeInput"
+            value: "2025-01-01T08:00:00"
+          - id: "summary_text"
+            type: "Text"
+            text: "agreed=true choice=[\"opt_b\"] level=10 when=2025-01-01T08:00:00"
+    - op: user_input
+      targetNode: "level_slider"
+      inputValue: 42
+      expectDataModel:
+        form:
+          agreed: true
+          choice:
+            - "opt_b"
+          level: 42
+          when: "2025-01-01T08:00:00"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "agree_box"
+            type: "CheckBox"
+            value: true
+          - id: "choice_picker"
+            type: "ChoicePicker"
+            value:
+              - "opt_b"
+          - id: "level_slider"
+            type: "Slider"
+            value: 42
+          - id: "when_input"
+            type: "DateTimeInput"
+            value: "2025-01-01T08:00:00"
+          - id: "summary_text"
+            type: "Text"
+            text: "agreed=true choice=[\"opt_b\"] level=42 when=2025-01-01T08:00:00"
+    - op: user_input
+      targetNode: "when_input"
+      inputValue: "2025-01-31T09:30:00"
+      expectDataModel:
+        form:
+          agreed: true
+          choice:
+            - "opt_b"
+          level: 42
+          when: "2025-01-31T09:30:00"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "agree_box"
+            type: "CheckBox"
+            value: true
+          - id: "choice_picker"
+            type: "ChoicePicker"
+            value:
+              - "opt_b"
+          - id: "level_slider"
+            type: "Slider"
+            value: 42
+          - id: "when_input"
+            type: "DateTimeInput"
+            value: "2025-01-31T09:30:00"
+          - id: "summary_text"
+            type: "Text"
+            text: "agreed=true choice=[\"opt_b\"] level=42 when=2025-01-31T09:30:00"

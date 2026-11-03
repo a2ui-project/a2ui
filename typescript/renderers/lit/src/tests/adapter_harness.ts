@@ -1076,7 +1076,7 @@ export async function ensureSurfaceMounted(
   session.surfaceEl = el;
 }
 
-function performStepOperation(session: AdapterSession, step: AdapterStep): void {
+async function performStepOperation(session: AdapterSession, step: AdapterStep): Promise<void> {
   switch (step.op) {
     case 'process_messages':
       session.processor.processMessages(step.messages ?? []);
@@ -1084,7 +1084,62 @@ function performStepOperation(session: AdapterSession, step: AdapterStep): void 
     case 'user_input': {
       assert.ok(session.surfaceEl && step.targetNode, 'Expected surfaceEl and targetNode');
       const hostEl = findDomElementByComponentId(session.surfaceEl, step.targetNode);
-      const input = hostEl?.querySelector('input, textarea') as HTMLInputElement | undefined;
+      assert.ok(hostEl, `Expected host element for "${step.targetNode}"`);
+      const tag = hostEl.tagName.toLowerCase();
+      if (tag === 'a2ui-checkbox' || typeof step.inputValue === 'boolean') {
+        const checkbox = hostEl.querySelector('input[type="checkbox"]') as
+          | HTMLInputElement
+          | undefined;
+        assert.ok(checkbox, `Expected checkbox input inside "${step.targetNode}"`);
+        checkbox.checked = Boolean(step.inputValue);
+        checkbox.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+        return;
+      }
+      if (tag === 'a2ui-choicepicker' || Array.isArray(step.inputValue)) {
+        const values = (Array.isArray(step.inputValue) ? step.inputValue : [step.inputValue]).map(
+          String,
+        );
+        const options = Array.from(
+          hostEl.querySelectorAll('input.a2ui-option-input'),
+        ) as HTMLInputElement[];
+        assert.ok(options.length > 0, `Expected option inputs inside "${step.targetNode}"`);
+        for (const opt of options) {
+          const shouldCheck = values.includes(opt.value);
+          if (opt.type === 'radio' ? shouldCheck : opt.checked !== shouldCheck) {
+            opt.checked = shouldCheck;
+            opt.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+          }
+        }
+        return;
+      }
+      if (tag === 'a2ui-slider') {
+        const slider = hostEl.querySelector('input[type="range"]') as HTMLInputElement | undefined;
+        assert.ok(slider, `Expected range input inside "${step.targetNode}"`);
+        slider.value = String(step.inputValue ?? 0);
+        slider.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
+        return;
+      }
+      if (tag === 'a2ui-datetimeinput') {
+        const raw = String(step.inputValue ?? '');
+        const [datePart, timePart] = raw.includes('T') ? raw.split('T') : [raw, ''];
+        const dateInput = hostEl.querySelector('input[type="date"]') as
+          | HTMLInputElement
+          | undefined;
+        if (dateInput && datePart) {
+          dateInput.value = datePart.slice(0, 10);
+          dateInput.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+          await settleSurface(session.surfaceEl);
+        }
+        const timeInput = hostEl.querySelector('input[type="time"]') as
+          | HTMLInputElement
+          | undefined;
+        if (timeInput && timePart) {
+          timeInput.value = timePart.slice(0, 5);
+          timeInput.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+        }
+        return;
+      }
+      const input = hostEl.querySelector('input, textarea') as HTMLInputElement | undefined;
       assert.ok(input, `Expected input element inside "${step.targetNode}"`);
       input.value = String(step.inputValue ?? '');
       input.dispatchEvent(new Event('input', {bubbles: true}));
@@ -1303,7 +1358,7 @@ export async function runStep(session: AdapterSession, step: AdapterStep): Promi
       }
     }
   } else {
-    performStepOperation(session, step);
+    await performStepOperation(session, step);
   }
 
   if (session.surfaceEl && step.op !== 'unmount_surface') {
