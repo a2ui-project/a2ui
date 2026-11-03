@@ -230,6 +230,9 @@ export const KNOWN_KEYS = {
     'occupiesLayout',
     'text',
     'value',
+    'url',
+    'name',
+    'axis',
     'badgeText',
     'isValid',
     'validationErrors',
@@ -577,13 +580,33 @@ function getRootComponentNode(container: HTMLElement): ComponentNode | undefined
   return first?.node;
 }
 
-function extractDirectChildNodes(node: ComponentNode): ComponentNode[] {
+function extractDirectChildNodes(node: ComponentNode, container?: HTMLElement): ComponentNode[] {
   const props = peekValue(node.props);
   if (Array.isArray(props.children)) {
     return props.children.filter(isComponentNode);
   }
   if (isComponentNode(props.child)) {
     return [props.child];
+  }
+  if (Array.isArray(props.tabs)) {
+    const domEl = container ? findDomElementForNode(container, node) : undefined;
+    const activeIndex = (domEl as unknown as {activeIndex?: number})?.activeIndex ?? 0;
+    const activeTab = (props.tabs as Array<{child?: unknown}>)[activeIndex];
+    if (activeTab && isComponentNode(activeTab.child)) {
+      return [activeTab.child];
+    }
+    return [];
+  }
+  if (isComponentNode(props.trigger)) {
+    const modalChildren: ComponentNode[] = [props.trigger];
+    const domEl = container ? findDomElementForNode(container, node) : undefined;
+    const isOpen =
+      (domEl as unknown as {isOpen?: boolean})?.isOpen === true ||
+      Boolean(domEl?.querySelector('.a2ui-modal-content'));
+    if (isOpen && isComponentNode(props.content)) {
+      modalChildren.push(props.content);
+    }
+    return modalChildren;
   }
   return [];
 }
@@ -730,7 +753,7 @@ export function assertViewTree(
   }
   assertViewNodeProps(actual, expected, nodePath);
   if (expected.children !== undefined) {
-    const childNodes = extractDirectChildNodes(actual);
+    const childNodes = extractDirectChildNodes(actual, container);
     expect(childNodes, `${nodePath}.children length`).toHaveLength(expected.children.length);
     expected.children.forEach((expectedChild, idx) => {
       assertViewTree(
@@ -941,6 +964,17 @@ async function performStepOperation(state: HarnessState, step: AdapterStep): Pro
             opt.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
           }
         }
+      });
+      return;
+    }
+    if (tag === 'a2ui-tabs') {
+      const tabButtons = Array.from(
+        compEl!.querySelectorAll('button.a2ui-tab-button'),
+      ) as HTMLButtonElement[];
+      const tabIdx = Number(step.inputValue ?? 0);
+      expect(tabButtons[tabIdx], `Tab button ${tabIdx} for "${targetId}"`).toBeDefined();
+      await act(async () => {
+        fireEvent.click(tabButtons[tabIdx]!);
       });
       return;
     }

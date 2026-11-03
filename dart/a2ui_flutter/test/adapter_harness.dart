@@ -89,6 +89,9 @@ const Set<String> viewNodeKnownKeys = {
   'occupiesLayout',
   'text',
   'value',
+  'url',
+  'name',
+  'axis',
   'badgeText',
   'isValid',
   'validationErrors',
@@ -357,10 +360,11 @@ String? findUnsupportedReason(
 }
 
 void assertAllUnsupportedMatched() {
-  final List<String> unused = unsupported.keys
-      .where((k) => !_matchedUnsupportedKeys.contains(k))
-      .toList()
-    ..sort();
+  final List<String> unused =
+      unsupported.keys
+          .where((k) => !_matchedUnsupportedKeys.contains(k))
+          .toList()
+        ..sort();
   if (unused.isNotEmpty) {
     fail('Unused unsupported entries did not match any case: $unused');
   }
@@ -485,10 +489,10 @@ CatalogImplementation _buildCustomStatusBadgeCatalog(
 
 class _IncrementCounterFunction extends FunctionImplementation {
   _IncrementCounterFunction()
-      : super(
-          name: 'incrementCounter',
-          argumentSchema: Schema.fromMap({'type': 'object'}),
-        );
+    : super(
+        name: 'incrementCounter',
+        argumentSchema: Schema.fromMap({'type': 'object'}),
+      );
 
   @override
   Object? execute(
@@ -523,8 +527,8 @@ class AdapterHarnessSession {
       validationConfig: strictMode == true
           ? ValidationConfig.strict
           : strictMode == false
-              ? ValidationConfig.relaxed
-              : null,
+          ? ValidationConfig.relaxed
+          : null,
       outboundListener: (msg) {
         outbound.add(
           jsonDecode(jsonEncode(msg.toJson())) as Map<String, Object?>,
@@ -614,17 +618,15 @@ class AdapterHarnessSession {
 AdapterHarnessSession mountSurface([
   Map<String, Object?>? caseSpec,
   WidgetTester? tester,
-]) =>
-    AdapterHarnessSession(
-      tester,
-      (caseSpec?['protocolVersion'] as String?) ?? '1.0',
-      caseSpec?['strictMode'] as bool?,
-    );
+]) => AdapterHarnessSession(
+  tester,
+  (caseSpec?['protocolVersion'] as String?) ?? '1.0',
+  caseSpec?['strictMode'] as bool?,
+);
 
 ComponentNode<ComponentImplementation>? extractViewTree(
   AdapterHarnessSession session,
-) =>
-    session.rootNode;
+) => session.rootNode;
 
 void assertViewTree(
   ComponentNode<ComponentImplementation>? actual,
@@ -639,7 +641,8 @@ void assertViewTree(
   final Finder candidates = _findNodeView(node.instanceId, ancestor);
   if (expected['occupiesLayout'] case final bool expectedOccupiesLayout) {
     if (tester != null) {
-      final bool hasNonZeroSize = candidates.evaluate().isNotEmpty &&
+      final bool hasNonZeroSize =
+          candidates.evaluate().isNotEmpty &&
           !tester.getSize(candidates.first).isEmpty;
       expect(hasNonZeroSize, expectedOccupiesLayout);
     }
@@ -654,7 +657,14 @@ void assertViewTree(
     expect(node.type, expectedType);
   }
   final props = ComponentProps(node.props.peek());
-  for (final propKey in const ['text', 'value', 'badgeText']) {
+  for (final propKey in const [
+    'text',
+    'value',
+    'url',
+    'name',
+    'axis',
+    'badgeText',
+  ]) {
     if (expected[propKey] case final Object expectedVal) {
       expect(props.value(propKey), expectedVal);
     }
@@ -669,7 +679,7 @@ void assertViewTree(
         actualChildren[i],
         expectedChildren[i]! as Map<String, Object?>,
         tester,
-        viewFinder,
+        node.type == 'Modal' ? null : viewFinder,
       );
     }
   }
@@ -815,6 +825,14 @@ Future<void> _executeUserInput(
           await tester.pump();
         }
       }
+    case 'Tabs':
+      final int tabIndex = (value! as num).toInt();
+      final Finder tabs = find.descendant(
+        of: scope,
+        matching: find.byType(Tab),
+      );
+      await tester.tap(tabs.at(tabIndex));
+      await tester.pumpAndSettle();
     case 'Slider':
       final Finder slider = find.descendant(
         of: scope,
@@ -930,7 +948,7 @@ void _assertStepExpectations(
   }
   if (step['expectSameViewIdentity'] case final List<Object?> keys) {
     final Map<String, (ComponentNode<ComponentImplementation>, Element?)>
-        current = _collectIdentityMap(tester, harness.rootNode);
+    current = _collectIdentityMap(tester, harness.rootNode);
     for (final rawKey in keys) {
       final key = rawKey! as String;
       expect(current[key]?.$1, same(harness.savedNodes[key]));
@@ -939,7 +957,7 @@ void _assertStepExpectations(
   }
   if (step['expectNewViewIdentity'] case final List<Object?> keys) {
     final Map<String, (ComponentNode<ComponentImplementation>, Element?)>
-        current = _collectIdentityMap(tester, harness.rootNode);
+    current = _collectIdentityMap(tester, harness.rootNode);
     for (final rawKey in keys) {
       final key = rawKey! as String;
       expect(current[key]?.$1, isNotNull);
@@ -1013,11 +1031,35 @@ List<ComponentNode<ComponentImplementation>> _directChildren(
       case final ComponentNode<ComponentImplementation> c) {
     return [c];
   }
+  if (props.list('tabs') case final List<Object?> tabs when tabs.isNotEmpty) {
+    final result = <ComponentNode<ComponentImplementation>>[];
+    for (final Map<String, Object?> tab
+        in tabs.whereType<Map<String, Object?>>()) {
+      if (tab['child']
+          case final ComponentNode<ComponentImplementation> child) {
+        if (_findNodeView(child.instanceId).evaluate().isNotEmpty) {
+          result.add(child);
+        }
+      }
+    }
+    return result;
+  }
+  if (props.child('trigger')
+      case final ComponentNode<ComponentImplementation> trigger) {
+    final result = <ComponentNode<ComponentImplementation>>[trigger];
+    if (props.child('content')
+        case final ComponentNode<ComponentImplementation> content) {
+      if (_findNodeView(content.instanceId).evaluate().isNotEmpty) {
+        result.add(content);
+      }
+    }
+    return result;
+  }
   return props.children('children');
 }
 
 Map<String, (ComponentNode<ComponentImplementation>, Element?)>
-    _collectIdentityMap(
+_collectIdentityMap(
   WidgetTester tester,
   ComponentNode<ComponentImplementation>? root,
 ) {
@@ -1036,15 +1078,20 @@ Map<String, (ComponentNode<ComponentImplementation>, Element?)>
           ),
         )
         .evaluate();
-    final Iterable<Element> elements =
-        implElements.isNotEmpty ? implElements : finder.evaluate();
+    final Iterable<Element> elements = implElements.isNotEmpty
+        ? implElements
+        : finder.evaluate();
     final Element? elem = elements.isEmpty ? null : elements.first;
     result[node.instanceId] = (node, elem);
     result[path] = (node, elem);
     final List<ComponentNode<ComponentImplementation>> children =
         _directChildren(node);
     for (var i = 0; i < children.length; i++) {
-      visit(children[i], '$path/children/$i', finder);
+      visit(
+        children[i],
+        '$path/children/$i',
+        node.type == 'Modal' ? null : finder,
+      );
     }
   }
 
@@ -1056,9 +1103,12 @@ void _snapshotIdentities(WidgetTester tester, AdapterHarnessSession harness) {
   harness.savedElements.clear();
   harness.savedNodes.clear();
   final Map<String, (ComponentNode<ComponentImplementation>, Element?)>
-      identities = _collectIdentityMap(tester, harness.rootNode);
-  for (final MapEntry<String,
-          (ComponentNode<ComponentImplementation>, Element?)> entry
+  identities = _collectIdentityMap(tester, harness.rootNode);
+  for (final MapEntry<
+        String,
+        (ComponentNode<ComponentImplementation>, Element?)
+      >
+      entry
       in identities.entries) {
     harness.savedNodes[entry.key] = entry.value.$1;
     if (entry.value.$2 != null) {
@@ -1073,7 +1123,7 @@ ComponentNode<ComponentImplementation>? _findNodeById(
   String id,
 ) {
   final Map<String, (ComponentNode<ComponentImplementation>, Element?)>
-      identities = _collectIdentityMap(tester, harness.rootNode);
+  identities = _collectIdentityMap(tester, harness.rootNode);
   return identities[id]?.$1;
 }
 
@@ -1250,9 +1300,9 @@ Map<String, Object?> _frameActionEnvelope(
   A2uiRendererAction action,
   String protocolVersion,
 ) {
-  final actionMap = jsonDecode(jsonEncode(action.toJson()))
-      as Map<String, Object?>
-    ..remove('catalogId');
+  final actionMap =
+      jsonDecode(jsonEncode(action.toJson())) as Map<String, Object?>
+        ..remove('catalogId');
   return <String, Object?>{'version': protocolVersion, 'action': actionMap};
 }
 
@@ -1262,8 +1312,9 @@ void _validateOutboundEnvelopes(
 ) {
   final bool isV09 =
       protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9');
-  final _OutboundSchemaOracle oracle =
-      isV09 ? _v09OutboundOracle : _v10OutboundOracle;
+  final _OutboundSchemaOracle oracle = isV09
+      ? _v09OutboundOracle
+      : _v10OutboundOracle;
   for (var i = 0; i < envelopes.length; i++) {
     final List<ValidationError> validationErrors = oracle.validate(
       envelopes[i],
@@ -1382,12 +1433,13 @@ List<SemanticsData> _collectSemanticsData(
     });
   }
 
-  for (final Element element in find
-      .descendant(
-        of: viewFinder,
-        matching: find.byWidgetPredicate((_) => true),
-      )
-      .evaluate()) {
+  for (final Element element
+      in find
+          .descendant(
+            of: viewFinder,
+            matching: find.byWidgetPredicate((_) => true),
+          )
+          .evaluate()) {
     final RenderObject? renderObject = element.renderObject;
     if (renderObject != null && renderObject.debugSemantics != null) {
       addNode(renderObject.debugSemantics!);
@@ -1425,8 +1477,9 @@ void _assertComponentSemantics(
     expect(_hasRole(subtreeData, expectedRole), isTrue);
   }
   if (spec['checked'] case final bool expectedChecked) {
-    final CheckedState expectedState =
-        expectedChecked ? CheckedState.isTrue : CheckedState.isFalse;
+    final CheckedState expectedState = expectedChecked
+        ? CheckedState.isTrue
+        : CheckedState.isFalse;
     expect(
       subtreeData.any((d) => d.flagsCollection.isChecked == expectedState),
       isTrue,
@@ -1435,12 +1488,11 @@ void _assertComponentSemantics(
 }
 
 bool _hasRole(List<SemanticsData> data, String role) => switch (role) {
-      'button' => data.any((d) => d.flagsCollection.isButton),
-      'textbox' => data.any((d) => d.flagsCollection.isTextField),
-      'checkbox' => data.any(
-          (d) => d.flagsCollection.isChecked != CheckedState.none,
-        ),
-      'radiogroup' =>
-        data.any((d) => d.flagsCollection.isInMutuallyExclusiveGroup),
-      _ => false,
-    };
+  'button' => data.any((d) => d.flagsCollection.isButton),
+  'textbox' => data.any((d) => d.flagsCollection.isTextField),
+  'checkbox' => data.any(
+    (d) => d.flagsCollection.isChecked != CheckedState.none,
+  ),
+  'radiogroup' => data.any((d) => d.flagsCollection.isInMutuallyExclusiveGroup),
+  _ => false,
+};

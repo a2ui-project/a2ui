@@ -1080,3 +1080,257 @@
           - id: "summary_text"
             type: "Text"
             text: "agreed=true choice=[\"opt_b\"] level=42 when=2025-01-31T09:30:00"
+
+# =============================================================================
+# 16. Media, Tabs, Modal, Divider, Slider, and DateTimeInput Components
+# =============================================================================
+- name: media_components_bind_url_and_name
+  description: >
+    Verifies that Image, Video, AudioPlayer, and Icon resolve bound and
+    literal url and name properties and update when the data model changes.
+  action: render_surface
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  steps:
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              media:
+                imageUrl: "https://example.com/banner-v1.png"
+                videoUrl: "https://example.com/intro.mp4"
+                audioUrl: "https://example.com/podcast-ep1.mp3"
+            components:
+              - id: "root"
+                component: "Column"
+                children:
+                  - "hero_img"
+                  - "intro_video"
+                  - "podcast_audio"
+                  - "status_icon"
+              - id: "hero_img"
+                component: "Image"
+                url:
+                  "@path": "/media/imageUrl"
+                description: "Hero banner"
+              - id: "intro_video"
+                component: "Video"
+                url:
+                  "@path": "/media/videoUrl"
+              - id: "podcast_audio"
+                component: "AudioPlayer"
+                url:
+                  "@path": "/media/audioUrl"
+                description: "Episode 1"
+              - id: "status_icon"
+                component: "Icon"
+                name: "check"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "hero_img"
+            type: "Image"
+            url: "https://example.com/banner-v1.png"
+          - id: "intro_video"
+            type: "Video"
+            url: "https://example.com/intro.mp4"
+          - id: "podcast_audio"
+            type: "AudioPlayer"
+            url: "https://example.com/podcast-ep1.mp3"
+          - id: "status_icon"
+            type: "Icon"
+            name: "check"
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          updateDataModel:
+            surfaceId: "adapter_surface"
+            path: "/media/imageUrl"
+            value: "https://example.com/banner-v2.png"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "hero_img"
+            type: "Image"
+            url: "https://example.com/banner-v2.png"
+          - id: "intro_video"
+            type: "Video"
+            url: "https://example.com/intro.mp4"
+          - id: "podcast_audio"
+            type: "AudioPlayer"
+            url: "https://example.com/podcast-ep1.mp3"
+          - id: "status_icon"
+            type: "Icon"
+            name: "check"
+
+- name: tabs_switch_content
+  description: >
+    Verifies that Tabs initially renders the first tab's child component and
+    switches to the selected tab's child component on user_input.
+  action: render_surface
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  steps:
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "root"
+                component: "Tabs"
+                tabs:
+                  - title: "First"
+                    child: "tab_one_text"
+                  - title: "Second"
+                    child: "tab_two_text"
+              - id: "tab_one_text"
+                component: "Text"
+                text: "First tab content"
+              - id: "tab_two_text"
+                component: "Text"
+                text: "Second tab content"
+      expectViewTree:
+        id: "root"
+        type: "Tabs"
+        children:
+          - id: "tab_one_text"
+            type: "Text"
+            text: "First tab content"
+    - op: user_input
+      targetNode: "root"
+      inputValue: 1
+      expectViewTree:
+        id: "root"
+        type: "Tabs"
+        children:
+          - id: "tab_two_text"
+            type: "Text"
+            text: "Second tab content"
+
+- name: modal_open_shows_content
+  description: >
+    Verifies that Modal initially mounts its trigger child and mounts its
+    content child once the trigger is activated via user_gesture.
+  action: render_surface
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  steps:
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "root"
+                component: "Modal"
+                trigger: "open_btn"
+                content: "modal_body"
+              - id: "open_btn"
+                component: "Button"
+                child: "open_btn_text"
+                action:
+                  event:
+                    name: "open_modal"
+              - id: "open_btn_text"
+                component: "Text"
+                text: "Open Details"
+              - id: "modal_body"
+                component: "Text"
+                text: "Modal dialog content"
+      expectViewTree:
+        id: "root"
+        type: "Modal"
+        children:
+          - id: "open_btn"
+            type: "Button"
+            children:
+              - id: "open_btn_text"
+                type: "Text"
+                text: "Open Details"
+    - op: user_gesture
+      targetNode: "open_btn"
+      expectActions:
+        - name: "open_modal"
+          surfaceId: "adapter_surface"
+          sourceComponentId: "open_btn"
+          context: {}
+      expectViewTree:
+        id: "root"
+        type: "Modal"
+        children:
+          - id: "open_btn"
+            type: "Button"
+            children:
+              - id: "open_btn_text"
+                type: "Text"
+                text: "Open Details"
+          - id: "modal_body"
+            type: "Text"
+            text: "Modal dialog content"
+
+- name: divider_and_slider_datetime_render
+  description: >
+    Verifies that Divider renders its axis property alongside bound Slider
+    and DateTimeInput components.
+  action: render_surface
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  steps:
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "adapter_surface"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              vol: 25
+              date: "2025-06-15"
+            components:
+              - id: "root"
+                component: "Column"
+                children:
+                  - "sep"
+                  - "vol_slider"
+                  - "dt_input"
+              - id: "sep"
+                component: "Divider"
+                axis: "vertical"
+              - id: "vol_slider"
+                component: "Slider"
+                label: "Volume"
+                min: 0
+                max: 100
+                value:
+                  "@path": "/vol"
+              - id: "dt_input"
+                component: "DateTimeInput"
+                label: "Schedule"
+                enableDate: true
+                enableTime: false
+                value:
+                  "@path": "/date"
+      expectViewTree:
+        id: "root"
+        type: "Column"
+        children:
+          - id: "sep"
+            type: "Divider"
+            axis: "vertical"
+          - id: "vol_slider"
+            type: "Slider"
+            value: 25
+          - id: "dt_input"
+            type: "DateTimeInput"
+            value: "2025-06-15"

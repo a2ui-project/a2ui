@@ -273,6 +273,9 @@ enum AdapterHarness {
     "occupiesLayout",
     "text",
     "value",
+    "url",
+    "name",
+    "axis",
     "badgeText",
     "isValid",
     "validationErrors",
@@ -669,7 +672,7 @@ enum AdapterHarness {
   /// Extracts the current resolved view tree from `session`.
   static func extractViewTree(_ session: AdapterSession) -> AdapterViewNode? {
     guard let harness = session.mountedHarness, harness.isMounted else { return nil }
-    return resolveViewTree(for: harness.surface)
+    return resolveViewTree(for: harness.surface, driver: harness.driver)
   }
 
   /// Executes a single adapter conformance `step` against `session` and verifies expectations.
@@ -866,6 +869,8 @@ enum AdapterHarness {
       try driver.setToggle(boolValue, componentID: targetID)
     } else if targetType == "ChoicePicker", let arrValue = step["inputValue"] as? [Any] {
       try driver.selectChoices(arrValue.compactMap { $0 as? String }, componentID: targetID)
+    } else if targetType == "Tabs", let intValue = step["inputValue"] as? Int {
+      try driver.selectTab(index: intValue, componentID: targetID)
     } else if targetType == "Slider", let intValue = step["inputValue"] as? Int {
       try driver.setSliderValue(Double(intValue), componentID: targetID)
     } else if targetType == "Slider", let dblValue = step["inputValue"] as? Double {
@@ -908,13 +913,17 @@ enum AdapterHarness {
     targetNode.action(for: "action", userActivation: userActivation)?()
   }
 
-  static func resolveViewTree(for surface: Surface) -> AdapterViewNode? {
+  static func resolveViewTree(
+    for surface: Surface,
+    driver: HostedViewDriver? = nil
+  ) -> AdapterViewNode? {
     guard let rootNode = surface.viewModel.rootNode else { return nil }
-    return buildViewNode(in: surface, node: rootNode)
+    return buildViewNode(in: surface, driver: driver, node: rootNode)
   }
 
   private static func buildViewNode(
     in surface: Surface,
+    driver: HostedViewDriver?,
     node: A2UICore.Node
   ) -> AdapterViewNode {
     let rendered = Surface.render(
@@ -923,7 +932,7 @@ enum AdapterHarness {
       defaultCatalogID: surface.defaultCatalogID
     )
     #expect(rendered != nil, "Expected Surface.render builder for '\(node.type)'")
-    let children = resolveChildViewNodes(in: surface, node: node)
+    let children = resolveChildViewNodes(in: surface, driver: driver, node: node)
     let baseID = baseComponentID(for: node, in: surface)
     return AdapterViewNode(
       id: baseID,
@@ -959,14 +968,53 @@ enum AdapterHarness {
 
   private static func resolveChildViewNodes(
     in surface: Surface,
+    driver: HostedViewDriver?,
     node: A2UICore.Node
   ) -> [AdapterViewNode] {
     if let singleChild = node.child(for: "child") {
-      return [buildViewNode(in: surface, node: singleChild)]
+      return [buildViewNode(in: surface, driver: driver, node: singleChild)]
+    }
+    if node.type == "Tabs" {
+      let tabChildren = resolveTabChildren(for: node)
+      let selectedIndex = driver?.selectedTabIndex(for: node.id) ?? 0
+      if selectedIndex >= 0 && selectedIndex < tabChildren.count {
+        return [buildViewNode(in: surface, driver: driver, node: tabChildren[selectedIndex])]
+      }
+      return []
+    }
+    if node.type == "Modal" {
+      var modalChildren: [AdapterViewNode] = []
+      if let trigger = node.child(for: "trigger") {
+        modalChildren.append(buildViewNode(in: surface, driver: driver, node: trigger))
+      }
+      if driver?.isModalOpen(node.id) == true, let content = node.child(for: "content") {
+        modalChildren.append(buildViewNode(in: surface, driver: driver, node: content))
+      }
+      return modalChildren
     }
     return node.children(for: "children").map { childNode in
-      buildViewNode(in: surface, node: childNode)
+      buildViewNode(in: surface, driver: driver, node: childNode)
     }
+  }
+
+  private static func resolveTabChildren(for node: A2UICore.Node) -> [A2UICore.Node] {
+    if let array = node.array(for: "tabs") {
+      return array.compactMap { element in
+        let dict = element as? ResolvedDictionary
+        if let child = dict?["child"] as? A2UICore.Node {
+          return child
+        }
+        let childID = dict?["child"] as? String ?? ""
+        return node.allChildNodes.first { $0.id == childID }
+      }
+    }
+    if let json = node.jsonValue(for: "tabs"), let array = json.arrayValue {
+      return array.compactMap { item in
+        let childID = item["child"]?.stringValue ?? ""
+        return node.allChildNodes.first { $0.id == childID }
+      }
+    }
+    return []
   }
 
   private static func verifyAdapterStep(
@@ -1112,6 +1160,15 @@ enum AdapterHarness {
       #expect(node.string(for: "badgeText") == expBadge, "\(context): badgeText mismatch")
       if node.string(for: "badgeText") != expBadge {
         throw AdapterConformanceError("\(context): badgeText mismatch")
+      }
+    }
+    for key in ["url", "name", "axis"] {
+      if let expStr = expected[key] as? String {
+        let actualStr = node.string(for: key)
+        #expect(actualStr == expStr, "\(context): \(key) mismatch")
+        if actualStr != expStr {
+          throw AdapterConformanceError("\(context): \(key) mismatch")
+        }
       }
     }
     try assertValidationProperties(node, expected: expected, context: context)

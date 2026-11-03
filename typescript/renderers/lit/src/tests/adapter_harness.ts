@@ -81,6 +81,9 @@ export interface ExpectedViewNode {
   occupiesLayout?: boolean;
   text?: string;
   value?: unknown;
+  url?: string;
+  name?: string;
+  axis?: string;
   badgeText?: string;
   isValid?: boolean;
   validationErrors?: string[];
@@ -226,6 +229,9 @@ export const KNOWN_KEYS = {
     'occupiesLayout',
     'text',
     'value',
+    'url',
+    'name',
+    'axis',
     'badgeText',
     'isValid',
     'validationErrors',
@@ -578,6 +584,7 @@ function findDomElementByComponentId(
 
 function getDirectChildNodes(
   node: ComponentNode<LitComponentApi>,
+  surfaceEl?: A2uiSurface,
 ): Array<ComponentNode<LitComponentApi>> {
   const props = getValue(node.props);
   const childrenProp = props.children;
@@ -587,6 +594,28 @@ function getDirectChildNodes(
   const childProp = props.child;
   if (isComponentNode(childProp)) {
     return [childProp as ComponentNode<LitComponentApi>];
+  }
+  const tabsProp = props.tabs;
+  if (Array.isArray(tabsProp)) {
+    const domEl = surfaceEl ? findDomElementForNode(surfaceEl, node) : undefined;
+    const activeIndex = (domEl as unknown as {activeIndex?: number})?.activeIndex ?? 0;
+    const activeTab = (tabsProp as Array<{child?: unknown}>)[activeIndex];
+    if (activeTab && isComponentNode(activeTab.child)) {
+      return [activeTab.child as ComponentNode<LitComponentApi>];
+    }
+    return [];
+  }
+  const triggerProp = props.trigger;
+  if (isComponentNode(triggerProp)) {
+    const modalChildren = [triggerProp as ComponentNode<LitComponentApi>];
+    const domEl = surfaceEl ? findDomElementForNode(surfaceEl, node) : undefined;
+    const isOpen =
+      (domEl as unknown as {isOpen?: boolean})?.isOpen === true ||
+      Boolean(domEl?.querySelector('.a2ui-modal-content'));
+    if (isOpen && isComponentNode(props.content)) {
+      modalChildren.push(props.content as ComponentNode<LitComponentApi>);
+    }
+    return modalChildren;
   }
   return [];
 }
@@ -689,6 +718,22 @@ function assertNodeScalarProps(
   if (expected.value !== undefined) {
     assert.deepEqual(unwrapProp(props.value), expected.value);
   }
+  if (expected.url !== undefined) {
+    assert.equal(unwrapProp(props.url), expected.url);
+    if (surfaceEl) {
+      const domEl = findDomElementForNode(surfaceEl, actual);
+      const mediaEl = domEl?.querySelector('img, video, audio');
+      if (mediaEl) {
+        assert.equal(mediaEl.getAttribute('src'), expected.url);
+      }
+    }
+  }
+  if (expected.name !== undefined) {
+    assert.equal(unwrapProp(props.name), expected.name);
+  }
+  if (expected.axis !== undefined) {
+    assert.equal(unwrapProp(props.axis), expected.axis);
+  }
   if (expected.badgeText !== undefined) {
     assert.equal(unwrapProp(props.badgeText), expected.badgeText);
     if (surfaceEl) {
@@ -758,7 +803,7 @@ export function assertViewTree(
   assertNodeScalarProps(resolvedSurfaceEl, actual, expected);
 
   if (expected.children !== undefined) {
-    const actualChildren = getDirectChildNodes(actual);
+    const actualChildren = getDirectChildNodes(actual, resolvedSurfaceEl);
     assert.equal(
       actualChildren.length,
       expected.children.length,
@@ -1110,6 +1155,18 @@ async function performStepOperation(session: AdapterSession, step: AdapterStep):
             opt.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
           }
         }
+        return;
+      }
+      if (tag === 'a2ui-tabs') {
+        const tabButtons = Array.from(
+          hostEl.querySelectorAll('button.a2ui-tab-button'),
+        ) as HTMLButtonElement[];
+        const tabIdx = Number(step.inputValue ?? 0);
+        assert.ok(
+          tabButtons[tabIdx],
+          `Expected tab button at index ${tabIdx} inside "${step.targetNode}"`,
+        );
+        tabButtons[tabIdx].click();
         return;
       }
       if (tag === 'a2ui-slider') {

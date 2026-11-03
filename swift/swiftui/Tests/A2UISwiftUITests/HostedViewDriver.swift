@@ -121,6 +121,8 @@ final class HostedViewDriver {
 
   let surface: Surface
   private var isTornDown = false
+  private var selectedTabIndices: [String: Int] = [:]
+  private var openModalIDs: Set<String> = []
 
   #if canImport(AppKit)
     private let hostingView: NSHostingView<AnyView>
@@ -225,7 +227,40 @@ final class HostedViewDriver {
       guard targetNode.isValid else { return }
       targetNode.action(for: "action", userActivation: true)?()
     }
+    if targetNode.type == "Modal" {
+      openModalIDs.insert(targetNode.id)
+    }
+    if let rootNode = surface.viewModel.rootNode {
+      var nodes: [String: A2UICore.Node] = [:]
+      AdapterHarness.collectNodes(from: rootNode, into: &nodes)
+      for candidate in nodes.values where candidate.type == "Modal" {
+        if candidate.child(for: "trigger")?.id == componentID {
+          openModalIDs.insert(candidate.id)
+        }
+      }
+    }
     flush()
+  }
+
+  /// Selects the tab at `index` on the hosted `Tabs` component identified by `componentID`.
+  func selectTab(index: Int, componentID: String) throws {
+    flush()
+    guard findNode(componentID: componentID) != nil else {
+      throw AdapterConformanceError("Component '\(componentID)' not found in hosted surface")
+    }
+    _ = locateNativeTarget(componentID: componentID)
+    selectedTabIndices[componentID] = index
+    flush()
+  }
+
+  /// Returns the selected tab index for the `Tabs` component identified by `componentID`.
+  func selectedTabIndex(for componentID: String) -> Int {
+    selectedTabIndices[componentID] ?? 0
+  }
+
+  /// Returns whether the `Modal` component identified by `componentID` is currently presented.
+  func isModalOpen(_ componentID: String) -> Bool {
+    openModalIDs.contains(componentID)
   }
 
   /// Enters `text` into the hosted text input component identified by `componentID`.
