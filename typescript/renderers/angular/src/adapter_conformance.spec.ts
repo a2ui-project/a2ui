@@ -189,9 +189,19 @@ class ConformanceCustomWidgetComponent extends CatalogComponent<AnyDuringSchemaA
   });
 }
 
+function decodeConformanceSuites(raw: KarmaConformanceConfig | string): KarmaConformanceConfig {
+  if (typeof raw !== 'string') {
+    return raw;
+  }
+  const bytes = Uint8Array.from(atob(raw), c => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes)) as KarmaConformanceConfig;
+}
+
 function getConformanceSuites(): KarmaConformanceConfig {
   const karma = (
-    window as unknown as {__karma__?: {config?: {conformanceSuites?: KarmaConformanceConfig}}}
+    window as unknown as {
+      __karma__?: {config?: {conformanceSuites?: KarmaConformanceConfig | string}};
+    }
   ).__karma__;
   const suites = karma?.config?.conformanceSuites;
   if (!suites) {
@@ -199,7 +209,7 @@ function getConformanceSuites(): KarmaConformanceConfig {
       'Conformance suites were not injected into __karma__.config.conformanceSuites.',
     );
   }
-  return suites;
+  return decodeConformanceSuites(suites);
 }
 
 function createDefaultAdapterCatalog(): AngularCatalog {
@@ -789,10 +799,20 @@ describe('@a2ui/angular Accessibility Conformance (conformance/core/accessibilit
 });
 
 describe('@a2ui/angular Adapter Conformance (conformance/core/adapter_conformance.yaml)', () => {
-  const {adapterConformance} = getConformanceSuites();
+  const {adapterConformance, basicCatalogJson} = getConformanceSuites();
 
   beforeEach(() => {
     spyOn(window, 'open').and.returnValue(null);
+  });
+
+  it('preserves String.prototype.replace special sequences in injected basicCatalogJson', () => {
+    const functions = basicCatalogJson['functions'] as
+      | Record<string, {properties?: {args?: {properties?: {pattern?: {description?: string}}}}}>
+      | undefined;
+    const regexPatternDescription =
+      functions?.['regex']?.properties?.args?.properties?.pattern?.description;
+    expect(regexPatternDescription).toContain("'^' and '$'");
+    expect(regexPatternDescription).toContain("'\\p{...}'");
   });
 
   for (const testCase of adapterConformance) {
