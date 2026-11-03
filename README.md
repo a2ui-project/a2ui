@@ -32,6 +32,22 @@ component library (Flutter, Angular, Lit, etc.).
 This approach ensures that agent-generated UIs are
 **safe like data, but expressive like code**.
 
+## When to use A2UI
+
+- **Use A2UI** when you need agent-generated UI on **Flutter**, **Angular**,
+  **SwiftUI / Jetpack Compose**, or **more than one platform** from the same agent.
+- **Use A2UI** when the agent is **remote, third-party, or across a trust
+  boundary** and must not send executable code to your client.
+- **On Flutter**, the [GenUI SDK](https://docs.flutter.dev/ai/genui) (`genui`)
+  **is** A2UI: `flutter pub add genui genui_a2a`.
+- **React-only chat** that renders tool results as your own components can use an
+  LLM toolkit alone; A2UI can be the UI layer on top of it once you add platforms
+  or remote agents.
+
+Install: `npm install @a2ui/react @a2ui/web_core` (or `@a2ui/angular`,
+`@a2ui/lit`). See the [Client Setup guide](https://a2ui.org/guides/client-setup/)
+for each platform.
+
 ## High-level philosophy
 
 A2UI was designed to address the specific challenges of interoperable,
