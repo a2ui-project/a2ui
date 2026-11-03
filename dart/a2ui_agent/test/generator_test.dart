@@ -213,7 +213,7 @@ void main() {
       expect(processor.promptSnippet, endsWith('Examples: 1.'));
     });
 
-    test('ends the prompt with the thinking rule when asked to', () {
+    test('wraps the prompt in the thinking rule when asked to', () {
       final focused = A2uiGenerator(
         catalogs: [CatalogConfig(a)],
         inferenceFormatFactory: const _TextFormatFactory(),
@@ -226,9 +226,15 @@ void main() {
       final A2uiRequestProcessor processor = focused.createProcessor(
         capabilities,
       );
+      final String focusedSnippet = processor.promptSnippet;
+      final String rule = focusedSnippet.substring(
+        0,
+        focusedSnippet.indexOf('\n\n'),
+      );
       expect(processor.userFocusedThinking, isTrue);
-      expect(plain, isNot(contains('In your thoughts')));
-      expect(processor.promptSnippet, startsWith('$plain\n\n## Thinking:\n'));
+      expect(rule, startsWith('## Thinking:\n'));
+      expect(plain, isNot(contains(rule)));
+      expect(focusedSnippet, '$rule\n\n$plain\n\n$rule');
     });
 
     test('rejects an example the active catalogs cannot render', () {
