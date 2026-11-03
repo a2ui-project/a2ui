@@ -61,13 +61,6 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
   }
 
   /**
-   * Renders into the element's direct children (Light DOM) instead of a ShadowRoot.
-   */
-  override createRenderRoot() {
-    return this;
-  }
-
-  /**
    * Lifecycle hook invoked when the element is connected to the DOM.
    * Injects global basic catalog CSS.
    */

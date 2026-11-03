@@ -101,6 +101,7 @@ struct OpenURLFunctionTests {
       "id": "tf1",
       "component": "TextField",
       "label": "Name",
+      "value": ["@path": "/name"],
       "placeholder": "Jane Doe",
     ]
     #expect(v10TextField.schema.validate(validTextField).isValid)
@@ -109,6 +110,7 @@ struct OpenURLFunctionTests {
       "id": "tf1",
       "component": "TextField",
       "label": "Name",
+      "value": ["@path": "/name"],
       "validationRegexp": ".*",
     ]
     #expect(!v10TextField.schema.validate(legacyRegexTextField).isValid)
