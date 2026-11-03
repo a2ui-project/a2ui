@@ -103,11 +103,7 @@ class InboundResult {
   final RendererToAgentMessage message;
   final String? formatted;
 
-  InboundResult({
-    required this.kind,
-    required this.message,
-    this.formatted,
-  });
+  InboundResult({required this.kind, required this.message, this.formatted});
 }
 
 class RendererState {
@@ -193,11 +189,11 @@ class RendererState {
   /// The router for inbound renderer RPC messages, if configured.
   RendererMessageRouter? get router =>
       (_agentFunctions == null && _rendererCalls == null)
-          ? null
-          : RendererMessageRouter(
-              agentFunctions: _agentFunctions,
-              rendererCalls: _rendererCalls,
-            );
+      ? null
+      : RendererMessageRouter(
+          agentFunctions: _agentFunctions,
+          rendererCalls: _rendererCalls,
+        );
 
   /// Drains queued outbound messages to be sent to the renderer.
   List<Map<String, Object?>> drainOutbound() {
@@ -218,16 +214,21 @@ class RendererState {
     } else {
       throw A2uiValidationError('Inbound message must be a JSON map.');
     }
-    if (raw.containsKey('callAgentFunction') || raw.containsKey('rendererFunctionResponse')) {
+    if (raw.containsKey('callAgentFunction') ||
+        raw.containsKey('rendererFunctionResponse')) {
       final r = router;
       if (r == null) {
-        throw A2uiValidationError('No agentFunctions or rendererCalls configured on RendererState.');
+        throw A2uiValidationError(
+          'No agentFunctions or rendererCalls configured on RendererState.',
+        );
       }
       final replies = await r.dispatch(raw);
       for (final reply in replies) {
         _outbound.add(reply.toJson());
       }
-      final kind = raw.containsKey('callAgentFunction') ? 'callAgentFunction' : 'rendererFunctionResponse';
+      final kind = raw.containsKey('callAgentFunction')
+          ? 'callAgentFunction'
+          : 'rendererFunctionResponse';
       return InboundResult(
         kind: kind,
         message: parseInboundMessage(raw, _protocolVersion),

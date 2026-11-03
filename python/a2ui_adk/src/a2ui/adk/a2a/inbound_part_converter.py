@@ -94,7 +94,9 @@ class A2uiInboundPartConverter:
             if isinstance(data, Mapping)
             else (self._version or ProtocolVersion.V1_0)
         )
-        if isinstance(data, Mapping) and ("callAgentFunction" in data or "rendererFunctionResponse" in data):
+        if isinstance(data, Mapping) and (
+            "callAgentFunction" in data or "rendererFunctionResponse" in data
+        ):
             if self._renderer_state is not None:
                 try:
                     loop = asyncio.get_running_loop()

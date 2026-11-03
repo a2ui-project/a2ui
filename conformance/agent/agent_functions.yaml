@@ -922,7 +922,13 @@
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   steps:
-    - call: {label: a, catalogId: conformance/simplified, name: openUrl, args: {url: "https://example.com"}}
+    - call:
+        {
+          label: a,
+          catalogId: conformance/simplified,
+          name: openUrl,
+          args: {url: "https://example.com"},
+        }
       expect_error: {code: INVALID_FUNCTION_CALL}
 
 - name: test_renderer_state_call_renderer_function_tracking_on_commit_vs_rollback

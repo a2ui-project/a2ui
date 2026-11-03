@@ -16,7 +16,12 @@
 
 import {InferenceFormat, InferenceFormatFactory} from '../inference-format.js';
 import {ExpressFormatFactory} from '../inference-formats/express/format.js';
-import {A2uiCatalogError, A2uiValidationError, AgentToRendererMessage, CatalogApi} from '../internal/web-core.js';
+import {
+  A2uiCatalogError,
+  A2uiValidationError,
+  AgentToRendererMessage,
+  CatalogApi,
+} from '../internal/web-core.js';
 import {ContinuingStreamOptions, ParseOptions, Parser, StreamOptions} from '../parser/parser.js';
 import {ResponsePart, StreamPart} from '../parser/response-part.js';
 import {ResponseStream} from '../parser/response-stream.js';

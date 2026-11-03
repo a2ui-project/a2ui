@@ -183,10 +183,13 @@ class RendererFunctionCalls:
             if catalog is not None:
                 fn = catalog.functions.get(name)
                 if fn is not None:
-                    allowed_callers = getattr(fn, "allowed_callers", None) or "rendererOnly"
+                    allowed_callers = (
+                        getattr(fn, "allowed_callers", None) or "rendererOnly"
+                    )
                     if allowed_callers not in ("agentOnly", "rendererOrAgent"):
                         raise A2uiRpcError(
-                            f"Function '{name}' cannot be called by agent (allowedCallers is {allowed_callers}).",
+                            f"Function '{name}' cannot be called by agent"
+                            f" (allowedCallers is {allowed_callers}).",
                             code=RpcErrorCode.INVALID_FUNCTION_CALL,
                             function_call_id=call_id,
                         )
@@ -271,7 +274,8 @@ class RendererFunctionCalls:
             )
         if self._max_pending is not None and len(self._pending) >= self._max_pending:
             raise A2uiRpcError(
-                f"{len(self._pending)} renderer function calls are already pending, the most allowed.",
+                f"{len(self._pending)} renderer function calls are already pending, the"
+                " most allowed.",
                 code="TOO_MANY_PENDING",
                 function_call_id=call_id,
             )

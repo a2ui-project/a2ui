@@ -392,12 +392,16 @@ export class RendererFunctionCalls {
         ? (message as CallRendererFunctionMessage).callRendererFunction
         : (message as unknown as Record<string, unknown>)
     ) as Record<string, unknown>;
-    const callId = typeof callBody['functionCallId'] === 'string' ? (callBody['functionCallId'] as string) : '';
+    const callId =
+      typeof callBody['functionCallId'] === 'string' ? (callBody['functionCallId'] as string) : '';
     const callFn = (callBody['callFunction'] ?? {}) as Record<string, unknown>;
     const name = typeof callFn['@call'] === 'string' ? (callFn['@call'] as string) : '';
 
     if (!callId) {
-      throw new A2uiRpcError('functionCallId must not be empty.', RpcErrorCode.INVALID_FUNCTION_CALL);
+      throw new A2uiRpcError(
+        'functionCallId must not be empty.',
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+      );
     }
     if (this._pending.has(callId)) {
       throw new A2uiRpcError(

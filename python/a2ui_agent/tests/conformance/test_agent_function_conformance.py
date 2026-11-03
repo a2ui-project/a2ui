@@ -357,6 +357,7 @@ async def _run_renderer_state_tracking_async(case: Mapping[str, Any]) -> None:
 def _run_renderer_state_tracking(case: Mapping[str, Any]) -> None:
     asyncio.run(_run_renderer_state_tracking_async(case))
 
+
 RUNNERS: dict[str, Callable[[Mapping[str, Any]], None]] = {
     "declare_agent_functions": _run_declare,
     "handle_agent_function": _run_handle,

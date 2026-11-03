@@ -103,6 +103,7 @@ def _constant(value: Any) -> AgentFunctionHandler:
 
 
 class TestAnswers:
+
     @pytest.mark.asyncio
     async def test_returns_the_handler_value_and_copies_the_call_id(self) -> None:
         registry = _registry(_fx(_constant(1.08)))
@@ -119,13 +120,11 @@ class TestAnswers:
             callAgentFunction=CallAgentFunction(
                 surfaceId="s1",
                 functionCallId="fx-1",
-                callFunction=FunctionCall.model_validate(
-                    {
-                        "@call": "fetchFxRate",
-                        "catalogId": FIN,
-                        "args": {"base": "EUR"},
-                    }
-                ),
+                callFunction=FunctionCall.model_validate({
+                    "@call": "fetchFxRate",
+                    "catalogId": FIN,
+                    "args": {"base": "EUR"},
+                }),
             ),
         )
 
@@ -153,14 +152,12 @@ class TestAnswers:
 
         await registry.handle(_call(surface_id="checkout", call_id="fx-9"))
 
-        assert seen == [
-            (
-                {"base": "EUR", "target": "USD"},
-                AgentFunctionContext(
-                    catalog_id=FIN, surface_id="checkout", function_call_id="fx-9"
-                ),
-            )
-        ]
+        assert seen == [(
+            {"base": "EUR", "target": "USD"},
+            AgentFunctionContext(
+                catalog_id=FIN, surface_id="checkout", function_call_id="fx-9"
+            ),
+        )]
 
     @pytest.mark.asyncio
     async def test_finds_the_only_catalog_with_the_function_without_catalog_id(
@@ -172,12 +169,10 @@ class TestAnswers:
             seen.append(context.catalog_id)
             return 1.08
 
-        registry = AgentFunctionRegistry(
-            [
-                Catalog(FIN, "1.0", agent_functions=[_fx(handler)]),
-                Catalog(TRAVEL, "1.0"),
-            ]
-        )
+        registry = AgentFunctionRegistry([
+            Catalog(FIN, "1.0", agent_functions=[_fx(handler)]),
+            Catalog(TRAVEL, "1.0"),
+        ])
 
         response = await registry.handle(_call(catalog_id=None))
 
@@ -186,12 +181,10 @@ class TestAnswers:
 
     @pytest.mark.asyncio
     async def test_routes_by_catalog_id(self) -> None:
-        registry = AgentFunctionRegistry(
-            [
-                Catalog(FIN, "1.0", agent_functions=[_fx(_constant("fin"))]),
-                Catalog(TRAVEL, "1.0", agent_functions=[_fx(_constant("travel"))]),
-            ]
-        )
+        registry = AgentFunctionRegistry([
+            Catalog(FIN, "1.0", agent_functions=[_fx(_constant("fin"))]),
+            Catalog(TRAVEL, "1.0", agent_functions=[_fx(_constant("travel"))]),
+        ])
 
         fin = await registry.handle(_call(catalog_id=FIN))
         travel = await registry.handle(_call(catalog_id=TRAVEL))
@@ -214,6 +207,7 @@ class TestAnswers:
 
 
 class TestErrors:
+
     @pytest.mark.asyncio
     async def test_unknown_function_name(self) -> None:
         registry = _registry(_fx(_constant(1.08)))
@@ -255,12 +249,10 @@ class TestErrors:
     async def test_no_catalog_id_and_several_catalogs_have_the_function(
         self,
     ) -> None:
-        registry = AgentFunctionRegistry(
-            [
-                Catalog(FIN, "1.0", agent_functions=[_fx(_constant(1))]),
-                Catalog(TRAVEL, "1.0", agent_functions=[_fx(_constant(2))]),
-            ]
-        )
+        registry = AgentFunctionRegistry([
+            Catalog(FIN, "1.0", agent_functions=[_fx(_constant(1))]),
+            Catalog(TRAVEL, "1.0", agent_functions=[_fx(_constant(2))]),
+        ])
 
         response = await registry.handle(_call(catalog_id=None))
 
@@ -358,6 +350,7 @@ class TestErrors:
 
 
 class TestExecution:
+
     @pytest.mark.asyncio
     async def test_async_handler_runs_on_the_loop_thread(self) -> None:
         threads: list[int] = []
@@ -401,6 +394,7 @@ class TestExecution:
     @pytest.mark.asyncio
     async def test_async_callable_object(self) -> None:
         class Handler:
+
             async def __call__(
                 self, args: dict[str, Any], context: AgentFunctionContext
             ) -> str:
@@ -473,6 +467,7 @@ class TestExecution:
 
 
 class TestTimeoutsAndCancellation:
+
     @staticmethod
     def _hanging() -> tuple[AgentFunctionHandler, dict[str, bool]]:
         state = {"started": False, "cancelled": False}

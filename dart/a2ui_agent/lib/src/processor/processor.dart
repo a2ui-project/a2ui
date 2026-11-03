@@ -112,7 +112,9 @@ class A2uiRequestProcessor {
   /// Receives an inbound renderer message, delegating to the bound renderer state.
   Future<InboundResult> receive(Object? message) {
     if (state == null) {
-      throw A2uiValidationError('No renderer state is bound to this processor.');
+      throw A2uiValidationError(
+        'No renderer state is bound to this processor.',
+      );
     }
     return state!.receive(message);
   }

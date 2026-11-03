@@ -83,6 +83,7 @@ class InboundResult:
     message: InboundMessage
     formatted: str | None = None
 
+
 _MessagePayload: TypeAlias = (
     AgentToRendererMessagePayload | Iterable[AgentToRendererMessage | Mapping[str, Any]]
 )
@@ -275,7 +276,9 @@ class RendererState:
             replies = await router.dispatch(raw)
             for reply in replies:
                 if hasattr(reply, "model_dump"):
-                    self._outbound.append(reply.model_dump(by_alias=True, exclude_unset=True))
+                    self._outbound.append(
+                        reply.model_dump(by_alias=True, exclude_unset=True)
+                    )
                 else:
                     self._outbound.append(reply)
             kind = (
