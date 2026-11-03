@@ -589,10 +589,10 @@ function isResponsePart(part: StreamPart): part is ResponsePart {
  * value: without one, it removes the data at its path, or all of it before its path arrives.
  */
 function mayGrow(envelope: unknown): boolean {
-  if (!isObject(envelope) || !GROWING_KEYS.some(key => key in envelope)) return false;
-  if (!('updateDataModel' in envelope)) return true;
+  if (!isObject(envelope) || !GROWING_KEYS.some(key => Object.hasOwn(envelope, key))) return false;
+  if (!Object.hasOwn(envelope, 'updateDataModel')) return true;
   const dataModel = envelope.updateDataModel;
-  return isObject(dataModel) && 'value' in dataModel;
+  return isObject(dataModel) && Object.hasOwn(dataModel, 'value');
 }
 
 /** What the stream keeps of a message it applied whole while it grows. */
