@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Checkbox } from './checkbox';
-import { MessageProcessor } from '../data/processor';
-import { Theme } from '../rendering/theming';
-import type { A2UIClientEventMessage, CheckboxNode } from '../types';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Checkbox} from './checkbox';
+import {MessageProcessor} from '../data/processor';
+import {Theme} from '../rendering/theming';
+import type {A2UIClientEventMessage, CheckboxNode} from '../types';
 
 describe('Checkbox Component', () => {
   let component: Checkbox;
@@ -30,8 +30,8 @@ describe('Checkbox Component', () => {
     type: 'CheckBox',
     weight: 1,
     properties: {
-      label: { literalString: 'Accept Terms' },
-      value: { literalBoolean: false },
+      label: {literalString: 'Accept Terms'},
+      value: {literalBoolean: false},
     },
   };
 
@@ -46,8 +46,8 @@ describe('Checkbox Component', () => {
     await TestBed.configureTestingModule({
       imports: [Checkbox],
       providers: [
-        { provide: MessageProcessor, useValue: mockProcessor },
-        { provide: Theme, useValue: new Theme() },
+        {provide: MessageProcessor, useValue: mockProcessor},
+        {provide: Theme, useValue: new Theme()},
       ],
     }).compileComponents();
 
@@ -57,8 +57,8 @@ describe('Checkbox Component', () => {
     fixture.componentRef.setInput('surfaceId', 'surface-1');
     fixture.componentRef.setInput('component', mockNode);
     fixture.componentRef.setInput('weight', 1);
-    fixture.componentRef.setInput('label', { literalString: 'Accept Terms' });
-    fixture.componentRef.setInput('value', { literalBoolean: false });
+    fixture.componentRef.setInput('label', {literalString: 'Accept Terms'});
+    fixture.componentRef.setInput('value', {literalBoolean: false});
 
     fixture.detectChanges();
   });
@@ -76,7 +76,7 @@ describe('Checkbox Component', () => {
     const inputEl = fixture.nativeElement.querySelector('input');
     expect(inputEl.checked).toBeFalse();
 
-    fixture.componentRef.setInput('value', { literalBoolean: true });
+    fixture.componentRef.setInput('value', {literalBoolean: true});
     fixture.detectChanges();
     expect(inputEl.checked).toBeTrue();
   });

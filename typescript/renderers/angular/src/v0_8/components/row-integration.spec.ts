@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Renderer } from '../rendering/renderer';
-import { Catalog } from '../rendering/catalog';
-import { DEFAULT_CATALOG } from '../catalog';
-import { Theme } from '../rendering/theming';
-import { MessageProcessor } from '../data/processor';
-import { MarkdownRenderer } from '../data/markdown';
-import { Component } from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Renderer} from '../rendering/renderer';
+import {Catalog} from '../rendering/catalog';
+import {DEFAULT_CATALOG} from '../catalog';
+import {Theme} from '../rendering/theming';
+import {MessageProcessor} from '../data/processor';
+import {MarkdownRenderer} from '../data/markdown';
+import {Component} from '@angular/core';
 
 @Component({
   template: `<ng-container
@@ -52,8 +52,8 @@ describe('Row Component Integration (Real Renderer)', () => {
     await TestBed.configureTestingModule({
       imports: [TestHost],
       providers: [
-        { provide: MessageProcessor, useValue: processor },
-        { provide: Catalog, useValue: DEFAULT_CATALOG },
+        {provide: MessageProcessor, useValue: processor},
+        {provide: Catalog, useValue: DEFAULT_CATALOG},
         {
           provide: MarkdownRenderer,
           useValue: {
@@ -67,8 +67,8 @@ describe('Row Component Integration (Real Renderer)', () => {
     const theme = TestBed.inject(Theme);
     theme.update({
       components: {
-        Row: { 'a2ui-row': true },
-        Text: { all: { 'a2ui-text': true } },
+        Row: {'a2ui-row': true},
+        Text: {all: {'a2ui-text': true}},
       } as any,
       elements: {} as any,
       markdown: {
@@ -99,12 +99,12 @@ describe('Row Component Integration (Real Renderer)', () => {
           {
             type: 'Text',
             id: 'child-1',
-            properties: { text: { literalString: 'Child 1' } },
+            properties: {text: {literalString: 'Child 1'}},
           },
           {
             type: 'Text',
             id: 'child-2',
-            properties: { text: { literalString: 'Child 2' } },
+            properties: {text: {literalString: 'Child 2'}},
           },
         ],
       },

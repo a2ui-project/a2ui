@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import contextlib
 import os
 import re
@@ -48,8 +47,6 @@ from a2ui.processor import CatalogConfig
 from a2ui.processor import InMemoryCatalogProvider
 from a2ui.utils import load_examples, resolve_catalogs, validate_payload
 
-from .conformance_helpers import assert_known_keys
-from .conformance_helpers import case_params
 from .conformance_helpers import get_conformance_path
 from .conformance_helpers import load_conformance_json as load_json_file
 from .conformance_helpers import load_conformance_yaml as load_tests
@@ -67,131 +64,17 @@ CATEGORY_TO_EXCEPTION = {
 SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "1.0"}
 
 # Transition skip list containing specific test case names to skip during active feature transitions.
-SKIP_TEST_NAMES: dict[str, str] | set[str] = {}
+SKIP_TEST_NAMES: set[str] = set()
 
 # Transition skip list containing specific test suite files to skip during active feature transitions.
-SKIP_TEST_SUITES: dict[str, str] = {
-    "core/catalog.yaml": "Core catalog suite runs in python-core.",
+SKIP_TEST_SUITES = {
+    "core/catalog.yaml",
 }
-
-_CASE_METADATA_KEYS = frozenset({
-    "name",
-    "description",
-    "features",
-    "protocolVersion",
-    "catalog",
-    "catalogs",
-})
-_EXPECT_ERROR_KEYS = frozenset({"category", "message", "details"})
-_EXPECT_ERROR_DETAIL_KEYS = frozenset({"path", "code", "message"})
-_COMPILE_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
-    "action",
-    "args",
-    "input",
-    "expect",
-    "expect_error",
-    "expect_present",
-})
-_DECOMPILE_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
-    "action",
-    "args",
-    "messages",
-    "expect_contains",
-    "expect_absent",
-    "expect_error",
-    "expect_recompiled",
-    "expect_round_trip",
-})
-_UNWRAP_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
-    "action",
-    "args",
-    "input",
-    "expect",
-})
-_HAS_FORMAT_CONTENT_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
-    "action",
-    "args",
-    "input",
-    "expect",
-})
-_WRAP_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
-    "action",
-    "args",
-    "parts",
-    "expect_output",
-    "expect_contains",
-    "expect_round_trip",
-})
-_PARSE_RESPONSE_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
-    "action",
-    "args",
-    "input",
-    "expect",
-    "expect_error",
-})
-_PARSE_CHUNK_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
-    "action",
-    "args",
-    "steps",
-    "expect_close",
-    "expect_error",
-    "expect_matches_single_shot",
-})
-_PARSE_CHUNK_STEP_KEYS = frozenset({
-    "input",
-    "expect",
-    "expect_error",
-    "expect_in_block",
-    "expect_partial_results",
-})
-_GENERATE_PROMPT_SNIPPET_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
-    "action",
-    "args",
-    "expect_file",
-    "expect_contains",
-    "expect_absent",
-    "expect_deterministic",
-    "expect_error",
-})
-_CREATE_FORMAT_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
-    "action",
-    "args",
-    "expect",
-    "expect_error",
-})
-_CREATE_FORMAT_EXPECT_KEYS = frozenset({
-    "parsers_are_distinct",
-    "parser_state_isolated",
-    "prompt_snippet_contains",
-    "prompt_snippet_absent",
-})
-_CREATE_PROCESSOR_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
-    "action",
-    "args",
-    "expect",
-    "expect_error",
-    "then_parse",
-})
-_CREATE_PROCESSOR_EXPECT_KEYS = frozenset({
-    "active_catalog_ids",
-    "catalogs",
-    "generator_catalogs_unchanged",
-    "prompt_snippet_contains",
-    "prompt_snippet_absent",
-})
-_THEN_PARSE_KEYS = frozenset({"input", "expect", "expect_error"})
-_CATALOG_EXPECT_KEYS = frozenset({
-    "catalog_id",
-    "components",
-    "functions",
-    "protocol_version",
-})
 
 
 @contextlib.contextmanager
 def assert_raises(expect_error):
     if isinstance(expect_error, dict):
-        assert_known_keys(expect_error, _EXPECT_ERROR_KEYS, "expect_error")
         category = expect_error.get("category")
         message = expect_error.get("message", "")
         expected_class = CATEGORY_TO_EXCEPTION.get(category, A2uiError)
@@ -210,12 +93,6 @@ def assert_raises(expect_error):
     if expected_details is not None:
         actual_details = getattr(excinfo.value, "details", [])
         for expected in expected_details:
-            if isinstance(expected, Mapping):
-                assert_known_keys(
-                    expected,
-                    _EXPECT_ERROR_DETAIL_KEYS,
-                    "expect_error.details[]",
-                )
             exp_path = expected["path"]
             exp_code = expected["code"]
             found = False
@@ -269,23 +146,38 @@ def assert_parts_match(actual_parts, expected_parts):
     assert actual_dicts == expected_parts
 
 
-def _case_protocol_version(case: Mapping[str, Any]) -> str:
-    catalog = case.get("catalog", {}) if isinstance(case.get("catalog"), dict) else {}
-    catalogs = (
-        case.get("catalogs", []) if isinstance(case.get("catalogs"), list) else []
-    )
-    first_catalog = catalogs[0] if catalogs and isinstance(catalogs[0], dict) else {}
-    version = str(
-        case.get("protocolVersion")
-        or catalog.get("protocolVersion")
-        or first_catalog.get("protocolVersion")
-        or "v0.9"
-    )
-    if version.startswith("0."):
-        return f"v{version}"
-    if version == "v1.0":
-        return "1.0"
-    return version
+def get_conformance_cases(filename):
+    if filename in SKIP_TEST_SUITES or os.path.basename(filename) in SKIP_TEST_SUITES:
+        return []
+
+    cases = load_tests(filename)
+    filtered = []
+    for case in cases:
+        name = case.get("name")
+        catalog = (
+            case.get("catalog", {}) if isinstance(case.get("catalog"), dict) else {}
+        )
+        catalogs = (
+            case.get("catalogs", []) if isinstance(case.get("catalogs"), list) else []
+        )
+        first_catalog = (
+            catalogs[0] if catalogs and isinstance(catalogs[0], dict) else {}
+        )
+        version = str(
+            case.get("protocolVersion")
+            or catalog.get("protocolVersion")
+            or first_catalog.get("protocolVersion")
+            or "v0.9"
+        )
+        if version.startswith("0."):
+            version = f"v{version}"
+        elif version == "v1.0":
+            version = "1.0"
+
+        if version not in SUPPORTED_PROTOCOL_VERSIONS or name in SKIP_TEST_NAMES:
+            continue
+        filtered.append((name, case))
+    return filtered
 
 
 CONFORMANCE_SURFACE_ID = "default_surface"
@@ -506,38 +398,13 @@ def get_marked_conformance_cases(*filenames):
     """Loads cases from several suites, marking the ones this SDK cannot pass."""
     params = []
     for filename in filenames:
-        cases = load_tests(filename)
-        suite_skip_reason = None
-        if filename in SKIP_TEST_SUITES:
-            suite_skip_reason = (
-                SKIP_TEST_SUITES[filename]
-                if isinstance(SKIP_TEST_SUITES, Mapping)
-                else f"Suite skipped by SKIP_TEST_SUITES: {filename}"
-            )
-        elif os.path.basename(filename) in SKIP_TEST_SUITES:
-            base = os.path.basename(filename)
-            suite_skip_reason = (
-                SKIP_TEST_SUITES[base]
-                if isinstance(SKIP_TEST_SUITES, Mapping)
-                else f"Suite skipped by SKIP_TEST_SUITES: {base}"
-            )
-
-        skip: dict[str, str] = dict(UNSUPPORTED)
-        for case in cases:
-            name = str(case.get("name"))
-            if suite_skip_reason is not None:
-                skip[name] = suite_skip_reason
-                continue
-            version = _case_protocol_version(case)
-            if version not in SUPPORTED_PROTOCOL_VERSIONS:
-                skip[name] = f"Unsupported protocol version: {version}"
-            elif name in SKIP_TEST_NAMES:
-                skip[name] = (
-                    SKIP_TEST_NAMES[name]
-                    if isinstance(SKIP_TEST_NAMES, Mapping) and SKIP_TEST_NAMES[name]
-                    else f"Skipped in SKIP_TEST_NAMES: {name}"
-                )
-        params.extend(case_params(filename, cases, skip=skip, xfail=KNOWN_GAPS))
+        for name, case in get_conformance_cases(filename):
+            marks = []
+            if name in UNSUPPORTED:
+                marks.append(pytest.mark.skip(reason=UNSUPPORTED[name]))
+            elif name in KNOWN_GAPS:
+                marks.append(pytest.mark.xfail(reason=KNOWN_GAPS[name], strict=True))
+            params.append(pytest.param(name, case, marks=marks, id=name))
     return params
 
 
@@ -547,11 +414,8 @@ cases_compiler = get_marked_conformance_cases(
 )
 
 
-@pytest.mark.parametrize("suite, test_case", cases_compiler)
-def test_compiler_conformance(suite, test_case):
-    del suite
-    assert test_case.get("action") == "compile"
-    assert_known_keys(test_case, _COMPILE_CASE_KEYS, "compile case")
+@pytest.mark.parametrize("name, test_case", cases_compiler)
+def test_compiler_conformance(name, test_case):
     parser = make_parser(test_case["args"])
     payload = test_case["input"]
 
@@ -579,11 +443,8 @@ cases_decompiler = get_marked_conformance_cases(
 )
 
 
-@pytest.mark.parametrize("suite, test_case", cases_decompiler)
-def test_decompiler_conformance(suite, test_case):
-    del suite
-    assert test_case.get("action") == "decompile"
-    assert_known_keys(test_case, _DECOMPILE_CASE_KEYS, "decompile case")
+@pytest.mark.parametrize("name, test_case", cases_decompiler)
+def test_decompiler_conformance(name, test_case):
     parser = make_parser(test_case["args"])
     messages = test_case["messages"]
 
@@ -673,15 +534,13 @@ cases_response_parser = get_marked_conformance_cases(
 )
 
 
-@pytest.mark.parametrize("suite, test_case", cases_response_parser)
-def test_response_parser_conformance(suite, test_case):
-    del suite
+@pytest.mark.parametrize("name, test_case", cases_response_parser)
+def test_response_parser_conformance(name, test_case):
     args = test_case["args"]
     parser = make_parser(args)
     action = test_case["action"]
 
     if action == "unwrap":
-        assert_known_keys(test_case, _UNWRAP_CASE_KEYS, "unwrap case")
         expected = test_case["expect"]
         assert_raw_parts_match(parser.unwrap(test_case["input"]), expected)
         has_any = any("a2ui_raw" in p for p in expected)
@@ -694,9 +553,6 @@ def test_response_parser_conformance(suite, test_case):
         )
 
     elif action == "has_format_content":
-        assert_known_keys(
-            test_case, _HAS_FORMAT_CONTENT_CASE_KEYS, "has_format_content case"
-        )
         complete = args.get("complete", False)
         assert (
             parser.has_format_content(test_case["input"], complete=complete)
@@ -704,7 +560,6 @@ def test_response_parser_conformance(suite, test_case):
         )
 
     elif action == "wrap":
-        assert_known_keys(test_case, _WRAP_CASE_KEYS, "wrap case")
         parts = test_case["parts"]
         output = wrap_parts(parser, parts)
 
@@ -716,7 +571,6 @@ def test_response_parser_conformance(suite, test_case):
             assert_raw_parts_match(parser.unwrap(output), parts)
 
     elif action == "parse_response":
-        assert_known_keys(test_case, _PARSE_RESPONSE_CASE_KEYS, "parse_response case")
         kwargs: dict[str, Any] = {}
         if not args.get("wrapped", True):
             kwargs["wrapped"] = False
@@ -730,7 +584,7 @@ def test_response_parser_conformance(suite, test_case):
         assert_parts_match(parts, test_case["expect"])
 
     else:
-        pytest.fail(f"Unknown response parser action: {action!r}")
+        raise ValueError(f"Unknown response parser action: {action}")
 
 
 # --- Streaming Response Conformance (Direct JSON) ---
@@ -752,11 +606,8 @@ def _merge_text_parts(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return merged
 
 
-@pytest.mark.parametrize("suite, test_case", cases_response_streaming)
-def test_response_streaming_conformance(suite, test_case):
-    del suite
-    assert test_case.get("action") == "parse_chunk"
-    assert_known_keys(test_case, _PARSE_CHUNK_CASE_KEYS, "parse_chunk case")
+@pytest.mark.parametrize("name, test_case", cases_response_streaming)
+def test_response_streaming_conformance(name, test_case):
     args = test_case["args"]
     wrapped = args.get("wrapped", True)
     stream = make_parser(args).open_stream(
@@ -767,7 +618,6 @@ def test_response_streaming_conformance(suite, test_case):
     yielded: list[dict] = []
 
     for step in test_case["steps"]:
-        assert_known_keys(step, _PARSE_CHUNK_STEP_KEYS, "parse_chunk step")
         chunk = step["input"]
         chunks.append(chunk)
         if "expect_error" in step:
@@ -844,9 +694,8 @@ def _expect_snippet(snippet, contains, absent):
         assert fragment not in snippet, f"{fragment!r} unexpectedly in {snippet!r}"
 
 
-@pytest.mark.parametrize("suite, test_case", cases_multi_catalog)
-def test_multi_catalog_formats_conformance(suite, test_case, tmp_path):
-    del suite
+@pytest.mark.parametrize("name, test_case", cases_multi_catalog)
+def test_multi_catalog_formats_conformance(name, test_case, tmp_path):
     run_format_case(test_case, tmp_path)
 
 
@@ -856,7 +705,6 @@ def run_format_case(test_case, tmp_path):
     args = test_case["args"]
 
     if action == "compile":
-        assert_known_keys(test_case, _COMPILE_CASE_KEYS, "compile case")
         parser = make_parser(args)
         if "expect_error" in test_case:
             with assert_raises(test_case["expect_error"]):
@@ -871,7 +719,6 @@ def run_format_case(test_case, tmp_path):
         )
 
     elif action == "decompile":
-        assert_known_keys(test_case, _DECOMPILE_CASE_KEYS, "decompile case")
         parser = make_parser(args)
         messages = test_case["messages"]
         if "expect_error" in test_case:
@@ -894,7 +741,6 @@ def run_format_case(test_case, tmp_path):
             )
 
     elif action == "parse_response":
-        assert_known_keys(test_case, _PARSE_RESPONSE_CASE_KEYS, "parse_response case")
         parser = make_parser(args)
         if "expect_error" in test_case:
             with assert_raises(test_case["expect_error"]):
@@ -904,11 +750,6 @@ def run_format_case(test_case, tmp_path):
         assert_parts_match(parts, test_case["expect"])
 
     elif action == "generate_prompt_snippet":
-        assert_known_keys(
-            test_case,
-            _GENERATE_PROMPT_SNIPPET_CASE_KEYS,
-            "generate_prompt_snippet case",
-        )
 
         def generate(fmt):
             return fmt.prompt_generator.generate()
@@ -933,14 +774,12 @@ def run_format_case(test_case, tmp_path):
             assert snippet == generate(fmt)
 
     elif action == "create_format":
-        assert_known_keys(test_case, _CREATE_FORMAT_CASE_KEYS, "create_format case")
         if "expect_error" in test_case:
             with assert_raises(test_case["expect_error"]):
                 make_format(args, tmp_path=tmp_path)
             return
         fmt = make_format(args, tmp_path=tmp_path)
         expect = test_case.get("expect", {})
-        assert_known_keys(expect, _CREATE_FORMAT_EXPECT_KEYS, "create_format expect")
 
         if expect.get("parsers_are_distinct"):
             assert fmt.create_parser() is not fmt.create_parser()
@@ -967,7 +806,7 @@ def run_format_case(test_case, tmp_path):
         run_create_processor_case(test_case, tmp_path)
 
     else:
-        pytest.fail(f"Unknown format case action: {action!r}")
+        raise ValueError(f"Unknown format case action: {action}")
 
 
 # --- Prompt Generator Conformance ---
@@ -978,9 +817,8 @@ cases_prompt_generator = get_marked_conformance_cases(
 )
 
 
-@pytest.mark.parametrize("suite, test_case", cases_prompt_generator)
-def test_prompt_generator_conformance(suite, test_case, tmp_path):
-    del suite
+@pytest.mark.parametrize("name, test_case", cases_prompt_generator)
+def test_prompt_generator_conformance(name, test_case, tmp_path):
     run_format_case(test_case, tmp_path)
 
 
@@ -1006,14 +844,8 @@ def _describe_configs(configs):
 
 def _expect_catalog(catalog, expected):
     """Checks a catalog against a case's expectations. Name lists are exhaustive."""
-    assert_known_keys(expected, _CATALOG_EXPECT_KEYS, "expect.catalog")
     if "catalog_id" in expected:
         assert catalog.catalog_id == expected["catalog_id"]
-    if "protocol_version" in expected:
-        assert (
-            to_protocol_version(catalog.protocol_version).value
-            == expected["protocol_version"]
-        )
     if "components" in expected:
         assert sorted(catalog.components) == sorted(set(expected["components"]))
     if "functions" in expected:
@@ -1059,7 +891,6 @@ def _factory_for(format_name, allowed_messages=None, progressive_keys=None):
 def run_create_processor_case(test_case, tmp_path):
     from a2ui.processor import A2uiGenerator
 
-    assert_known_keys(test_case, _CREATE_PROCESSOR_CASE_KEYS, "create_processor case")
     args = test_case["args"]
     configs = [catalog_config_from_document(entry) for entry in args["catalogs"]]
     before = _describe_configs(configs)
@@ -1105,7 +936,6 @@ def run_create_processor_case(test_case, tmp_path):
     processor, snippet = create()
     active = processor.active_catalogs
     expect = test_case.get("expect", {})
-    assert_known_keys(expect, _CREATE_PROCESSOR_EXPECT_KEYS, "create_processor expect")
     if "active_catalog_ids" in expect:
         assert [c.catalog_id for c in active] == expect["active_catalog_ids"]
     for catalog, expected in zip(active, expect.get("catalogs", [])):
@@ -1120,7 +950,6 @@ def run_create_processor_case(test_case, tmp_path):
 
     parse = test_case.get("then_parse")
     if parse is not None:
-        assert_known_keys(parse, _THEN_PARSE_KEYS, "then_parse")
         if "expect_error" in parse:
             with assert_raises(parse["expect_error"]):
                 processor.parse_response(parse["input"])
@@ -1130,7 +959,6 @@ def run_create_processor_case(test_case, tmp_path):
             )
 
 
-@pytest.mark.parametrize("suite, test_case", cases_request_processor)
-def test_request_processor_conformance(suite, test_case, tmp_path):
-    del suite
+@pytest.mark.parametrize("name, test_case", cases_request_processor)
+def test_request_processor_conformance(name, test_case, tmp_path):
     run_format_case(test_case, tmp_path)

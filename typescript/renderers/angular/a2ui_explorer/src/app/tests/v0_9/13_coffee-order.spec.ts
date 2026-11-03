@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ComponentFixture } from '@angular/core/testing';
-import { DemoComponent } from '../../demo.component';
-import { getCanvas, loadExample, wait } from '../utils';
+import {ComponentFixture} from '@angular/core/testing';
+import {DemoComponent} from '../../demo.component';
+import {getCanvas, loadExample, wait} from '../utils';
 
 describe('Example: Coffee Order', () => {
   let fixture: ComponentFixture<DemoComponent>;
@@ -24,7 +24,7 @@ describe('Example: Coffee Order', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample({ name: 'Coffee Order' });
+    fixture = await loadExample({name: 'Coffee Order'});
     component = fixture.componentInstance;
     textContent = getCanvas().textContent;
   });
@@ -51,7 +51,7 @@ describe('Example: Coffee Order', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const purchaseBtn = buttons.find((b) => b.textContent.includes('Purchase'))!;
+    const purchaseBtn = buttons.find(b => b.textContent.includes('Purchase'))!;
     expect(purchaseBtn).withContext('Should find Purchase button').toBeTruthy();
 
     purchaseBtn.click();
@@ -67,7 +67,7 @@ describe('Example: Coffee Order', () => {
     const buttons = [
       ...fixture.nativeElement.querySelectorAll('.a2ui-button'),
     ] as HTMLButtonElement[];
-    const addToCartBtn = buttons.find((b) => b.textContent.includes('Add to cart'))!;
+    const addToCartBtn = buttons.find(b => b.textContent.includes('Add to cart'))!;
     expect(addToCartBtn).withContext('Should find Add to cart button').toBeTruthy();
 
     addToCartBtn.click();

@@ -20,7 +20,7 @@ yarn add @a2ui/angular @a2ui/web_core
 A2UI supports multiple protocol versions to ensure backward compatibility as the framework evolves. The root `@a2ui/angular` package provides version-agnostic surface management, component hosting, and the latest standard catalog.
 
 ```typescript
-import { A2uiRendererService, A2UI_RENDERER_CONFIG, BasicCatalog } from '@a2ui/angular';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG, BasicCatalog} from '@a2ui/angular';
 ```
 
 For backward compatibility with prior protocol versions, version-specific subpaths are available:
@@ -33,8 +33,8 @@ For backward compatibility with prior protocol versions, version-specific subpat
 Configure the renderer in your `app.config.ts` using the `A2UI_RENDERER_CONFIG` injection token:
 
 ```typescript
-import { ApplicationConfig } from '@angular/core';
-import { A2UI_RENDERER_CONFIG, A2uiRendererService, BasicCatalog } from '@a2ui/angular';
+import {ApplicationConfig} from '@angular/core';
+import {A2UI_RENDERER_CONFIG, A2uiRendererService, BasicCatalog} from '@a2ui/angular';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -42,7 +42,7 @@ export const appConfig: ApplicationConfig = {
       provide: A2UI_RENDERER_CONFIG,
       useValue: {
         catalogs: [new BasicCatalog()],
-        actionHandler: (action) => {
+        actionHandler: action => {
           console.log('Action received:', action);
         },
       },
@@ -59,8 +59,8 @@ export const appConfig: ApplicationConfig = {
 The simplest way to render an A2UI surface is using the `SurfaceComponent`. This component handles setting up the root `ComponentHost` for you.
 
 ```typescript
-import { Component } from '@angular/core';
-import { SurfaceComponent } from '@a2ui/angular/v0_9';
+import {Component} from '@angular/core';
+import {SurfaceComponent} from '@a2ui/angular/v0_9';
 
 @Component({
   selector: 'app-root',
@@ -76,8 +76,8 @@ export class AppComponent {}
 For more fine-grained control, use the `ComponentHostComponent` to render specific components within a surface:
 
 ```typescript
-import { Component } from '@angular/core';
-import { ComponentHostComponent } from '@a2ui/angular/v0_9';
+import {Component} from '@angular/core';
+import {ComponentHostComponent} from '@a2ui/angular/v0_9';
 
 @Component({
   selector: 'app-custom-layout',
@@ -99,7 +99,7 @@ A catalog component renders inside a host element: `<a2ui-v09-component-host>`, 
 If the label belongs on an element inside the component, such as its input, mark that element with `a2uiAccessibilityTarget`. The host then puts `aria-label` and `aria-description` there instead, and `aria-invalid="true"` while a check fails. Mark the element that shows the validation errors with `a2uiValidationErrors`. While there are errors, the target gets `aria-describedby` pointing at it, and the element gets an `id` if it has none:
 
 ```typescript
-import { Component } from '@angular/core';
+import {Component} from '@angular/core';
 import {
   AccessibilityTargetDirective,
   CatalogComponent,

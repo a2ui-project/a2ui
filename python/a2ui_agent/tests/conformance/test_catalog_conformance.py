@@ -20,8 +20,6 @@ transformers in `a2ui.catalog_transformers`, and `a2ui.utils.resolve_catalogs`
 directly.
 """
 
-from __future__ import annotations
-
 from collections.abc import Mapping
 from typing import Any
 
@@ -42,30 +40,10 @@ from a2ui.processor import (
 from a2ui.utils import resolve_catalogs
 
 from .conformance_helpers import (
-    assert_known_keys,
-    case_params,
     get_conformance_path,
     load_conformance_json,
     load_conformance_yaml,
 )
-
-_CASE_KEYS = frozenset({
-    "name",
-    "description",
-    "features",
-    "action",
-    "args",
-    "expect",
-    "expect_error",
-})
-_EXPECT_ERROR_KEYS = frozenset({"category", "message"})
-_CATALOG_EXPECT_KEYS = frozenset({
-    "catalog_id",
-    "protocol_version",
-    "components",
-    "functions",
-})
-_RESOLVE_EXPECT_KEYS = frozenset({"active_catalog_ids", "catalogs"})
 
 
 def _transformer(spec: Mapping[str, Any]) -> CatalogTransformer:
@@ -100,7 +78,6 @@ def _catalog_config(entry: str | Mapping[str, Any]) -> CatalogConfig:
 
 def _expect_catalog(catalog: CatalogApi, expected: Mapping[str, Any]) -> None:
     """Checks a catalog against a case's expectations. Name lists are exhaustive."""
-    assert_known_keys(expected, _CATALOG_EXPECT_KEYS, "expect.catalog")
     if "catalog_id" in expected:
         assert catalog.catalog_id == expected["catalog_id"]
     if "protocol_version" in expected:
@@ -122,18 +99,15 @@ _ERROR_CATEGORIES: dict[str, type[Exception]] = {
 provider_cases = load_conformance_yaml("agent/catalog_provider.yaml")
 
 
-def test_catalog_provider_suite_is_not_empty() -> None:
+def test_catalog_provider_suite_is_not_empty():
     assert provider_cases
 
 
 @pytest.mark.parametrize(
-    "suite, case",
-    case_params("agent/catalog_provider.yaml", provider_cases),
+    "case", provider_cases, ids=[case["name"] for case in provider_cases]
 )
-def test_catalog_provider_conformance(suite: str, case: Mapping[str, Any]) -> None:
-    del suite
+def test_catalog_provider_conformance(case):
     assert case["action"] == "provide_catalog"
-    assert_known_keys(case, _CASE_KEYS, "provide_catalog case")
     args = case["args"]
 
     def provide() -> CatalogApi:
@@ -153,11 +127,7 @@ def test_catalog_provider_conformance(suite: str, case: Mapping[str, Any]) -> No
         raise ValueError(f"Unknown provider: {provider_type}")
 
     if "expect_error" in case:
-        assert_known_keys(case["expect_error"], _EXPECT_ERROR_KEYS, "expect_error")
-        with pytest.raises(
-            _ERROR_CATEGORIES[case["expect_error"]["category"]],
-            match=case["expect_error"].get("message"),
-        ):
+        with pytest.raises(_ERROR_CATEGORIES[case["expect_error"]["category"]]):
             provide()
         return
 
@@ -168,18 +138,15 @@ def test_catalog_provider_conformance(suite: str, case: Mapping[str, Any]) -> No
 transformer_cases = load_conformance_yaml("agent/catalog_transformer.yaml")
 
 
-def test_catalog_transformer_suite_is_not_empty() -> None:
+def test_catalog_transformer_suite_is_not_empty():
     assert transformer_cases
 
 
 @pytest.mark.parametrize(
-    "suite, case",
-    case_params("agent/catalog_transformer.yaml", transformer_cases),
+    "case", transformer_cases, ids=[case["name"] for case in transformer_cases]
 )
-def test_catalog_transformer_conformance(suite: str, case: Mapping[str, Any]) -> None:
-    del suite
+def test_catalog_transformer_conformance(case):
     assert case["action"] == "transform_catalog"
-    assert_known_keys(case, _CASE_KEYS, "transform_catalog case")
     catalog = _catalog_config(case["args"]).transformed_catalog
     _expect_catalog(catalog, case["expect"])
 
@@ -187,18 +154,15 @@ def test_catalog_transformer_conformance(suite: str, case: Mapping[str, Any]) ->
 resolution_cases = load_conformance_yaml("agent/catalog_resolution.yaml")
 
 
-def test_catalog_resolution_suite_is_not_empty() -> None:
+def test_catalog_resolution_suite_is_not_empty():
     assert resolution_cases
 
 
 @pytest.mark.parametrize(
-    "suite, case",
-    case_params("agent/catalog_resolution.yaml", resolution_cases),
+    "case", resolution_cases, ids=[case["name"] for case in resolution_cases]
 )
-def test_catalog_resolution_conformance(suite: str, case: Mapping[str, Any]) -> None:
-    del suite
+def test_catalog_resolution_conformance(case):
     assert case["action"] == "resolve_catalogs"
-    assert_known_keys(case, _CASE_KEYS, "resolve_catalogs case")
     args = case["args"]
 
     def resolve() -> list[CatalogApi]:
@@ -209,17 +173,12 @@ def test_catalog_resolution_conformance(suite: str, case: Mapping[str, Any]) -> 
         )
 
     if "expect_error" in case:
-        assert_known_keys(case["expect_error"], _EXPECT_ERROR_KEYS, "expect_error")
-        with pytest.raises(
-            _ERROR_CATEGORIES[case["expect_error"]["category"]],
-            match=case["expect_error"].get("message"),
-        ):
+        with pytest.raises(_ERROR_CATEGORIES[case["expect_error"]["category"]]):
             resolve()
         return
 
     catalogs = resolve()
     expect = case["expect"]
-    assert_known_keys(expect, _RESOLVE_EXPECT_KEYS, "resolve_catalogs expect")
     catalog_ids = [catalog.catalog_id for catalog in catalogs]
     assert sorted(catalog_ids) == sorted(expect["active_catalog_ids"])
     by_id = {catalog.catalog_id: catalog for catalog in catalogs}

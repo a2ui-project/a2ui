@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Component, computed, ChangeDetectionStrategy } from '@angular/core';
-import { BasicCatalogComponent } from './basic-catalog-component';
-import { TextFieldApi } from '@a2ui/web_core/v0_9/basic_catalog';
+import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
+import {BasicCatalogComponent} from './basic-catalog-component';
+import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
   AccessibilityTargetDirective,
   ValidationErrorsDirective,

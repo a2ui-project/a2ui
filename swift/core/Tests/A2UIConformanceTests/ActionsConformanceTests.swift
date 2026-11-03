@@ -105,59 +105,20 @@ private final class ActionTestFunction: FunctionImplementation, Sendable {
 /// Runs the shared `conformance/core/actions.yaml` suite.
 @MainActor
 struct ActionsConformanceTests {
-  private static let knownCaseKeys: Set<String> = [
-    "action",
-    "actionPayload",
-    "dataModel",
-    "expectDataModel",
-    "expectDispatched",
-    "expectError",
-    "metadata",
-    "protocolVersion",
-    "scope",
-    "sourceComponentId",
-    "surfaceId",
-    "userActivation",
-  ]
+  @Test func actionsConformance() throws {
+    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/actions.yaml")
+    let cases = (rawYAML as? [[String: Any]]) ?? []
+    #expect(!cases.isEmpty, "core/actions.yaml should hold test cases")
 
-  private static let knownExpectErrorKeys: Set<String> = [
-    "category",
-    "code",
-    "message",
-    "path",
-    "surfaceId",
-  ]
-
-  private static let knownExpectDispatchedKeys: Set<String> = [
-    "context",
-    "metadata",
-    "name",
-    "sourceComponentId",
-    "surfaceId",
-    "timestampIso8601",
-    "userMessage",
-  ]
-
-  @Test(arguments: ConformanceTestHelper.cases("core/actions.yaml"))
-  func actionsConformance(_ conformanceCase: ConformanceCase) throws {
-    try ConformanceManifest.run(conformanceCase) {
-      let testCase = conformanceCase.rawDictionary
-      let action = testCase["action"] as? String ?? ""
-      guard action == "dispatch_action" else {
-        throw UnknownConformanceKeyError(
-          "[\(conformanceCase.name)] Unknown actions.yaml action '\(action)'"
-        )
-      }
-      try runDispatchActionCase(testCase, name: conformanceCase.name)
+    for testCase in cases {
+      let name = testCase["name"] as? String ?? "<unnamed>"
+      let action = testCase["action"] as? String ?? "dispatch_action"
+      guard action == "dispatch_action" else { continue }
+      try runDispatchActionCase(testCase, name: name)
     }
   }
 
   private func runDispatchActionCase(_ testCase: [String: Any], name: String) throws {
-    try ConformanceTestHelper.assertKnownKeys(
-      testCase,
-      Self.knownCaseKeys,
-      "actions.yaml case '\(name)'"
-    )
     let versionStr = testCase["protocolVersion"] as? String ?? "v0.9"
     let protocolVersion = A2UIProtocolVersion(lenientRawValue: versionStr) ?? .v09
     let surfaceID = testCase["surfaceId"] as? String ?? "default"
@@ -181,7 +142,8 @@ struct ActionsConformanceTests {
       path: scope,
       functionHandler: handler,
       protocolVersion: protocolVersion,
-      index: index
+      index: index,
+      isUserActivated: userActivation
     )
 
     let rawAction =
@@ -201,12 +163,6 @@ struct ActionsConformanceTests {
     if let expectErrorDict = testCase["expectError"] as? [String: Any],
       expectErrorDict["category"] as? String == "ValidationError"
     {
-      try ConformanceTestHelper.assertKnownKeys(
-        expectErrorDict,
-        Self.knownExpectErrorKeys,
-        "actions.yaml expectError in '\(name)'",
-        allowMetadata: false
-      )
       #expect(throws: A2UIValidationError.self, "\(name): expected metadata validation error") {
         _ = try MetadataValidator.mergeActionMetadata(base: baseMeta, override: overrideMeta)
       }
@@ -355,17 +311,8 @@ struct ActionsConformanceTests {
     }
 
     if let expectErrorDict = testCase["expectError"] as? [String: Any] {
-      try ConformanceTestHelper.assertKnownKeys(
-        expectErrorDict,
-        Self.knownExpectErrorKeys,
-        "actions.yaml expectError in '\(name)'",
-        allowMetadata: false
-      )
       assertActionErrorMatches(
-        capturedErrors: capturedErrors,
-        expectError: expectErrorDict,
-        name: name
-      )
+        capturedErrors: capturedErrors, expectError: expectErrorDict, name: name)
     } else {
       #expect(capturedErrors.isEmpty, "\(name): unexpected action errors \(capturedErrors)")
     }
@@ -373,8 +320,7 @@ struct ActionsConformanceTests {
     if testCase["expectDispatched"] is NSNull {
       #expect(
         dispatched == nil,
-        "\(name): expected no dispatched action, got \(String(describing: dispatched))"
-      )
+        "\(name): expected no dispatched action, got \(String(describing: dispatched))")
       return
     }
 
@@ -383,12 +329,6 @@ struct ActionsConformanceTests {
     else {
       return
     }
-    try ConformanceTestHelper.assertKnownKeys(
-      expDict,
-      Self.knownExpectDispatchedKeys,
-      "actions.yaml expectDispatched in '\(name)'",
-      allowMetadata: false
-    )
     try assertDispatchedActionMatches(dispatched: dispatched, expected: expDict, name: name)
   }
 

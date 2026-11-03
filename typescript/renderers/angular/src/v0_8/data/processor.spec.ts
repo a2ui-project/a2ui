@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { TestBed } from '@angular/core/testing';
-import { MessageProcessor, A2UIClientEvent } from './processor';
-import { Catalog } from '../rendering/catalog';
-import type { A2UIClientEventMessage, AnyComponentNode, ServerToClientMessage } from '../types';
+import {TestBed} from '@angular/core/testing';
+import {MessageProcessor, A2UIClientEvent} from './processor';
+import {Catalog} from '../rendering/catalog';
+import type {A2UIClientEventMessage, AnyComponentNode, ServerToClientMessage} from '../types';
 import * as WebCore from '@a2ui/web_core/v0_8';
 
 describe('MessageProcessor', () => {
@@ -28,7 +28,7 @@ describe('MessageProcessor', () => {
     mockCatalog = {};
 
     TestBed.configureTestingModule({
-      providers: [MessageProcessor, { provide: Catalog, useValue: mockCatalog }],
+      providers: [MessageProcessor, {provide: Catalog, useValue: mockCatalog}],
     });
     service = TestBed.inject(MessageProcessor);
   });
@@ -47,7 +47,7 @@ describe('MessageProcessor', () => {
     expect(baseProcessor.processMessages).toHaveBeenCalledWith(messages);
   });
 
-  it('should dispatch events and emit to observable', (done) => {
+  it('should dispatch events and emit to observable', done => {
     const mockMessage: A2UIClientEventMessage = {
       userAction: {
         name: 'click',
@@ -68,10 +68,10 @@ describe('MessageProcessor', () => {
 
   it('should resolve dispatch promise when completion is triggered', async () => {
     const mockMessage: A2UIClientEventMessage = {
-      userAction: { name: 'click', sourceComponentId: '1', surfaceId: '1', timestamp: '' },
+      userAction: {name: 'click', sourceComponentId: '1', surfaceId: '1', timestamp: ''},
     };
 
-    const replyMessages: ServerToClientMessage[] = [{ type: 'UpdateSurface' } as any];
+    const replyMessages: ServerToClientMessage[] = [{type: 'UpdateSurface'} as any];
 
     // Setup subscription to trigger completion
     service.events.subscribe((event: A2UIClientEvent) => {
@@ -86,7 +86,7 @@ describe('MessageProcessor', () => {
     const baseProcessor = (service as any).baseProcessor;
     spyOn(baseProcessor, 'getData').and.returnValue('mock-value');
 
-    const node = { id: '1', type: 'Text' } as any as AnyComponentNode;
+    const node = {id: '1', type: 'Text'} as any as AnyComponentNode;
     const result = service.getData(node, 'path/to/data', 'surf-1');
 
     expect(baseProcessor.getData).toHaveBeenCalledWith(node, 'path/to/data', 'surf-1');
@@ -97,7 +97,7 @@ describe('MessageProcessor', () => {
     const baseProcessor = (service as any).baseProcessor;
     spyOn(baseProcessor, 'setData');
 
-    const node = { id: '1', type: 'Text' } as any as AnyComponentNode;
+    const node = {id: '1', type: 'Text'} as any as AnyComponentNode;
     service.setData(node, 'path/to/data', 'new-value', 'surf-1');
 
     expect(baseProcessor.setData).toHaveBeenCalledWith(node, 'path/to/data', 'new-value', 'surf-1');
@@ -134,7 +134,7 @@ describe('MessageProcessor', () => {
         id: readyComponentId,
         type: 'Text',
         properties: {
-          text: { literalString: 'Ready to render' },
+          text: {literalString: 'Ready to render'},
         },
       },
       dataModel: new Map(),

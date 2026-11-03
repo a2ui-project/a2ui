@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Button } from './button';
-import { MessageProcessor } from '../data/processor';
-import { Theme } from '../rendering/theming';
-import { Catalog } from '../rendering/catalog';
-import { Renderer } from '../rendering/renderer';
-import type { Action, ButtonNode, A2UIClientEventMessage } from '../types';
-import { Directive, Input } from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Button} from './button';
+import {MessageProcessor} from '../data/processor';
+import {Theme} from '../rendering/theming';
+import {Catalog} from '../rendering/catalog';
+import {Renderer} from '../rendering/renderer';
+import type {Action, ButtonNode, A2UIClientEventMessage} from '../types';
+import {Directive, Input} from '@angular/core';
 
 // Mock Renderer directive to avoid full tree rendering issues for isolated unit tests
 @Directive({
@@ -49,7 +49,7 @@ describe('Button Component', () => {
     type: 'Button',
     weight: 1,
     properties: {
-      child: { id: 'text-1', type: 'Text', properties: { text: 'Click Me' } },
+      child: {id: 'text-1', type: 'Text', properties: {text: 'Click Me'}},
       action: mockAction,
     },
   };
@@ -63,22 +63,22 @@ describe('Button Component', () => {
     mockProcessor.dispatch.and.returnValue(Promise.resolve([]));
 
     mockTheme = new Theme();
-    mockTheme.components = { Button: 'btn-class' } as any;
-    mockTheme.additionalStyles = { Button: { color: 'red' } } as any;
+    mockTheme.components = {Button: 'btn-class'} as any;
+    mockTheme.additionalStyles = {Button: {color: 'red'}} as any;
 
     const mockCatalog = {};
 
     await TestBed.configureTestingModule({
       imports: [Button],
       providers: [
-        { provide: MessageProcessor, useValue: mockProcessor },
-        { provide: Theme, useValue: mockTheme },
-        { provide: Catalog, useValue: mockCatalog },
+        {provide: MessageProcessor, useValue: mockProcessor},
+        {provide: Theme, useValue: mockTheme},
+        {provide: Catalog, useValue: mockCatalog},
       ],
     })
       .overrideComponent(Button, {
-        remove: { imports: [Renderer] },
-        add: { imports: [MockRenderer] },
+        remove: {imports: [Renderer]},
+        add: {imports: [MockRenderer]},
       })
       .compileComponents();
 

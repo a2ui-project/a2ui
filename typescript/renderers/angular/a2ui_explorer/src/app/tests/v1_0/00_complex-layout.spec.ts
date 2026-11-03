@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { getCanvas, loadExample } from '../utils';
+import {getCanvas, loadExample} from '../utils';
 
 describe('v1.0 Example: Complex Layout', () => {
   let textContent: string;
 
   beforeEach(async () => {
-    await loadExample({ name: 'Complex Layout', version: '1.0' });
+    await loadExample({name: 'Complex Layout', version: '1.0'});
     textContent = getCanvas().textContent || '';
   });
 

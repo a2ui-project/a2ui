@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { ComponentFixture } from '@angular/core/testing';
-import { DemoComponent } from '../../demo.component';
-import { getCanvas, loadExample } from '../utils';
+import {ComponentFixture} from '@angular/core/testing';
+import {DemoComponent} from '../../demo.component';
+import {getCanvas, loadExample} from '../utils';
 
 describe('v1.0 Example: Track List', () => {
   let fixture: ComponentFixture<DemoComponent>;
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample({ name: 'Track List', version: '1.0' });
+    fixture = await loadExample({name: 'Track List', version: '1.0'});
     textContent = getCanvas().textContent;
   });
 
@@ -53,7 +53,7 @@ describe('v1.0 Example: Track List', () => {
     const imgs = fixture.nativeElement.querySelectorAll('img');
     expect(imgs.length).toBeGreaterThanOrEqual(3);
 
-    const srcs = ([...imgs] as HTMLImageElement[]).map((img) => img.getAttribute('src'));
+    const srcs = ([...imgs] as HTMLImageElement[]).map(img => img.getAttribute('src'));
     expect(srcs).toContain(
       'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=50&h=50&fit=crop',
     );

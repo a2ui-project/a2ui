@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import {readFileSync} from 'fs';
-
-import {expect} from 'vitest';
+import * as fs from 'fs';
+import {describe, expect, test} from 'vitest';
 
 import {
   A2uiCatalogError,
@@ -48,7 +47,6 @@ import {
   CatalogRegistration,
   compileChecked,
   conformancePath,
-  describeSuite,
   expectCatalogContents,
 } from './suite-helpers.js';
 
@@ -153,7 +151,7 @@ function loadExamples(
   const examples: Record<string, AgentToRendererMessage[]> = {};
   for (let i = 0; i < examplePaths.length; i++) {
     const fullPath = conformancePath(examplePaths[i]);
-    const content = JSON.parse(readFileSync(fullPath, 'utf8'));
+    const content = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
     const messages: AgentToRendererMessage[] = Array.isArray(content) ? content : [content];
     const firstSurfaceCatId = (messages[0] as {createSurface?: {catalogId?: string}} | undefined)
       ?.createSurface?.catalogId;
@@ -445,25 +443,29 @@ function runFormatCase(testCase: LoadedCase): void {
   }
 }
 
-describeSuite(
-  'Conformance: multi_catalog_formats.yaml & request_processor.yaml',
-  loadCases([
+describe('Conformance: multi_catalog_formats.yaml & request_processor.yaml', () => {
+  const files = [
     conformancePath('agent/multi_catalog_formats.yaml'),
     conformancePath('agent/request_processor.yaml'),
-  ]),
-  testCase => runFormatCase(testCase),
-  {
-    skipReason: testCase => {
-      const args = (testCase.args as Record<string, unknown>) || {};
-      const fmt = (args.format as string) ?? 'express';
-      const fmtOverride = args.format_override as string | undefined;
-      if (fmt !== 'express' && fmt !== 'direct_json') {
-        return `Unsupported format: ${fmt}`;
-      }
-      if (fmtOverride !== undefined && fmtOverride !== 'express' && fmtOverride !== 'direct_json') {
-        return `Unsupported format override: ${fmtOverride}`;
-      }
-      return undefined;
-    },
-  },
-);
+  ];
+
+  for (const testCase of loadCases(files)) {
+    const args = (testCase.args as Record<string, unknown>) || {};
+    const fmt = (args.format as string) ?? 'express';
+    const fmtOverride = args.format_override as string | undefined;
+    const isUnsupportedFormat =
+      (fmt !== 'express' && fmt !== 'direct_json') ||
+      (fmtOverride !== undefined && fmtOverride !== 'express' && fmtOverride !== 'direct_json');
+
+    const title = `${testCase.action} · ${testCase.name}`;
+    if (isUnsupportedFormat) {
+      test.skip(title, () => {
+        runFormatCase(testCase);
+      });
+    } else {
+      test(title, () => {
+        runFormatCase(testCase);
+      });
+    }
+  }
+});

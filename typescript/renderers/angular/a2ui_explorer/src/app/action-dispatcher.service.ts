@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { Injectable } from '@angular/core';
-import { Subject } from 'rxjs';
-import { A2uiClientAction } from '@a2ui/web_core/v0_9';
+import {Injectable} from '@angular/core';
+import {Subject} from 'rxjs';
+import {A2uiClientAction} from '@a2ui/web_core/v0_9';
 
-@Injectable({ providedIn: 'root' })
+@Injectable({providedIn: 'root'})
 export class ActionDispatcher {
   private action$ = new Subject<A2uiClientAction>();
   actions = this.action$.asObservable();

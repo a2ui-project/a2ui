@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {expect} from 'vitest';
+import {describe, expect, test} from 'vitest';
 
 import {
   A2uiCatalogError,
@@ -33,7 +33,7 @@ import {toWireProtocolVersion} from '../../src/utils/protocol-version.js';
 import {loadBasicCatalog} from '../helpers/basic-catalogs.js';
 import {createCatalogConfig, createFileCatalogConfig} from './fixtures.js';
 import {classify, KNOWN_FAILURES, loadCases, LoadedCase} from './loader.js';
-import {conformancePath, describeSuite} from './suite-helpers.js';
+import {conformancePath} from './suite-helpers.js';
 
 // Cases that name no catalog run against the v1.0 basic catalog.
 const basicCatalogV10 = loadBasicCatalog('1.0');
@@ -256,24 +256,33 @@ const LEGACY_ACTION_HANDLERS: Record<string, (testCase: LoadedCase) => void | Pr
   select_catalog: runSelectCatalogCase,
 };
 
-describeSuite(
-  'Conformance Harness (Legacy Agent Suites)',
-  loadCases([
+describe('Conformance Harness (Legacy Agent Suites)', () => {
+  const yamlFiles = [
     conformancePath('agent/legacy/parser.yaml'),
     conformancePath('agent/legacy/inference_format.yaml'),
-  ]),
-  async testCase => {
-    const handler = LEGACY_ACTION_HANDLERS[testCase.action];
-    if (!handler) {
-      throw new Error(`Unhandled conformance action: ${testCase.action}`);
+  ];
+
+  const allCases = loadCases(yamlFiles);
+
+  for (const testCase of allCases) {
+    const verdict = classify(testCase);
+    const {action, name} = testCase;
+    const testName = `${action} · ${name}`;
+
+    const testFn = async () => {
+      const handler = LEGACY_ACTION_HANDLERS[action];
+      if (!handler) {
+        throw new Error(`Unhandled conformance action: ${action}`);
+      }
+      await handler(testCase);
+    };
+
+    if (!verdict.runnable) {
+      test.skip(`${testName} (${verdict.reason})`, testFn);
+    } else if (KNOWN_FAILURES.has(name)) {
+      test.fails(`${testName} (known gap: ${KNOWN_FAILURES.get(name)})`, testFn);
+    } else {
+      test(testName, testFn);
     }
-    await handler(testCase);
-  },
-  {
-    knownFailures: KNOWN_FAILURES,
-    skipReason: testCase => {
-      const verdict = classify(testCase);
-      return verdict.runnable ? undefined : verdict.reason;
-    },
-  },
-);
+  }
+});

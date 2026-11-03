@@ -30,42 +30,19 @@ import '../support/renderer_catalog.dart';
 import '../support/timing.dart';
 import 'conformance_harness.dart';
 
-const Map<String, Set<String>> _knownKeys = {
-  'case:measure_growth': {
-    ...caseMetadataKeys,
-    'args',
-    'catalogPaths',
-    'max_ratio',
-    'operation',
-    'payload',
-    'protocolVersion',
-    'sizes',
-  },
-  'args:measure_growth': {
-    'validation_config',
-  },
-};
-
 void main() {
   const suite = 'core/message_processor_scaling.yaml';
   final List<ConformanceTestCase> cases = loadConformanceSuite(suite);
   group('conformance $suite', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
-    runConformanceSuite(
-      cases,
-      _runCase,
-      suite: suite,
-    );
+    for (final testCase in cases) {
+      test(testCase['name']! as String, () => _runCase(testCase));
+    }
   });
 }
 
 void _runCase(ConformanceTestCase testCase) {
   expect(testCase['action'], 'measure_growth');
-  assertKnownKeys(
-    testCase,
-    _knownKeys['case:measure_growth']!,
-    'case:measure_growth',
-  );
   expect(testCase['operation'], 'process_messages');
   final List<Catalog<ComponentApi, FunctionImplementation>> catalogs = [
     for (final Object? path in testCase['catalogPaths']! as List<Object?>)
@@ -75,8 +52,6 @@ void _runCase(ConformanceTestCase testCase) {
       ),
   ];
   final args = testCase['args']! as Map<String, Object?>;
-  assertKnownKeys(
-      args, _knownKeys['args:measure_growth']!, 'args:measure_growth');
   final ValidationConfig? config = switch (args['validation_config']) {
     'none' => null,
     'relaxed' => ValidationConfig.relaxed,

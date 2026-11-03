@@ -16,21 +16,20 @@
 
 import {html, nothing, type TemplateResult} from 'lit';
 
-import {
-  type CheckableResolvedProps,
-  hasValidationErrors,
+import type {ResolvedAccessibilityAttributes} from '../../host_accessibility.js';
+
+// The host-level setter lives with the host bindings that frameworks share,
+// so that they do not depend on the basic catalog.
+export {
   type ResolvedAccessibilityAttributes,
   setHostAccessibilityAttributes,
 } from '../../host_accessibility.js';
 
-// The host-level setter and checkable types live with the host bindings that
-// frameworks share, so that they do not depend on the basic catalog.
-export {
-  type CheckableResolvedProps,
-  hasValidationErrors,
-  type ResolvedAccessibilityAttributes,
-  setHostAccessibilityAttributes,
-};
+/** Props that the binder adds to components with validation checks. */
+export interface CheckableResolvedProps {
+  isValid?: boolean;
+  validationErrors?: string[];
+}
 
 /**
  * Sets group-level `role`, `aria-label`, and `aria-description` directly onto
@@ -68,6 +67,10 @@ export function getAccessibilityDescription(
   a11y?: ResolvedAccessibilityAttributes,
 ): string | typeof nothing {
   return hasAttributeValue(a11y?.description) ? String(a11y?.description) : nothing;
+}
+
+export function hasValidationErrors(props?: CheckableResolvedProps): boolean {
+  return props?.isValid === false && Boolean(props.validationErrors?.length);
 }
 
 export function getValidationErrorId(

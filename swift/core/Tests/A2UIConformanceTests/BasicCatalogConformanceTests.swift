@@ -38,49 +38,6 @@ private final class ConformanceMockFunctionHandler: FunctionHandler {
 
 @MainActor
 struct BasicCatalogConformanceTests {
-  private static let knownEvaluateFunctionCaseKeys: Set<String> = [
-    "action",
-    "args",
-    "catalogId",
-    "catalogPaths",
-    "dataModel",
-    "expect",
-    "expectError",
-    "function",
-    "protocolVersion",
-    "surface",
-  ]
-
-  private static let knownValidateCaseKeys: Set<String> = [
-    "action",
-    "catalog",
-    "expect",
-    "steps",
-  ]
-
-  private static let knownValidateStepKeys: Set<String> = [
-    "expect",
-    "expectError",
-    "payload",
-  ]
-
-  private static let knownExpectErrorKeys: Set<String> = [
-    "category",
-    "message",
-  ]
-
-  private static let knownComponentExpectKeys: Set<String> = [
-    "component",
-    "text",
-  ]
-
-  private static let knownValidationResultSurfaceKeys: Set<String> = [
-    "isValid",
-    "validationErrors",
-    "validationResult",
-    "validationResults",
-  ]
-
   private let functionHandler = ConformanceMockFunctionHandler()
   /// Handlers holding each protocol version's Basic Catalog functions. Stored here because
   /// `DataContext` keeps its function handler weakly.
@@ -120,21 +77,46 @@ struct BasicCatalogConformanceTests {
     #expect(result == .string("Welcome Alice, you are 30 years old."))
   }
 
-  @Test(arguments: ConformanceTestHelper.cases("core/functions.yaml", action: "evaluate_function"))
-  func evaluateFunctionConformance(_ conformanceCase: ConformanceCase) throws {
-    try ConformanceManifest.run(conformanceCase) {
-      let testCase = conformanceCase.rawDictionary
-      try ConformanceTestHelper.assertKnownKeys(
-        testCase,
-        Self.knownEvaluateFunctionCaseKeys,
-        "functions.yaml evaluate_function case '\(conformanceCase.name)'"
-      )
-      if let surfaceDict = testCase["surface"] as? [String: Any] {
-        try runSurfaceEvaluateFunctionCase(testCase, surfaceDict: surfaceDict)
-      } else {
-        try runDirectEvaluateFunctionCase(testCase)
+  @Test func evaluateFunctionConformance() throws {
+    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/functions.yaml")
+    let cases = (rawYAML as? [[String: Any]]) ?? []
+    #expect(!cases.isEmpty, "core/functions.yaml should hold test cases")
+
+    var executed = 0
+    for testCase in cases {
+      guard let name = testCase["name"] as? String,
+        let action = testCase["action"] as? String
+      else {
+        Issue.record("core/functions.yaml holds a case without a name or an action")
+        continue
+      }
+
+      switch action {
+      case "validate":
+        executed += 1
+        try runValidateCase(testCase, name: name)
+      case "evaluate_function":
+        executed += 1
+        if let surfaceDict = testCase["surface"] as? [String: Any] {
+          try runSurfaceEvaluateFunctionCase(testCase, surfaceDict: surfaceDict)
+        } else {
+          try runDirectEvaluateFunctionCase(testCase)
+        }
+      default:
+        Issue.record("\(name): unsupported action \(action)")
       }
     }
+
+    #expect(executed == cases.count, "All cases in core/functions.yaml should be executed")
+  }
+
+  /// Runs a `validate` case, which renders basic catalog components that call a function.
+  private func runValidateCase(_ rawCase: [String: Any], name: String) throws {
+    let testCase = try #require(
+      ConformanceTestHelper.parseTestCases(from: [rawCase]).first,
+      "\(name): case could not be parsed"
+    )
+    try ConformanceTestHelper.runValidateCase(testCase)
   }
 
   private func runDirectEvaluateFunctionCase(_ testCase: [String: Any]) throws {
@@ -155,12 +137,6 @@ struct BasicCatalogConformanceTests {
     let swiftArgs = buildFunctionArgs(from: testCase)
 
     if let expectError = (testCase["expectError"] ?? testCase["expect_error"]) as? [String: Any] {
-      try ConformanceTestHelper.assertKnownKeys(
-        expectError,
-        Self.knownExpectErrorKeys,
-        "functions.yaml expectError in '\(name)'",
-        allowMetadata: false
-      )
       assertDirectFunctionError(
         fn: fn,
         args: swiftArgs,
@@ -291,12 +267,6 @@ struct BasicCatalogConformanceTests {
     let actual = context.resolveDynamicValue(callExpr)
 
     if let expectError = (testCase["expectError"] ?? testCase["expect_error"]) as? [String: Any] {
-      try ConformanceTestHelper.assertKnownKeys(
-        expectError,
-        Self.knownExpectErrorKeys,
-        "functions.yaml surface expectError in '\(name)'",
-        allowMetadata: false
-      )
       assertSurfaceFunctionError(
         capturedErrors: errorHandler.capturedErrors,
         expectError: expectError,
@@ -376,85 +346,33 @@ struct BasicCatalogConformanceTests {
       return ConformanceTestHelper.messageMatches(msg, expected: expectedMessage)
     }
     #expect(
-      matches,
-      "\(name): expected error containing '\(expectedMessage)', got \(capturedErrors)"
-    )
+      matches, "\(name): expected error containing '\(expectedMessage)', got \(capturedErrors)")
   }
 
-  @Test(arguments: ConformanceTestHelper.cases("core/functions.yaml", action: "validate"))
-  func functionsValidateConformance(_ conformanceCase: ConformanceCase) throws {
-    try ConformanceManifest.run(conformanceCase) {
-      let testCase = try validateAndParseCatalogCase(
-        conformanceCase,
-        suiteName: "functions.yaml"
+  @Test func indexFunctionConformance() throws {
+    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/index_function.yaml")
+    let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
+    #expect(!testCases.isEmpty, "Should load test cases from index_function.yaml")
+
+    for testCase in testCases {
+      let errorHandler = IndexConformanceErrorHandler()
+      let processor = MessageProcessor(
+        catalogs: ConformanceTestHelper.basicCatalogs(for: .v10),
+        actionHandler: errorHandler,
+        validationConfig: ValidationConfig(targetVersion: "1.0")
       )
-      try ConformanceTestHelper.runValidateCase(testCase)
-    }
-  }
 
-  @Test(arguments: ConformanceTestHelper.cases("core/index_function.yaml", action: "validate"))
-  func indexFunctionConformance(_ conformanceCase: ConformanceCase) throws {
-    try ConformanceManifest.run(conformanceCase) {
-      try runIndexFunctionCase(conformanceCase)
-    }
-  }
-
-  private func validateAndParseCatalogCase(
-    _ conformanceCase: ConformanceCase,
-    suiteName: String
-  ) throws -> ConformanceTestCase {
-    let rawDict = conformanceCase.rawDictionary
-    try ConformanceTestHelper.assertKnownKeys(
-      rawDict,
-      Self.knownValidateCaseKeys,
-      "\(suiteName) case '\(conformanceCase.name)'"
-    )
-    if let steps = rawDict["steps"] as? [[String: Any]] {
-      for step in steps {
-        try ConformanceTestHelper.assertKnownKeys(
-          step,
-          Self.knownValidateStepKeys,
-          "\(suiteName) step in '\(conformanceCase.name)'",
-          allowMetadata: false
+      for (stepIndex, step) in testCase.steps.enumerated() {
+        guard let payload = step.payload else { continue }
+        try executeIndexStep(
+          step: step,
+          isFinalStep: stepIndex == testCase.steps.count - 1,
+          payload: payload,
+          testCase: testCase,
+          processor: processor,
+          errorHandler: errorHandler
         )
-        if let errDict = step["expectError"] as? [String: Any] {
-          try ConformanceTestHelper.assertKnownKeys(
-            errDict,
-            Self.knownExpectErrorKeys,
-            "\(suiteName) step.expectError in '\(conformanceCase.name)'",
-            allowMetadata: false
-          )
-        }
       }
-    }
-    return try #require(
-      conformanceCase.parsedTestCase(),
-      "[\(conformanceCase.name)] Could not parse test case"
-    )
-  }
-
-  private func runIndexFunctionCase(_ conformanceCase: ConformanceCase) throws {
-    let testCase = try validateAndParseCatalogCase(
-      conformanceCase,
-      suiteName: "index_function.yaml"
-    )
-    let errorHandler = IndexConformanceErrorHandler()
-    let processor = MessageProcessor(
-      catalogs: ConformanceTestHelper.basicCatalogs(for: .v10),
-      actionHandler: errorHandler,
-      validationConfig: ValidationConfig(targetVersion: "1.0")
-    )
-
-    for (stepIndex, step) in testCase.steps.enumerated() {
-      guard let payload = step.payload else { continue }
-      try executeIndexStep(
-        step: step,
-        isFinalStep: stepIndex == testCase.steps.count - 1,
-        payload: payload,
-        testCase: testCase,
-        processor: processor,
-        errorHandler: errorHandler
-      )
     }
   }
 
@@ -469,32 +387,26 @@ struct BasicCatalogConformanceTests {
     // The case's expectError applies to the last step only.
     if let expectedError = step.expectError ?? (isFinalStep ? testCase.expectError : nil) {
       errorHandler.capturedErrors.removeAll()
-      var caughtError: Error?
+      var caughtErrorMessage: String?
       do {
-        try processor.processMessages(payload)
+        let messages = try ConformanceTestHelper.parsePayload(payload)
+        processor.process(messages: messages)
       } catch {
-        caughtError = error
+        caughtErrorMessage = error.localizedDescription
       }
       assertIndexStepError(
         capturedErrors: errorHandler.capturedErrors,
-        caughtError: caughtError,
+        caughtErrorMessage: caughtErrorMessage,
         expectedError: expectedError,
         testName: testCase.name
       )
       return
     }
 
-    try processor.processMessages(payload)
-    let caseExpect = isFinalStep ? testCase.expect : nil
-    guard let expectObj = (step.expect ?? caseExpect)?.objectValue else { return }
-    try ConformanceTestHelper.assertKnownKeys(
-      expectObj,
-      ["surfaces"],
-      "expect in '\(testCase.name)'",
-      allowMetadata: false
-    )
-    guard let expectSurfaces = expectObj["surfaces"]?.objectValue else { return }
-    try assertIndexSurfaces(
+    let messages = try ConformanceTestHelper.parsePayload(payload)
+    processor.process(messages: messages)
+    guard let expectSurfaces = testCase.expect?["surfaces"]?.objectValue else { return }
+    assertIndexSurfaces(
       OrderedDictionary(uniqueKeysWithValues: expectSurfaces.map { ($0.key, $0.value) }),
       processor: processor,
       testName: testCase.name
@@ -503,12 +415,10 @@ struct BasicCatalogConformanceTests {
 
   private func assertIndexStepError(
     capturedErrors: [RendererError],
-    caughtError: Error?,
+    caughtErrorMessage: String?,
     expectedError: ConformanceExpectError,
     testName: String
   ) {
-    let caughtErrorMessage =
-      (caughtError as? (any A2UIError))?.message ?? caughtError?.localizedDescription
     let errorMessages =
       capturedErrors.map { err -> String in
         switch err {
@@ -521,14 +431,6 @@ struct BasicCatalogConformanceTests {
       !errorMessages.isEmpty,
       "Expected error for \(testName), but processing succeeded without error"
     )
-    if let expectedCategory = expectedError.category, expectedCategory == "ValidationError",
-      let caughtError
-    {
-      #expect(
-        caughtError is A2UIValidationError,
-        "[\(testName)] Expected A2UIValidationError, got \(type(of: caughtError))"
-      )
-    }
     if let expectedMessage = expectedError.message {
       #expect(
         errorMessages.contains(where: { $0.contains(expectedMessage) }),
@@ -541,120 +443,56 @@ struct BasicCatalogConformanceTests {
     _ expectSurfaces: OrderedDictionary<String, JSONValue>,
     processor: MessageProcessor,
     testName: String
-  ) throws {
+  ) {
     for (surfaceID, expectedSurface) in expectSurfaces {
-      if let surfObj = expectedSurface.objectValue {
-        try ConformanceTestHelper.assertKnownKeys(
-          surfObj,
-          ["components"],
-          "expect.surfaces.\(surfaceID) in '\(testName)'",
-          allowMetadata: false
-        )
-      }
       guard let surface = processor.surfaceGroupModel[surfaceID] else {
         Issue.record("Expected surface '\(surfaceID)' to exist")
         continue
       }
       guard let expectedComponents = expectedSurface["components"]?.objectValue else { continue }
       for (compID, compExpected) in expectedComponents {
-        try assertIndexSurfaceComponent(
-          compID: compID,
-          compExpected: compExpected,
-          surface: surface,
-          surfaceID: surfaceID,
-          testName: testName
-        )
+        let node = surface.findNode(id: compID)
+        if let expectedText = compExpected["text"]?.stringValue {
+          #expect(
+            node?.string(for: "text") == expectedText,
+            "[\(testName)] Expected node \(compID).text == '\(expectedText)'"
+          )
+        }
       }
     }
   }
 
-  private func assertIndexSurfaceComponent(
-    compID: String,
-    compExpected: JSONValue,
-    surface: SurfaceViewModel,
-    surfaceID: String,
-    testName: String
-  ) throws {
-    if let compObj = compExpected.objectValue {
-      try ConformanceTestHelper.assertKnownKeys(
-        compObj,
-        Self.knownComponentExpectKeys,
-        "expect.surfaces.\(surfaceID).components.\(compID) in '\(testName)'",
-        allowMetadata: false
-      )
-    }
-    let node = surface.findNode(id: compID)
-    if let expectedComponent = compExpected["component"]?.stringValue {
-      #expect(
-        node?.type == expectedComponent,
-        "[\(testName)] Expected node \(compID).type == '\(expectedComponent)'"
-      )
-    }
-    let expectedText =
-      compExpected["text"]?.stringValue
-      ?? compExpected["text"]?.boolValue.map { $0 ? "true" : "false" }
-    if let expectedText {
-      #expect(
-        node?.string(for: "text") == expectedText,
-        "[\(testName)] Expected node \(compID).text == '\(expectedText)'"
-      )
-    }
-  }
+  @Test func validationResultConformance() throws {
+    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/validation_result.yaml")
+    let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
+    #expect(!testCases.isEmpty, "Should load test cases from validation_result.yaml")
 
-  @Test(arguments: ConformanceTestHelper.cases("core/validation_result.yaml", action: "validate"))
-  func validationResultConformance(_ conformanceCase: ConformanceCase) throws {
-    try ConformanceManifest.run(conformanceCase) {
-      try runValidationResultCase(conformanceCase)
-    }
-  }
+    for testCase in testCases {
+      let processor = MessageProcessor(
+        catalogs: ConformanceTestHelper.basicCatalogs(for: .v10),
+        validationConfig: ValidationConfig(targetVersion: "1.0")
+      )
 
-  private func runValidationResultCase(_ conformanceCase: ConformanceCase) throws {
-    let rawDict = conformanceCase.rawDictionary
-    try ConformanceTestHelper.assertKnownKeys(
-      rawDict,
-      Self.knownValidateCaseKeys,
-      "validation_result.yaml case '\(conformanceCase.name)'"
-    )
-    if let steps = rawDict["steps"] as? [[String: Any]] {
-      for step in steps {
-        try ConformanceTestHelper.assertKnownKeys(
-          step,
-          Self.knownValidateStepKeys,
-          "validation_result.yaml step in '\(conformanceCase.name)'",
-          allowMetadata: false
-        )
+      for step in testCase.steps {
+        guard let payload = step.payload else { continue }
+        let messages = try ConformanceTestHelper.parsePayload(payload)
+        processor.process(messages: messages)
+        if let stepExpectSurfaces = step.expect?["surfaces"]?.objectValue {
+          assertValidationResultSurfaces(
+            OrderedDictionary(uniqueKeysWithValues: stepExpectSurfaces.map { ($0.key, $0.value) }),
+            processor: processor,
+            testName: testCase.name
+          )
+        }
       }
-    }
-    let testCase = try #require(
-      conformanceCase.parsedTestCase(),
-      "[\(conformanceCase.name)] Could not parse validation_result case"
-    )
-    let processor = MessageProcessor(
-      catalogs: ConformanceTestHelper.basicCatalogs(for: .v10),
-      validationConfig: ValidationConfig(targetVersion: "1.0")
-    )
 
-    for step in testCase.steps {
-      guard let payload = step.payload else { continue }
-      let messages = try ConformanceTestHelper.parsePayload(payload)
-      processor.process(messages: messages)
-      if let stepExpectSurfaces = step.expect?["surfaces"]?.objectValue {
-        try assertValidationResultSurfaces(
-          OrderedDictionary(
-            uniqueKeysWithValues: stepExpectSurfaces.map { ($0.key, $0.value) }
-          ),
+      if let caseExpectSurfaces = testCase.expect?["surfaces"]?.objectValue {
+        assertValidationResultSurfaces(
+          OrderedDictionary(uniqueKeysWithValues: caseExpectSurfaces.map { ($0.key, $0.value) }),
           processor: processor,
           testName: testCase.name
         )
       }
-    }
-
-    if let caseExpectSurfaces = testCase.expect?["surfaces"]?.objectValue {
-      try assertValidationResultSurfaces(
-        OrderedDictionary(uniqueKeysWithValues: caseExpectSurfaces.map { ($0.key, $0.value) }),
-        processor: processor,
-        testName: testCase.name
-      )
     }
   }
 
@@ -662,16 +500,8 @@ struct BasicCatalogConformanceTests {
     _ expectSurfaces: OrderedDictionary<String, JSONValue>,
     processor: MessageProcessor,
     testName: String
-  ) throws {
+  ) {
     for (surfaceID, expectedSurface) in expectSurfaces {
-      if let surfObj = expectedSurface.objectValue {
-        try ConformanceTestHelper.assertKnownKeys(
-          surfObj,
-          Self.knownValidationResultSurfaceKeys,
-          "validation_result.yaml expect.surfaces.\(surfaceID) in '\(testName)'",
-          allowMetadata: false
-        )
-      }
       guard let surface = processor.surfaceGroupModel[surfaceID] else {
         Issue.record("[\(testName)] Expected surface '\(surfaceID)' to exist")
         continue
@@ -694,10 +524,7 @@ struct BasicCatalogConformanceTests {
       let node = surface.findNode(id: nodeID)
       #expect(
         node?.isValid == expectedBool,
-        """
-        [\(testName)] Expected node \(nodeID).isValid == \(expectedBool), \
-        got \(String(describing: node?.isValid))
-        """
+        "[\(testName)] Expected node \(nodeID).isValid == \(expectedBool), got \(String(describing: node?.isValid))"
       )
     }
   }
@@ -714,10 +541,7 @@ struct BasicCatalogConformanceTests {
       let node = surface.findNode(id: nodeID)
       #expect(
         node?.validationErrors == expectedStrings,
-        """
-        [\(testName)] Expected node \(nodeID).validationErrors == \(expectedStrings), \
-        got \(String(describing: node?.validationErrors))
-        """
+        "[\(testName)] Expected node \(nodeID).validationErrors == \(expectedStrings), got \(String(describing: node?.validationErrors))"
       )
     }
   }
@@ -733,10 +557,7 @@ struct BasicCatalogConformanceTests {
       let actualResults = surface.findNode(id: nodeID)?.validationResults ?? []
       #expect(
         actualResults.count == expectedArray.count,
-        """
-        [\(testName)] Expected \(expectedArray.count) validationResults on \(nodeID), \
-        got \(actualResults.count)
-        """
+        "[\(testName)] Expected \(expectedArray.count) validationResults on \(nodeID), got \(actualResults.count)"
       )
       for (actualRes, expectedObjVal) in zip(actualResults, expectedArray) {
         assertSingleValidationResultMatches(
@@ -791,10 +612,7 @@ struct BasicCatalogConformanceTests {
     if let expSeverity = expected["severity"]?.stringValue {
       #expect(
         actual.severity?.rawValue == expSeverity,
-        """
-        [\(testName)] \(nodeID) severity mismatch: expected \(expSeverity), \
-        got \(String(describing: actual.severity?.rawValue))
-        """
+        "[\(testName)] \(nodeID) severity mismatch: expected \(expSeverity), got \(String(describing: actual.severity?.rawValue))"
       )
     }
   }

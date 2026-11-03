@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Divider } from './divider';
-import { Theme } from '../rendering/theming';
-import { MessageProcessor } from '../data/processor';
-import type { DividerNode } from '../types';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Divider} from './divider';
+import {Theme} from '../rendering/theming';
+import {MessageProcessor} from '../data/processor';
+import type {DividerNode} from '../types';
 
 describe('Divider Component', () => {
   let component: Divider;
@@ -34,13 +34,13 @@ describe('Divider Component', () => {
 
   beforeEach(async () => {
     mockTheme = new Theme();
-    mockTheme.components = { Divider: 'divider-class' } as any;
+    mockTheme.components = {Divider: 'divider-class'} as any;
 
     await TestBed.configureTestingModule({
       imports: [Divider],
       providers: [
-        { provide: Theme, useValue: mockTheme },
-        { provide: MessageProcessor, useValue: {} },
+        {provide: Theme, useValue: mockTheme},
+        {provide: MessageProcessor, useValue: {}},
       ],
     }).compileComponents();
 

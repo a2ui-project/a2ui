@@ -314,7 +314,7 @@ export function observeMcpApps(getRoot: () => Node | null | undefined): () => vo
       return;
     }
     observedTrees.add(tree);
-    const observer = new MutationObserver((records) => {
+    const observer = new MutationObserver(records => {
       for (const record of records) {
         // The iframe is appended to the element after it connects; that is when the handles can
         // attach.
@@ -326,7 +326,7 @@ export function observeMcpApps(getRoot: () => Node | null | undefined): () => vo
         }
       }
     });
-    observer.observe(tree, { childList: true, subtree: true });
+    observer.observe(tree, {childList: true, subtree: true});
     observers.push(observer);
     visit(tree);
   };

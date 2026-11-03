@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { ComponentFixture } from '@angular/core/testing';
-import { DemoComponent } from '../../demo.component';
-import { getCanvas, loadExample, wait } from '../utils';
+import {ComponentFixture} from '@angular/core/testing';
+import {DemoComponent} from '../../demo.component';
+import {getCanvas, loadExample, wait} from '../utils';
 
 describe('Example: Task Card', () => {
   let fixture: ComponentFixture<DemoComponent>;
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample({ name: 'Task Card' });
+    fixture = await loadExample({name: 'Task Card'});
 
     // Wait a bit more for dynamic components
     await wait(100);

@@ -21,5 +21,5 @@ export {
   type MockMcpToolDescriptor,
   type MockMcpToolExecution,
 } from './mock-mcp-server';
-export { enhanceMcpAppElement, observeMcpApps, scanAndEnhanceMcpApps } from './mcp-app-resizer';
-export { handleMcpToolAction, mockMcpServer } from './mcp-tool-actions';
+export {enhanceMcpAppElement, observeMcpApps, scanAndEnhanceMcpApps} from './mcp-app-resizer';
+export {handleMcpToolAction, mockMcpServer} from './mcp-tool-actions';

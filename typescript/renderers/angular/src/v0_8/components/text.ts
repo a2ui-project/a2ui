@@ -22,12 +22,12 @@ import {
   input,
   ViewEncapsulation,
 } from '@angular/core';
-import { AsyncPipe } from '@angular/common';
-import { DynamicComponent } from '../rendering/dynamic-component';
+import {AsyncPipe} from '@angular/common';
+import {DynamicComponent} from '../rendering/dynamic-component';
 import * as Primitives from '@a2ui/web_core/types/primitives';
 import * as Styles from '@a2ui/web_core/styles/index';
-import type { ResolvedText, TextNode } from '../types';
-import { MarkdownRenderer } from '../data/markdown';
+import type {ResolvedText, TextNode} from '../types';
+import {MarkdownRenderer} from '../data/markdown';
 
 interface HintedStyles {
   h1: Record<string, string>;
@@ -143,6 +143,6 @@ export class Text extends DynamicComponent<TextNode> {
     }
 
     const expected = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'caption', 'body'];
-    return expected.every((v) => v in styles);
+    return expected.every(v => v in styles);
   }
 }

@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { ComponentFixture } from '@angular/core/testing';
-import { DemoComponent } from '../../demo.component';
-import { getCanvas, loadExample, wait } from '../utils';
+import {ComponentFixture} from '@angular/core/testing';
+import {DemoComponent} from '../../demo.component';
+import {getCanvas, loadExample, wait} from '../utils';
 
 describe('Example: Recipe Card', () => {
   let fixture: ComponentFixture<DemoComponent>;
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample({ name: 'Recipe Card' });
+    fixture = await loadExample({name: 'Recipe Card'});
     textContent = getCanvas().textContent;
   });
 
@@ -47,7 +47,7 @@ describe('Example: Recipe Card', () => {
 
   it('should switch to Ingredients tab', async () => {
     const tabs = [...fixture.nativeElement.querySelectorAll('.a2ui-tab-button')] as HTMLElement[];
-    const tab = tabs.find((t) => t.textContent.includes('Ingredients'))!;
+    const tab = tabs.find(t => t.textContent.includes('Ingredients'))!;
     expect(tab).withContext('Should find Ingredients tab').toBeTruthy();
 
     tab.click();
@@ -62,7 +62,7 @@ describe('Example: Recipe Card', () => {
 
   it('should switch to Instructions tab', async () => {
     const tabs = [...fixture.nativeElement.querySelectorAll('.a2ui-tab-button')] as HTMLElement[];
-    const tab = tabs.find((t) => t.textContent.includes('Instructions'))!;
+    const tab = tabs.find(t => t.textContent.includes('Instructions'))!;
     expect(tab).withContext('Should find Instructions tab').toBeTruthy();
 
     tab.click();

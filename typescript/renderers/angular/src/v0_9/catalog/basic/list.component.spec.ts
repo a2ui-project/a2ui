@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Component, input } from '@angular/core';
-import { ListComponent } from './list.component';
-import { ComponentModel, SurfaceComponentsModel } from '@a2ui/web_core/v0_9';
-import { A2uiRendererService } from '@a2ui/angular';
-import { ComponentBinder, Child } from '@a2ui/angular';
-import { setComponentProps, createBoundProperty, ComponentToProps } from '@a2ui/angular/testing';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Component, input} from '@angular/core';
+import {ListComponent} from './list.component';
+import {ComponentModel, SurfaceComponentsModel} from '@a2ui/web_core/v0_9';
+import {A2uiRendererService} from '@a2ui/angular';
+import {ComponentBinder, Child} from '@a2ui/angular';
+import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 
 @Component({
   selector: 'dummy-text-for-list',
@@ -45,15 +45,15 @@ describe('ListComponent', () => {
   beforeEach(async () => {
     const mockCatalog = {
       id: 'mock-catalog',
-      components: new Map([['Text', { type: 'Text', component: DummyTextComponent }]]),
+      components: new Map([['Text', {type: 'Text', component: DummyTextComponent}]]),
     } as any;
 
     const componentsModel = new SurfaceComponentsModel();
     componentsModel.addComponent(
-      new ComponentModel('child-1', 'Text', { text: { value: 'Child 1' } }, mockCatalog),
+      new ComponentModel('child-1', 'Text', {text: {value: 'Child 1'}}, mockCatalog),
     );
     componentsModel.addComponent(
-      new ComponentModel('child-2', 'Text', { text: { value: 'Child 2' } }, mockCatalog),
+      new ComponentModel('child-2', 'Text', {text: {value: 'Child 2'}}, mockCatalog),
     );
 
     const mockRendererService = {
@@ -70,8 +70,8 @@ describe('ListComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ListComponent],
       providers: [
-        { provide: A2uiRendererService, useValue: mockRendererService },
-        { provide: ComponentBinder, useValue: mockBinder },
+        {provide: A2uiRendererService, useValue: mockRendererService},
+        {provide: ComponentBinder, useValue: mockBinder},
       ],
     }).compileComponents();
 
@@ -97,8 +97,8 @@ describe('ListComponent', () => {
     setComponentProps(fixture, {
       ...defaultProps,
       children: createBoundProperty([
-        { id: 'child-1', basePath: '/' },
-        { id: 'child-2', basePath: '/' },
+        {id: 'child-1', basePath: '/'},
+        {id: 'child-2', basePath: '/'},
       ]),
     } as any);
     fixture.detectChanges();
@@ -109,7 +109,7 @@ describe('ListComponent', () => {
   it('should render as ordered list', () => {
     setComponentProps(fixture, {
       ...defaultProps,
-      children: createBoundProperty([{ id: 'child-1', basePath: '/' }]),
+      children: createBoundProperty([{id: 'child-1', basePath: '/'}]),
       listStyle: createBoundProperty<'none' | 'ordered' | 'unordered' | undefined>('ordered'),
     } as any);
     fixture.detectChanges();
@@ -119,7 +119,7 @@ describe('ListComponent', () => {
   it('should render as unordered list', () => {
     setComponentProps(fixture, {
       ...defaultProps,
-      children: createBoundProperty([{ id: 'child-1', basePath: '/' }]),
+      children: createBoundProperty([{id: 'child-1', basePath: '/'}]),
       listStyle: createBoundProperty<'none' | 'ordered' | 'unordered' | undefined>('unordered'),
     } as any);
     fixture.detectChanges();
@@ -129,7 +129,7 @@ describe('ListComponent', () => {
   it('should render fallback list when style is not list style', () => {
     setComponentProps(fixture, {
       ...defaultProps,
-      children: createBoundProperty([{ id: 'child-1', basePath: '/' }]),
+      children: createBoundProperty([{id: 'child-1', basePath: '/'}]),
       listStyle: createBoundProperty('div' as 'none' | 'ordered' | 'unordered' | undefined),
     } as any);
     fixture.detectChanges();
@@ -140,7 +140,7 @@ describe('ListComponent', () => {
   it('should apply horizontal orientation class', () => {
     setComponentProps(fixture, {
       ...defaultProps,
-      children: createBoundProperty([{ id: 'child-1', basePath: '/' }]),
+      children: createBoundProperty([{id: 'child-1', basePath: '/'}]),
       direction: createBoundProperty<'vertical' | 'horizontal' | undefined>('horizontal'),
     } as any);
     fixture.detectChanges();
@@ -151,7 +151,7 @@ describe('ListComponent', () => {
   it('should apply align property to list container', () => {
     setComponentProps(fixture, {
       ...defaultProps,
-      children: createBoundProperty([{ id: 'child-1', basePath: '/' }]),
+      children: createBoundProperty([{id: 'child-1', basePath: '/'}]),
       align: createBoundProperty<'start' | 'center' | 'end' | 'stretch' | undefined>('center'),
     } as any);
     fixture.detectChanges();
@@ -162,7 +162,7 @@ describe('ListComponent', () => {
   it('should default unrecognized align property to stretch', () => {
     setComponentProps(fixture, {
       ...defaultProps,
-      children: createBoundProperty([{ id: 'child-1', basePath: '/' }]),
+      children: createBoundProperty([{id: 'child-1', basePath: '/'}]),
       align: createBoundProperty('invalid' as 'start' | 'center' | 'end' | 'stretch' | undefined),
     } as any);
     fixture.detectChanges();

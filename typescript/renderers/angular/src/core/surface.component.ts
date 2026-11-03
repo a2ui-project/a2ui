@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import { ComponentHostComponent } from './component-host.component';
-import { SurfaceNodeResolver } from './surface-node-resolver.service';
+import {ChangeDetectionStrategy, Component, input} from '@angular/core';
+import {ComponentHostComponent} from './component-host.component';
+import {SurfaceNodeResolver} from './surface-node-resolver.service';
 
 /**
  * High-level component for rendering an entire A2UI surface.
@@ -36,7 +36,7 @@ import { SurfaceNodeResolver } from './surface-node-resolver.service';
   },
   template: `
     <a2ui-v09-component-host
-      [componentKey]="{ id: 'root', basePath: dataContextPath() }"
+      [componentKey]="{id: 'root', basePath: dataContextPath()}"
       [surfaceId]="surfaceId()"
     >
     </a2ui-v09-component-host>

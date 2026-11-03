@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { ComponentFixture } from '@angular/core/testing';
-import { DemoComponent } from '../../demo.component';
-import { getCanvas, loadExample, wait } from '../utils';
+import {ComponentFixture} from '@angular/core/testing';
+import {DemoComponent} from '../../demo.component';
+import {getCanvas, loadExample, wait} from '../utils';
 
 describe('v1.0 Example: Incremental Dashboard', () => {
   let fixture: ComponentFixture<DemoComponent>;
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample({ name: 'Incremental Dashboard', version: '1.0' });
+    fixture = await loadExample({name: 'Incremental Dashboard', version: '1.0'});
 
     // Wait a bit longer to ensure all incremental updates are processed
     await wait(500);

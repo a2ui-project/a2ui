@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { DynamicComponent } from '../rendering/dynamic-component';
-import type { ResolvedTextField, StringValue, TextFieldNode } from '../types';
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import {DynamicComponent} from '../rendering/dynamic-component';
+import type {ResolvedTextField, StringValue, TextFieldNode} from '../types';
 
 @Component({
   selector: 'a2ui-text-field',
@@ -75,12 +75,12 @@ export class TextField extends DynamicComponent<TextFieldNode> {
               textNode.path as string,
               this.component().dataContextPath,
             ),
-            contents: [{ key: '.', valueString: value }],
+            contents: [{key: '.', valueString: value}],
           },
         },
       ]);
     } else {
-      this.handleAction('input', { value });
+      this.handleAction('input', {value});
     }
   }
 
@@ -89,7 +89,7 @@ export class TextField extends DynamicComponent<TextFieldNode> {
       name,
       context: Object.entries(context).map(([key, val]) => ({
         key,
-        value: typeof val === 'number' ? { literalNumber: val } : { literalString: String(val) },
+        value: typeof val === 'number' ? {literalNumber: val} : {literalString: String(val)},
       })),
     });
   }

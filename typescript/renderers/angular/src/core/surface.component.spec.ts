@@ -14,24 +14,18 @@
  * limitations under the License.
  */
 
-import {
-  Component,
-  EnvironmentInjector,
-  Input,
-  ChangeDetectionStrategy,
-  Type,
-} from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { SurfaceComponent } from './surface.component';
-import { ComponentHostComponent } from './component-host.component';
-import { By } from '@angular/platform-browser';
-import { A2uiRendererService } from './a2ui-renderer.service';
-import { SurfaceNodeResolver } from './surface-node-resolver.service';
-import { initializeAngularReactivity } from './reactivity';
-import { CatalogComponentInstance } from './catalog_component_instance';
-import { AngularCatalog, createComponentImplementation } from '../catalog/types';
-import { ComponentModel, DynamicStringSchema, SurfaceModel } from '@a2ui/web_core/v0_9';
-import { z } from 'zod';
+import {Component, EnvironmentInjector, Input, ChangeDetectionStrategy, Type} from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {SurfaceComponent} from './surface.component';
+import {ComponentHostComponent} from './component-host.component';
+import {By} from '@angular/platform-browser';
+import {A2uiRendererService} from './a2ui-renderer.service';
+import {SurfaceNodeResolver} from './surface-node-resolver.service';
+import {initializeAngularReactivity} from './reactivity';
+import {CatalogComponentInstance} from './catalog_component_instance';
+import {AngularCatalog, createComponentImplementation} from '../catalog/types';
+import {ComponentModel, DynamicStringSchema, SurfaceModel} from '@a2ui/web_core/v0_9';
+import {z} from 'zod';
 
 @Component({
   selector: 'test-text',
@@ -55,19 +49,19 @@ describe('SurfaceComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [SurfaceComponent],
-      providers: [{ provide: A2uiRendererService, useFactory: () => mockRendererService }],
+      providers: [{provide: A2uiRendererService, useFactory: () => mockRendererService}],
     }).compileComponents();
     initializeAngularReactivity(TestBed.inject(EnvironmentInjector));
 
     const catalog = new AngularCatalog('test-catalog', '0.9', [
       createComponentImplementation(
-        { name: 'Text', schema: z.object({ text: DynamicStringSchema }) },
+        {name: 'Text', schema: z.object({text: DynamicStringSchema})},
         TestTextComponent as unknown as Type<CatalogComponentInstance>,
       ),
     ]);
     surface = new SurfaceModel('test-surface', catalog);
     surface.componentsModel.addComponent(
-      new ComponentModel('root', 'Text', { text: 'Hello' }, catalog),
+      new ComponentModel('root', 'Text', {text: 'Hello'}, catalog),
     );
 
     mockRendererService = {
@@ -95,7 +89,7 @@ describe('SurfaceComponent', () => {
     const host = fixture.debugElement.query(By.directive(ComponentHostComponent));
     expect(host).toBeTruthy();
     expect(host.componentInstance.surfaceId()).toBe('test-surface');
-    expect(host.componentInstance.componentKey()).toEqual({ id: 'root', basePath: '/custom/path' });
+    expect(host.componentInstance.componentKey()).toEqual({id: 'root', basePath: '/custom/path'});
   });
 
   it('should use default dataContextPath of "/"', () => {
@@ -103,7 +97,7 @@ describe('SurfaceComponent', () => {
     fixture.detectChanges();
 
     const host = fixture.debugElement.query(By.directive(ComponentHostComponent));
-    expect(host.componentInstance.componentKey()).toEqual({ id: 'root', basePath: '/' });
+    expect(host.componentInstance.componentKey()).toEqual({id: 'root', basePath: '/'});
   });
 
   it('should render the root node through the surface-owned NodeResolver', () => {
@@ -121,21 +115,21 @@ describe('SurfaceComponent', () => {
     const catalog = surface.defaultCatalog!;
     const secondSurface = new SurfaceModel('second-surface', catalog);
     secondSurface.componentsModel.addComponent(
-      new ComponentModel('root', 'Text', { text: 'Second Surface' }, catalog),
+      new ComponentModel('root', 'Text', {text: 'Second Surface'}, catalog),
     );
     mockRendererService.surfaceGroup.getSurface.and.callFake((id: string) =>
       id === 'second-surface' ? secondSurface : surface,
     );
 
     const preMountListeners = (
-      surface.componentsModel.onCreated as unknown as { listeners: Set<unknown> }
+      surface.componentsModel.onCreated as unknown as {listeners: Set<unknown>}
     ).listeners.size;
 
     fixture.componentRef.setInput('surfaceId', 'test-surface');
     fixture.detectChanges();
 
     expect(
-      (surface.componentsModel.onCreated as unknown as { listeners: Set<unknown> }).listeners.size,
+      (surface.componentsModel.onCreated as unknown as {listeners: Set<unknown>}).listeners.size,
     ).toBeGreaterThan(preMountListeners);
     expect(fixture.nativeElement.textContent).toContain('Hello');
 
@@ -143,7 +137,7 @@ describe('SurfaceComponent', () => {
     fixture.detectChanges();
 
     expect(
-      (surface.componentsModel.onCreated as unknown as { listeners: Set<unknown> }).listeners.size,
+      (surface.componentsModel.onCreated as unknown as {listeners: Set<unknown>}).listeners.size,
     ).toBe(preMountListeners);
     expect(fixture.nativeElement.textContent).not.toContain('Hello');
     expect(fixture.nativeElement.textContent).toContain('Second Surface');

@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { ComponentFixture } from '@angular/core/testing';
-import { DemoComponent } from '../../demo.component';
-import { getCanvas, loadExample } from '../utils';
+import {ComponentFixture} from '@angular/core/testing';
+import {DemoComponent} from '../../demo.component';
+import {getCanvas, loadExample} from '../utils';
 
 describe('Example: Chat Message', () => {
   let fixture: ComponentFixture<DemoComponent>;
   let textContent: string;
 
   beforeEach(async () => {
-    fixture = await loadExample({ name: 'Chat Message' });
+    fixture = await loadExample({name: 'Chat Message'});
     textContent = getCanvas().textContent;
   });
 
@@ -43,7 +43,7 @@ describe('Example: Chat Message', () => {
     const imgs = fixture.nativeElement.querySelectorAll('img');
     expect(imgs.length).toBeGreaterThanOrEqual(2);
 
-    const srcs = ([...imgs] as HTMLImageElement[]).map((img) => img.getAttribute('src'));
+    const srcs = ([...imgs] as HTMLImageElement[]).map(img => img.getAttribute('src'));
     expect(srcs).toContain(
       'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop',
     );

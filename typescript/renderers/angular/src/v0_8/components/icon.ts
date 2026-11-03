@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { DynamicComponent } from '../rendering/dynamic-component';
-import type { IconNode, StringValue } from '../types';
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import {DynamicComponent} from '../rendering/dynamic-component';
+import type {IconNode, StringValue} from '../types';
 
 @Component({
   selector: 'a2ui-icon',
@@ -56,7 +56,7 @@ export class Icon extends DynamicComponent<IconNode> {
   private toSnakeCase(str: string): string {
     if (typeof str !== 'string') return '';
     return str
-      .replace(/^[A-Z]/, (letter) => letter.toLowerCase())
-      .replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+      .replace(/^[A-Z]/, letter => letter.toLowerCase())
+      .replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
   }
 }

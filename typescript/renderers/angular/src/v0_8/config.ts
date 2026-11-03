@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { EnvironmentProviders, makeEnvironmentProviders } from '@angular/core';
-import { Catalog, Theme } from './rendering';
-import type { Theme as ThemeType } from './types';
+import {EnvironmentProviders, makeEnvironmentProviders} from '@angular/core';
+import {Catalog, Theme} from './rendering';
+import type {Theme as ThemeType} from './types';
 
-export function provideA2UI(config: { catalog: Catalog; theme: ThemeType }): EnvironmentProviders {
+export function provideA2UI(config: {catalog: Catalog; theme: ThemeType}): EnvironmentProviders {
   return makeEnvironmentProviders([
-    { provide: Catalog, useValue: config.catalog },
+    {provide: Catalog, useValue: config.catalog},
     {
       provide: Theme,
       useFactory: () => {

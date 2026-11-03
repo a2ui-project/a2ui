@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { TestBed } from '@angular/core/testing';
-import { BasicCatalog, BASIC_CATALOG_OPTIONS } from './basic-catalog';
+import {TestBed} from '@angular/core/testing';
+import {BasicCatalog, BASIC_CATALOG_OPTIONS} from './basic-catalog';
 
 describe('BasicCatalog', () => {
   it('should be created with default options when no token is provided', () => {

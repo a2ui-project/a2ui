@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { List } from './list';
-import { MessageProcessor } from '../data/processor';
-import { Theme } from '../rendering/theming';
-import { Catalog } from '../rendering/catalog';
-import type { ListNode } from '../types';
-import { Directive, Input } from '@angular/core';
-import { By } from '@angular/platform-browser';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {List} from './list';
+import {MessageProcessor} from '../data/processor';
+import {Theme} from '../rendering/theming';
+import {Catalog} from '../rendering/catalog';
+import type {ListNode} from '../types';
+import {Directive, Input} from '@angular/core';
+import {By} from '@angular/platform-browser';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -47,20 +47,20 @@ describe('List Component', () => {
     type: 'List',
     weight: 1,
     properties: {
-      children: [{ id: 'child-1', type: 'Text', properties: {} }],
+      children: [{id: 'child-1', type: 'Text', properties: {}}],
     },
   };
 
   beforeEach(async () => {
     mockTheme = new Theme();
-    mockTheme.components = { List: 'list-class' } as any;
+    mockTheme.components = {List: 'list-class'} as any;
 
     await TestBed.configureTestingModule({
       imports: [List],
       providers: [
-        { provide: MessageProcessor, useValue: {} },
-        { provide: Theme, useValue: mockTheme },
-        { provide: Catalog, useValue: {} },
+        {provide: MessageProcessor, useValue: {}},
+        {provide: Theme, useValue: mockTheme},
+        {provide: Catalog, useValue: {}},
       ],
     })
       .overrideComponent(List, {

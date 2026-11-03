@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Card } from './card';
-import { MessageProcessor } from '../data/processor';
-import { Theme } from '../rendering/theming';
-import { Catalog } from '../rendering/catalog';
-import type { CardNode } from '../types';
-import { Directive, Input } from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {Card} from './card';
+import {MessageProcessor} from '../data/processor';
+import {Theme} from '../rendering/theming';
+import {Catalog} from '../rendering/catalog';
+import type {CardNode} from '../types';
+import {Directive, Input} from '@angular/core';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -46,21 +46,21 @@ describe('Card Component', () => {
     type: 'Card',
     weight: 1,
     properties: {
-      child: { id: 'dummy-1', type: 'Text', properties: { text: 'Empty' } },
+      child: {id: 'dummy-1', type: 'Text', properties: {text: 'Empty'}},
       children: [],
     },
   };
 
   beforeEach(async () => {
     mockTheme = new Theme();
-    mockTheme.components = { Card: 'card-class' } as any;
+    mockTheme.components = {Card: 'card-class'} as any;
 
     await TestBed.configureTestingModule({
       imports: [Card],
       providers: [
-        { provide: MessageProcessor, useValue: {} },
-        { provide: Theme, useValue: mockTheme },
-        { provide: Catalog, useValue: {} },
+        {provide: MessageProcessor, useValue: {}},
+        {provide: Theme, useValue: mockTheme},
+        {provide: Catalog, useValue: {}},
       ],
     })
       .overrideComponent(Card, {
@@ -92,7 +92,7 @@ describe('Card Component', () => {
   });
 
   it('should render child if provided', () => {
-    const childNode = { id: 'child-1', type: 'Text', properties: {} };
+    const childNode = {id: 'child-1', type: 'Text', properties: {}};
     fixture.componentRef.setInput('child', childNode);
     fixture.detectChanges();
 
@@ -102,8 +102,8 @@ describe('Card Component', () => {
 
   it('should render children if provided', () => {
     const childrenNodes = [
-      { id: 'child-1', type: 'Text', properties: {} },
-      { id: 'child-2', type: 'Text', properties: {} },
+      {id: 'child-1', type: 'Text', properties: {}},
+      {id: 'child-2', type: 'Text', properties: {}},
     ];
     fixture.componentRef.setInput('children', childrenNodes);
     fixture.detectChanges();
