@@ -107,7 +107,7 @@ describe('Basic Catalog accessibility helpers', () => {
 
   it('computes validation error IDs and renders error blocks without role="alert" only when invalid', () => {
     const {nothing, render} = litModule;
-    const {getValidationErrorId, hasValidationErrors, renderValidationErrors} = a11yModule;
+    const {getValidationMessageId, hasValidationErrors, renderValidationMessages} = a11yModule;
 
     const validProps = {isValid: true, validationErrors: ['Ignored when valid']};
     const emptyInvalidProps = {isValid: false, validationErrors: []};
@@ -120,14 +120,14 @@ describe('Basic Catalog accessibility helpers', () => {
     assert.strictEqual(hasValidationErrors(emptyInvalidProps), false);
     assert.strictEqual(hasValidationErrors(invalidProps), true);
 
-    assert.strictEqual(getValidationErrorId('a2ui-n1', validProps), nothing);
-    assert.strictEqual(getValidationErrorId('a2ui-n1', emptyInvalidProps), nothing);
-    assert.strictEqual(getValidationErrorId('a2ui-n1', invalidProps), 'a2ui-n1-error');
-    assert.strictEqual(renderValidationErrors('a2ui-n1', validProps), nothing);
+    assert.strictEqual(getValidationMessageId('a2ui-n1', validProps), nothing);
+    assert.strictEqual(getValidationMessageId('a2ui-n1', emptyInvalidProps), nothing);
+    assert.strictEqual(getValidationMessageId('a2ui-n1', invalidProps), 'a2ui-n1-error');
+    assert.strictEqual(renderValidationMessages('a2ui-n1', validProps), nothing);
 
     const mount = document.createElement('div');
     document.body.appendChild(mount);
-    render(renderValidationErrors('a2ui-n1', invalidProps), mount);
+    render(renderValidationMessages('a2ui-n1', invalidProps), mount);
 
     const errorEl = mount.querySelector('.a2ui-validation-errors');
     assert.notStrictEqual(errorEl, null);
@@ -138,5 +138,53 @@ describe('Basic Catalog accessibility helpers', () => {
       el => el.textContent,
     );
     assert.deepStrictEqual(messages, ['Email is required', 'Must contain @']);
+  });
+
+  it('renders warning and info hints only while no blocking error is shown', () => {
+    const {nothing, render} = litModule;
+    const {getValidationMessageId, renderValidationMessages} = a11yModule;
+
+    const hintProps = {
+      isValid: true,
+      validationErrors: [],
+      validationResults: [
+        {message: 'Looks unusual', severity: 'warning' as const},
+        {message: 'Optional field', severity: 'info' as const},
+      ],
+    };
+    const errorAndHintProps = {
+      isValid: false,
+      validationErrors: ['Required'],
+      validationResults: [
+        {message: 'Required', severity: 'error' as const},
+        {message: 'Looks unusual', severity: 'warning' as const},
+      ],
+    };
+
+    assert.strictEqual(getValidationMessageId('a2ui-n1', hintProps), 'a2ui-n1-hint');
+    assert.strictEqual(getValidationMessageId('a2ui-n1', errorAndHintProps), 'a2ui-n1-error');
+    assert.strictEqual(renderValidationMessages('a2ui-n1', {isValid: true}), nothing);
+
+    const errorMount = document.createElement('div');
+    document.body.appendChild(errorMount);
+    render(renderValidationMessages('a2ui-n1', errorAndHintProps), errorMount);
+    assert.strictEqual(errorMount.querySelectorAll('.a2ui-error-message').length, 1);
+    assert.strictEqual(errorMount.querySelectorAll('.a2ui-hint-message').length, 0);
+
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    render(renderValidationMessages('a2ui-n1', hintProps), mount);
+
+    const hintBlock = mount.querySelector('.a2ui-validation-hints');
+    assert.strictEqual(hintBlock?.id, 'a2ui-n1-hint');
+    assert.strictEqual(hintBlock?.hasAttribute('role'), false);
+    const hints = Array.from(mount.querySelectorAll('.a2ui-hint-message')).map(el => [
+      el.textContent,
+      el.classList.contains('a2ui-hint-warning') ? 'warning' : 'info',
+    ]);
+    assert.deepStrictEqual(hints, [
+      ['Looks unusual', 'warning'],
+      ['Optional field', 'info'],
+    ]);
   });
 });

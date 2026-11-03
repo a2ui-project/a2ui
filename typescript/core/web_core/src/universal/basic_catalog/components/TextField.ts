@@ -19,8 +19,8 @@ import {classMap} from 'lit/directives/class-map.js';
 import {
   getAccessibilityDescription,
   getAccessibilityLabel,
-  getValidationErrorId,
-  renderValidationErrors,
+  getValidationMessageId,
+  renderValidationMessages,
 } from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {TextFieldSupportedApis} from './supported_apis.js';
@@ -38,6 +38,7 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<TextFi
    * - `--a2ui-textfield-padding`: The padding of the text field. Defaults to `--a2ui-spacing-m`.
    * - `--a2ui-textfield-color-border-focus`: The border color on focus. Defaults to `--a2ui-color-primary`.
    * - `--a2ui-textfield-color-error`: The color for both invalid border and error text. Defaults to red.
+   * - `--a2ui-textfield-color-warning`: Color of warning hints. Defaults to `light-dark(#8a5300, #f0b44c)`.
    * - `--a2ui-textfield-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
    * - `--a2ui-textfield-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
    *
@@ -83,6 +84,12 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<TextFi
       color: var(--a2ui-textfield-color-error, red);
       font-size: var(--a2ui-font-size-xs, 0.75rem);
     }
+    .a2ui-hint-message {
+      font-size: var(--a2ui-font-size-xs, 0.75rem);
+    }
+    .a2ui-hint-warning {
+      color: var(--a2ui-textfield-color-warning, light-dark(#8a5300, #f0b44c));
+    }
   `;
 
   override render() {
@@ -103,7 +110,7 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<TextFi
     const inputId = `${this.domId}-input`;
     const a11yLabel = getAccessibilityLabel(props.accessibility);
     const a11yDescription = getAccessibilityDescription(props.accessibility);
-    const errorId = getValidationErrorId(this.domId, props);
+    const messageId = getValidationMessageId(this.domId, props);
 
     return html`
       ${props.label ? html`<label for=${inputId}>${props.label}</label>` : nothing}
@@ -115,7 +122,7 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<TextFi
             aria-label=${a11yLabel}
             aria-description=${a11yDescription}
             aria-invalid=${isInvalid ? 'true' : nothing}
-            aria-describedby=${errorId}
+            aria-describedby=${messageId}
             .value=${props.value || ''}
             @input=${onInput}
           ></textarea>`
@@ -127,11 +134,11 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<TextFi
             aria-label=${a11yLabel}
             aria-description=${a11yDescription}
             aria-invalid=${isInvalid ? 'true' : nothing}
-            aria-describedby=${errorId}
+            aria-describedby=${messageId}
             .value=${props.value || ''}
             @input=${onInput}
           />`}
-      ${renderValidationErrors(this.domId, props)}
+      ${renderValidationMessages(this.domId, props)}
     `;
   }
 }

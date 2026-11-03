@@ -20,9 +20,9 @@ import {classMap} from 'lit/directives/class-map.js';
 import {
   getAccessibilityDescription,
   getAccessibilityLabel,
-  getValidationErrorId,
+  getValidationMessageId,
   hasAttributeValue,
-  renderValidationErrors,
+  renderValidationMessages,
 } from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ChoicePickerSupportedApis} from './supported_apis.js';
@@ -41,6 +41,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
    * - `--a2ui-choicepicker-filter-padding`: Padding for the filter input. Defaults to `--a2ui-spacing-xs` and `--a2ui-spacing-s` (4px 8px).
    * - `--a2ui-choicepicker-chip-padding`: Padding for chips. Defaults to `--a2ui-spacing-s` and `--a2ui-spacing-m` (4px 8px).
    * - `--a2ui-choicepicker-chip-border-radius`: Border radius for chips. Defaults to `999px`.
+   * - `--a2ui-choicepicker-color-warning`: Color of warning hints. Defaults to `light-dark(#8a5300, #f0b44c)`.
    *
    * @nocollapse
    */
@@ -134,6 +135,12 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
       color: var(--a2ui-choicepicker-color-error, red);
       font-size: var(--a2ui-font-size-xs, 0.75rem);
     }
+    .a2ui-hint-message {
+      font-size: var(--a2ui-font-size-xs, 0.75rem);
+    }
+    .a2ui-hint-warning {
+      color: var(--a2ui-choicepicker-color-warning, light-dark(#8a5300, #f0b44c));
+    }
   `;
 
   @state() filter = '';
@@ -188,7 +195,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
     const a11yLabel = getAccessibilityLabel(props.accessibility);
     const a11yDescription = getAccessibilityDescription(props.accessibility);
     const isInvalid = props.isValid === false;
-    const errorId = getValidationErrorId(this.domId, props);
+    const messageId = getValidationMessageId(this.domId, props);
 
     return html`
       ${hasVisibleLabel ? html`<label id=${labelId}>${props.label}</label>` : nothing}
@@ -210,7 +217,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
         aria-labelledby=${a11yLabel === nothing && hasVisibleLabel ? labelId : nothing}
         aria-description=${a11yDescription}
         aria-invalid=${isInvalid ? 'true' : nothing}
-        aria-describedby=${errorId}
+        aria-describedby=${messageId}
         class=${classMap({
           'a2ui-choice-picker': true,
           'a2ui-options-group': !isChips,
@@ -247,7 +254,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
               `,
         )}
       </div>
-      ${renderValidationErrors(this.domId, props)}
+      ${renderValidationMessages(this.domId, props)}
     `;
   }
 }

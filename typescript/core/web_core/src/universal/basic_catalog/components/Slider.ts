@@ -18,9 +18,9 @@ import {html, nothing, css} from 'lit';
 import {
   getAccessibilityDescription,
   getAccessibilityLabel,
-  getValidationErrorId,
+  getValidationMessageId,
   hasAttributeValue,
-  renderValidationErrors,
+  renderValidationMessages,
 } from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {SliderSupportedApis} from './supported_apis.js';
@@ -36,6 +36,7 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupporte
    * - `--a2ui-slider-margin`: Outer margin of the component. Defaults to `--a2ui-spacing-m`.
    * - `--a2ui-slider-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
    * - `--a2ui-slider-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   * - `--a2ui-slider-color-warning`: Color of warning hints. Defaults to `light-dark(#8a5300, #f0b44c)`.
    *
    * @nocollapse
    */
@@ -66,6 +67,12 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupporte
     .a2ui-error-message {
       color: var(--a2ui-slider-color-error, red);
       font-size: var(--a2ui-font-size-xs, 0.75rem);
+    }
+    .a2ui-hint-message {
+      font-size: var(--a2ui-font-size-xs, 0.75rem);
+    }
+    .a2ui-hint-warning {
+      color: var(--a2ui-slider-color-warning, light-dark(#8a5300, #f0b44c));
     }
   `;
 
@@ -100,12 +107,12 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupporte
           aria-label=${getAccessibilityLabel(props.accessibility)}
           aria-description=${getAccessibilityDescription(props.accessibility)}
           aria-invalid=${isInvalid ? 'true' : nothing}
-          aria-describedby=${getValidationErrorId(this.domId, props)}
+          aria-describedby=${getValidationMessageId(this.domId, props)}
           .value=${props.value?.toString() || '0'}
           @input=${(e: Event) => props.setValue?.(Number((e.target as HTMLInputElement).value))}
           class="a2ui-slider"
         />
-        ${renderValidationErrors(this.domId, props)}
+        ${renderValidationMessages(this.domId, props)}
       </div>
     `;
   }

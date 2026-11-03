@@ -33,6 +33,7 @@ export type ResolvedAccessibilityAttributes = ResolvedUnionMember<SupportedAcces
 export interface CheckableResolvedProps {
   isValid?: boolean;
   validationErrors?: string[];
+  validationResults?: Array<{message: string; severity: 'error' | 'warning' | 'info'}>;
 }
 
 // Quoted keys survive minification and enforce completeness across AccessibilityAttributeKey.
@@ -121,14 +122,28 @@ export function hasValidationErrors(props?: CheckableResolvedProps): boolean {
   return props?.isValid === false && Boolean(props.validationErrors?.length);
 }
 
-export function getValidationErrorId(
+/**
+ * Failed `warning` and `info` check results. A blocking error takes their
+ * place, so the control shows one kind of message at a time.
+ */
+function getValidationHints(props?: CheckableResolvedProps) {
+  if (hasValidationErrors(props)) return [];
+  return (props?.validationResults ?? []).filter(
+    result => result.severity === 'warning' || result.severity === 'info',
+  );
+}
+
+/** The ID of the rendered error or hint block, for the control's `aria-describedby`. */
+export function getValidationMessageId(
   domId: string,
   props?: CheckableResolvedProps,
 ): string | typeof nothing {
-  return hasValidationErrors(props) ? `${domId}-error` : nothing;
+  if (hasValidationErrors(props)) return `${domId}-error`;
+  return getValidationHints(props).length > 0 ? `${domId}-hint` : nothing;
 }
 
-export function renderValidationErrors(
+/** Renders the blocking error messages, or the warning and info hints when there are none. */
+export function renderValidationMessages(
   domId: string,
   props?: CheckableResolvedProps,
 ): TemplateResult | typeof nothing {
@@ -141,5 +156,14 @@ export function renderValidationErrors(
       </div>
     `;
   }
-  return nothing;
+  const hints = getValidationHints(props);
+  if (hints.length === 0) return nothing;
+  return html`
+    <div id="${domId}-hint" class="a2ui-validation-hints">
+      ${hints.map(
+        hint =>
+          html`<div class="a2ui-hint-message a2ui-hint-${hint.severity}">${hint.message}</div>`,
+      )}
+    </div>
+  `;
 }
