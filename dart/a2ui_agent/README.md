@@ -59,6 +59,9 @@ What v1.0 adds to both formats:
   as [multi_catalog_formats.yaml](../../conformance/agent/multi_catalog_formats.yaml)
   describes. In Express, a name that several catalogs declare takes a
   `catalogId` argument.
+- `RendererToAgentMessageProcessor` processes the messages a renderer sends
+  the agent, as described in
+  [Messages from the renderer](#messages-from-the-renderer).
 - A `callRendererFunction` asks the renderer to run a function.
   A parser and `processor.parseResponse` accept a call only to a function
   whose `allowedCallers` lets the agent call it and that needs no user
@@ -197,6 +200,47 @@ final List<ResponsePart> parts = processor.parseResponse(
   state: canvas,
 );
 ```
+
+### Messages from the renderer
+
+From v1.0, a catalog may declare functions that the agent runs: the renderer
+sends a `callAgentFunction` and waits for the `agentFunctionResponse`. Attach
+a handler to such a declaration with `AgentFunction.fromApi`, or define a new
+function with `AgentFunction`, and add it to the catalog with `copyWith`:
+
+```dart
+final CatalogApi withHandlers = catalog.copyWith(
+  agentFunctions: [
+    AgentFunction.fromApi(
+      catalog.functions['verifyProvider']!,
+      (args, _) => providers.isLicensed(args['providerId']! as String),
+    ),
+  ],
+);
+```
+
+`RendererToAgentMessageProcessor` answers each `callAgentFunction` with
+exactly one reply, and passes the other messages a renderer sends, `action`,
+`error` and `rendererFunctionResponse`, to the callbacks you give it. A
+message without a callback is left unhandled, so the agent can pass it on, for
+example to the model's next turn:
+
+```dart
+final processor = RendererToAgentMessageProcessor(
+  catalogs: [withHandlers],
+  onError: (message) => log(message.error.message),
+);
+final ProcessResult result = await processor.processMessage(message);
+sendToRenderer(result.replies);
+if (!result.handled) {
+  // An action: start a model turn with it.
+}
+```
+
+The processor keeps no state between messages, so one processor can serve
+every conversation, or one can be built per request from the active catalogs.
+A message the protocol doesn't define, or a `callAgentFunction` without a
+`functionCallId`, throws `A2uiValidationError`.
 
 ## Tests
 

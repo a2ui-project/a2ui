@@ -29,12 +29,6 @@
 - Remove `(Agent to UI)` from the embedded v0.9 `server_to_client.json` and v1.0
   `agent_to_renderer.json` schema descriptions in `DirectJsonPromptGenerator`
   ([#1605](https://github.com/a2ui-project/a2ui/pull/1605)).
-- Added v1.0 bidirectional function RPC helpers (`AgentFunctionRegistry`,
-  `RendererFunctionCalls`, `defaultRendererCallTimeout`, and
-  `RendererMessageRouter`) and re-exported `AgentFunction`,
-  `AgentFunctionContext`, `AgentFunctionHandler`, `A2uiRpcError`,
-  `RpcErrorCode`, and the v1.0 function RPC message types from
-  `package:a2ui_agent/a2ui_agent.dart`.
 - Add incremental streaming support for the Express inference format via
   `ExpressResponseStream` (`ExpressFormat.supportsStreaming` and
   `ExpressParser.supportsStreaming` now return `true`). `ExpressFormatFactory`,
@@ -240,6 +234,30 @@
   longer checks components, function calls, themes or catalog ids against the
   catalogs; `parseResponse(block, wrapped: false)` compiles and checks one
   block. A `Parser` subclass implements the new `catalogs` getter.
+- (v1_0) Added `RendererToAgentMessageProcessor`, which processes the
+  messages a renderer sends the agent
+  ([#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3861](https://github.com/a2ui-project/a2ui/pull/3861)).
+  - It answers each `callAgentFunction` with the matching agent function of
+    its catalogs (see `Catalog.copyWith(agentFunctions: ...)` in `a2ui_core`):
+    it validates the arguments, applies their schema defaults, runs the
+    handler, and replies with one `agentFunctionResponse` carrying the value
+    or an error (`UNKNOWN_FUNCTION`, `INVALID_FUNCTION_CALL`,
+    `EXECUTION_ERROR`, or the code the handler's `A2uiRpcError` gives). A
+    call without a `functionCallId` throws `A2uiValidationError`, since there
+    is nothing to reply to. `agentFunctionTimeout` limits how long a handler
+    may run; by default there is no limit.
+  - It passes `action`, `error` and `rendererFunctionResponse` messages,
+    validated, to the `onAction`, `onError` and `onRendererFunctionResponse`
+    callbacks. A message without a callback is left unhandled for the caller
+    to pass on, for example to the model.
+  - `processMessage` returns a `ProcessResult` that says whether the message
+    was handled and holds the replies to send; `processMessages` processes
+    several concurrently.
+  - `package:a2ui_agent/a2ui_agent.dart` re-exports `AgentFunction`,
+    `AgentFunctionContext`, `AgentFunctionHandler`, `A2uiRpcError`,
+    `RpcErrorCode`, and the v1.0 renderer-to-agent and function response
+    message types.
 - The v1.0 schema in the direct JSON prompt no longer says that `createSurface`
   needs later messages for its components and data. They can be sent inline in
   `createSurface` or in later `updateComponents` and `updateDataModel` messages.

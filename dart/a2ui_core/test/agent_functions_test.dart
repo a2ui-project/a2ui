@@ -618,14 +618,8 @@ void main() {
     });
   });
 
-  group('A2uiRpcError custom codes and RpcErrorCode.tooManyPending', () {
+  group('A2uiRpcError custom codes', () {
     test('supports custom wire codes and preserves them in withContext', () {
-      expect(RpcErrorCode.tooManyPending.wireValue, 'TOO_MANY_PENDING');
-      expect(
-        RpcErrorCode.tryParse('TOO_MANY_PENDING'),
-        RpcErrorCode.tooManyPending,
-      );
-
       final custom = A2uiRpcError.custom(
         'Symbol Delisted',
         'SYMBOL_DELISTED',
@@ -640,6 +634,12 @@ void main() {
       expect(contextualized.code, 'SYMBOL_DELISTED');
       expect(contextualized.surfaceId, 'main');
       expect(contextualized.functionCallId, 'call-1');
+    });
+
+    test('a custom code the protocol defines sets rpcCode', () {
+      final known = A2uiRpcError.custom('Bad call', 'INVALID_FUNCTION_CALL');
+      expect(known.code, 'INVALID_FUNCTION_CALL');
+      expect(known.rpcCode, RpcErrorCode.invalidFunctionCall);
     });
   });
 }

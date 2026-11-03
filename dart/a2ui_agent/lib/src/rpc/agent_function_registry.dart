@@ -13,18 +13,17 @@
 // limitations under the License.
 
 import 'dart:async';
-import 'dart:collection';
 
 import 'package:a2ui_core/a2ui_core.dart';
 
-/// Indexes [AgentFunction] declarations across catalogs and executes incoming
-/// `callAgentFunction` messages on the agent.
-class AgentFunctionRegistry {
-  /// The maximum number of concurrent handler executions, or null for
-  /// unbounded concurrency.
-  final int? maxConcurrency;
-
-  /// The default per-invocation timeout, or null for no default timeout.
+/// Indexes the [AgentFunction]s of a set of catalogs and answers incoming
+/// `callAgentFunction` messages with them.
+///
+/// Internal to this package: `RendererToAgentMessageProcessor` is the public
+/// entry point.
+final class AgentFunctionRegistry {
+  /// How long a handler may run before the call is answered with a timeout
+  /// error, or null for no limit.
   final Duration? timeout;
 
   final Map<String, CatalogApi> _catalogs = <String, CatalogApi>{};
@@ -35,48 +34,19 @@ class AgentFunctionRegistry {
   final Map<(String, String), Map<String, Object?>> _resolvedArgSchemas =
       <(String, String), Map<String, Object?>>{};
 
-  final Queue<_SemaphoreWaiter> _waitQueue = Queue<_SemaphoreWaiter>();
-  final Set<_InFlightCall> _inFlight = <_InFlightCall>{};
-  int _activeCount = 0;
-  bool _disposed = false;
-
-  /// Creates an [AgentFunctionRegistry] indexing all [Catalog.agentFunctions]
-  /// declared on [catalogs].
+  /// Indexes every [Catalog.agentFunctions] entry of [catalogs].
   ///
-  /// Throws [ArgumentError] if [maxConcurrency] is less than 1 or [timeout] is
-  /// not positive. Throws [A2uiCatalogError] if any catalog declaring agent
-  /// functions targets a protocol version below 1.0.
-  AgentFunctionRegistry(
-    Iterable<CatalogApi> catalogs, {
-    this.maxConcurrency,
-    this.timeout,
-  }) {
-    if (maxConcurrency != null && maxConcurrency! < 1) {
-      throw ArgumentError.value(
-        maxConcurrency,
-        'maxConcurrency',
-        'Must be >= 1 or null.',
-      );
-    }
+  /// Throws [ArgumentError] if [timeout] is not positive.
+  AgentFunctionRegistry(Iterable<CatalogApi> catalogs, {this.timeout}) {
     if (timeout != null && timeout! <= Duration.zero) {
       throw ArgumentError.value(
         timeout,
-        'timeout',
+        'agentFunctionTimeout',
         'Must be > Duration.zero or null.',
       );
     }
-
     for (final catalog in catalogs) {
       _catalogs[catalog.id] = catalog;
-      if (catalog.agentFunctions.isEmpty) continue;
-      if (!(catalog.protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ??
-          false)) {
-        throw A2uiCatalogError(
-          "Agent functions on catalog '${catalog.id}' require "
-          'protocolVersion 1.0 or later.',
-          catalogId: catalog.id,
-        );
-      }
       for (final MapEntry<String, AgentFunction> entry
           in catalog.agentFunctions.entries) {
         _functions[(catalog.id, entry.key)] = entry.value;
@@ -84,69 +54,17 @@ class AgentFunctionRegistry {
     }
   }
 
-  /// An unmodifiable view of all registered agent functions keyed by
-  /// `(catalogId, functionName)`.
-  Map<(String, String), AgentFunction> get functions =>
-      Map<(String, String), AgentFunction>.unmodifiable(_functions);
-
-  /// Whether [dispose] has been called.
-  bool get isDisposed => _disposed;
-
-  /// Alias for [isDisposed].
-  bool get disposed => _disposed;
-
-  /// Looks up the [AgentFunction] registered under [catalogId] and [name], or
-  /// returns null if none is registered.
-  AgentFunction? get(String catalogId, String name) =>
-      _functions[(catalogId, name)];
-
-  /// Marks the registry as disposed and cancels all in-flight [handle] calls
-  /// with [RpcErrorCode.disposed]. Idempotent.
-  void dispose() {
-    if (_disposed) return;
-    _disposed = true;
-    for (final _SemaphoreWaiter waiter in _waitQueue) {
-      waiter.cancel();
-    }
-    _waitQueue.clear();
-    final List<_InFlightCall> active = _inFlight.toList();
-    _inFlight.clear();
-    for (final call in active) {
-      call.failWithDisposed();
-    }
-  }
-
-  /// Validates and executes a v1.0 `callAgentFunction` [message] and returns
-  /// the corresponding [AgentFunctionResponseMessage].
+  /// Validates and runs a v1.0 `callAgentFunction` [message] and returns the
+  /// [AgentFunctionResponseMessage] that answers it.
   ///
   /// [message] may be a [CallAgentFunctionMessage] or a raw JSON `Map`
   /// envelope.
   ///
-  /// Throws [ArgumentError] if [timeout] is not positive.
-  /// Throws [A2uiRpcError] with [RpcErrorCode.disposed] if this registry is
-  /// disposed before or during execution.
   /// Throws [A2uiValidationError] if [message] is not a `callAgentFunction`
-  /// message or lacks a non-empty string `functionCallId`. All other validation
-  /// and execution failures are captured in the returned
-  /// [AgentFunctionResponseMessage]'s `error` payload.
-  Future<AgentFunctionResponseMessage> handle(
-    Object message, {
-    Duration? timeout,
-  }) async {
-    if (timeout != null && timeout <= Duration.zero) {
-      throw ArgumentError.value(
-        timeout,
-        'timeout',
-        'Must be > Duration.zero or null.',
-      );
-    }
-    if (_disposed) {
-      throw A2uiRpcError(
-        'AgentFunctionRegistry has been disposed.',
-        RpcErrorCode.disposed,
-      );
-    }
-
+  /// message or lacks a non-empty string `functionCallId`, since there is
+  /// nothing to reply to. Every other failure is reported in the returned
+  /// response's `error`.
+  Future<AgentFunctionResponseMessage> handle(Object message) async {
     final _ParsedCallResult parsed = _parseCall(message);
     if (parsed.errorResponse != null) {
       return parsed.errorResponse!;
@@ -192,6 +110,8 @@ class AgentFunctionRegistry {
       );
     }
 
+    // Neither the AgentFunction constructor nor AgentFunction.fromApi builds
+    // an agentOnly function; this guards against a subclass that claims it.
     if (fn.allowedCallers == AllowedCallers.agentOnly) {
       return _errorResponse(
         call.functionCallId,
@@ -217,8 +137,24 @@ class AgentFunctionRegistry {
       surfaceId: call.surfaceId,
       functionCallId: call.functionCallId,
     );
-    final Duration? effectiveTimeout = timeout ?? this.timeout;
-    return _invoke(fn, validatedArgs, context, effectiveTimeout);
+    final Future<AgentFunctionResponseMessage> response = _run(
+      fn,
+      validatedArgs,
+      context,
+    );
+    final Duration? limit = timeout;
+    if (limit == null) return response;
+    // A Dart future can't be cancelled: on timeout the call is answered and
+    // whatever the handler later returns or throws is ignored.
+    return response.timeout(
+      limit,
+      onTimeout: () => _errorResponse(
+        context.functionCallId,
+        RpcErrorCode.executionError.wireValue,
+        "Agent function '${fn.name}' timed out after "
+        '${limit.inMilliseconds}ms.',
+      ),
+    );
   }
 
   Map<String, dynamic> _validateAndApplyDefaults(
@@ -282,138 +218,41 @@ class AgentFunctionRegistry {
     }
   }
 
-  Future<AgentFunctionResponseMessage> _invoke(
+  static Future<AgentFunctionResponseMessage> _run(
     AgentFunction fn,
     Map<String, dynamic> args,
     AgentFunctionContext context,
-    Duration? effectiveTimeout,
-  ) {
-    if (_disposed) {
-      return Future<AgentFunctionResponseMessage>.error(
-        A2uiRpcError(
-          'AgentFunctionRegistry has been disposed.',
-          RpcErrorCode.disposed,
-          functionCallId: context.functionCallId,
-          surfaceId: context.surfaceId,
-        ),
-      );
-    }
-
-    final inFlight = _InFlightCall(
-      functionCallId: context.functionCallId,
-      surfaceId: context.surfaceId,
-    );
-    _inFlight.add(inFlight);
-
-    if (effectiveTimeout != null) {
-      inFlight.timer = Timer(effectiveTimeout, () {
-        if (!_inFlight.remove(inFlight)) return;
-        final _SemaphoreWaiter? waiter = inFlight.waiter;
-        if (waiter != null) {
-          _waitQueue.remove(waiter);
-          waiter.cancel();
-        }
-        inFlight.complete(
-          _errorResponse(
-            context.functionCallId,
-            RpcErrorCode.executionError.wireValue,
-            "Agent function '${fn.name}' timed out after "
-            '${effectiveTimeout.inMilliseconds}ms.',
-          ),
-        );
-      });
-    }
-
-    unawaited(_runWithSemaphore(fn, args, context, inFlight));
-    return inFlight.completer.future;
-  }
-
-  Future<void> _runWithSemaphore(
-    AgentFunction fn,
-    Map<String, dynamic> args,
-    AgentFunctionContext context,
-    _InFlightCall inFlight,
   ) async {
-    var acquiredSlot = false;
     try {
-      if (maxConcurrency != null) {
-        if (_activeCount < maxConcurrency!) {
-          _activeCount++;
-          acquiredSlot = true;
-        } else {
-          final waiter = _SemaphoreWaiter();
-          inFlight.waiter = waiter;
-          _waitQueue.addLast(waiter);
-          await waiter.completer.future;
-          inFlight.waiter = null;
-          acquiredSlot = waiter.granted;
-          if (!acquiredSlot || inFlight.isSettled || _disposed) {
-            return;
-          }
-        }
-      }
-
-      if (inFlight.isSettled || _disposed) {
-        return;
-      }
-
       final Object? result = await Future<Object?>.sync(
         () => fn.handler(args, context),
       );
-      if (inFlight.isSettled) {
-        return;
-      }
-      final Object? serialized = _serializeReturnValue(result, fn.name);
-      if (!_inFlight.remove(inFlight)) {
-        return;
-      }
-      inFlight.complete(
-        AgentFunctionResponseMessage(
-          version: A2uiProtocolVersion.v1_0.jsonValue,
-          response: A2uiFunctionResponse.value(
-            context.functionCallId,
-            serialized,
-          ),
+      return AgentFunctionResponseMessage(
+        version: A2uiProtocolVersion.v1_0.jsonValue,
+        response: A2uiFunctionResponse.value(
+          context.functionCallId,
+          _serializeReturnValue(result, fn.name),
         ),
       );
     } on A2uiRpcError catch (rpcErr) {
-      if (inFlight.isSettled || !_inFlight.remove(inFlight)) return;
-      inFlight.complete(
-        _errorResponse(context.functionCallId, rpcErr.code, rpcErr.message),
+      return _errorResponse(
+        context.functionCallId,
+        rpcErr.code,
+        rpcErr.message,
       );
     } on A2uiValidationError catch (valErr) {
-      if (inFlight.isSettled || !_inFlight.remove(inFlight)) return;
-      inFlight.complete(
-        _errorResponse(
-          context.functionCallId,
-          RpcErrorCode.invalidFunctionCall.wireValue,
-          valErr.message,
-        ),
+      return _errorResponse(
+        context.functionCallId,
+        RpcErrorCode.invalidFunctionCall.wireValue,
+        valErr.message,
       );
     } catch (error) {
-      if (inFlight.isSettled || !_inFlight.remove(inFlight)) return;
-      inFlight.complete(
-        _errorResponse(
-          context.functionCallId,
-          RpcErrorCode.executionError.wireValue,
-          '$error',
-        ),
+      return _errorResponse(
+        context.functionCallId,
+        RpcErrorCode.executionError.wireValue,
+        '$error',
       );
-    } finally {
-      if (acquiredSlot) {
-        _releaseSlot();
-      }
     }
-  }
-
-  void _releaseSlot() {
-    while (_waitQueue.isNotEmpty) {
-      final _SemaphoreWaiter next = _waitQueue.removeFirst();
-      if (next.grant()) {
-        return;
-      }
-    }
-    _activeCount--;
   }
 
   static _ParsedCallResult _parseCall(Object message) {
@@ -731,61 +570,4 @@ final class _ParsedCallResult {
 
   const _ParsedCallResult.success(this.call) : errorResponse = null;
   const _ParsedCallResult.failure(this.errorResponse) : call = null;
-}
-
-final class _SemaphoreWaiter {
-  final Completer<void> completer = Completer<void>();
-  bool granted = false;
-  bool cancelled = false;
-
-  bool grant() {
-    if (cancelled || completer.isCompleted) return false;
-    granted = true;
-    completer.complete();
-    return true;
-  }
-
-  void cancel() {
-    if (granted || cancelled) return;
-    cancelled = true;
-    if (!completer.isCompleted) {
-      completer.complete();
-    }
-  }
-}
-
-final class _InFlightCall {
-  final String functionCallId;
-  final String surfaceId;
-  final Completer<AgentFunctionResponseMessage> completer =
-      Completer<AgentFunctionResponseMessage>();
-  Timer? timer;
-  _SemaphoreWaiter? waiter;
-  bool isSettled = false;
-
-  _InFlightCall({required this.functionCallId, required this.surfaceId}) {
-    completer.future.ignore();
-  }
-
-  void complete(AgentFunctionResponseMessage response) {
-    if (isSettled) return;
-    isSettled = true;
-    timer?.cancel();
-    completer.complete(response);
-  }
-
-  void failWithDisposed() {
-    if (isSettled) return;
-    isSettled = true;
-    timer?.cancel();
-    completer.completeError(
-      A2uiRpcError(
-        'AgentFunctionRegistry was disposed while handling call '
-        "'$functionCallId'.",
-        RpcErrorCode.disposed,
-        functionCallId: functionCallId,
-        surfaceId: surfaceId,
-      ),
-    );
-  }
 }

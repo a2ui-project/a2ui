@@ -21,38 +21,10 @@ import 'package:test/test.dart';
 
 const String _catId = 'https://example.com/finance.json';
 
-final class _ScrollImpl extends FunctionImplementation {
-  final List<Map<String, dynamic>> seenCalls = <Map<String, dynamic>>[];
-
-  _ScrollImpl()
-    : super(
-        name: 'scrollIntoView',
-        returnType: A2uiReturnType.boolean,
-        allowedCallers: AllowedCallers.rendererOrAgent,
-        argumentSchema: Schema.fromMap({
-          'type': 'object',
-          'properties': {
-            'elementId': {'type': 'string'},
-          },
-          'required': ['elementId'],
-        }),
-      );
-
-  @override
-  Object? execute(
-    Map<String, dynamic> args,
-    DataContext context, [
-    CancellationSignal? cancellationSignal,
-  ]) {
-    seenCalls.add(args);
-    return true;
-  }
-}
-
 void main() {
-  group('End-to-end Agent Function & Renderer Function RPC', () {
-    test('round-trips callAgentFunction and callRendererFunction between '
-        'MessageProcessor and RendererMessageRouter', () async {
+  group('End-to-end agent functions', () {
+    test('round-trips callAgentFunction between MessageProcessor and '
+        'RendererToAgentMessageProcessor', () async {
       final quote = AgentFunction(
         name: 'fetchQuote',
         returnType: A2uiReturnType.string,
@@ -65,10 +37,7 @@ void main() {
         }),
         handler: (args, ctx) => '${args['symbol']}: \$175.00',
       );
-      final scrollImpl = _ScrollImpl();
-
-      // Agent catalog holds both the AgentFunction and the schema for
-      // scrollIntoView.
+      // The agent catalog holds the AgentFunction.
       final CatalogApi agentCatalog = Catalog(
         id: _catId,
         protocolVersion: A2uiProtocolVersion.v1_0,
@@ -84,37 +53,30 @@ void main() {
             }),
           ),
         ],
-        functions: [scrollImpl, quote],
+        functions: [quote],
       );
 
-      // Renderer catalog implements only scrollIntoView; fetchQuote is
-      // unimplemented locally so the renderer forwards it via
-      // callAgentFunction.
+      // The renderer catalog doesn't implement fetchQuote, so the renderer
+      // forwards it via callAgentFunction.
       final rendererCatalog = Catalog<ComponentApi, FunctionImplementation>(
         id: _catId,
         protocolVersion: A2uiProtocolVersion.v1_0,
         components: agentCatalog.components.values.toList(),
-        functions: [scrollImpl],
       );
 
-      final registry = AgentFunctionRegistry([agentCatalog]);
-      final rendererCalls = RendererFunctionCalls();
-      final router = RendererMessageRouter(
-        agentFunctions: registry,
-        rendererCalls: rendererCalls,
+      final agentProcessor = RendererToAgentMessageProcessor(
+        catalogs: [agentCatalog],
       );
 
       late MessageProcessor rendererProcessor;
       rendererProcessor = MessageProcessor(
         catalogs: [rendererCatalog],
         outboundListener: (RendererToAgentMessage outbound) async {
-          if (router.handles(outbound)) {
-            final List<AgentToRendererMessage> replies = await router.dispatch(
-              outbound,
-            );
-            if (replies.isNotEmpty) {
-              rendererProcessor.processMessages(replies);
-            }
+          final ProcessResult result = await agentProcessor.processMessage(
+            outbound,
+          );
+          if (result.replies.isNotEmpty) {
+            rendererProcessor.processMessages(result.replies);
           }
         },
       );
@@ -160,24 +122,6 @@ void main() {
           rootNode.props.value['text']! as ResolvedBinding<Object?>;
       expect(textBinding.value, 'GOOG: \$175.00');
       resolver.dispose();
-
-      // 3. Agent initiates callRendererFunction -> renderer executes
-      // scrollIntoView -> router resolves Future.
-      final (
-        CallRendererFunctionMessage callMsg,
-        Future<Object?> resultFut,
-      ) = rendererCalls.call(
-        catalogId: _catId,
-        name: 'scrollIntoView',
-        args: const {'elementId': 'row-42'},
-        surfaceId: 'main',
-        functionCallId: 'rcall-e2e',
-      );
-      await rendererProcessor.processMessagesAsync([callMsg]);
-      expect(await resultFut, isTrue);
-      expect(scrollImpl.seenCalls, [
-        {'elementId': 'row-42'},
-      ]);
     });
   });
 }

@@ -367,9 +367,6 @@ enum RpcErrorCode {
   /// A call with the same `functionCallId` is still pending.
   duplicate('DUPLICATE'),
 
-  /// The pending call cap would be exceeded.
-  tooManyPending('TOO_MANY_PENDING'),
-
   /// No outbound listener is attached, so the call cannot be sent.
   noListener('NO_LISTENER');
 
