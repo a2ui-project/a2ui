@@ -121,6 +121,40 @@ const v09Catalog = CatalogConfig.fromPath(
 );
 ```
 
+## Agent functions
+
+From v1.0, a catalog can declare functions that run on the agent: a renderer that doesn't implement a function sends `callAgentFunction` and waits for the agent's `agentFunctionResponse`. Add agent functions to your copy of a catalog with `copyWith`. `AgentFunction.fromApi` binds a handler to a function the catalog already declares, and `new AgentFunction(...)` adds a new one. A handler takes `(args)` or `(args, context)`, where `context` has the catalog, surface and call IDs.
+
+```ts
+const catalog = loaded.copyWith({
+  agentFunctions: [
+    AgentFunction.fromApi(loaded.functions.get('lookupAccount')!, args => findAccount(args.id)),
+    new AgentFunction({
+      name: 'fetchFxRate',
+      returnType: 'number',
+      schema: {type: 'object', properties: {base: {type: 'string'}}, required: ['base']},
+      handler: async ({base}) => rates.get(base),
+    }),
+  ],
+});
+```
+
+`RendererToAgentMessageProcessor` takes each message the renderer sends and returns whether it handled it and the messages to send back. It answers `callAgentFunction` itself, and passes `action`, `error` and `rendererFunctionResponse` messages to their callback, after checking them against the v1.0 schema. A message whose callback isn't set comes back with `handled: false`, so the app can pass it on to the model.
+
+```ts
+const messages = new RendererToAgentMessageProcessor({
+  catalogs: [catalog],
+  agentFunctionTimeoutMs: 10_000,
+  onError: message => log.warn(message.error),
+});
+
+const {handled, replies} = await messages.processMessage(fromRenderer);
+for (const reply of replies) send(reply);
+if (!handled) runModelTurn(fromRenderer);
+```
+
+The processor keeps no state between messages, so build one per agent, or one per request from the catalogs the request uses.
+
 ## Development
 
 ```sh

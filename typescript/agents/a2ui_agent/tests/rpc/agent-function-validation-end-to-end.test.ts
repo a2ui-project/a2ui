@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {type FunctionImplementation, MessageProcessor} from '@a2ui/web_core';
+import {MessageProcessor} from '@a2ui/web_core';
 import {describe, expect, test} from 'vitest';
 import {z} from 'zod';
 
@@ -22,8 +22,8 @@ import {
   A2uiGenerator,
   A2uiValidationError,
   AgentFunction,
-  AgentFunctionRegistry,
   Catalog,
+  type CatalogApi,
   CatalogConfig,
   ComponentPruningTransformer,
   DirectJsonFormat,
@@ -32,13 +32,12 @@ import {
   ExpressFormat,
   ExpressParser,
   FunctionPruningTransformer,
-  RendererFunctionCalls,
-  RendererMessageRouter,
+  RendererToAgentMessageProcessor,
   resolveCatalogs,
   validatePayload,
 } from '../../src/index.js';
 
-function createTestCatalog(): Catalog {
+function createTestCatalog(): CatalogApi {
   const baseCatalog = Catalog.fromJson({
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     catalogId: 'https://example.com/finance/catalog.json',
@@ -204,34 +203,16 @@ describe('Agent Functions End-to-End Integration', () => {
     expect(proc.catalogs[0].agentFunctions.size).toBe(2);
   });
 
-  test('Full bidirectional RPC roundtrip between MessageProcessor and Agent (Registry + Calls + Router)', async () => {
-    const agentCatalog = createTestCatalog();
-    const getLocaleImpl: FunctionImplementation = {
-      name: 'getLocale',
-      returnType: 'string',
-      allowedCallers: 'agentOnly',
-      schema: z.object({}).strict(),
-      execute: () => 'en-GB',
-    };
-    const rendererCatalog = agentCatalog.withEntries(
-      [...agentCatalog.components.values()],
-      [...agentCatalog.functions.values(), getLocaleImpl],
-    );
-
-    const registry = new AgentFunctionRegistry([agentCatalog]);
-    const rendererCalls = new RendererFunctionCalls();
+  test('Round trip of a callAgentFunction between MessageProcessor and RendererToAgentMessageProcessor', async () => {
+    const catalog = createTestCatalog();
+    const agent = new RendererToAgentMessageProcessor({catalogs: [catalog]});
 
     const outboundFromRenderer: Array<Record<string, unknown>> = [];
-    const processor = new MessageProcessor([rendererCatalog], undefined, {
+    const processor = new MessageProcessor([catalog], undefined, {
       version: '1.0',
       outboundListener: msg => {
         outboundFromRenderer.push(msg as unknown as Record<string, unknown>);
       },
-    });
-
-    const router = new RendererMessageRouter({
-      registry,
-      rendererCalls,
     });
 
     processor.processMessages([
@@ -239,7 +220,7 @@ describe('Agent Functions End-to-End Integration', () => {
         version: '1.0',
         createSurface: {
           surfaceId: 's1',
-          catalogId: rendererCatalog.id,
+          catalogId: catalog.id,
           components: [
             {
               id: 'root',
@@ -251,30 +232,17 @@ describe('Agent Functions End-to-End Integration', () => {
       },
     ]);
 
-    // 1. Renderer calls an agent function on the agent via callAgentFunction
     const agentCallPromise = processor.callAgentFunction<string>('s1', {
       '@call': 'declaredRate',
-      catalogId: agentCatalog.id,
+      catalogId: catalog.id,
       args: {base: 'EUR'},
     });
 
     expect(outboundFromRenderer).toHaveLength(1);
-    const agentResponse = await router.route(outboundFromRenderer.shift()!);
-    expect(agentResponse).not.toBeNull();
-    processor.processMessages([agentResponse!]);
+    const result = await agent.processMessage(outboundFromRenderer.shift()!);
+    expect(result.handled).toBe(true);
+    expect(result.replies).toHaveLength(1);
+    processor.processMessages(result.replies);
     await expect(agentCallPromise).resolves.toBe('EUR/USD=1.08');
-
-    // 2. Agent calls a renderer function on the renderer via callRendererFunction
-    const [callRendererMsg, localePromise] = rendererCalls.call<string>({
-      catalogId: rendererCatalog.id,
-      name: 'getLocale',
-      surfaceId: 's1',
-    });
-
-    const rendererResponses = await processor.processMessagesAsync([callRendererMsg]);
-    expect(rendererResponses).toHaveLength(1);
-    expect(outboundFromRenderer).toHaveLength(1);
-    await router.route(outboundFromRenderer.shift()!);
-    await expect(localePromise).resolves.toBe('en-GB');
   });
 });

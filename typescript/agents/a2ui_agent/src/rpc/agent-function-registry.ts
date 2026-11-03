@@ -20,8 +20,9 @@ import {
   AgentFunction,
   type AgentFunctionContext,
   type AgentFunctionResponseMessage,
-  type CallAgentFunctionMessage,
   type CatalogInterface,
+  type ComponentApi,
+  type FunctionApi,
   PayloadValidator,
   RpcErrorCode,
   STRICT_VALIDATION,
@@ -41,35 +42,15 @@ const ALLOWED_RETURN_TYPES = new Set([
 ]);
 
 /**
- * Options for configuring an {@link AgentFunctionRegistry}.
+ * Options for an {@link AgentFunctionRegistry}.
  */
 export interface AgentFunctionRegistryOptions {
   /**
-   * Maximum number of agent function handlers that may run concurrently.
-   * Must be an integer >= 1 when provided.
-   */
-  readonly maxConcurrency?: number;
-  /**
-   * Default timeout in milliseconds for each handler call.
-   * Must be > 0 when provided.
+   * How long a handler may run, in milliseconds, before the call is answered
+   * with an `EXECUTION_ERROR`. Must be greater than 0. No timeout when
+   * omitted.
    */
   readonly timeoutMs?: number;
-}
-
-/**
- * Per-call options for {@link AgentFunctionRegistry.handle}.
- */
-export interface HandleAgentFunctionOptions {
-  /**
-   * Per-call timeout in milliseconds, overriding the registry default.
-   * Pass `null` to disable the registry default timeout for this call.
-   * Must be > 0 when a number is provided.
-   */
-  readonly timeoutMs?: number | null;
-  /**
-   * Optional `AbortSignal` to cancel this call.
-   */
-  readonly signal?: AbortSignal;
 }
 
 interface ParsedCallEnvelope {
@@ -81,8 +62,8 @@ interface ParsedCallEnvelope {
 }
 
 /**
- * Indexes agent functions across catalogs and handles inbound `callAgentFunction`
- * RPC messages from the renderer.
+ * Indexes the agent functions of catalogs and answers `callAgentFunction`
+ * messages with them. Internal to `RendererToAgentMessageProcessor`.
  *
  * A call that fails after its `functionCallId` is known produces an
  * `agentFunctionResponse` with `error` rather than throwing, so the renderer's
@@ -91,44 +72,28 @@ interface ParsedCallEnvelope {
  * and throws {@link A2uiValidationError}.
  */
 export class AgentFunctionRegistry {
-  private readonly _catalogs = new Map<string, CatalogInterface>();
+  private readonly _catalogs = new Map<string, CatalogInterface<ComponentApi, FunctionApi>>();
   private readonly _functions = new Map<string, Map<string, AgentFunction>>();
-  private readonly _maxConcurrency?: number;
   private readonly _timeoutMs?: number;
-  private _activeCount = 0;
-  private readonly _waitQueue: Array<{
-    acquire: () => void;
-    cancel: () => void;
-    reject: (err: A2uiRpcError) => void;
-    functionCallId: string;
-  }> = [];
-  private readonly _inFlightDisposers = new Map<
-    symbol,
-    {reject: (err: A2uiRpcError) => void; functionCallId: string}
-  >();
-  private _disposed = false;
 
   /**
    * Indexes the `agentFunctions` of each catalog by `(catalog.id, name)`.
    *
    * @param catalogs Catalogs whose `agentFunctions` should be registered.
-   * @param options Optional concurrency limit and default handler timeout.
-   * @throws {RangeError} If `maxConcurrency < 1` or `timeoutMs <= 0`.
+   * @param options Optional handler timeout.
+   * @throws {RangeError} If `timeoutMs <= 0`.
    */
-  constructor(catalogs: Iterable<CatalogInterface>, options?: AgentFunctionRegistryOptions) {
-    if (options?.maxConcurrency !== undefined) {
-      if (!Number.isInteger(options.maxConcurrency) || options.maxConcurrency < 1) {
-        throw new RangeError('maxConcurrency must be at least 1.');
-      }
-      this._maxConcurrency = options.maxConcurrency;
-    }
+  constructor(
+    catalogs: Iterable<CatalogInterface<ComponentApi, FunctionApi>>,
+    options?: AgentFunctionRegistryOptions,
+  ) {
     if (options?.timeoutMs !== undefined) {
       if (
         typeof options.timeoutMs !== 'number' ||
         !Number.isFinite(options.timeoutMs) ||
         options.timeoutMs <= 0
       ) {
-        throw new RangeError('timeoutMs must be greater than 0.');
+        throw new RangeError('The agent function timeout must be greater than 0.');
       }
       this._timeoutMs = options.timeoutMs;
     }
@@ -146,96 +111,14 @@ export class AgentFunctionRegistry {
   }
 
   /**
-   * Whether this registry has been disposed.
-   */
-  get disposed(): boolean {
-    return this._disposed;
-  }
-
-  /**
-   * Read-only view of all indexed agent functions, grouped by `catalogId` and function `name`.
-   */
-  get functions(): ReadonlyMap<string, ReadonlyMap<string, AgentFunction>> {
-    return this._functions;
-  }
-
-  /**
-   * Looks up the {@link AgentFunction} registered for `(catalogId, name)`.
-   *
-   * @param catalogId Identifier of the catalog declaring the function.
-   * @param name Name of the agent function.
-   * @returns The registered {@link AgentFunction}, or `undefined` if not found.
-   */
-  get(catalogId: string, name: string): AgentFunction | undefined {
-    return this._functions.get(catalogId)?.get(name);
-  }
-
-  /**
-   * Disposes this registry, rejecting all in-flight and queued `handle` calls
-   * with {@link A2uiRpcError} (`code: RpcErrorCode.DISPOSED`).
-   *
-   * Idempotent: calling `dispose()` on an already-disposed registry is a no-op.
-   */
-  dispose(): void {
-    if (this._disposed) return;
-    this._disposed = true;
-
-    const queued = this._waitQueue.splice(0);
-    for (const waiter of queued) {
-      waiter.reject(
-        new A2uiRpcError(
-          'The agent function registry was disposed while handling the call.',
-          RpcErrorCode.DISPOSED,
-          waiter.functionCallId,
-        ),
-      );
-    }
-
-    const inFlight = [...this._inFlightDisposers.values()];
-    this._inFlightDisposers.clear();
-    for (const entry of inFlight) {
-      entry.reject(
-        new A2uiRpcError(
-          'The agent function registry was disposed while handling the call.',
-          RpcErrorCode.DISPOSED,
-          entry.functionCallId,
-        ),
-      );
-    }
-  }
-
-  /**
    * Validates, routes, and executes a `callAgentFunction` message, returning
    * its `agentFunctionResponse` envelope.
    *
    * @param message Inbound `callAgentFunction` message.
-   * @param options Optional per-call timeout or `AbortSignal`.
    * @returns The outbound `agentFunctionResponse` message.
-   * @throws {RangeError} If `options.timeoutMs <= 0`.
-   * @throws {A2uiRpcError} With `code: RpcErrorCode.DISPOSED` if the registry is disposed before or during the call.
    * @throws {A2uiValidationError} If the message lacks a usable `functionCallId`.
    */
-  async handle(
-    message: CallAgentFunctionMessage | Record<string, unknown>,
-    options?: HandleAgentFunctionOptions,
-  ): Promise<AgentFunctionResponseMessage> {
-    if (options?.timeoutMs !== undefined && options?.timeoutMs !== null) {
-      if (
-        typeof options.timeoutMs !== 'number' ||
-        !Number.isFinite(options.timeoutMs) ||
-        options.timeoutMs <= 0
-      ) {
-        throw new RangeError('timeoutMs must be greater than 0.');
-      }
-    }
-
-    if (this._disposed) {
-      throw new A2uiRpcError(
-        'Cannot handle a call on a disposed AgentFunctionRegistry.',
-        RpcErrorCode.DISPOSED,
-      );
-    }
-
+  async handle(message: unknown): Promise<AgentFunctionResponseMessage> {
     const parsed = parseCallEnvelope(message);
     if (parsed.errorResponse !== undefined) {
       return parsed.errorResponse;
@@ -309,210 +192,69 @@ export class AgentFunctionRegistry {
       return createErrorResponse(functionCallId, RpcErrorCode.INVALID_FUNCTION_CALL, msg);
     }
 
-    if (options?.signal?.aborted) {
-      return createErrorResponse(
-        functionCallId,
-        RpcErrorCode.CANCELLED,
-        `Function '${name}' was cancelled.`,
-      );
-    }
-
-    const effectiveTimeoutMs =
-      options?.timeoutMs === null ? undefined : (options?.timeoutMs ?? this._timeoutMs);
-
     const context: AgentFunctionContext = {
       catalogId: resolvedCatalogId,
       surfaceId,
       functionCallId,
     };
 
-    return await this._executeWithLimits(
-      agentFn,
-      validatedArgs,
-      context,
-      effectiveTimeoutMs,
-      options?.signal,
-    );
+    return await this._execute(agentFn, validatedArgs, context);
   }
 
-  private _releaseSlot(): void {
-    if (this._waitQueue.length > 0 && !this._disposed) {
-      const next = this._waitQueue.shift()!;
-      next.acquire();
-    } else {
-      this._activeCount = Math.max(0, this._activeCount - 1);
-    }
-  }
-
-  private async _executeWithLimits(
+  private async _execute(
     agentFn: AgentFunction,
     args: Record<string, unknown>,
     context: AgentFunctionContext,
-    timeoutMs: number | undefined,
-    signal: AbortSignal | undefined,
   ): Promise<AgentFunctionResponseMessage> {
     const {functionCallId} = context;
-    if (this._disposed) {
-      throw new A2uiRpcError(
-        'Cannot handle a call on a disposed AgentFunctionRegistry.',
-        RpcErrorCode.DISPOSED,
-        functionCallId,
-      );
-    }
-
-    if (signal?.aborted) {
-      return createErrorResponse(
-        functionCallId,
-        RpcErrorCode.CANCELLED,
-        `Function '${agentFn.name}' was cancelled.`,
-      );
-    }
-
-    const token = Symbol('in-flight-call');
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let onAbort: (() => void) | undefined;
-    let acquiredSlot = false;
-    let settled = false;
-    let waiter:
-      | {
-          acquire: () => void;
-          cancel: () => void;
-          reject: (err: A2uiRpcError) => void;
-          functionCallId: string;
+    const run = async (): Promise<AgentFunctionResponseMessage> => {
+      try {
+        const result = await agentFn.handler(args, context);
+        return {
+          version: '1.0' as const,
+          agentFunctionResponse: {
+            functionCallId,
+            value: result !== undefined ? result : null,
+          },
+        };
+      } catch (err: unknown) {
+        if (err instanceof A2uiRpcError) {
+          return createErrorResponse(
+            functionCallId,
+            err.code || RpcErrorCode.EXECUTION_ERROR,
+            err.rawMessage ?? err.message,
+          );
         }
-      | undefined;
-
-    const cancelWaiter = (): void => {
-      if (!waiter) return;
-      const current = waiter;
-      waiter = undefined;
-      const idx = this._waitQueue.indexOf(current);
-      if (idx !== -1) {
-        this._waitQueue.splice(idx, 1);
+        return createErrorResponse(
+          functionCallId,
+          RpcErrorCode.EXECUTION_ERROR,
+          err instanceof Error ? err.message : String(err),
+        );
       }
-      current.cancel();
     };
 
-    try {
-      const disposedPromise = new Promise<never>((_resolve, reject) => {
-        this._inFlightDisposers.set(token, {reject, functionCallId});
-      });
-
-      const runTask = async (): Promise<AgentFunctionResponseMessage> => {
-        if (this._maxConcurrency === undefined || this._activeCount < this._maxConcurrency) {
-          this._activeCount++;
-          acquiredSlot = true;
-        } else {
-          const granted = await new Promise<boolean>((resolve, reject) => {
-            waiter = {
-              acquire: () => {
-                waiter = undefined;
-                acquiredSlot = true;
-                resolve(true);
-              },
-              cancel: () => {
-                resolve(false);
-              },
-              reject,
-              functionCallId,
-            };
-            this._waitQueue.push(waiter);
-          });
-          if (!granted || settled || this._disposed) {
-            return createErrorResponse(
-              functionCallId,
-              RpcErrorCode.CANCELLED,
-              `Function '${agentFn.name}' was cancelled.`,
-            );
-          }
-        }
-
-        if (settled || this._disposed) {
-          return createErrorResponse(
-            functionCallId,
-            RpcErrorCode.CANCELLED,
-            `Function '${agentFn.name}' was cancelled.`,
-          );
-        }
-
-        try {
-          const result = await agentFn.handler(args, context);
-          return {
-            version: '1.0' as const,
-            agentFunctionResponse: {
-              functionCallId,
-              value: result !== undefined ? result : null,
-            },
-          };
-        } catch (err: unknown) {
-          if (err instanceof A2uiRpcError) {
-            return createErrorResponse(
-              functionCallId,
-              err.code || RpcErrorCode.EXECUTION_ERROR,
-              err.rawMessage ?? err.message,
-            );
-          }
-          return createErrorResponse(
+    const timeoutMs = this._timeoutMs;
+    if (timeoutMs === undefined) {
+      return await run();
+    }
+    // A JavaScript handler can't be stopped, so when the timeout fires the
+    // call is answered and the handler's eventual result is ignored.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<AgentFunctionResponseMessage>(resolve => {
+      timer = setTimeout(() => {
+        resolve(
+          createErrorResponse(
             functionCallId,
             RpcErrorCode.EXECUTION_ERROR,
-            err instanceof Error ? err.message : String(err),
-          );
-        }
-      };
-
-      const races: Array<Promise<AgentFunctionResponseMessage>> = [runTask(), disposedPromise];
-
-      if (timeoutMs !== undefined) {
-        races.push(
-          new Promise<AgentFunctionResponseMessage>(resolve => {
-            timer = setTimeout(() => {
-              settled = true;
-              cancelWaiter();
-              resolve(
-                createErrorResponse(
-                  functionCallId,
-                  RpcErrorCode.EXECUTION_ERROR,
-                  `Function '${agentFn.name}' timed out after ${timeoutMs}ms.`,
-                ),
-              );
-            }, timeoutMs);
-          }),
+            `Function '${agentFn.name}' timed out after ${timeoutMs}ms.`,
+          ),
         );
-      }
-
-      if (signal) {
-        races.push(
-          new Promise<AgentFunctionResponseMessage>(resolve => {
-            onAbort = () => {
-              settled = true;
-              cancelWaiter();
-              resolve(
-                createErrorResponse(
-                  functionCallId,
-                  RpcErrorCode.CANCELLED,
-                  `Function '${agentFn.name}' was cancelled.`,
-                ),
-              );
-            };
-            signal.addEventListener('abort', onAbort, {once: true});
-          }),
-        );
-      }
-
-      return await Promise.race(races);
+      }, timeoutMs);
+    });
+    try {
+      return await Promise.race([run(), timedOut]);
     } finally {
-      settled = true;
-      cancelWaiter();
-      this._inFlightDisposers.delete(token);
-      if (timer !== undefined) {
-        clearTimeout(timer);
-      }
-      if (signal && onAbort) {
-        signal.removeEventListener('abort', onAbort);
-      }
-      if (acquiredSlot) {
-        this._releaseSlot();
-      }
+      clearTimeout(timer);
     }
   }
 }

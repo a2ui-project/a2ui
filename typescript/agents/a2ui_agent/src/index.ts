@@ -18,14 +18,13 @@
 export {type ProtocolVersion} from './types.js';
 
 // The v1.0 agent-to-renderer and renderer-to-agent protocol messages. Re-exported because
-// they appear in public signatures -- notably `A2uiGenerator`, `AgentFunctionRegistry`,
-// `RendererFunctionCalls`, and `RendererMessageRouter`.
+// they appear in public signatures -- notably `A2uiGenerator` and
+// `RendererToAgentMessageProcessor`.
 export type {
   ActionMessage,
   AgentFunctionResponseMessage,
   AgentToRendererMessage,
   CallAgentFunctionMessage,
-  CallRendererFunctionMessage,
   ErrorMessage,
   RendererFunctionResponseMessage,
   RendererToAgentMessage,
@@ -187,19 +186,9 @@ export {
   SkillSet,
 } from './skill/index.js';
 
-// Agent function & renderer RPC helpers
+// Renderer-to-agent messages
 export {
-  AgentFunctionRegistry,
-  type AgentFunctionRegistryOptions,
-  type HandleAgentFunctionOptions,
-} from './rpc/agent-function-registry.js';
-export {
-  type CallRendererFunctionOptions,
-  type CancellablePromise,
-  DEFAULT_RENDERER_CALL_TIMEOUT,
-  DEFAULT_RENDERER_CALL_TIMEOUT_MS,
-  type PendingRendererCall,
-  RendererFunctionCalls,
-  type RendererFunctionCallsOptions,
-} from './rpc/renderer-function-calls.js';
-export {RendererMessageRouter, type RendererMessageRouterOptions} from './rpc/router.js';
+  type ProcessResult,
+  RendererToAgentMessageProcessor,
+  type RendererToAgentMessageProcessorOptions,
+} from './rpc/renderer-to-agent-message-processor.js';
