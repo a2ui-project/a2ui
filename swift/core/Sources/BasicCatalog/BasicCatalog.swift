@@ -44,14 +44,15 @@ public enum BasicCatalog: Sendable {
 
   /// Returns a new Basic Catalog instance for the specified A2UI protocol version whose
   /// `formatNumber`, `formatCurrency` and `pluralize` functions use `locale`, and whose `openUrl`
-  /// function passes the resolved URL to `openURL`.
+  /// function passes the resolved URL to `openURLHandler`. The handler is held weakly, so keep a
+  /// strong reference to it for as long as the catalog is in use.
   ///
   /// `makeCatalog(version:)` returns shared instances that use `BasicFunctions.defaultLocale`
-  /// and have no URL opener, so their `openUrl` only validates the URL.
+  /// and have no `OpenURLHandler`, so their `openUrl` only validates the URL.
   public static func makeCatalog(
     version: A2UIProtocolVersion,
     locale: Locale,
-    openURL: (@Sendable (URL) -> Void)? = nil
+    openURLHandler: (any OpenURLHandler)? = nil
   ) -> AnyCatalog {
     switch version {
     case .v09, .v091:
@@ -59,7 +60,7 @@ public enum BasicCatalog: Sendable {
         id: catalogURI(version: version),
         protocolVersion: version,
         components: V09BasicCatalog.components,
-        functions: V09BasicFunctions.makeFunctions(locale: locale, openURL: openURL),
+        functions: V09BasicFunctions.makeFunctions(locale: locale, openURLHandler: openURLHandler),
         themeSchema: V09BasicCatalog.themeSchema
       )
     case .v10:
@@ -67,7 +68,7 @@ public enum BasicCatalog: Sendable {
         id: catalogURI(version: version),
         protocolVersion: version,
         components: V10BasicCatalog.components,
-        functions: V10BasicFunctions.makeFunctions(locale: locale, openURL: openURL),
+        functions: V10BasicFunctions.makeFunctions(locale: locale, openURLHandler: openURLHandler),
         themeSchema: nil
       )
     }

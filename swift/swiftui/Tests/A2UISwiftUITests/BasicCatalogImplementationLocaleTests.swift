@@ -27,11 +27,11 @@ private final class MockFunctionHandler: FunctionHandler {
   }
 }
 
-private final class OpenedURLs: @unchecked Sendable {
-  var urls: [URL] = []
+private final class MockOpenURLHandler: OpenURLHandler, @unchecked Sendable {
+  var openedURL: URL?
 
-  func record(_ url: URL) {
-    urls.append(url)
+  func open(_ url: URL) {
+    openedURL = url
   }
 }
 
@@ -69,13 +69,13 @@ struct BasicCatalogImplementationLocaleTests {
   }
 
   @Test(arguments: A2UIProtocolVersion.allCases)
-  func makeCatalogPassesOpenURLToOpenURLFunction(version: A2UIProtocolVersion) throws {
-    let opened = OpenedURLs()
-    let catalog = BasicCatalogImplementation.makeCatalog(version: version, openURL: opened.record)
+  func makeCatalogPassesOpenURLHandlerToOpenURLFunction(version: A2UIProtocolVersion) throws {
+    let handler = MockOpenURLHandler()
+    let catalog = BasicCatalogImplementation.makeCatalog(version: version, openURLHandler: handler)
     let function = try #require(catalog.functions["openUrl"])
 
     _ = try function.evaluate(arguments: ["url": .string("https://example.com")], context: context)
 
-    #expect(opened.urls.map(\.absoluteString) == ["https://example.com"])
+    #expect(handler.openedURL?.absoluteString == "https://example.com")
   }
 }

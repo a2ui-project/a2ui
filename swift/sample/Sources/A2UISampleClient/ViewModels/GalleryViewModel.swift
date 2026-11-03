@@ -103,14 +103,10 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
   @Published public private(set) var dataModelString: String = "{}"
 
   public let catalogs: [Catalog<ComponentImplementation>]
-  /// Basic catalogs for the processor, whose `openUrl` opens links with the system.
-  private static let processorCatalogs: [AnyCatalog] = A2UIProtocolVersion.allCases.map {
-    BasicCatalog.makeCatalog(
-      version: $0,
-      locale: BasicFunctions.defaultLocale,
-      openURL: { url in Task { @MainActor in UIApplication.shared.open(url) } }
-    )
-  }
+  /// Opens links for `openUrl`. The catalogs hold it weakly, so the view model owns it.
+  private let urlOpener = SystemURLOpener()
+  /// Basic catalogs for the processor, whose `openUrl` opens links with `urlOpener`.
+  private let processorCatalogs: [AnyCatalog]
   private var processor: MessageProcessor
   private let parser = MessageParser()
   private var surfaceSubscription: AnyCancellable?
@@ -118,8 +114,16 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
 
   public init() {
     self.catalogs = BasicCatalogImplementation.allCatalogs
+    let processorCatalogs = A2UIProtocolVersion.allCases.map { [urlOpener] version in
+      BasicCatalog.makeCatalog(
+        version: version,
+        locale: BasicFunctions.defaultLocale,
+        openURLHandler: urlOpener
+      )
+    }
+    self.processorCatalogs = processorCatalogs
     self.processor = MessageProcessor(
-      catalogs: Self.processorCatalogs,
+      catalogs: processorCatalogs,
       actionHandler: self.handler
     )
     self.handler.viewModel = self
@@ -153,7 +157,7 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
     surfaceSubscription = nil
 
     self.processor = MessageProcessor(
-      catalogs: Self.processorCatalogs,
+      catalogs: processorCatalogs,
       actionHandler: self.handler
     )
     self.currentStepIndex = 0
@@ -233,5 +237,12 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
     } else {
       self.dataModelString = text
     }
+  }
+}
+
+/// Opens `openUrl` links with the system.
+private final class SystemURLOpener: OpenURLHandler {
+  func open(_ url: URL) {
+    Task { @MainActor in UIApplication.shared.open(url) }
   }
 }

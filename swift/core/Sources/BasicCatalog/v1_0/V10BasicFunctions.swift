@@ -23,10 +23,10 @@ public enum V10BasicFunctions: Sendable {
 
   /// Returns new standard function implementations for A2UI Protocol v1.0 whose
   /// `formatNumber`, `formatCurrency` and `pluralize` use `locale`, and whose `openUrl` passes
-  /// the resolved URL to `openURL`.
+  /// the resolved URL to `openURLHandler`, held weakly.
   public static func makeFunctions(
     locale: Locale,
-    openURL: (@Sendable (URL) -> Void)? = nil
+    openURLHandler: (any OpenURLHandler)? = nil
   ) -> [any FunctionImplementation] {
     [
       AndFunction(readsValidationResults: true),
@@ -39,7 +39,7 @@ public enum V10BasicFunctions: Sendable {
       LengthFunction(returnValidationResult: true),
       NotFunction(readsValidationResults: true),
       NumericFunction(returnValidationResult: true),
-      OpenURLFunction(openURL: openURL, requiresUserActivation: true),
+      OpenURLFunction(handler: openURLHandler, requiresUserActivation: true),
       OrFunction(readsValidationResults: true),
       PluralizeFunction(locale: locale),
       RegexFunction(returnValidationResult: true),

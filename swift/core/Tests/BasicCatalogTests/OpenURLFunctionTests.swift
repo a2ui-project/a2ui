@@ -34,14 +34,6 @@ private final class MockOpenURLHandler: OpenURLHandler, @unchecked Sendable {
   }
 }
 
-private final class OpenedURLs: @unchecked Sendable {
-  var urls: [URL] = []
-
-  func record(_ url: URL) {
-    urls.append(url)
-  }
-}
-
 @MainActor
 struct OpenURLFunctionTests {
 
@@ -187,53 +179,49 @@ struct OpenURLFunctionTests {
     }
   }
 
-  // MARK: - URL opener closure
+  // MARK: - Catalog factories
 
-  @Test func passesResolvedURLToOpenURLClosure() throws {
-    let opened = OpenedURLs()
-    let baseURL = try #require(URL(string: "https://example.com/docs/"))
-    let function = OpenURLFunction(openURL: opened.record, baseURL: baseURL)
-
-    let result = try function.evaluate(
-      arguments: ["url": .string("guide?page=2")], context: context)
-
-    #expect(result == .null)
-    #expect(opened.urls.map(\.absoluteString) == ["https://example.com/docs/guide?page=2"])
-  }
-
-  @Test func usesOpenURLClosureInsteadOfHandler() throws {
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeCatalogPassesOpenURLHandlerToOpenURLFunction(version: A2UIProtocolVersion) throws {
     let handler = MockOpenURLHandler()
-    let opened = OpenedURLs()
-    let function = OpenURLFunction(handler: handler, openURL: opened.record)
+    let catalog = BasicCatalog.makeCatalog(
+      version: version, locale: BasicFunctions.defaultLocale, openURLHandler: handler)
+    let function = try #require(catalog.functions["openUrl"])
 
     _ = try function.evaluate(arguments: ["url": .string("https://example.com")], context: context)
 
-    #expect(opened.urls.map(\.absoluteString) == ["https://example.com"])
-    #expect(handler.openedURL == nil)
+    #expect(handler.openedURL?.absoluteString == "https://example.com")
+    #expect(function.api.requiresUserActivation == (version == .v10))
   }
 
-  @Test func doesNotPassDisallowedURLToOpenURLClosure() {
-    let opened = OpenedURLs()
-    let function = OpenURLFunction(openURL: opened.record)
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeCatalogDoesNotPassDisallowedURLToOpenURLHandler(version: A2UIProtocolVersion) throws {
+    let handler = MockOpenURLHandler()
+    let catalog = BasicCatalog.makeCatalog(
+      version: version, locale: BasicFunctions.defaultLocale, openURLHandler: handler)
+    let function = try #require(catalog.functions["openUrl"])
 
     #expect(throws: FunctionError.self) {
       try function.evaluate(
         arguments: ["url": .string("javascript:alert('xss')")], context: context)
     }
-    #expect(opened.urls.isEmpty)
+    #expect(handler.openedURL == nil)
   }
 
   @Test(arguments: A2UIProtocolVersion.allCases)
-  func makeCatalogPassesOpenURLToOpenURLFunction(version: A2UIProtocolVersion) throws {
-    let opened = OpenedURLs()
-    let catalog = BasicCatalog.makeCatalog(
-      version: version, locale: BasicFunctions.defaultLocale, openURL: opened.record)
-    let function = try #require(catalog.functions["openUrl"])
+  func makeCatalogHoldsOpenURLHandlerWeakly(version: A2UIProtocolVersion) throws {
+    weak var releasedHandler: MockOpenURLHandler?
+    let catalog: AnyCatalog
+    do {
+      let handler = MockOpenURLHandler()
+      releasedHandler = handler
+      catalog = BasicCatalog.makeCatalog(
+        version: version, locale: BasicFunctions.defaultLocale, openURLHandler: handler)
+    }
+    let function = try #require(catalog.functions["openUrl"] as? OpenURLFunction)
 
-    _ = try function.evaluate(arguments: ["url": .string("https://example.com")], context: context)
-
-    #expect(opened.urls.map(\.absoluteString) == ["https://example.com"])
-    #expect(function.api.requiresUserActivation == (version == .v10))
+    #expect(releasedHandler == nil)
+    #expect(function.handler == nil)
   }
 
   @Test(arguments: A2UIProtocolVersion.allCases)

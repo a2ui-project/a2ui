@@ -79,19 +79,31 @@ fractional and very large counts. They are not pinned to an ICU release and may 
 ## Opening links
 
 `openUrl` checks that the URL is `http`, `https`, `mailto` or `tel` and passes the resolved URL to
-the `openURL` closure the catalog was built with. Without one, as in `makeCatalog(version:)` and
+the `OpenURLHandler` the catalog was built with. Without one, as in `makeCatalog(version:)` and
 `allCatalogs`, it opens nothing. On iOS:
 
 ```swift
+final class SystemURLOpener: OpenURLHandler {
+  func open(_ url: URL) {
+    Task { @MainActor in UIApplication.shared.open(url) }
+  }
+}
+
+let urlOpener = SystemURLOpener()  // Keep this alive, e.g. in your view model.
 let catalog = BasicCatalog.makeCatalog(
   version: .v10,
   locale: BasicFunctions.defaultLocale,
-  openURL: { url in Task { @MainActor in UIApplication.shared.open(url) } }
+  openURLHandler: urlOpener
 )
 ```
 
-`BasicCatalogImplementation.makeCatalog(version:locale:openURL:)` takes the same closure. Give it
-to the catalogs of your `MessageProcessor`, because that is where functions run.
+The catalog holds the handler weakly, following the delegate pattern, so it never creates a retain
+cycle. Keep a strong reference to the handler outside the catalog, for example in the view or view
+model that owns the `MessageProcessor`, or share one instance across the app. If nothing else
+holds it, it is released and links stop opening.
+
+`BasicCatalogImplementation.makeCatalog(version:locale:openURLHandler:)` takes the same handler.
+Give it to the catalogs of your `MessageProcessor`, because that is where functions run.
 
 ## Agent guidelines and coding standards
 
