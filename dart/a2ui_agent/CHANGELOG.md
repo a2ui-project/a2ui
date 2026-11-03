@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Add `parseInboundMessage`, `getInboundMessageKind`, and
+  `formatInboundForModel` to validate inbound renderer-to-agent messages
+  (`action`, `error`, `callAgentFunction`, and `rendererFunctionResponse`) and
+  format user actions and renderer errors for model input.
+- Add `readRendererCapabilities` (along with `a2uiClientCapabilitiesKey` and
+  `a2uiRendererCapabilitiesKey`) to read and validate protocol-versioned
+  renderer capabilities from transport message metadata.
 - Add incremental streaming support for the Express inference format via
   `ExpressResponseStream` (`ExpressFormat.supportsStreaming` and
   `ExpressParser.supportsStreaming` now return `true`). `ExpressFormatFactory`,

@@ -35,7 +35,9 @@ const Set<String> activeAgentSuites = {
   'agent/express/prompt_generator.yaml',
   'agent/express/response_parser.yaml',
   'agent/express/response_streaming.yaml',
+  'agent/inbound_messages.yaml',
   'agent/multi_catalog_formats.yaml',
+  'agent/renderer_capabilities.yaml',
   'agent/request_processor.yaml',
   'agent/streamed_answer.yaml',
 };

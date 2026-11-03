@@ -41,7 +41,11 @@ from .send_a2ui_to_client_toolset import (
 if TYPE_CHECKING:
     from . import a2a as a2a
     from . import orchestration as orchestration
-    from .a2a import A2uiEventConverter, A2uiPartConverter
+    from .a2a import (
+        A2uiEventConverter,
+        A2uiInboundPartConverter,
+        A2uiPartConverter,
+    )
     from .orchestration import A2uiSubagentMap, SurfaceIdAlreadyExistsError
 
 # Public names that need the `a2a` extra, mapped to the submodule they live in
@@ -51,6 +55,7 @@ _A2A_EXPORTS: dict[str, tuple[str, str | None]] = {
     "a2a": (".a2a", None),
     "orchestration": (".orchestration", None),
     "A2uiEventConverter": (".a2a", "A2uiEventConverter"),
+    "A2uiInboundPartConverter": (".a2a", "A2uiInboundPartConverter"),
     "A2uiPartConverter": (".a2a", "A2uiPartConverter"),
     "A2uiSubagentMap": (".orchestration", "A2uiSubagentMap"),
     "SurfaceIdAlreadyExistsError": (
@@ -98,6 +103,7 @@ def __getattr__(name: str) -> Any:
 __all__ = [
     "A2uiEnabledProvider",
     "A2uiEventConverter",
+    "A2uiInboundPartConverter",
     "A2uiInstruction",
     "A2uiPartConverter",
     "A2uiProcessorProvider",

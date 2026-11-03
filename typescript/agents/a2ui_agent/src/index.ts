@@ -80,7 +80,21 @@ export {
 
 export {CatalogConfig} from './processor/catalog-config.js';
 
+export {
+  A2UI_CLIENT_CAPABILITIES_KEY,
+  A2UI_RENDERER_CAPABILITIES_KEY,
+  readRendererCapabilities,
+} from './utils/renderer-capabilities.js';
 export {resolveCatalogs} from './utils/catalog-resolver.js';
+
+// Inbound renderer-to-agent messages
+export {
+  type InboundMessage,
+  type InboundMessageKind,
+  formatInboundForModel,
+  getInboundMessageKind,
+  parseInboundMessage,
+} from './inbound/inbound-message.js';
 
 // Renderer state and payload validation
 export {RendererState} from './utils/renderer-state.js';

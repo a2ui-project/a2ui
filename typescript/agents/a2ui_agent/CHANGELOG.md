@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Add `parseInboundMessage`, `getInboundMessageKind`, `formatInboundForModel`, `InboundMessage`, and `InboundMessageKind` to validate inbound renderer-to-agent messages (`action`, `userAction`, `error`, `callAgentFunction`, and `rendererFunctionResponse`) across protocol versions v0.8, v0.9, and v1.0 and format user actions and renderer errors for model input.
+- Add `readRendererCapabilities` (along with `A2UI_CLIENT_CAPABILITIES_KEY` and `A2UI_RENDERER_CAPABILITIES_KEY`) to read and validate protocol-versioned renderer capabilities from transport message metadata.
+
 ## 0.1.0
 
 - **BREAKING CHANGE**: Remove duplicate and non-idiomatic APIs across `@a2ui/agent` ([#3592](https://github.com/a2ui-project/a2ui/issues/3592), [#3758](https://github.com/a2ui-project/a2ui/pull/3758)):

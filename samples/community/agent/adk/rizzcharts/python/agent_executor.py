@@ -18,9 +18,11 @@ import pathlib
 from typing import override
 
 from a2a.server.agent_execution import RequestContext
-from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.a2a import (
+    renderer_capabilities_from_message,
+    try_activate_a2ui_extension,
+)
 from a2ui.adk import A2uiEventConverter, A2uiProcessorStore
-from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats import to_message_models
 from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
@@ -115,10 +117,8 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
 
         processor: A2uiRequestProcessor | None = None
         if active_ui_version:
-            capabilities = (
-                context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
-                if context.message and context.message.metadata
-                else None
+            capabilities = renderer_capabilities_from_message(
+                context.message, active_ui_version
             )
             negotiated = self._agent.create_processor(active_ui_version, capabilities)
             # The rizzcharts catalog already contains every basic component, so

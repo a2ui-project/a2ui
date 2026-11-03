@@ -24,6 +24,7 @@ import pytest
 
 A2A_EXPORTS = [
     "A2uiEventConverter",
+    "A2uiInboundPartConverter",
     "A2uiPartConverter",
     "A2uiSubagentMap",
     "SurfaceIdAlreadyExistsError",

@@ -1,0 +1,178 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Conformance suite for `read_renderer_capabilities(metadata, version)`.
+#
+# In v1.0, renderer capabilities are sent under `a2uiRendererCapabilities`
+# keyed by `"1.0"`. In v0.9 and v0.8, they are sent under
+# `a2uiClientCapabilities` keyed by `"v0.9"` or `"v0.8"` (or as a bare v0.8
+# entry). The helper returns a version-keyed capabilities dictionary accepted
+# unchanged by `resolve_catalogs`, or `null` when `metadata` is `null` or the
+# version's key is absent, and raises `CatalogError` when the entry is
+# malformed.
+
+- name: v1.0 reads a2uiRendererCapabilities
+  description: v1.0 reads and validates the '1.0' entry under a2uiRendererCapabilities.
+  features: ["catalog_resolution"]
+  action: read_renderer_capabilities
+  args:
+    version: "1.0"
+    metadata:
+      a2uiRendererCapabilities:
+        "1.0":
+          supportedCatalogIds: ["https://example.org/catalogs/basic.json"]
+  expect:
+    "1.0":
+      supportedCatalogIds: ["https://example.org/catalogs/basic.json"]
+
+- name: v0.9 reads a2uiClientCapabilities keyed v0.9
+  description: v0.9 reads and validates the 'v0.9' entry under a2uiClientCapabilities.
+  features: ["catalog_resolution"]
+  action: read_renderer_capabilities
+  args:
+    version: "v0.9"
+    metadata:
+      a2uiClientCapabilities:
+        v0.9:
+          supportedCatalogIds: ["https://example.org/catalogs/v09.json"]
+  expect:
+    v0.9:
+      supportedCatalogIds: ["https://example.org/catalogs/v09.json"]
+
+- name: v0.8 accepts keyed entry under a2uiClientCapabilities
+  description: v0.8 reads the 'v0.8' entry under a2uiClientCapabilities.
+  features: ["catalog_resolution"]
+  action: read_renderer_capabilities
+  args:
+    version: "v0.8"
+    metadata:
+      a2uiClientCapabilities:
+        v0.8:
+          supportedCatalogIds: ["https://example.org/catalogs/v08.json"]
+  expect:
+    v0.8:
+      supportedCatalogIds: ["https://example.org/catalogs/v08.json"]
+
+- name: v0.8 accepts bare entry under a2uiClientCapabilities
+  description: v0.8 normalizes a bare capabilities entry under a2uiClientCapabilities to a 'v0.8' keyed map.
+  features: ["catalog_resolution"]
+  action: read_renderer_capabilities
+  args:
+    version: "v0.8"
+    metadata:
+      a2uiClientCapabilities:
+        supportedCatalogIds: ["https://example.org/catalogs/v08.json"]
+  expect:
+    v0.8:
+      supportedCatalogIds: ["https://example.org/catalogs/v08.json"]
+
+- name: v1.0 ignores a lone a2uiClientCapabilities
+  description: v1.0 returns null when only a2uiClientCapabilities is present.
+  features: ["catalog_resolution"]
+  action: read_renderer_capabilities
+  args:
+    version: "1.0"
+    metadata:
+      a2uiClientCapabilities:
+        v0.9:
+          supportedCatalogIds: ["https://example.org/catalogs/v09.json"]
+  expect: null
+
+- name: v0.9 ignores a lone a2uiRendererCapabilities
+  description: v0.9 returns null when only a2uiRendererCapabilities is present.
+  features: ["catalog_resolution"]
+  action: read_renderer_capabilities
+  args:
+    version: "v0.9"
+    metadata:
+      a2uiRendererCapabilities:
+        "1.0":
+          supportedCatalogIds: ["https://example.org/catalogs/basic.json"]
+  expect: null
+
+- name: null metadata returns null
+  description: Null transport metadata returns null.
+  features: ["catalog_resolution"]
+  action: read_renderer_capabilities
+  args:
+    version: "1.0"
+    metadata: null
+  expect: null
+
+- name: empty metadata returns null
+  description: Empty transport metadata returns null.
+  features: ["catalog_resolution"]
+  action: read_renderer_capabilities
+  args:
+    version: "1.0"
+    metadata: {}
+  expect: null
+
+- name: metadata key holding a string raises CatalogError
+  description: A non-object value under the version's capabilities metadata key raises CatalogError.
+  features: ["catalog_resolution"]
+  action: read_renderer_capabilities
+  args:
+    version: "1.0"
+    metadata:
+      a2uiRendererCapabilities: "not-an-object"
+  expect_error:
+    category: CatalogError
+
+- name: entry with string supportedCatalogIds raises CatalogError
+  description: A version entry where supportedCatalogIds is a string instead of a list raises CatalogError.
+  features: ["catalog_resolution"]
+  action: read_renderer_capabilities
+  args:
+    version: "1.0"
+    metadata:
+      a2uiRendererCapabilities:
+        "1.0":
+          supportedCatalogIds: "x"
+  expect_error:
+    category: CatalogError
+
+- name: both keys present returns only v1.0 key for v1.0
+  description: When both a2uiClientCapabilities and a2uiRendererCapabilities are present, v1.0 returns only the '1.0' entry.
+  features: ["catalog_resolution"]
+  action: read_renderer_capabilities
+  args:
+    version: "1.0"
+    metadata:
+      a2uiClientCapabilities:
+        v0.9:
+          supportedCatalogIds: ["https://example.org/catalogs/v09.json"]
+      a2uiRendererCapabilities:
+        "1.0":
+          supportedCatalogIds: ["https://example.org/catalogs/v10.json"]
+  expect:
+    "1.0":
+      supportedCatalogIds: ["https://example.org/catalogs/v10.json"]
+
+- name: both keys present returns only v0.9 key for v0.9
+  description: When both a2uiClientCapabilities and a2uiRendererCapabilities are present, v0.9 returns only the 'v0.9' entry.
+  features: ["catalog_resolution"]
+  action: read_renderer_capabilities
+  args:
+    version: "v0.9"
+    metadata:
+      a2uiClientCapabilities:
+        v0.9:
+          supportedCatalogIds: ["https://example.org/catalogs/v09.json"]
+      a2uiRendererCapabilities:
+        "1.0":
+          supportedCatalogIds: ["https://example.org/catalogs/v10.json"]
+  expect:
+    v0.9:
+      supportedCatalogIds: ["https://example.org/catalogs/v09.json"]

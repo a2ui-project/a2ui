@@ -16,7 +16,6 @@ from collections.abc import AsyncIterable, Mapping, Sequence
 import json
 import logging
 import os
-import re
 from typing import Any
 
 from a2a.types import (
@@ -56,52 +55,6 @@ from prompt_builder import ROLE_DESCRIPTION, UI_DESCRIPTION, WORKFLOW_DESCRIPTIO
 from tools import get_contact_info
 
 logger = logging.getLogger(__name__)
-
-
-def _renderer_capabilities(
-    version: str,
-    client_ui_capabilities: Mapping[str, Any] | None,
-    catalog_ids: Sequence[str],
-) -> dict[str, Any]:
-    """Returns the client's capabilities keyed by protocol version.
-
-    Clients may send the bare capabilities entry, and may leave out
-    `supportedCatalogIds`, which then names every catalog of the agent.
-    Capabilities that are already keyed by protocol version are only read
-    under the negotiated version's key.
-
-    Args:
-        version: The negotiated A2UI protocol version.
-        client_ui_capabilities: The capabilities that the client sent.
-        catalog_ids: The ids of the agent's catalogs.
-
-    Returns:
-        The capabilities for `A2uiGenerator.create_processor`.
-    """
-    key = f"v{to_version_number(version)}"
-    if not client_ui_capabilities:
-        return {key: {"supportedCatalogIds": list(catalog_ids)}}
-    raw: Any = client_ui_capabilities
-    if any(_is_version_key(k) for k in client_ui_capabilities):
-        raw = client_ui_capabilities.get(key)
-        if raw is None:
-            return {key: {"supportedCatalogIds": list(catalog_ids)}}
-        if not isinstance(raw, Mapping):
-            # Left for `create_processor` to reject with a validation error.
-            return {key: raw}
-    entry = dict(raw)
-    if "supportedCatalogIds" not in entry and "supported_catalog_ids" not in entry:
-        entry["supportedCatalogIds"] = list(catalog_ids)
-    return {key: entry}
-
-
-def _is_version_key(key: Any) -> bool:
-    """Whether a capabilities key names a protocol version, such as `v0.9`."""
-    return (
-        isinstance(key, str)
-        and key.startswith("v")
-        and bool(re.fullmatch(r"\d+(\.\d+)*", key[1:]))
-    )
 
 
 def _action_parts(
@@ -160,9 +113,10 @@ class ContactAgent:
         self, version: str, client_ui_capabilities: Mapping[str, Any] | None
     ) -> A2uiRequestProcessor:
         """Creates an A2uiRequestProcessor negotiated for the client's capabilities."""
-        catalog_ids = [c.catalog_id for c in self._processors[version].active_catalogs]
+        if not client_ui_capabilities:
+            return self._processors[version]
         return self._generators[version].create_processor(
-            _renderer_capabilities(version, client_ui_capabilities, catalog_ids)
+            dict(client_ui_capabilities)
         )
 
     def resolve_catalogs(
@@ -182,10 +136,13 @@ class ContactAgent:
     def _build_default_processor(
         self, version: str, generator: A2uiGenerator
     ) -> A2uiRequestProcessor:
-        catalog_ids = [c.transformed_catalog.catalog_id for c in generator.catalogs]
-        return generator.create_processor(
-            _renderer_capabilities(version, None, catalog_ids)
-        )
+        return generator.create_processor({
+            f"v{to_version_number(version)}": {
+                "supportedCatalogIds": [
+                    c.transformed_catalog.catalog_id for c in generator.catalogs
+                ]
+            }
+        })
 
     def _build_agent_card(self) -> AgentCard:
         extensions = []
