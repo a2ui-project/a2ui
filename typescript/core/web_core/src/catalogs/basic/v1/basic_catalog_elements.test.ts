@@ -178,6 +178,8 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     assert.strictEqual(el.hasAttribute('aria-description'), false);
     assert.strictEqual(el.getAttribute('aria-live'), 'polite');
     assert.strictEqual(el.getAttribute('aria-hidden'), 'true');
+    assert.strictEqual(el.inert, true);
+    assert.strictEqual(el.hasAttribute('inert'), true);
 
     const innerText = el.querySelector('.a2ui-text');
     assert.notStrictEqual(innerText, null);
@@ -198,6 +200,71 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     ]);
     await asyncUpdate(el, () => {});
     assert.strictEqual(innerText?.getAttribute('aria-label'), 'Updated Accessible Label');
+  });
+
+  it('makes a container inert while accessibility.hidden is true', async () => {
+    const processor = new MessageProcessor([basicCatalog]);
+    processor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {surfaceId: 's-hidden', catalogId: basicCatalog.id},
+      },
+      {
+        version: '1.0',
+        updateDataModel: {surfaceId: 's-hidden', path: '/hidden', value: true},
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 's-hidden',
+          components: [
+            {
+              id: 'root',
+              component: 'Row',
+              accessibility: {hidden: {'@path': '/hidden'}},
+              children: ['btn'],
+            },
+            {id: 'btn', component: 'Button', child: 'btn_text', action: {event: {name: 'noop'}}},
+            {id: 'btn_text', component: 'Text', text: 'Click'},
+          ],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('s-hidden')!;
+    const el = document.createElement('a2ui-basic-row') as A2uiLitElement;
+    cleanupElements.push(el);
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'root');
+    });
+
+    assert.strictEqual(el.getAttribute('aria-hidden'), 'true');
+    assert.strictEqual(el.inert, true);
+    assert.strictEqual(el.hasAttribute('inert'), true);
+
+    processor.processMessages([
+      {
+        version: '1.0',
+        updateDataModel: {surfaceId: 's-hidden', path: '/hidden', value: false},
+      },
+    ]);
+    await asyncUpdate(el, () => {});
+    assert.strictEqual(el.getAttribute('aria-hidden'), 'false');
+    assert.strictEqual(el.inert, false);
+    assert.strictEqual(el.hasAttribute('inert'), false);
+
+    processor.processMessages([
+      {
+        version: '1.0',
+        updateDataModel: {surfaceId: 's-hidden', path: '/hidden', value: null},
+      },
+    ]);
+    await asyncUpdate(el, () => {});
+    assert.strictEqual(el.hasAttribute('aria-hidden'), false);
+    assert.strictEqual(el.inert, false);
+    assert.strictEqual(el.hasAttribute('inert'), false);
   });
 
   it('renders TextField placeholder, Video posterUrl, and Slider steps in v1.0 basicCatalog', async () => {
@@ -601,9 +668,6 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         name: 'Badge',
         schema: z.object({title: z.string()}).strict(),
       };
-      override createRenderRoot() {
-        return this;
-      }
       override render() {
         const props = this.controller?.props;
         if (!props) return nothing;

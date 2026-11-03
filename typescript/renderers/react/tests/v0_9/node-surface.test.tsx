@@ -804,6 +804,31 @@ describe('A2uiSurface', () => {
     unmount();
     expect(() => surface.dataModel.set('/username', 'Bob')).not.toThrow();
   });
+
+  it('disposes the previous NodeResolver when swapping surface models', () => {
+    const first = setup();
+    add(first, 'root', 'Text', {text: 'First Surface'});
+    const second = new SurfaceModel<ReactComponentImplementation>('surf-2', first.defaultCatalog);
+    add(second, 'root', 'Text', {text: 'Second Surface'});
+
+    const preMountListeners = (
+      first.componentsModel.onCreated as unknown as {listeners: Set<unknown>}
+    ).listeners.size;
+
+    const {rerender} = render(<A2uiSurface surface={first} />);
+    expect(screen.getByText('First Surface')).toBeDefined();
+    expect(
+      (first.componentsModel.onCreated as unknown as {listeners: Set<unknown>}).listeners.size,
+    ).toBeGreaterThan(preMountListeners);
+
+    rerender(<A2uiSurface surface={second} />);
+
+    expect(
+      (first.componentsModel.onCreated as unknown as {listeners: Set<unknown>}).listeners.size,
+    ).toBe(preMountListeners);
+    expect(screen.queryByText('First Surface')).toBeNull();
+    expect(screen.getByText('Second Surface')).toBeDefined();
+  });
 });
 
 describe('host elements', () => {

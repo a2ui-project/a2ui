@@ -64,6 +64,7 @@ SCHEMAS = {
     "catalog.json": TEMP_CATALOG_FILE,
     "renderer_to_agent.json": os.path.join(SCHEMA_DIR, "renderer_to_agent.json"),
     "catalog_definition.json": os.path.join(SCHEMA_DIR, "catalog_definition.json"),
+    "agent_capabilities.json": os.path.join(SCHEMA_DIR, "agent_capabilities.json"),
 }
 
 
