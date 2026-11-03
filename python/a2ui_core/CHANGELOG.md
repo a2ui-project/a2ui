@@ -489,7 +489,6 @@
   **Unshimmed Internal Modules & Renames:**
 
   Internal modules were moved without shims; callers should import from the new paths directly:
-
   - `a2ui.core.rendering` (and `.component_context`, `.data_context`, `.generic_binder`): moved to `a2ui.core.resolution` (and matching submodules).
   - `a2ui.core.validating` (and `.integrity_checker`, `.topology_analyzer`): moved to `a2ui.core.validation` (and `a2ui.core.state.validation_helpers`).
   - `validate_component_integrity`: moved to `a2ui.core.validation` as `(components: dict[str, ComponentModel], root_id: str = ROOT_ID, config: ValidationConfig | None = None) -> None`.
