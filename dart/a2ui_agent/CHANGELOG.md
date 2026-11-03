@@ -9,6 +9,12 @@
 - Add `readRendererCapabilities` (along with `a2uiClientCapabilitiesKey` and
   `a2uiRendererCapabilitiesKey`) to read and validate protocol-versioned
   renderer capabilities from transport message metadata.
+- Added v1.0 bidirectional function RPC helpers (`AgentFunctionRegistry`,
+  `RendererFunctionCalls`, `defaultRendererCallTimeout`, and
+  `RendererMessageRouter`) and re-exported `AgentFunction`,
+  `AgentFunctionContext`, `AgentFunctionHandler`, `A2uiRpcError`,
+  `RpcErrorCode`, and the v1.0 function RPC message types from
+  `package:a2ui_agent/a2ui_agent.dart`.
 - Add incremental streaming support for the Express inference format via
   `ExpressResponseStream` (`ExpressFormat.supportsStreaming` and
   `ExpressParser.supportsStreaming` now return `true`). `ExpressFormatFactory`,

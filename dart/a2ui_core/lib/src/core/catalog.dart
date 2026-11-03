@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
+
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:meta/meta.dart';
 
@@ -220,6 +222,77 @@ abstract class FunctionImplementation extends FunctionApi {
   ]);
 }
 
+/// Invocation metadata passed to an [AgentFunctionHandler].
+class AgentFunctionContext {
+  final String catalogId;
+  final String surfaceId;
+  final String functionCallId;
+
+  const AgentFunctionContext({
+    required this.catalogId,
+    required this.surfaceId,
+    required this.functionCallId,
+  });
+}
+
+/// A sync or async handler that executes an [AgentFunction] on the agent.
+typedef AgentFunctionHandler = FutureOr<Object?> Function(
+  Map<String, dynamic> args,
+  AgentFunctionContext context,
+);
+
+/// A catalog function whose handler runs on the agent over `callAgentFunction`.
+///
+/// Subclasses [FunctionApi] rather than [FunctionImplementation], so it carries
+/// no renderer-side `execute` method and any renderer core given a catalog
+/// containing an [AgentFunction] treats it as a schema-only declaration and
+/// forwards calls to the agent.
+class AgentFunction extends FunctionApi {
+  /// The sync or async callback invoked by `AgentFunctionRegistry.handle`.
+  final AgentFunctionHandler handler;
+
+  /// The schema-only [FunctionApi] this [AgentFunction] was built from via
+  /// [AgentFunction.fromApi], or null for a standalone [AgentFunction].
+  final FunctionApi? declaration;
+
+  const AgentFunction({
+    required super.name,
+    required super.argumentSchema,
+    super.returnType = A2uiReturnType.any,
+    super.description,
+    super.allowedCallers,
+    super.requiresUserActivation,
+    super.definition,
+    required this.handler,
+    this.declaration,
+  });
+
+  /// Attaches [handler] to an existing schema-only [FunctionApi] declaration.
+  factory AgentFunction.fromApi(
+    FunctionApi api,
+    AgentFunctionHandler handler,
+  ) {
+    if (api is AgentFunction) {
+      throw ArgumentError.value(
+        api,
+        'api',
+        'api is already an AgentFunction.',
+      );
+    }
+    return AgentFunction(
+      name: api.name,
+      argumentSchema: api.argumentSchema,
+      returnType: api.returnType,
+      description: api.description,
+      allowedCallers: api.declaredAllowedCallers,
+      requiresUserActivation: api.declaredRequiresUserActivation,
+      definition: api.definition,
+      handler: handler,
+      declaration: api,
+    );
+  }
+}
+
 /// A catalog whose components and functions carry schemas only.
 ///
 /// What [Catalog.fromJson] produces, and what agents work with: they prompt
@@ -299,6 +372,16 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   final Map<String, F> functions;
   final Schema? themeSchema;
 
+  /// The agent functions registered on this catalog, keyed by name.
+  ///
+  /// Every entry in [agentFunctions] also appears in [functions], so
+  /// [toJson], [validationSchema], [copyWith], and [derive] keep both maps
+  /// synchronized.
+  late final Map<String, AgentFunction> agentFunctions = Map.unmodifiable({
+    for (final MapEntry<String, F> entry in functions.entries)
+      if (entry.value case final AgentFunction fn) entry.key: fn,
+  });
+
   /// The document's shared named definitions: its `$defs`, except `theme`
   /// when [themeSchema] was read from there, and the `anyComponent` and
   /// `anyFunction` unions, which [toJson] computes from [components] and
@@ -364,6 +447,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     required String id,
     required List<C> components,
     List<F> functions = const [],
+    List<AgentFunction> agentFunctions = const [],
     Schema? themeSchema,
     String? schemaId,
     String? title,
@@ -376,7 +460,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   }) : this._(
           id: id,
           components: components,
-          functions: functions,
+          functions: _withAgentFunctions(id, functions, agentFunctions),
           themeSchema: themeSchema,
           schemaDialect: schemaDialect,
           schemaId: schemaId,
@@ -413,6 +497,51 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         _otherFields = _frozenCopy(otherFields)! as Map<String, Object?>,
         _layout = layout;
 
+  static List<T> _withAgentFunctions<T extends FunctionApi>(
+    String catalogId,
+    List<T> functions,
+    Iterable<AgentFunction> agentFunctions,
+  ) {
+    final List<AgentFunction> agentList = agentFunctions.toList();
+    if (agentList.isEmpty) return functions;
+    final merged = List<T>.of(functions);
+    for (final agentFn in agentList) {
+      if (agentFn is! T) {
+        throw A2uiCatalogError(
+          "Catalog '$catalogId' with function type '$T' cannot hold "
+          "AgentFunction '${agentFn.name}'; use CatalogApi.",
+          catalogId: catalogId,
+        );
+      }
+      final FunctionApi? declaration = agentFn.declaration;
+      var replaced = false;
+      if (declaration != null) {
+        for (var i = 0; i < merged.length; i++) {
+          if (identical(merged[i], declaration)) {
+            merged[i] = agentFn as T;
+            replaced = true;
+            break;
+          }
+        }
+      }
+      if (!replaced) {
+        merged.add(agentFn as T);
+      }
+    }
+    return merged;
+  }
+
+  static List<T> _stripAgentFunctions<T extends FunctionApi>(
+    Iterable<T> functions,
+  ) =>
+      <T>[
+        for (final T fn in functions)
+          if (fn is! AgentFunction)
+            fn
+          else if (fn.declaration case final T decl)
+            decl,
+      ];
+
   static Map<String, T> _indexComponents<T extends ComponentApi>(
     String catalogId,
     List<T> items,
@@ -436,7 +565,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     List<T> items,
     A2uiProtocolVersion? protocolVersion,
   ) {
-    final bool allowsValidationResult =
+    final bool allowsV1Features =
         protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
     final byName = <String, T>{};
     for (final item in items) {
@@ -447,7 +576,25 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           catalogId: catalogId,
         );
       }
-      if (!allowsValidationResult &&
+      if (item is AgentFunction) {
+        if (!allowsV1Features) {
+          throw A2uiCatalogError(
+            "AgentFunction '${item.name}' on catalog '$catalogId' requires "
+            'protocolVersion 1.0 or later (got '
+            '${protocolVersion?.semverValue ?? '0.9'}).',
+            catalogId: catalogId,
+          );
+        }
+        try {
+          assertUax31Identifier(
+            item.name,
+            context: "function identifier '${item.name}'",
+          );
+        } on A2uiCatalogError catch (error) {
+          throw A2uiCatalogError(error.message, catalogId: catalogId);
+        }
+      }
+      if (!allowsV1Features &&
           item.returnType == A2uiReturnType.validationResult) {
         throw A2uiCatalogError(
           "Function '${item.name}' declares returnType 'validationResult', "
@@ -2587,12 +2734,21 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   Catalog<C, F> copyWith({
     Iterable<C>? components,
     Iterable<F>? functions,
+    Iterable<AgentFunction>? agentFunctions,
     Schema? themeSchema,
     A2uiProtocolVersion? protocolVersion,
   }) {
     final List<C> newComponents =
         (components ?? this.components.values).toList();
-    final List<F> newFunctions = (functions ?? this.functions.values).toList();
+    final List<F> baseFunctions = functions != null
+        ? functions.toList()
+        : agentFunctions != null
+            ? _stripAgentFunctions<F>(this.functions.values)
+            : this.functions.values.toList();
+    final List<F> newFunctions = agentFunctions != null
+        ? _withAgentFunctions<F>(id, baseFunctions, agentFunctions)
+        : baseFunctions;
+    final bool functionsChanged = functions != null || agentFunctions != null;
     final Schema? newTheme = themeSchema ?? this.themeSchema;
     final A2uiProtocolVersion? nextVersion =
         protocolVersion ?? this.protocolVersion;
@@ -2621,7 +2777,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       definitions: {
         for (final MapEntry<String, Object?> entry in nextDefs.entries)
           if ((components == null || entry.key != 'anyComponent') &&
-              (functions == null || entry.key != 'anyFunction'))
+              (!functionsChanged || entry.key != 'anyFunction'))
             entry.key: entry.value,
       },
       otherFields: _otherFields,
@@ -2636,7 +2792,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             ? (_layout.writesComponentUnion ||
                 definitions.containsKey('anyComponent'))
             : _layout.writesComponentUnion,
-        writesFunctionUnion: functions != null
+        writesFunctionUnion: functionsChanged
             ? (definitions.containsKey('anyFunction')
                 ? true
                 : _layout.writesFunctionUnion)
