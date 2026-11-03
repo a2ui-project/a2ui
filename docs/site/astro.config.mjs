@@ -29,7 +29,7 @@ export default defineConfig({
     starlight({
       title: 'A2UI',
       description:
-        'The open Agent-to-UI protocol and SDK suite for native, stateful generative user interfaces.',
+        'The open A2UI (Agent to User Interface) protocol and SDK suite for native, stateful generative user interfaces.',
       logo: {
         light: './src/assets/A2UI_dark.svg',
         dark: './src/assets/A2UI_light.svg',
