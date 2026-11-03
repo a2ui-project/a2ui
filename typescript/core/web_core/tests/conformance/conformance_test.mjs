@@ -3440,7 +3440,8 @@ async function validateRouteAgentFunctionTestCase(testCase) {
         assert.ok(message.callAgentFunction, `${label}: unexpected outbound message`);
         assert.strictEqual(message.callAgentFunction.surfaceId, 'main', `${label}: surfaceId`);
       }
-      const byJson = (a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b));
+      const byJson = (a, b) =>
+        JSON.stringify(sortKeysDeep(a)).localeCompare(JSON.stringify(sortKeysDeep(b)));
       const sentPayloads = sent.map(message => message.callAgentFunction.callFunction);
       const expectedPayloads = step.expectOutbound ?? [];
       assert.deepStrictEqual(

@@ -1116,33 +1116,24 @@
           }
         }
       },
+      "dependentRequired": {
+        "as": ["evaluate"]
+      },
       "oneOf": [
         {
           "required": ["evaluate"]
         },
         {
-          "required": ["respond"],
-          "not": {
-            "required": ["as"]
-          }
+          "required": ["respond"]
         },
         {
-          "required": ["updateData"],
-          "not": {
-            "required": ["as"]
-          }
+          "required": ["updateData"]
         },
         {
-          "required": ["cancelSurfaceCalls"],
-          "not": {
-            "required": ["as"]
-          }
+          "required": ["cancelSurfaceCalls"]
         },
         {
-          "required": ["deleteSurface"],
-          "not": {
-            "required": ["as"]
-          }
+          "required": ["deleteSurface"]
         }
       ],
       "additionalProperties": false

@@ -2757,7 +2757,7 @@ async def _run_route_agent_function_case(case: dict[str, Any]) -> None:
                     comp = ComponentModel(
                         probe_id,
                         "Probe",
-                        surface.default_catalog or case["catalogs"][0]["catalogId"],
+                        surface.default_catalog or processor.catalogs[0],
                         {
                             "checks": [{
                                 "condition": step["evaluate"],
