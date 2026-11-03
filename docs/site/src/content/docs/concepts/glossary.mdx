@@ -67,7 +67,7 @@ See [Overview: How A2UI Works](../overview/) and [How to Integrate with My Agent
 
 ### Agent SDK
 
-A first-party server or agent-host library (published for TypeScript, Python, and Dart on top of each language's [Core SDK](#core-sdk)) that manages an [agent](#agent)'s interaction with language models and [renderers](#renderer).
+A first-party agent-side library (published for TypeScript, Python, and Dart on top of each language's [Core SDK](#core-sdk)) that manages an [agent](#agent)'s interaction with language models and [renderers](#renderer).
 
 An Agent SDK loads and prunes [catalogs](#catalog) via [catalog transformers](#catalog-transformer), negotiates renderer [capabilities](#capabilities) through [`A2uiGenerator`](#a2uigenerator), generates model skills and system prompt snippets, compiles [inference format](#inference-format) output into wire JSON, and validates payloads against `RendererState` so errors can be fed back to the model for self-correction.
 
@@ -259,7 +259,7 @@ A named, typed operation declared in a [catalog](#catalog)'s `functions` map ([`
 In v1.0, whether a function call runs locally or on the agent depends on whether the renderer registers a local implementation, while `allowedCallers` (`"rendererOnly"` by default, `"agentOnly"`, or `"rendererOrAgent"`) and `requiresUserActivation` govern which side and gesture context may invoke it:
 
 1. Renderer functions have a local implementation on the renderer and execute with zero network round-trips for tasks such as string and number formatting, input validation, boolean combinators, or user-gesture actions like `openUrl` (`requiresUserActivation: true`, which requires `"rendererOnly"`). Functions declared with `allowedCallers` set to `"agentOnly"` or `"rendererOrAgent"` (without `requiresUserActivation`) can also be invoked remotely by the agent via [`callRendererFunction`](#callrendererfunction); `"agentOnly"` functions still run on the renderer and cannot be bound to component properties or actions.
-2. Agent functions (new in v1.0) have no local implementation on the renderer and execute on the agent for server-side tasks such as checking inventory or verifying credentials; when a [`FunctionCall`](#function-call) resolves to a catalog function with no local renderer implementation (and is not declared `"agentOnly"`), the renderer dispatches [`callAgentFunction`](#callagentfunction) and awaits `agentFunctionResponse`. (In v0.9.1, functions execute only on the renderer.)
+2. Agent functions (new in v1.0) have no local implementation on the renderer and execute on the agent for server-side tasks such as checking inventory or verifying credentials; when the renderer resolves a [`FunctionCall`](#function-call)'s catalog and finds no local implementation (whether or not the catalog declares the function, and provided the call is not `@`-prefixed, declared `"agentOnly"`, or blocked by `requiresUserActivation`), the renderer dispatches [`callAgentFunction`](#callagentfunction) and awaits `agentFunctionResponse`. (In v0.9.1, functions execute only on the renderer.)
 
 An A2UI function is distinct from a language model tool:
 
