@@ -228,10 +228,10 @@ function isTemplateShape(unwrappedOpt: any): boolean {
 function isArrayOfChild(
   unwrappedOpt: any,
   options: ChildRefAnalysisOptions,
-  visited: Set<unknown>,
+  path: Set<unknown>,
 ): boolean {
   if (unwrappedOpt?._def?.typeName === 'ZodArray') {
-    return analyzeChildRefSchema(unwrappedOpt._def.type, options, visited).isChild;
+    return analyzeChildRefSchemaOnPath(unwrappedOpt._def.type, options, path).isChild;
   }
   return false;
 }
@@ -239,7 +239,7 @@ function isArrayOfChild(
 function analyzeUnionOptions(
   options: any[],
   analysisOptions: ChildRefAnalysisOptions,
-  visited: Set<unknown>,
+  path: Set<unknown>,
 ): ChildRefAnalysis {
   let hasTemplate = false;
   let hasArrayOfChild = false;
@@ -250,11 +250,11 @@ function analyzeUnionOptions(
     if (isTemplateShape(unwrappedOpt)) {
       hasTemplate = true;
     }
-    if (isArrayOfChild(unwrappedOpt, analysisOptions, visited)) {
+    if (isArrayOfChild(unwrappedOpt, analysisOptions, path)) {
       hasArrayOfChild = true;
     }
 
-    const optRes = analyzeChildRefSchema(opt, analysisOptions, visited);
+    const optRes = analyzeChildRefSchemaOnPath(opt, analysisOptions, path);
     if (optRes.isChildList) {
       return {isChild: false, isChildList: true};
     }
@@ -327,9 +327,9 @@ function checkDescriptionChildRef(
 function analyzeZodArray(
   elem: any,
   options: ChildRefAnalysisOptions,
-  visited: Set<unknown>,
+  path: Set<unknown>,
 ): ChildRefAnalysis {
-  const elemRes = analyzeChildRefSchema(elem, options, visited);
+  const elemRes = analyzeChildRefSchemaOnPath(elem, options, path);
   if (elemRes.isChild || elemRes.isChildList) {
     return {isChild: false, isChildList: true};
   }
@@ -347,23 +347,50 @@ function analyzeZodArray(
  *
  * @param schema Zod schema, JSON Schema object, or property schema definition.
  * @param options Required configuration specifying recognized child definition names.
- * @param visited Set of already-visited schemas to prevent infinite recursion on recursive schemas.
  * @returns ChildRefAnalysis containing `isChild` and `isChildList` booleans.
  */
 export function analyzeChildRefSchema(
   schema: unknown,
   options: ChildRefAnalysisOptions,
-  visited: Set<unknown> = new Set(),
+): ChildRefAnalysis {
+  return analyzeChildRefSchemaOnPath(schema, options, new Set());
+}
+
+/**
+ * Implements {@link analyzeChildRefSchema} while tracking the schemas on the
+ * current recursion path.
+ *
+ * A schema found in `path` means the traversal has looped back into one of its
+ * own ancestors (for example through a recursive `z.lazy()` union), so the
+ * branch is treated as a non-reference. Entries are removed when their branch
+ * returns, so sibling properties and union options can reuse one schema
+ * instance and still be analyzed.
+ */
+function analyzeChildRefSchemaOnPath(
+  schema: unknown,
+  options: ChildRefAnalysisOptions,
+  path: Set<unknown>,
 ): ChildRefAnalysis {
   if (!schema || typeof schema !== 'object') {
     return {isChild: false, isChildList: false};
   }
-
-  if (visited.has(schema)) {
+  if (path.has(schema)) {
     return {isChild: false, isChildList: false};
   }
-  visited.add(schema);
 
+  path.add(schema);
+  try {
+    return analyzeSchemaNode(schema, options, path);
+  } finally {
+    path.delete(schema);
+  }
+}
+
+function analyzeSchemaNode(
+  schema: object,
+  options: ChildRefAnalysisOptions,
+  path: Set<unknown>,
+): ChildRefAnalysis {
   const directKind = childRefKindOf(schema as any);
   if (directKind === 'component-id') {
     return {isChild: true, isChildList: false};
@@ -380,11 +407,8 @@ export function analyzeChildRefSchema(
     return checkJsonSchemaRef(schema as Record<string, any>, options);
   }
 
-  if (current !== schema) {
-    if (visited.has(current)) {
-      return {isChild: false, isChildList: false};
-    }
-    visited.add(current);
+  if (current !== schema && path.has(current)) {
+    return {isChild: false, isChildList: false};
   }
 
   const unwrappedKind = childRefKindOf(current);
@@ -398,12 +422,12 @@ export function analyzeChildRefSchema(
   const typeName = current._def.typeName;
 
   if (typeName === 'ZodArray') {
-    return analyzeZodArray(current._def.type, options, visited);
+    return analyzeZodArray(current._def.type, options, path);
   }
 
   if (typeName === 'ZodUnion') {
     const unionOptions = (current._def.options as any[]) ?? [];
-    return analyzeUnionOptions(unionOptions, options, visited);
+    return analyzeUnionOptions(unionOptions, options, path);
   }
 
   if (typeName === 'ZodObject' && typeof current._def.shape === 'function') {
@@ -478,9 +502,8 @@ function inspectShapeField(
   fieldSchema: unknown,
   acc: ChildRefAccumulator,
   options: ChildRefAnalysisOptions,
-  visited: Set<unknown> = new Set(),
 ): void {
-  const res = analyzeChildRefSchema(fieldSchema, options, visited);
+  const res = analyzeChildRefSchema(fieldSchema, options);
   if (res.isChildList) {
     acc.listRefs.add(key);
     return;
@@ -504,7 +527,7 @@ function inspectShapeField(
   // sibling properties are not mistaken for references during traversal.
   const elemShape = elem._def.shape();
   for (const [subKey, subSchema] of Object.entries(elemShape)) {
-    const subRes = analyzeChildRefSchema(subSchema, options, visited);
+    const subRes = analyzeChildRefSchema(subSchema, options);
     const subInner = unwrapZodType(subSchema);
     if (
       subRes.isChild ||
