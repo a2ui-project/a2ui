@@ -40,14 +40,7 @@ import {
 import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
 import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
 import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
-import {
-  effect,
-  getValue,
-  isSignal,
-  peekValue,
-  setValue,
-  signal,
-} from '../../dist/src/reactivity/signals.js';
+import {effect, getValue, isSignal, peekValue} from '../../dist/src/reactivity/signals.js';
 import {DataContext} from '../../dist/src/resolution/data-context.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
@@ -839,44 +832,22 @@ async function validateRpcTestCase(testCase) {
 
   if (args.uiBindingScenario) {
     const scenario = args.uiBindingScenario;
-    const callName =
-      scenario.component?.text?.['@call'] ||
-      scenario.component?.text?.call ||
-      'fetchRemoteGreeting';
-    const procRef = {current: null};
-    const agentBindingFn = createFunctionImplementation(
-      {
-        name: callName,
-        returnType: 'string',
-        schema: z.record(z.string(), z.any()).optional().default({}),
-      },
-      fnArgs => {
-        const sig = signal(null);
-        void procRef.current
-          .callAgentFunction(scenario.surfaceId, {
-            '@call': callName,
-            catalogId: scenario.catalogId,
-            args: fnArgs,
-          })
-          .then(val => setValue(sig, val));
-        return sig;
-      },
-    );
     const storeCat = new Catalog(
       scenario.catalogId,
       '1.0',
       v1_0Components,
-      [agentBindingFn],
+      [],
       undefined,
       undefined,
     );
-    procRef.current = new MessageProcessor([storeCat, v1_0BasicCatalog], undefined, {
+    const proc = new MessageProcessor([storeCat, v1_0BasicCatalog], undefined, {
       version: '1.0',
+      validationConfig: {allowUnknownElements: true},
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
     });
-    procRef.current.processMessages([
+    proc.processMessages([
       {
         version: '1.0',
         createSurface: {
@@ -886,19 +857,24 @@ async function validateRpcTestCase(testCase) {
         },
       },
     ]);
-    const surface = procRef.current.getSurface(scenario.surfaceId);
+    const surface = proc.getSurface(scenario.surfaceId);
     const resolved = collectResolvedNodes(surface);
     try {
       const rootNode = resolved.nodes.get(scenario.component.id);
       const initialText = normalizeComponentRefs(peekValue(rootNode.props).text);
       assert.strictEqual(initialText ?? null, expect.initialValue);
+      await new Promise(resolve => setTimeout(resolve, 0));
       assert.ok(sentOutboundMsg?.callAgentFunction, 'Expected outbound callAgentFunction');
       assert.strictEqual(sentOutboundMsg.version, expect.outboundCall.version);
       assert.strictEqual(
         sentOutboundMsg.callAgentFunction.surfaceId,
         expect.outboundCall.callAgentFunction.surfaceId,
       );
-      procRef.current.processMessages({
+      assert.deepStrictEqual(
+        sentOutboundMsg.callAgentFunction.callFunction,
+        expect.outboundCall.callAgentFunction.callFunction,
+      );
+      proc.processMessages({
         version: '1.0',
         agentFunctionResponse: {
           functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
@@ -916,37 +892,22 @@ async function validateRpcTestCase(testCase) {
 
   if (args.uiActionFallbackScenario) {
     const scenario = args.uiActionFallbackScenario;
-    const fc = scenario.actionPayload.functionCall;
-    const callName = fc['@call'] || fc.call;
-    const procRef = {current: null};
-    const agentActionFn = createFunctionImplementation(
-      {
-        name: callName,
-        returnType: 'any',
-        schema: z.record(z.string(), z.any()).optional().default({}),
-      },
-      fnArgs =>
-        procRef.current.callAgentFunction(scenario.surfaceId, {
-          '@call': callName,
-          catalogId: scenario.catalogId,
-          args: fnArgs,
-        }),
-    );
     const storeCat = new Catalog(
       scenario.catalogId,
       '1.0',
       v1_0Components,
-      [agentActionFn],
+      [],
       undefined,
       undefined,
     );
-    procRef.current = new MessageProcessor([storeCat], undefined, {
+    const proc = new MessageProcessor([storeCat], undefined, {
       version: '1.0',
+      validationConfig: {allowUnknownElements: true},
       outboundListener: msg => {
         sentOutboundMsg = msg;
       },
     });
-    procRef.current.processMessages([
+    proc.processMessages([
       {
         version: '1.0',
         createSurface: {
@@ -955,16 +916,21 @@ async function validateRpcTestCase(testCase) {
         },
       },
     ]);
-    const surface = procRef.current.getSurface(scenario.surfaceId);
+    const surface = proc.getSurface(scenario.surfaceId);
     const ctx = new DataContext(surface, '/');
     const actionPromise = ctx.resolveAction(scenario.actionPayload);
+    await new Promise(resolve => setTimeout(resolve, 0));
     assert.ok(sentOutboundMsg?.callAgentFunction, 'Expected outbound callAgentFunction');
     assert.strictEqual(sentOutboundMsg.version, expect.outboundCall.version);
     assert.strictEqual(
       sentOutboundMsg.callAgentFunction.surfaceId,
       expect.outboundCall.callAgentFunction.surfaceId,
     );
-    procRef.current.processMessages({
+    assert.deepStrictEqual(
+      sentOutboundMsg.callAgentFunction.callFunction,
+      expect.outboundCall.callAgentFunction.callFunction,
+    );
+    proc.processMessages({
       version: '1.0',
       agentFunctionResponse: {
         functionCallId: sentOutboundMsg.callAgentFunction.functionCallId,
@@ -1666,7 +1632,10 @@ function validateValidateTestCase(testCase) {
     const inputMessages =
       step.messages ||
       (Array.isArray(step.payload) ? step.payload : step.payload ? [step.payload] : []);
-    const expErrObj = step.expectError || (i === stepsToRun.length - 1 ? expectError : undefined);
+    const expErrObj =
+      step.expectError ||
+      step.expect_error ||
+      (i === stepsToRun.length - 1 ? expectError : undefined);
     const stepExpect = step.expect || (i === stepsToRun.length - 1 ? expect : undefined);
 
     if (inputMessages.length > 0) {
@@ -3367,7 +3336,8 @@ function validateProcessMessagesTestCase(testCase) {
   assertKnownKeys(testCase, PROCESS_MESSAGES_KNOWN_KEYS.case, 'process_messages');
   assertKnownKeysList(testCase.steps, PROCESS_MESSAGES_KNOWN_KEYS.step, 'process_messages.steps');
   assertKnownKeys(testCase.expect, PROCESS_MESSAGES_KNOWN_KEYS.expect, 'process_messages.expect');
-  const {messages, payload, steps, expect, expectError, protocolVersion} = testCase;
+  const {messages, payload, steps, expect, protocolVersion} = testCase;
+  const expectError = testCase.expectError || testCase.expect_error;
 
   const testCatalogs = getCatalogsForTestCase(testCase);
   let lastErrorMsg;
@@ -3417,7 +3387,7 @@ function validateProcessMessagesTestCase(testCase) {
       );
       const context = step.validationConfig ? {validationConfig: step.validationConfig} : undefined;
       const stepExpectError =
-        step.expectError || (i === steps.length - 1 ? expectError : undefined);
+        step.expectError || step.expect_error || (i === steps.length - 1 ? expectError : undefined);
       if (stepExpectError) {
         lastErrorMsg = undefined;
         let thrown;

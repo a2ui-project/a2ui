@@ -79,6 +79,7 @@
               - id: "secondary_text"
                 type: "Text"
                 text: "Learn More"
+      expectOutbound: []
 
 - name: single_message_v10_surface_render
   description: Verifies that a single v1.0 createSurface message with inline components and dataModel renders immediately without follow-up messages.
@@ -347,10 +348,21 @@
           sourceComponentId: "event_btn"
           context:
             sku: "sku-42"
+      expectOutbound:
+        - version: "1.0"
+          action:
+            name: "buy_item"
+            surfaceId: "adapter_surface"
+            sourceComponentId: "event_btn"
+            timestamp:
+              $match: "any"
+            context:
+              sku: "sku-42"
     - op: user_gesture
       targetNode: "func_btn"
       userActivation: true
       expectActions: []
+      expectOutbound: []
       expectDataModel:
         itemId: "sku-42"
         counter: 15
@@ -385,6 +397,7 @@
       userActivation: true
       expectActions: []
       expectErrors: []
+      expectOutbound: []
     - op: programmatic_invoke
       targetNode: "root"
       userActivation: false
@@ -392,6 +405,7 @@
       expectErrors:
         - surfaceId: "adapter_surface"
           message: "openUrl"
+      expectOutbound: []
 
 - name: multi_catalog_mixed_surface_rendering
   description: Verifies that a single v1.0 surface renders components from both the default basic catalog and a secondary custom catalog via component-level catalogId overrides.
@@ -631,6 +645,19 @@
           surfaceId: "adapter_surface"
         - code: "CYCLIC_REFERENCE"
           surfaceId: "adapter_surface"
+      expectOutbound:
+        - version: "1.0"
+          error:
+            code: "UNKNOWN_COMPONENT_TYPE"
+            surfaceId: "adapter_surface"
+            message:
+              $match: "any"
+        - version: "1.0"
+          error:
+            code: "CYCLIC_REFERENCE"
+            surfaceId: "adapter_surface"
+            message:
+              $match: "any"
 
 - name: teardown_unmount_releases_subscriptions
   description: Verifies that unmounting the surface view disposes its NodeResolver and releases all active reactive subscriptions on the SurfaceModel and DataModel.

@@ -1,0 +1,332 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: newsletter_signup_round_trip
+  action: e2e_scenario
+  description: Newsletter form, typed email, Subscribe action, reply updates the form.
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  formats:
+    - direct_json
+    - express
+  source:
+    kind: hand_authored
+    from: dart/a2ui_flutter/example/test/fixtures/newsletter_replies.json
+  turns:
+    - userText: 'Show a newsletter sign-up form with an email field and a "Subscribe" button.'
+      modelChunks:
+        direct_json:
+          - "Here is a sign-up form for your newsletter.\n\n<a"
+          - "2ui-json>\n"
+          - |
+            [
+              {
+                "version": "1.0",
+                "createSurface": {
+                  "surfaceId": "newsletter-signup",
+                  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+                  "sendDataModel": true,
+                  "components": [
+                    {
+                      "id": "root",
+                      "component": "Card",
+                      "child": "container"
+                    },
+                    {
+                      "id": "container",
+                      "component": "Column",
+                      "children": [
+                        "title",
+                        "description",
+                        "emailInput",
+                        "subscribeBtn"
+                      ]
+                    },
+                    {
+                      "id": "title",
+                      "component": "Text",
+                      "text": "### Subscribe to our Newsletter"
+                    },
+                    {
+                      "id": "description",
+                      "component": "Text",
+                      "text": "Get the latest updates and news delivered straight to your inbox.",
+                      "variant": "body"
+                    },
+                    {
+                      "id": "emailInput",
+                      "component": "TextField",
+                      "label": "Email Address",
+                      "value": {
+                        "@path": "/email"
+                      },
+                      "checks": [
+                        {
+                          "condition": {
+                            "@call": "email",
+                            "args": {
+                              "value": {
+                                "@path": "/email"
+                              }
+                            }
+                          },
+                          "message": "Please enter a valid email address."
+                        }
+                      ]
+                    },
+                    {
+                      "id": "subscribeBtn",
+                      "component": "Button",
+                      "variant": "primary",
+                      "child": "subscribeText",
+                      "action": {
+                        "event": {
+                          "name": "subscribe",
+                          "context": {
+                            "email": {
+                              "@path": "/email"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "id": "subscribeText",
+                      "component": "Text",
+                      "text": "Subscribe"
+                    }
+                  ],
+                  "dataModel": {
+                    "email": ""
+                  }
+                }
+              }
+            ]
+            </a2ui-json>
+        express:
+          - "Here is a sign-up form for your newsletter.\n\n<a"
+          - "2ui>\n"
+          - |
+            surface("newsletter-signup", sendDataModel=true)
+            $/email = ""
+            root = Card(container)
+            container = Column([title, description, emailInput, subscribeBtn])
+            title = Text("### Subscribe to our Newsletter")
+            description = Text("Get the latest updates and news delivered straight to your inbox.", "body")
+            emailInput = TextField("Email Address", $/email, ?email("Please enter a valid email address."))
+            subscribeBtn = Button(subscribeText, "primary", Event("subscribe", {email: $/email}))
+            subscribeText = Text("Subscribe")
+            </a2ui>
+      expectWire:
+        - text: "Here is a sign-up form for your newsletter."
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: newsletter-signup
+                catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+                sendDataModel: true
+                components:
+                  - id: root
+                    component: Card
+                    child: container
+                  - id: container
+                    component: Column
+                    children:
+                      - title
+                      - description
+                      - emailInput
+                      - subscribeBtn
+                  - id: title
+                    component: Text
+                    text: "### Subscribe to our Newsletter"
+                  - id: description
+                    component: Text
+                    text: Get the latest updates and news delivered straight to your inbox.
+                    variant: body
+                  - id: emailInput
+                    component: TextField
+                    label: Email Address
+                    value:
+                      "@path": /email
+                    checks:
+                      - condition:
+                          "@call": email
+                          args:
+                            value:
+                              "@path": /email
+                        message: Please enter a valid email address.
+                  - id: subscribeBtn
+                    component: Button
+                    variant: primary
+                    child: subscribeText
+                    action:
+                      event:
+                        name: subscribe
+                        context:
+                          email:
+                            "@path": /email
+                  - id: subscribeText
+                    component: Text
+                    text: Subscribe
+                dataModel:
+                  email: ""
+      expectViewTree:
+        newsletter-signup:
+          id: root
+          type: Card
+          children:
+            - id: container
+              type: Column
+              children:
+                - id: title
+                  type: Text
+                  text: "### Subscribe to our Newsletter"
+                - id: description
+                  type: Text
+                  text: Get the latest updates and news delivered straight to your inbox.
+                - id: emailInput
+                  type: TextField
+                  label: Email Address
+                  value: ""
+                - id: subscribeBtn
+                  type: Button
+                  children:
+                    - id: subscribeText
+                      type: Text
+                      text: Subscribe
+      expectErrors: []
+      uiOps:
+        - op: user_input
+          surfaceId: newsletter-signup
+          targetNode: emailInput
+          inputValue: a@b.c
+        - op: user_gesture
+          surfaceId: newsletter-signup
+          targetNode: subscribeBtn
+      expectDataModel:
+        newsletter-signup:
+          email: a@b.c
+      expectOutbound:
+        - version: "1.0"
+          action:
+            name: subscribe
+            surfaceId: newsletter-signup
+            sourceComponentId: subscribeBtn
+            timestamp:
+              $match: any
+            context:
+              email: a@b.c
+    - userText: null
+      modelChunks:
+        direct_json:
+          - "Thank you for subscribing! We've sent a confirmation email to ada@example.com.\n\n<a"
+          - "2ui-json>\n"
+          - |
+            [
+              {
+                "version": "1.0",
+                "updateComponents": {
+                  "surfaceId": "newsletter-signup",
+                  "components": [
+                    {
+                      "id": "root",
+                      "component": "Card",
+                      "child": "container"
+                    },
+                    {
+                      "id": "container",
+                      "component": "Column",
+                      "children": [
+                        "successIcon",
+                        "title",
+                        "description"
+                      ],
+                      "align": "center"
+                    },
+                    {
+                      "id": "successIcon",
+                      "component": "Icon",
+                      "name": "check"
+                    },
+                    {
+                      "id": "title",
+                      "component": "Text",
+                      "text": "### You're subscribed!"
+                    },
+                    {
+                      "id": "description",
+                      "component": "Text",
+                      "text": "We sent a confirmation email to ada@example.com. Check your inbox to confirm your subscription.",
+                      "variant": "body"
+                    }
+                  ]
+                }
+              }
+            ]
+            </a2ui-json>
+        express:
+          - "Thank you for subscribing! We've sent a confirmation email to ada@example.com.\n\n<a"
+          - "2ui>\n"
+          - |
+            surface("newsletter-signup", update=true)
+            root = Card(container)
+            container = Column([successIcon, title, description], _, "center")
+            successIcon = Icon("check")
+            title = Text("### You're subscribed!")
+            description = Text("We sent a confirmation email to ada@example.com. Check your inbox to confirm your subscription.", "body")
+            </a2ui>
+      expectWire:
+        - text: "Thank you for subscribing! We've sent a confirmation email to ada@example.com."
+        - a2ui:
+            - version: "1.0"
+              updateComponents:
+                surfaceId: newsletter-signup
+                components:
+                  - id: root
+                    component: Card
+                    child: container
+                  - id: container
+                    component: Column
+                    children:
+                      - successIcon
+                      - title
+                      - description
+                    align: center
+                  - id: successIcon
+                    component: Icon
+                    name: check
+                  - id: title
+                    component: Text
+                    text: "### You're subscribed!"
+                  - id: description
+                    component: Text
+                    text: We sent a confirmation email to ada@example.com. Check your inbox to confirm your subscription.
+                    variant: body
+      expectViewTree:
+        newsletter-signup:
+          id: root
+          type: Card
+          children:
+            - id: container
+              type: Column
+              children:
+                - id: successIcon
+                  type: Icon
+                - id: title
+                  type: Text
+                  text: "### You're subscribed!"
+                - id: description
+                  type: Text
+                  text: We sent a confirmation email to ada@example.com. Check your inbox to confirm your subscription.

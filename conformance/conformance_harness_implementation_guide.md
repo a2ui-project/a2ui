@@ -326,7 +326,7 @@ Each case in `core/adapter_conformance.yaml` (`action: render_surface`) loads `c
 4. `programmatic_invoke` triggers `targetNode`'s action programmatically with `userActivation: false` so functions with `requiresUserActivation: true` are blocked and report an error on the surface error channel.
 5. `unmount_surface` unmounts and disposes the rendered surface view.
 
-After each step settles, check whichever of the seven assertion fields are present on the step:
+After each step settles, check whichever of the eight assertion fields are present on the step:
 
 1. `expectViewTree` checks the rendered hierarchy (`id`, `type`, `state` of `resolved`, `pending`, `unknown-type`, or `cyclic`, rendered `text`, `value`, or custom props, `isValid`, `validationErrors`, `validationResults`, and ordered `children`). This covers single-message inline v1.0 surfaces, progressive placeholder upgrades, `List` repeaters with `${@index()}`, fallback placeholders, and check severity (`error` sets `isValid: false`, whereas `warning` keeps `isValid: true`).
 2. `expectSameViewIdentity` lists node paths (`"root"`, `"root/children/0"`) whose underlying DOM element, widget state, or node instance must keep its identity across updates and list mutations rather than remounting.
@@ -335,6 +335,12 @@ After each step settles, check whichever of the seven assertion fields are prese
 5. `expectErrors` checks surface diagnostics (`code` such as `UNKNOWN_COMPONENT_TYPE` or `CYCLIC_REFERENCE`, `surfaceId`, and `message`).
 6. `expectAccessibilityTree` checks per-component accessibility attributes (`label`, `description`, `live`, `hidden`, `role`), including implicit button label inference from child `Text` and explicit `accessibility.label` overrides.
 7. `expectActiveSubscriptions` checks the remaining reactive listener count held by the mounted surface (`0` after `unmount_surface`).
+8. `expectOutbound` checks the wire-framed renderer-to-agent protocol envelopes emitted during the step:
+   1. Scope: capture every protocol message envelope handed to the renderer's outbound path during the step in emission order, and clear the capture buffer between steps (`expectOutbound: []` asserts that a local `functionCall`, blocked `programmatic_invoke`, or passive render step emits no wire message).
+   2. Framing: record complete wire envelopes (`{version, action}` from `onAction` with renderer-local fields such as `@a2ui/web_core`'s `ActionPayload.catalogId` omitted, `{version, error}` from `onError` or the error handler, and `{version, callAgentFunction}` or `{version, rendererFunctionResponse}` from `MessageProcessor`'s `outboundListener`).
+   3. Schema validation: validate every captured envelope against the target protocol version's outbound schema ([specification/v1_0/json/renderer_to_agent.json](../specification/v1_0/json/renderer_to_agent.json) for `"1.0"` or [specification/v0_9_1/json/client_to_server.json](../specification/v0_9_1/json/client_to_server.json) for `"v0.9"`) before matching expectations.
+   4. Matching: assert that the captured list has the same length as `expectOutbound` and that each captured envelope deep-equals the expected envelope at the same index, except that any field or subtree whose expected value is `{"$match": "any"}` matches any defined non-null actual value (such as generated `timestamp` strings on `action` or `functionCallId` values on `callAgentFunction`).
+   5. Static check: [conformance/tests/test_outbound_envelopes.py](tests/test_outbound_envelopes.py) substitutes sample values for `{"$match": "any"}` wildcards (`"2026-01-01T00:00:00Z"` for `timestamp`, `"call-1"` for `functionCallId`) and validates every expected envelope in `expectOutbound` against the specification JSON schemas.
 
 ### Accessibility tree and axe-core (`core/accessibility.yaml`)
 
@@ -345,6 +351,51 @@ Each case in `core/accessibility.yaml` (`action: accessibility_check`) provides 
 
 Where a browser-based test runner cannot read YAML from disk at test time, parse the suite files in the runner configuration and inject them as JSON. For example, [typescript/renderers/angular/karma.conf.js](../typescript/renderers/angular/karma.conf.js) parses `accessibility.yaml`, `adapter_conformance.yaml`, and `catalogs/basic/v1/catalog.json` in Node and exposes them to Jasmine browser specs via `client.conformanceSuites`.
 
+## Golden-transcript harness (`conformance/e2e/`)
+
+The end-to-end golden-transcript harness exercises complete conversational scenarios containing multi-turn exchanges between an agent and a renderer. Each scenario case specifies `action: e2e_scenario`, a `protocolVersion`, `catalogPaths`, `formats`, and a list of `turns`.
+
+### Agent half algorithm
+
+The agent half tests response chunk parsing and wire fidelity:
+
+1. Initialize the inference format parser for each declared format (`direct_json`, `express`), configured with the scenario's catalogs.
+2. Initialize and maintain an empty parser `RendererState` across the turns of the scenario.
+3. For each turn in `scenario["turns"]`:
+   - Stream the chunks from `turn["modelChunks"][format]` through `parser.open_stream(state=state)`.
+   - Concatenate all returned `ResponsePart` items, merging adjacent `TextPart` items.
+   - Assert that the resulting response parts match `turn["expectWire"]`.
+   - Concatenate all chunks into a single string and parse via `parser.parse_response(full_text, state=state)`, verifying single-shot equality with `expectWire`.
+
+### Renderer half algorithm
+
+The renderer half tests UI tree construction, interaction, and outbound messaging:
+
+1. Initialize a `MessageProcessor` or UI framework adapter with the catalogs declared in `catalogPaths`.
+2. For each turn in `scenario["turns"]`:
+   - Feed the `a2ui` messages from `turn["expectWire"]` in order (chat text parts are ignored by renderers).
+   - Assert that the rendered view tree for each surface matches `turn["expectViewTree"]` (or that the surface is absent if expected value is `null`).
+   - If `turn["uiOps"]` is provided, execute each operation in sequence (`user_input`, `user_gesture`, `programmatic_invoke`) against the specified `targetNode` on `surfaceId`.
+   - If `turn["expectDataModel"]` is provided, assert the updated surface data model state.
+   - If `turn["expectOutbound"]` is provided, capture all outbound envelopes emitted during the turn (schema-validated with wildcards handled via `{"$match": "any"}`) and assert they match `expectOutbound`.
+
+### Manifest records & harness names
+
+- Each runner records one manifest entry per scenario in its executed-case manifest (`A2UI_CONFORMANCE_MANIFEST_DIR`).
+- A scenario is recorded as `failed` if any declared format, turn, assertion, or operation fails.
+- Active harness names:
+  - Agent harnesses: `python-agent`, `web-agent`, `dart-agent`.
+  - Renderer harnesses: `lit`, `react`, `angular`, `flutter`, `swiftui`.
+
+### Renderer-visible outcome definition
+
+A transcript's renderer-visible outcome is defined by `outcome_of(scenario)` in `conformance/scripts/e2e_outcome.py`:
+
+- Each turn's `a2ui` messages are applied to `MessageProcessor`.
+- Each active surface's resolved node tree is walked depth-first, mapping each node to `{type, text?, label?, value?, enabled?, action?}`.
+- Model-chosen IDs (`id`, `surfaceId`, `functionCallId`) are mapped to canonical first-seen ordinals.
+- Outbound envelopes undergo identical ID normalization with `timestamp` dropped.
+- Two transcripts have identical outcomes when their normalized node trees and outbound messages match for every turn, ignoring conversational text differences.
 ## Extension harnesses (`conformance/extensions/`)
 
 Protocol and agent-framework integrations (such as A2A and ADK) live outside the Core and Inference SDK packages and run the suites under `conformance/extensions/`. Each extension harness dispatches cases through an explicit `RUNNERS` map, rejects unknown actions and unknown `args`, `expect`, or `expectError` keys with `_assert_known_keys` against a per-handler `_KNOWN_KEYS` allowlist, and writes its executed-case manifest to `$A2UI_CONFORMANCE_MANIFEST_DIR`.

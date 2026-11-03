@@ -122,6 +122,19 @@ jobs:
       - uses: ./.github/actions/setup-python
       - name: Check web_core executed cases
         run: uv run --project conformance python conformance/scripts/check_executed_cases.py --manifest-dir "${{ runner.temp }}/a2ui-manifest" --harness web_core --corpus core
+      - name: Check adapter executed cases
+        run: |
+          for h in lit react angular; do
+            uv run --project conformance python conformance/scripts/check_executed_cases.py \
+              --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+              --corpus adapter \
+              --harness "$h"
+          done
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus adapter \
+            --harness web_core_universal \
+            --only core/accessibility.yaml
       - name: Check TS agent executed cases
         run: uv run --project conformance python conformance/scripts/check_executed_cases.py --manifest-dir "${{ runner.temp }}/a2ui-manifest" --corpus agent --harness ts-agent
       - name: Test React 18 Compatibility

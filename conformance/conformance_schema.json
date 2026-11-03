@@ -37,7 +37,8 @@
       {"$ref": "#/$defs/HandleAgentFunctionTest"},
       {"$ref": "#/$defs/ValidatePayloadTest"},
       {"$ref": "#/$defs/CallRendererFunctionTest"},
-      {"$ref": "#/$defs/RenderSurfaceTest"}
+      {"$ref": "#/$defs/RenderSurfaceTest"},
+      {"$ref": "#/$defs/E2eScenarioTest"}
     ]
   },
   "$defs": {
@@ -65,6 +66,7 @@
             "data_model",
             "decompile",
             "dispatch_action",
+            "e2e_scenario",
             "evaluate_function",
             "execute_tool",
             "export_to_directory",
@@ -2527,13 +2529,138 @@
               "expectActions": {"type": "array", "items": {"type": "object"}},
               "expectErrors": {"type": "array", "items": {"type": "object"}},
               "expectSameViewIdentity": {"type": "array", "items": {"type": "string"}},
-              "expectActiveSubscriptions": {"type": "integer"}
+              "expectActiveSubscriptions": {"type": "integer"},
+              "expectOutbound": {"$ref": "#/$defs/OutboundEnvelopeList"}
             },
             "additionalProperties": false
           }
         }
       },
       "additionalProperties": false
+    },
+    "MatchAny": {
+      "type": "object",
+      "required": ["$match"],
+      "properties": {
+        "$match": {"const": "any"}
+      },
+      "additionalProperties": false
+    },
+    "OutboundEnvelopeList": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["version"],
+        "minProperties": 2,
+        "maxProperties": 2,
+        "properties": {
+          "version": {"$ref": "#/$defs/ProtocolVersion"},
+          "action": {"type": "object"},
+          "callAgentFunction": {"type": "object"},
+          "rendererFunctionResponse": {"type": "object"},
+          "error": {"type": "object"}
+        },
+        "oneOf": [
+          {"required": ["action"]},
+          {"required": ["callAgentFunction"]},
+          {"required": ["rendererFunctionResponse"]},
+          {"required": ["error"]}
+        ],
+        "additionalProperties": false
+      }
+    },
+    "E2eScenarioTest": {
+      "type": "object",
+      "required": ["name", "action", "protocolVersion", "catalogPaths", "formats", "turns"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique scenario name across conformance/e2e/**."
+        },
+        "action": {"const": "e2e_scenario"},
+        "description": {"type": "string"},
+        "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "catalogPaths": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "formats": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/InferenceFormatName"}
+        },
+        "source": {"$ref": "#/$defs/E2eSource"},
+        "turns": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/E2eTurn"},
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "E2eSource": {
+      "type": "object",
+      "required": ["kind", "from"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["hand_authored", "recorded", "generated"]
+        },
+        "from": {"type": "string"},
+        "model": {"type": "string"},
+        "recordedAt": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "E2eTurn": {
+      "type": "object",
+      "required": ["modelChunks", "expectWire"],
+      "properties": {
+        "userText": {"type": ["string", "null"]},
+        "modelChunks": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "expectWire": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/ResponsePart"}
+        },
+        "expectViewTree": {"$ref": "#/$defs/E2eViewTrees"},
+        "expectErrors": {
+          "type": "array",
+          "items": {"type": "object"}
+        },
+        "uiOps": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/E2eUiOp"}
+        },
+        "expectDataModel": {"type": "object"},
+        "expectOutbound": {"$ref": "#/$defs/OutboundEnvelopeList"}
+      },
+      "additionalProperties": false
+    },
+    "E2eUiOp": {
+      "type": "object",
+      "required": ["op", "surfaceId", "targetNode"],
+      "properties": {
+        "op": {
+          "type": "string",
+          "enum": ["user_input", "user_gesture", "programmatic_invoke"]
+        },
+        "surfaceId": {"type": "string"},
+        "targetNode": {"type": "string"},
+        "inputValue": {},
+        "userActivation": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "E2eViewTrees": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["object", "null"]
+      }
     }
   }
 }

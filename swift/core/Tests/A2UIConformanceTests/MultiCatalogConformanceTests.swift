@@ -128,7 +128,7 @@ struct MultiCatalogConformanceTests {
         "multi_catalog.yaml expectError in '\(name)'",
         allowMetadata: false
       )
-      assertSelectCatalogError(
+      try assertSelectCatalogError(
         processor: processor,
         createPayload: createPayload,
         componentList: componentList,
@@ -260,7 +260,7 @@ struct MultiCatalogConformanceTests {
     defaultVersion: String,
     expectError: [String: Any],
     name: String
-  ) {
+  ) throws {
     do {
       try processSelectPayloads(
         processor: processor,
@@ -276,7 +276,9 @@ struct MultiCatalogConformanceTests {
         case "CatalogError":
           #expect(error is A2UICatalogError, "[\(name)] Expected A2UICatalogError, got \(error)")
         default:
-          Issue.record("[\(name)] Unknown expected error category '\(category)'")
+          throw UnknownConformanceKeyError(
+            "[\(name)] Unknown expected error category '\(category)'"
+          )
         }
       }
     }
