@@ -36,6 +36,7 @@ void main() {
     runConformanceSuite(
       cases,
       _runCase,
+      suite: 'core/agent_function_routing.yaml',
       skipReason: (testCase) {
         final List<Object?> catalogs =
             testCase['catalogs'] as List<Object?>? ?? const [];
