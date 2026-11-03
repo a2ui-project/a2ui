@@ -1,6 +1,6 @@
 # A2UI
 
-> A2UI (Agent-to-User Interface) is an open protocol and set of renderer libraries for generative UI. An agent streams declarative JSON (surfaces, components from a trusted catalog, a data model); the client renders it with its own native components (React, Angular, Lit, Flutter, SwiftUI, Jetpack Compose). No code is executed. Current protocol: v0.9.1 (v1.0 release candidate; v0.8 legacy).
+> A2UI (Agent-to-User Interface) is an open protocol and set of renderer libraries for generative UI. An agent streams declarative JSON (surfaces, components from a trusted catalog, a data model); the client renders it with its own native components (React, Angular, Lit, Flutter, SwiftUI, Jetpack Compose). No code is executed. Protocol versions: {{A2UI_PROTOCOL_VERSIONS}}.
 
 ## When to use A2UI
 

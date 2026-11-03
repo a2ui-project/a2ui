@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
+import json
 import os
+import re
 
 
 def map_spec_filename(filename, version_str):
@@ -143,3 +144,29 @@ def on_page_markdown(markdown, page, config, files):
     markdown = replace_standard_links(markdown)
     markdown = replace_reference_links(markdown)
     return markdown
+
+
+VERSIONS_PLACEHOLDER = '{{A2UI_PROTOCOL_VERSIONS}}'
+
+
+def render_protocol_versions(versions_path):
+    """Renders docs/versions.json as a one-line summary, e.g. 'v0.9.1 (current), ...'."""
+    with open(versions_path, 'r', encoding='utf-8') as f:
+        versions = json.load(f)['versions']
+    return ', '.join(f"{v['version']} ({v['status']})" for v in versions)
+
+
+def on_post_build(config):
+    """Renders the protocol version status from docs/versions.json into llms.txt."""
+    repo_root = os.path.dirname(config['config_file_path'])
+    llms_path = os.path.join(config['site_dir'], 'llms.txt')
+    if not os.path.exists(llms_path):
+        return
+    with open(llms_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    summary = render_protocol_versions(os.path.join(repo_root, 'docs', 'versions.json'))
+    content = content.replace(VERSIONS_PLACEHOLDER, summary)
+    if '{{' in content:
+        raise ValueError(f'Unresolved placeholder in {llms_path}')
+    with open(llms_path, 'w', encoding='utf-8') as f:
+        f.write(content)

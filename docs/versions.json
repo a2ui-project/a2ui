@@ -1,0 +1,21 @@
+{
+  "$comment": "Single source of truth for A2UI protocol version status. Update on each spec release; build steps render it into llms.txt.",
+  "versions": [
+    {
+      "version": "v1.0",
+      "status": "release candidate",
+      "spec": "https://a2ui.org/specification/v1.0-a2ui/"
+    },
+    {
+      "version": "v0.9.1",
+      "status": "current",
+      "spec": "https://a2ui.org/specification/v0.9.1-a2ui/"
+    },
+    {
+      "version": "v0.9",
+      "status": "previous stable",
+      "spec": "https://a2ui.org/specification/v0.9-a2ui/"
+    },
+    {"version": "v0.8", "status": "legacy", "spec": "https://a2ui.org/specification/v0.8-a2ui/"}
+  ]
+}

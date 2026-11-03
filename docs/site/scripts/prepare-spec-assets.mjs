@@ -47,7 +47,16 @@ if (fs.existsSync(path.join(repoRoot, 'docs/public/CNAME'))) {
   fs.copyFileSync(path.join(repoRoot, 'docs/public/CNAME'), path.join(publicDir, 'CNAME'));
 }
 if (fs.existsSync(path.join(repoRoot, 'docs/public/llms.txt'))) {
-  fs.copyFileSync(path.join(repoRoot, 'docs/public/llms.txt'), path.join(publicDir, 'llms.txt'));
+  // Render protocol version status from docs/versions.json (single source of truth).
+  const {versions} = JSON.parse(fs.readFileSync(path.join(repoRoot, 'docs/versions.json'), 'utf8'));
+  const summary = versions.map(v => `${v.version} (${v.status})`).join(', ');
+  const llms = fs
+    .readFileSync(path.join(repoRoot, 'docs/public/llms.txt'), 'utf8')
+    .replaceAll('{{A2UI_PROTOCOL_VERSIONS}}', summary);
+  if (llms.includes('{{')) {
+    throw new Error('[prepare-spec-assets] Unresolved placeholder in llms.txt');
+  }
+  fs.writeFileSync(path.join(publicDir, 'llms.txt'), llms);
 }
 fs.writeFileSync(path.join(publicDir, '.nojekyll'), '');
 
