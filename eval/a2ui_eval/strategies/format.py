@@ -70,8 +70,9 @@ def format_system_prompt(
 ) -> Solver:
     """Injects system prompt instructions using the selected format strategy.
 
-    With `user_focused_thinking`, the SDK's snippet ends with its rule asking
-    the model to think about the user's request rather than the format.
+    With `user_focused_thinking`, the SDK's rule asking the model to think
+    about the user's request rather than the format starts and ends the
+    snippet.
     """
     validate_format(format_name)
 

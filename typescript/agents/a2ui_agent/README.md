@@ -37,7 +37,7 @@ for (const part of processor.parseResponse(llmResponse)) {
 
 `parseResponse` throws an `A2uiError` when a block cannot be read or a renderer would reject a message. The error's `partialResults` holds the parts before the failing block, or only the text when the tree check across every block fails. None of them is applied to the state.
 
-If your app shows the model's thinking to the user while it waits, pass `{userFocusedThinking: true}` as the generator's fourth argument. The snippet then ends with a rule asking the model to think about the user's request and to write the UI without thinking aloud about JSON, schemas, or component and surface IDs. Models follow such rules only partly, so check the thinking your model shows.
+If your app shows the model's thinking to the user while it waits, pass `{userFocusedThinking: true}` as the generator's fourth argument. The snippet then starts and ends with a rule that tells the model the user reads its thoughts, and asks it to think about the user's request and to write the UI without planning or checking its code in its thoughts. Models follow such rules only partly, so check the thinking your model shows.
 
 ```ts
 const generator = new A2uiGenerator([componentCatalog], undefined, undefined, {

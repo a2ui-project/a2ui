@@ -612,7 +612,7 @@ async def test_format_system_prompt_ends_with_the_thinking_rule() -> None:
         "direct_json", version="1.0", user_focused_thinking=True
     )
     state = await prompt_solver(_state({"catalog": str(V1_CATALOG)}), dummy_generate)
-    assert state.messages[0].text.endswith("or component and surface IDs.")
+    assert state.messages[0].text.endswith("describing it in your thoughts.")
 
 
 def test_get_solver_passes_user_focused_thinking_to_the_prompt() -> None:

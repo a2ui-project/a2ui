@@ -861,9 +861,9 @@ def generate_prompt(
         surface_id: The default surface ID for formats that need one.
         options: Multi-catalog, pruning, example and message-type options.
             None means a single unpruned catalog with no examples.
-        user_focused_thinking: Whether the snippet ends with the SDK's rule
-            asking the model to think about the user's request rather than
-            the format. The snippet then comes from an `A2uiRequestProcessor`
+        user_focused_thinking: Whether the snippet starts and ends with the
+            SDK's rule asking the model to think about the user's request
+            rather than the format. The snippet then comes from an `A2uiRequestProcessor`
             created with that option, as an agent would get it.
 
     Returns:

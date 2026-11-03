@@ -140,7 +140,7 @@ uv run main.py --strategies express --max-validation-retries 2
 
 Only the strategies that are one inference format (`direct`, `express`, `elemental`, `atom`) record the thinking. Gemini models return their thought summaries by default. Other providers may need `--thinking-budget`, or return no thinking at all.
 
-`--user-focused-thinking` creates the prompt with the SDK's `user_focused_thinking` option, which ends the snippet with a rule asking the model to think about the user's request. To see whether the rule helps, run the same samples with and without it and compare `a2ui_share`, along with the pass rate:
+`--user-focused-thinking` creates the prompt with the SDK's `user_focused_thinking` option, which starts and ends the snippet with a rule asking the model to think about the user's request. To see whether the rule helps, run the same samples with and without it and compare `a2ui_share`, along with the pass rate:
 
 ```bash
 uv run main.py --strategies direct,express --tier smoke

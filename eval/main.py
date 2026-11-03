@@ -380,8 +380,9 @@ def main() -> None:
         "--user-focused-thinking",
         action="store_true",
         help=(
-            "End the SDK's prompt snippet with its rule asking the model to"
-            " think about the user's request rather than the A2UI format."
+            "Start and end the SDK's prompt snippet with its rule asking the"
+            " model to think about the user's request rather than the A2UI"
+            " format."
             " Applies to the strategies that are one inference format."
         ),
     )

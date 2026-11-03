@@ -95,10 +95,11 @@ final List<ResponsePart> parts = processor.parseResponse(llmOutput);
 ```
 
 If your app shows the model's thinking to the user while it waits, create the
-generator with `userFocusedThinking: true`. The snippet then ends with a rule
-asking the model to think about the user's request and to write the UI without
-thinking aloud about JSON, schemas, or component and surface IDs. Models follow
-such rules only partly, so check the thinking your model shows.
+generator with `userFocusedThinking: true`. The snippet then starts and ends
+with a rule that tells the model the user reads its thoughts, and asks it to
+think about the user's request and to write the UI without planning or checking
+its code in its thoughts. Models follow such rules only partly, so check the
+thinking your model shows.
 
 ```dart
 final generator = A2uiGenerator(
