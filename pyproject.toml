@@ -77,6 +77,7 @@ testpaths = [
     "samples/community/agent/adk/file_upload_summarizer/tests",
     "samples/community/agent/adk/personalized_learning/tests",
     "samples/community/mcp/a2ui-over-mcp-recipe/tests",
+    "tools/build_catalog/tests",
 ]
 norecursedirs = [
     ".*",

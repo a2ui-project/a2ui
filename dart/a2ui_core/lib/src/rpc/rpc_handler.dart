@@ -169,7 +169,7 @@ class RpcHandler {
       );
     }
 
-    final pending = _PendingCall(functionCallId);
+    final pending = _PendingCall(functionCallId, surfaceId);
     _pending[functionCallId] = pending;
 
     final Duration timeout = resolved.timeout ?? defaultTimeout;
@@ -383,7 +383,7 @@ class RpcHandler {
           error is A2uiError ? error.message : error.toString();
       throw A2uiRpcError(
         errorMessage.isEmpty
-            ? 'An error occurred during function execution.'
+            ? 'An argument of the function call could not be resolved.'
             : errorMessage,
         RpcErrorCode.executionError,
         cause: error,
@@ -461,8 +461,10 @@ class RpcHandler {
               ),
         invokerForCatalog: (catalogId) =>
             surface.resolveCatalog(catalogId).invoke,
+        // No agent caller: an agent-initiated call cannot wait for another
+        // call to the agent, so an argument naming a function the renderer
+        // does not implement fails, as before fallback routing.
         isUserActivated: execution.isUserActivated,
-        callAgentFunction: surface.callAgentFunction,
       );
     }
     return DataContext(
@@ -490,6 +492,23 @@ class RpcHandler {
     } catch (_) {
       // The response is returned to the caller regardless; a transport
       // failure is the transport's to report.
+    }
+  }
+
+  /// Cancels every pending outbound call for [surfaceId] with
+  /// [RpcErrorCode.cancelled].
+  void cancelSurfaceCalls(String surfaceId) {
+    for (final functionCallId in List<String>.of(_pending.keys)) {
+      if (_pending[functionCallId]?.surfaceId == surfaceId) {
+        _settle(
+          functionCallId,
+          error: A2uiRpcError(
+            "Pending calls for surface '$surfaceId' were cancelled.",
+            RpcErrorCode.cancelled,
+            functionCallId: functionCallId,
+          ),
+        );
+      }
     }
   }
 
@@ -542,9 +561,10 @@ class RpcHandler {
 
 /// An outbound call awaiting its response.
 class _PendingCall {
-  _PendingCall(this.functionCallId);
+  _PendingCall(this.functionCallId, this.surfaceId);
 
   final String functionCallId;
+  final String surfaceId;
   final Completer<Object?> completer = Completer<Object?>();
   Timer? timer;
   void Function()? removeCancelListener;

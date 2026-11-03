@@ -188,11 +188,13 @@ def _coerce_for_json_schema(schema: Any, value: Any) -> Any:
     return value
 
 
-def _json_schema_properties(schema: dict[str, Any]) -> dict[str, Any] | None:
+def json_schema_properties(schema: dict[str, Any]) -> dict[str, Any] | None:
     """Returns the argument properties of a function's document schema.
 
     Accepts the published form, an object schema with ``properties``, and
     the v0.9 inline form, a definition with ``parameters``.
+
+    Internal: shared with ``DataContext``, not part of the public API.
     """
     properties = schema.get("properties")
     if isinstance(properties, dict):
@@ -225,7 +227,7 @@ def coerce_validation_results(schema: Any, args: dict[str, Any]) -> dict[str, An
     if isinstance(schema, type) and issubclass(schema, BaseModel):
         return _coerce_for_model(schema, args)
     if isinstance(schema, dict):
-        properties = _json_schema_properties(schema)
+        properties = json_schema_properties(schema)
         if properties is not None:
             return {
                 key: _coerce_for_json_schema(properties.get(key), value)
