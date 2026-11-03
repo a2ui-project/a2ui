@@ -44,4 +44,37 @@ struct A2UISliderTests {
       #expect(A2UISlider(node: node).stepValue == nil)
     }
   }
+
+  @Test func formattedValueTextShowsWholeAndFractionalValues() {
+    #expect(A2UISlider(node: sliderNode(value: 42)).formattedValueText == "42")
+    #expect(A2UISlider(node: sliderNode(value: -7)).formattedValueText == "-7")
+    #expect(A2UISlider(node: sliderNode(value: 2.5)).formattedValueText == "2.5")
+  }
+
+  @Test func formattedValueTextDoesNotTrapOutsideIntRange() {
+    let cases: [(Double, String)] = [
+      (1e19, "1e+19"),
+      (-1e19, "-1e+19"),
+      (1e300, "1e+300"),
+      (9_223_372_036_854_775_808, "9.223372036854776e+18"),
+    ]
+    for (value, expected) in cases {
+      #expect(A2UISlider(node: sliderNode(value: value)).formattedValueText == expected)
+    }
+  }
+
+  @Test func bodyRendersValueOutsideIntRange() {
+    _ = A2UISlider(node: sliderNode(value: 1e19)).body
+  }
+
+  private func sliderNode(value: Double) -> Node {
+    Node(
+      id: "slider",
+      type: "Slider",
+      properties: [
+        "label": "Volume",
+        "value": DataBinding<Double>(identity: .path("/value"), value: value, set: { _ in }),
+      ]
+    )
+  }
 }
