@@ -48,12 +48,12 @@ The `params` object corresponds to the `v0.9.1` object in the `server_capabiliti
 
 ## A2A Extension activation
 
-Activating the A2UI extension is optional. Clients and agents can negotiate A2UI support using `message.metadata["a2uiClientCapabilities"]` A2A `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`.
+Activating the A2UI extension is optional. Clients and agents can negotiate A2UI support using `message.metadata["a2uiClientCapabilities"]` and A2A `DataPart.metadata["mimeType"] = "application/a2ui+json"`.
 
 Specifically:
 
 - If a client includes `message.metadata["a2uiClientCapabilities"]`, the agent can use this object to determine the supported A2UI protocol version and catalogs.
-- If an agent returns A2A A2A `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`, the client knows the payload contains A2UI messages.
+- If an agent returns A2A `DataPart.metadata["mimeType"] = "application/a2ui+json"`, the client knows the payload contains A2UI messages.
 
 While explicit activation is not required, clients can still explicitly activate the extension using the transport-defined A2A extension activation mechanism. The [A2A Extensions Guide](https://a2a-protocol.org/latest/topics/extensions/) defines this process.
 
@@ -173,7 +173,7 @@ Agents and clients encode A2UI messages as an A2A `DataPart`.
 
 To identify a `DataPart` as containing A2UI data, it must have the following metadata:
 
-- `DataPart.data.metadata["mimeType"] = "application/a2ui+json"`
+- `DataPart.metadata["mimeType"] = "application/a2ui+json"`
 
 The `data` field of the `DataPart` contains a list of A2UI JSON messages (e.g., `createSurface`, `updateComponents`, `action`). It MUST be an array of messages.
 
