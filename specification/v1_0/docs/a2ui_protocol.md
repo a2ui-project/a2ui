@@ -4,7 +4,7 @@
 <div style="text-align: center;">
   <div class="centered-logo-text-group">
     <img src="../../../docs/public/assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
-    <h1>A2UI (Agent to UI) Protocol v1.0</h1>
+    <h1>A2UI Protocol v1.0</h1>
   </div>
 </div>
 
@@ -991,7 +991,7 @@ Interactive components that accept user input (`TextField`, `CheckBox`, `Slider`
 Unlike static display components (like `Text`), input components modify the renderer-side data model immediately upon user interaction.
 
 1.  **Read (Model -> View):** When the component renders, it reads its value from the bound `path`. If the Data Model is updated via `updateDataModel`, the component re-renders to reflect the new value.
-2.  **Write (View -> Model):** When the user interacts with the component (e.g., types a character, toggles a box), the renderer **immediately** updates the value at the bound `path` in the local Data Model.
+2.  **Write (View -> Model):** When the user interacts with the component (e.g., types a character, toggles a box), the renderer **immediately** updates the value at the bound `path` in the local Data Model. If the path does not exist yet, the renderer creates it, so an input can be bound to a path the agent never initialized.
 
 #### Reactivity
 

@@ -1,4 +1,4 @@
-# A2UI (Agent-to-Agent UI) Extension spec v1.0
+# A2UI Extension spec v1.0
 
 ## Overview
 

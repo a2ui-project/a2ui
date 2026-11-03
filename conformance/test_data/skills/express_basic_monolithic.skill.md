@@ -152,7 +152,7 @@ Use these exact positional signatures to instantiate components. Do not output p
   - text: The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.
   - variant: A hint for the base text style. Must be one of: 'caption', 'body'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
-• TextField(label, value?, placeholder?, variant? (static), weight? (static), checks? (static))
+• TextField(label, value, placeholder?, variant? (static), weight? (static), checks? (static))
   - label: The text label for the input field.
   - value: The value of the text field.
   - placeholder: The placeholder text for the input field.

@@ -22,7 +22,7 @@ const String serverToClientV0_9Json = r'''
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v0_9/server_to_client.json",
   "title": "A2UI Message Schema",
-  "description": "Describes a JSON payload for an A2UI (Agent to UI) message, which is used to dynamically construct and update user interfaces.",
+  "description": "Describes a JSON payload for an A2UI message, which is used to dynamically construct and update user interfaces.",
   "type": "object",
   "oneOf": [
     {"$ref": "#/$defs/CreateSurfaceMessage"},
@@ -158,7 +158,7 @@ const String agentToRendererV1_0Json = r'''
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://a2ui.org/specification/v1_0/agent_to_renderer.json",
   "title": "A2UI Message Schema",
-  "description": "Describes a JSON payload for an A2UI (Agent to UI) message, which is used to dynamically construct and update user interfaces.",
+  "description": "Describes a JSON payload for an A2UI message, which is used to dynamically construct and update user interfaces.",
   "type": "object",
   "oneOf": [
     {"$ref": "#/$defs/CreateSurfaceMessage"},
