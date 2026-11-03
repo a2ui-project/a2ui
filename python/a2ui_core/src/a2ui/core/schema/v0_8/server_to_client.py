@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Auto-generated. Do not edit manually.
-"""Describes a JSON payload for an A2UI (Agent to UI) message, which is used to dynamically construct and update user interfaces. A message MUST contain exactly ONE of the action properties: 'beginRendering', 'surfaceUpdate', 'dataModelUpdate', or 'deleteSurface'."""
+"""Describes a JSON payload for an A2UI message, which is used to dynamically construct and update user interfaces. A message MUST contain exactly ONE of the action properties: 'beginRendering', 'surfaceUpdate', 'dataModelUpdate', or 'deleteSurface'."""
 
 from __future__ import annotations
 from typing import Annotated, Any, Final, Literal

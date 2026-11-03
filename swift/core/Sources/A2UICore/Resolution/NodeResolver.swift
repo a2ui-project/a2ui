@@ -332,7 +332,7 @@ public final class NodeResolver: Sendable {
               updatedRecord.componentSnapshot = currentComp
               nodeRecords[nodeKey] = updatedRecord
               if let existing = activeNodes[nodeKey] {
-                activeNodes[nodeKey] = existing.updatingMetadata(currentComp.metadata)
+                existing.updateMetadata(currentComp.metadata)
               }
             } else if currentIdentity != nil,
               currentIdentity == previousIdentity || nodeKey == "root"
@@ -459,7 +459,7 @@ public final class NodeResolver: Sendable {
     let currentComp = componentsModel.get(compID)
     for nodeKey in instances {
       if let existing = activeNodes[nodeKey] {
-        activeNodes[nodeKey] = existing.updatingMetadata(newMetadata)
+        existing.updateMetadata(newMetadata)
       }
       if var record = nodeRecords[nodeKey],
         let currentComp,
@@ -803,9 +803,8 @@ public final class NodeResolver: Sendable {
         && existing.type == type
         && existing.catalogID == effectiveCatalogID
     {
-      let updated = existing.updatingProperties(resolvedProperties, metadata: component.metadata)
-      activeNodes[nodeKey] = updated
-      return updated
+      existing.updateProperties(resolvedProperties, metadata: component.metadata)
+      return existing
     }
 
     let node = Node(

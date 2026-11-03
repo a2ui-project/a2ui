@@ -1260,6 +1260,7 @@
       "required": [
         "id",
         "label",
+        "value",
         "component"
       ],
       "type": "object"

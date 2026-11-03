@@ -257,12 +257,7 @@ public struct A2UIChoicePicker: View {
         checkboxListView
       }
 
-      if let firstError = validationErrors.first {
-        Text(firstError)
-          .font(.caption)
-          .foregroundStyle(Color.red)
-          .accessibilityIdentifier("A2UIChoicePicker_Error_\(node.id)")
-      }
+      A2UICheckMessage(node: node, identifierPrefix: "A2UIChoicePicker")
     }
     .accessibilityIdentifier("A2UIChoicePicker_\(node.id)")
     .a2uiAccessibilityElement(for: node, children: .contain)
