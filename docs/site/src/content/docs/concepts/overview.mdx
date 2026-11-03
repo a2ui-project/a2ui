@@ -26,7 +26,7 @@ _In the diagram above, purple marks your server-side agent code, blue marks your
 
 ## UI generation pipeline detail
 
-The rest of this page traces a flight-booking request through each stage of the pipeline: defining the catalog, generating the skill, prompting the model, compiling and validating the output, and rendering the surface on the client.
+The rest of this page traces a flight-booking request through each stage of the pipeline: defining the catalog, generating the skill, prompting the model, compiling and validating the output, rendering the surface on the client, and handling user actions.
 
 ### Define the catalog
 
@@ -315,15 +315,47 @@ Data message, defined by [`UpdateDataModelMessage`](/specification/v0.9.1/schema
 
 ### Render on the client
 
-The client receives the messages over its transport (for example AG-UI, A2A, MCP, or a WebSocket), and the A2UI Renderer:
+The client receives `createSurface`, `updateComponents`, and `updateDataModel` over its transport (for example AG-UI, A2A, MCP, or a WebSocket), and the A2UI Renderer:
 
-1. Creates the surface identified by `surfaceId`.
-2. Builds the native widgets, starting at the component with ID `root` and following each `child` and `children` reference.
-3. Subscribes each bound property (such as `/outbound/pax`) to its path in the surface's data model.
-4. Updates local state directly: when the user taps `+` on the outbound passenger count, `FlightCard` writes the new value to `/outbound/pax`, every widget bound to that path updates, and nothing is sent to the agent.
-5. Sends user actions: when the user taps _Confirm booking_, the renderer resolves the `context` paths against the current data model and sends an `action` message to the agent.
+1. Creates the surface identified by `surfaceId` and stores the initial values in its data model.
+2. Resolves the flat component list and data model into a hierarchical node layer starting at `root`, following each `child` and `children` ID and binding path references (such as `/outbound/pax`) to their values in the data model.
+3. Builds the native widgets from that node tree and subscribes each widget to updates on its bound properties.
 
-The action message for this example, after the user raised the outbound count to 2:
+At this point, the client's node layer joins the component hierarchy with the resolved values from the data model. `Card` (`root`) wraps `Column` (`layout-col`), which contains the two `FlightCard` nodes with their bound prices and passenger counts alongside `Button` (`submit-btn`) and its `Text` label:
+
+```text
+Surface ("flight-booking-surface")
+└── Card ("root")
+    └── Column ("layout-col")
+        ├── FlightCard ("flight-outbound")
+        │     flightNumber: "LH 454"
+        │     origin: "BER"
+        │     destination: "SFO"
+        │     price: 455        ← /outbound/price
+        │     passengers: 1     ← /outbound/pax
+        ├── FlightCard ("flight-return")
+        │     flightNumber: "UA 901"
+        │     origin: "SFO"
+        │     destination: "BER"
+        │     price: 970        ← /return/price
+        │     passengers: 2     ← /return/pax
+        └── Button ("submit-btn")
+            │ variant: "primary"
+            │ action: event "confirm_booking"
+            │   outboundPax: 1  ← /outbound/pax
+            │   returnPax: 2    ← /return/pax
+            └── Text ("submit-label")
+                  text: "Confirm booking"
+```
+
+### Handle user actions
+
+Once the surface is rendered, the renderer handles local state edits on the client and sends explicit user triggers back to the agent:
+
+1. When the user taps `+` on the outbound `FlightCard` to raise the passenger count to `2`, `FlightCard` writes `2` directly to `/outbound/pax` in the surface's data model. Every node bound to `/outbound/pax` updates in place, and nothing is sent to the agent.
+2. When the user taps _Confirm booking_, the renderer triggers the `Button` node's action, resolves its `context` paths against the current data model, and sends an [`action`](/concepts/actions-and-functions/) message to the agent.
+
+The action message for this example, after the user raised the outbound count to `2`:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
