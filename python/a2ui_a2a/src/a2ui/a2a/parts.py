@@ -14,20 +14,19 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterable, Iterable, Mapping, Sequence
+from collections.abc import AsyncIterable, Sequence
 import logging
 from typing import Any
 
 from a2a.types import DataPart
 from a2a.types import Part
 from a2a.types import TextPart as A2aTextPart
-from pydantic import BaseModel
 
 from a2ui.constants import A2UI_CLOSE_TAG
 from a2ui.constants import A2UI_OPEN_TAG
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats import to_message_dicts
-from a2ui.inference_formats.direct_json.json_reader import read_json
+from a2ui.inference_formats.direct_json import read_json
 from a2ui.parser import A2uiPart
 from a2ui.parser import BlockLexer
 from a2ui.parser import Parser
@@ -47,7 +46,10 @@ DEPRECATED_A2UI_MIME_TYPE = "application/json+a2ui"
 _BLOCK_LEXER = BlockLexer(
     open_tag=A2UI_OPEN_TAG,
     close_tag=A2UI_CLOSE_TAG,
-    string_delimiters={'"', "'"},
+    # JSON strings are double-quoted only and JSON has no comments, so an
+    # apostrophe or `#` in a block never hides its close tag.
+    string_delimiters={'"'},
+    single_line_comments=set(),
 )
 
 
@@ -192,9 +194,10 @@ def extract_a2ui_json_to_parts(
 
     Splits `<a2ui-json>` blocks from an LLM response without requiring a
     configured `Catalog` or `Parser`, wrapping each JSON message dictionary in
-    an A2A `DataPart` without schema or surface-state validation. Malformed
-    JSON blocks are logged and skipped. Use `parse_content_to_parts` when a
-    `Parser` is available.
+    an A2A `DataPart` without schema or surface-state validation. A block that
+    is unclosed, is not JSON, or is not a JSON object or array of objects is
+    logged and skipped. Use `parse_content_to_parts` when a `Parser` is
+    available.
 
     Args:
         content: The LLM response content, potentially containing `<a2ui-json>`
@@ -212,21 +215,14 @@ def extract_a2ui_json_to_parts(
             if isinstance(raw_part.part, TextPart):
                 if raw_part.part.text:
                     parts.append(Part(root=A2aTextPart(text=raw_part.part.text)))
-            elif isinstance(raw_part.part, RawA2uiPart) and raw_part.is_final:
+            elif isinstance(raw_part.part, RawA2uiPart):
+                if not raw_part.is_final:
+                    logger.warning("Skipping unclosed A2UI JSON block.")
+                    continue
                 try:
                     data = read_json(raw_part.part.a2ui_raw)
-                    if isinstance(data, BaseModel):
-                        pass
-                    elif isinstance(data, Mapping):
-                        parts.append(create_a2ui_part(dict(data), version=version))
-                    elif isinstance(data, (str, bytes)):
-                        pass
-                    elif isinstance(data, Iterable):
-                        for item in data:
-                            if isinstance(item, Mapping):
-                                parts.append(
-                                    create_a2ui_part(dict(item), version=version)
-                                )
+                    for message in to_message_dicts(data):
+                        parts.append(create_a2ui_part(message, version=version))
                 except Exception as e:
                     logger.warning(
                         "Failed to parse A2UI block JSON: %s", type(e).__name__

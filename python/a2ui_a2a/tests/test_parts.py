@@ -222,3 +222,45 @@ def test_extract_a2ui_json_to_parts_with_version_override():
     parts = extract_a2ui_json_to_parts(content, version="0.9")
     assert len(parts) == 1
     assert parts[0].root.metadata["mimeType"] == "application/json+a2ui"
+
+
+@pytest.mark.parametrize(
+    ("raw_text", "expected_text"),
+    [
+        ("\u201cIt's ready\u201d", "It's ready"),
+        ("\u201cItem #1\u201d", "Item #1"),
+    ],
+)
+def test_extract_a2ui_json_to_parts_reads_apostrophes_and_hashes_outside_json_strings(
+    raw_text, expected_text
+):
+    content = f'<a2ui-json>{{"version": "v0.9", "text": {raw_text}}}</a2ui-json>\nAfter'
+    parts = extract_a2ui_json_to_parts(content)
+
+    assert len(parts) == 2
+    assert parts[0].root.data == {"version": "v0.9", "text": expected_text}
+    assert parts[1].root.text == "After"
+
+
+@pytest.mark.parametrize(
+    "block", ["123", '"text"', '["text"]', f"[{json.dumps(_CREATE)}, 1]"]
+)
+def test_extract_a2ui_json_to_parts_logs_and_skips_non_object_block(caplog, block):
+    content = (
+        f"<a2ui-json>{block}</a2ui-json>\n<a2ui-json>{json.dumps(_CREATE)}</a2ui-json>"
+    )
+    with caplog.at_level("WARNING"):
+        parts = extract_a2ui_json_to_parts(content)
+
+    assert [part.root.data for part in parts] == [_CREATE]
+    assert "Failed to parse A2UI block JSON: TypeError" in caplog.text
+
+
+def test_extract_a2ui_json_to_parts_logs_and_skips_unclosed_block(caplog):
+    content = f"Intro\n<a2ui-json>{json.dumps(_CREATE)}"
+    with caplog.at_level("WARNING"):
+        parts = extract_a2ui_json_to_parts(content, fallback_text="Fallback")
+
+    assert len(parts) == 1
+    assert parts[0].root.text == "Intro"
+    assert "Skipping unclosed A2UI JSON block." in caplog.text

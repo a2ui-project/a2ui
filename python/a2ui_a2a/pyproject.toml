@@ -23,9 +23,9 @@ keywords = ["a2ui", "a2a", "agent", "ui"]
 dependencies = [
   "a2a-sdk>=0.3.0,<0.4.0",
   # 0.8.0 is the last agent SDK release that still ships `a2ui.a2a` and
-  # `a2ui.adk` itself. Installing it next to this package would make two
-  # distributions write the same files, so require a later release.
-  "a2ui-agent-sdk>0.8.0",
+  # `a2ui.adk` itself, and 0.10.0 is the last one whose
+  # `a2ui.inference_formats.direct_json` does not export `read_json`.
+  "a2ui-agent-sdk>0.10.0",
   "packaging>=23.0",
 ]
 
