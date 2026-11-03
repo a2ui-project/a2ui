@@ -52,7 +52,21 @@ export const MAX_ARRAY_INDEX = 10000;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 function cloneValue<T>(val: T): T {
-  return val === null || val === undefined || typeof val !== 'object' ? val : structuredClone(val);
+  if (val === null || val === undefined || typeof val !== 'object') {
+    return val;
+  }
+  if (Array.isArray(val)) {
+    return val.map(item => cloneValue(item)) as unknown as T;
+  }
+  const proto = Object.getPrototypeOf(val);
+  if (proto === Object.prototype || proto === null) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+      out[k] = cloneValue(v);
+    }
+    return out as T;
+  }
+  return val;
 }
 
 /**
