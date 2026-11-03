@@ -133,6 +133,10 @@ export default defineConfig({
               label: 'Swappable Inference Formats',
               slug: 'concepts/inference-formats',
             },
+            {
+              label: 'Glossary',
+              slug: 'concepts/glossary',
+            },
           ],
         },
         {
