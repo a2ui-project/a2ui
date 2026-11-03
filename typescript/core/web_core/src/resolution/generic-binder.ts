@@ -249,9 +249,13 @@ function isDynamicDef(defName: string, typeName?: string): boolean {
 function matchUnionBehavior(options: z.ZodTypeAny[]): BehaviorNode | undefined {
   if (options.some(isActionOption)) return {type: 'ACTION'};
   if (options.some(isDynamicOption)) {
-    const isBoolean = options.some(
-      opt => (unwrapZodSchema(opt) as any)?._def?.typeName === 'ZodBoolean',
-    );
+    const literalOptions = options.filter(opt => !isDynamicOption(opt));
+    const isBoolean =
+      literalOptions.length > 0 &&
+      literalOptions.every(opt => {
+        const typeName = (unwrapZodSchema(opt) as any)?._def?.typeName;
+        return typeName === 'ZodBoolean' || typeName === 'ZodNull' || typeName === 'ZodUndefined';
+      });
     return isBoolean ? {type: 'DYNAMIC', isBoolean: true} : {type: 'DYNAMIC'};
   }
   if (options.some(isChildListOption)) return {type: 'STRUCTURAL'};

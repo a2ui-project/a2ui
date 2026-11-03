@@ -42,12 +42,7 @@ class BehaviorNode {
   final BehaviorNode? element;
   final bool isBoolean;
 
-  BehaviorNode(
-    this.type, {
-    this.shape,
-    this.element,
-    this.isBoolean = false,
-  });
+  BehaviorNode(this.type, {this.shape, this.element, this.isBoolean = false});
 }
 
 /// An unresolved child reference and the data scope it would render against.
@@ -114,8 +109,9 @@ class GenericBinder {
   ReadonlySignal<Map<String, dynamic>> get resolvedProps => _resolvedProps;
 
   GenericBinder(this.context, this.schema) {
-    final Catalog<ComponentApi, FunctionImplementation> catalog =
-        context.surface.resolveCatalog(context.componentModel.catalog);
+    final Catalog<ComponentApi, FunctionImplementation> catalog = context
+        .surface
+        .resolveCatalog(context.componentModel.catalog);
     _schemaReader = ReferenceSchemaReader(
       schema.value,
       document: catalog.validationSchema,
@@ -204,21 +200,24 @@ class GenericBinder {
     switch (behavior.type) {
       case Behavior.dynamic:
         final bool atLeastV10 = context.dataContext.atLeastV10;
-        final ReadonlySignal<Object?> sig =
-            context.dataContext.resolveSignal(value);
+        final ReadonlySignal<Object?> sig = context.dataContext.resolveSignal(
+          value,
+        );
         // When the protocol's binding key is present (without `componentId` in
         // pre-v1.0), cast its value to `String` so a malformed non-string path
         // (such as `{'path': 42}`) throws `TypeError` during materialization.
-        final String? boundPath = value is Map &&
+        final String? boundPath =
+            value is Map &&
                 (atLeastV10
                     ? value.containsKey('@path')
                     : (value.containsKey('path') &&
-                        !value.containsKey('componentId')))
+                          !value.containsKey('componentId')))
             ? (value[atLeastV10 ? '@path' : 'path'] as String)
             : null;
         ResolvedBinding<Object?> wrap(Object? current) {
-          final Object? coerced =
-              behavior.isBoolean ? coerceDynamicBoolean(current) : current;
+          final Object? coerced = behavior.isBoolean
+              ? coerceDynamicBoolean(current)
+              : current;
           final Object? snapshot = _snapshotBindingValue(coerced);
           return boundPath == null
               ? ResolvedBinding<Object?>(snapshot)
@@ -251,8 +250,9 @@ class GenericBinder {
           // The unwrapped `{call, args}` and `{name, ...}` forms are also
           // accepted on purpose, to match the TypeScript web_core binder.
           if (value is Map) {
-            final Object? fc =
-                value['functionCall'] is Map ? value['functionCall'] : value;
+            final Object? fc = value['functionCall'] is Map
+                ? value['functionCall']
+                : value;
             if (context.dataContext.isFunctionCall(fc)) {
               await _runLocalFunction(Map<String, dynamic>.from(fc as Map));
               return;
@@ -277,7 +277,8 @@ class GenericBinder {
               A2uiRendererError(
                 code: 'INVALID_ACTION',
                 surfaceId: context.surface.id,
-                message: 'Invalid action payload in component '
+                message:
+                    'Invalid action payload in component '
                     "'${context.componentModel.id}': $value",
                 details: value,
               ),
@@ -296,8 +297,9 @@ class GenericBinder {
           final tpl = ChildListTemplate.fromJson(
             Map<String, dynamic>.from(value),
           );
-          final ReadonlySignal<Object?> sig = context.dataContext
-              .resolveSignal(context.dataContext.bindingFor(tpl.path));
+          final ReadonlySignal<Object?> sig = context.dataContext.resolveSignal(
+            context.dataContext.bindingFor(tpl.path),
+          );
 
           List<ChildNode> resolveChildren(Object? val) {
             final List<Object?> list = val is List ? val.cast<Object?>() : [];
@@ -334,8 +336,9 @@ class GenericBinder {
         // A non-list value is treated as no rules, as in web_core and the
         // Python core. Schema validation of the property is the job of
         // PayloadValidator at message time, not of the binder.
-        final List<Object?> rules =
-            value is List ? value.cast<Object?>() : const <Object?>[];
+        final List<Object?> rules = value is List
+            ? value.cast<Object?>()
+            : const <Object?>[];
         // A null slot is a rule whose condition awaits an agent response: it
         // neither passes nor fails until the response arrives, and
         // `validationPending` says so.
@@ -360,8 +363,9 @@ class GenericBinder {
         }
 
         void updateValidationState() {
-          final List<String> parentPath =
-              path.isEmpty ? const [] : path.sublist(0, path.length - 1);
+          final List<String> parentPath = path.isEmpty
+              ? const []
+              : path.sublist(0, path.length - 1);
           batch(() {
             applyValidationState(
               (key, val) => _updateDeepValue([...parentPath, key], val),
@@ -378,16 +382,19 @@ class GenericBinder {
                 code: 'VALIDATION_FAILED',
                 surfaceId: context.surface.id,
                 path: '/${[...path, i.toString()].join('/')}',
-                message: 'Check rule at index $i in component '
+                message:
+                    'Check rule at index $i in component '
                     "'${context.componentModel.id}' must be an object, "
                     'got ${rawRule.runtimeType}.',
               ),
             );
             continue;
           }
-          final Object? condition =
-              rawRule.containsKey('condition') ? rawRule['condition'] : rawRule;
-          final bool isPathBound = condition is Map &&
+          final Object? condition = rawRule.containsKey('condition')
+              ? rawRule['condition']
+              : rawRule;
+          final bool isPathBound =
+              condition is Map &&
               ((condition.containsKey('@path') &&
                       !condition.containsKey('@call')) ||
                   (condition.containsKey('path') &&
@@ -395,8 +402,8 @@ class GenericBinder {
           final Object? rawMessage = rawRule['message'];
           final String? ruleMessage =
               (rawMessage != null && rawMessage.toString().isNotEmpty)
-                  ? rawMessage.toString()
-                  : null;
+              ? rawMessage.toString()
+              : null;
           final String fallbackMessage = ruleMessage ?? 'Validation failed';
           final String? explicitMessage = isPathBound ? null : ruleMessage;
 
@@ -419,8 +426,9 @@ class GenericBinder {
               : _subscribe(
                   context.dataContext.resolveSignalWithPending(condition),
                   (newValue) {
-                    ruleResults[slot] =
-                        resultOf(newValue! as DynamicValueState);
+                    ruleResults[slot] = resultOf(
+                      newValue! as DynamicValueState,
+                    );
                     updateValidationState();
                   },
                 );
@@ -474,14 +482,10 @@ class GenericBinder {
             .asMap()
             .entries
             .map(
-              (e) => _resolveAndBind(
-                  e.value,
-                  elementBehavior,
-                  [
-                    ...path,
-                    e.key.toString(),
-                  ],
-                  isSync),
+              (e) => _resolveAndBind(e.value, elementBehavior, [
+                ...path,
+                e.key.toString(),
+              ], isSync),
             )
             .toList();
 
@@ -515,16 +519,16 @@ class GenericBinder {
         current[key] = current[key] is Map
             ? Map<String, dynamic>.from(current[key] as Map)
             : (current[key] is List
-                ? List<Object?>.from(current[key] as Iterable)
-                : <String, dynamic>{});
+                  ? List<Object?>.from(current[key] as Iterable)
+                  : <String, dynamic>{});
         current = current[key];
       } else if (current is List) {
         final int idx = int.parse(key);
         current[idx] = current[idx] is Map
             ? Map<String, dynamic>.from(current[idx] as Map)
             : (current[idx] is List
-                ? List<Object?>.from(current[idx] as Iterable)
-                : <String, dynamic>{});
+                  ? List<Object?>.from(current[idx] as Iterable)
+                  : <String, dynamic>{});
         current = current[idx];
       }
     }
@@ -601,9 +605,32 @@ class GenericBinder {
           (s['properties'] as Map)['componentId'] == null,
     );
     if (hasPath) {
-      final bool hasBoolBranch =
-          schemasToInspect.any((s) => s['type'] == 'boolean');
-      return BehaviorNode(Behavior.dynamic, isBoolean: hasBoolBranch);
+      bool isDynamicBranch(Map<String, Object?> s) {
+        final Object? props = s['properties'];
+        if (props is! Map) return false;
+        final bool isBinding =
+            props['componentId'] == null &&
+            (atLeastV10 ? props['@path'] != null : props['path'] != null);
+        final bool isCall = atLeastV10
+            ? props['@call'] != null
+            : props['call'] != null;
+        return isBinding || isCall;
+      }
+
+      final bool hasBoolBranch = schemasToInspect.any(
+        (s) => s['type'] == 'boolean',
+      );
+      final bool hasNonBoolLiteral = schemasToInspect.any((s) {
+        final Object? type = s['type'];
+        return type is String &&
+            type != 'boolean' &&
+            type != 'null' &&
+            !isDynamicBranch(s);
+      });
+      return BehaviorNode(
+        Behavior.dynamic,
+        isBoolean: hasBoolBranch && !hasNonBoolLiteral,
+      );
     }
 
     final Map<String, Object?> allProperties = _schemaReader.properties(
@@ -652,7 +679,7 @@ class GenericBinder {
           shape: {
             'label': BehaviorNode(Behavior.dynamic),
             'description': BehaviorNode(Behavior.dynamic),
-            'hidden': BehaviorNode(Behavior.dynamic),
+            'hidden': BehaviorNode(Behavior.dynamic, isBoolean: true),
           },
         ),
       },
@@ -674,20 +701,22 @@ class GenericBinder {
   /// that is cancelled, as when the surface is deleted, is not reported.
   Future<void> _runLocalFunction(Map<String, dynamic> functionCall) async {
     try {
-      await context.dataContext
-          .withUserActivation()
-          .evaluateFunctionCall(functionCall);
+      await context.dataContext.withUserActivation().evaluateFunctionCall(
+        functionCall,
+      );
     } catch (e) {
       if (e is A2uiRpcError && e.rpcCode == RpcErrorCode.cancelled) return;
       final Object? fnName = functionCall['@call'] ?? functionCall['call'];
-      final String? functionCallId =
-          e is A2uiRpcError ? e.functionCallId : null;
+      final String? functionCallId = e is A2uiRpcError
+          ? e.functionCallId
+          : null;
       await context.surface.dispatchError(
         A2uiRendererError(
           code: e is A2uiRpcError ? 'EXPRESSION_ERROR' : 'EXECUTION_ERROR',
           surfaceId: functionCallId == null ? context.surface.id : null,
           functionCallId: functionCallId,
-          message: "Function '$fnName' failed in component "
+          message:
+              "Function '$fnName' failed in component "
               "'${context.componentModel.id}': $e",
         ),
       );

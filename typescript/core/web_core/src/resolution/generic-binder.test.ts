@@ -1459,4 +1459,24 @@ describe('getSafeChildList helper function', () => {
     assert.strictEqual(safe[0], 0);
     assert.strictEqual(safe[MAX_DYNAMIC_CHILD_LIST_SIZE - 1], MAX_DYNAMIC_CHILD_LIST_SIZE - 1);
   });
+
+  it('does not coerce non-boolean values on polymorphic dynamic unions containing ZodBoolean', () => {
+    const polySchema = z.object({
+      id: z.string(),
+      component: z.literal('Poly'),
+      val: z.union([z.string(), z.boolean(), DataBindingSchema]),
+    });
+    const catalog = new Catalog('poly', [{name: 'Poly', schema: polySchema}], []);
+    const surface = new SurfaceModel('s1', catalog, {});
+    surface.dataModel.set('/v', 'hello');
+    surface.componentsModel.addComponent(
+      new ComponentModel('c1', 'Poly', {val: {path: '/v'}}, catalog),
+    );
+    const binder = new GenericBinder<{val: string | boolean}>(
+      new ComponentContext(surface, 'c1'),
+      polySchema,
+    );
+    assert.strictEqual(binder.snapshot.val, 'hello');
+    binder.dispose();
+  });
 });

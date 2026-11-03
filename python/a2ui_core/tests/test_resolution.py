@@ -21,6 +21,7 @@ from a2ui.core.resolution import (
     DataContext,
     GenericBinder,
     MissingDataBindingWarning,
+    coerce_dynamic_boolean,
 )
 from a2ui.core.catalog import Catalog, FunctionImplementation
 from a2ui.core.basic_catalog import BasicCatalog, v0_9
@@ -784,7 +785,8 @@ def test_dynamic_boolean_coercion_table_for_properties_and_arguments():
     """Verifies ``coerce_dynamic_boolean`` across every row of the coercion
     table for both component property resolution and function arguments."""
     from a2ui.core.basic_catalog import v1_0
-    from a2ui.core.resolution.validation_result_coercion import coerce_dynamic_boolean
+    from a2ui.core.catalog import ComponentApi
+    from a2ui.core.schema.v1_0.common_types import DynamicValue
 
     cases: list[tuple[Any, bool]] = [
         (True, True),
@@ -830,13 +832,29 @@ def test_dynamic_boolean_coercion_table_for_properties_and_arguments():
     ctx = DataContext(surface, path="/")
 
     for raw, expected in cases:
-        if isinstance(raw, float) and raw != raw:
-            continue
         surface.data_model.set("/flag", raw)
         assert binder.snapshot["value"] is expected, f"Property failed for {raw!r}"
+        if isinstance(raw, float) and raw != raw:
+            continue
         assert ctx.resolve_dynamic_value(
             {"@call": "not", "args": {"value": {"@path": "/flag"}}}
         ) is (not expected), f"Argument failed for {raw!r}"
+
+    class _PolymorphicBox(StrictBaseModel):
+        id: str
+        component: str
+        any_val: DynamicValue
+
+    custom_cat = Catalog("custom", "1.0", components=[ComponentApi("PolyBox", _PolymorphicBox)])
+    poly_surface = SurfaceModel("s2", custom_cat, data_model=DataModel({"v": "hello"}))
+    poly_comp = ComponentModel(
+        "p1", "PolyBox", custom_cat, {"any_val": {"@path": "/v"}}
+    )
+    poly_surface.components_model.add_component(poly_comp)
+    poly_binder = GenericBinder(ComponentContext.from_surface(poly_surface, "p1"))
+    assert poly_binder.snapshot["any_val"] == "hello"
+    poly_surface.data_model.set("/v", 42)
+    assert poly_binder.snapshot["any_val"] == 42
 
 
 def test_data_context_validates_arguments_as_written():

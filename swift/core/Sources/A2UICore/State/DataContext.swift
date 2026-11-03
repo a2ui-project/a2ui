@@ -183,6 +183,17 @@ public final class DataContext {
     }
   }
 
+  private static func isDynamicExpressionBranch(_ schema: JSONValue) -> Bool {
+    if let ref = schema["$ref"]?.stringValue {
+      return ref.hasSuffix("/$defs/DataBinding") || ref.hasSuffix("/$defs/FunctionCall")
+    }
+    if let props = schema["properties"]?.objectValue, props["componentId"] == nil {
+      return props["@path"] != nil || props["path"] != nil
+        || props["@call"] != nil || props["call"] != nil
+    }
+    return false
+  }
+
   private static func isDynamicBooleanSchema(_ schema: JSONValue) -> Bool {
     if let ref = schema["$ref"]?.stringValue, ref.hasSuffix("/$defs/DynamicBoolean") {
       return true
@@ -190,11 +201,22 @@ public final class DataContext {
     if schema["type"]?.stringValue == "boolean" {
       return true
     }
-    for keyword in ["oneOf", "anyOf", "allOf"] {
-      if let subSchemas = schema[keyword]?.arrayValue,
-        subSchemas.contains(where: { isDynamicBooleanSchema($0) })
-      {
-        return true
+    if let allOf = schema["allOf"]?.arrayValue,
+      allOf.contains(where: { isDynamicBooleanSchema($0) })
+    {
+      return true
+    }
+    for keyword in ["oneOf", "anyOf"] {
+      if let subSchemas = schema[keyword]?.arrayValue {
+        let hasBoolean = subSchemas.contains(where: { isDynamicBooleanSchema($0) })
+        let onlyBooleanOrDynamic = subSchemas.allSatisfy {
+          isDynamicBooleanSchema($0)
+            || $0["type"]?.stringValue == "null"
+            || isDynamicExpressionBranch($0)
+        }
+        if hasBoolean && onlyBooleanOrDynamic {
+          return true
+        }
       }
     }
     return false

@@ -21,7 +21,11 @@ from functools import cache
 from typing import Any, Callable, Final
 
 from ..common import Subscription
-from ..schema._dynamic_types import dynamic_literal_kinds
+from ..schema._dynamic_types import (
+    dynamic_literal_kinds,
+    is_function_call_branch,
+    is_ref,
+)
 from ..schema.common_types_schema import get_all_dynamic_type_names
 from ..schema.v1_0 import ValidationResult
 from .component_context import ComponentContext
@@ -179,9 +183,17 @@ def _classify_combiners(
     branches = (one_of if isinstance(one_of, list) else []) + (
         any_of if isinstance(any_of, list) else []
     )
-    has_boolean_branch = any(
-        isinstance(branch, dict) and branch.get("type") == "boolean"
-        for branch in branches
+    localized_branches = _localize_branch_refs(branches)
+    literal_branches = [
+        branch
+        for branch in localized_branches
+        if isinstance(branch, dict)
+        and not is_ref(branch, "DataBinding")
+        and not is_function_call_branch(branch)
+        and branch.get("type") != "null"
+    ]
+    is_boolean_union = bool(literal_branches) and all(
+        branch.get("type") == "boolean" for branch in literal_branches
     )
     for branch in branches:
         if isinstance(branch, dict):
@@ -189,7 +201,7 @@ def _classify_combiners(
             if node.type in _SPECIAL_BEHAVIORS:
                 if (
                     node.type == BehaviorType.DYNAMIC
-                    and has_boolean_branch
+                    and is_boolean_union
                     and not node.is_boolean
                 ):
                     return BehaviorNode(BehaviorType.DYNAMIC, is_boolean=True)
