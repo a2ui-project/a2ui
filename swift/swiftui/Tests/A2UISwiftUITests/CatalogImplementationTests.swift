@@ -67,6 +67,36 @@ struct SwiftUICatalogRenderingTests {
     #expect(!fallbackCalled)
   }
 
+  @Test func implementationLookupOrder() throws {
+    let schemaA = try Schema(instance: "{\"type\": \"object\", \"title\": \"a\"}")
+    let schemaB = try Schema(instance: "{\"type\": \"object\", \"title\": \"b\"}")
+    let catalogs = [
+      "a": Catalog(
+        id: "a",
+        components: [
+          ComponentImplementation(name: "button", schema: schemaA) { _ in AnyView(EmptyView()) }
+        ]),
+      "b": Catalog(
+        id: "b",
+        components: [
+          ComponentImplementation(name: "button", schema: schemaB) { _ in AnyView(EmptyView()) }
+        ]),
+    ]
+    func lookup(_ type: String, catalogID: String?, defaultCatalogID: String?) -> Schema? {
+      let node = Node(id: "n", type: type, catalogID: catalogID, properties: [:])
+      return Surface.implementation(for: node, using: catalogs, defaultCatalogID: defaultCatalogID)?
+        .schema
+    }
+
+    // The node's own catalog wins over the default.
+    #expect(lookup("button", catalogID: "a", defaultCatalogID: "b") == schemaA)
+    // Without a catalog ID, the default catalog is used.
+    #expect(lookup("button", catalogID: nil, defaultCatalogID: "b") == schemaB)
+    // Otherwise any catalog with the type.
+    #expect(lookup("button", catalogID: "missing", defaultCatalogID: "missing") != nil)
+    #expect(lookup("unknown", catalogID: nil, defaultCatalogID: "a") == nil)
+  }
+
   @Test func componentImplementationConformsToComponentAPIAndExposesBuilder() throws {
     let schema = try Schema(instance: "{\"type\": \"object\"}")
     var builderCalled = false

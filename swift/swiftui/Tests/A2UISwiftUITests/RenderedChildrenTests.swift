@@ -14,6 +14,8 @@
 
 import A2UICore
 import A2UISwiftUI
+import JSONSchema
+import SwiftUI
 import Testing
 
 @testable import BasicCatalogSwiftUI
@@ -35,7 +37,38 @@ struct RenderedChildrenTests {
       ]
     )
 
-    let ids = node.renderedChildren(for: "children", in: [catalog.id: catalog]).map(\.id)
+    let ids = node.renderedChildren(
+      for: "children", in: [catalog.id: catalog], defaultCatalogID: catalog.id
+    ).map(\.id)
     #expect(ids == ["a", "b"])
+  }
+
+  @Test func keepsChildrenThatAnotherCatalogRenders() throws {
+    let schema = try Schema(instance: "{\"type\": \"object\"}")
+    let basic = BasicCatalogImplementation.makeCatalog(version: .v091)
+    let maps = Catalog(
+      id: "maps",
+      components: [
+        ComponentImplementation(name: "Map", schema: schema) { _ in AnyView(EmptyView()) }
+      ]
+    )
+    let catalogs = [basic.id: basic, maps.id: maps]
+    let map = Node(id: "m", type: "Map", properties: [:])
+    let node = Node(
+      id: "col",
+      type: "Column",
+      properties: [
+        "children": [
+          Node(id: "a", type: "Text", properties: ["text": "A"]),
+          map,
+          Node(id: "x", type: "StarRating", properties: [:]),
+        ]
+      ]
+    )
+
+    let ids = node.renderedChildren(for: "children", in: catalogs, defaultCatalogID: basic.id)
+      .map(\.id)
+    #expect(ids == ["a", "m"])
+    #expect(Surface.render(node: map, using: catalogs, defaultCatalogID: basic.id) != nil)
   }
 }

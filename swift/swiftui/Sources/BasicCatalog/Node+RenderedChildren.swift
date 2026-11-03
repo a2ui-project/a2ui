@@ -16,18 +16,19 @@ import A2UICore
 import A2UISwiftUI
 
 extension Node {
-  /// The children under `key` that have a view builder in `catalogs`.
+  /// The children under `key` that `Surface.render` can draw.
   ///
-  /// `ComponentNodeView` renders `EmptyView()` for the others (`Surface.render` returns `nil`
-  /// when no catalog has the type). Stacks leave them out so that they take no spacing or
-  /// `Spacer` slot.
+  /// `ComponentNodeView` renders `EmptyView()` for the others. Stacks leave them out so that they
+  /// take no spacing or `Spacer` slot.
   @MainActor
   func renderedChildren(
     for key: String,
-    in catalogs: [String: Catalog<ComponentImplementation>]
+    in catalogs: [String: Catalog<ComponentImplementation>],
+    defaultCatalogID: String?
   ) -> [Node] {
     children(for: key).filter { child in
-      catalogs.values.contains { $0.components[child.type] != nil }
+      Surface.implementation(for: child, using: catalogs, defaultCatalogID: defaultCatalogID)
+        != nil
     }
   }
 }

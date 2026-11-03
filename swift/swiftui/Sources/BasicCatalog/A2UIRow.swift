@@ -34,13 +34,14 @@ public struct A2UIRow: View {
   public let node: Node
 
   @Environment(\.a2uiCatalogs) private var catalogs
+  @Environment(\.a2uiDefaultCatalogID) private var defaultCatalogID
 
   public init(node: Node) {
     self.node = node
   }
 
   private var children: [Node] {
-    node.renderedChildren(for: "children", in: catalogs)
+    node.renderedChildren(for: "children", in: catalogs, defaultCatalogID: defaultCatalogID)
   }
 
   private var align: String {

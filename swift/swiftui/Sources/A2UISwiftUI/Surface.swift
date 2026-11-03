@@ -85,20 +85,39 @@ extension Surface {
     using catalogs: [String: Catalog<ComponentImplementation>],
     defaultCatalogID: String? = nil
   ) -> AnyView? {
+    implementation(for: node, using: catalogs, defaultCatalogID: defaultCatalogID)?.builder(node)
+  }
+
+  /// Finds the component implementation that `render(node:using:defaultCatalogID:)` uses for a
+  /// node.
+  ///
+  /// Looks in the node's own catalog, then in `node.catalogID ?? defaultCatalogID`, then in any
+  /// catalog that has the node's type.
+  ///
+  /// - Parameters:
+  ///   - node: The resolved engine node.
+  ///   - catalogs: The dictionary of available component catalogs.
+  ///   - defaultCatalogID: The fallback default catalog ID if the node has no catalog ID.
+  /// - Returns: The implementation, or `nil` if no catalog has the node's type.
+  public static func implementation(
+    for node: Node,
+    using catalogs: [String: Catalog<ComponentImplementation>],
+    defaultCatalogID: String? = nil
+  ) -> ComponentImplementation? {
     if let catalogID = node.catalogID, let catalog = catalogs[catalogID],
       let component = catalog.components[node.type]
     {
-      return component.builder(node)
+      return component
     }
     let targetCatalogID = node.catalogID ?? defaultCatalogID
     if let targetCatalogID, let catalog = catalogs[targetCatalogID],
       let component = catalog.components[node.type]
     {
-      return component.builder(node)
+      return component
     }
     for catalog in catalogs.values {
       if let component = catalog.components[node.type] {
-        return component.builder(node)
+        return component
       }
     }
     return nil
