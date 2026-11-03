@@ -129,9 +129,9 @@ type Growing =
  *
  * @template Part The parts the stream returns. See `ResponseStream`.
  */
-export class DirectJsonResponseStream<
-  Part extends StreamPart = ResponsePart,
-> implements ResponseStream<Part> {
+export class DirectJsonResponseStream<Part extends StreamPart = ResponsePart>
+  implements ResponseStream<Part>
+{
   private readonly v10: boolean;
   private readonly wrapped: boolean;
   readonly state: RendererState;
