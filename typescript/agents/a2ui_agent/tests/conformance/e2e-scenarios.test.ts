@@ -23,7 +23,11 @@ import {
   DirectJsonFormatFactory,
   ExpressFormatFactory,
   FileSystemCatalogProvider,
+  formatInboundForModel,
+  getInboundMessageKind,
+  parseInboundMessage,
   Parser,
+  type ProtocolVersion,
   RendererState,
   StreamPart,
 } from '../../src/index.js';
@@ -237,10 +241,70 @@ function runFormat(
   }
 }
 
+function materializeOutbound(value: unknown, key = ''): unknown {
+  if (Array.isArray(value)) {
+    return value.map(item => materializeOutbound(item, key));
+  }
+  if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record);
+    if (keys.length === 1 && keys[0] === '$match') {
+      const kind = record['$match'];
+      if (kind === 'iso8601' || key === 'timestamp') {
+        return '2026-01-01T00:00:00Z';
+      }
+      if (key === 'functionCallId') {
+        return 'call-1';
+      }
+      return 'match-str';
+    }
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(record)) {
+      out[k] = materializeOutbound(v, k);
+    }
+    return out;
+  }
+  return value;
+}
+
+function verifyOutboundRoundtrip(testCase: LoadedCase, protocolVersion: string): void {
+  const version = (protocolVersion === 'v0.9.1' ? 'v0.9' : protocolVersion) as ProtocolVersion;
+  const turns = testCase.turns as E2eTurn[];
+  for (const [turnIdx, turn] of turns.entries()) {
+    for (const [outIdx, rawEnvelope] of (turn.expectOutbound ?? []).entries()) {
+      const concrete = materializeOutbound(rawEnvelope) as Record<string, unknown>;
+      const parsed = parseInboundMessage(concrete, version);
+      const expectedKind = 'action' in concrete ? 'action' : 'error';
+      expect(getInboundMessageKind(parsed), `turn ${turnIdx} expectOutbound[${outIdx}] kind`).toBe(
+        expectedKind,
+      );
+      const formatted = formatInboundForModel(parsed);
+      expect(
+        formatted && formatted.trim().length > 0,
+        `turn ${turnIdx} expectOutbound[${outIdx}] formatted output`,
+      ).toBe(true);
+      if (expectedKind === 'action') {
+        const action = concrete['action'] as Record<string, unknown>;
+        expect(formatted).toContain(String(action['name']));
+        expect(formatted).toContain(String(action['surfaceId']));
+        const context = (action['context'] ?? {}) as Record<string, unknown>;
+        for (const [ctxKey, ctxVal] of Object.entries(context)) {
+          expect(formatted).toContain(ctxKey);
+          expect(formatted).toContain(String(ctxVal));
+        }
+      } else {
+        const error = concrete['error'] as Record<string, unknown>;
+        expect(formatted).toContain(String(error['code']));
+      }
+    }
+  }
+}
+
 function runScenario(testCase: LoadedCase): void {
   assertScenarioKeys(testCase);
   const catalogs = loadScenarioCatalogs(testCase);
   const protocolVersion = String(testCase.protocolVersion ?? '1.0');
+  verifyOutboundRoundtrip(testCase, protocolVersion);
   const formats = testCase.formats as string[];
   const failures: Error[] = [];
 

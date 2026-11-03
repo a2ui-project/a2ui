@@ -32,6 +32,9 @@ from a2ui.core import A2uiParseError
 from a2ui.core import A2uiRecursionError
 from a2ui.core import A2uiValidationError
 from a2ui.core.common import to_protocol_version
+from a2ui.inbound import format_inbound_for_model
+from a2ui.inbound import get_inbound_message_kind
+from a2ui.inbound import parse_inbound_message
 from a2ui.inference_formats import DirectJsonFormat
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.express import ExpressFormat
@@ -277,10 +280,52 @@ def _run_format(
         )
 
 
+def _materialize_outbound(value: Any, key: str = "") -> Any:
+    if isinstance(value, Mapping):
+        if "$match" in value and len(value) == 1:
+            kind = value["$match"]
+            if kind == "iso8601" or key == "timestamp":
+                return "2026-01-01T00:00:00Z"
+            if key == "functionCallId":
+                return "call-1"
+            return "match-str"
+        return {k: _materialize_outbound(v, str(k)) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_materialize_outbound(item, key) for item in value]
+    return value
+
+
+def _verify_outbound_roundtrip(scenario: Mapping[str, Any]) -> None:
+    version = str(scenario.get("protocolVersion", "1.0"))
+    for turn_idx, turn in enumerate(scenario["turns"]):
+        for out_idx, raw_envelope in enumerate(turn.get("expectOutbound", [])):
+            concrete = _materialize_outbound(raw_envelope)
+            parsed = parse_inbound_message(concrete, version)
+            expected_kind = "action" if "action" in concrete else "error"
+            assert get_inbound_message_kind(parsed) == expected_kind, (
+                f"Turn {turn_idx} expectOutbound[{out_idx}] kind mismatch"
+            )
+            formatted = format_inbound_for_model(parsed)
+            assert formatted is not None and formatted.strip(), (
+                f"Turn {turn_idx} expectOutbound[{out_idx}] produced empty model input"
+            )
+            if expected_kind == "action":
+                action = concrete["action"]
+                assert action["name"] in formatted
+                assert action["surfaceId"] in formatted
+                for ctx_key, ctx_val in action.get("context", {}).items():
+                    assert str(ctx_key) in formatted
+                    assert str(ctx_val) in formatted
+            else:
+                error = concrete["error"]
+                assert error["code"] in formatted
+
+
 @pytest.mark.parametrize("suite, case", _build_parametrized_cases())
 def test_e2e_conformance(suite: str, case: dict[str, Any]) -> None:
     del suite
     _assert_scenario_keys(case)
+    _verify_outbound_roundtrip(case)
     catalogs = _load_scenario_catalogs(case)
     failures: list[str] = []
     for format_name in case["formats"]:

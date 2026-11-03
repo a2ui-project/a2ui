@@ -242,11 +242,82 @@ void _runFormat(
   }
 }
 
+Object? _materializeOutbound(Object? value, [String key = '']) {
+  if (value is List<Object?>) {
+    return [for (final Object? item in value) _materializeOutbound(item, key)];
+  }
+  if (value is Map<String, Object?>) {
+    if (value.length == 1 && value.containsKey(r'$match')) {
+      final Object? kind = value[r'$match'];
+      if (kind == 'iso8601' || key == 'timestamp') {
+        return '2026-01-01T00:00:00Z';
+      }
+      if (key == 'functionCallId') {
+        return 'call-1';
+      }
+      return 'match-str';
+    }
+    return <String, Object?>{
+      for (final MapEntry<String, Object?> entry in value.entries)
+        entry.key: _materializeOutbound(entry.value, entry.key),
+    };
+  }
+  return value;
+}
+
+void _verifyOutboundRoundtrip(
+  Map<String, Object?> scenario,
+  A2uiProtocolVersion version,
+) {
+  final turns = scenario['turns']! as List<Object?>;
+  for (final (int turnIdx, Object? rawTurn) in turns.indexed) {
+    final turn = rawTurn! as Map<String, Object?>;
+    final expectOutbound = turn['expectOutbound'] as List<Object?>?;
+    if (expectOutbound == null) continue;
+    for (final (int outIdx, Object? rawEnvelope) in expectOutbound.indexed) {
+      final concrete =
+          _materializeOutbound(rawEnvelope)! as Map<String, Object?>;
+      final RendererToAgentMessage parsed = parseInboundMessage(
+        concrete,
+        version,
+      );
+      final String expectedKind = concrete.containsKey('action')
+          ? 'action'
+          : 'error';
+      expect(
+        getInboundMessageKind(parsed),
+        expectedKind,
+        reason: 'turn $turnIdx expectOutbound[$outIdx] kind',
+      );
+      final String? formatted = formatInboundForModel(parsed);
+      expect(
+        formatted != null && formatted.trim().isNotEmpty,
+        isTrue,
+        reason: 'turn $turnIdx expectOutbound[$outIdx] formatted model input',
+      );
+      if (expectedKind == 'action') {
+        final action = concrete['action']! as Map<String, Object?>;
+        expect(formatted, contains(action['name']! as String));
+        expect(formatted, contains(action['surfaceId']! as String));
+        final context = action['context'] as Map<String, Object?>? ?? const {};
+        for (final MapEntry<String, Object?> entry in context.entries) {
+          expect(formatted, contains(entry.key));
+          expect(formatted, contains('${entry.value}'));
+        }
+      } else {
+        final error = concrete['error']! as Map<String, Object?>;
+        expect(formatted, contains(error['code']! as String));
+      }
+    }
+  }
+}
+
 void _runScenario(Map<String, Object?> scenario) {
   _assertScenarioKeys(scenario);
   final A2uiProtocolVersion version = _parseProtocolVersion(
     (scenario['protocolVersion'] as String?) ?? '1.0',
   );
+  _verifyOutboundRoundtrip(scenario, version);
   final List<CatalogApi> catalogs = _loadScenarioCatalogs(scenario, version);
   final formats = (scenario['formats']! as List<Object?>).cast<String>();
   final failures = <String>[];
