@@ -44,10 +44,12 @@ import {
   isComponentNode,
 } from '@a2ui/web_core/v0_9';
 import {
+  bindHostAccessibility,
   isWebComponentImplementation,
   registerUniversalElement,
   type WebComponentImplementation,
 } from '@a2ui/web_core/v0_9/universal';
+import {A2UI_ACCESSIBILITY_TARGETS, provideAccessibilityTargets} from './accessibility';
 import {A2uiRendererService} from './a2ui-renderer.service';
 import {Child, ComponentBinder} from './component-binder.service';
 import {SurfaceNodeResolver} from './surface-node-resolver.service';
@@ -127,6 +129,8 @@ function findNodeInList(
 @Component({
   selector: 'a2ui-v09-component-host',
   imports: [NgComponentOutlet],
+  // The Angular component this host mounts marks its elements in these.
+  providers: [provideAccessibilityTargets()],
   host: {
     style: 'display: contents;',
   },
@@ -154,6 +158,7 @@ export class ComponentHostComponent {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly injector = inject(Injector);
   private readonly sharedResolver = inject(SurfaceNodeResolver, {optional: true});
+  private readonly accessibilityTargets = inject(A2UI_ACCESSIBILITY_TARGETS, {self: true});
   private ownResolver?: SurfaceNodeResolver;
 
   protected readonly componentType = signal<Type<CatalogComponentInstance> | null>(null);
@@ -190,6 +195,7 @@ export class ComponentHostComponent {
   private stopProps?: () => void;
   private stopMetadata?: () => void;
   private surfaceSub?: Subscription;
+  private stopAccessibility?: () => void;
 
   constructor() {
     effect(() => {
@@ -324,6 +330,13 @@ export class ComponentHostComponent {
     this.componentType.set(componentClass);
     this.updateProps();
     this.metadata.set(getValue(node.metadata));
+    // A Web Component applies its own accessibility attributes; an Angular
+    // component gets them on this host.
+    this.stopAccessibility = bindHostAccessibility(
+      this.elementRef.nativeElement,
+      node,
+      this.accessibilityTargets,
+    );
 
     let lastProps = getValue(node.props);
     this.stopProps = webCoreEffect(() => {
@@ -415,6 +428,8 @@ export class ComponentHostComponent {
     this.stopMetadata = undefined;
     this.surfaceSub?.unsubscribe();
     this.surfaceSub = undefined;
+    this.stopAccessibility?.();
+    this.stopAccessibility = undefined;
 
     this.resolvedNode = undefined;
     this.activeSurface = undefined;

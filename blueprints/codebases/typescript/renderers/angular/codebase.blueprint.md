@@ -21,6 +21,8 @@ The Angular-native adapter (`@a2ui/angular`) rendering visual components and uni
 - **Surface & Host Resolution (`SurfaceComponent`, `ComponentHostComponent`)**: `SurfaceComponent` mounts a root `ComponentHostComponent`, which resolves `ComponentNode` instances through a per-surface `NodeResolver` and mounts either native Angular components (`NgComponentOutlet`) or universal Custom Elements.
 - **Universal Custom Elements (`AngularWcHost`, `toWebComponent`)**: Wraps Angular catalog components into W3C Custom Elements (`AngularWcHost`) that accept `el.node` (`el.context` is `@deprecated` and retained per [a2ui_framework_adapter.blueprint.md](../../../../modules/a2ui_framework_adapter.blueprint.md)) so Angular components and Lit Web Components can be hosted interchangeably.
 
+- **Host accessibility (`src/core/accessibility.ts`)**: `ComponentHostComponent` (for a native Angular component) and `AngularWcHost` call `bindHostAccessibility` from `@a2ui/web_core`. Each provides its own `A2UI_ACCESSIBILITY_TARGETS`, which `AccessibilityTargetDirective` and `ValidationErrorsDirective` fill with the elements the component marks.
+
 ## **Local Technical Decisions & Overrides**
 
 - **OnPush & Signal-Driven Change Detection**: Uses `ChangeDetectionStrategy.OnPush` and Angular Signals across all host and catalog components.
