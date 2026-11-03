@@ -11,6 +11,29 @@
   `allowed_callers` to `rendererOrAgent` on a function both the renderer and
   the agent call ([#3483](https://github.com/a2ui-project/a2ui/issues/3483),
   [#3773](https://github.com/a2ui-project/a2ui/pull/3773)).
+- **BREAKING CHANGE**: On every protocol version, a function call whose
+  nested argument call fails no longer runs with `None` for that argument: it
+  fails too, and the argument's error is reported once. Recommended migration:
+  handle a missing value inside the nested function instead of relying on the
+  enclosing one to receive `None`.
+  ([#3415](https://github.com/a2ui-project/a2ui/issues/3415),
+  [#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3740](https://github.com/a2ui-project/a2ui/pull/3740))
+- **BREAKING CHANGE**: Action errors are classified the same way in every
+  kind of action. A local function that ran and raised is `EXECUTION_ERROR`,
+  in an event action's `context` and `userMessage` as well as in
+  `action.functionCall`; previously the event values reported
+  `EXPRESSION_ERROR`. A refused call (missing user activation, `agentOnly`,
+  invalid arguments) is `EXPRESSION_ERROR` everywhere; previously a
+  `functionCall` action refused for user activation reported
+  `EXECUTION_ERROR`. `GenericBinder` runs a function call action through
+  `DataContext.resolve_action`, so these codes and `requires_user_activation`
+  apply there, and its closure returns the result's current value.
+  Recommended migration: treat `EXECUTION_ERROR` as a function failure and
+  `EXPRESSION_ERROR` as a refused or malformed call.
+  ([#3415](https://github.com/a2ui-project/a2ui/issues/3415),
+  [#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3740](https://github.com/a2ui-project/a2ui/pull/3740))
 - From v0.9, a component its catalog declares with no `ComponentId` or
   `ChildList` property has no child references. Previously any of its string
   properties that named a component on the surface, such as an `Icon` named
@@ -44,6 +67,35 @@
   that breaks those rules is now rejected. The check is skipped when no catalog
   of the surface's components declares such rules.
   [#3360](https://github.com/a2ui-project/a2ui/pull/3360)
+- (v1_0) A function call whose function the renderer does not implement
+  (undeclared in the catalog the call resolves to, or declared schema-only) is
+  sent to the agent with `callAgentFunction`, as the specification's fallback
+  routing defines, for bindings, check rules, `action.functionCall` and
+  `action.event`. `MessageProcessor` enables it on v1.0 surfaces that have an
+  `outbound_listener`. The call names its resolved catalog, and a schema-only
+  function's arguments are validated once they resolve and sent with the
+  schema's defaults. A call is not sent, and reports `EXPRESSION_ERROR`, when
+  its function is `agentOnly`, needs user activation the evaluation lacks, has
+  arguments with no JSON form, or is read by a one-shot `resolve_dynamic_value` call, which never sends but may return the answer the surface already holds for the same call. `formatString` template parts and the arguments of an agent's `callRendererFunction` never use the agent: an unimplemented function there is an `EXPRESSION_ERROR` (template parts, which render empty) or an `EXECUTION_ERROR` response (`callRendererFunction`). While the answer is
+  pending the value is `None` (a signal with `peek=False`), and a pending
+  check rule doesn't fail. Event action values resolve in order, and the first
+  failure stops the action. Identical binding calls share one request and a
+  cached answer; action calls never do. Evaluate on the event loop that owns
+  the surface: off the loop, a call that would have to be sent fails at once.
+  Adds `SurfaceModel.agent_function_caller`, `SurfaceModel.settled_agent_answer`,
+  `SurfaceModel.call_agent_function`, `SurfaceModel.disposed`,
+  `DataContext.is_user_activated`, `MessageProcessor.dispose`,
+  `RpcHandler.cancel_surface_calls`, `AgentFunctionCall` and
+  `AgentFunctionCaller`.
+  ([#3415](https://github.com/a2ui-project/a2ui/issues/3415),
+  [#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3740](https://github.com/a2ui-project/a2ui/pull/3740))
+- `deleteSurface` cancels the surface's pending agent calls with `CANCELLED`,
+  and `MessageProcessor.dispose()` disposes every surface and cancels all
+  pending calls. Cancelled calls report no error.
+  ([#3415](https://github.com/a2ui-project/a2ui/issues/3415),
+  [#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3740](https://github.com/a2ui-project/a2ui/pull/3740))
 - Add extension metadata APIs across `SurfaceModel` (`metadata`, `extensions`, `on_metadata_changed`, `set_extension`, `remove_extension`, and `dispatch_action(..., metadata=...)`), `ComponentModel` (`metadata`, `extensions`, `on_metadata_changed`, `set_extension`, `remove_extension`), `ComponentNode` (`metadata` and `on_metadata_changed`), `ComponentContext` and `GenericBinder` (`metadata`, `extensions`, and optional `metadata` on bound action closures), and `ComponentApi` (`metadata` parsed and serialized in `Catalog.from_json()` and `Catalog.to_json()`). Fix `MessageProcessor` to store component `metadata` on `ComponentModel.metadata` outside `ComponentModel.properties` and validate UAX 31 extension keys on component creation as well as updates, and fix Pydantic code generation to emit a distinct `ActionMetadata` wrapper model instead of colliding with `Extensions` ([#3103](https://github.com/a2ui-project/a2ui/issues/3103), [#3468](https://github.com/a2ui-project/a2ui/issues/3468), [#3560](https://github.com/a2ui-project/a2ui/issues/3560), [#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)).
 - A function defined without an argument schema (`FunctionApi` or
   `FunctionImplementation` without `schema`) takes any args, as one given
