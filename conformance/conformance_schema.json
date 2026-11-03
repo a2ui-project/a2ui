@@ -38,7 +38,9 @@
       {"$ref": "#/$defs/DeclareAgentFunctionsTest"},
       {"$ref": "#/$defs/HandleAgentFunctionTest"},
       {"$ref": "#/$defs/ValidatePayloadTest"},
-      {"$ref": "#/$defs/CallRendererFunctionTest"}
+      {"$ref": "#/$defs/CallRendererFunctionTest"},
+      {"$ref": "#/$defs/ProcessRendererMessageTest"},
+      {"$ref": "#/$defs/RenderSurfaceTest"}
     ]
   },
   "$defs": {
@@ -2332,21 +2334,26 @@
     },
     "AgentFunctionDeclaration": {
       "type": "object",
-      "description": "An agent function: a catalog function that runs on the agent.",
+      "description": "An agent function: a catalog function that runs on the agent. Built directly from `args`, it is rendererOnly. With `from_api: true`, it is built from the catalog's own declaration of the function (keeping that declaration's allowedCallers), or, if the catalog declares none, from a declaration made of `returnType`, `args` and `description`, which the catalog must refuse.",
       "properties": {
+        "name": {
+          "type": "string",
+          "description": "The function's name, when it differs from its key, so a case can give two entries one name."
+        },
+        "from_api": {
+          "const": true,
+          "description": "Build the agent function from the catalog's declaration of it (AgentFunction.from_api)."
+        },
         "description": {"type": "string"},
         "returnType": {"type": "string"},
-        "allowedCallers": {
-          "enum": ["rendererOnly", "agentOnly", "rendererOrAgent"],
-          "default": "rendererOnly"
-        },
         "args": {
           "type": "object",
           "description": "JSON Schema of the function's args."
         },
         "behavior": {"$ref": "#/$defs/AgentFunctionBehavior"}
       },
-      "required": ["args", "behavior"],
+      "required": ["behavior"],
+      "anyOf": [{"required": ["args"]}, {"required": ["from_api"]}],
       "additionalProperties": false
     },
     "AgentFunctionCatalog": {
@@ -2490,149 +2497,60 @@
       "oneOf": [{"required": ["expect_valid"]}, {"required": ["expect_error"]}],
       "additionalProperties": false
     },
-    "CallRendererFunctionTest": {
+    "ProcessRendererMessageTest": {
       "type": "object",
-      "description": "Calling renderer functions from the agent with callRendererFunction, and settling the calls with the renderer's responses, on a fake clock that only `advance_ms` steps move.",
+      "description": "Processing one renderer-to-agent message with RendererToAgentMessageProcessor, built from the agent functions of `catalog` (or no catalog) and the callbacks named in `callbacks`.",
       "properties": {
         "name": {"type": "string"},
         "description": {"type": "string"},
-        "action": {"const": "call_renderer_function"},
+        "action": {"const": "process_renderer_message"},
         "args": {
           "type": "object",
           "properties": {
-            "default_timeout_ms": {
-              "type": ["integer", "null"],
-              "exclusiveMinimum": 0,
-              "description": "How long a call waits for its response unless it sets its own timeout. Without it, the SDK's default, 30000. Null waits without a limit."
+            "catalog": {"$ref": "#/$defs/AgentFunctionCatalog"},
+            "callbacks": {
+              "type": "array",
+              "description": "The callbacks the processor has: on_action, on_error and on_renderer_function_response. Each records the message it receives.",
+              "items": {"enum": ["action", "error", "rendererFunctionResponse"]},
+              "uniqueItems": true
             },
-            "max_pending": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "The most calls that may wait for a response at once."
+            "message": {
+              "description": "The message, as received. It may be malformed or not an object."
             }
           },
+          "required": ["message"],
           "additionalProperties": false
         },
-        "steps": {
-          "type": "array",
-          "items": {"$ref": "#/$defs/RendererCallStep"},
-          "minItems": 1
-        }
-      },
-      "required": ["name", "action", "steps"],
-      "additionalProperties": false
-    },
-    "RendererCallState": {
-      "description": "The state of a call: still pending, settled with a value, or failed with an RPC error code. `error.message` is a substring of the failure's message.",
-      "oneOf": [
-        {"const": "pending"},
-        {
-          "type": "object",
-          "properties": {"value": {}},
-          "required": ["value"],
-          "additionalProperties": false
-        },
-        {
+        "expect": {
           "type": "object",
           "properties": {
-            "error": {
+            "handled": {"type": "boolean"},
+            "replies": {
+              "type": "array",
+              "items": {"type": "object"},
+              "description": "The messages sent back, in order. Compared exactly, except that an `error.message` in an expected reply is a substring of the one sent and may be left out. Absent means none."
+            },
+            "callback": {
               "type": "object",
+              "description": "The one callback that ran, and the message it received, serialized. Absent means no callback ran.",
               "properties": {
-                "code": {"type": "string"},
-                "message": {"type": "string"}
+                "kind": {"enum": ["action", "error", "rendererFunctionResponse"]},
+                "message": {"type": "object"}
               },
-              "required": ["code"],
+              "required": ["kind", "message"],
               "additionalProperties": false
             }
           },
-          "required": ["error"],
+          "required": ["handled"],
           "additionalProperties": false
-        }
-      ]
-    },
-    "RendererCallStep": {
-      "type": "object",
-      "description": "One step of a call_renderer_function case: exactly one of `call`, `respond`, `advance_ms` or `dispose`, then its expectations, checked once pending asynchronous work has run.",
-      "properties": {
-        "call": {
-          "type": "object",
-          "description": "Makes a call. `label` names it for later steps.",
-          "properties": {
-            "label": {"type": "string"},
-            "catalogId": {"type": "string"},
-            "name": {"type": "string"},
-            "args": {"type": "object"},
-            "surfaceId": {"type": "string"},
-            "timeout_ms": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "description": "How long this call waits for its response, in place of the default."
-            }
-          },
-          "required": ["label", "catalogId", "name"],
-          "additionalProperties": false
-        },
-        "respond": {
-          "type": "object",
-          "description": "Hands the calls a rendererFunctionResponse, for the call `call` labels or for a literal `functionCallId`.",
-          "properties": {
-            "call": {"type": "string"},
-            "functionCallId": {"type": "string"},
-            "value": {},
-            "error": {
-              "type": "object",
-              "properties": {
-                "code": {"type": "string"},
-                "message": {"type": "string"}
-              },
-              "required": ["code", "message"],
-              "additionalProperties": false
-            }
-          },
-          "allOf": [
-            {"oneOf": [{"required": ["call"]}, {"required": ["functionCallId"]}]},
-            {"oneOf": [{"required": ["value"]}, {"required": ["error"]}]}
-          ],
-          "additionalProperties": false
-        },
-        "advance_ms": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Moves the fake clock forward."
-        },
-        "dispose": {
-          "type": "object",
-          "description": "Disposes the calls, with an optional reason.",
-          "properties": {
-            "reason": {"type": "string"}
-          },
-          "additionalProperties": false
-        },
-        "expect_message": {
-          "type": "object",
-          "description": "On a `call` step, the callRendererFunction message, less its functionCallId."
         },
         "expect_error": {
           "$ref": "#/$defs/ExpectError",
-          "description": "On a `call` step, the call is refused with this RPC error code instead of being made."
-        },
-        "expect_calls": {
-          "type": "object",
-          "description": "The state of the calls it names, by label.",
-          "additionalProperties": {"$ref": "#/$defs/RendererCallState"}
-        },
-        "expect_pending_count": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "How many calls are waiting for a response."
+          "description": "Processing the message fails, and no callback runs."
         }
       },
-      "oneOf": [
-        {"required": ["call"]},
-        {"required": ["respond"]},
-        {"required": ["advance_ms"]},
-        {"required": ["dispose"]}
-      ],
+      "required": ["name", "action", "args"],
+      "oneOf": [{"required": ["expect"]}, {"required": ["expect_error"]}],
       "additionalProperties": false
     },
     "ExpectError": {

@@ -18,8 +18,8 @@ import 'suites.dart';
 
 /// Registers the shared `conformance/agent/agent_functions.yaml` suite.
 ///
-/// The suite covers agent functions and the agent's calls to renderer
-/// functions, which this SDK does not implement yet, so every case is
+/// The suite covers agent functions and the routing of renderer messages,
+/// which this SDK does not implement yet, so every case is
 /// skipped with the reason [_unimplementedActions] gives. A case whose action
 /// has no reason fails instead of passing without running.
 void main() {
@@ -43,9 +43,8 @@ const Map<String, String> _unimplementedActions = {
   'declare_agent_functions': _notImplemented,
   'handle_agent_function': _notImplemented,
   'validate_payload': _notImplemented,
-  'call_renderer_function': _notImplemented,
+  'process_renderer_message': _notImplemented,
 };
 
 const String _notImplemented =
-    'this SDK does not implement agent functions or calls to renderer '
-    'functions yet';
+    'this SDK does not implement agent functions yet';

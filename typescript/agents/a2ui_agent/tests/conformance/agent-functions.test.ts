@@ -20,7 +20,7 @@ import {classify, loadCases} from './loader.js';
 import {conformancePath} from './suite-helpers.js';
 
 /**
- * `agent_functions.yaml` covers agent functions and the agent's calls to renderer functions,
+ * `agent_functions.yaml` covers agent functions and the routing of renderer messages,
  * which this SDK does not implement yet. Every case is registered as skipped with the reason
  * `classify` gives, so the gap shows in the test report, and a case with an action that has
  * no reason fails instead of passing without running.

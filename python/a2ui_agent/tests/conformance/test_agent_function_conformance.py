@@ -15,9 +15,8 @@
 """Runs the shared `conformance/agent/agent_functions.yaml` suite.
 
 A case declares each agent function with a scripted behaviour, which
-`_handler` turns into a handler. The renderer call cases run on
-`_FakeClockLoop`, an event loop whose clock moves only when a case's
-`advance_ms` step moves it, so their timeouts don't depend on real time.
+`_handler` turns into a handler. Every message goes through
+`RendererToAgentMessageProcessor`.
 """
 
 from __future__ import annotations
@@ -26,7 +25,6 @@ import asyncio
 from collections.abc import Callable, Mapping
 import os
 import re
-import selectors
 from typing import Any
 
 import pytest
@@ -35,11 +33,13 @@ from a2ui.core import (
     A2uiCatalogError,
     A2uiRpcError,
     A2uiValidationError,
+    AgentFunction,
+    AgentFunctionContext,
     CatalogApi,
 )
-from a2ui.core.catalog import AgentFunction, AgentFunctionContext
+from a2ui.core.catalog import FunctionApi
 from a2ui.processor import InMemoryCatalogProvider
-from a2ui.rpc import AgentFunctionRegistry, RendererFunctionCalls
+from a2ui.rpc import RendererToAgentMessageProcessor
 from a2ui.utils import validate_payload
 
 from .conformance_helpers import load_conformance_json, load_conformance_yaml
@@ -114,13 +114,25 @@ def _handler(behavior: Mapping[str, Any]) -> AgentFunctionHandler:
     raise ValueError(f"Unknown agent function behavior: {behavior}")
 
 
-def _agent_function(name: str, declaration: Mapping[str, Any]) -> AgentFunction:
+def _agent_function(
+    key: str, declaration: Mapping[str, Any], catalog: CatalogApi
+) -> AgentFunction:
+    """The agent function a declaration describes, for `catalog`."""
+    name = declaration.get("name", key)
+    handler = _handler(declaration["behavior"])
+    if declaration.get("from_api"):
+        api = catalog.functions.get(name) or FunctionApi(
+            name,
+            return_type=declaration.get("returnType", "any"),
+            schema=declaration.get("args"),
+            description=declaration.get("description"),
+        )
+        return AgentFunction.from_api(api, handler)
     return AgentFunction(
         name,
-        handler=_handler(declaration["behavior"]),
+        handler=handler,
         return_type=declaration.get("returnType", "any"),
         schema=declaration["args"],
-        allowed_callers=declaration.get("allowedCallers", "rendererOnly"),
         description=declaration.get("description"),
     )
 
@@ -135,8 +147,8 @@ def _catalog(entry: Mapping[str, Any]) -> CatalogApi:
     ).load()
     return catalog.copy_with(
         agent_functions=[
-            _agent_function(name, declaration)
-            for name, declaration in entry.get("agent_functions", {}).items()
+            _agent_function(key, declaration, catalog)
+            for key, declaration in entry.get("agent_functions", {}).items()
         ]
     )
 
@@ -167,16 +179,20 @@ def _run_declare(case: Mapping[str, Any]) -> None:
 
 def _run_handle(case: Mapping[str, Any]) -> None:
     args = case["args"]
-    registry = AgentFunctionRegistry([_catalog(entry) for entry in args["catalogs"]])
+    processor = RendererToAgentMessageProcessor(
+        [_catalog(entry) for entry in args["catalogs"]]
+    )
 
     if "expect_error" in case:
         with pytest.raises(Exception) as excinfo:
-            asyncio.run(registry.handle(args["message"]))
+            asyncio.run(processor.process_message(args["message"]))
         _assert_error_matches(excinfo.value, case["expect_error"])
         return
 
-    message = asyncio.run(registry.handle(args["message"]))
-    dumped = message.model_dump(by_alias=True, exclude_unset=True)
+    result = asyncio.run(processor.process_message(args["message"]))
+    assert result.handled
+    assert len(result.replies) == 1, result.replies
+    dumped = result.replies[0].model_dump(by_alias=True, exclude_unset=True)
     assert dumped["version"] == "1.0"
     response = dumped["agentFunctionResponse"]
     expected = case["expect"]
@@ -205,144 +221,76 @@ def _run_validate(case: Mapping[str, Any]) -> None:
     validate_payload(catalogs, args["messages"])
 
 
-class _FakeClockLoop(asyncio.SelectorEventLoop):
-    """An event loop whose clock moves only when `advance` moves it."""
-
-    def __init__(self) -> None:
-        # Set before the base constructor, which may already read the clock.
-        self._now_ms = 0
-        super().__init__(selectors.DefaultSelector())
-
-    def time(self) -> float:
-        return self._now_ms / 1000
-
-    def advance(self, ms: int) -> None:
-        self._now_ms += ms
+_CALLBACK_OPTIONS = {
+    "action": "on_action",
+    "error": "on_error",
+    "rendererFunctionResponse": "on_renderer_function_response",
+}
 
 
-async def _let_pending_work_run() -> None:
-    for _ in range(5):
-        await asyncio.sleep(0)
+def _assert_reply_matches(actual: Any, expected: Any) -> None:
+    """Compares a reply exactly, but an expected `error.message` as a substring."""
+    if isinstance(expected, Mapping):
+        assert isinstance(actual, Mapping), actual
+        if "code" in expected and "message" not in expected:
+            actual = {k: v for k, v in actual.items() if k != "message"}
+        assert set(actual) == set(expected), (actual, expected)
+        for key, value in expected.items():
+            if key == "message" and "code" in expected and isinstance(value, str):
+                assert value in actual[key], (actual, expected)
+            else:
+                _assert_reply_matches(actual[key], value)
+    else:
+        assert actual == expected, (actual, expected)
 
 
-def _call_state(future: asyncio.Future[Any]) -> Any:
-    """A call's state in the suite's vocabulary."""
-    if not future.done():
-        return "pending"
-    error = future.exception()
-    if error is None:
-        return {"value": future.result()}
-    assert isinstance(error, A2uiRpcError), error
-    return {"error": {"code": error.code, "message": str(error)}}
+def _run_process(case: Mapping[str, Any]) -> None:
+    args = case["args"]
+    received: list[tuple[str, Any]] = []
 
+    def record(kind: str) -> Callable[[Any], None]:
+        return lambda message: received.append((kind, message))
 
-def _assert_call_state(label: str, actual: Any, expected: Any) -> None:
-    if expected == "pending" or actual == "pending":
-        assert actual == expected, f"call {label}: {actual}"
+    catalogs = [_catalog(args["catalog"])] if "catalog" in args else []
+    processor = RendererToAgentMessageProcessor(
+        catalogs,
+        **{_CALLBACK_OPTIONS[kind]: record(kind) for kind in args.get("callbacks", [])},
+    )
+
+    if "expect_error" in case:
+        with pytest.raises(Exception) as excinfo:
+            asyncio.run(processor.process_message(args["message"]))
+        _assert_error_matches(excinfo.value, case["expect_error"])
+        assert received == []
         return
-    if "value" in expected:
-        assert actual == expected, f"call {label}: {actual}"
-        return
-    assert "error" in actual, f"call {label}: {actual}"
-    assert actual["error"]["code"] == expected["error"]["code"], f"call {label}"
-    if "message" in expected["error"]:
-        assert expected["error"]["message"] in actual["error"]["message"]
 
-
-async def _run_calls_on_loop(case: Mapping[str, Any], loop: _FakeClockLoop) -> None:
-    args = case.get("args", {})
-    options: dict[str, Any] = {}
-    if "default_timeout_ms" in args:
-        timeout_ms = args["default_timeout_ms"]
-        options["default_timeout"] = None if timeout_ms is None else timeout_ms / 1000
-    if "max_pending" in args:
-        options["max_pending"] = args["max_pending"]
-    calls = RendererFunctionCalls(**options)
-    futures: dict[str, asyncio.Future[Any]] = {}
-    call_ids: dict[str, str] = {}
-
-    for index, step in enumerate(case["steps"]):
-        where = f"step {index}"
-        if "call" in step:
-            spec = step["call"]
-            kwargs: dict[str, Any] = {
-                "catalog_id": spec["catalogId"],
-                "name": spec["name"],
-            }
-            if "args" in spec:
-                kwargs["args"] = spec["args"]
-            if "surfaceId" in spec:
-                kwargs["surface_id"] = spec["surfaceId"]
-            if "timeout_ms" in spec:
-                kwargs["timeout"] = spec["timeout_ms"] / 1000
-            if "expect_error" in step:
-                with pytest.raises(A2uiRpcError) as excinfo:
-                    calls.call(**kwargs)
-                _assert_error_matches(excinfo.value, step["expect_error"])
-            else:
-                message, future = calls.call(**kwargs)
-                dumped = message.model_dump(by_alias=True, exclude_unset=True)
-                body = dumped["callRendererFunction"]
-                call_id = body.pop("functionCallId")
-                assert isinstance(call_id, str) and call_id, where
-                assert call_id not in call_ids.values(), f"{where}: reused {call_id}"
-                call_ids[spec["label"]] = call_id
-                futures[spec["label"]] = future
-                if "expect_message" in step:
-                    assert dumped == step["expect_message"], where
-        elif "respond" in step:
-            spec = step["respond"]
-            call_id = (
-                call_ids[spec["call"]] if "call" in spec else spec["functionCallId"]
-            )
-            response: dict[str, Any] = {"functionCallId": call_id}
-            if "error" in spec:
-                response["error"] = spec["error"]
-            else:
-                response["value"] = spec["value"]
-            calls.resolve({"version": "1.0", "rendererFunctionResponse": response})
-        elif "advance_ms" in step:
-            loop.advance(step["advance_ms"])
-        elif "dispose" in step:
-            reason = step["dispose"].get("reason")
-            if reason is None:
-                calls.dispose()
-            else:
-                calls.dispose(reason)
-        else:
-            raise ValueError(f"{where}: unknown step {step}")
-
-        await _let_pending_work_run()
-        for label, expected in step.get("expect_calls", {}).items():
-            _assert_call_state(label, _call_state(futures[label]), expected)
-        if "expect_pending_count" in step:
-            assert calls.pending_count == step["expect_pending_count"], where
-
-    calls.dispose()
-    await _let_pending_work_run()
-    # Reads each failure, so asyncio doesn't log "exception was never
-    # retrieved". `dispose` settles every pending call, but a future that is
-    # somehow still pending is skipped rather than raising InvalidStateError.
-    for future in futures.values():
-        if future.done() and not future.cancelled():
-            future.exception()
-
-
-def _run_calls(case: Mapping[str, Any]) -> None:
-    loop = _FakeClockLoop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(_run_calls_on_loop(case, loop))
-    finally:
-        loop.close()
-        asyncio.set_event_loop(None)
+    result = asyncio.run(processor.process_message(args["message"]))
+    expected = case["expect"]
+    assert result.handled is expected["handled"]
+    replies = [
+        reply.model_dump(by_alias=True, exclude_unset=True) for reply in result.replies
+    ]
+    expected_replies = expected.get("replies", [])
+    assert len(replies) == len(expected_replies), replies
+    for reply, expected_reply in zip(replies, expected_replies):
+        _assert_reply_matches(reply, expected_reply)
+    if "callback" in expected:
+        assert len(received) == 1, received
+        kind, message = received[0]
+        assert kind == expected["callback"]["kind"]
+        assert (
+            message.model_dump(by_alias=True, exclude_unset=True)
+            == expected["callback"]["message"]
+        )
+    else:
+        assert received == []
 
 
 RUNNERS: dict[str, Callable[[Mapping[str, Any]], None]] = {
     "declare_agent_functions": _run_declare,
     "handle_agent_function": _run_handle,
     "validate_payload": _run_validate,
-    "call_renderer_function": _run_calls,
+    "process_renderer_message": _run_process,
 }
 
 
