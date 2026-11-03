@@ -60,6 +60,10 @@ describe('Public Barrel Exports', () => {
     expect(a2uiAgent.validatePayload).toBeDefined();
   });
 
+  it('exports the filter for thinking about A2UI', () => {
+    expect(a2uiAgent.removeA2uiThinking).toBeDefined();
+  });
+
   it('exports the Direct JSON response stream and no stream processor', () => {
     expect(a2uiAgent.DirectJsonResponseStream).toBeDefined();
     expect('DirectJsonStreamProcessorImpl' in a2uiAgent).toBe(false);

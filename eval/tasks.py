@@ -133,7 +133,6 @@ def build_task(
     no_judge: bool = False,
     max_validation_retries: int = 0,
     subagent_format: str = "direct_json",
-    user_focused_thinking: bool = False,
 ) -> Task:
     """Builds the evaluation task for one protocol version.
 
@@ -147,9 +146,6 @@ def build_task(
         no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
         max_validation_retries: Validation self-retries per sample (Pass@K).
         subagent_format: Inference format of the `subagent_tool` specialist.
-        user_focused_thinking: Start and end the SDK's prompt snippet with its
-            rule asking the model to think about the user's request rather
-            than the format. `thinking_scorer` measures the effect.
     """
     _check_task_inputs(active_version, dataset)
     format_name = (
@@ -175,7 +171,6 @@ def build_task(
             version=active_version,
             max_validation_retries=max_validation_retries,
             subagent_format=subagent_format,
-            user_focused_thinking=user_focused_thinking,
         ),
         scorer=[
             a2ui_scorer(version=active_version),
@@ -193,7 +188,6 @@ def build_task(
             "max_validation_retries": max_validation_retries,
             "no_judge": no_judge,
             "tags": tags,
-            "user_focused_thinking": user_focused_thinking,
         },
     )
 
@@ -208,7 +202,6 @@ def a2ui_v0_9_1_eval(
     no_judge: bool = False,
     max_validation_retries: int = 0,
     subagent_format: str = "direct_json",
-    user_focused_thinking: bool = False,
 ) -> Task:
     """Evaluation task for A2UI v0.9.1 protocol generation.
 
@@ -221,8 +214,6 @@ def a2ui_v0_9_1_eval(
         no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
         max_validation_retries: Validation self-retries per sample (Pass@K).
         subagent_format: Inference format of the `subagent_tool` specialist.
-        user_focused_thinking: Start and end the prompt snippet with the SDK's
-            thinking rule.
 
     Returns:
         An Inspect Task object configured for A2UI v0.9.1 evaluation.
@@ -239,7 +230,6 @@ def a2ui_v0_9_1_eval(
         no_judge=no_judge,
         max_validation_retries=max_validation_retries,
         subagent_format=subagent_format,
-        user_focused_thinking=user_focused_thinking,
     )
 
 
@@ -253,7 +243,6 @@ def a2ui_v1_0_eval(
     no_judge: bool = False,
     max_validation_retries: int = 0,
     subagent_format: str = "direct_json",
-    user_focused_thinking: bool = False,
 ) -> Task:
     """Evaluation task for A2UI v1.0 protocol generation.
 
@@ -266,8 +255,6 @@ def a2ui_v1_0_eval(
         no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
         max_validation_retries: Validation self-retries per sample (Pass@K).
         subagent_format: Inference format of the `subagent_tool` specialist.
-        user_focused_thinking: Start and end the prompt snippet with the SDK's
-            thinking rule.
 
     Returns:
         An Inspect Task object configured for A2UI v1.0 evaluation.
@@ -284,5 +271,4 @@ def a2ui_v1_0_eval(
         no_judge=no_judge,
         max_validation_retries=max_validation_retries,
         subagent_format=subagent_format,
-        user_focused_thinking=user_focused_thinking,
     )

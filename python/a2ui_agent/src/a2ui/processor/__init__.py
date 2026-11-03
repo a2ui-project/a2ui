@@ -24,6 +24,7 @@ from .catalog_providers import (
 )
 from .generator import A2uiGenerator
 from .processor import A2uiRequestProcessor
+from .thinking import remove_a2ui_thinking
 
 __all__ = [
     "A2uiGenerator",
@@ -32,4 +33,5 @@ __all__ = [
     "CatalogProvider",
     "FileSystemCatalogProvider",
     "InMemoryCatalogProvider",
+    "remove_a2ui_thinking",
 ]

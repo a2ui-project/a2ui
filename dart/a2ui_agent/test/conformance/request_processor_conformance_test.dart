@@ -132,19 +132,12 @@ void _createProcessor(Map<String, Object?> testCase, SuiteVersion version) {
       version.catalogConfig(entry),
   ];
   final List<List<AgentToRendererMessage>> examples = _examples(args, version);
-  final bool userFocusedThinking =
-      args['user_focused_thinking'] as bool? ?? false;
   final A2uiGenerator generator = switch (args['format']) {
-    null => A2uiGenerator(
-      catalogs: configs,
-      examples: examples,
-      userFocusedThinking: userFocusedThinking,
-    ),
+    null => A2uiGenerator(catalogs: configs, examples: examples),
     final Object name => A2uiGenerator(
       catalogs: configs,
       examples: examples,
       inferenceFormatFactory: _factory(name),
-      userFocusedThinking: userFocusedThinking,
     ),
   };
   final List<Object?> before = _describe(generator);
@@ -175,12 +168,6 @@ void _createProcessor(Map<String, Object?> testCase, SuiteVersion version) {
     );
   }
   expectSnippet(processor.promptSnippet, expected);
-  if (expected['prompt_snippet_starts_with'] case final String start) {
-    expect(processor.promptSnippet, startsWith(start));
-  }
-  if (expected['prompt_snippet_ends_with'] case final String end) {
-    expect(processor.promptSnippet, endsWith(end));
-  }
   if (expected['generator_catalogs_unchanged'] == true) {
     expect(_describe(generator), before);
   }

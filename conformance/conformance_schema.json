@@ -28,6 +28,7 @@
       {"$ref": "#/$defs/MeasureOverheadTest"},
       {"$ref": "#/$defs/CreateFormatTest"},
       {"$ref": "#/$defs/CreateProcessorTest"},
+      {"$ref": "#/$defs/RemoveA2uiThinkingTest"},
       {"$ref": "#/$defs/EvaluateFunctionTest"},
       {"$ref": "#/$defs/DispatchActionTest"},
       {"$ref": "#/$defs/DeriveTest"},
@@ -85,6 +86,7 @@
             "process_messages",
             "provide_catalog",
             "prune",
+            "remove_a2ui_thinking",
             "render",
             "resolve_catalogs",
             "resolve_path",
@@ -1955,12 +1957,7 @@
               "description": "A format passed when the processor is created, overriding the generator's own."
             },
             "renderer_capabilities": {"type": "object"},
-            "accepts_inline_catalogs": {"type": "boolean", "default": false},
-            "user_focused_thinking": {
-              "type": "boolean",
-              "default": false,
-              "description": "The generator's `user_focused_thinking` option, which starts and ends the prompt snippet with a rule asking the model to think about the user's request rather than about the format."
-            }
+            "accepts_inline_catalogs": {"type": "boolean", "default": false}
           },
           "required": ["catalogs"],
           "additionalProperties": false
@@ -1976,14 +1973,6 @@
             },
             "prompt_snippet_contains": {"type": "array", "items": {"type": "string"}},
             "prompt_snippet_absent": {"type": "array", "items": {"type": "string"}},
-            "prompt_snippet_starts_with": {
-              "type": "string",
-              "description": "Text the prompt snippet starts with, for a rule whose place in the snippet is part of the contract."
-            },
-            "prompt_snippet_ends_with": {
-              "type": "string",
-              "description": "Text the prompt snippet ends with, for a rule whose place in the snippet is part of the contract."
-            },
             "generator_catalogs_unchanged": {
               "type": "boolean",
               "description": "The generator's own catalogs are the same after the processor was created as before, so one renderer's negotiation cannot affect the next."
@@ -2009,6 +1998,18 @@
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["action", "args"]
+    },
+    "RemoveA2uiThinkingTest": {
+      "type": "object",
+      "description": "Removing the sentences about A2UI from one of the model's thoughts, before an app shows it to the user.",
+      "properties": {
+        "name": {"type": "string"},
+        "action": {"const": "remove_a2ui_thinking"},
+        "input": {"type": "string", "description": "The thought as the model wrote it."},
+        "expect": {"type": "string", "description": "The exact text the app shows."}
+      },
+      "required": ["name", "action", "input", "expect"],
+      "additionalProperties": false
     },
     "ExpectError": {
       "description": "Expected error specification (error message string, regex, or structured error object).",

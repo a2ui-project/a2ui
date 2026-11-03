@@ -23,13 +23,6 @@ import {ResponseStream} from '../parser/response-stream.js';
 import {toReleaseLine, toWireProtocolVersion} from '../utils/protocol-version.js';
 import {RendererState} from '../utils/renderer-state.js';
 
-const USER_FOCUSED_THINKING_RULE =
-  '## Thinking:\n' +
-  'The user reads your thoughts while they wait for your answer. Think only about their ' +
-  'request: what they need, and which choice suits them and why. Plan the screen in plain ' +
-  'words, such as "a card for each option with a button to pick it". Write the UI code in ' +
-  'your answer without writing, checking or describing it in your thoughts.';
-
 /** Options for a request processor. */
 export interface A2uiRequestProcessorOptions {
   /**
@@ -39,13 +32,6 @@ export interface A2uiRequestProcessorOptions {
    * conversation.
    */
   state?: RendererState;
-
-  /**
-   * Whether the prompt snippet starts and ends with a rule asking the model to think about the
-   * user's request rather than the format, for an app that shows the model's thinking. False
-   * by default.
-   */
-  userFocusedThinking?: boolean;
 }
 
 /** Request-scoped facade over the negotiated catalogs, prompt, parser, and validation. */
@@ -54,14 +40,12 @@ export class A2uiRequestProcessor {
   private readonly _format: InferenceFormat;
   private _parser?: Parser;
   private readonly _state?: RendererState;
-  private readonly _userFocusedThinking: boolean;
 
   /**
    * @param catalogs The negotiated catalogs active for this request.
    * @param _examples Prompt examples, keyed by name.
    * @param formatFactory The inference format. Express by default.
-   * @param options The renderer state to bind, if any, and whether the thinking rule starts
-   *     and ends the prompt snippet.
+   * @param options The renderer state to bind, if any.
    * @throws {A2uiCatalogError} If `options.state` holds other catalogs than `catalogs`.
    */
   constructor(
@@ -75,7 +59,6 @@ export class A2uiRequestProcessor {
     this._format = factory.createFormat([...this._catalogs], _examples);
     this.checkState(options.state);
     this._state = options.state;
-    this._userFocusedThinking = options.userFocusedThinking ?? false;
   }
 
   /** The negotiated catalogs active for this request. */
@@ -96,15 +79,10 @@ export class A2uiRequestProcessor {
    * Format-specific system prompt snippet to feed the model.
    *
    * The snippet covers the format's rules, the active catalogs and any examples. The agent
-   * developer writes the rest of the system prompt and places the snippet within it. With
-   * `userFocusedThinking`, the thinking rule starts and ends the snippet. A model follows it
-   * far more often when it reads the rule both before and after the format's instructions.
+   * developer writes the rest of the system prompt and places the snippet within it.
    */
   get promptSnippet(): string {
-    const snippet = this._format.promptGenerator.generate();
-    if (!this._userFocusedThinking) return snippet;
-    const rule = USER_FOCUSED_THINKING_RULE;
-    return `${rule}\n\n${snippet}\n\n${rule}`;
+    return this._format.promptGenerator.generate();
   }
 
   /**

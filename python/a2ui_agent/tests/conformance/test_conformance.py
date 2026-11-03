@@ -918,7 +918,6 @@ def run_create_processor_case(test_case, tmp_path):
         examples=loaded_examples,
         inference_format_factory=base_factory,
         accepts_inline_catalogs=args.get("accepts_inline_catalogs", False),
-        user_focused_thinking=args.get("user_focused_thinking", False),
     )
 
     def create():
@@ -946,10 +945,6 @@ def run_create_processor_case(test_case, tmp_path):
         expect.get("prompt_snippet_contains", []),
         expect.get("prompt_snippet_absent", []),
     )
-    if "prompt_snippet_starts_with" in expect:
-        assert snippet.startswith(expect["prompt_snippet_starts_with"]), snippet[:500]
-    if "prompt_snippet_ends_with" in expect:
-        assert snippet.endswith(expect["prompt_snippet_ends_with"]), snippet[-500:]
     if expect.get("generator_catalogs_unchanged"):
         assert _describe_configs(generator.catalogs) == before
 

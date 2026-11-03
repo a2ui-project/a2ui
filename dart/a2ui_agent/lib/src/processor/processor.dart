@@ -22,14 +22,6 @@ import '../parser/response_stream.dart';
 import '../utils/renderer_state.dart';
 import '../utils/validation.dart';
 
-const String _userFocusedThinkingRule =
-    '## Thinking:\n'
-    'The user reads your thoughts while they wait for your answer. Think only '
-    'about their request: what they need, and which choice suits them and '
-    'why. Plan the screen in plain words, such as "a card for each option '
-    'with a button to pick it". Write the UI code in your answer without '
-    'writing, checking or describing it in your thoughts.';
-
 /// The per-request facade: the catalogs negotiated with one renderer, the
 /// prompt snippet describing them, and parsing of the LLM's response.
 ///
@@ -59,11 +51,6 @@ class A2uiRequestProcessor {
   /// The renderer state bound to this processor, if any.
   final RendererState? state;
 
-  /// Whether [promptSnippet] starts and ends with a rule asking the model to
-  /// think about the user's request rather than the format, for an app that
-  /// shows the model's thinking.
-  final bool userFocusedThinking;
-
   final InferenceFormat _format;
 
   /// Checks each of [examples] on its own with [validatePayload], and then
@@ -87,7 +74,6 @@ class A2uiRequestProcessor {
     this.examples = const [],
     this.formatFactory = const ExpressFormatFactory(),
     this.state,
-    this.userFocusedThinking = false,
   }) : _format = formatFactory.createFormat(
          activeCatalogs,
          examples: examples,
@@ -107,17 +93,9 @@ class A2uiRequestProcessor {
   /// The system prompt snippet teaching the LLM the format, the components
   /// and functions of [activeCatalogs], and [examples].
   ///
-  /// The agent adds its own role and workflow instructions around it. With
-  /// [userFocusedThinking], the thinking rule starts and ends the snippet. A
-  /// model follows it far more often when it reads the rule both before and
-  /// after the format's instructions.
-  String get promptSnippet {
-    final String snippet = _promptSnippet ??= _format.promptGenerator
-        .generate();
-    if (!userFocusedThinking) return snippet;
-    const String rule = _userFocusedThinkingRule;
-    return '$rule\n\n$snippet\n\n$rule';
-  }
+  /// The agent adds its own role and workflow instructions around it.
+  String get promptSnippet =>
+      _promptSnippet ??= _format.promptGenerator.generate();
 
   /// The parser for the format, bound to [activeCatalogs].
   ///

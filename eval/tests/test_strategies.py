@@ -607,21 +607,6 @@ async def test_a2ui_express_solvers() -> None:
 
 
 @pytest.mark.asyncio
-async def test_format_system_prompt_ends_with_the_thinking_rule() -> None:
-    prompt_solver = format_system_prompt(
-        "direct_json", version="1.0", user_focused_thinking=True
-    )
-    state = await prompt_solver(_state({"catalog": str(V1_CATALOG)}), dummy_generate)
-    assert state.messages[0].text.endswith("describing it in your thoughts.")
-
-
-def test_get_solver_passes_user_focused_thinking_to_the_prompt() -> None:
-    with patch("a2ui_eval.strategies.format_solver") as mock_format_solver:
-        get_solver("direct", version="1.0", user_focused_thinking=True)
-    assert mock_format_solver.call_args.kwargs["user_focused_thinking"] is True
-
-
-@pytest.mark.asyncio
 async def test_compile_format_payload_records_the_first_thinking() -> None:
     state = _state({"catalog": str(V1_CATALOG)})
     state.output = ModelOutput(

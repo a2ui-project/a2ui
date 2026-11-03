@@ -65,15 +65,8 @@ def _set_completion(state: TaskState, content: str) -> None:
 
 
 @solver
-def format_system_prompt(
-    format_name: str, version: str, user_focused_thinking: bool = False
-) -> Solver:
-    """Injects system prompt instructions using the selected format strategy.
-
-    With `user_focused_thinking`, the SDK's rule asking the model to think
-    about the user's request rather than the format starts and ends the
-    snippet.
-    """
+def format_system_prompt(format_name: str, version: str) -> Solver:
+    """Injects system prompt instructions using the selected format strategy."""
     validate_format(format_name)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
@@ -87,7 +80,6 @@ def format_system_prompt(
             version,
             resolved_catalog_path,
             options=options,
-            user_focused_thinking=user_focused_thinking,
         )
 
         role_description = state.metadata.get("protocol_role") or state.metadata.get(
@@ -310,7 +302,6 @@ def format_solver(
     version: str,
     *,
     max_validation_retries: int = 0,
-    user_focused_thinking: bool = False,
 ) -> list[Solver]:
     """Assembles the solver chain for the specified evaluation strategy.
 
@@ -320,7 +311,7 @@ def format_solver(
     """
     validate_format(format_name)
     return [
-        format_system_prompt(format_name, version, user_focused_thinking),
+        format_system_prompt(format_name, version),
         measured_generate(),
         compile_format_payload(
             format_name,

@@ -1,0 +1,59 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Removing the model's thinking about A2UI before an app shows it to the user
+# (issue #3576). `remove_a2ui_thinking` takes one thought and returns it
+# without the sentences about the format: those with inline code, a data path,
+# or a protocol term. Each case states the whole output, since the point of the
+# function is the exact text the user reads.
+#
+# A sentence ends at `.`, `!` or `?` followed by whitespace, and never spans a
+# line. A line that keeps only some of its sentences has them joined by one
+# space. A line that loses all of them is removed, and so are the blank lines
+# after it, so no gap is left where it was.
+
+- name: test_keeps_a_thought_about_the_request_unchanged
+  action: remove_a2ui_thinking
+  input: "**Choosing a dishwasher**\n\nThe family needs a quiet model.  It must fit 60 cm.\n\n* Bosch is the quietest.\n* Miele lasts longest.\n"
+  expect: "**Choosing a dishwasher**\n\nThe family needs a quiet model.  It must fit 60 cm.\n\n* Bosch is the quietest.\n* Miele lasts longest.\n"
+
+- name: test_removes_a_sentence_with_inline_code
+  action: remove_a2ui_thinking
+  input: "The Bosch fits best. I'll put it in a `Card` with a `Button`. It is also the quietest."
+  expect: "The Bosch fits best. It is also the quietest."
+
+- name: test_removes_a_sentence_that_names_a_protocol_term
+  action: remove_a2ui_thinking
+  input: "First I set up the Data Model. The flight lands at 4:30 PM! Is that before evening? Next, the a2ui tags."
+  expect: "The flight lands at 4:30 PM! Is that before evening?"
+
+- name: test_removes_a_data_path
+  action: remove_a2ui_thinking
+  input: "Two guests are coming.\n$/booking/guests = 2\nThey want a quiet room."
+  expect: "Two guests are coming.\nThey want a quiet room."
+
+- name: test_removes_a_line_left_empty_with_the_blank_lines_after_it
+  action: remove_a2ui_thinking
+  input: "**Planning the A2UI screen**\n\nThe user has a $1200 budget.\n\nI'll check the JSON schema.\n\n\nThe Aero 14 costs $1149."
+  expect: "The user has a $1200 budget.\n\nThe Aero 14 costs $1149."
+
+- name: test_keeps_surface_and_component_in_their_everyday_sense
+  action: remove_a2ui_thinking
+  input: "A granite surface resists heat. The pump is the component that fails first."
+  expect: "A granite surface resists heat. The pump is the component that fails first."
+
+- name: test_removes_a_thought_that_is_all_about_the_format
+  action: remove_a2ui_thinking
+  input: "**Writing the DSL**\n\nThe root component is a `Column`.\n"
+  expect: ""

@@ -140,7 +140,7 @@ export {
 } from './inference-formats/express/errors.js';
 
 // Facades
-export {type A2uiGeneratorOptions, A2uiGenerator} from './processor/generator.js';
+export {A2uiGenerator} from './processor/generator.js';
 export {type A2uiRequestProcessorOptions, A2uiRequestProcessor} from './processor/processor.js';
 export {
   type AnswerPart,
@@ -149,6 +149,7 @@ export {
   type StreamedAnswerOptions,
   StreamedAnswer,
 } from './processor/streamed-answer.js';
+export {removeA2uiThinking} from './processor/thinking.js';
 
 // Skill generator
 export {

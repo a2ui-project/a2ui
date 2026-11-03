@@ -31,15 +31,6 @@ __all__ = [
     "A2uiRequestProcessor",
 ]
 
-_USER_FOCUSED_THINKING_RULE = (
-    "## Thinking:\n"
-    "The user reads your thoughts while they wait for your answer. Think only"
-    " about their request: what they need, and which choice suits them and"
-    ' why. Plan the screen in plain words, such as "a card for each option'
-    ' with a button to pick it". Write the UI code in your answer without'
-    " writing, checking or describing it in your thoughts."
-)
-
 
 class A2uiRequestProcessor:
     """Central request processor facade unifying multi-catalog capability resolution, prompt rendering, parser creation, and validation."""
@@ -51,7 +42,6 @@ class A2uiRequestProcessor:
         format_factory: InferenceFormatFactory | None = None,
         *,
         state: RendererState | None = None,
-        user_focused_thinking: bool = False,
     ):
         """Initializes A2uiRequestProcessor, resolving active catalogs and instantiating validator and format strategy.
 
@@ -64,10 +54,6 @@ class A2uiRequestProcessor:
                 a call passes none. Without one, each call checks the response
                 against a new state, as a chat agent wants. A processor bound
                 to a state serves only that conversation.
-            user_focused_thinking: Whether the prompt snippet starts and ends
-                with a rule asking the model to think about the user's request
-                rather than the format, for an app that shows the model's
-                thinking.
 
         Raises:
             A2uiCatalogError: If no active catalogs are provided, or if `state`
@@ -93,7 +79,6 @@ class A2uiRequestProcessor:
         self._parser: Parser | None = None
         self._check_state(state)
         self._state = state
-        self._user_focused_thinking = user_focused_thinking
 
     @property
     def active_catalogs(self) -> list[CatalogApi]:
@@ -119,17 +104,8 @@ class A2uiRequestProcessor:
 
     @property
     def prompt_snippet(self) -> str:
-        """Format-specific system prompt instruction snippet.
-
-        With `user_focused_thinking`, the thinking rule starts and ends the
-        snippet. A model follows it far more often when it reads the rule both
-        before and after the format's instructions.
-        """
-        snippet = self._format.prompt_generator.generate()
-        if self._user_focused_thinking:
-            rule = _USER_FOCUSED_THINKING_RULE
-            return f"{rule}\n\n{snippet}\n\n{rule}"
-        return snippet
+        """Format-specific system prompt instruction snippet."""
+        return self._format.prompt_generator.generate()
 
     @property
     def parser(self) -> Parser:
