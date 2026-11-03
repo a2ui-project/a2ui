@@ -20,7 +20,8 @@ test can tell whether it ran.
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+import asyncio
+from collections.abc import AsyncGenerator, Iterator
 from typing import Any
 from unittest.mock import MagicMock
 import uuid
@@ -42,7 +43,6 @@ from google.adk.a2a.executor.a2a_agent_executor import (
     A2aAgentExecutor,
     A2aAgentExecutorConfig,
 )
-from google.adk.a2a.executor.config import ExecuteInterceptor
 from google.adk.agents.base_agent import BaseAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.invocation_context import InvocationContext
@@ -53,18 +53,12 @@ from google.genai import types as genai_types
 import pytest
 
 from a2ui.a2a import A2UI_MIME_TYPE, create_a2ui_part, get_a2ui_messages
-from a2ui.adk import A2uiProcessorStore, A2uiRendererCallsStore
-from a2ui.adk.a2a import (
-    A2uiEventConverter,
-    A2uiPartConverter,
-    a2ui_rpc_callback,
-    a2ui_rpc_interceptor,
-)
+from a2ui.adk import A2uiProcessorStore
+from a2ui.adk.a2a import A2uiEventConverter, A2uiPartConverter, a2ui_rpc_callback
+from a2ui.core import AgentFunction, AgentFunctionContext, CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.core.catalog import AgentFunction, AgentFunctionContext
 from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiRequestProcessor
-from a2ui.rpc import AgentFunctionRegistry
 
 CATALOG_ID = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
 AGENT_TEXT = "the agent ran"
@@ -88,7 +82,15 @@ FX_RATE = AgentFunction(
         "additionalProperties": False,
     },
 )
-CATALOG = BasicCatalog(ProtocolVersion.V1_0).copy_with(agent_functions=[FX_RATE])
+
+
+async def _never_returns(args: dict[str, Any]) -> str:
+    await asyncio.Event().wait()
+    return "unreachable"
+
+
+SLOW = AgentFunction("slow", handler=_never_returns, return_type="string")
+CATALOG = BasicCatalog(ProtocolVersion.V1_0).copy_with(agent_functions=[FX_RATE, SLOW])
 
 
 def _call(call_id: str = "call-1", base: str = "EUR") -> dict[str, Any]:
@@ -189,16 +191,6 @@ async def _run(agent: BaseAgent, content: genai_types.Content) -> list[Event]:
     ]
 
 
-class _SilentAgent(BaseAgent):
-    """Sends nothing."""
-
-    async def _run_async_impl(
-        self, ctx: InvocationContext
-    ) -> AsyncGenerator[Event, None]:
-        return
-        yield
-
-
 def _texts(events: list[Event]) -> list[str]:
     return [
         part.text
@@ -209,14 +201,29 @@ def _texts(events: list[Event]) -> list[str]:
     ]
 
 
-def test_needs_a_registry_or_renderer_calls() -> None:
+def _error_code(message: dict[str, Any]) -> str:
+    return message["agentFunctionResponse"]["error"]["code"]
+
+
+RENDERER_FUNCTION_RESPONSE = {
+    "version": "1.0",
+    "rendererFunctionResponse": {"functionCallId": "c1", "value": "Paris"},
+}
+ERROR = {
+    "version": "1.0",
+    "error": {"code": "VALIDATION_FAILED", "surfaceId": "s1", "message": "bad"},
+}
+
+
+@pytest.mark.parametrize("timeout", [0, -1])
+def test_rejects_a_timeout_that_is_not_positive(timeout: float) -> None:
     with pytest.raises(ValueError):
-        a2ui_rpc_callback()
+        a2ui_rpc_callback(catalogs=[CATALOG], agent_function_timeout=timeout)
 
 
 @pytest.mark.asyncio
 async def test_answers_call_agent_function_as_a2ui_data() -> None:
-    callback = a2ui_rpc_callback(agent_functions=AgentFunctionRegistry([CATALOG]))
+    callback = a2ui_rpc_callback(catalogs=[CATALOG])
 
     content = await callback(_callback_context(_content(_genai_part(_call()))))
 
@@ -232,7 +239,7 @@ async def test_answers_call_agent_function_as_a2ui_data() -> None:
 
 @pytest.mark.asyncio
 async def test_reply_converts_to_a2ui_data_through_a2ui_part_converter() -> None:
-    callback = a2ui_rpc_callback(agent_functions=AgentFunctionRegistry([CATALOG]))
+    callback = a2ui_rpc_callback(catalogs=[CATALOG])
     content = await callback(_callback_context(_content(_genai_part(_call()))))
     assert content is not None
     converter = A2uiPartConverter(A2uiRequestProcessor([CATALOG]))
@@ -244,7 +251,7 @@ async def test_reply_converts_to_a2ui_data_through_a2ui_part_converter() -> None
 
 @pytest.mark.asyncio
 async def test_answers_several_calls_in_order() -> None:
-    callback = a2ui_rpc_callback(agent_functions=AgentFunctionRegistry([CATALOG]))
+    callback = a2ui_rpc_callback(catalogs=[CATALOG])
 
     content = await callback(
         _callback_context(
@@ -257,15 +264,29 @@ async def test_answers_several_calls_in_order() -> None:
 
 
 @pytest.mark.asyncio
-async def test_registry_provider_is_called_with_the_context() -> None:
-    registry = AgentFunctionRegistry([CATALOG])
+async def test_reads_an_iterable_of_catalogs_once() -> None:
+    def catalogs() -> Iterator[CatalogApi]:
+        yield CATALOG
+
+    callback = a2ui_rpc_callback(catalogs=catalogs())
+
+    for call_id in ("a", "b"):
+        content = await callback(
+            _callback_context(_content(_genai_part(_call(call_id))))
+        )
+        assert content is not None
+        assert _messages(content) == [_reply(call_id)]
+
+
+@pytest.mark.asyncio
+async def test_async_catalogs_provider_is_called_with_the_context() -> None:
     seen: list[Any] = []
 
-    async def provider(ctx: Any) -> AgentFunctionRegistry:
+    async def provider(ctx: Any) -> list[CatalogApi]:
         seen.append(ctx)
-        return registry
+        return [CATALOG]
 
-    callback = a2ui_rpc_callback(agent_functions=provider)
+    callback = a2ui_rpc_callback(catalogs=provider)
     ctx = _callback_context(_content(_genai_part(_call())))
 
     content = await callback(ctx)
@@ -276,18 +297,39 @@ async def test_registry_provider_is_called_with_the_context() -> None:
 
 
 @pytest.mark.asyncio
-async def test_lets_the_agent_run_without_a_registry() -> None:
-    callback = a2ui_rpc_callback(agent_functions=lambda ctx: None)
+async def test_reads_the_active_catalogs_of_the_session_processor() -> None:
+    processors = A2uiProcessorStore()
+    processors.set("session-1", A2uiRequestProcessor([CATALOG]))
+
+    def active_catalogs(ctx: Any) -> list[CatalogApi] | None:
+        processor = processors.get(ctx)
+        return processor.active_catalogs if processor else None
+
+    callback = a2ui_rpc_callback(catalogs=active_catalogs)
+
+    content = await callback(_callback_context(_content(_genai_part(_call()))))
+    assert content is not None
+    assert _messages(content) == [_reply()]
+    # A session without a processor has no catalogs, so the agent runs.
+    other_session = _callback_context(_content(_genai_part(_call())), "session-2")
+    assert await callback(other_session) is None
+
+
+@pytest.mark.asyncio
+async def test_lets_the_agent_run_without_catalogs() -> None:
+    callback = a2ui_rpc_callback(catalogs=lambda ctx: None)
 
     assert await callback(_callback_context(_content(_genai_part(_call())))) is None
 
 
 @pytest.mark.asyncio
-async def test_lets_the_agent_run_for_mixed_content() -> None:
-    callback = a2ui_rpc_callback(agent_functions=AgentFunctionRegistry([CATALOG]))
+async def test_does_not_resolve_catalogs_for_other_content() -> None:
+    def provider(ctx: Any) -> list[CatalogApi]:
+        raise AssertionError("not needed")
 
-    content = _content(genai_types.Part.from_text(text="hi"), _genai_part(_call()))
+    callback = a2ui_rpc_callback(catalogs=provider)
 
+    content = _content(genai_types.Part.from_text(text="hi"))
     assert await callback(_callback_context(content)) is None
 
 
@@ -298,58 +340,46 @@ async def test_lets_the_agent_run_for_mixed_content() -> None:
         None,
         genai_types.Content(role="user", parts=[]),
         genai_types.Content(role="user", parts=[genai_types.Part.from_text(text="hi")]),
+        genai_types.Content(
+            role="user",
+            parts=[genai_types.Part.from_text(text="hi"), _genai_part(_call())],
+        ),
         genai_types.Content(role="user", parts=[_genai_part(ACTION)]),
+        genai_types.Content(role="user", parts=[_genai_part(ERROR)]),
+        genai_types.Content(
+            role="user", parts=[_genai_part(RENDERER_FUNCTION_RESPONSE)]
+        ),
         genai_types.Content(
             role="user", parts=[_genai_part(ACTION), _genai_part(_call())]
         ),
+        genai_types.Content(
+            role="user",
+            parts=[_genai_part(RENDERER_FUNCTION_RESPONSE), _genai_part(_call())],
+        ),
     ],
-    ids=["none", "empty", "text", "action", "action-and-call"],
+    ids=[
+        "none",
+        "empty",
+        "text",
+        "text-and-call",
+        "action",
+        "error",
+        "renderer-function-response",
+        "action-and-call",
+        "renderer-function-response-and-call",
+    ],
 )
 async def test_lets_the_agent_run_for_other_content(
     content: genai_types.Content | None,
 ) -> None:
-    callback = a2ui_rpc_callback(agent_functions=AgentFunctionRegistry([CATALOG]))
+    callback = a2ui_rpc_callback(catalogs=[CATALOG])
 
     assert await callback(_callback_context(content)) is None
 
 
 @pytest.mark.asyncio
-async def test_renderer_function_response_settles_the_pending_call() -> None:
-    store = A2uiRendererCallsStore()
-    calls = store.get_for_session("session-1")
-    message, result = calls.call(catalog_id=CATALOG_ID, name="getLocation")
-    response = {
-        "version": "1.0",
-        "rendererFunctionResponse": {
-            "functionCallId": message.call_renderer_function.function_call_id,
-            "value": "Paris",
-        },
-    }
-    callback = a2ui_rpc_callback(renderer_calls=store.get)
-
-    content = await callback(_callback_context(_content(_genai_part(response))))
-
-    assert content is not None
-    assert content.parts == []
-    assert await result == "Paris"
-
-
-@pytest.mark.asyncio
-async def test_renderer_function_response_goes_to_the_agent_without_renderer_calls() -> (
-    None
-):
-    callback = a2ui_rpc_callback(agent_functions=AgentFunctionRegistry([CATALOG]))
-    response = {
-        "version": "1.0",
-        "rendererFunctionResponse": {"functionCallId": "c1", "value": 1},
-    }
-
-    assert await callback(_callback_context(_content(_genai_part(response)))) is None
-
-
-@pytest.mark.asyncio
 async def test_drops_a_call_without_a_function_call_id() -> None:
-    callback = a2ui_rpc_callback(agent_functions=AgentFunctionRegistry([CATALOG]))
+    callback = a2ui_rpc_callback(catalogs=[CATALOG])
     malformed = {"version": "1.0", "callAgentFunction": {"surfaceId": "s1"}}
 
     content = await callback(
@@ -361,24 +391,53 @@ async def test_drops_a_call_without_a_function_call_id() -> None:
 
 
 @pytest.mark.asyncio
-async def test_drops_calls_of_a_disposed_registry() -> None:
-    registry = AgentFunctionRegistry([CATALOG])
-    registry.dispose()
-    callback = a2ui_rpc_callback(agent_functions=registry)
+async def test_answers_a_call_with_an_empty_surface_id_with_an_error() -> None:
+    callback = a2ui_rpc_callback(catalogs=[CATALOG])
+    call = _call()
+    call["callAgentFunction"]["surfaceId"] = ""
 
-    content = await callback(_callback_context(_content(_genai_part(_call()))))
+    content = await callback(_callback_context(_content(_genai_part(call))))
 
     assert content is not None
-    assert content.parts == []
+    (reply,) = _messages(content)
+    assert reply["agentFunctionResponse"]["functionCallId"] == "call-1"
+    assert _error_code(reply) == "INVALID_FUNCTION_CALL"
 
 
 @pytest.mark.asyncio
-async def test_runner_skips_the_agent_for_rpc_messages() -> None:
+async def test_answers_an_unknown_function_with_an_error() -> None:
+    callback = a2ui_rpc_callback(catalogs=[CATALOG])
+    call = _call()
+    call["callAgentFunction"]["callFunction"]["@call"] = "nope"
+
+    content = await callback(_callback_context(_content(_genai_part(call))))
+
+    assert content is not None
+    (reply,) = _messages(content)
+    assert _error_code(reply) == "UNKNOWN_FUNCTION"
+
+
+@pytest.mark.asyncio
+async def test_agent_function_timeout_ends_a_slow_call() -> None:
+    callback = a2ui_rpc_callback(catalogs=[CATALOG], agent_function_timeout=0.01)
+    call = _call()
+    call["callAgentFunction"]["callFunction"] = {
+        "@call": "slow",
+        "catalogId": CATALOG_ID,
+        "args": {},
+    }
+
+    content = await callback(_callback_context(_content(_genai_part(call))))
+
+    assert content is not None
+    (reply,) = _messages(content)
+    assert _error_code(reply) == "EXECUTION_ERROR"
+
+
+@pytest.mark.asyncio
+async def test_runner_skips_the_agent_for_agent_function_calls() -> None:
     agent = _StubAgent(
-        name="agent",
-        before_agent_callback=a2ui_rpc_callback(
-            agent_functions=AgentFunctionRegistry([CATALOG])
-        ),
+        name="agent", before_agent_callback=a2ui_rpc_callback(catalogs=[CATALOG])
     )
 
     events = await _run(agent, _content(_genai_part(_call())))
@@ -389,15 +448,23 @@ async def test_runner_skips_the_agent_for_rpc_messages() -> None:
 
 
 @pytest.mark.asyncio
-async def test_runner_runs_the_agent_for_other_content() -> None:
+@pytest.mark.parametrize(
+    "content",
+    [
+        _content(genai_types.Part.from_text(text="hi")),
+        _content(_genai_part(ACTION)),
+        _content(_genai_part(RENDERER_FUNCTION_RESPONSE)),
+    ],
+    ids=["text", "action", "renderer-function-response"],
+)
+async def test_runner_runs_the_agent_for_other_content(
+    content: genai_types.Content,
+) -> None:
     agent = _StubAgent(
-        name="agent",
-        before_agent_callback=a2ui_rpc_callback(
-            agent_functions=AgentFunctionRegistry([CATALOG])
-        ),
+        name="agent", before_agent_callback=a2ui_rpc_callback(catalogs=[CATALOG])
     )
 
-    events = await _run(agent, _content(genai_types.Part.from_text(text="hi")))
+    events = await _run(agent, content)
 
     assert _texts(events) == [AGENT_TEXT]
 
@@ -414,10 +481,7 @@ async def test_composes_with_another_callback_in_a_list() -> None:
 
     agent = _StubAgent(
         name="agent",
-        before_agent_callback=[
-            a2ui_rpc_callback(agent_functions=AgentFunctionRegistry([CATALOG])),
-            other,
-        ],
+        before_agent_callback=[a2ui_rpc_callback(catalogs=[CATALOG]), other],
     )
 
     rpc_events = await _run(agent, _content(_genai_part(_call())))
@@ -430,10 +494,7 @@ async def test_composes_with_another_callback_in_a_list() -> None:
 
 
 async def _execute(
-    agent: BaseAgent,
-    request_parts: list[Part],
-    session_id: str,
-    interceptors: list[ExecuteInterceptor] | None = None,
+    agent: BaseAgent, request_parts: list[Part], session_id: str
 ) -> list[Any]:
     """Runs one A2A request through ADK's `A2aAgentExecutor`.
 
@@ -448,8 +509,7 @@ async def _execute(
     executor = A2aAgentExecutor(
         runner=runner,
         config=A2aAgentExecutorConfig(
-            event_converter=A2uiEventConverter(a2ui_processor=processors.get),
-            execute_interceptors=interceptors,
+            event_converter=A2uiEventConverter(a2ui_processor=processors.get)
         ),
     )
     request = RequestContext(
@@ -493,10 +553,7 @@ def _assert_completed(events: list[Any]) -> None:
 @pytest.mark.asyncio
 async def test_a2a_agent_executor_sends_the_reply_as_an_a2ui_part() -> None:
     agent = _StubAgent(
-        name="agent",
-        before_agent_callback=a2ui_rpc_callback(
-            agent_functions=AgentFunctionRegistry([CATALOG])
-        ),
+        name="agent", before_agent_callback=a2ui_rpc_callback(catalogs=[CATALOG])
     )
 
     events = await _execute(agent, [create_a2ui_part(_call())], str(uuid.uuid4()))
@@ -519,147 +576,20 @@ async def test_a2a_agent_executor_sends_the_reply_as_an_a2ui_part() -> None:
 
 
 @pytest.mark.asyncio
-async def test_a2a_agent_executor_settles_a_renderer_function_call() -> None:
-    session_id = str(uuid.uuid4())
-    store = A2uiRendererCallsStore()
-    message, result = store.get_for_session(session_id).call(
-        catalog_id=CATALOG_ID, name="getLocation"
-    )
+async def test_a2a_agent_executor_passes_a_renderer_function_response_to_the_agent() -> (
+    None
+):
     agent = _StubAgent(
-        name="agent",
-        before_agent_callback=a2ui_rpc_callback(renderer_calls=store.get),
-    )
-    response = {
-        "version": "1.0",
-        "rendererFunctionResponse": {
-            "functionCallId": message.call_renderer_function.function_call_id,
-            "value": "Paris",
-        },
-    }
-
-    events = await _execute(agent, [create_a2ui_part(response)], session_id)
-
-    assert await result == "Paris"
-    assert _agent_status_parts(events) == []
-    # With no reply to send, ADK's executor ends the task without a result, as
-    # for any turn whose agent sends nothing.
-    final = events[-1]
-    assert isinstance(final, TaskStatusUpdateEvent)
-    assert final.final
-
-
-def _renderer_response(call_id: str, value: Any = "Paris") -> dict[str, Any]:
-    return {
-        "version": "1.0",
-        "rendererFunctionResponse": {"functionCallId": call_id, "value": value},
-    }
-
-
-def _final_state(events: list[Any]) -> str:
-    final = events[-1]
-    assert isinstance(final, TaskStatusUpdateEvent)
-    assert final.final
-    return final.status.state
-
-
-@pytest.mark.asyncio
-async def test_interceptor_completes_an_rpc_only_task() -> None:
-    session_id = str(uuid.uuid4())
-    store = A2uiRendererCallsStore()
-    message, result = store.get_for_session(session_id).call(
-        catalog_id=CATALOG_ID, name="getLocation"
-    )
-    agent = _StubAgent(
-        name="agent",
-        before_agent_callback=a2ui_rpc_callback(renderer_calls=store.get),
-    )
-    response = _renderer_response(message.call_renderer_function.function_call_id)
-
-    events = await _execute(
-        agent, [create_a2ui_part(response)], session_id, [a2ui_rpc_interceptor()]
-    )
-
-    assert await result == "Paris"
-    assert _final_state(events) == "completed"
-    assert _agent_status_parts(events) == []
-
-
-@pytest.mark.asyncio
-async def test_interceptor_leaves_a_task_with_a_result_unchanged() -> None:
-    agent = _StubAgent(
-        name="agent",
-        before_agent_callback=a2ui_rpc_callback(
-            agent_functions=AgentFunctionRegistry([CATALOG])
-        ),
+        name="agent", before_agent_callback=a2ui_rpc_callback(catalogs=[CATALOG])
     )
 
     events = await _execute(
-        agent,
-        [create_a2ui_part(_call())],
-        str(uuid.uuid4()),
-        [a2ui_rpc_interceptor()],
+        agent, [create_a2ui_part(RENDERER_FUNCTION_RESPONSE)], str(uuid.uuid4())
     )
 
-    assert get_a2ui_messages(_agent_status_parts(events)) == [_reply()]
-    assert _final_state(events) == "completed"
-
-
-@pytest.mark.asyncio
-async def test_interceptor_leaves_other_requests_unchanged() -> None:
-    interceptor = a2ui_rpc_interceptor()
-    callback = a2ui_rpc_callback(renderer_calls=A2uiRendererCallsStore().get)
-
-    # A text request whose agent sends nothing stays `working`, as ADK reports.
-    text_events = await _execute(
-        _SilentAgent(name="agent", before_agent_callback=callback),
-        [Part(root=TextPart(text="hi"))],
-        str(uuid.uuid4()),
-        [interceptor],
-    )
-    assert _final_state(text_events) == "working"
-
-    # So does a request that mixes text and an RPC message, which the agent
-    # handles.
-    mixed_events = await _execute(
-        _SilentAgent(name="agent", before_agent_callback=callback),
-        [Part(root=TextPart(text="hi")), create_a2ui_part(_renderer_response("c1"))],
-        str(uuid.uuid4()),
-        [interceptor],
-    )
-    assert _final_state(mixed_events) == "working"
-
-    # A normal turn with a reply completes as usual.
-    normal_events = await _execute(
-        _StubAgent(name="agent", before_agent_callback=callback),
-        [Part(root=TextPart(text="hi"))],
-        str(uuid.uuid4()),
-        [interceptor],
-    )
-    assert _final_state(normal_events) == "completed"
     assert [
         part.root.text
-        for part in _agent_status_parts(normal_events)
+        for part in _agent_status_parts(events)
         if isinstance(part.root, TextPart)
     ] == [AGENT_TEXT]
-
-
-@pytest.mark.asyncio
-async def test_interceptor_leaves_a_failed_rpc_task_unchanged() -> None:
-    session_id = str(uuid.uuid4())
-
-    def failing_provider(ctx: Any) -> Any:
-        raise RuntimeError("no calls")
-
-    agent = _StubAgent(
-        name="agent",
-        before_agent_callback=a2ui_rpc_callback(renderer_calls=failing_provider),
-    )
-
-    events = await _execute(
-        agent,
-        [create_a2ui_part(_renderer_response("c1"))],
-        session_id,
-        [a2ui_rpc_interceptor()],
-    )
-
-    assert _final_state(events) == "failed"
+    _assert_completed(events)

@@ -14,12 +14,12 @@
 
 """Module for `exclude_a2ui_rpc_from_prompt`, which keeps RPC out of prompts.
 
-A2UI RPC messages (`callAgentFunction`, `agentFunctionResponse`,
-`callRendererFunction`, `rendererFunctionResponse`) are exchanged between the
-renderer and the agent's code, and `a2ui_rpc_callback` answers them without the
-model. ADK still stores them in the session's events like any other turn, so
-without a filter every later prompt would carry them. This module removes them
-from the model's request, and leaves the session's events as they are.
+The renderer's `callAgentFunction` messages and the agent's
+`agentFunctionResponse` replies are exchanged between the renderer and the
+agent's code, and `a2ui_rpc_callback` answers them without the model. ADK still
+stores them in the session's events like any other turn, so without a filter
+every later prompt would carry them. This module removes them from the model's
+request, and leaves the session's events as they are.
 
 `SendA2uiToClientToolset` does this for its agent. Agents without the toolset
 pass the function as their `before_model_callback`:
@@ -40,10 +40,11 @@ from ._rpc import is_rpc_part
 
 
 def strip_a2ui_rpc_parts(llm_request: LlmRequest) -> None:
-    """Removes the A2UI RPC parts from the request's contents, in place.
+    """Removes the agent function parts from the request's contents, in place.
 
-    A content left without parts is removed. Other parts, including A2UI
-    messages that aren't RPC, such as `createSurface` or `action`, are kept.
+    A content left without parts is removed. Other parts, including the other
+    A2UI messages, such as `createSurface`, `action` or
+    `rendererFunctionResponse`, are kept.
     """
     contents = []
     for content in llm_request.contents:
@@ -60,14 +61,14 @@ def strip_a2ui_rpc_parts(llm_request: LlmRequest) -> None:
 def exclude_a2ui_rpc_from_prompt(
     callback_context: CallbackContext, llm_request: LlmRequest
 ) -> LlmResponse | None:
-    """A `before_model_callback` that keeps A2UI RPC messages out of the prompt.
+    """A `before_model_callback` that keeps agent function calls out of the prompt.
 
-    It removes, from the contents sent to the model, the parts that hold an
-    A2UI RPC message in either direction: the renderer's `callAgentFunction`
-    and `rendererFunctionResponse`, and the agent's `agentFunctionResponse`
-    and `callRendererFunction`. A content left without parts is dropped. The
-    session's events still hold them. Other A2UI messages, such as a
-    renderer's `action` or the agent's `createSurface`, are kept.
+    It removes, from the contents sent to the model, the parts that hold the
+    renderer's `callAgentFunction` or the agent's `agentFunctionResponse`. A
+    content left without parts is dropped. The session's events still hold
+    them. Other A2UI messages, such as the renderer's `action`, `error` or
+    `rendererFunctionResponse`, or the agent's `createSurface`, are kept,
+    since they are for the model.
 
     `SendA2uiToClientToolset` already does this; use the callback for agents
     without the toolset. To keep a callback of your own, pass both as a list.

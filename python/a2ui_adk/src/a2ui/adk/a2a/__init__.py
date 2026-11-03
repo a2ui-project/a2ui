@@ -16,22 +16,14 @@
 
 from .event_converter import A2uiEventConverter
 from .part_converter import A2uiPartConverter
-from .rpc_callback import (
-    A2uiRpcCallback,
-    AgentFunctionRegistryProvider,
-    RendererFunctionCallsProvider,
-    a2ui_rpc_callback,
-)
-from .rpc_interceptor import a2ui_rpc_interceptor
+from .rpc_callback import A2uiRpcCallback, CatalogsProvider, a2ui_rpc_callback
 from .rpc_prompt_filter import exclude_a2ui_rpc_from_prompt
 
 __all__ = [
     "A2uiEventConverter",
     "A2uiPartConverter",
     "A2uiRpcCallback",
-    "AgentFunctionRegistryProvider",
-    "RendererFunctionCallsProvider",
+    "CatalogsProvider",
     "a2ui_rpc_callback",
-    "a2ui_rpc_interceptor",
     "exclude_a2ui_rpc_from_prompt",
 ]

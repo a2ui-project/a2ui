@@ -132,11 +132,11 @@ def create_a2ui_parts(
 ) -> list[Part]:
     """Wraps A2UI messages, such as the replies of an RPC handler, as A2A parts.
 
-    Use it for the messages that `RendererMessageRouter.dispatch` returns:
+    Use it for the replies of `RendererToAgentMessageProcessor`:
 
     ```python
-    replies = await router.dispatch(message)
-    parts = create_a2ui_parts(replies)
+    result = await processor.process_message(message)
+    parts = create_a2ui_parts(result.replies)
     ```
 
     Args:
