@@ -172,7 +172,7 @@ Examples:
   - other: The default/fallback string (used for general plural cases).
 • regex(value, pattern)
   - Description: Checks that the value matches a regular expression string.
-  - pattern: The regex pattern to match against.
+  - pattern: The regular expression to search for in the value. Uses the A2UI regex dialect: a portable subset of ECMAScript pattern syntax in Unicode mode with no flags. Matching is case-sensitive, '.' excludes line terminators, and '^' and '$' match only at the ends of the value. Backreferences, lookbehind, named groups and '\p{...}' are not allowed. Patterns longer than 256 code points or that could backtrack catastrophically are rejected.
 • required(value)
   - Description: Checks that the value is not null, undefined, or empty.
   - value: The value to check.

@@ -52,17 +52,24 @@ const HOST_ACCESSIBILITY_SETTERS: Record<
     }
   },
   'hidden': (host, a11y) => {
-    if (a11y && 'hidden' in a11y && typeof a11y.hidden === 'boolean') {
-      host.setAttribute('aria-hidden', String(a11y.hidden));
+    const hidden =
+      a11y && Object.hasOwn(a11y, 'hidden') ? (a11y as {hidden?: unknown}).hidden : undefined;
+    if (typeof hidden === 'boolean') {
+      host.setAttribute('aria-hidden', String(hidden));
     } else {
       host.removeAttribute('aria-hidden');
     }
+    // aria-hidden alone leaves focusable descendants in the tab order, so a
+    // hidden subtree is also made inert.
+    const isHidden = hidden === true;
+    host.inert = isHidden;
+    host.toggleAttribute('inert', isHidden);
   },
 };
 
 const HOST_ACCESSIBILITY_SETTER_LIST = Object.values(HOST_ACCESSIBILITY_SETTERS);
 
-/** Sets host-level `aria-live` and `aria-hidden` attributes on a Basic Catalog custom element. */
+/** Sets host-level `aria-live`, `aria-hidden`, and `inert` attributes on a custom element. */
 export function setHostAccessibilityAttributes(
   host: HTMLElement,
   a11y?: ResolvedAccessibilityAttributes,
