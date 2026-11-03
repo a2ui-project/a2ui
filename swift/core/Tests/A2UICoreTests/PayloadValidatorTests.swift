@@ -79,7 +79,7 @@ struct PayloadValidatorTests {
     )
     return Catalog(
       id: "https://example.com/catalogs/test/v1/catalog.json",
-      protocolVersion: "v1.0",
+      protocolVersion: "1.0",
       components: [AnyComponentAPI(name: "Text", schema: textSchema)],
       functions: [MockAddFunction()],
       themeSchema: themeSchema
@@ -174,6 +174,55 @@ struct PayloadValidatorTests {
 
     #expect(throws: Never.self) {
       try validator.validateComponent(component)
+    }
+  }
+
+  @Test(arguments: [A2UIProtocolVersion.v09, .v091])
+  func preV10NestedCallWithCatalogIDIsCheckedInTheSurfaceCatalog(
+    version: A2UIProtocolVersion
+  ) throws {
+    let textSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "const": "Text" },
+            "text": {}
+          },
+          "required": ["id", "component", "text"],
+          "additionalProperties": false
+        }
+        """
+    )
+    let catalog = Catalog(
+      id: "https://example.com/catalogs/v0/catalog.json",
+      protocolVersion: version.rawValue,
+      components: [AnyComponentAPI(name: "Text", schema: textSchema)],
+      functions: [MockAddFunction()]
+    ).eraseToAnyCatalog()
+    let validator = PayloadValidator(
+      catalog: catalog,
+      config: ValidationConfig(protocolVersion: version)
+    )
+    func text(_ call: JSONValue) -> [String: JSONValue] {
+      ["id": .string("root"), "component": .string("Text"), "text": call]
+    }
+
+    // Before v1.0 a call's catalogId is ignored, so the call is checked against this catalog.
+    #expect(throws: Never.self) {
+      try validator.validateComponent(
+        text([
+          "call": "add", "catalogId": "missing-catalog", "args": ["a": 1, "b": 2],
+        ]))
+    }
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent(
+        text(["call": "add", "catalogId": "missing-catalog", "args": ["a": 1]]))
+    }
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent(
+        text(["call": "nonExistentFunc", "catalogId": "missing-catalog", "args": [:]]))
     }
   }
 
@@ -298,7 +347,7 @@ struct PayloadValidatorTests {
     )
     let catalog = Catalog(
       id: "family_cat",
-      protocolVersion: "v1.0",
+      protocolVersion: "1.0",
       components: [AnyComponentAPI(name: "FamilyRecord", schema: customSchema)]
     ).eraseToAnyCatalog()
 
@@ -347,7 +396,7 @@ struct PayloadValidatorTests {
     )
     let catalog = Catalog(
       id: "stack_cat",
-      protocolVersion: "v1.0",
+      protocolVersion: "1.0",
       components: [AnyComponentAPI(name: "Stack", schema: customSchema)]
     ).eraseToAnyCatalog()
 

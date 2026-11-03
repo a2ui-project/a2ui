@@ -147,7 +147,7 @@ describe('validatePayload', () => {
   });
 
   it('rejects a message with another version', () => {
-    expect(() => validatePayload([BASIC], [{...update(TEXT), version: 'v1.0'}])).toThrow(
+    expect(() => validatePayload([BASIC], [{...update(TEXT), version: '1.0'}])).toThrow(
       A2uiValidationError,
     );
   });
@@ -253,7 +253,7 @@ describe('validatePayload', () => {
 
   it('rejects no catalogs and catalogs of incompatible versions', () => {
     expect(() => validatePayload([], [update(TEXT)])).toThrow(A2uiCatalogError);
-    expect(() => validatePayload([BASIC, loadBasicCatalog('v1.0')], [update(TEXT)])).toThrow(
+    expect(() => validatePayload([BASIC, loadBasicCatalog('1.0')], [update(TEXT)])).toThrow(
       A2uiCatalogError,
     );
   });

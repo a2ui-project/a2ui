@@ -15,6 +15,7 @@
 // ignore_for_file: avoid_print
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 /// A function that checks the response of the service.
@@ -36,8 +37,10 @@ class ShellProbe {
   /// Validates the response of the service, retrying until [timeout] elapses.
   ///
   /// Runs [command], checks the response and throws error if the response
-  /// is not valid.
-  Future<void> validate() async {
+  /// is not valid. After each failed attempt, calls [checkService], which
+  /// throws if the service can no longer answer, so that error is reported
+  /// instead of the failed command.
+  Future<void> validate({void Function()? checkService}) async {
     final DateTime deadline = DateTime.now().add(timeout);
     while (true) {
       try {
@@ -45,6 +48,7 @@ class ShellProbe {
         responseChecker(response);
         return;
       } catch (e) {
+        checkService?.call();
         if (DateTime.now().isAfter(deadline)) rethrow;
         await Future<void>.delayed(const Duration(seconds: 1));
       }
@@ -73,6 +77,14 @@ String runCommandSync(String command) {
   return result.stdout as String;
 }
 
+/// How many of the service's last output lines a startup error quotes.
+const _recentOutputLines = 50;
+
+/// Starts [command] in [workingDirectory] and waits until [probes] pass.
+///
+/// The service's output is forwarded to stdout for as long as it runs. If the
+/// service exits before the probes pass, throws with its exit code and last
+/// output lines.
 Future<Process> startAndVerifyService(
   String command,
   String workingDirectory,
@@ -86,39 +98,58 @@ Future<Process> startAndVerifyService(
     command,
   ], workingDirectory: workingDirectory);
 
+  int? exitCode;
+  unawaited(process.exitCode.then((code) => exitCode = code));
+
   final serviceStabilizedOutput = Completer<void>();
+  final recentOutput = <String>[];
   Timer? timer;
-  StreamSubscription<String>? stdoutSub;
-  StreamSubscription<String>? stderrSub;
 
-  void onTimer() {
-    serviceStabilizedOutput.complete();
-    stdoutSub?.cancel();
-    stderrSub?.cancel();
-    timer?.cancel();
-  }
-
-  void restartTimer(String chunk) {
-    stdout.write(chunk);
+  void onQuiet() {
     timer?.cancel();
     if (!serviceStabilizedOutput.isCompleted) {
-      timer = Timer(quietPeriod, onTimer);
+      serviceStabilizedOutput.complete();
     }
   }
 
-  stdoutSub = process.stdout
-      .transform(const SystemEncoding().decoder)
-      .listen(restartTimer, onDone: onTimer);
+  void restartTimer() {
+    timer?.cancel();
+    if (!serviceStabilizedOutput.isCompleted) {
+      timer = Timer(quietPeriod, onQuiet);
+    }
+  }
 
-  stderrSub = process.stderr
-      .transform(const SystemEncoding().decoder)
-      .listen(restartTimer, onDone: onTimer);
+  void onOutput(String chunk) {
+    stdout.write(chunk);
+    recentOutput.addAll(const LineSplitter().convert(chunk));
+    if (recentOutput.length > _recentOutputLines) {
+      recentOutput.removeRange(0, recentOutput.length - _recentOutputLines);
+    }
+    restartTimer();
+  }
 
-  restartTimer('Started timer.\n');
+  process.stdout
+      .transform(const SystemEncoding().decoder)
+      .listen(onOutput, onDone: onQuiet);
+  process.stderr
+      .transform(const SystemEncoding().decoder)
+      .listen(onOutput, onDone: onQuiet);
+
+  print('Started timer.');
+  restartTimer();
   await serviceStabilizedOutput.future;
 
+  void checkService() {
+    final code = exitCode;
+    if (code == null) return;
+    throw Exception(
+      'Service `$command` exited with code $code before it was ready. '
+      'Its last output:\n${recentOutput.join('\n')}',
+    );
+  }
+
   for (final probe in probes) {
-    await probe.validate();
+    await probe.validate(checkService: checkService);
   }
   return process;
 }

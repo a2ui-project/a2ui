@@ -71,7 +71,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
     const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'inline-v1-surface',
           catalogId: basicCatalog.id,
@@ -111,7 +111,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
     const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'props-v1-surface',
           catalogId: basicCatalog.id,
@@ -182,7 +182,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
     const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'a11y-v1-surface',
           catalogId: basicCatalog.id,
@@ -212,17 +212,23 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
 
     const textEl = el.renderRoot.querySelector('a2ui-basic-text') as HTMLElement;
     assert.ok(textEl, 'Should render a2ui-basic-text');
-    assert.strictEqual(textEl.getAttribute('aria-label'), 'Live Status Banner');
-    assert.strictEqual(textEl.getAttribute('aria-description'), 'Detailed status description');
+    assert.strictEqual(textEl.hasAttribute('aria-label'), false);
+    assert.strictEqual(textEl.hasAttribute('aria-description'), false);
     assert.strictEqual(textEl.getAttribute('aria-live'), 'polite');
     assert.strictEqual(textEl.getAttribute('aria-hidden'), 'true');
+
+    const innerSpan = textEl.querySelector('.a2ui-text');
+    assert.ok(innerSpan, 'Should render inner .a2ui-text element');
+    assert.strictEqual(innerSpan.getAttribute('role'), 'note');
+    assert.strictEqual(innerSpan.getAttribute('aria-label'), 'Live Status Banner');
+    assert.strictEqual(innerSpan.getAttribute('aria-description'), 'Detailed status description');
   });
 
   it('evaluates @index inside a List template', async () => {
     const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'list-index-surface',
           catalogId: basicCatalog.id,
@@ -287,7 +293,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
 
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'actions-v1-surface',
           catalogId: basicCatalog.id,
@@ -382,9 +388,6 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
 
     class CustomPanelElement extends A2uiLitElement<typeof CustomPanelApi> {
       protected override readonly api = CustomPanelApi;
-      override createRenderRoot() {
-        return this;
-      }
       override render() {
         const props = this.controller?.props;
         if (!props) return nothing;
@@ -416,7 +419,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
     // Case A: Surface default catalog is basicCatalog, child uses secondaryCatalog
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'multi-child-surface',
           catalogId: basicCatalog.id,
@@ -447,7 +450,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
     // and renders a child from basicCatalog
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'multi-root-surface',
           catalogId: basicCatalog.id,
@@ -484,9 +487,9 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
   it('renders a surface with no default catalog whose root names its catalog', async () => {
     const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
     processor.processMessages([
-      {version: 'v1.0', createSurface: {surfaceId: 'no-default-surface'}},
+      {version: '1.0', createSurface: {surfaceId: 'no-default-surface'}},
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'no-default-surface',
           components: [

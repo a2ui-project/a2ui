@@ -245,11 +245,11 @@ void main() {
       oracle,
       {
         'createSurface with only a surfaceId': {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 's'},
         },
         'createSurface with every field': {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {
             'surfaceId': 's',
             'catalogId': 'c',
@@ -262,53 +262,53 @@ void main() {
           },
         },
         'createSurface with theme': {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {
             'surfaceId': 's',
             'theme': <String, Object?>{},
           },
         },
         'createSurface with no components': {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 's', 'components': <Object?>[]},
         },
         'createSurface with a non-object dataModel': {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 's', 'dataModel': 3},
         },
         'createSurface with an unknown metadata key': {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {
             'surfaceId': 's',
             'metadata': {'other': 1},
           },
         },
         'updateDataModel with an explicit null value': {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateDataModel': {'surfaceId': 's', 'value': null},
         },
         'updateDataModel without value': {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateDataModel': {'surfaceId': 's', 'path': '/a'},
         },
         'deleteSurface with an unknown body key': {
-          'version': 'v1.0',
+          'version': '1.0',
           'deleteSurface': {'surfaceId': 's', 'x': 1},
         },
         'an unknown envelope key': {
-          'version': 'v1.0',
+          'version': '1.0',
           'deleteSurface': {'surfaceId': 's'},
           'x': 1,
         },
         'callRendererFunction': {
-          'version': 'v1.0',
+          'version': '1.0',
           'callRendererFunction': {
             'functionCallId': 'c1',
             'callFunction': {'@call': 'f', 'catalogId': 'c'},
           },
         },
         'callRendererFunction with surfaceId': {
-          'version': 'v1.0',
+          'version': '1.0',
           'callRendererFunction': {
             'surfaceId': 's',
             'functionCallId': 'c1',
@@ -316,7 +316,7 @@ void main() {
           },
         },
         'callRendererFunction with non-string surfaceId': {
-          'version': 'v1.0',
+          'version': '1.0',
           'callRendererFunction': {
             'surfaceId': 123,
             'functionCallId': 'c1',
@@ -324,20 +324,20 @@ void main() {
           },
         },
         'callRendererFunction without catalogId': {
-          'version': 'v1.0',
+          'version': '1.0',
           'callRendererFunction': {
             'functionCallId': 'c1',
             'callFunction': {'@call': 'f'},
           },
         },
         'callRendererFunction without functionCallId': {
-          'version': 'v1.0',
+          'version': '1.0',
           'callRendererFunction': {
             'callFunction': {'@call': 'f', 'catalogId': 'c'},
           },
         },
         'callRendererFunction with an unknown body key': {
-          'version': 'v1.0',
+          'version': '1.0',
           'callRendererFunction': {
             'functionCallId': 'c1',
             'callFunction': {'@call': 'f', 'catalogId': 'c'},
@@ -345,18 +345,18 @@ void main() {
           },
         },
         'agentFunctionResponse with a value': {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {'functionCallId': 'c1', 'value': 1},
         },
         'agentFunctionResponse with an error': {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {
             'functionCallId': 'c1',
             'error': {'code': 'X', 'message': 'm'},
           },
         },
         'agentFunctionResponse with a value and an error': {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {
             'functionCallId': 'c1',
             'value': 1,
@@ -364,11 +364,11 @@ void main() {
           },
         },
         'agentFunctionResponse with neither value nor error': {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {'functionCallId': 'c1'},
         },
         'agentFunctionResponse error without a message': {
-          'version': 'v1.0',
+          'version': '1.0',
           'agentFunctionResponse': {
             'functionCallId': 'c1',
             'error': {'code': 'X'},
@@ -461,20 +461,20 @@ void main() {
       oracle,
       {
         'action with catalogId and metadata': {
-          'version': 'v1.0',
+          'version': '1.0',
           'action': _action({
             'catalogId': 'c',
             'metadata': {'extensions': <String, Object?>{}},
           }),
         },
         'action with an unknown metadata key': {
-          'version': 'v1.0',
+          'version': '1.0',
           'action': _action({
             'metadata': {'other': 1},
           }),
         },
         'callAgentFunction': {
-          'version': 'v1.0',
+          'version': '1.0',
           'callAgentFunction': {
             'surfaceId': 's',
             'functionCallId': 'c1',
@@ -482,14 +482,14 @@ void main() {
           },
         },
         'callAgentFunction without surfaceId': {
-          'version': 'v1.0',
+          'version': '1.0',
           'callAgentFunction': {
             'functionCallId': 'c1',
             'callFunction': {'@call': 'f'},
           },
         },
         'callAgentFunction with a callFunction lacking @call': {
-          'version': 'v1.0',
+          'version': '1.0',
           'callAgentFunction': {
             'surfaceId': 's',
             'functionCallId': 'c1',
@@ -497,15 +497,15 @@ void main() {
           },
         },
         'rendererFunctionResponse': {
-          'version': 'v1.0',
+          'version': '1.0',
           'rendererFunctionResponse': {'functionCallId': 'c1', 'value': null},
         },
         'rendererFunctionResponse without functionCallId': {
-          'version': 'v1.0',
+          'version': '1.0',
           'rendererFunctionResponse': {'value': 1},
         },
         'unallowed-parent error': {
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {
             'code': 'UNALLOWED_PARENT',
             'surfaceId': 's',
@@ -514,11 +514,11 @@ void main() {
           },
         },
         'unallowed-child error without a surfaceId': {
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {'code': 'UNALLOWED_CHILD', 'path': '/a', 'message': 'm'},
         },
         'validation error with an extra property': {
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {
             'code': 'VALIDATION_FAILED',
             'surfaceId': 's',
@@ -528,15 +528,15 @@ void main() {
           },
         },
         'generic error with a surfaceId': {
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {'code': 'X', 'surfaceId': 's', 'message': 'm', 'x': 1},
         },
         'generic error with a functionCallId': {
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {'code': 'X', 'functionCallId': 'c1', 'message': 'm'},
         },
         'generic error with both identifiers': {
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {
             'code': 'X',
             'surfaceId': 's',
@@ -545,15 +545,15 @@ void main() {
           },
         },
         'generic error with neither identifier': {
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {'code': 'X', 'message': 'm'},
         },
         'generic error with a non-string code': {
-          'version': 'v1.0',
+          'version': '1.0',
           'error': {'code': 3, 'surfaceId': 's', 'message': 'm'},
         },
         'an unknown envelope key': {
-          'version': 'v1.0',
+          'version': '1.0',
           'action': _action(),
           'x': 1,
         },

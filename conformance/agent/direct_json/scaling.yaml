@@ -79,7 +79,7 @@
   operation: parse_chunk
   chunk_size: 16
   payload:
-    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
+    - '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
     - repeat: '"item_{i}"'
       separator: ", "
     - "]}, "
@@ -115,11 +115,11 @@
   operation: parse_chunk
   chunk_size: 16
   payload:
-    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
+    - '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
     - repeat: '"item_{i}"'
       separator: ", "
     - "]}]}}, "
-    - repeat: '{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}]}}'
+    - repeat: '{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}]}}'
       separator: ", "
     - "]"
   sizes: [100, 400]
@@ -133,7 +133,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   operation: compile
   payload:
-    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
+    - '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
     - repeat: '"item_{i}"'
       separator: ", "
     - "]}, "
@@ -151,11 +151,11 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   operation: compile
   payload:
-    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
+    - '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
     - repeat: '"item_{i}"'
       separator: ", "
     - "]}]}}, "
-    - repeat: '{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}]}}'
+    - repeat: '{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}]}}'
       separator: ", "
     - "]"
   sizes: [200, 800]
@@ -173,7 +173,7 @@
   operation: parse_chunk
   chunk_size: 16
   payload:
-    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": {"@path": "/items/0/name"}}]}}, {"version": "v1.0", "updateDataModel": {"surfaceId": "s1", "path": "/items", "value": ['
+    - '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": {"@path": "/items/0/name"}}]}}, {"version": "1.0", "updateDataModel": {"surfaceId": "s1", "path": "/items", "value": ['
     - repeat: '{"name": "Item number {i}", "description": "The item listed at position {i}", "price": {i}}'
       separator: ", "
     - "]}}]"
@@ -192,7 +192,7 @@
   baseline: compile
   chunk_size: 16
   payload:
-    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
+    - '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
     - repeat: '"item_{i}"'
       separator: ", "
     - "]}, "

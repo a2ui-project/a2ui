@@ -222,6 +222,7 @@ function compositionHolds<T extends ComponentApi>(
   validationConfig: ValidationConfig | undefined,
 ): boolean {
   if (!hasCompositionRules(surface, batch.catalogs.values(), validationConfig)) return true;
+  const rootId = compositionRootId(surface, validationConfig);
   const model = surface.componentsModel;
   const typeMap = {
     get: (id: string) => batch.types.get(id) ?? model.get(id)?.type,
@@ -265,13 +266,7 @@ function compositionHolds<T extends ComponentApi>(
         parentId,
         parentType: typeMap.get(parentId) || 'Unknown',
       }));
-      validateParentConstraints(
-        id,
-        componentType,
-        componentApi.allowedParents,
-        parents,
-        validationConfig,
-      );
+      validateParentConstraints(id, componentType, componentApi.allowedParents, parents, rootId);
     }
   };
   const checkChildren = (id: string, children: readonly string[]) => {
@@ -345,35 +340,60 @@ function hasCompositionRules<T extends ComponentApi>(
   return false;
 }
 
+/** The id of the component the surface holds directly, which `allowedParents` checks against `Surface`. */
+function compositionRootId<T extends ComponentApi>(
+  surface: SurfaceModel<T>,
+  validationConfig: ValidationConfig | undefined,
+): string {
+  return validationConfig?.rootId ?? surface.rootId ?? 'root';
+}
+
+/**
+ * Checks a component's `allowedParents` against every parent it is under.
+ *
+ * Every component that references it is a parent, and the surface is the
+ * parent of the root component (`rootId`), which is checked first. A component
+ * no other component references is not checked unless it is the root; whether
+ * it is reachable is the topology check's concern.
+ */
 function validateParentConstraints(
   id: string,
   componentType: string,
   allowedParents: string[],
   parents: Array<{parentId: string; parentType: string}> | undefined,
-  validationConfig: ValidationConfig | undefined,
+  rootId: string,
+  surfaceId?: string,
+  compIndex?: number,
+  compIndexMap?: Map<string, number>,
 ): void {
-  if (!parents || parents.length === 0) {
-    const isRoot = id === 'root';
-    const enforceTopLevel =
-      isRoot ||
-      (validationConfig !== undefined && validationConfig.allowOrphanComponents === false);
-    if (enforceTopLevel && !allowedParents.includes('Surface')) {
-      throw new A2uiValidationError(
-        `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(allowedParents)}.`,
-        undefined,
-        'UNALLOWED_PARENT',
-      );
-    }
-    return;
+  if (id === rootId && !allowedParents.includes('Surface')) {
+    const path = compIndex !== undefined ? `/components/${compIndex}` : '/components';
+    const message = `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(allowedParents)}.`;
+    const details = [
+      {
+        path,
+        code: 'UNALLOWED_PARENT',
+        message,
+        ...(surfaceId !== undefined ? {surfaceId} : {}),
+      },
+    ];
+    throw new A2uiValidationError(message, details, 'UNALLOWED_PARENT', {path, surfaceId});
   }
 
-  for (const parentInfo of parents) {
+  for (const parentInfo of parents ?? []) {
     if (!allowedParents.includes(parentInfo.parentType)) {
-      throw new A2uiValidationError(
-        `Component '${id}' (${componentType}) cannot be placed under parent '${parentInfo.parentId}' (${parentInfo.parentType || 'unknown'}). Allowed parents: ${JSON.stringify(allowedParents)}.`,
-        undefined,
-        'UNALLOWED_PARENT',
-      );
+      const offendingIndex = compIndex ?? compIndexMap?.get(parentInfo.parentId);
+      const path = offendingIndex !== undefined ? `/components/${offendingIndex}` : '/components';
+      const message = `Component '${id}' (${componentType}) cannot be placed under parent '${parentInfo.parentId}' (${parentInfo.parentType || 'unknown'}). Allowed parents: ${JSON.stringify(allowedParents)}.`;
+      const details = [
+        {
+          path,
+          code: 'UNALLOWED_PARENT',
+          message,
+          ...(surfaceId !== undefined ? {surfaceId} : {}),
+        },
+      ];
+      throw new A2uiValidationError(message, details, 'UNALLOWED_PARENT', {path, surfaceId});
     }
   }
 }
@@ -384,15 +404,36 @@ function validateChildConstraints(
   allowedChildren: string[],
   children: readonly string[],
   typeMap: {get(id: string): string | undefined},
+  surfaceId?: string,
+  compIndex?: number,
+  childPathMap?: ReadonlyMap<string, string>,
+  compIndexMap?: Map<string, number>,
 ): void {
   for (const childId of children) {
     const childType = typeMap.get(childId);
     if (childType && !allowedChildren.includes(childType)) {
-      throw new A2uiValidationError(
-        `Container '${id}' (${componentType}) cannot contain child '${childId}' (${childType}). Allowed children: ${JSON.stringify(allowedChildren)}.`,
-        undefined,
-        'UNALLOWED_CHILD',
-      );
+      let path: string;
+      if (compIndex !== undefined) {
+        const rawField = childPathMap?.get(childId) ?? 'children';
+        const normalizedField = rawField
+          .replace(/\[(\d+)\]/g, '/$1')
+          .replace(/\./g, '/')
+          .replace(/^\/+/, '');
+        path = `/components/${compIndex}${normalizedField ? `/${normalizedField}` : ''}`;
+      } else {
+        const offendingIndex = compIndexMap?.get(childId);
+        path = offendingIndex !== undefined ? `/components/${offendingIndex}` : '/components';
+      }
+      const message = `Container '${id}' (${componentType}) cannot contain child '${childId}' (${childType}). Allowed children: ${JSON.stringify(allowedChildren)}.`;
+      const details = [
+        {
+          path,
+          code: 'UNALLOWED_CHILD',
+          message,
+          ...(surfaceId !== undefined ? {surfaceId} : {}),
+        },
+      ];
+      throw new A2uiValidationError(message, details, 'UNALLOWED_CHILD', {path, surfaceId});
     }
   }
 }
@@ -405,20 +446,28 @@ function buildCompositionTopology<T extends ComponentApi>(
   const typeMap = new Map<string, string>();
   const compCatalogMap = new Map<string, Catalog<T>>();
   const childMap = new Map<string, string[]>();
+  const childPathMap = new Map<string, Map<string, string>>();
+  const compIndexMap = new Map<string, number>();
 
   for (const [id, model] of surface.componentsModel.entries) {
     typeMap.set(id, model.type);
     compCatalogMap.set(id, model.catalog as Catalog<T>);
-    const children = surface.componentsModel.getChildIds(id);
-    if (children.length > 0) {
-      childMap.set(id, children);
+    const refs = surface.componentsModel.getChildReferences(id);
+    if (refs.length > 0) {
+      childMap.set(
+        id,
+        refs.map(([childId]) => childId),
+      );
+      childPathMap.set(id, new Map(refs));
     }
   }
 
-  for (const comp of newComponents) {
+  for (let i = 0; i < newComponents.length; i++) {
+    const comp = newComponents[i];
     const {id, component, ...props} = comp;
     if (typeof id !== 'string') continue;
 
+    compIndexMap.set(id, i);
     const compCatalog = resolveCatalog(comp, surface);
     compCatalogMap.set(id, compCatalog);
     const existing = surface.componentsModel.get(id);
@@ -427,13 +476,16 @@ function buildCompositionTopology<T extends ComponentApi>(
       typeMap.set(id, compType);
     }
     const compDef = {id, component: compType, ...props};
-    const children = Array.from(
-      getComponentReferences(compDef, compCatalog as Catalog<ComponentApi>),
-    ).map(([childId]) => childId);
-    if (children.length > 0) {
-      childMap.set(id, children);
+    const refs = Array.from(getComponentReferences(compDef, compCatalog as Catalog<ComponentApi>));
+    if (refs.length > 0) {
+      childMap.set(
+        id,
+        refs.map(([childId]) => childId),
+      );
+      childPathMap.set(id, new Map(refs));
     } else {
       childMap.delete(id);
+      childPathMap.delete(id);
     }
   }
 
@@ -447,7 +499,7 @@ function buildCompositionTopology<T extends ComponentApi>(
     }
   }
 
-  return {typeMap, compCatalogMap, childMap, parentMap};
+  return {typeMap, compCatalogMap, childMap, childPathMap, parentMap, compIndexMap};
 }
 
 /**
@@ -467,11 +519,9 @@ export function validateCompositionConstraints<T extends ComponentApi>(
     .map(comp => resolveCatalog(comp, surface));
   if (!hasCompositionRules(surface, batchCatalogs, validationConfig)) return;
 
-  const {typeMap, compCatalogMap, childMap, parentMap} = buildCompositionTopology(
-    surface,
-    newComponents,
-    resolveCatalog,
-  );
+  const {typeMap, compCatalogMap, childMap, childPathMap, parentMap, compIndexMap} =
+    buildCompositionTopology(surface, newComponents, resolveCatalog);
+  const rootId = compositionRootId(surface, validationConfig);
 
   for (const [id, componentType] of typeMap.entries()) {
     const compCatalog = compCatalogMap.get(id);
@@ -484,7 +534,10 @@ export function validateCompositionConstraints<T extends ComponentApi>(
         componentType,
         componentApi.allowedParents,
         parentMap.get(id),
-        validationConfig,
+        rootId,
+        surface.id,
+        compIndexMap.get(id),
+        compIndexMap,
       );
     }
 
@@ -495,6 +548,10 @@ export function validateCompositionConstraints<T extends ComponentApi>(
         componentApi.allowedChildren,
         childMap.get(id) || [],
         typeMap,
+        surface.id,
+        compIndexMap.get(id),
+        childPathMap.get(id),
+        compIndexMap,
       );
     }
   }

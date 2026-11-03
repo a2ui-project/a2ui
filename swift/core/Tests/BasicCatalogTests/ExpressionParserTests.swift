@@ -81,6 +81,69 @@ struct ExpressionParserTests {
     #expect(message?.contains("parts count exceeds maximum limit") == true)
   }
 
+  @Test func parsesSystemFunctionCallsAndRejectsInvalidAtTokens() throws {
+    let parts = try parser.parse("${@index()}: ${name}")
+    #expect(
+      parts == [
+        .object([
+          "call": .string("@index"),
+          "args": .object([:]),
+          "returnType": .string("any"),
+        ]),
+        .string(": "),
+        .object(["path": .string("name")]),
+      ]
+    )
+    let withOffset = try parser.parseExpression("@index(offset: 1)")
+    #expect(
+      withOffset
+        == .object([
+          "call": .string("@index"),
+          "args": .object(["offset": .integer(1)]),
+          "returnType": .string("any"),
+        ])
+    )
+    let bareMsg = executionFailedMessage {
+      _ = try parser.parse("${@index}")
+    }
+    #expect(bareMsg?.contains("Expected '(' after function name '@index'") == true)
+
+    let emptyAtMsg = executionFailedMessage {
+      _ = try parser.parse("${@}")
+    }
+    #expect(emptyAtMsg?.contains("Invalid identifier starting with '@'") == true)
+
+    let midPathMsg = executionFailedMessage {
+      _ = try parser.parse("${a@b}")
+    }
+    #expect(midPathMsg?.contains("Unexpected characters at end of expression: '@b'") == true)
+
+    // System function names are ASCII only, like the other engines.
+    let nonASCIIMsg = executionFailedMessage {
+      _ = try parser.parse("${@índex()}")
+    }
+    #expect(nonASCIIMsg?.contains("Invalid identifier starting with '@'") == true)
+  }
+
+  @Test func rejectsUnclosedStringLiteralsAndTrailingBackslashes() throws {
+    let unclosedMsg = executionFailedMessage {
+      _ = try parser.parseExpression("'unclosed")
+    }
+    #expect(unclosedMsg?.contains("Unclosed string literal") == true)
+
+    let trailingBackslashMsg = executionFailedMessage {
+      _ = try parser.parseExpression("'abc\\")
+    }
+    #expect(trailingBackslashMsg?.contains("Unclosed string literal") == true)
+
+    let inArgumentMsg = executionFailedMessage {
+      _ = try parser.parseExpression("fn(a: \"unclosed)")
+    }
+    #expect(inArgumentMsg?.contains("Unclosed string literal") == true)
+
+    #expect(try parser.parseExpression("'it\\'s'") == .string("it's"))
+  }
+
   private func executionFailedMessage(_ body: () throws -> Void) -> String? {
     do {
       try body()

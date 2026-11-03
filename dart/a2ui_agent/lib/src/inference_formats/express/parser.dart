@@ -16,8 +16,10 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../parser/parser.dart';
 import '../../parser/response_part.dart';
+import '../../utils/renderer_state.dart';
 import 'compiler.dart';
 import 'decompiler.dart';
+import 'response_stream.dart';
 
 // The open tag may carry attributes. `<a2ui-json>` does not match, so a
 // block in another format is read as text.
@@ -70,16 +72,48 @@ final RegExp _token = RegExp(
 class ExpressParser extends Parser {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ExpressParser(List<CatalogApi> catalogs)
-    : catalogs = List.unmodifiable(catalogs),
-      _compiler = ExpressCompiler(catalogs),
-      _decompiler = ExpressDecompiler(catalogs);
+  ExpressParser(
+    List<CatalogApi> catalogs, {
+    Set<String> progressiveKeys = defaultExpressProgressiveKeys,
+  }) : catalogs = List.unmodifiable(catalogs),
+       progressiveKeys = Set.unmodifiable(progressiveKeys),
+       _compiler = ExpressCompiler(catalogs),
+       _decompiler = ExpressDecompiler(catalogs);
 
   @override
   final List<CatalogApi> catalogs;
 
+  /// Property keys whose open string literals are healed progressively during
+  /// streaming.
+  final Set<String> progressiveKeys;
+
   final ExpressCompiler _compiler;
   final ExpressDecompiler _decompiler;
+
+  @override
+  bool get supportsStreaming => true;
+
+  @override
+  ExpressResponseStream openStream({
+    bool wrapped = true,
+    RendererState? state,
+  }) => ExpressResponseStream(
+    this,
+    wrapped: wrapped,
+    state: state ?? RendererState(catalogs),
+  );
+
+  /// Opens an [ExpressContinuingResponseStream] for one response that reads
+  /// past a rejected block. See [Parser.openContinuingStream] and [openStream].
+  @override
+  ExpressContinuingResponseStream openContinuingStream({
+    bool wrapped = true,
+    RendererState? state,
+  }) => ExpressContinuingResponseStream(
+    this,
+    wrapped: wrapped,
+    state: state ?? RendererState(catalogs),
+  );
 
   /// Whether [content] carries an `<a2ui>` block, closed when [complete] is
   /// true.

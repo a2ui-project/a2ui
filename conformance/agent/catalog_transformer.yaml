@@ -195,5 +195,5 @@
       - component_pruning: ["Text"]
   expect:
     catalog_id: "conformance/simplified"
-    protocol_version: "v1.0"
+    protocol_version: "1.0"
     components: ["Text"]

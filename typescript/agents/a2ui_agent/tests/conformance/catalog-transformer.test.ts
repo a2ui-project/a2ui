@@ -44,7 +44,7 @@ describe('Conformance: catalog_transformer.yaml', () => {
       const doc = JSON.parse(fs.readFileSync(filePath, 'utf8')) as Record<string, unknown>;
       let transformed = new FileSystemCatalogProvider(
         filePath,
-        typeof doc.protocolVersion === 'string' ? undefined : 'v1.0',
+        typeof doc.protocolVersion === 'string' ? undefined : '1.0',
         typeof doc.catalogId === 'string' ? undefined : args.catalog,
       ).load();
       for (const transformer of args.transformers ?? []) {

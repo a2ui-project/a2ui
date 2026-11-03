@@ -117,7 +117,9 @@ class TestCompareResults(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_resolve_results_file_dir_with_flat_budget_run_meta_json(self) -> None:
+    def test_resolve_results_file_dir_with_flat_budget_run_meta_json(
+        self,
+    ) -> None:
         temp_dir = tempfile.mkdtemp()
         flat_meta_json = os.path.join(temp_dir, "unbounded_run_meta.json")
         with open(flat_meta_json, "w") as f:

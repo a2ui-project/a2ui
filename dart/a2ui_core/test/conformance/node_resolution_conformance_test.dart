@@ -135,13 +135,17 @@ class _RecordingFunction extends FunctionImplementation {
 
 class _Runner {
   late final SurfaceModel<ComponentApi> surface;
+  late final MessageProcessor<ComponentApi> processor;
   late final NodeResolver<ComponentApi> resolver;
   final List<_Json> events = [];
   final List<_Json> functions = [];
+  final List<_Json> errors = [];
   final Map<_Node, int> emissions = Map.identity();
+  final Map<_Node, int> metadataEmissions = Map.identity();
   final List<_Node> destroyedNodes = [];
   final Map<String, int> destroyed = {};
   final Map<_Node, Object?> lastEmission = Map.identity();
+  final Map<_Node, Object?> lastMetadataEmission = Map.identity();
   final Map<_Node, String> watched = Map.identity();
   final List<void Function()> subscriptions = [];
 
@@ -155,6 +159,7 @@ class _Runner {
     );
     final catalog = Catalog<ComponentApi, FunctionImplementation>(
       id: parsed.id,
+      protocolVersion: parsed.protocolVersion,
       components: parsed.components.values.toList(),
       functions: [
         for (final FunctionApi api in parsed.functions.values)
@@ -162,7 +167,13 @@ class _Runner {
       ],
       definitions: parsed.definitions,
     );
-    surface = SurfaceModel('s', defaultCatalog: catalog);
+    surface = SurfaceModel(
+      's',
+      defaultCatalog: catalog,
+      protocolVersion: catalog.protocolVersion?.jsonValue,
+    );
+    processor = MessageProcessor<ComponentApi>(catalogs: [catalog]);
+    processor.model.addSurface(surface);
     surface.dataModel.set('/', _copy(fixture['data']));
     updateComponents(fixture['components']! as List<Object?>);
     surface.onAction.subscribe((event) {
@@ -170,7 +181,11 @@ class _Runner {
         'name': event.name,
         'source_component_id': event.sourceComponentId,
         'context': _copy(event.context),
+        if (event.metadata != null) 'metadata': _copy(event.metadata),
       });
+    });
+    surface.onError.subscribe((err) {
+      errors.add({'code': err.code, 'surfaceId': err.surfaceId});
     });
     resolver = NodeResolver(surface);
   }
@@ -224,6 +239,17 @@ class _Runner {
           lastEmission[node] = _normalize(props, path);
         }),
       );
+      subscriptions.add(
+        node.metadata.subscribe((meta) {
+          if (subscribing) return;
+          metadataEmissions.update(
+            node,
+            (count) => count + 1,
+            ifAbsent: () => 1,
+          );
+          lastMetadataEmission[node] = _copy(meta);
+        }),
+      );
       subscribing = false;
       node.onDestroyed.subscribe((_) {
         final String path = watched[node]!;
@@ -232,11 +258,14 @@ class _Runner {
       });
     }
     emissions.clear();
+    metadataEmissions.clear();
     destroyedNodes.clear();
     destroyed.clear();
     lastEmission.clear();
+    lastMetadataEmission.clear();
     events.clear();
     functions.clear();
+    errors.clear();
   }
 
   void updateComponents(List<Object?> components) {
@@ -244,13 +273,16 @@ class _Runner {
       final component = value! as _Json;
       final id = component['id']! as String;
       final type = component['component']! as String;
+      final Map<String, Object?>? metadata =
+          (component['metadata'] as Map?)?.cast<String, Object?>();
       final properties = Map<String, Object?>.from(component)
         ..remove('id')
-        ..remove('component');
+        ..remove('component')
+        ..remove('metadata');
       final ComponentModel? existing = surface.componentsModel.get(id);
-      if (existing == null) {
+      if (existing == null || existing.type != type) {
         surface.componentsModel.addComponent(
-          ComponentModel(id, type, properties),
+          ComponentModel(id, type, properties, metadata: metadata),
         );
       } else {
         expect(
@@ -258,7 +290,9 @@ class _Runner {
           type,
           reason: 'update_components preserves component type',
         );
-        existing.properties = properties;
+        batch(() {
+          existing.applyUpdate(properties, metadata);
+        });
       }
     }
   }
@@ -273,6 +307,8 @@ class _Runner {
         surface.componentsModel.removeComponent(
           step['component_id']! as String,
         );
+      case 'process_messages':
+        processor.processMessages(step['messages']! as List<Object?>);
       case 'write':
         final Object? binding =
             before[step['node']]!.props.peek()[step['property']];
@@ -281,8 +317,15 @@ class _Runner {
       case 'invoke':
         final Object? action =
             before[step['node']]!.props.peek()[step['property']];
-        expect(action, isA<Future<void> Function()>());
-        await (action! as Future<void> Function())();
+        expect(action, isA<NodeAction>());
+        final Object? rawMeta = step['metadata'];
+        await (action! as NodeAction)(
+          rawMeta != null
+              ? ActionDispatchOptions(
+                  metadata: (_copy(rawMeta) as Map).cast<String, Object?>(),
+                )
+              : null,
+        );
       case 'dispose':
         resolver.dispose();
       default:
@@ -299,39 +342,12 @@ class _Runner {
       reason: '$reason: mounted paths',
     );
     for (final MapEntry<String, Object?> entry in assertions.entries) {
-      final _Node node = current[entry.key]!;
-      final actual = <String, Object?>{
-        'component_id': node.componentId,
-        'type': node.type,
-        'state': node.state.jsonValue,
-        'data_path': node.dataPath,
-        'props': _normalize(node.props.peek(), entry.key),
-      };
-      for (final MapEntry<String, Object?> assertion
-          in (entry.value! as _Json).entries) {
-        if (assertion.key == 'props') {
-          final props = actual['props']! as _Json;
-          for (final MapEntry<String, Object?> prop
-              in (assertion.value! as _Json).entries) {
-            expect(
-              props.containsKey(prop.key),
-              isTrue,
-              reason: '$reason: ${entry.key}.${prop.key} exists',
-            );
-            expect(
-              props[prop.key],
-              prop.value,
-              reason: '$reason: ${entry.key}.${prop.key}',
-            );
-          }
-        } else {
-          expect(
-            actual[assertion.key],
-            assertion.value,
-            reason: '$reason: ${entry.key}.${assertion.key}',
-          );
-        }
-      }
+      _checkNodeAssertions(
+        current[entry.key]!,
+        entry.key,
+        entry.value! as _Json,
+        reason,
+      );
     }
     // Creation and retirement scheduling is not part of the props contract.
     final retainedEmissions = <String, int>{};
@@ -339,6 +355,13 @@ class _Runner {
       final String path = watched[entry.key]!;
       if (identical(current[path], entry.key)) {
         retainedEmissions[path] = entry.value;
+      }
+    }
+    final retainedMetadataEmissions = <String, int>{};
+    for (final MapEntry<_Node, int> entry in metadataEmissions.entries) {
+      final String path = watched[entry.key]!;
+      if (identical(current[path], entry.key)) {
+        retainedMetadataEmissions[path] = entry.value;
       }
     }
     for (final _Node node in destroyedNodes) {
@@ -353,6 +376,13 @@ class _Runner {
       expected['emissions'] ?? {},
       reason: '$reason: emissions',
     );
+    if (expected.containsKey('metadata_emissions')) {
+      expect(
+        retainedMetadataEmissions,
+        expected['metadata_emissions'] ?? {},
+        reason: '$reason: metadata_emissions',
+      );
+    }
     expect(
       destroyed,
       expected['destroyed'] ?? {},
@@ -364,12 +394,24 @@ class _Runner {
       expected['functions'] ?? [],
       reason: '$reason: functions',
     );
+    if (expected.containsKey('errors')) {
+      expect(errors, expected['errors'], reason: '$reason: errors');
+    }
     for (final MapEntry<_Node, Object?> entry in lastEmission.entries) {
       if (current.values.any((node) => identical(node, entry.key))) {
         expect(
           entry.value,
           _normalize(entry.key.props.peek(), watched[entry.key]!),
           reason: '$reason: complete emitted snapshot',
+        );
+      }
+    }
+    for (final MapEntry<_Node, Object?> entry in lastMetadataEmission.entries) {
+      if (current.values.any((node) => identical(node, entry.key))) {
+        expect(
+          entry.value,
+          entry.key.metadata.peek(),
+          reason: '$reason: complete emitted metadata snapshot',
         );
       }
     }
@@ -397,11 +439,66 @@ class _Runner {
     }
   }
 
+  void _checkNodeAssertions(
+    _Node node,
+    String nodeKey,
+    _Json nodeAssertions,
+    String reason,
+  ) {
+    final Map<String, Object?> rawProps = node.props.peek();
+    final String nodeType =
+        node.state == NodeState.cyclic && node.type == placeholderType
+            ? (surface.componentsModel.get(node.componentId)?.type ?? node.type)
+            : node.type;
+    final actual = <String, Object?>{
+      'component_id': node.componentId,
+      'type': nodeType,
+      'state': node.state.jsonValue,
+      'data_path': node.dataPath,
+      'metadata': node.metadata.peek(),
+      'isValid': rawProps['isValid'],
+      'validationErrors': rawProps['validationErrors'],
+      'validationResults': rawProps['validationResults'] is List
+          ? [
+              for (final Object? item
+                  in rawProps['validationResults']! as List<Object?>)
+                item is ValidationResult ? item.toJson() : item,
+            ]
+          : rawProps['validationResults'],
+      'props': _normalize(rawProps, nodeKey),
+    };
+    for (final MapEntry<String, Object?> assertion in nodeAssertions.entries) {
+      if (assertion.key == 'props') {
+        final props = actual['props']! as _Json;
+        for (final MapEntry<String, Object?> prop
+            in (assertion.value! as _Json).entries) {
+          expect(
+            props.containsKey(prop.key),
+            isTrue,
+            reason: '$reason: $nodeKey.${prop.key} exists',
+          );
+          expect(
+            props[prop.key],
+            prop.value,
+            reason: '$reason: $nodeKey.${prop.key}',
+          );
+        }
+      } else {
+        expect(
+          actual[assertion.key],
+          assertion.value,
+          reason: '$reason: $nodeKey.${assertion.key}',
+        );
+      }
+    }
+  }
+
   void close() {
     for (final void Function() unsubscribe in subscriptions) {
       unsubscribe();
     }
     resolver.dispose();
+    processor.dispose();
     surface.dispose();
   }
 }

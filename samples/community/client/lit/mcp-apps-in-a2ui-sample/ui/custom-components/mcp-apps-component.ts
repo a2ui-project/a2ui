@@ -191,7 +191,7 @@ export class McpApp extends Root {
     // 4. Send the Inner HTML UI resource to the sandbox to spin up the actual app.
     await this.bridge.sendSandboxResourceReady({
       html: this.htmlContent,
-      sandbox: 'allow-scripts allow-forms allow-popups allow-modals allow-same-origin',
+      sandbox: 'allow-scripts allow-forms allow-modals',
     });
   }
 

@@ -1,0 +1,33 @@
+{
+  "name": "a2ui-kanban-mcp-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Kanban MCP server (Streamable HTTP) with the board MCP App for the A2UI Kanban showcase",
+  "type": "module",
+  "scripts": {
+    "build": "yarn build:server && yarn build:app",
+    "build:server": "tsc -p tsconfig.json",
+    "build:app": "tsc -p app/tsconfig.json && vite build --config app/vite.config.ts",
+    "start": "node dist/main.js",
+    "dev": "yarn build && yarn start",
+    "test": "yarn build:server && node --test dist/board.test.js dist/server.test.js && vitest run",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "jsdom": "^29.1.1",
+    "typescript": "5.9.3",
+    "vite": "^8.0.16",
+    "vite-plugin-singlefile": "^2.3.3",
+    "vitest": "^4.1.8"
+  }
+}

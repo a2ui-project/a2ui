@@ -63,7 +63,10 @@ public final class PluralizeFunction: FunctionImplementation, @unchecked Sendabl
   /// - Parameters:
   ///   - resolver: An optional weak reference to a custom `PluralResolver`.
   ///   - locale: The locale used by the default Foundation implementation when `resolver` is `nil`.
-  public init(resolver: (any PluralResolver)? = nil, locale: Locale = .current) {
+  ///     Defaults to `BasicFunctions.defaultLocale` (`en_US`).
+  public init(
+    resolver: (any PluralResolver)? = nil, locale: Locale = BasicFunctions.defaultLocale
+  ) {
     self.resolver = resolver
     self.locale = locale
   }

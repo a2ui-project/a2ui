@@ -63,7 +63,7 @@ void _runSelectCatalogCase(Map<String, Object?> testCase) {
   final defaultId = surfaceArgs['defaultCatalogId'] as String?;
   final String surfaceVersion = (testCase['catalog']
           as Map<String, Object?>?)?['protocolVersion'] as String? ??
-      'v1.0';
+      '1.0';
   final functionCall = args['functionCall'] as Map<String, Object?>?;
   final functionName = functionCall?['call'] as String?;
   final selections = <String>[];

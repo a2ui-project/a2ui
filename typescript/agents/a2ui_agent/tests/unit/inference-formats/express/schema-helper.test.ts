@@ -30,9 +30,9 @@ import {Catalog} from '../../../../src/internal/web-core.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
 
-const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
-const basicCatalogs = {'v1.0': basicCatalogV10, 'v0.9': basicCatalogV09};
+const basicCatalogs = {'1.0': basicCatalogV10, 'v0.9': basicCatalogV09};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -120,9 +120,16 @@ function declaredComponent(doc: Schema, commonDefs: Record<string, Schema>, name
       ...commonCheckLists,
     ]),
   ];
+  // The first definition of a property wins, so the component's own definition
+  // overrides one it inherits.
   const enums = new Map<string, unknown>();
+  const defined = new Set<string>();
   for (const props of ownProperties) {
     for (const [propName, prop] of Object.entries(props)) {
+      if (defined.has(propName)) {
+        continue;
+      }
+      defined.add(propName);
       const values = findEnum(prop);
       if (values) {
         enums.set(propName, values);
@@ -152,7 +159,7 @@ function declaredFunction(doc: Schema, name: string) {
 
 describe('CatalogSchemaHelper and Express schema utilities', () => {
   describe.each([
-    {version: 'v1.0' as const, specDir: 'v1_0' as const},
+    {version: '1.0' as const, specDir: 'v1_0' as const},
     {version: 'v0.9' as const, specDir: 'v0_9' as const},
   ])('reads the $version basic catalog as its JSON declares it', ({version, specDir}) => {
     const catalog = basicCatalogs[version];
@@ -187,7 +194,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
   });
 
   describe('properties that come from referenced definitions', () => {
-    const helperV10 = new CatalogSchemaHelper(basicCatalogV10, 'v1.0');
+    const helperV10 = new CatalogSchemaHelper(basicCatalogV10, '1.0');
     const helperV09 = new CatalogSchemaHelper(basicCatalogV09, 'v0.9');
 
     it('places weight from the local CatalogComponentCommon where v1.0 declares it inline', () => {
@@ -221,7 +228,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
     it('correctly discovers own check-rule property and retains declared order', () => {
       const formsCat = loadConformanceCatalog('forms_catalog_v1_0.json');
 
-      const helper = new CatalogSchemaHelper(formsCat, 'v1.0');
+      const helper = new CatalogSchemaHelper(formsCat, '1.0');
 
       expect(helper.getComponentProperties('TextField')).toEqual([
         'label',
@@ -236,7 +243,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
 
   describe('3. isActionSlot', () => {
     it('is true only for Button.action in both v1.0 and v0.9 basic catalogs', () => {
-      for (const version of ['v1.0', 'v0.9'] as const) {
+      for (const version of ['1.0', 'v0.9'] as const) {
         const cat = basicCatalogs[version];
         const helper = new CatalogSchemaHelper(cat, version);
 
@@ -269,7 +276,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
       const content = fs.readFileSync(instructionsPath, 'utf8');
 
       const cat = basicCatalogV10;
-      const helper = new CatalogSchemaHelper(cat, 'v1.0');
+      const helper = new CatalogSchemaHelper(cat, '1.0');
 
       let staticCount = 0;
       let nonStaticCount = 0;
@@ -387,7 +394,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
       };
 
       const customCat = Catalog.fromJson(mockDoc);
-      const helper = new CatalogSchemaHelper(customCat, 'v1.0');
+      const helper = new CatalogSchemaHelper(customCat, '1.0');
 
       const actionSlotSchema = helper.getPropertySchema('CustomComp', 'actionSlot');
       expect(isActionSlot(actionSlotSchema)).toBe(false);
@@ -432,10 +439,171 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
     });
   });
 
+  describe('a property both a component and what it inherits define', () => {
+    const doc: Record<string, unknown> = {
+      catalogId: 'test_own_property_override',
+      protocolVersion: '1.0',
+      components: {
+        Badge: {
+          type: 'object',
+          allOf: [
+            {$ref: '#/$defs/BadgeMixin'},
+            {
+              type: 'object',
+              properties: {
+                size: {type: 'string', enum: ['inline-s', 'inline-m']},
+                tone: {type: 'string', enum: ['inline-calm', 'inline-loud']},
+              },
+            },
+          ],
+          properties: {
+            component: {const: 'Badge'},
+            label: {type: 'string'},
+            tone: {type: 'string', enum: ['own-calm', 'own-loud']},
+            size: {type: 'string', enum: ['own-s', 'own-m']},
+          },
+        },
+      },
+      functions: {},
+      $defs: {
+        BadgeMixin: {
+          type: 'object',
+          properties: {
+            size: {type: 'string', enum: ['mixin-s', 'mixin-m']},
+            label: {type: 'number'},
+            extra: {type: 'string'},
+          },
+        },
+      },
+    };
+    const helper = new CatalogSchemaHelper(Catalog.fromJson(doc), '1.0');
+
+    it("uses the component's own definition over an allOf entry and a local mixin", () => {
+      expect(helper.getPropertyEnum('Badge', 'tone')).toEqual(['own-calm', 'own-loud']);
+      expect(helper.getPropertyEnum('Badge', 'size')).toEqual(['own-s', 'own-m']);
+      expect(helper.getPropertySchema('Badge', 'tone')?.enum).toEqual(['own-calm', 'own-loud']);
+      expect(helper.getPropertySchema('Badge', 'size')?.enum).toEqual(['own-s', 'own-m']);
+      expect(helper.getPropertySchema('Badge', 'label')?.type).toBe('string');
+    });
+
+    it('keeps each property where it is first declared', () => {
+      expect(helper.getComponentProperties('Badge')).toEqual(['label', 'tone', 'size', 'extra']);
+    });
+  });
+
+  describe('a local mixin with its own allOf (v0.9)', () => {
+    const common = 'https://a2ui.org/specification/v0_9/common_types.json#/$defs';
+    const doc: Record<string, unknown> = {
+      catalogId: 'test_nested_mixin',
+      components: {
+        MaterialText: {
+          type: 'object',
+          allOf: [
+            {$ref: '#/$defs/MaterialComponentCommon'},
+            {
+              type: 'object',
+              properties: {
+                component: {const: 'MaterialText'},
+                text: {type: 'string'},
+                usageHint: {type: 'string', enum: ['h1', 'body']},
+              },
+              required: ['component', 'text'],
+            },
+          ],
+        },
+        MaterialHeading: {
+          type: 'object',
+          allOf: [
+            {$ref: '#/$defs/MaterialComponentCommon'},
+            {
+              type: 'object',
+              properties: {
+                component: {const: 'MaterialHeading'},
+                text: {type: 'string'},
+                weight: {type: 'string', enum: ['own-light', 'own-bold']},
+              },
+            },
+          ],
+        },
+        MaterialButton: {
+          type: 'object',
+          allOf: [
+            {$ref: `${common}/Checkable`},
+            {$ref: '#/$defs/MaterialComponentCommon'},
+            {
+              type: 'object',
+              properties: {
+                component: {const: 'MaterialButton'},
+                child: {type: 'string'},
+                action: {$ref: `${common}/Action`},
+              },
+            },
+          ],
+        },
+      },
+      functions: {},
+      $defs: {
+        MaterialComponentCommon: {
+          allOf: [
+            {$ref: `${common}/ComponentCommon`},
+            {
+              type: 'object',
+              properties: {
+                weight: {type: 'number'},
+                style: {type: 'object'},
+              },
+              required: ['style'],
+            },
+          ],
+        },
+      },
+    };
+    const helper = new CatalogSchemaHelper(Catalog.fromJson(doc), 'v0.9');
+
+    it('lists the properties of the nested allOf after the component’s own', () => {
+      expect(helper.getComponentProperties('MaterialText')).toEqual([
+        'text',
+        'usageHint',
+        'weight',
+        'style',
+      ]);
+      expect(helper.getComponentRequired('MaterialText')).toEqual(['component', 'text', 'style']);
+    });
+
+    it('finds the schema of a property of the nested allOf', () => {
+      expect(helper.getPropertySchema('MaterialText', 'weight')).toEqual({type: 'number'});
+      expect(helper.getPropertySchema('MaterialText', 'style')).toEqual({type: 'object'});
+    });
+
+    it("uses the component's own definition over one in the nested allOf", () => {
+      expect(helper.getComponentProperties('MaterialHeading')).toEqual(['text', 'weight', 'style']);
+      expect(helper.getPropertySchema('MaterialHeading', 'weight')?.enum).toEqual([
+        'own-light',
+        'own-bold',
+      ]);
+      expect(helper.getPropertyEnum('MaterialHeading', 'weight')).toEqual([
+        'own-light',
+        'own-bold',
+      ]);
+    });
+
+    it('appends checks from the common Checkable once, last', () => {
+      expect(helper.getComponentProperties('MaterialButton')).toEqual([
+        'child',
+        'action',
+        'weight',
+        'style',
+        'checks',
+      ]);
+      expect(helper.isCheckable('MaterialButton')).toBe(true);
+      expect(isActionSlot(helper.getPropertySchema('MaterialButton', 'action'))).toBe(true);
+    });
+  });
+
   describe('helper general methods', () => {
     it('retrieves descriptions and property schemas', () => {
       const cat = basicCatalogV10;
-      const helper = new CatalogSchemaHelper(cat, 'v1.0');
+      const helper = new CatalogSchemaHelper(cat, '1.0');
 
       expect(helper.getComponentDescription('Column')).toBeDefined();
       expect(helper.getComponentDescription('Text')).toBeUndefined();
@@ -451,24 +619,24 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
 
     it('resolves subschema for array items and object properties', () => {
       const cat = basicCatalogV10;
-      const helper = new CatalogSchemaHelper(cat, 'v1.0');
+      const helper = new CatalogSchemaHelper(cat, '1.0');
 
       const tabsSchema = helper.getPropertySchema('Tabs', 'tabs');
       expect(tabsSchema).toBeDefined();
 
-      const itemsSchema = helper.resolveSubschema(tabsSchema, 'items');
+      const itemsSchema = helper.resolveItemSchema(tabsSchema);
       expect(itemsSchema).toBeDefined();
 
-      const titleSchema = helper.resolveSubschema(itemsSchema, 'title');
+      const titleSchema = helper.resolvePropertySchema(itemsSchema, 'title');
       expect(titleSchema).toBeDefined();
       expect(helper.admitsPath(titleSchema)).toBe(true);
 
-      const childSchema = helper.resolveSubschema(itemsSchema, 'child');
+      const childSchema = helper.resolvePropertySchema(itemsSchema, 'child');
       expect(childSchema).toBeDefined();
       expect(helper.admitsPath(childSchema)).toBe(false);
 
-      expect(helper.resolveSubschema(null, 'items')).toBeUndefined();
-      expect(helper.resolveSubschema({}, 'nonexistent')).toBeUndefined();
+      expect(helper.resolveItemSchema(null)).toBeUndefined();
+      expect(helper.resolvePropertySchema({}, 'nonexistent')).toBeUndefined();
     });
 
     it('reads v0.9.1 schemas with the v0.9 common types', async () => {

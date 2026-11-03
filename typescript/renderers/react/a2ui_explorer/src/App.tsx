@@ -15,12 +15,15 @@
  */
 
 import {useState, useEffect, useCallback, useRef} from 'react';
+import {compareSemVer} from '@a2ui/web_core';
 import {MessageProcessor, type A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {A2uiSurface, MarkdownContext, type ReactCatalogComponent} from '@a2ui/react';
+import {mcpCatalog} from '@a2ui/catalog-mcp';
 import {basicCatalog as basicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
 import {demoCatalog} from './demo-catalog';
 import {getDemoItems, type DemoItem} from './examples';
 import {renderMarkdown} from '@a2ui/markdown-it';
+import {handleMcpToolAction, observeMcpApps} from './mcp';
 import styles from './App.module.css';
 
 const demoItemsV09 = getDemoItems('v0.9');
@@ -41,7 +44,8 @@ function applyPrimaryColorToMessages(
       msg &&
       typeof msg === 'object' &&
       'createSurface' in msg &&
-      msg.version !== 'v1.0' &&
+      typeof msg.version === 'string' &&
+      compareSemVer(msg.version, '1.0') < 0 &&
       msg.createSurface &&
       typeof msg.createSurface === 'object'
     ) {
@@ -292,6 +296,10 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
     onActionRef.current = onAction;
   }, [onAction]);
 
+  useEffect(() => {
+    return observeMcpApps(() => (typeof document !== 'undefined' ? document.body : null));
+  }, []);
+
   // Handle keyboard shortcuts ('j' and 'k')
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -341,7 +349,7 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
 
   const createFreshProcessor = useCallback(() => {
     const newProcessor = new MessageProcessor<ReactCatalogComponent>(
-      [demoCatalog, basicCatalogV10],
+      [demoCatalog, basicCatalogV10, mcpCatalog],
       async (action: A2uiClientAction) => {
         setLogs(l => [
           {
@@ -351,6 +359,16 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
           },
           ...l,
         ]);
+        handleMcpToolAction(action, newProcessor).catch((err: unknown) => {
+          setLogs(l => [
+            {
+              timestamp: formatTime(new Date()),
+              type: 'Error',
+              detail: err,
+            },
+            ...l,
+          ]);
+        });
         if (onActionRef.current) {
           onActionRef.current(action);
         }

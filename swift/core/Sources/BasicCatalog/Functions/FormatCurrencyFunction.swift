@@ -36,7 +36,15 @@ public final class FormatCurrencyFunction: FunctionImplementation, Sendable {
     )
   )
 
-  public init() {}
+  private let locale: Locale
+
+  /// Initializes the function with the locale it formats currency amounts in.
+  ///
+  /// - Parameter locale: The formatting locale. Defaults to `BasicFunctions.defaultLocale`
+  ///   (`en_US`), so output doesn't depend on the device locale.
+  public init(locale: Locale = BasicFunctions.defaultLocale) {
+    self.locale = locale
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let currency = arguments["currency"]?.stringValue else {
@@ -53,7 +61,7 @@ public final class FormatCurrencyFunction: FunctionImplementation, Sendable {
     }
 
     let formatter = NumberFormatter()
-    formatter.locale = Locale.current
+    formatter.locale = locale
     formatter.numberStyle = .currency
     formatter.currencyCode = currency
 

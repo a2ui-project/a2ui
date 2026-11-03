@@ -19,10 +19,6 @@ import 'package:test/test.dart';
 import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
-/// Cases in `core/message_processor_v1_0.yaml` expected to fail, with the
-/// reason each is currently failing.
-const Map<String, String> _v10ExpectedFailures = {};
-
 /// The `process_messages` cases in `core/reserved_keys.yaml` expected to
 /// fail, with the reason each is currently failing.
 const Map<String, String> _reservedKeysExpectedFailures = {};
@@ -34,19 +30,21 @@ const Map<String, String> _functionsExpectedFailures = {};
 /// Runs the shared message-processor suites against [MessageProcessor] and
 /// [DataContext]: `core/message_processor_v0_9.yaml`,
 /// `core/message_processor_v1_0.yaml`, the `process_messages` cases of
-/// `core/reserved_keys.yaml`, and the `validate` cases of
-/// `core/functions.yaml`, `core/expressions.yaml`, `core/index_function.yaml`,
-/// and `core/multi_catalog.yaml`, which render basic-catalog components.
+/// `core/reserved_keys.yaml` and `core/composition_constraints.yaml`, and the
+/// `validate` cases of `core/functions.yaml`, `core/expressions.yaml`,
+/// `core/index_function.yaml`, and `core/multi_catalog.yaml`, which render
+/// basic-catalog components.
 void main() {
   _registerSuite('core/message_processor_v0_9.yaml');
-  _registerSuite(
-    'core/message_processor_v1_0.yaml',
-    expectedFailures: _v10ExpectedFailures,
-  );
+  _registerSuite('core/message_processor_v1_0.yaml');
   _registerSuite(
     'core/reserved_keys.yaml',
     onlyAction: 'process_messages',
     expectedFailures: _reservedKeysExpectedFailures,
+  );
+  _registerSuite(
+    'core/composition_constraints.yaml',
+    onlyAction: 'process_messages',
   );
   _registerSuite(
     'core/functions.yaml',
@@ -77,13 +75,13 @@ void _registerSuite(
 String _actionOf(Map<String, Object?> testCase) =>
     (testCase['action'] as String?) ?? 'process_messages';
 
-void _runCase(Map<String, Object?> testCase) {
+Future<void> _runCase(Map<String, Object?> testCase) async {
   final String action = _actionOf(testCase);
   switch (action) {
     case 'process_messages' || 'validate':
-      _runProcessMessagesCase(testCase);
+      await _runProcessMessagesCase(testCase);
     case 'get_renderer_data_model':
-      _runGetRendererDataModelCase(testCase);
+      await _runGetRendererDataModelCase(testCase);
     case 'get_renderer_capabilities':
       _runGetRendererCapabilitiesCase(testCase);
     case 'resolve_path':
@@ -93,37 +91,95 @@ void _runCase(Map<String, Object?> testCase) {
   }
 }
 
-void _runProcessMessagesCase(Map<String, Object?> testCase) {
+/// The flags a case's `validationConfig` may set (`validationConfig` in
+/// `conformance_schema.json`).
+const Set<String> _caseValidationFlags = {
+  'allowOrphanComponents',
+  'allowDanglingReferences',
+  'allowMissingRoot',
+  'allowUnknownElements',
+};
+
+/// The processor's validation config for [testCase].
+///
+/// A case's `validationConfig` sets its checks, so they don't depend on this
+/// harness: a flag it leaves out is false. Without one, a `validate` case or a
+/// case with `strictMode` is checked strictly, and any other case with the
+/// relaxed config.
+ValidationConfig _validationConfigFor(
+  Map<String, Object?> testCase, {
+  required bool isValidate,
+}) {
+  final Object? raw = testCase['validationConfig'];
+  if (raw == null) {
+    return isValidate || testCase['strictMode'] == true
+        ? ValidationConfig.strict
+        : ValidationConfig.relaxed;
+  }
+  final Map<String, Object?> flags = (raw as Map).cast<String, Object?>();
+  final Iterable<String> unknown =
+      flags.keys.where((name) => !_caseValidationFlags.contains(name));
+  if (unknown.isNotEmpty) {
+    throw UnsupportedError('Unknown validationConfig flags: $unknown');
+  }
+  bool flag(String name) => flags[name] as bool? ?? false;
+  return ValidationConfig(
+    allowOrphanComponents: flag('allowOrphanComponents'),
+    allowDanglingReferences: flag('allowDanglingReferences'),
+    allowMissingRoot: flag('allowMissingRoot'),
+    allowUnknownElements: flag('allowUnknownElements'),
+  );
+}
+
+Future<void> _runProcessMessagesCase(Map<String, Object?> testCase) async {
   final name = testCase['name']! as String;
   final isValidate = _actionOf(testCase) == 'validate';
-  final bool strictMode = isValidate || testCase['strictMode'] == true;
+  final emittedErrors = <ErrorMessage>[];
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
-    validationConfig:
-        strictMode ? ValidationConfig.strict : ValidationConfig.relaxed,
+    validationConfig: _validationConfigFor(testCase, isValidate: isValidate),
+    outboundListener: (msg) {
+      if (msg is ErrorMessage) {
+        emittedErrors.add(msg);
+      }
+    },
   );
 
   if (testCase['steps'] case final List<Object?> steps) {
-    _runSteps(
+    await _runSteps(
       processor,
       testCase,
       steps.cast<Map<String, Object?>>(),
       resolveNodes: isValidate,
+      emittedErrors: emittedErrors,
     );
     return;
   }
 
   final Object? expectError = testCase['expectError'];
   if (expectError != null) {
-    expect(
+    final Object? firstRaw =
+        switch (testCase['messages'] ?? testCase['payload']) {
+      final List<Object?> list when list.isNotEmpty => list.first,
+      final Object other => other,
+      _ => null,
+    };
+    await expectLater(
       () => _process(processor, testCase, resolveNodes: isValidate),
-      throwsA(_matchesError(expectError as Map<String, Object?>)),
+      throwsA(
+        _matchesError(
+          expectError as Map<String, Object?>,
+          rawMessage: firstRaw,
+          defaultVersion: _versionOf(testCase),
+          emittedErrors: emittedErrors,
+        ),
+      ),
       reason: name,
     );
     return;
   }
 
-  _process(processor, testCase, resolveNodes: isValidate);
+  await _process(processor, testCase, resolveNodes: isValidate);
 
   final Map<String, Object?> expected =
       (testCase['expect'] as Map<String, Object?>?) ?? const {};
@@ -133,31 +189,57 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
 /// Processes each step's payload in turn, as the validator harness does.
 ///
 /// A step's own `expectError` applies to that step, and the case's applies to
-/// the last one. The case's `expect` is checked once every step has run.
-void _runSteps(
+/// the last one. A step's `validationConfig` replaces the processor's for
+/// that step. The case's `expect` is checked once every step has run.
+Future<void> _runSteps(
   MessageProcessor<ComponentApi> processor,
   Map<String, Object?> testCase,
   List<Map<String, Object?>> steps, {
   bool resolveNodes = false,
-}) {
+  List<ErrorMessage> emittedErrors = const [],
+}) async {
   final name = testCase['name']! as String;
   for (var index = 0; index < steps.length; index++) {
     final Map<String, Object?> step = steps[index];
     final Object? payload = step['messages'] ?? step['payload'];
     final Object? expectError = step['expectError'] ??
         (index == steps.length - 1 ? testCase['expectError'] : null);
+    final ValidationConfig? validationConfig =
+        switch (step['validationConfig']) {
+      final Map<String, Object?> rules => _validationConfig(rules),
+      _ => null,
+    };
+    emittedErrors.clear();
     if (expectError != null) {
-      expect(
+      final Object? firstRaw = switch (payload) {
+        final List<Object?> list when list.isNotEmpty => list.first,
+        final Object other => other,
+        _ => null,
+      };
+      await expectLater(
         () => _processPayload(
           processor,
           payload,
           resolveNodes: resolveNodes,
+          validationConfig: validationConfig,
         ),
-        throwsA(_matchesError(expectError as Map<String, Object?>)),
+        throwsA(
+          _matchesError(
+            expectError as Map<String, Object?>,
+            rawMessage: firstRaw,
+            defaultVersion: _versionOf(testCase),
+            emittedErrors: emittedErrors,
+          ),
+        ),
         reason: '$name: step $index',
       );
     } else {
-      _processPayload(processor, payload, resolveNodes: resolveNodes);
+      await _processPayload(
+        processor,
+        payload,
+        resolveNodes: resolveNodes,
+        validationConfig: validationConfig,
+      );
     }
   }
   _checkSurfaces(
@@ -167,9 +249,20 @@ void _runSteps(
   );
 }
 
+/// The validation rules a step names, each one it leaves out strict.
+ValidationConfig _validationConfig(Map<String, Object?> rules) =>
+    ValidationConfig(
+      allowOrphanComponents: rules['allowOrphanComponents'] == true,
+      allowDanglingReferences: rules['allowDanglingReferences'] == true,
+      allowMissingRoot: rules['allowMissingRoot'] == true,
+      allowUnknownElements: rules['allowUnknownElements'] == true,
+    );
+
 /// Runs a data model request, after the case's `messages` or, one batch per
 /// step, its `steps`. `args.version` is the version requested.
-void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
+Future<void> _runGetRendererDataModelCase(
+  Map<String, Object?> testCase,
+) async {
   final name = testCase['name']! as String;
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
@@ -178,10 +271,10 @@ void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
   );
   if (testCase['steps'] case final List<Object?> steps) {
     for (final step in steps) {
-      _process(processor, step! as Map<String, Object?>);
+      await _process(processor, step! as Map<String, Object?>);
     }
   } else {
-    _process(processor, testCase);
+    await _process(processor, testCase);
   }
 
   final Map<String, Object?> args =
@@ -259,7 +352,7 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
   ];
   final List<Map<String, Object?>> documents = [
     if (testCase['catalogPaths'] case final List<Object?> paths
-        when compareVersions(version, 'v1.0') >= 0)
+        when compareVersions(version, '1.0') >= 0)
       for (final Object? path in paths)
         if (path is String) readConformanceJson(path),
   ];
@@ -351,24 +444,24 @@ String _catalogIdOf(Map<String, Object?> testCase) =>
     _catalogIdsOf(testCase).firstOrNull ?? 'test-catalog';
 
 /// Processes the case's raw payload, in whichever shape it declares it.
-void _process(
+Future<void> _process(
   MessageProcessor<ComponentApi> processor,
   Map<String, Object?> testCase, {
   bool resolveNodes = false,
-}) {
-  _processPayload(
-    processor,
-    testCase['messages'] ?? testCase['payload'],
-    resolveNodes: resolveNodes,
-  );
-}
+}) =>
+    _processPayload(
+      processor,
+      testCase['messages'] ?? testCase['payload'],
+      resolveNodes: resolveNodes,
+    );
 
-void _processPayload(
+Future<void> _processPayload(
   MessageProcessor<ComponentApi> processor,
   Object? payload, {
   required bool resolveNodes,
-}) {
-  processor.processMessages(payload);
+  ValidationConfig? validationConfig,
+}) async {
+  processor.processMessages(payload, validationConfig: validationConfig);
   if (!resolveNodes) return;
   for (final SurfaceModel<ComponentApi> surface
       in processor.model.allSurfaces) {
@@ -378,6 +471,7 @@ void _processPayload(
     });
     final resolver = NodeResolver<ComponentApi>(surface);
     resolver.dispose();
+    await Future<void>.microtask(() {});
     sub.unsubscribe();
     if (reported != null) {
       throw A2uiValidationError(reported!.message);
@@ -543,6 +637,14 @@ void _checkComponents(
             reason: '$reason: $id type');
         return;
       }
+      if (key == 'metadata') {
+        expect(
+          node?.metadata.peek() ?? component!.metadata,
+          equals(value),
+          reason: '$reason: $id.metadata',
+        );
+        return;
+      }
       final Object? propVal =
           node == null || node.state == NodeState.unknownType
               ? component!.properties[key]
@@ -571,7 +673,12 @@ Object? _plain(Object? value) => switch (value) {
       _ => value,
     };
 
-Matcher _matchesError(Map<String, Object?> expectError) {
+Matcher _matchesError(
+  Map<String, Object?> expectError, {
+  Object? rawMessage,
+  String defaultVersion = 'v0.9',
+  List<ErrorMessage> emittedErrors = const [],
+}) {
   final category = expectError['category'] as String?;
   final message = expectError['message'] as String?;
   Matcher matcher = switch (category) {
@@ -590,61 +697,28 @@ Matcher _matchesError(Map<String, Object?> expectError) {
     _ => isA<A2uiError>(),
   };
   if (message != null) {
-    final String pattern = _align(message);
+    final String pattern = alignErrorPattern(message);
     matcher = allOf(
       matcher,
       isA<A2uiError>().having(
         (e) => e.message,
         'message',
-        matches(RegExp(pattern, caseSensitive: false)),
+        anyOf(
+          contains(message),
+          matches(RegExp(pattern, caseSensitive: false)),
+        ),
       ),
     );
   }
-  return matcher;
-}
-
-String _align(String pattern) {
-  if (pattern.contains('Catalog not found:')) {
-    return '($pattern|is not supported by this processor)';
-  }
-  if (RegExp(r"Unrecognized function '([^']*)'").firstMatch(pattern)
-      case final RegExpMatch match) {
-    return "($pattern|declares no function named '${match[1]}')";
-  }
-  if (pattern.contains('without a type')) {
-    return "($pattern|without a 'component' type)";
-  }
-  if (pattern.contains('Circular reference detected')) {
-    return '($pattern|Self-reference detected)';
-  }
-  if (pattern.contains('Dangling reference')) {
-    return '($pattern|references non-existent component)';
-  }
-  if (pattern.contains('Orphaned component')) {
-    return '($pattern|is not reachable from)';
-  }
-  if (pattern.contains('Validation failed for component')) {
-    return '($pattern|does not match the .* schema)';
-  }
-  if (pattern.contains('Validation failed for theme')) {
-    return '($pattern|Theme does not match the theme schema)';
-  }
-  if (pattern.contains('multiple conflicting update actions')) {
-    return '($pattern|must contain exactly one of)';
-  }
-  if (pattern.contains('beginRendering')) {
-    return '($pattern|Unknown A2UI message type)';
-  }
-  if (pattern.contains('Unsupported protocol version')) {
-    return '($pattern|Unsupported A2UI protocol version)';
-  }
-  if (pattern.contains('Missing required version field')) {
-    return "($pattern|must declare a 'version')";
-  }
-  if (pattern.contains('surfaceId must be a string')) {
-    return "($pattern|Field 'createSurface\\.surfaceId' must be a String)";
-  }
-  return pattern;
+  return allOf(
+    matcher,
+    matchesErrorFields(
+      expectError,
+      rawMessage: rawMessage,
+      defaultVersion: defaultVersion,
+      emittedErrors: emittedErrors,
+    ),
+  );
 }
 
 /// [catalog] with every component schema replaced by one that accepts any

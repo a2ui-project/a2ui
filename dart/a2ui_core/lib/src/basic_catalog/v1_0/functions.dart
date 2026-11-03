@@ -20,8 +20,9 @@ import '../locale_formatting.dart';
 /// [locale].
 ///
 /// Validation rules return a [ValidationResult] whose message explains a
-/// failure, and `and`, `or` and `not` read such a result, or a map carrying
-/// a `valid` key, by its validity. `openUrl` hands validated URLs to
+/// failure, and `and`, `or` and `not`, and the `grouping` of `formatNumber`
+/// and `formatCurrency`, read such a result, or a map carrying a `valid`
+/// key, by its validity. `openUrl` hands validated URLs to
 /// [openUrl] and fails without one.
 Map<String, BasicFunctionBody> basicFunctionBodiesV1_0({
   String locale = defaultBasicCatalogLocale,
@@ -34,14 +35,16 @@ Map<String, BasicFunctionBody> basicFunctionBodiesV1_0({
     formatNumber: (value, args) => formatNumber(
       value,
       decimals: args['decimals'],
-      grouping: args['grouping'],
+      grouping:
+          ValidationResult.validityOf(args['grouping']) ?? args['grouping'],
       locale: intlLocale,
     ),
     formatCurrency: (value, args) => formatCurrency(
       value,
       currency: args['currency'],
       decimals: args['decimals'],
-      grouping: args['grouping'],
+      grouping:
+          ValidationResult.validityOf(args['grouping']) ?? args['grouping'],
       locale: intlLocale,
     ),
     formatDate: (value, args) =>

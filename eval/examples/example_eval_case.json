@@ -48,9 +48,14 @@
       },
       {
         "role": "user",
-        "content": "Please display these flights in an interactive card so I can choose one to book."
+        "content": "Please display these flights in an interactive card so I can choose one to book. Bind the selected flight ID to the data model path /booking/selectedFlightId."
       }
     ],
-    "target": "The assistant must generate a valid A2UI surface containing:\n1. A Card container with a descriptive heading for SFO to JFK flights.\n2. A List layout displaying both UA100 ($450) and DL200 ($520).\n3. Two-way data binding on a selection control allowing the user to select a flight ID.\n4. The agent must reason correctly over the flight search results without being distracted by the unrelated weather tool response."
+    "target": "The assistant must generate a valid A2UI surface containing:\n1. A Card container with a descriptive heading for SFO to JFK flights.\n2. A List layout displaying both UA100 ($450) and DL200 ($520).\n3. Two-way data binding on a selection control, bound to /booking/selectedFlightId, allowing the user to select a flight ID.\n4. The agent must reason correctly over the flight search results without being distracted by the unrelated weather tool response.",
+    "tags": ["example"],
+    "assertions": {
+      "required_components": ["Card", "List", "Text"],
+      "required_bindings": ["/booking/selectedFlightId"]
+    }
   }
 ]

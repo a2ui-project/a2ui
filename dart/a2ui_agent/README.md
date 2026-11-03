@@ -8,8 +8,8 @@ The package follows the
 [agent SDK blueprint](../../blueprints/modules/a2ui_agent.blueprint.md). It
 implements the whole API of the blueprint for A2UI protocols v0.9 and v1.0,
 with two inference formats: [Express](../../specification/proposals/express/README.md),
-the default, a compact notation read once the response is complete, and direct
-JSON, which can be read as it streams.
+the default compact notation, and direct JSON, both of which can be read either
+once complete or as they stream.
 
 The protocol version is the one the catalogs target. A v1.0 catalog document
 declares it as `protocolVersion`; a v0.9 document declares none, so a catalog
@@ -47,8 +47,8 @@ Implemented:
   format, when a processor is created.
 - For both formats, `Parser` wraps and unwraps responses, and compiles and
   decompiles payloads. A parser holds no state, so one parser reads every
-  response of a request. The direct JSON parser also reads a streamed
-  response through the `ResponseStream` that `openStream` returns.
+  response of a request. Both the Express and direct JSON parsers also read a
+  streamed response through the `ResponseStream` that `openStream` returns.
 
 What v1.0 adds to both formats:
 
@@ -94,17 +94,16 @@ final String llmOutput = await callLlm(processor.promptSnippet, userMessage);
 final List<ResponsePart> parts = processor.parseResponse(llmOutput);
 ```
 
-To show the UI while the model is still writing it, configure a processor with
-`DirectJsonFormatFactory` and read the direct JSON response as it streams,
-through a stream opened for that response. Each part carries the text, or the
-messages, that are new or changed since the previous chunk. Call `close` after
-the last chunk: it returns the text held back as a possible tag, and throws if a
-block is still open:
+To show the UI while the model is still writing it, read the Express or direct
+JSON response as it streams, through a stream opened for that response. Each
+part carries the text, or the messages, that are new or changed since the
+previous chunk. Call `close` after the last chunk: it returns the text held back
+as a possible tag, throws if an `<a2ui>` or `<a2ui-json>` block is still open,
+and checks the tree of an unwrapped response:
 
 ```dart
 final A2uiRequestProcessor processor = generator.createProcessor(
   rendererCapabilities,
-  inferenceFormatFactory: const DirectJsonFormatFactory(),
 );
 final ResponseStream stream = processor.openStream();
 await for (final String chunk in llmStream) {
@@ -113,9 +112,63 @@ await for (final String chunk in llmStream) {
 stream.close().forEach(deliver);
 ```
 
+If `feed` or `close` throws, the stream has ended. A thrown `A2uiError`'s
+`partialResults` holds the parts the call made ready before the failure, which
+are applied to the state, so deliver them too.
+
+To show the rest of the response after a rejected block, open the stream with
+`openContinuingStream`. Its `feed` and `close` return an `ErrorPart` in place
+of a rejected block and go on with the text and blocks after it:
+
+```dart
+final ContinuingResponseStream stream = processor.openContinuingStream();
+for (final StreamPart part in stream.feed(chunk)) {
+  switch (part) {
+    case ErrorPart(:final A2uiError error):
+      showError(error);
+    case final ResponsePart part:
+      deliver(part);
+  }
+}
+```
+
+`stream.isInBlock` tells whether the response read so far ends inside a
+block. A client that joins the chunks of a paused and resumed response reads
+it before adding a space between them, since a space inside a block could
+break it.
+
 To heal a string while it streams, such as the text of a `Text` component,
-name its key in `progressiveKeys` of the `DirectJsonFormatFactory` given to
-the generator.
+name its key in `progressiveKeys` of the `ExpressFormatFactory` or
+`DirectJsonFormatFactory` given to the generator.
+
+### An app that is both agent and renderer
+
+An app that calls the model and renders its answer itself, such as a Flutter
+chat, checks and renders each message once by giving the stream a state on the
+processor it renders from:
+
+```dart
+final renderer = MessageProcessor<ComponentImplementation>(
+  catalogs: [catalog],
+  onAction: onAction,
+);
+final ResponseStream stream = processor.openStream(
+  state: RendererState.of(renderer),
+);
+stream.feed(chunk); // the surfaces show up in renderer.model
+```
+
+`StreamedAnswer` does this for one answer and keeps its parts in the order the
+model wrote them: its text, a part for each surface it creates, and an
+`AnswerErrorPart` where it rejected a block, followed by the text and surfaces
+after it.
+
+```dart
+final answer = StreamedAnswer(processor, renderer: renderer);
+answer.feed(chunk);
+answer.close();
+answer.parts; // text, surfaces and errors, in order
+```
 
 ### Chat and canvas
 

@@ -1,5 +1,12 @@
 ## Unreleased
 
+- `create_a2ui_part` labels a part with the message's own `version` field when
+  no `version` is passed, so a v0.9.1 or v1.0 message gets the current A2UI MIME
+  type. [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- `parse_content_to_parts` logs a parse error, which may quote the response,
+  by type at warning level and in full only at debug level.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+
 ## 0.1.0 (2026-10-17)
 
 - First release. `a2ui.a2a` moves here from `a2ui-agent-sdk`, so the agent SDK

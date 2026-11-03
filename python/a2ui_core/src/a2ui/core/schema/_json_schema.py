@@ -25,10 +25,11 @@ This module is internal to a2ui-core and is not re-exported by any facade.
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+import copy
+import sys
 from typing import Annotated, Any, Final
 
 from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler, TypeAdapter
@@ -55,8 +56,18 @@ SPEC_TITLE_KEY: Final[str] = "x-a2ui-title"
 # model as a `$defs` entry; `inline_marked_defs` puts the object back inline.
 INLINE_DEF_MARKER: Final[str] = "x-a2ui-inline"
 
+# Marks an inlined property schema that corresponds to a catalog-local `$defs`
+# entry (e.g. `#/$defs/Weight`). The property schema stays freestanding in
+# `model_json_schema()`, while `SpecShaper` hoists the marked definition into
+# the catalog's `$defs` and replaces the node with `{"$ref": "#/$defs/<name>"}`.
+CATALOG_DEF_MARKER: Final[str] = "x-a2ui-catalog-def"
+
 # Leading keyword order of an inlined def, as the specification writes them.
-_INLINED_KEYWORD_ORDER: Final[tuple[str, ...]] = ("type", "description", "properties")
+_INLINED_KEYWORD_ORDER: Final[tuple[str, ...]] = (
+    "type",
+    "description",
+    "properties",
+)
 
 # Whether JSON schemas are generated in the specification's shape.
 _SPEC_SCHEMA: ContextVar[bool] = ContextVar("_SPEC_SCHEMA", default=False)
@@ -238,6 +249,54 @@ class KeepAnyOf:
     ) -> JsonSchemaValue:
         json_schema = handler(schema)
         json_schema[KEEP_ANY_OF_MARKER] = True
+        return json_schema
+
+
+class CatalogDef:
+    """Annotation marking a type alias that corresponds to a catalog-local `$defs` entry."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self._canonical: dict[str, Any] | None = None
+        frame = sys._getframe(1)
+        self._locals: dict[str, Any] = frame.f_locals
+        self._globals: dict[str, Any] = frame.f_globals
+
+    def canonical_schema(
+        self, ref_template: str = "#/$defs/{model}"
+    ) -> dict[str, Any] | None:
+        if self._canonical is not None:
+            return copy.deepcopy(self._canonical)
+        pascal_name = "".join(
+            part[:1].upper() + part[1:]
+            for part in self.name.replace("-", "_").split("_")
+            if part
+        )
+        candidates = (
+            (self.name, pascal_name)
+            if pascal_name and pascal_name != self.name
+            else (self.name,)
+        )
+        alias_tp = None
+        for cand in candidates:
+            alias_tp = self._locals.get(cand)
+            if alias_tp is None:
+                alias_tp = self._globals.get(cand)
+            if alias_tp is not None:
+                break
+        if alias_tp is None:
+            return None
+        raw = TypeAdapter(alias_tp).json_schema(ref_template=ref_template)
+        self._canonical = {
+            k: v for k, v in raw.items() if k not in (CATALOG_DEF_MARKER, "$defs")
+        }
+        return copy.deepcopy(self._canonical)
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(schema)
+        json_schema[CATALOG_DEF_MARKER] = self.name
         return json_schema
 
 

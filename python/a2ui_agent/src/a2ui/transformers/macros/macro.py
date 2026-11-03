@@ -57,7 +57,9 @@ def _to_pascal_case(s: str) -> str:
     return "".join(word.capitalize() for word in s.split("_") if word)
 
 
-def _parse_docstring(doc: Optional[str]) -> tuple[Optional[str], dict[str, str]]:
+def _parse_docstring(
+    doc: Optional[str],
+) -> tuple[Optional[str], dict[str, str]]:
     """Extracts top description and per-argument descriptions from Google/Sphinx style docstrings."""
     if not doc:
         return None, {}
@@ -291,7 +293,10 @@ def _map_type_hint_to_schema(
 
     # Enum subclasses
     if isinstance(t, type) and issubclass(t, Enum):
-        enum_schema: dict[str, Any] = {"type": "string", "enum": [e.value for e in t]}
+        enum_schema: dict[str, Any] = {
+            "type": "string",
+            "enum": [e.value for e in t],
+        }
         if param_desc:
             enum_schema["description"] = param_desc
         return enum_schema

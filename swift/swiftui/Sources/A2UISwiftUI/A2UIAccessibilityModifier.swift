@@ -35,6 +35,8 @@ import SwiftUI
 public struct A2UIAccessibilityModifier: ViewModifier {
   public let node: Node
 
+  private let attributes: AccessibilityAttributes?
+
   /// Whether this modifier applies the label and hint. ``ComponentNodeView`` turns this off when
   /// the component applied them to its own control.
   let appliesLabelAndHint: Bool
@@ -45,11 +47,8 @@ public struct A2UIAccessibilityModifier: ViewModifier {
 
   init(node: Node, appliesLabelAndHint: Bool) {
     self.node = node
+    self.attributes = node.explicitAccessibilityAttributes
     self.appliesLabelAndHint = appliesLabelAndHint
-  }
-
-  private var attributes: AccessibilityAttributes? {
-    node.explicitAccessibilityAttributes
   }
 
   /// The explicit accessibility label, if the agent set a non-empty one.

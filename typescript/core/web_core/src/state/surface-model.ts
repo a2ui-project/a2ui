@@ -17,15 +17,26 @@
 import {DataModel} from './data-model.js';
 import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from '../catalog/types.js';
 import {SurfaceComponentsModel} from './surface-components-model.js';
+import {canonicalJsonKey, toJsonValue} from '../common/canonical_json.js';
 import {EventEmitter, EventSource} from '../common/events.js';
-import {toCanonicalVersion} from '../common/semver.js';
+import {
+  A2uiMetadata,
+  cloneMetadata,
+  Extensions,
+  mergeActionMetadata,
+  metadataEquals,
+} from '../common/metadata.js';
+import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
+import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
+import {A2uiExpressionError, A2uiRpcError, RpcErrorCode} from '../errors.js';
+import {computed, getValue, peekValue, setValue, signal, Signal} from '../reactivity/signals.js';
 import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
 
 /**
- * Normalizes a protocol version to the `vMAJOR.MINOR` form used by messages.
+ * Normalizes a protocol version to the canonical wire form (`'1.0'` for 1.0+,
+ * `'v0.9'` / `'v0.8'` for pre-1.0 versions).
  *
- * Catalogs declare `'1.0'` while messages carry `'v1.0'`; storing one form
- * keeps comparisons by consumers simple. Unparseable versions are kept as is.
+ * Unparseable versions are kept as is.
  *
  * @param version Protocol version to normalize.
  * @returns The canonical version, or `undefined` when none was given.
@@ -33,7 +44,8 @@ import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
 function canonicalProtocolVersion(version: string | undefined): string | undefined {
   if (!version) return undefined;
   const canonical = toCanonicalVersion(version);
-  return canonical ? `v${canonical}` : version;
+  if (!canonical) return version;
+  return isAtLeastVersion(canonical, '1.0') ? canonical : `v${canonical}`;
 }
 
 /** Action payload emitted by a renderer component. */
@@ -56,6 +68,8 @@ export interface ActionPayload {
   catalogId?: string;
   /** Optional user-facing message explaining the action. */
   userMessage?: string;
+  /** Optional extension metadata attached to the action. */
+  metadata?: A2uiMetadata;
   [key: string]: unknown;
 }
 
@@ -95,6 +109,45 @@ export interface A2uiWarningPayload {
 export type ActionListener = (action: ActionPayload) => void | Promise<void>;
 
 /**
+ * A function call that a surface routes to the agent.
+ *
+ * Unlike a `FunctionCall` in a payload, it always names the catalog the call
+ * resolved to, and its arguments are resolved values.
+ */
+export interface AgentFunctionCall {
+  /** Name of the function to call. */
+  '@call': string;
+  /** Identifier of the catalog the call resolved to on the surface. */
+  catalogId: string;
+  /** Resolved argument values. */
+  args: Record<string, unknown>;
+}
+
+/** Options of {@link SurfaceModel.callAgentFunction}. */
+export interface AgentFunctionCallOptions {
+  /**
+   * Cancels this caller's interest before the request leaves on the next
+   * microtask. A signal that is already aborted sends nothing, and the call
+   * resolves to `undefined`.
+   */
+  abortSignal?: AbortSignal;
+  /**
+   * Sends the call without sharing an identical in-flight call or reading or
+   * writing the settled-answer cache, as imperative action calls do.
+   */
+  bypassCache?: boolean;
+}
+
+/**
+ * Sends a function call to the agent and resolves with the agent's result.
+ *
+ * `MessageProcessor` installs one on each v1.0 surface when it has an
+ * outbound listener; it dispatches `callAgentFunction` through the
+ * processor's `RpcHandler`.
+ */
+export type AgentFunctionCaller = (call: AgentFunctionCall) => Promise<unknown>;
+
+/**
  * State model for a single UI surface.
  *
  * Coordinates data binding, component state, and action dispatching.
@@ -117,6 +170,8 @@ export class SurfaceModel<
   private readonly _onAction = new EventEmitter<ActionPayload>();
   private readonly _onError = new EventEmitter<A2uiErrorPayload>();
   private readonly _onWarning = new EventEmitter<A2uiWarningPayload>();
+  private readonly _onMetadataChanged = new EventEmitter<A2uiMetadata | undefined>();
+  private readonly _metadataSignal: Signal<A2uiMetadata | undefined>;
 
   /** Event source firing whenever an action is dispatched from this surface. */
   readonly onAction: EventSource<ActionPayload> = this._onAction;
@@ -126,6 +181,12 @@ export class SurfaceModel<
 
   /** Event source firing whenever a non-fatal warning occurs on this surface. */
   readonly onWarning: EventSource<A2uiWarningPayload> = this._onWarning;
+
+  /** Event source firing whenever surface metadata changes. */
+  readonly onMetadataChanged: EventSource<A2uiMetadata | undefined> = this._onMetadataChanged;
+
+  /** Read-only reactive signal reflecting the current surface metadata. */
+  readonly metadataSignal: Signal<A2uiMetadata | undefined>;
 
   /**
    * Catalogs available to this surface, keyed by catalog ID.
@@ -140,10 +201,63 @@ export class SurfaceModel<
    *
    * Defaults to the default catalog's version. A surface without a default
    * catalog (allowed from v1.0) takes it from the `protocolVersion`
-   * constructor argument instead. Stored in the `vMAJOR.MINOR` form used by
-   * messages (for example `'v1.0'`), whichever form it was given in.
+   * constructor argument instead. Stored in the canonical wire form used by
+   * messages (for example `'1.0'` or `'v0.9'`), whichever form it was given in.
    */
   readonly protocolVersion: string | undefined;
+
+  /** Theme visual configuration for this surface. */
+  readonly theme: any;
+
+  /** Whether the surface sends its full data model back with actions. */
+  readonly sendDataModel: boolean;
+
+  private _agentFunctionCaller?: AgentFunctionCaller;
+
+  /**
+   * Sends calls to functions the renderer does not implement to the agent.
+   *
+   * When set, a v1.0 catalog's invoker routes a call whose function has no
+   * local implementation in that catalog (undeclared, or declared
+   * schema-only) here instead of failing, as the v1.0 fallback routing
+   * defines. When unset, such a call fails with an `EXPRESSION_ERROR`.
+   *
+   * Setting a different caller, or clearing it, drops the shared in-flight
+   * calls and the cached answers of the previous one.
+   */
+  get agentFunctionCaller(): AgentFunctionCaller | undefined {
+    return this._agentFunctionCaller;
+  }
+
+  set agentFunctionCaller(caller: AgentFunctionCaller | undefined) {
+    if (caller === this._agentFunctionCaller) return;
+    this._agentFunctionCaller = caller;
+    this.inFlightAgentCalls.clear();
+    this.settledAgentCalls.clear();
+  }
+
+  /** Agent function calls awaiting a response, keyed by canonical call key. */
+  private readonly inFlightAgentCalls = new Map<
+    string,
+    {
+      promise: Promise<unknown>;
+      signals: Set<AbortSignal>;
+      hasUnabortedCaller: boolean;
+    }
+  >();
+  /**
+   * Settled reactive agent function answers, keyed by canonical call key in
+   * insertion/access order (bounded to {@link MAX_AGENT_CALL_CACHE_ENTRIES}).
+   */
+  private readonly settledAgentCalls = new Map<string, {value: unknown}>();
+  private isDisposed = false;
+
+  /**
+   * Whether this surface has been disposed.
+   */
+  get disposed(): boolean {
+    return this.isDisposed;
+  }
 
   /**
    * Initializes a new `SurfaceModel` instance.
@@ -155,7 +269,9 @@ export class SurfaceModel<
    * @param availableCatalogs Every catalog a payload on this surface may select
    *   by `catalogId`, keyed by that identifier. The message processor populates
    *   it with the catalogs whose protocol version is compatible with the
-   *   surface's own.
+   *   surface's own. Passing a plain object here is deprecated: it selects the
+   *   pre-1.0 argument order `(id, catalog, theme, sendDataModel?, dataModel?)`,
+   *   in which the object is the theme and the two arguments after it shift.
    * @param theme Theme to apply to this surface.
    * @param sendDataModel Whether the renderer sends the full data model with actions.
    * @param dataModel Optional custom DataModel instance. If provided, the SurfaceModel assumes
@@ -167,34 +283,91 @@ export class SurfaceModel<
    *   explicitly.
    */
   constructor(
+    id: string,
+    defaultCatalog: Catalog<T, F> | undefined,
+    availableCatalogs?: ReadonlyMap<string, Catalog<T, F>> | null,
+    theme?: any,
+    sendDataModel?: boolean,
+    dataModel?: DataModel,
+    rootId?: string,
+    metadata?: A2uiMetadata,
+    protocolVersion?: string,
+  );
+  /**
+   * Initializes a new `SurfaceModel` with the pre-1.0 argument order.
+   *
+   * @deprecated Pass `availableCatalogs` (or `undefined`) as the third argument instead.
+   */
+  constructor(
+    id: string,
+    defaultCatalog: Catalog<T, F> | undefined,
+    theme: Record<string, any>,
+    sendDataModel?: boolean,
+    dataModel?: DataModel,
+  );
+  constructor(
     readonly id: string,
     /**
      * Catalog that resolves components and functions that do not name a
      * catalog explicitly, or `undefined` when the surface names none.
      */
     readonly defaultCatalog: Catalog<T, F> | undefined,
-    availableCatalogs: ReadonlyMap<string, Catalog<T, F>> | null | undefined = new Map(),
-    readonly theme: any = {},
-    readonly sendDataModel: boolean = false,
+    availableCatalogsOrTheme:
+      | ReadonlyMap<string, Catalog<T, F>>
+      | Record<string, any>
+      | null
+      | undefined = new Map(),
+    themeOrSendDataModel: any = {},
+    sendDataModelOrDataModel: boolean | DataModel = false,
     dataModel?: DataModel,
     /** Identifier of the root component on this surface (defaults to `'root'`). */
     readonly rootId: string = 'root',
     /** Optional surface-level metadata for vendor extensions. */
-    readonly metadata?: Record<string, unknown>,
+    metadata?: A2uiMetadata,
     protocolVersion?: string,
   ) {
+    this._metadataSignal = signal<A2uiMetadata | undefined>(cloneMetadata(metadata));
+    this.metadataSignal = computed(() => getValue(this._metadataSignal));
     this.protocolVersion = canonicalProtocolVersion(
       protocolVersion ?? defaultCatalog?.protocolVersion,
     );
+    let availableCatalogs: ReadonlyMap<string, Catalog<T, F>> | null | undefined;
+    let theme: any = {};
+    let sendDataModel = false;
+
     if (
-      availableCatalogs !== undefined &&
-      availableCatalogs !== null &&
-      !(availableCatalogs instanceof Map)
+      availableCatalogsOrTheme !== undefined &&
+      availableCatalogsOrTheme !== null &&
+      !(availableCatalogsOrTheme instanceof Map)
     ) {
-      throw new TypeError(
-        'availableCatalogs must be a Map, or undefined/null. Note that availableCatalogs is now the 3rd argument to SurfaceModel and theme is the 4th argument.',
-      );
+      if (
+        typeof availableCatalogsOrTheme === 'object' &&
+        !Array.isArray(availableCatalogsOrTheme)
+      ) {
+        // Legacy v0.9 signature:
+        // `new SurfaceModel(id, catalog, theme, sendDataModel?, dataModel?)`.
+        // A plain object in the third slot is the theme of a pre-1.0 caller,
+        // which had no catalogs to pass here, so the arguments after it
+        // shift by one as well.
+        theme = availableCatalogsOrTheme;
+        sendDataModel = themeOrSendDataModel === true;
+        dataModel =
+          (sendDataModelOrDataModel as unknown) instanceof DataModel
+            ? (sendDataModelOrDataModel as unknown as DataModel)
+            : undefined;
+        availableCatalogs = undefined;
+      } else {
+        throw new TypeError(
+          'availableCatalogs must be a Map, or undefined/null. Note that availableCatalogs is now the 3rd argument to SurfaceModel and theme is the 4th argument.',
+        );
+      }
+    } else {
+      availableCatalogs = availableCatalogsOrTheme;
+      theme = themeOrSendDataModel ?? {};
+      sendDataModel = Boolean(sendDataModelOrDataModel);
     }
+    this.theme = theme;
+    this.sendDataModel = sendDataModel;
     const catalogs = new Map(availableCatalogs ?? []);
     if (defaultCatalog?.id && !catalogs.has(defaultCatalog.id)) {
       catalogs.set(defaultCatalog.id, defaultCatalog);
@@ -209,10 +382,11 @@ export class SurfaceModel<
    *
    * @deprecated Use {@link defaultCatalog}. Renamed for symmetry with the other
    *   SDKs now that a surface can carry more than one catalog. This alias will
-   *   be removed in a future release.
+   *   be removed in a future release. Typed as always present because every
+   *   pre-1.0 surface has a default catalog.
    */
-  get catalog(): Catalog<T, F> | undefined {
-    return this.defaultCatalog;
+  get catalog(): Catalog<T, F> {
+    return this.defaultCatalog!;
   }
 
   /**
@@ -236,17 +410,248 @@ export class SurfaceModel<
   }
 
   /**
+   * Sends a function call to the agent through {@link agentFunctionCaller}.
+   *
+   * For reactive bindings, a settled answer for the same catalog, function and
+   * canonical arguments is returned from the surface cache, and a call
+   * identical to one still awaiting its response shares that response instead
+   * of sending another message, so re-evaluating a binding or flipping a bound
+   * argument back does not repeat the request. Each caller receives its own
+   * copy of a shared or cached answer. Failed calls are evicted on failure,
+   * and imperative action calls (`bypassCache`) always execute fresh.
+   *
+   * Arguments that JSON cannot represent (such as `NaN`, a `Date` or an
+   * `undefined` array element) fail the call locally; an `undefined` object
+   * property is omitted.
+   *
+   * @param call The call to send, naming the catalog it resolved to.
+   * @param options Optional settings: an `abortSignal`, and `bypassCache` for
+   *   imperative action calls.
+   * @returns A promise resolving to the agent's result.
+   * @throws {A2uiRpcError} Through the returned promise, with code
+   *   `CANCELLED`, if the surface is disposed, or is disposed or given another
+   *   caller before the call is sent.
+   * @throws {A2uiExpressionError} Through the returned promise, if no
+   *   {@link agentFunctionCaller} is set or the arguments are not valid JSON.
+   */
+  callAgentFunction(call: AgentFunctionCall, options?: AgentFunctionCallOptions): Promise<unknown> {
+    const abortSignal = options?.abortSignal;
+    if (this.isDisposed) {
+      return Promise.reject(
+        new A2uiRpcError(`Surface '${this.id}' has been disposed.`, RpcErrorCode.CANCELLED),
+      );
+    }
+    const caller = this.agentFunctionCaller;
+    if (!caller) {
+      return Promise.reject(
+        new A2uiExpressionError(
+          `Function '${call['@call']}' is not implemented locally and surface '${this.id}' cannot call the agent.`,
+          call['@call'],
+        ),
+      );
+    }
+    if (abortSignal?.aborted) {
+      return Promise.resolve(undefined);
+    }
+    let args: Record<string, unknown>;
+    try {
+      args = toJsonValue(call.args ?? {}) as Record<string, unknown>;
+    } catch (e: unknown) {
+      return Promise.reject(
+        new A2uiExpressionError(
+          `Arguments of function '${call['@call']}' are not valid JSON: ${(e as Error).message}.`,
+          call['@call'],
+        ),
+      );
+    }
+    call = {...call, args};
+    const bypassCache = Boolean(options?.bypassCache);
+    const key = bypassCache ? undefined : canonicalJsonKey([call.catalogId, call['@call'], args]);
+    if (key !== undefined) {
+      const settled = this.settledAgentCalls.get(key);
+      if (settled !== undefined) {
+        // Refresh LRU order.
+        this.settledAgentCalls.delete(key);
+        this.settledAgentCalls.set(key, settled);
+        return Promise.resolve(cloneAnswer(settled.value));
+      }
+      const inFlight = this.inFlightAgentCalls.get(key);
+      if (inFlight) {
+        if (abortSignal) {
+          inFlight.signals.add(abortSignal);
+        } else {
+          inFlight.hasUnabortedCaller = true;
+        }
+        return inFlight.promise.then(cloneAnswer);
+      }
+    }
+    const entry = {
+      promise: undefined as unknown as Promise<unknown>,
+      signals: new Set<AbortSignal>(abortSignal ? [abortSignal] : []),
+      hasUnabortedCaller: !abortSignal,
+    };
+    const release = () => {
+      if (key !== undefined && this.inFlightAgentCalls.get(key) === entry) {
+        this.inFlightAgentCalls.delete(key);
+      }
+    };
+    const pending = Promise.resolve().then(() => {
+      if (this.isDisposed || this._agentFunctionCaller !== caller) {
+        release();
+        throw new A2uiRpcError(
+          `Pending calls for surface '${this.id}' were cancelled.`,
+          RpcErrorCode.CANCELLED,
+        );
+      }
+      if (!entry.hasUnabortedCaller && Array.from(entry.signals).every(s => s.aborted)) {
+        release();
+        return undefined;
+      }
+      return caller(call).then(
+        val => {
+          release();
+          // An answer from a caller that has since been replaced or cleared
+          // is not cached for the new one.
+          if (key !== undefined && !this.isDisposed && this._agentFunctionCaller === caller) {
+            this.settledAgentCalls.delete(key);
+            if (this.settledAgentCalls.size >= MAX_AGENT_CALL_CACHE_ENTRIES) {
+              const oldestKey = this.settledAgentCalls.keys().next().value;
+              if (oldestKey !== undefined) {
+                this.settledAgentCalls.delete(oldestKey);
+              }
+            }
+            this.settledAgentCalls.set(key, {value: cloneAnswer(val)});
+          }
+          return val;
+        },
+        err => {
+          release();
+          throw err;
+        },
+      );
+    });
+    entry.promise = pending;
+    if (key !== undefined) {
+      this.inFlightAgentCalls.set(key, entry);
+      pending.then(release, release);
+    }
+    return pending;
+  }
+
+  /**
+   * Synchronous snapshot of the surface's metadata envelope.
+   */
+  get metadata(): A2uiMetadata | undefined {
+    return peekValue(this._metadataSignal);
+  }
+
+  /**
+   * Replaces the surface's metadata envelope, validating UAX #31 extension
+   * keys and emitting changes when structurally modified.
+   */
+  set metadata(metadata: A2uiMetadata | undefined) {
+    const next = cloneMetadata(metadata);
+    if (metadataEquals(peekValue(this._metadataSignal), next)) {
+      return;
+    }
+    setValue(this._metadataSignal, next);
+    void this._onMetadataChanged.emit(next);
+  }
+
+  /**
+   * Convenience view of `metadata.extensions`.
+   */
+  get extensions(): Extensions | undefined {
+    return peekValue(this._metadataSignal)?.extensions;
+  }
+
+  /**
+   * Sets a single extension entry on the surface metadata.
+   *
+   * Passing `undefined` removes the extension key. Passing `null` stores
+   * `null` as an explicit JSON value.
+   *
+   * @param key Extension identifier (must satisfy UAX #31).
+   * @param value Extension payload value.
+   */
+  setExtension(key: string, value: unknown): void {
+    if (value === undefined) {
+      this.removeExtension(key);
+      return;
+    }
+    const current = peekValue(this._metadataSignal);
+    const nextExtensions: Record<string, unknown> = {
+      ...(current?.extensions ?? {}),
+      [key]: value,
+    };
+    this.metadata = {
+      ...(current ?? {}),
+      extensions: nextExtensions,
+    };
+  }
+
+  /**
+   * Removes an extension entry by key, clearing `metadata` to `undefined` when
+   * no metadata entries remain.
+   *
+   * @param key Extension identifier to remove.
+   */
+  removeExtension(key: string): void {
+    const current = peekValue(this._metadataSignal);
+    const currentExtensions = current?.extensions;
+    if (!currentExtensions || !(key in currentExtensions)) {
+      return;
+    }
+    const nextExtensions: Record<string, unknown> = {...currentExtensions};
+    delete nextExtensions[key];
+    const rest: Record<string, unknown> = {...current};
+    delete rest.extensions;
+    if (Object.keys(nextExtensions).length > 0) {
+      this.metadata = {...rest, extensions: nextExtensions};
+    } else if (Object.keys(rest).length > 0) {
+      this.metadata = rest;
+    } else {
+      this.metadata = undefined;
+    }
+  }
+
+  /**
    * Dispatches an action from this surface to registered listeners.
    *
-   * Resolves event action payload details, propagates any explicit `catalogId`,
-   * and emits an `ActionPayload` via `onAction`. Local function actions (`functionCall`)
-   * are executed locally and are not emitted as agent actions.
+   * Resolves event action payload details, propagates any explicit `catalogId`
+   * and `metadata`, and emits an `ActionPayload` via `onAction`. Local function
+   * actions (`functionCall`) are executed locally and are not emitted as agent actions.
+   *
+   * `payload` may be pending, as the result of `DataContext.resolveAction` is
+   * for an event action that waits on asynchronous calls, and its `context`
+   * and `userMessage` may hold pending values; all are awaited before the
+   * action is emitted. If any of them fails, nothing is emitted: a failure
+   * that was already reported, or a cancelled agent call, is not reported
+   * again, and any other rejection is reported as an `INVALID_ACTION`.
+   *
+   * A `userMessage` that is not a non-empty string is left out of the emitted
+   * action, whether it was given directly or settled from a pending value.
+   * `DataContext.resolveAction` is what reports an `INVALID_ACTION` for an
+   * expression that does not resolve to a string.
    *
    * @param payload Action payload (name and context) to dispatch.
    * @param sourceComponentId Identifier of the component that triggered the action.
+   * @param metadata Optional metadata envelope to attach to the outbound action.
    * @returns A promise that resolves once all registered listeners have processed the action.
    */
-  async dispatchAction(payload: any, sourceComponentId: string): Promise<void> {
+  async dispatchAction(
+    payload: any,
+    sourceComponentId: string,
+    metadata?: A2uiMetadata,
+  ): Promise<void> {
+    try {
+      if (isThenable(payload)) {
+        payload = await payload;
+      }
+    } catch (e: unknown) {
+      await this.reportUnresolvedAction(e);
+      return;
+    }
     if (!payload || typeof payload !== 'object') {
       return;
     }
@@ -261,11 +666,29 @@ export class SurfaceModel<
       return;
     }
 
-    const rawContext = eventPayload.context;
-    const context =
-      rawContext && typeof rawContext === 'object' && !Array.isArray(rawContext)
-        ? (rawContext as Record<string, unknown>)
-        : {};
+    let context: Record<string, unknown> = {};
+    let resolvedUserMessage: unknown = undefined;
+    try {
+      const settledContext = settleDeep(eventPayload.context);
+      const rawContext = isThenable(settledContext) ? await settledContext : settledContext;
+      if (findFailedArgument(rawContext)) {
+        return;
+      }
+      if (rawContext && typeof rawContext === 'object' && !Array.isArray(rawContext)) {
+        context = rawContext as Record<string, unknown>;
+      }
+
+      if (eventPayload.userMessage !== undefined) {
+        const settledMsg = settleDeep(eventPayload.userMessage);
+        resolvedUserMessage = isThenable(settledMsg) ? await settledMsg : settledMsg;
+        if (findFailedArgument(resolvedUserMessage)) {
+          return;
+        }
+      }
+    } catch (e: unknown) {
+      await this.reportUnresolvedAction(e);
+      return;
+    }
 
     const actionToDispatch: ActionPayload = {
       name,
@@ -282,11 +705,32 @@ export class SurfaceModel<
       actionToDispatch.catalogId = catalogId;
     }
 
-    if (typeof eventPayload.userMessage === 'string' && eventPayload.userMessage.length > 0) {
-      actionToDispatch.userMessage = eventPayload.userMessage;
+    if (typeof resolvedUserMessage === 'string' && resolvedUserMessage.length > 0) {
+      actionToDispatch.userMessage = resolvedUserMessage;
+    }
+
+    const payloadMetadata = eventPayload.metadata ?? payload.metadata;
+    const mergedMetadata = mergeActionMetadata(payloadMetadata, metadata);
+    if (mergedMetadata !== undefined) {
+      actionToDispatch.metadata = mergedMetadata;
     }
 
     await this._onAction.emit(actionToDispatch);
+  }
+
+  /**
+   * Reports a pending action value that rejected, unless the rejection is the
+   * cancellation of an agent call.
+   */
+  private async reportUnresolvedAction(e: unknown): Promise<void> {
+    if (isCancellation(e)) return;
+    await this.dispatchError({
+      code: 'INVALID_ACTION',
+      surfaceId: this.id,
+      message: `Action could not be resolved: ${
+        (e as {message?: string} | undefined)?.message ?? String(e)
+      }`,
+    });
   }
 
   /**
@@ -319,12 +763,44 @@ export class SurfaceModel<
    * Disposes the surface, data model, components, and event emitters.
    */
   dispose(): void {
+    this.isDisposed = true;
+    this._agentFunctionCaller = undefined;
+    this.inFlightAgentCalls.clear();
+    this.settledAgentCalls.clear();
     this.dataModel.dispose();
     this.componentsModel.dispose();
     this._onAction.dispose();
     this._onError.dispose();
     this._onWarning.dispose();
+    this._onMetadataChanged.dispose();
   }
+}
+
+/** Maximum number of settled reactive agent call answers cached per surface. */
+const MAX_AGENT_CALL_CACHE_ENTRIES = 256;
+
+/**
+ * Copies an agent answer so callers that share it, or read it from the cache,
+ * cannot change each other's value by mutating it.
+ */
+function cloneAnswer<V>(value: V): V {
+  if (value === null || typeof value !== 'object') {
+    return value;
+  }
+  try {
+    return structuredClone(value);
+  } catch {
+    // Not cloneable (such as a value holding a function): shared as it is.
+    return value;
+  }
+}
+
+/**
+ * Whether an error is the cancellation of a pending agent call, which is not
+ * reported.
+ */
+function isCancellation(e: unknown): boolean {
+  return e instanceof A2uiRpcError && e.code === RpcErrorCode.CANCELLED;
 }
 
 /**

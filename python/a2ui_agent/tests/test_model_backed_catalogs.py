@@ -75,7 +75,12 @@ def test_express_compiler_accepts_weight_with_the_v0_9_basic_catalog():
     )
 
     components = messages[1]["updateComponents"]["components"]
-    assert {"id": "t", "component": "Text", "text": "hi", "weight": 2} in components
+    assert {
+        "id": "t",
+        "component": "Text",
+        "text": "hi",
+        "weight": 2,
+    } in components
 
 
 @pytest.mark.parametrize("version", ["0.9", "1.0"])

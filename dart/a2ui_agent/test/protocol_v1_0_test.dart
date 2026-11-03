@@ -129,7 +129,7 @@ void main() {
 
   /// One v1.0 message, parsed from [json].
   AgentToRendererMessage message(Map<String, Object?> json) =>
-      AgentToRendererMessage.fromJson({'version': 'v1.0', ...json});
+      AgentToRendererMessage.fromJson({'version': '1.0', ...json});
 
   /// The JSON of [messages].
   List<Map<String, Object?>> json(List<AgentToRendererMessage> messages) => [
@@ -140,7 +140,7 @@ void main() {
   /// [bodies].
   String jsonBlock(List<Map<String, Object?>> bodies) =>
       '<a2ui-json>${jsonEncode([
-        for (final body in bodies) {'version': 'v1.0', ...body},
+        for (final body in bodies) {'version': '1.0', ...body},
       ])}</a2ui-json>';
 
   /// A v1.0 `createSurface` carrying [components], on [catalogId] or by
@@ -210,7 +210,7 @@ void main() {
       final List<CatalogApi> active = resolveCatalogs(
         [CatalogConfig(basic)],
         A2uiRendererCapabilities.fromJson({
-          'v1.0': {
+          '1.0': {
             'supportedCatalogIds': [basic.id],
             'inlineCatalogs': [
               {
@@ -370,7 +370,7 @@ void main() {
   group('direct JSON', () {
     test('teaches the v1.0 messages and the catalog', () {
       final String snippet = processor().promptSnippet;
-      expect(snippet, contains('"version":{"const":"v1.0"}'));
+      expect(snippet, contains('"version":{"const":"1.0"}'));
       expect(snippet, contains(basic.id));
     });
 
@@ -385,7 +385,7 @@ void main() {
       );
       final create =
           (parts.single as A2uiPart).a2ui.single as CreateSurfaceMessage;
-      expect(create.version, 'v1.0');
+      expect(create.version, '1.0');
       expect(create.components!.single['component'], 'Text');
     });
 
@@ -559,8 +559,8 @@ void main() {
           .createParser()
           .openStream();
       stream.feed(
-        '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s", '
-        '"catalogId": "${basic.id}"}}, {"version": "v1.0", '
+        '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s", '
+        '"catalogId": "${basic.id}"}}, {"version": "1.0", '
         '"updateComponents": {"surfaceId": "s", "components": [',
       );
       expect(
@@ -578,8 +578,8 @@ void main() {
             .createParser()
             .openStream();
         stream.feed(
-          '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": '
-          '"s", "catalogId": "${basic.id}"}}, {"version": "v1.0", '
+          '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": '
+          '"s", "catalogId": "${basic.id}"}}, {"version": "1.0", '
           '"updateComponents": {"surfaceId": "s", "components": [',
         );
         return stream;
@@ -636,7 +636,7 @@ void main() {
     List<AgentToRendererMessage> compile(List<Map<String, Object?>> bodies) {
       final List<AgentToRendererMessage> messages = parser().compile(
         jsonEncode([
-          for (final body in bodies) {'version': 'v1.0', ...body},
+          for (final body in bodies) {'version': '1.0', ...body},
         ]),
       );
       validatePayload([callable, custom], messages);
@@ -806,7 +806,7 @@ void main() {
       final List<AgentToRendererMessage> messages =
           (parts.single as A2uiPart).a2ui;
       expect(messages.single.toJson(), {
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's',
           'catalogId': basic.id,
@@ -826,7 +826,7 @@ void main() {
         ),
         [
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'createSurface': {
               'surfaceId': 'default_surface',
               'catalogId': basic.id,
@@ -853,7 +853,7 @@ void main() {
         ),
         [
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateComponents': {
               'surfaceId': 'default_surface',
               'components': [
@@ -862,11 +862,11 @@ void main() {
             },
           },
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateDataModel': {
               'surfaceId': 'default_surface',
-              'path': '/',
-              'value': {'count': 2},
+              'path': '/count',
+              'value': 2,
             },
           },
         ],
@@ -1056,21 +1056,13 @@ void main() {
       expect(parser.compile(block), [isA<CallRendererFunctionMessage>()]);
     });
 
-    test('has no notation for a renderer call on a surface, a response to '
-        "the renderer's call, or surface metadata", () {
+    test('has no notation for a renderer call on a surface or a response to '
+        "the renderer's call", () {
       final decompiler = ExpressDecompiler([basic]);
       for (final Map<String, Object?> body in [
         callRendererFunction('formatString', {'value': 'Hi'}, surfaceId: 's'),
         {
           'agentFunctionResponse': {'functionCallId': 'call_1', 'value': 1},
-        },
-        {
-          'createSurface': {
-            ...helloSurface['createSurface']! as Map<String, Object?>,
-            'metadata': {
-              'extensions': {'theme': 'dark'},
-            },
-          },
         },
       ]) {
         expect(
@@ -1079,6 +1071,26 @@ void main() {
           reason: '$body',
         );
       }
+    });
+
+    test('round-trips surface metadata through extensions={...}', () {
+      final parser = ExpressParser([basic]);
+      final AgentToRendererMessage withMetadata = message({
+        'createSurface': {
+          ...helloSurface['createSurface']! as Map<String, Object?>,
+          'metadata': {
+            'extensions': {'theme': 'dark'},
+          },
+        },
+      });
+      final String block = parser.decompile([withMetadata]);
+      expect(
+        block,
+        'surface("s", extensions={theme: "dark"})\nroot = Text("Hello")',
+      );
+      expect(parser.compile(block).map((m) => m.toJson()).toList(), [
+        withMetadata.toJson(),
+      ]);
     });
 
     test('teaches the functions the agent may call on their own', () {
@@ -1353,6 +1365,68 @@ void main() {
         contains(
           'Only these functions can be called this way: '
           '`percent`.',
+        ),
+      );
+    });
+
+    test('waits for a forward-referenced surface(extensions=...) variable and '
+        'rejects extensions on non-creating scopes when streaming', () {
+      final parser = ExpressParser([basic]);
+      final ResponseStream stream = parser.openStream();
+      expect(
+        stream.feed(
+          '<a2ui>\nsurface("s1", extensions=ext)\nroot = Text("Hello")\n',
+        ),
+        isEmpty,
+      );
+      final List<ResponsePart> parts = stream.feed(
+        'ext = {surfaceTheme: "dark"}\n</a2ui>',
+      );
+      expect(parts, hasLength(1));
+      final create =
+          (parts.single as A2uiPart).a2ui.single as CreateSurfaceMessage;
+      expect(create.metadata, {
+        'extensions': {'surfaceTheme': 'dark'},
+      });
+      expect(stream.close(), isEmpty);
+
+      final state = RendererState([basic]);
+      final ResponseStream seed = parser.openStream(state: state);
+      seed.feed('<a2ui>\nsurface("s1")\nroot = Text("Initial")\n</a2ui>');
+      expect(seed.close(), isEmpty);
+
+      final ResponseStream updateWithoutRoot = parser.openStream(state: state);
+      expect(
+        updateWithoutRoot.feed(
+          '<a2ui>\nsurface("s1", extensions={surfaceTheme: "dark"})\n'
+          'c1 = Text("Updated")\n',
+        ),
+        isEmpty,
+      );
+      expect(
+        () => updateWithoutRoot.feed('</a2ui>'),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('surface-creating scope'),
+          ),
+        ),
+      );
+
+      final ResponseStream explicitUpdate = parser.openStream(state: state);
+      expect(
+        () => explicitUpdate.feed(
+          '<a2ui>\n'
+          'surface("s1", update=true, extensions={surfaceTheme: "dark"})\n'
+          'c1 = Text("Updated")\n</a2ui>',
+        ),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('surface() with update=true does not accept extensions'),
+          ),
         ),
       );
     });

@@ -21,8 +21,8 @@ import '../../component_props.dart';
 
 /// Builds the basic `Button` component: an [OutlinedButton], a [FilledButton]
 /// for the `primary` variant or a [TextButton] for `borderless`, which runs
-/// `action` when pressed. While a check fails it is disabled, with the first
-/// failing check's message as its tooltip.
+/// `action` when pressed. While a check fails with `error` severity it is
+/// disabled, with that check's message as its tooltip.
 Widget buildButton(
   BuildContext context,
   ComponentNode<ComponentImplementation> node,
