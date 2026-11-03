@@ -45,6 +45,7 @@ export 'src/primitives/reactivity.dart';
 export 'src/primitives/reference_schema.dart'
     show ComponentRefMap, ListRef, NestedRef, RefFields, RefKind, SingleRef;
 export 'src/primitives/semver.dart' hide releaseNumbers;
+export 'src/primitives/thinking.dart';
 export 'src/primitives/uax31.dart';
 export 'src/processing/adapters/v0_9_adapter.dart';
 export 'src/processing/adapters/v1_0_adapter.dart';

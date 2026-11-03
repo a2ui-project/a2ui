@@ -23,6 +23,8 @@ from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessageAssistant,
     ChatMessageTool,
+    ContentReasoning,
+    ContentText,
     ModelName,
     ModelOutput,
 )
@@ -36,7 +38,7 @@ from a2ui_eval.runner import (
     get_python_strategy,
     parse_and_validate_in_process,
 )
-from a2ui_eval.shared.utils import GIT_ROOT
+from a2ui_eval.shared.utils import GIT_ROOT, THINKING_KEY
 from a2ui_eval.strategies import (
     PAYLOAD_STORE_KEY,
     STRATEGIES,
@@ -602,6 +604,47 @@ async def test_a2ui_express_solvers() -> None:
     assert "Additional reference notes." in state.output.completion
     assert "<a2ui-json>" in state.output.completion
     assert '"component": "Text"' in state.output.completion
+
+
+@pytest.mark.asyncio
+async def test_compile_format_payload_records_the_first_thinking() -> None:
+    state = _state({"catalog": str(V1_CATALOG)})
+    state.output = ModelOutput(
+        model="mock/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=[
+                        ContentReasoning(reasoning="The user wants a greeting."),
+                        ContentText(text='<a2ui>\nroot = Text("Hello")\n</a2ui>'),
+                    ]
+                )
+            )
+        ],
+    )
+    state = await compile_format_payload("express", version="1.0")(
+        state, dummy_generate
+    )
+    assert state.metadata[THINKING_KEY] == "The user wants a greeting."
+
+
+@pytest.mark.asyncio
+async def test_compile_format_payload_records_thinking_without_an_answer() -> None:
+    state = _state({"catalog": str(V1_CATALOG)})
+    state.output = ModelOutput(
+        model="mock/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=[ContentReasoning(reasoning="The user wants a greeting.")]
+                )
+            )
+        ],
+    )
+    state = await compile_format_payload("express", version="1.0")(
+        state, dummy_generate
+    )
+    assert state.metadata[THINKING_KEY] == "The user wants a greeting."
 
 
 @pytest.mark.asyncio

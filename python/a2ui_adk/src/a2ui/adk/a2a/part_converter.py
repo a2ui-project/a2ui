@@ -43,6 +43,7 @@ from google.genai import types as genai_types
 
 from a2ui import constants
 from a2ui.a2a import create_a2ui_part, parse_content_to_parts
+from a2ui.core import remove_a2ui_thinking
 from a2ui.processor import A2uiRequestProcessor
 
 logger = logging.getLogger(__name__)
@@ -58,12 +59,17 @@ class A2uiPartConverter:
     catalogs that text-based A2UI is validated against, and the
     `RendererState` bound to it, if any, which text-based A2UI is checked
     against and applied to. Each part is labeled with its message's protocol
-    version.
+    version. Unless `filter_thinking` is False, a thought loses its sentences
+    about A2UI, as `remove_a2ui_thinking` removes them, since a client may show
+    it to the user. A thought with nothing else in it is dropped.
 
     Args:
         processor: The request processor for the client's catalogs.
         bypass_tool_check: If True, bypass tool validation.
         fallback_text: Optional text to fall back on if parsing fails.
+        filter_thinking: Whether to remove the sentences about A2UI from
+          thoughts. Turn it off for an agent whose users ask about code or
+          JSON, whose thoughts about them would be removed too.
     """
 
     def __init__(
@@ -72,10 +78,12 @@ class A2uiPartConverter:
         *,
         bypass_tool_check: bool = False,
         fallback_text: str | None = None,
+        filter_thinking: bool = True,
     ):
         self._processor = processor
         self._bypass_tool_check = bypass_tool_check
         self._fallback_text = fallback_text
+        self._filter_thinking = filter_thinking
         self._parser = processor.parser
         self._state = processor.state
 
@@ -145,6 +153,14 @@ class A2uiPartConverter:
                     state=self._state,
                 )
 
-        # 4. Default conversion for other parts
+        # 4. Thoughts, which a client may show the user, without their
+        # sentences about A2UI
+        if self._filter_thinking and part.thought and part.text:
+            shown = remove_a2ui_thinking(part.text)
+            if not shown.strip():
+                return []
+            part = part.model_copy(update={"text": shown})
+
+        # 5. Default conversion for other parts
         converted_part = part_converter.convert_genai_part_to_a2a_part(part)
         return [converted_part] if converted_part else []

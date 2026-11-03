@@ -24,6 +24,7 @@ from a2ui.core.catalog import (
 )
 from a2ui.core.common import (
     A2uiMetadata as A2uiMetadata,
+    remove_a2ui_thinking as remove_a2ui_thinking,
     to_protocol_version as to_protocol_version,
     validate_metadata as validate_metadata,
 )
@@ -121,6 +122,7 @@ __all__ = [
     "inline_local_refs",
     "is_valid_uax31_identifier",
     "map_error_to_renderer_message",
+    "remove_a2ui_thinking",
     "to_protocol_version",
     "validate_metadata",
 ]

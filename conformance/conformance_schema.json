@@ -28,6 +28,7 @@
       {"$ref": "#/$defs/MeasureOverheadTest"},
       {"$ref": "#/$defs/CreateFormatTest"},
       {"$ref": "#/$defs/CreateProcessorTest"},
+      {"$ref": "#/$defs/RemoveA2uiThinkingTest"},
       {"$ref": "#/$defs/EvaluateFunctionTest"},
       {"$ref": "#/$defs/DispatchActionTest"},
       {"$ref": "#/$defs/RouteAgentFunctionTest"},
@@ -86,6 +87,7 @@
             "process_messages",
             "provide_catalog",
             "prune",
+            "remove_a2ui_thinking",
             "render",
             "resolve_catalogs",
             "resolve_path",
@@ -2260,6 +2262,18 @@
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },
       "required": ["action", "args"]
+    },
+    "RemoveA2uiThinkingTest": {
+      "type": "object",
+      "description": "Removing the sentences about A2UI from one of the model's thoughts, before an app shows it to the user.",
+      "properties": {
+        "name": {"type": "string"},
+        "action": {"const": "remove_a2ui_thinking"},
+        "input": {"type": "string", "description": "The thought as the model wrote it."},
+        "expect": {"type": "string", "description": "The exact text the app shows."}
+      },
+      "required": ["name", "action", "input", "expect"],
+      "additionalProperties": false
     },
     "ExpectError": {
       "description": "Expected error specification (error message string, regex, or structured error object).",

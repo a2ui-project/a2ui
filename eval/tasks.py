@@ -31,6 +31,7 @@ from a2ui_eval.dataset import load_a2ui_dataset
 from a2ui_eval.runner import validate_version
 from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 from a2ui_eval.strategies import get_solver
+from a2ui_eval.thinking_scorer import thinking_scorer
 
 
 def dataset_protocol_version(dataset_name: str) -> str | None:
@@ -178,6 +179,7 @@ def build_task(
                 instructions=GRADER_INSTRUCTIONS,
                 no_judge=no_judge,
             ),
+            thinking_scorer(),
         ],
         metadata={
             "strategy": strategy,

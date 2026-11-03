@@ -39,7 +39,7 @@ from ..runner import (
     runner_options_from_metadata,
     validate_format,
 )
-from ..shared.utils import GIT_ROOT, measured_generate
+from ..shared.utils import GIT_ROOT, THINKING_KEY, measured_generate, visible_thinking
 
 _SURFACE_ID_PATTERN = re.compile(
     r"<(a2ui|body)\b[^>]*\bid\s*=\s*['\"]([^'\"]+)['\"]", re.IGNORECASE
@@ -228,7 +228,9 @@ def compile_format_payload(
     `state.metadata["compiled_messages"]` so the scorer does not parse the
     completion again. With `max_validation_retries > 0`, a failed attempt
     sends the validation error back to the model and retries. `pass_at_1`,
-    `pass_at_k` and `validation_retries_used` are recorded in the metadata.
+    `pass_at_k` and `validation_retries_used` are recorded in the metadata,
+    and so is the thinking the model showed for its first answer, under
+    `THINKING_KEY`, before a retry asks it about the payload.
 
     Args:
         format_name: The name of the format to compile from.
@@ -242,7 +244,10 @@ def compile_format_payload(
     measured = measured_generate()
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        if not state.output or not state.output.completion:
+        if not state.output or state.output.empty:
+            return state
+        state.metadata[THINKING_KEY] = visible_thinking(state.output.message)
+        if not state.output.completion:
             return state
 
         resolved_catalog_path = str(GIT_ROOT / state.metadata["catalog"])

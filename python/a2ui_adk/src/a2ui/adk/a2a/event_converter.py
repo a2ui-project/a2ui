@@ -40,6 +40,7 @@ from collections.abc import Callable
 import dataclasses
 import inspect
 import logging
+import re
 import time
 from typing import TYPE_CHECKING, TypeAlias
 
@@ -74,6 +75,12 @@ EventProcessorProvider: TypeAlias = Callable[
 # their responses at the same time.
 _StreamKey: TypeAlias = tuple[str, str]
 
+# Where a sentence of a streamed thought may end: at a line break, or at the
+# whitespace after `.`, `!` or `?` and any closing emphasis, quotes or brackets.
+_SENTENCE_BREAK = re.compile(
+    r"\n|(?<=[.!?])\s|(?<=[.!?][*_\"')\]])\s|(?<=[.!?][*_\"')\]]{2})\s"
+)
+
 
 @dataclasses.dataclass
 class _OpenStream:
@@ -81,6 +88,14 @@ class _OpenStream:
 
     # None once a chunk of the response failed.
     stream: ResponseStream[ResponsePart] | None
+    last_used: float
+
+
+@dataclasses.dataclass
+class _PendingThought:
+    """The unfinished last sentence of a response's streamed thought."""
+
+    text: str
     last_used: float
 
 
@@ -104,6 +119,13 @@ class A2uiEventConverter:
     author, so the sub-agents of a `ParallelAgent` each get their own stream. A
     stream that gets no event for `stream_idle_timeout` seconds, as when the
     run was cancelled before its final event, is dropped.
+
+    Unless `filter_thinking` is False, thoughts lose their sentences about
+    A2UI, as `A2uiPartConverter` removes them. A partial event's thought is
+    sent up to its last finished sentence, and the rest waits for the next
+    chunk, so that a sentence split across chunks is filtered whole. The final
+    event holds the whole thought again, so what is still waiting is dropped
+    then.
     """
 
     def __init__(
@@ -113,6 +135,7 @@ class A2uiEventConverter:
         *,
         a2ui_processor: A2uiRequestProcessor | EventProcessorProvider,
         stream_idle_timeout: float = 600.0,
+        filter_thinking: bool = True,
     ):
         """Initializes the converter.
 
@@ -131,6 +154,9 @@ class A2uiEventConverter:
               to it, since every conversation would share that state.
             stream_idle_timeout: The seconds after which a stream that gets no
               event is dropped.
+            filter_thinking: Whether to remove the sentences about A2UI from
+              thoughts. Turn it off for an agent whose users ask about code or
+              JSON, whose thoughts about them would be removed too.
         """
         self._bypass_tool_check = bypass_tool_check
         self._fallback_text = fallback_text
@@ -146,7 +172,9 @@ class A2uiEventConverter:
             )
         self._a2ui_processor = a2ui_processor
         self._stream_idle_timeout = stream_idle_timeout
+        self._filter_thinking = filter_thinking
         self._streams: dict[_StreamKey, _OpenStream] = {}
+        self._thoughts: dict[_StreamKey, _PendingThought] = {}
 
     def _resolve_processor(
         self, invocation_context: InvocationContext
@@ -179,6 +207,12 @@ class A2uiEventConverter:
         ]
         for key in idle:
             del self._streams[key]
+        for key in [
+            key
+            for key, thought in self._thoughts.items()
+            if now - thought.last_used > self._stream_idle_timeout
+        ]:
+            del self._thoughts[key]
         if idle:
             logger.warning(
                 "Dropped %d A2UI streams that got no event for %s seconds.",
@@ -206,6 +240,7 @@ class A2uiEventConverter:
             processor,
             bypass_tool_check=self._bypass_tool_check,
             fallback_text=self._fallback_text,
+            filter_thinking=self._filter_thinking,
         )
         key: _StreamKey = (
             invocation_context.invocation_id,
@@ -221,10 +256,15 @@ class A2uiEventConverter:
             if processor.format.supports_streaming
             else a2ui_part_converter.convert
         )
+        is_partial = getattr(event, "partial", None) is True
+        if not is_partial:
+            self._thoughts.pop(key, None)
+        elif self._filter_thinking:
+            convert_part = self._finished_thoughts(key, convert_part)
         a2a_events = adk_event_converter.convert_event_to_a2a_events(
             event, invocation_context, task_id, context_id, convert_part
         )
-        if getattr(event, "partial", None) is not True and key in self._streams:
+        if not is_partial and key in self._streams:
             # A final event with no parts, such as an error, never reaches
             # convert_part, so the stream would stay open. Its trailing parts
             # have no event to go in.
@@ -236,6 +276,32 @@ class A2uiEventConverter:
                     key[0],
                 )
         return a2a_events
+
+    def _finished_thoughts(
+        self, key: _StreamKey, convert_part: GenAIPartToA2APartConverter
+    ) -> GenAIPartToA2APartConverter:
+        """Wraps `convert_part` to convert a partial thought's finished sentences.
+
+        The thought's text is joined to what the response's earlier chunks left
+        waiting, and only the text up to its last sentence break is converted.
+        """
+
+        def convert(part: genai_types.Part) -> list[a2a_types.Part]:
+            if not (part.thought and part.text):
+                return convert_part(part)
+            pending = self._thoughts.pop(key, None)
+            text = (pending.text if pending else "") + part.text
+            ends = [m.end() for m in _SENTENCE_BREAK.finditer(text)]
+            end = ends[-1] if ends else 0
+            if end < len(text):
+                self._thoughts[key] = _PendingThought(
+                    text=text[end:], last_used=time.monotonic()
+                )
+            if not end:
+                return []
+            return convert_part(part.model_copy(update={"text": text[:end]}))
+
+        return convert
 
     def _close_stream(self, key: _StreamKey) -> list[a2a_types.Part]:
         """Closes and removes the response's open stream, returning any trailing parts."""

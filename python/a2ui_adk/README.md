@@ -51,7 +51,12 @@ Available with the `a2a` extra:
   convert ADK events and GenAI parts into A2A parts with A2UI data, using the
   request's `A2uiRequestProcessor`. `A2uiEventConverter` gets the processor
   from its `a2ui_processor` argument, such as `A2uiProcessorStore.get`. Pass
-  it to ADK's `A2aAgentExecutor`.
+  it to ADK's `A2aAgentExecutor`. A client may show the model's thoughts to
+  the user, so each thought part loses its sentences about A2UI, as
+  `a2ui.core.remove_a2ui_thinking` removes them, and a thought with nothing
+  else in it is not sent. A streamed thought is sent up to its last finished
+  sentence, so a sentence split across chunks is filtered whole. Pass
+  `filter_thinking=False` for an agent whose users ask about code or JSON.
 - `A2uiSubagentMap` and `SurfaceIdAlreadyExistsError` (also in
   `a2ui.adk.orchestration`) track which subagent owns each surface in an
   orchestrator that talks to its subagents over A2A.

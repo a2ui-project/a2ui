@@ -134,6 +134,12 @@ By default a sample gets one attempt. With `--max-validation-retries N`, a compl
 uv run main.py --strategies express --max-validation-retries 2
 ```
 
+### Thinking about the user's request
+
+`thinking_scorer` measures how much of the model's thinking is about A2UI rather than the user's request (issue [#3576](https://github.com/a2ui-project/a2ui/issues/3576)). It reads the thinking the model showed with its first answer and scores the share of its characters, not counting whitespace, that `remove_a2ui_thinking` from `a2ui-core` would hide from the user: sentences with inline code, a data path, or a protocol term such as JSON or data model. Lower is better. The log reports two metrics: `a2ui_share`, the mean of that share, and `free_of_a2ui`, the share of samples with nothing to hide. A sample whose model showed no thinking is left out of both. The scorer runs on every task and does not affect whether a sample passes.
+
+The strategies that are one inference format (`direct`, `express`, `elemental`, `atom`) record the thinking of the model's answer. `skill_mode` records it too, but only for its final answer, not for the turns in which the model calls the skill tool. The other strategies record none. Gemini models return their thought summaries by default. Other providers may need `--thinking-budget`, or return no thinking at all.
+
 ### Skipping the judge
 
 `--no-judge` disables the Stage 3 LLM judge. A sample that passes Stage 1 (schema validation) and Stage 2 (deterministic assertions) is graded `C`; a sample that fails either stage is graded `I`. Use it when you have no Gemini key, or when you only want to measure structural validity:

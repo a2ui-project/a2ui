@@ -33,6 +33,7 @@ from .semver import (
     to_semver,
 )
 
+from .thinking import remove_a2ui_thinking
 from .uax31 import assert_uax31_identifier, is_valid_uax31_identifier
 
 __all__ = [
@@ -52,6 +53,7 @@ __all__ = [
     "normalize_metadata",
     "normalize_version_string",
     "parse_semver",
+    "remove_a2ui_thinking",
     "to_canonical_version",
     "to_protocol_version",
     "to_semver",

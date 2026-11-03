@@ -89,6 +89,7 @@ dependencies = [
 [package.optional-dependencies]
 a2a = [
     { name = "a2ui-a2a" },
+    { name = "a2ui-core" },
     { name = "google-adk", extra = ["a2a"] },
 ]
 
@@ -96,6 +97,7 @@ a2a = [
 requires-dist = [
     { name = "a2ui-a2a", marker = "extra == 'a2a'", editable = "python/a2ui_a2a" },
     { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
+    { name = "a2ui-core", marker = "extra == 'a2a'", editable = "python/a2ui_core" },
     { name = "google-adk", specifier = ">=1.28.1" },
     { name = "google-adk", extras = ["a2a"], marker = "extra == 'a2a'", specifier = ">=1.28.1" },
     { name = "google-genai", specifier = ">=1.27.0" },

@@ -94,6 +94,18 @@ final String llmOutput = await callLlm(processor.promptSnippet, userMessage);
 final List<ResponsePart> parts = processor.parseResponse(llmOutput);
 ```
 
+If your app shows the model's thinking to the user while the answer is on its
+way, pass each thought through `removeA2uiThinking` from `a2ui_core` before
+showing it. It removes every sentence with inline code, a data path such as
+`$/form/name`, or a protocol term such as A2UI, JSON or data model, so the
+user reads about their request. The terms also match a sentence about the
+user's own code or JSON, so an agent whose users ask about code should show
+the thinking unfiltered.
+
+```dart
+final String shown = removeA2uiThinking(thought);
+```
+
 To show the UI while the model is still writing it, read the Express or direct
 JSON response as it streams, through a stream opened for that response. Each
 part carries the text, or the messages, that are new or changed since the

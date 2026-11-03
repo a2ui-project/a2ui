@@ -37,14 +37,17 @@ Issues = "https://github.com/a2ui-project/a2ui/issues"
 
 [project.optional-dependencies]
 # The ADK-to-A2A converters (`a2ui.adk.a2a`) and the A2A subagent orchestration
-# helpers (`a2ui.adk.orchestration`) need the A2A extension.
+# helpers (`a2ui.adk.orchestration`) need the A2A extension. The converters
+# also need `remove_a2ui_thinking`, which a2ui-core adds after 0.5.0.
 a2a = [
   "a2ui-a2a>=0.1.0",
+  "a2ui-core>0.5.0",
   "google-adk[a2a]>=1.28.1",
 ]
 
 [tool.uv.sources]
 a2ui-agent-sdk = { workspace = true }
+a2ui-core = { workspace = true }
 a2ui-a2a = { workspace = true }
 
 [build-system]
