@@ -76,8 +76,8 @@ def test_v10_logical_functions_read_validation_result_operands():
 
     assert not_({"value": {"valid": False}}) is True
     assert not_({"value": {"valid": True}}) is False
-    assert not_({"value": {"valid": "yes"}}) is False
-    assert not_({"value": {"other": 1}}) is False
+    assert not_({"value": {"valid": "yes"}}) is True
+    assert not_({"value": {"other": 1}}) is True
     assert and_({"values": [{"valid": True}, {"valid": False}]}) is False
     assert or_({"values": [{"valid": False}, {"valid": False}]}) is False
     assert or_({"values": [{"valid": False}, {"valid": True}]}) is True
@@ -101,13 +101,14 @@ def test_v10_logical_functions_read_validation_result_operands():
     assert button_enabled(True, "", "555") is True
 
 
-def test_v09_logical_functions_treat_valid_dict_as_plain_object():
-    """The v0.9 validators return booleans, so a ``{valid}`` dict is an
-    ordinary non-empty dict and therefore truthy."""
+def test_v09_logical_functions_coerce_valid_dict_by_validity():
+    """The v0.9 logical functions also coerce a ``{valid}`` dict by its
+    boolean ``valid`` member and coerce non-ValidationResult dicts to False."""
     not_ = IMPLS_MAP["not"].execute_func
     and_ = IMPLS_MAP["and"].execute_func
-    assert not_({"value": {"valid": False}}) is False
-    assert and_({"values": [{"valid": False}, {"valid": False}]}) is True
+    assert not_({"value": {"valid": False}}) is True
+    assert and_({"values": [{"valid": False}, {"valid": False}]}) is False
+    assert and_({"values": [{"valid": True}, {"valid": True}]}) is True
 
 
 def test_validation_required():

@@ -35,6 +35,34 @@ export function validityOf(value: unknown): boolean | undefined {
   return typeof valid === 'boolean' ? valid : undefined;
 }
 
+/**
+ * Coerces a resolved `DynamicBoolean` value to a boolean.
+ *
+ * - A boolean is returned unchanged.
+ * - A `ValidationResult` object (an object with a boolean `valid` member)
+ *   coerces to its `valid` boolean.
+ * - A string coerces to `true` only when it equals `"true"`
+ *   case-insensitively; `"false"` and all other strings coerce to `false`.
+ * - A number coerces to `value !== 0` (`NaN` coerces to `false`).
+ * - `null`, `undefined`, any other object, or any array coerces to `false`.
+ */
+export function coerceDynamicBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  const valid = validityOf(value);
+  if (valid !== undefined) {
+    return valid;
+  }
+  if (typeof value === 'string') {
+    return value.toLowerCase() === 'true';
+  }
+  if (typeof value === 'number') {
+    return value !== 0 && !Number.isNaN(value);
+  }
+  return false;
+}
+
 /** The schema inside a wrapper such as `optional()`, or `undefined`. */
 function innerSchema(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
   const def = schema._def as {
@@ -93,31 +121,22 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Coerces the `ValidationResult` objects in `value` that `schema` types as
- * `DynamicBoolean` to their `valid` boolean.
- *
- * From v1.0 the validation functions return a `ValidationResult` rather than
- * a boolean, and the specification defines `DynamicBoolean` as a boolean, a
- * binding, or a call returning a boolean or a validation result object,
- * coerced to its `valid` boolean. A resolved argument that is such an object
- * is therefore read by its validity wherever the schema asks for a
- * `DynamicBoolean`, and left alone everywhere else: an object is always
- * truthy in JavaScript, so an uncoerced `{valid: false}` would read as true.
+ * Coerces every value in `value` that `schema` types as `DynamicBoolean`
+ * to a boolean using {@link coerceDynamicBoolean}.
  *
  * Follows the schema through object properties, array items and wrappers
  * such as `optional()`. Returns `value` itself when nothing is coerced.
  *
  * @param schema The schema of `value`, such as a function's argument schema.
  * @param value The resolved value to coerce.
- * @returns `value`, with every `ValidationResult` in a `DynamicBoolean`
- *   position replaced by its validity.
+ * @returns `value`, with every `DynamicBoolean` position coerced to a boolean.
  */
-export function coerceValidationResults(schema: z.ZodTypeAny, value: unknown): unknown {
+export function coerceDynamicBooleans(schema: z.ZodTypeAny, value: unknown): unknown {
+  if (isDynamicBooleanSchema(schema)) {
+    return coerceDynamicBoolean(value);
+  }
   if (typeof value !== 'object' || value === null) {
     return value;
-  }
-  if (isDynamicBooleanSchema(schema)) {
-    return validityOf(value) ?? value;
   }
   const core = unwrap(schema);
   const def = core._def as {typeName?: string; type?: z.ZodTypeAny};
@@ -125,7 +144,7 @@ export function coerceValidationResults(schema: z.ZodTypeAny, value: unknown): u
     const itemSchema = def.type;
     let changed = false;
     const items = value.map(item => {
-      const coerced = coerceValidationResults(itemSchema, item);
+      const coerced = coerceDynamicBooleans(itemSchema, item);
       changed ||= coerced !== item;
       return coerced;
     });
@@ -137,11 +156,22 @@ export function coerceValidationResults(schema: z.ZodTypeAny, value: unknown): u
     const result: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) {
       const propertySchema = shape[key];
-      const coerced = propertySchema ? coerceValidationResults(propertySchema, item) : item;
+      const coerced = propertySchema ? coerceDynamicBooleans(propertySchema, item) : item;
       changed ||= coerced !== item;
       result[key] = coerced;
     }
     return changed ? result : value;
   }
   return value;
+}
+
+/**
+ * Coerces every `DynamicBoolean` position in `value` according to `schema`.
+ *
+ * @param schema The schema of `value`, such as a function's argument schema.
+ * @param value The resolved value to coerce.
+ * @returns `value`, with every `DynamicBoolean` position coerced to a boolean.
+ */
+export function coerceValidationResults(schema: z.ZodTypeAny, value: unknown): unknown {
+  return coerceDynamicBooleans(schema, value);
 }

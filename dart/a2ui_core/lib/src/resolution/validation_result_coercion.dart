@@ -14,6 +14,8 @@
 
 import '../core/validation_result.dart';
 
+export '../core/validation_result.dart' show coerceDynamicBoolean;
+
 /// The `$defs` name of the common `DynamicBoolean` type.
 const String _dynamicBooleanDef = 'DynamicBoolean';
 
@@ -26,24 +28,17 @@ bool isDynamicBooleanSchema(Object? schema) {
   return ref is String && ref.endsWith('/\$defs/$_dynamicBooleanDef');
 }
 
-/// Reads the `ValidationResult` values in [value] that [schema] types as
-/// `DynamicBoolean` by their validity.
-///
-/// From v1.0 the validation functions return a [ValidationResult] rather
-/// than a boolean, and the specification defines `DynamicBoolean` as a
-/// boolean, a binding, or a call returning a boolean or a validation result
-/// object, coerced to its `valid` boolean. A resolved value that is such a
-/// result, or a map carrying a `valid` key, is therefore replaced by its
-/// validity (see [ValidationResult.validityOf]) wherever [schema] asks for a
-/// `DynamicBoolean`, and left alone everywhere else.
+/// Coerces the values in [value] that [schema] types as `DynamicBoolean`
+/// to a `bool` using [coerceDynamicBoolean].
 ///
 /// Follows [schema] through object `properties` and array `items`. Returns
 /// [value] itself when nothing is coerced.
 Object? coerceValidationResults(Object? schema, Object? value) {
-  if (schema is! Map || value == null) return value;
+  if (schema is! Map) return value;
   if (isDynamicBooleanSchema(schema)) {
-    return ValidationResult.validityOf(value) ?? value;
+    return coerceDynamicBoolean(value);
   }
+  if (value == null) return value;
   final Object? items = schema['items'];
   if (items is Map && value is List) {
     var changed = false;
