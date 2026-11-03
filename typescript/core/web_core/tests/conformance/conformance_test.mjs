@@ -66,6 +66,9 @@ import {CommonSchemas as V0_9_COMMON_SCHEMAS} from '../../dist/src/v0_9/schema/c
 import {CommonSchemas as V1_0_COMMON_SCHEMAS} from '../../dist/src/v1_0/schema/common-types.js';
 import {PayloadValidator} from '../../dist/src/validation/index.js';
 import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolution.js';
+import {ComponentModel} from '../../dist/src/state/component-model.js';
+import {ComponentContext} from '../../dist/src/resolution/component-context.js';
+import {CommonSchemas} from '../../dist/src/types/common-types.js';
 
 // Dedicated basic catalog component definitions per specification version
 const v0_8Components = V0_8_BASIC_COMPONENTS;
@@ -807,6 +810,66 @@ function buildScenarioLocalFunctions(localFunctions, getSurface) {
   return fns;
 }
 
+const EXPECT_ERROR_KNOWN_KEYS = {
+  error: new Set([
+    'category',
+    'code',
+    'details',
+    'functionCallId',
+    'message',
+    'path',
+    'rendererError',
+    'surfaceId',
+  ]),
+  detail: new Set(['code', 'message', 'path', 'surfaceId']),
+  rendererError: new Set(['error', 'version']),
+  rendererErrorPayload: new Set(['code', 'functionCallId', 'message', 'path', 'surfaceId']),
+};
+
+const RPC_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'args',
+    'catalog',
+    'description',
+    'expect',
+    'expectError',
+    'features',
+    'name',
+    'protocolVersion',
+  ]),
+  args: new Set([
+    'catalogId',
+    'catalogVersion',
+    'dataModel',
+    'functionMetadata',
+    'inboundResponse',
+    'message',
+    'outboundCall',
+    'secondOutboundCall',
+    'surfaceId',
+    'uiActionFallbackScenario',
+    'uiBindingScenario',
+    'userActivationPresent',
+  ]),
+  uiBindingScenario: new Set(['catalogId', 'component', 'inboundResponseValue', 'surfaceId']),
+  uiActionFallbackScenario: new Set([
+    'actionPayload',
+    'catalogId',
+    'inboundResponseValue',
+    'surfaceId',
+  ]),
+  expect: new Set([
+    'correlatedCallId',
+    'error',
+    'initialValue',
+    'outboundCall',
+    'resolvedValue',
+    'response',
+    'result',
+  ]),
+};
+
 async function validateRpcTestCase(testCase) {
   assertKnownKeys(testCase, RPC_KNOWN_KEYS.case, 'handle_rpc');
   const {args, expect, expectError} = testCase;
@@ -971,7 +1034,7 @@ async function validateRpcTestCase(testCase) {
         },
       },
     ]);
-    const surface = procRef.current.getSurface(scenario.surfaceId);
+    const surface = proc.getSurface(scenario.surfaceId);
     const resolved = collectResolvedNodes(surface);
     try {
       const observeId = scenario.observe?.componentId ?? scenario.component?.id ?? 'root';
@@ -1083,7 +1146,7 @@ async function validateRpcTestCase(testCase) {
         },
       },
     ]);
-    const surface = procRef.current.getSurface(scenario.surfaceId);
+    const surface = proc.getSurface(scenario.surfaceId);
     const ctx = new DataContext(surface, '/');
     const actionPromise = Promise.resolve(ctx.resolveAction(scenario.actionPayload));
     await new Promise(resolve => setTimeout(resolve, 0));

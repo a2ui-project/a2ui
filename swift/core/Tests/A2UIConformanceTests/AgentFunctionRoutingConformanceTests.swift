@@ -98,6 +98,10 @@ struct AgentFunctionRoutingConformanceTests {
       catalogs: try catalogs(of: testCase, version: version),
       actionHandler: recorder
     )
+    // The cases settle every call explicitly. Disable the 30-second wall-clock timeout so a
+    // heavily loaded test run (other suites share the main actor) cannot time a call out
+    // between two steps.
+    processor.agentFunctionTimeoutSeconds = 0
     if surfaceSpec["outboundListener"]?.boolValue != false {
       processor.outboundListener = { message in
         MainActor.assumeIsolated {
