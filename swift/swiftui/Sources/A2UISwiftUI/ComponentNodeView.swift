@@ -40,7 +40,7 @@ public struct ComponentNodeView: View {
       renderedView
         .modifier(ComponentAccessibilityHostModifier(node: node))
     } else {
-      let _ = Self.logMissingViewBuilder(for: renderNode)
+      let _ = Self.logMissingViewBuilder(for: node)
       EmptyView()
     }
   }
