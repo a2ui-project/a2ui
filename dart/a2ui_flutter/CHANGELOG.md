@@ -37,6 +37,10 @@
   `UNALLOWED_CHILD`. The basic catalog components keep the constraints of
   their catalog definition
   ([#3533](https://github.com/a2ui-project/a2ui/issues/3533)).
+- `Image` renders a `data:` URL of an `image/*` type, such as an inline
+  base64 PNG, as the web renderers do since
+  [#3108](https://github.com/a2ui-project/a2ui/pull/3108). A `data:` URL of
+  another type, or one that does not decode, shows the broken-image icon.
 - `Image` keeps its `description` when it does not load: the broken-image icon
   is labelled with it, as an `alt` text is on the web
   ([#3412](https://github.com/a2ui-project/a2ui/pull/3412)).
