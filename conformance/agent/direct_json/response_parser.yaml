@@ -465,6 +465,26 @@
   expect:
     - text: "No interface this turn, just an answer."
 
+- name: test_parse_response_express_tags_remain_plain_text
+  description: Express <a2ui> tags inside a Direct JSON session are not recognized as payload sentinels and remain conversational text.
+  action: parse_response
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    Do not emit Express blocks in this session:
+    <a2ui>
+    surface("s1")
+    root = Text("Hello")
+    </a2ui>
+  expect:
+    - text: |-
+        Do not emit Express blocks in this session:
+        <a2ui>
+        surface("s1")
+        root = Text("Hello")
+        </a2ui>
+
 - name: test_parse_response_unwrapped_compiles_the_whole_body
   description: A response the case declares unwrapped is handed to the compiler whole, with no tags to look for.
   action: parse_response

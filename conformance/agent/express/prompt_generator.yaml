@@ -179,6 +179,26 @@
     - 'root = Text("Hello")'
     - "root = Chart([1, 2, 3])"
 
+- name: test_express_snippet_preserves_supplied_example_order
+  description: Supplied examples appear in the Express prompt snippet in the exact order given in the examples list, even when an example from the second catalog precedes an example from the first catalog.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    examples:
+      - "test_data/examples/chart_series.json"
+      - "test_data/examples/greeting_surface.json"
+  expect_contains:
+    - |-
+      root = Chart([1, 2, 3])
+      </a2ui>
+
+      <a2ui>
+      surface("s1")
+      root = Text("Hello")
+
 - name: test_express_snippet_without_examples_carries_no_example
   description: The same catalog without examples carries none of the example payload. The whole statement is asserted absent rather than the bare name, since the signature block legitimately carries `Text(`.
   action: generate_prompt_snippet
