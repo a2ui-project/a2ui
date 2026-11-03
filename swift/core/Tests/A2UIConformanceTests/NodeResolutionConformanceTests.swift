@@ -531,14 +531,17 @@ struct NodeResolutionConformanceTests {
     nodePath: String,
     caseName: String
   ) {
-    let expectedState = spec["state"] as? String ?? "resolved"
-    #expect(
-      node.state.rawValue == expectedState,
-      """
-      [\(caseName)] \(nodePath) state mismatch: \
-      got '\(node.state.rawValue)', expected '\(expectedState)'
-      """
-    )
+    // Like the other runners, only check `state` when the spec names it: an empty
+    // spec such as `root/children/0: {}` asserts presence, not a resolved state.
+    if let expectedState = spec["state"] as? String {
+      #expect(
+        node.state.rawValue == expectedState,
+        """
+        [\(caseName)] \(nodePath) state mismatch: \
+        got '\(node.state.rawValue)', expected '\(expectedState)'
+        """
+      )
+    }
     let baseID = node.id.split(separator: ":").first.map(String.init) ?? node.id
     let strippedID = baseID.split(separator: "_").first.map(String.init) ?? baseID
     if let expectedCompID = spec["component_id"] as? String {
