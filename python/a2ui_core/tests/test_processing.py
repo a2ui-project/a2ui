@@ -1181,3 +1181,64 @@ def test_v10_message_processor_surface_and_component_metadata():
                 }],
             },
         }])
+
+
+def test_create_surface_writes_data_model_per_top_level_key():
+    from a2ui.core.resolution.node_resolver import NodeResolver
+    from a2ui.core.state.surface_model import SurfaceModel
+
+    catalog = Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/test-inline-data",
+            "components": {
+                "Counter": {
+                    "type": "object",
+                    "properties": {
+                        "count": {
+                            "$ref": "common_types.json#/$defs/DynamicNumber",
+                        }
+                    },
+                    "required": ["count"],
+                }
+            },
+            "functions": {},
+        },
+        protocol_version="1.0",
+    )
+    processor = MessageProcessor(
+        catalogs=[catalog],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+
+    root_notifications: list[Any] = []
+    surface_errors: list[Any] = []
+    resolvers: list[NodeResolver] = []
+
+    def on_surface_created(surface: SurfaceModel) -> None:
+        surface.data_model.subscribe("/", root_notifications.append)
+        surface.on_error.subscribe(surface_errors.append)
+        resolvers.append(NodeResolver(surface, catalog))
+
+    processor.model.on_surface_created.subscribe(on_surface_created)
+
+    processor.process_messages([{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": catalog.catalog_id,
+            "dataModel": {"a": 1, "x/y": {"c": 2}},
+            "components": [{
+                "id": "root",
+                "component": "Counter",
+                "count": {"@path": "/x~1y/c"},
+            }],
+        },
+    }])
+
+    surface = processor.model.get_surface("s1")
+    assert surface is not None
+    assert len(root_notifications) == 2
+    assert surface.data_model.get("/x~1y/c") == 2
+    assert surface_errors == []
+    assert resolvers[0].root is not None
+    assert resolvers[0].root.props["count"].value == 2

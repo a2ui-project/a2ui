@@ -134,13 +134,16 @@ class _RecordingFunction extends FunctionImplementation {
 }
 
 class _Runner {
-  late final SurfaceModel<ComponentApi> surface;
+  SurfaceModel<ComponentApi>? surface;
+  late final Catalog<ComponentApi, FunctionImplementation> catalog;
   late final MessageProcessor<ComponentApi> processor;
-  late final NodeResolver<ComponentApi> resolver;
+  NodeResolver<ComponentApi>? resolver;
   final List<_Json> events = [];
   final List<_Json> functions = [];
   final List<_Json> errors = [];
   final Map<_Node, int> emissions = Map.identity();
+  final Map<_Node, int> createdEmissions = Map.identity();
+  final List<void Function()> createdSubscriptions = [];
   final Map<_Node, int> metadataEmissions = Map.identity();
   final List<_Node> destroyedNodes = [];
   final Map<String, int> destroyed = {};
@@ -157,7 +160,7 @@ class _Runner {
         ).readAsStringSync(),
       ) as _Json,
     );
-    final catalog = Catalog<ComponentApi, FunctionImplementation>(
+    catalog = Catalog<ComponentApi, FunctionImplementation>(
       id: parsed.id,
       protocolVersion: parsed.protocolVersion,
       components: parsed.components.values.toList(),
@@ -167,30 +170,49 @@ class _Runner {
       ],
       definitions: parsed.definitions,
     );
-    surface = SurfaceModel(
-      's',
-      defaultCatalog: catalog,
-      protocolVersion: catalog.protocolVersion?.jsonValue,
-    );
     processor = MessageProcessor<ComponentApi>(catalogs: [catalog]);
-    processor.model.addSurface(surface);
-    surface.dataModel.set('/', _copy(fixture['data']));
-    updateComponents(fixture['components']! as List<Object?>);
-    surface.onAction.subscribe((event) {
-      events.add({
-        'name': event.name,
-        'source_component_id': event.sourceComponentId,
-        'context': _copy(event.context),
-        if (event.metadata != null) 'metadata': _copy(event.metadata),
-      });
-    });
-    surface.onError.subscribe((err) {
-      errors.add({'code': err.code, 'surfaceId': err.surfaceId});
-    });
-    resolver = NodeResolver(surface);
+    subscriptions.add(
+      processor.model.onSurfaceCreated.subscribe(_attachSurface).unsubscribe,
+    );
+
+    if (fixture['surface'] != false) {
+      final seeded = SurfaceModel<ComponentApi>(
+        's',
+        defaultCatalog: catalog,
+        protocolVersion: catalog.protocolVersion?.jsonValue,
+      );
+      processor.model.addSurface(seeded);
+      seeded.dataModel.set('/', _copy(fixture['data']));
+      updateComponents(fixture['components']! as List<Object?>);
+    }
+  }
+
+  void _attachSurface(SurfaceModel<ComponentApi> s) {
+    if (s.id != 's' || resolver != null) return;
+    surface = s;
+    final r = NodeResolver<ComponentApi>(s);
+    resolver = r;
+    subscriptions.addAll([
+      s.onAction.subscribe((event) {
+        events.add({
+          'name': event.name,
+          'source_component_id': event.sourceComponentId,
+          'context': _copy(event.context),
+          if (event.metadata != null) 'metadata': _copy(event.metadata),
+        });
+      }).unsubscribe,
+      s.onError.subscribe((err) {
+        errors.add({'code': err.code, 'surfaceId': err.surfaceId});
+      }).unsubscribe,
+      r.rootNode.subscribe((_) {
+        _watchCreatedNodes(nodes());
+      }),
+    ]);
   }
 
   Map<String, _Node> nodes() {
+    final NodeResolver<ComponentApi>? r = resolver;
+    if (r == null) return <String, _Node>{};
     final result = <String, _Node>{};
     final seen = Set<_Node>.identity();
     void visit(Object? value, String path, Set<String> siblingIds) {
@@ -220,8 +242,24 @@ class _Runner {
       }
     }
 
-    visit(resolver.rootNode.peek(), 'root', <String>{});
+    visit(r.rootNode.peek(), 'root', <String>{});
     return result;
+  }
+
+  void _watchCreatedNodes(Map<String, _Node> currentNodes) {
+    for (final _Node node in currentNodes.values) {
+      if (createdEmissions.containsKey(node)) continue;
+      createdEmissions[node] = 0;
+      var subscribing = true;
+      createdSubscriptions.add(
+        node.props.subscribe((_) {
+          if (subscribing) return;
+          createdEmissions.update(node, (count) => count + 1,
+              ifAbsent: () => 1);
+        }),
+      );
+      subscribing = false;
+    }
   }
 
   void beginStep(Map<String, _Node> before) {
@@ -257,6 +295,11 @@ class _Runner {
         destroyedNodes.add(node);
       });
     }
+    for (final void Function() stop in createdSubscriptions) {
+      stop();
+    }
+    createdSubscriptions.clear();
+    createdEmissions.clear();
     emissions.clear();
     metadataEmissions.clear();
     destroyedNodes.clear();
@@ -269,6 +312,7 @@ class _Runner {
   }
 
   void updateComponents(List<Object?> components) {
+    final SurfaceModel<ComponentApi> s = surface!;
     for (final value in components) {
       final component = value! as _Json;
       final id = component['id']! as String;
@@ -279,9 +323,9 @@ class _Runner {
         ..remove('id')
         ..remove('component')
         ..remove('metadata');
-      final ComponentModel? existing = surface.componentsModel.get(id);
+      final ComponentModel? existing = s.componentsModel.get(id);
       if (existing == null || existing.type != type) {
-        surface.componentsModel.addComponent(
+        s.componentsModel.addComponent(
           ComponentModel(id, type, properties, metadata: metadata),
         );
       } else {
@@ -300,11 +344,11 @@ class _Runner {
   Future<void> apply(_Json step, Map<String, _Node> before) async {
     switch (step['op']) {
       case 'set_data':
-        surface.dataModel.set(step['path']! as String, _copy(step['value']));
+        surface!.dataModel.set(step['path']! as String, _copy(step['value']));
       case 'update_components':
         updateComponents(step['components']! as List<Object?>);
       case 'remove_component':
-        surface.componentsModel.removeComponent(
+        surface!.componentsModel.removeComponent(
           step['component_id']! as String,
         );
       case 'process_messages':
@@ -327,14 +371,16 @@ class _Runner {
               : null,
         );
       case 'dispose':
-        resolver.dispose();
+        resolver!.dispose();
       default:
         fail('Unknown resolve_nodes operation: ${step['op']}');
     }
+    await Future<void>.delayed(Duration.zero);
   }
 
   void check(_Json expected, Map<String, _Node> before, String reason) {
     final Map<String, _Node> current = nodes();
+    final beforeNodes = Set<_Node>.identity()..addAll(before.values);
     final assertions = expected['nodes']! as _Json;
     expect(
       current.keys,
@@ -353,14 +399,16 @@ class _Runner {
     final retainedEmissions = <String, int>{};
     for (final MapEntry<_Node, int> entry in emissions.entries) {
       final String path = watched[entry.key]!;
-      if (identical(current[path], entry.key)) {
+      if (beforeNodes.contains(entry.key) &&
+          identical(current[path], entry.key)) {
         retainedEmissions[path] = entry.value;
       }
     }
     final retainedMetadataEmissions = <String, int>{};
     for (final MapEntry<_Node, int> entry in metadataEmissions.entries) {
       final String path = watched[entry.key]!;
-      if (identical(current[path], entry.key)) {
+      if (beforeNodes.contains(entry.key) &&
+          identical(current[path], entry.key)) {
         retainedMetadataEmissions[path] = entry.value;
       }
     }
@@ -376,6 +424,18 @@ class _Runner {
       expected['emissions'] ?? {},
       reason: '$reason: emissions',
     );
+    if (expected.containsKey('created_emissions')) {
+      final actualCreated = <String, int>{
+        for (final MapEntry<String, _Node> entry in current.entries)
+          if (!beforeNodes.contains(entry.value))
+            entry.key: createdEmissions[entry.value] ?? 0,
+      };
+      expect(
+        actualCreated,
+        expected['created_emissions'] ?? {},
+        reason: '$reason: created_emissions',
+      );
+    }
     if (expected.containsKey('metadata_emissions')) {
       expect(
         retainedMetadataEmissions,
@@ -432,7 +492,7 @@ class _Runner {
     for (final MapEntry<String, Object?> entry
         in ((expected['data'] as _Json?) ?? {}).entries) {
       expect(
-        surface.dataModel.get(entry.key),
+        surface!.dataModel.get(entry.key),
         entry.value,
         reason: '$reason: data ${entry.key}',
       );
@@ -446,10 +506,10 @@ class _Runner {
     String reason,
   ) {
     final Map<String, Object?> rawProps = node.props.peek();
-    final String nodeType =
-        node.state == NodeState.cyclic && node.type == placeholderType
-            ? (surface.componentsModel.get(node.componentId)?.type ?? node.type)
-            : node.type;
+    final String nodeType = node.state == NodeState.cyclic &&
+            node.type == placeholderType
+        ? (surface?.componentsModel.get(node.componentId)?.type ?? node.type)
+        : node.type;
     final actual = <String, Object?>{
       'component_id': node.componentId,
       'type': nodeType,
@@ -494,11 +554,14 @@ class _Runner {
   }
 
   void close() {
+    for (final void Function() stop in createdSubscriptions) {
+      stop();
+    }
     for (final void Function() unsubscribe in subscriptions) {
       unsubscribe();
     }
-    resolver.dispose();
+    resolver?.dispose();
     processor.dispose();
-    surface.dispose();
+    surface?.dispose();
   }
 }

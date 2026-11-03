@@ -34,6 +34,7 @@ import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components
 import {BASIC_FUNCTIONS} from '../catalogs/basic/v1/functions/basic_functions.js';
 import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
+import {NodeResolver} from '../resolution/node-resolver.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {validateCompositionConstraints} from '../state/validation-helpers.js';
 import {peekValue} from '../reactivity/signals.js';
@@ -2358,6 +2359,59 @@ describe('MessageProcessor', () => {
       assert.strictEqual(reportOnlyErrors[0].error.code, 'INVALID_FUNCTION_CALL');
       assert.strictEqual(reportOnlyErrors[0].error.functionCallId, 'f1');
       assert.strictEqual(reportOnlyErrors[0].error.message, expectedMessage);
+    });
+
+    it('writes createSurface dataModel per top-level key with RFC 6901 escaping before resolving components', () => {
+      const counterApi: ComponentApi = {
+        name: 'Counter',
+        schema: z.object({
+          count: z.union([z.number(), z.object({'@path': z.string()})]),
+        }),
+      };
+      const cat = new Catalog<ComponentApi>('cat-v10', '1.0', [counterApi]);
+      const proc = new MessageProcessor<ComponentApi>([cat]);
+
+      let rootNotifications = 0;
+      const surfaceErrors: any[] = [];
+      let resolver: NodeResolver | undefined;
+
+      proc.model.onSurfaceCreated.subscribe(surface => {
+        surface.dataModel.subscribe('/', () => {
+          rootNotifications++;
+        });
+        surface.onError.subscribe(err => {
+          surfaceErrors.push(err);
+        });
+        resolver = new NodeResolver(surface, cat);
+      });
+
+      proc.processMessages([
+        {
+          version: '1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'cat-v10',
+            dataModel: {a: 1, 'x/y': {c: 2}},
+            components: [
+              {
+                id: 'root',
+                component: 'Counter',
+                count: {'@path': '/x~1y/c'},
+              },
+            ],
+          },
+        } as any,
+      ]);
+
+      const surface = proc.getSurface('s1')!;
+      assert.strictEqual(rootNotifications, 2);
+      assert.strictEqual(surface.dataModel.get('/x~1y/c'), 2);
+      assert.deepStrictEqual(surfaceErrors, []);
+      const rootNode = peekValue(resolver!.rootNode);
+      assert.ok(rootNode);
+      const rootProps = peekValue(rootNode.props) as any;
+      assert.strictEqual(rootProps.count.value, 2);
+      resolver?.dispose();
     });
   });
 });

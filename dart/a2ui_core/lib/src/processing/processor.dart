@@ -1027,7 +1027,11 @@ class MessageProcessor<T extends ComponentApi> {
     model.addSurface(surface);
     try {
       if (operation.dataModel case final Map<String, Object?> dataModel) {
-        surface.dataModel.set('/', dataModel);
+        for (final MapEntry<String, Object?> entry in dataModel.entries) {
+          final String escapedKey =
+              entry.key.replaceAll('~', '~0').replaceAll('/', '~1');
+          surface.dataModel.set('/$escapedKey', entry.value);
+        }
       }
       if (batch != null) _applyComponents(surface, batch);
     } catch (_) {

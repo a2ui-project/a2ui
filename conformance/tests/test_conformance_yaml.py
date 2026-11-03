@@ -245,6 +245,7 @@ def test_node_expectations_reject_unknown_or_incomplete_fields(expectation):
         {"catalog": "catalog.json", "data": {}, "components": {}},
         {"catalog": "catalog.json", "data": {}, "components": [{"id": "root"}]},
         {"catalog": "catalog.json", "data": {}, "components": [], "component": []},
+        {"catalog": "catalog.json", "surface": "no", "data": {}, "components": []},
     ],
 )
 def test_node_fixture_shape_is_validated(tmp_path, fixture):

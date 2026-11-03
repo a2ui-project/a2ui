@@ -802,3 +802,68 @@
           root/children/0/child: 1
           root/children/1: 1
           root/children/1/child: 1
+
+- name: inline_create_applies_data_before_components
+  description: >-
+    createSurface with inline dataModel and components resolves bound
+    components against that data on creation without a post-creation emission.
+  action: resolve_nodes
+  fixture: test_data/node/inline_create.yaml
+  expect: {nodes: {}}
+  steps:
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+            dataModel: {greeting: Hi}
+            components:
+              - {id: root, component: Text, text: {"@path": /greeting}}
+      expect:
+        nodes:
+          root:
+            component_id: root
+            type: Text
+            state: resolved
+            props:
+              text: {value: Hi, writable: true}
+        data: {/greeting: Hi}
+        emissions: {}
+        created_emissions: {root: 0}
+
+- name: separate_data_message_keeps_arrival_order
+  description: >-
+    Separate updateComponents followed by updateDataModel in one batch creates
+    nodes before data arrives and then emits once when data is written.
+  action: resolve_nodes
+  fixture: test_data/node/inline_create.yaml
+  expect: {nodes: {}}
+  steps:
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s
+            components:
+              - {id: root, component: Text, text: {"@path": /greeting}}
+        - version: "1.0"
+          updateDataModel:
+            surfaceId: s
+            path: /greeting
+            value: Hi
+      expect:
+        nodes:
+          root:
+            component_id: root
+            type: Text
+            state: resolved
+            props:
+              text: {value: Hi, writable: true}
+        data: {/greeting: Hi}
+        emissions: {}
+        created_emissions: {root: 1}

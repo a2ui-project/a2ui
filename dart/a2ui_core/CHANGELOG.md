@@ -9,6 +9,9 @@
   `{"@path": "/form/email"}`. The path does not have to exist yet
   ([#3830](https://github.com/a2ui-project/a2ui/issues/3830), [#3868](https://github.com/a2ui-project/a2ui/pull/3868)).
 - (v1_0) The basic catalog `regex` function's `pattern` description now names the A2UI regex dialect and its safety limits ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
+- `MessageProcessor` writes an inline `createSurface.dataModel` as one
+  `DataModel.set` per top-level key (`/<escaped_key>`, escaping `~` as `~0` and
+  `/` as `~1` per RFC 6901) instead of a single root `/` write.
 - **Breaking:** (v1_0) An agent error or timeout (`A2uiRpcError`) in a
   dynamic value, a `checks` rule or an action is reported on
   `SurfaceModel.onError` as `EXPRESSION_ERROR` instead of `EXECUTION_ERROR`,

@@ -865,22 +865,30 @@ public final class MessageProcessor: ObservableObject {
       protocolVersion: op.version ?? targetCatalog?.a2uiProtocolVersion
     )
 
-    if let dataModel = op.dataModel {
-      for (key, value) in dataModel {
-        let escapedKey =
-          key
-          .replacingOccurrences(of: "~", with: "~0")
-          .replacingOccurrences(of: "/", with: "~1")
-        try vm.dataModel.setThrowing("/\(escapedKey)", value: value)
-      }
-    }
-
     if let components = op.components {
       try validateComponentsBatch(components, on: vm)
-      applyComponentsBatch(components, to: vm)
     }
 
     surfaceGroupModel.addSurface(vm)
+
+    do {
+      if let dataModel = op.dataModel {
+        for (key, value) in dataModel {
+          let escapedKey =
+            key
+            .replacingOccurrences(of: "~", with: "~0")
+            .replacingOccurrences(of: "/", with: "~1")
+          try vm.dataModel.setThrowing("/\(escapedKey)", value: value)
+        }
+      }
+
+      if let components = op.components {
+        applyComponentsBatch(components, to: vm)
+      }
+    } catch {
+      surfaceGroupModel.removeSurface(id: op.surfaceID)
+      throw error
+    }
   }
 
   private func processCallRendererFunctionOp(_ op: InternalCallRendererFunctionOp) throws {

@@ -815,11 +815,17 @@ class MessageProcessor:
         self.model.add_surface(new_surface)
 
         if op.data_model is not None:
-            self._process_update_data_model_op(
-                InternalUpdateDataModelOp(
-                    surface_id=surface_id, path="/", value=op.data_model
-                )
-            )
+            for key, value in op.data_model.items():
+                escaped_key = key.replace("~", "~0").replace("/", "~1")
+                path = f"/{escaped_key}"
+                try:
+                    new_surface.data_model.set(path, value)
+                except A2uiError as err:
+                    if err.path is None:
+                        err.path = path
+                    if err.surface_id is None:
+                        err.surface_id = surface_id
+                    raise
 
         if op.components is not None:
             self._process_update_components_op(

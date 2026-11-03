@@ -99,16 +99,17 @@ struct NodeResolutionConformanceTests {
       actionHandler: capture,
       validationConfig: .relaxed
     )
-    let surface = SurfaceViewModel(
-      surfaceID: "s",
-      catalogs: catalogs,
-      defaultCatalogID: "basic",
-      actionHandler: capture,
-      protocolVersion: version
-    )
-    processor.surfaceGroupModel.addSurface(surface)
-
-    applyFixture(fixture, to: surface)
+    if (fixture["surface"] as? Bool) != false {
+      let surface = SurfaceViewModel(
+        surfaceID: "s",
+        catalogs: catalogs,
+        defaultCatalogID: "basic",
+        actionHandler: capture,
+        protocolVersion: version
+      )
+      processor.surfaceGroupModel.addSurface(surface)
+      applyFixture(fixture, to: surface)
+    }
 
     if let initialExpect = testCase["expect"] as? [String: Any] {
       assertStepExpectations(
@@ -422,6 +423,19 @@ struct NodeResolutionConformanceTests {
   ) {
     if let expectedNodes = expect["nodes"] as? [String: Any] {
       assertExpectedNodes(expectedNodes, surface: surface, caseName: caseName)
+    }
+    if let expectedCreatedEmissions = expect["created_emissions"] as? [String: Int] {
+      for (nodePath, expectedCount) in expectedCreatedEmissions {
+        if let node = findNodeByPath(nodePath, from: surface?.rootNode, surface: surface) {
+          let actualCount = Int(node.box.revision)
+          #expect(
+            actualCount == expectedCount,
+            "[\(caseName)] created_emissions mismatch at '\(nodePath)': got \(actualCount), expected \(expectedCount)"
+          )
+        } else {
+          Issue.record("[\(caseName)] Expected node at '\(nodePath)' for created_emissions")
+        }
+      }
     }
     if let expectedData = expect["data"] as? [String: Any], let surface {
       for (path, rawVal) in expectedData {
