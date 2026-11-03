@@ -302,13 +302,13 @@ def _verify_outbound_roundtrip(scenario: Mapping[str, Any]) -> None:
             concrete = _materialize_outbound(raw_envelope)
             parsed = parse_inbound_message(concrete, version)
             expected_kind = "action" if "action" in concrete else "error"
-            assert get_inbound_message_kind(parsed) == expected_kind, (
-                f"Turn {turn_idx} expectOutbound[{out_idx}] kind mismatch"
-            )
+            assert (
+                get_inbound_message_kind(parsed) == expected_kind
+            ), f"Turn {turn_idx} expectOutbound[{out_idx}] kind mismatch"
             formatted = format_inbound_for_model(parsed)
-            assert formatted is not None and formatted.strip(), (
-                f"Turn {turn_idx} expectOutbound[{out_idx}] produced empty model input"
-            )
+            assert (
+                formatted is not None and formatted.strip()
+            ), f"Turn {turn_idx} expectOutbound[{out_idx}] produced empty model input"
             if expected_kind == "action":
                 action = concrete["action"]
                 assert action["name"] in formatted

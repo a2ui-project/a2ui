@@ -276,15 +276,13 @@ def test_e2e_scenario_validation(name: str, scenario: dict[str, Any]):
                     if "updateComponents" in msg:
                         sid = msg["updateComponents"]["surfaceId"]
                         if state.get_surface(sid) is None:
-                            state.apply([
-                                {
-                                    "version": version,
-                                    "createSurface": {
-                                        "surfaceId": sid,
-                                        "catalogId": catalogs[0].catalog_id,
-                                    },
-                                }
-                            ])
+                            state.apply([{
+                                "version": version,
+                                "createSurface": {
+                                    "surfaceId": sid,
+                                    "catalogId": catalogs[0].catalog_id,
+                                },
+                            }])
 
             # Stream chunks through parser
             stream = parser.open_stream(state=state)
