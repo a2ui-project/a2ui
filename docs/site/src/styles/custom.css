@@ -167,8 +167,7 @@ header.header {
   white-space: nowrap;
 }
 
-.sl-markdown-content table:not(:where(.not-content *)) td:first-child,
-.sl-markdown-content table:not(:where(.not-content *)) code {
+.sl-markdown-content table:not(:where(.not-content *)) td:first-child {
   white-space: nowrap;
 }
 

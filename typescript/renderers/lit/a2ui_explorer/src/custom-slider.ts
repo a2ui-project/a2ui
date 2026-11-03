@@ -57,10 +57,6 @@ export class CustomSliderComponent extends A2uiLitElement<typeof customSliderApi
     }
   `;
 
-  override createRenderRoot() {
-    return this;
-  }
-
   protected override readonly api = customSliderApi;
 
   override render() {

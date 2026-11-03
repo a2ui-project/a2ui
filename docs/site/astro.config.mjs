@@ -29,7 +29,7 @@ export default defineConfig({
     starlight({
       title: 'A2UI',
       description:
-        'The open Agent-to-UI protocol and SDK suite for native, stateful generative user interfaces.',
+        'The open A2UI (Agent to User Interface) protocol and SDK suite for native, stateful generative user interfaces.',
       logo: {
         light: './src/assets/A2UI_dark.svg',
         dark: './src/assets/A2UI_light.svg',
@@ -40,13 +40,6 @@ export default defineConfig({
         discord: 'https://discord.gg/6fS2326966',
       },
       head: [
-        {
-          tag: 'script',
-          attrs: {
-            type: 'module',
-          },
-          content: `import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'; const getTheme = () => (document.documentElement.getAttribute('data-theme') === 'light' ? 'default' : 'dark'); const renderMermaid = async () => { const preBlocks = document.querySelectorAll('pre[data-language="mermaid"]'); const renderedBlocks = document.querySelectorAll('.mermaid-rendered[data-mermaid-source]'); if (!preBlocks.length && !renderedBlocks.length) return; mermaid.initialize({ startOnLoad: false, theme: getTheme(), fontFamily: 'inherit' }); for (let i = 0; i < preBlocks.length; i++) { const pre = preBlocks[i]; if (pre.getAttribute('data-mermaid-processed')) continue; pre.setAttribute('data-mermaid-processed', 'true'); const lines = Array.from(pre.querySelectorAll('.ec-line')).map((l) => l.textContent); const code = (lines.length ? lines.join('\\n') : pre.textContent || '').trim(); try { const id = 'mermaid-svg-' + i + '-' + Date.now().toString(36); const { svg } = await mermaid.render(id, code); const div = document.createElement('div'); div.className = 'mermaid-rendered not-content'; div.setAttribute('data-mermaid-source', code); div.setAttribute('data-diagram', 'mermaid-sequence'); div.innerHTML = svg; const container = pre.closest('.expressive-code') || pre; container.replaceWith(div); } catch (err) { console.error('Mermaid render error:', err); } } for (let j = 0; j < renderedBlocks.length; j++) { const div = renderedBlocks[j]; const code = div.getAttribute('data-mermaid-source'); if (!code) continue; try { const id = 'mermaid-re-' + j + '-' + Date.now().toString(36); const { svg } = await mermaid.render(id, code); div.innerHTML = svg; } catch (err) { console.error('Mermaid re-render error:', err); } } }; if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', renderMermaid); } else { renderMermaid(); } new MutationObserver(() => renderMermaid()).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });`,
-        },
         {
           tag: 'link',
           attrs: {
@@ -68,6 +61,13 @@ export default defineConfig({
             rel: 'stylesheet',
             href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
           },
+        },
+        {
+          tag: 'script',
+          attrs: {
+            type: 'module',
+          },
+          content: `const renderMermaid = async () => { for (const pre of document.querySelectorAll('pre[data-language="mermaid"]')) { const lines = pre.querySelectorAll('.ec-line'); const code = (lines.length ? Array.from(lines, l => l.textContent).join('\\n') : (pre.querySelector('code')?.textContent || pre.textContent)).trim(); const div = document.createElement('div'); div.className = 'mermaid-rendered not-content'; div.dataset.mermaidSource = code; (pre.closest('.expressive-code') || pre).replaceWith(div); } const blocks = document.querySelectorAll('.mermaid-rendered[data-mermaid-source]'); if (!blocks.length) return; const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs'); const isDark = document.documentElement.getAttribute('data-theme') !== 'light'; mermaid.initialize({ startOnLoad: false, theme: isDark ? 'dark' : 'default', fontFamily: 'inherit' }); for (let i = 0; i < blocks.length; i++) { const div = blocks[i]; const code = div.dataset.mermaidSource; if (!code) continue; try { const id = 'mermaid-svg-' + i + '-' + Date.now().toString(36); const { svg } = await mermaid.render(id, code); div.innerHTML = svg; } catch (err) { console.error('Mermaid render error:', err); } } }; if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', renderMermaid); } else { renderMermaid(); } window.addEventListener('theme-changed', renderMermaid);`,
         },
       ],
       components: {
@@ -107,7 +107,7 @@ export default defineConfig({
               badge: {text: 'P0', variant: 'danger'},
             },
             {
-              label: 'Catalogs, Components and Functions',
+              label: 'Catalogs',
               slug: 'concepts/catalogs',
               badge: {text: 'P0', variant: 'danger'},
             },
@@ -149,6 +149,10 @@ export default defineConfig({
             {
               label: 'How to Define a Catalog',
               slug: 'guides/defining-a-catalog',
+            },
+            {
+              label: 'MCP Catalog',
+              slug: 'guides/mcp-catalog',
             },
             {
               label: 'A2UI over MCP',
