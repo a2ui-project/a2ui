@@ -28,13 +28,7 @@ void main() {
     );
     test('suite is not empty', () => expect(cases, isNotEmpty));
     for (final testCase in cases) {
-      test(
-        testCase['name']! as String,
-        () => _runCase(testCase),
-        skip: testCase['action'] == 'call_renderer_function'
-            ? 'Renderer function calls move to a follow-up pull request.'
-            : null,
-      );
+      test(testCase['name']! as String, () => _runCase(testCase));
     }
   });
 }
@@ -48,6 +42,8 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
       await _runHandle(testCase);
     case 'validate_payload':
       _runValidate(testCase);
+    case 'process_renderer_message':
+      await _runProcess(testCase);
     default:
       fail('Unhandled conformance action: $action');
   }
@@ -87,46 +83,44 @@ AgentFunctionHandler _handler(Map<String, Object?> behavior) {
   );
 }
 
-AgentFunction _agentFunction(String name, Map<String, Object?> declaration) {
-  final String returnTypeStr = (declaration['returnType'] as String?) ?? 'any';
-  final String allowedCallersStr =
-      (declaration['allowedCallers'] as String?) ?? 'rendererOnly';
-  final rawArgs = declaration['args']! as Map<String, Object?>;
+/// Builds the agent function an `AgentFunctionDeclaration` describes.
+///
+/// With `from_api: true` it wraps [base]'s own declaration of the function,
+/// or, when [base] declares none, one built from the case's fields, which the
+/// catalog must then refuse.
+AgentFunction _agentFunction(
+  String key,
+  Map<String, Object?> declaration,
+  CatalogApi base,
+) {
+  final String name = (declaration['name'] as String?) ?? key;
   final behavior = declaration['behavior']! as Map<String, Object?>;
-  final AllowedCallers allowedCallers = AllowedCallers.fromJson(
-    allowedCallersStr,
+  final A2uiReturnType returnType = A2uiReturnType.fromJson(
+    (declaration['returnType'] as String?) ?? 'any',
   );
-  if (allowedCallers == AllowedCallers.agentOnly) {
-    return _AgentOnlyFunction(
-      name: name,
-      handler: _handler(behavior),
-      returnType: A2uiReturnType.fromJson(returnTypeStr),
-      argumentSchema: Schema.fromMap(rawArgs),
-      description: declaration['description'] as String?,
-    );
+  final argumentSchema = Schema.fromMap(
+    (declaration['args'] as Map<String, Object?>?) ??
+        const <String, Object?>{'type': 'object'},
+  );
+  final description = declaration['description'] as String?;
+  if (declaration['from_api'] == true) {
+    final FunctionApi api =
+        base.functions[name] ??
+        FunctionApi(
+          name: name,
+          argumentSchema: argumentSchema,
+          returnType: returnType,
+          description: description,
+        );
+    return AgentFunction.fromApi(api, _handler(behavior));
   }
   return AgentFunction(
     name: name,
     handler: _handler(behavior),
-    returnType: A2uiReturnType.fromJson(returnTypeStr),
-    argumentSchema: Schema.fromMap(rawArgs),
-    description: declaration['description'] as String?,
+    returnType: returnType,
+    argumentSchema: argumentSchema,
+    description: description,
   );
-}
-
-/// An agent function that claims `allowedCallers: agentOnly`, which neither
-/// the constructor nor [AgentFunction.fromApi] can build.
-final class _AgentOnlyFunction extends AgentFunction {
-  const _AgentOnlyFunction({
-    required super.name,
-    required super.handler,
-    required super.returnType,
-    required super.argumentSchema,
-    super.description,
-  });
-
-  @override
-  AllowedCallers get allowedCallers => AllowedCallers.agentOnly;
 }
 
 CatalogApi _catalog(Map<String, Object?> entry) {
@@ -148,7 +142,11 @@ CatalogApi _catalog(Map<String, Object?> entry) {
   return base.copyWith(
     agentFunctions: [
       for (final MapEntry<String, Object?> fnEntry in rawAgentFns.entries)
-        _agentFunction(fnEntry.key, fnEntry.value! as Map<String, Object?>),
+        _agentFunction(
+          fnEntry.key,
+          fnEntry.value! as Map<String, Object?>,
+          base,
+        ),
     ],
   );
 }
@@ -289,3 +287,119 @@ void _runValidate(Map<String, Object?> testCase) {
   expect(testCase['expect_valid'], isTrue);
   runValidation();
 }
+
+Future<void> _runProcess(Map<String, Object?> testCase) async {
+  final args = testCase['args']! as Map<String, Object?>;
+  final recorded = <(String, RendererToAgentMessage)>[];
+  final Set<String> callbacks = {
+    for (final Object? kind
+        in (args['callbacks'] as List<Object?>?) ?? const <Object?>[])
+      kind! as String,
+  };
+  final processor = RendererToAgentMessageProcessor(
+    catalogs: [
+      if (args['catalog'] case final Map<String, Object?> entry)
+        _catalog(entry),
+    ],
+    onAction: callbacks.contains('action')
+        ? (message) => recorded.add(('action', message))
+        : null,
+    onError: callbacks.contains('error')
+        ? (message) => recorded.add(('error', message))
+        : null,
+    onRendererFunctionResponse: callbacks.contains('rendererFunctionResponse')
+        ? (message) => recorded.add(('rendererFunctionResponse', message))
+        : null,
+  );
+
+  if (testCase['expect_error'] case final Map<String, Object?> expectedError) {
+    Object? caught;
+    try {
+      await processor.processMessage(args['message']);
+    } on Object catch (e) {
+      caught = e;
+    }
+    expect(caught, isNotNull, reason: 'Expected processMessage to throw');
+    _assertErrorMatches(caught!, expectedError);
+    expect(recorded, isEmpty, reason: 'No callback runs when processing fails');
+    return;
+  }
+
+  final ProcessResult result = await processor.processMessage(args['message']);
+  final expected = testCase['expect']! as Map<String, Object?>;
+  expect(result.handled, expected['handled']);
+
+  final List<Object?> expectedReplies =
+      (expected['replies'] as List<Object?>?) ?? const <Object?>[];
+  expect(result.replies, hasLength(expectedReplies.length));
+  for (var i = 0; i < expectedReplies.length; i++) {
+    _expectReply(
+      result.replies[i].toJson(),
+      expectedReplies[i]! as Map<String, Object?>,
+    );
+  }
+
+  if (expected['callback'] case final Map<String, Object?> expectedCallback) {
+    expect(recorded, hasLength(1));
+    final (String kind, RendererToAgentMessage message) = recorded.single;
+    expect(kind, expectedCallback['kind']);
+    expect(
+      _normalizeTimestamps(message.toJson()),
+      equals(_normalizeTimestamps(expectedCallback['message'])),
+    );
+  } else {
+    expect(recorded, isEmpty, reason: 'No callback should have run');
+  }
+}
+
+/// Compares a serialized reply with the expected one exactly, except that an
+/// expected `error.message` is a substring of the one sent and may be left
+/// out.
+void _expectReply(Map<String, dynamic> actual, Map<String, Object?> expected) {
+  final copy = _deepCopy(actual)! as Map<String, Object?>;
+  for (final MapEntry<String, Object?> entry in copy.entries) {
+    final Object? body = entry.value;
+    final Object? expectedBody = expected[entry.key];
+    if (body is! Map<String, Object?> || expectedBody is! Map) continue;
+    final Object? error = body['error'];
+    final Object? expectedError = expectedBody['error'];
+    if (error is! Map<String, Object?> || expectedError is! Map) continue;
+    if (expectedError['message'] case final String substring) {
+      expect(error['message']! as String, contains(substring));
+      error['message'] = substring;
+    } else {
+      error.remove('message');
+    }
+  }
+  expect(copy, equals(expected));
+}
+
+Object? _deepCopy(Object? value) => switch (value) {
+  final Map<Object?, Object?> map => <String, Object?>{
+    for (final MapEntry<Object?, Object?> entry in map.entries)
+      '${entry.key}': _deepCopy(entry.value),
+  },
+  final List<Object?> list => [
+    for (final Object? item in list) _deepCopy(item),
+  ],
+  _ => value,
+};
+
+/// Writes every `timestamp` that is an ISO 8601 instant in one spelling, so
+/// `2026-01-01T00:00:00Z` and the `2026-01-01T00:00:00.000Z` that Dart writes
+/// compare equal.
+Object? _normalizeTimestamps(Object? value) => switch (value) {
+  final Map<Object?, Object?> map => <String, Object?>{
+    for (final MapEntry<Object?, Object?> entry in map.entries)
+      '${entry.key}': entry.key == 'timestamp' && entry.value is String
+          ? (DateTime.tryParse(
+                  entry.value! as String,
+                )?.toUtc().toIso8601String() ??
+                entry.value)
+          : _normalizeTimestamps(entry.value),
+  },
+  final List<Object?> list => [
+    for (final Object? item in list) _normalizeTimestamps(item),
+  ],
+  _ => value,
+};
