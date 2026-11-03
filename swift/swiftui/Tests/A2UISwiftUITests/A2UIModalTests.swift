@@ -157,6 +157,75 @@ struct A2UIModalTests {
     }
   }
 
+  // MARK: - Activation
+
+  #if canImport(AppKit)
+    @Test func voiceOverPressOnButtonTriggerPresentsSheet() throws {
+      let host = try ModalHost(trigger: buttonTrigger())
+      #expect(!host.isSheetPresented)
+
+      #expect(try host.pressWithVoiceOver(label: "Open"))
+
+      #expect(host.isSheetPresented)
+    }
+
+    @Test func clickOnButtonTriggerPresentsSheet() throws {
+      let host = try ModalHost(trigger: buttonTrigger())
+
+      try host.click(label: "Open")
+
+      #expect(host.isSheetPresented)
+    }
+
+    @Test func keyboardActivationOfButtonTriggerPresentsSheet() throws {
+      let host = try ModalHost(trigger: buttonTrigger())
+
+      try host.pressSpace(label: "Open")
+
+      #expect(host.isSheetPresented)
+    }
+
+    @Test func clickOnButtonTriggerWithFailingCheckDoesNotPresentSheet() throws {
+      let host = try ModalHost(trigger: buttonTrigger(checks: [failingCheck()]))
+
+      try host.click(label: "Open")
+
+      #expect(!host.isSheetPresented)
+    }
+
+    @Test func voiceOverPressOnButtonTriggerWithFailingCheckDoesNotPresentSheet() throws {
+      let host = try ModalHost(trigger: buttonTrigger(checks: [failingCheck()]))
+
+      try host.pressWithVoiceOver(label: "Open")
+
+      #expect(!host.isSheetPresented)
+    }
+
+    @Test func voiceOverPressOnTextTriggerPresentsSheet() throws {
+      let trigger = Node(id: "trigger_text", type: "Text", properties: ["text": "Open"])
+      let host = try ModalHost(trigger: trigger)
+
+      #expect(try host.pressWithVoiceOver(label: "Open"))
+
+      #expect(host.isSheetPresented)
+    }
+  #endif
+
+  private func buttonTrigger(checks: [ResolvedCheck] = []) -> Node {
+    let label = Node(id: "trigger_label", type: "Text", properties: ["text": "Open"])
+    var properties: [String: any Resolved] = ["child": label]
+    if !checks.isEmpty { properties["checks"] = checks }
+    return Node(id: "trigger_btn", type: "Button", properties: properties)
+  }
+
+  private func failingCheck() -> ResolvedCheck {
+    ResolvedCheck(
+      condition: DataBinding<Bool>(identity: .literal(.boolean(false)), value: false),
+      message: "Required",
+      validationResult: ValidationResult(valid: false, message: "Required", severity: .error)
+    )
+  }
+
   private func collectComponentNodeIDs(in value: Any, into ids: inout [String]) {
     if let nodeView = value as? ComponentNodeView {
       ids.append(nodeView.node.id)

@@ -30,10 +30,18 @@ extension BasicCatalogImplementation {
 // MARK: - View
 
 /// SwiftUI component view for the A2UI Basic Catalog `Modal` component.
+///
+/// A ``A2UIButton`` in the trigger opens the sheet from its own action, so a tap, a VoiceOver
+/// activation, and a keyboard activation all open it, and none does while the button is disabled.
+/// Any other trigger opens it on a tap or its default accessibility action, unless one of the
+/// trigger's checks fails.
 public struct A2UIModal: View {
   public let node: Node
 
   @State private var isPresented = false
+
+  /// Whether a control in the trigger reported that it opens the sheet from its own action.
+  @State private var triggerOpensSheet = false
 
   public init(node: Node) {
     self.node = node
@@ -51,13 +59,26 @@ public struct A2UIModal: View {
     Group {
       if let triggerNode {
         ComponentNodeView(node: triggerNode)
-          .simultaneousGesture(
-            TapGesture().onEnded {
-              isPresented = true
+          .environment(\.a2uiModalTriggerAction, { isPresented = true })
+          .onPreferenceChange(A2UIModalTriggerHandledKey.self) { handled in
+            // SwiftUI delivers preference changes on the main thread.
+            MainActor.assumeIsolated {
+              if triggerOpensSheet != handled {
+                triggerOpensSheet = handled
+              }
+            }
+          }
+          .modifier(
+            ModalTriggerFallback(isEnabled: !triggerOpensSheet) {
+              if triggerNode.isValid {
+                isPresented = true
+              }
             }
           )
       }
     }
+    // A nested Modal's trigger must not affect this one.
+    .transformPreference(A2UIModalTriggerHandledKey.self) { $0 = false }
     .sheet(isPresented: $isPresented) {
       NavigationStack {
         ScrollView {
@@ -74,6 +95,24 @@ public struct A2UIModal: View {
           }
         }
       }
+    }
+  }
+}
+
+/// Opens the sheet on a tap or the default accessibility action of a trigger that has no control
+/// opening it from its own action.
+private struct ModalTriggerFallback: ViewModifier {
+  let isEnabled: Bool
+  let open: () -> Void
+
+  func body(content: Content) -> some View {
+    if isEnabled {
+      content
+        .simultaneousGesture(TapGesture().onEnded(open))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { open() }
+    } else {
+      content
     }
   }
 }
