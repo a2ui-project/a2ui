@@ -862,16 +862,14 @@ def test_rejected_call_renderer_function_leaves_state_unchanged_in_transaction()
         },
     })
     state = RendererState([catalog])
-    state.apply([
-        {
-            "version": "1.0",
-            "createSurface": {
-                "surfaceId": "s",
-                "catalogId": "test/allowed_callers",
-                "components": [{"id": "root", "component": "Text", "text": "Hi"}],
-            },
-        }
-    ])
+    state.apply([{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s",
+            "catalogId": "test/allowed_callers",
+            "components": [{"id": "root", "component": "Text", "text": "Hi"}],
+        },
+    }])
     before = _snapshot(state)
 
     with pytest.raises(A2uiValidationError, match="formatValue"):

@@ -217,8 +217,8 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
 InferenceFormat _format(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
   return DirectJsonFormatFactory(
-    allowedMessages:
-        (args['allowed_messages'] as List<Object?>?)?.cast<String>(),
+    allowedMessages: (args['allowed_messages'] as List<Object?>?)
+        ?.cast<String>(),
     progressiveKeys: {
       ...?(args['progressive_keys'] as List<Object?>?)?.cast<String>(),
     },
@@ -247,19 +247,19 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       return format.promptGenerator.generate();
     case 'wrap':
       return format.createParser().wrap(
-            rawParts(testCase['parts']! as List<Object?>),
-          );
+        rawParts(testCase['parts']! as List<Object?>),
+      );
     case 'has_format_content':
       return format.createParser().hasFormatContent(
-            testCase['input']! as String,
-            complete: args['complete'] as bool? ?? false,
-          );
+        testCase['input']! as String,
+        complete: args['complete'] as bool? ?? false,
+      );
     case 'unwrap':
       // Unwrapping keeps the payload as written, so it is not lowered.
       return [
         for (final RawResponsePart part in format.createParser().unwrap(
-              testCase['input']! as String,
-            ))
+          testCase['input']! as String,
+        ))
           rawPartJson(part),
       ];
     case 'compile':
@@ -269,14 +269,14 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       );
     case 'decompile':
       return format.createParser().decompile(
-            version.messages(testCase['messages']! as List<Object?>),
-          );
+        version.messages(testCase['messages']! as List<Object?>),
+      );
     case 'parse_response':
       return version.partsJson(
         format.createParser().parseResponse(
-              input!,
-              wrapped: args['wrapped'] as bool? ?? true,
-            ),
+          input!,
+          wrapped: args['wrapped'] as bool? ?? true,
+        ),
         injectedCatalogId: catalogId,
       );
     default:
@@ -299,16 +299,17 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
 void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
   final bool wrapped = args['wrapped'] as bool? ?? true;
-  final SuiteVersion written =
-      caseCatalogVersion(args) == '0.9' ? SuiteVersion.v1_0 : version;
+  final SuiteVersion written = caseCatalogVersion(args) == '0.9'
+      ? SuiteVersion.v1_0
+      : version;
   final String? catalogId = written.injectedCatalog(testCase);
   List<Object?> lift(List<StreamPart> parts) =>
       written.partsJson(parts, injectedCatalogId: catalogId);
   final Parser parser = _format(testCase, version).createParser();
   final ResponseReader<StreamPart> stream =
       args['after_rejected_block'] == 'continue'
-          ? parser.openContinuingStream(wrapped: wrapped)
-          : parser.openStream(wrapped: wrapped);
+      ? parser.openContinuingStream(wrapped: wrapped)
+      : parser.openStream(wrapped: wrapped);
   void expectInBlock(Map<String, Object?> step, int i) {
     if (step['expect_in_block'] case final bool inBlock) {
       expect(stream.isInBlock, inBlock, reason: 'step $i: in block');

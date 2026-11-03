@@ -239,9 +239,8 @@ class RendererState {
         );
       }
       _record(() {
-        final SurfaceComponentsModel? current = getSurface(
-          surfaceId,
-        )?.componentsModel;
+        final SurfaceComponentsModel? current = getSurface(surfaceId)
+            ?.componentsModel;
         if (current == null) return;
         current.removeComponent(componentId);
         current.insertComponent(
@@ -643,9 +642,8 @@ class RendererState {
       }
     }
     return () {
-      final SurfaceComponentsModel? components = getSurface(
-        surfaceId,
-      )?.componentsModel;
+      final SurfaceComponentsModel? components = getSurface(surfaceId)
+          ?.componentsModel;
       if (components == null) return;
       final recreated = <(int?, ComponentModel)>[];
       for (final _ComponentRecord record in previous.reversed) {

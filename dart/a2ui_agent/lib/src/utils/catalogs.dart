@@ -34,8 +34,7 @@ A2uiProtocolVersion catalogsProtocolVersion(List<CatalogApi> catalogs) {
   final List<A2uiProtocolVersion> versions = {
     for (final CatalogApi catalog in catalogs)
       catalog.protocolVersion ?? A2uiProtocolVersion.v0_9,
-  }.toList()
-    ..sort();
+  }.toList()..sort();
   final A2uiProtocolVersion earliest = versions.first;
   if (!versions.every(
     (v) => isCatalogVersionCompatible(v.jsonValue, earliest.jsonValue),
@@ -75,7 +74,8 @@ List<String> agentCallableFunctions(List<CatalogApi> catalogs) {
   return [
     for (final CatalogApi catalog in catalogs)
       for (final FunctionApi function in catalog.functions.values)
-        if (function.allowedCallers != AllowedCallers.rendererOnly &&
+        if ((function.allowedCallers == AllowedCallers.agentOnly ||
+                function.allowedCallers == AllowedCallers.rendererOrAgent) &&
             !function.requiresUserActivation &&
             seen.add(function.name))
           function.name,
