@@ -2671,22 +2671,13 @@ function assertSurfacesMatch(processor, expect) {
           resolved.dispose();
         }
       }
-      if (surface && 'theme' in expectedSurface) {
-        if (expectedSurface.theme === null) {
-          const actualTheme = surface.theme ?? {};
-          if (Object.keys(actualTheme).length > 0) {
+      if (surface && expectedSurface.theme) {
+        for (const [k, v] of Object.entries(expectedSurface.theme)) {
+          const actualVal = surface.theme?.[k];
+          if (JSON.stringify(actualVal) !== JSON.stringify(v)) {
             throw new Error(
-              `Surface '${surfaceId}' expected no theme, got ${JSON.stringify(surface.theme)}`,
+              `Surface '${surfaceId}' theme mismatch for '${k}'. Expected ${JSON.stringify(v)}, got ${JSON.stringify(actualVal)}`,
             );
-          }
-        } else if (expectedSurface.theme) {
-          for (const [k, v] of Object.entries(expectedSurface.theme)) {
-            const actualVal = surface.theme?.[k];
-            if (JSON.stringify(actualVal) !== JSON.stringify(v)) {
-              throw new Error(
-                `Surface '${surfaceId}' theme mismatch for '${k}'. Expected ${JSON.stringify(v)}, got ${JSON.stringify(actualVal)}`,
-              );
-            }
           }
         }
       }

@@ -523,7 +523,7 @@ void _checkSurfaces(
     if (expectations.containsKey('theme')) {
       expect(
         surface!.theme,
-        equals(expectations['theme'] ?? const <String, Object?>{}),
+        equals(expectations['theme']),
         reason: '$name: $surfaceId theme',
       );
     }

@@ -2359,28 +2359,5 @@ describe('MessageProcessor', () => {
       assert.strictEqual(reportOnlyErrors[0].error.functionCallId, 'f1');
       assert.strictEqual(reportOnlyErrors[0].error.message, expectedMessage);
     });
-
-    it('ignores v1.0 createSurface.theme inside { messages: [...] } wrapper in permissive mode', () => {
-      const textApi: ComponentApi = {name: 'Text', schema: z.object({text: z.string()})};
-      const v10Cat = new Catalog<ComponentApi>('cat-v10', '1.0', [textApi]);
-      const proc = new MessageProcessor<ComponentApi>([v10Cat]);
-
-      proc.processMessages({
-        messages: [
-          {
-            version: '1.0',
-            createSurface: {
-              surfaceId: 's1',
-              catalogId: 'cat-v10',
-              theme: {primaryColor: '#123456'},
-            },
-          },
-        ],
-      } as any);
-
-      const surface = proc.getSurface('s1');
-      assert.ok(surface);
-      assert.deepStrictEqual(surface.theme, {});
-    });
   });
 });

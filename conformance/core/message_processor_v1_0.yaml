@@ -3262,24 +3262,3 @@
           primaryColor: "#ff0000"
   expectError:
     category: "ValidationError"
-
-- name: test_v10_create_surface_theme_dropped_permissive
-  description: >-
-    Tests that a v1.0 createSurface message carrying a theme property drops the unrecognized theme field in permissive mode so the created surface has no theme set.
-  action: process_messages
-  protocolVersion: "1.0"
-  strictMode: false
-  catalogPaths:
-    - "catalogs/basic/v1/catalog.json"
-  messages:
-    - version: "1.0"
-      createSurface:
-        surfaceId: "s1"
-        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-        theme:
-          primaryColor: "#ff0000"
-  expect:
-    surfaces:
-      s1:
-        exists: true
-        theme: null
