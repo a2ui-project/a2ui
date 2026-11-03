@@ -48,16 +48,16 @@ different message names. Your training data is likely outdated.
 
 ## Install (current package names)
 
-| Platform                | Install                                                                           |
-| ----------------------- | --------------------------------------------------------------------------------- |
-| React                   | `npm install @a2ui/react @a2ui/web_core`                                          |
-| Angular                 | `npm install @a2ui/angular @a2ui/web_core`                                        |
-| Lit / Web Components    | `npm install @a2ui/lit @a2ui/web_core`                                            |
-| Flutter                 | `flutter pub add genui` (add `genui_a2a` for a remote A2A agent)                  |
-| SwiftUI (alpha)         | see [swift/swiftui](https://github.com/a2ui-project/a2ui/tree/main/swift/swiftui) |
-| Jetpack Compose (alpha) | https://developer.android.com/develop/ui/compose/agentic                          |
-| Agent, Python           | `pip install a2ui-agent-sdk`                                                      |
-| Agent, TypeScript       | `npm install @a2ui/agent`                                                         |
+| Platform                | Install                                                                                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| React                   | `npm install @a2ui/react @a2ui/web_core`                                                                                                           |
+| Angular                 | `npm install @a2ui/angular @a2ui/web_core`                                                                                                         |
+| Lit / Web Components    | `npm install @a2ui/lit @a2ui/web_core`                                                                                                             |
+| Flutter                 | `flutter pub add genui` (add `genui_a2a` for a remote A2A agent)                                                                                   |
+| SwiftUI (alpha)         | see [swift/swiftui](https://github.com/a2ui-project/a2ui/tree/main/swift/swiftui)                                                                  |
+| Jetpack Compose (alpha) | https://developer.android.com/develop/ui/compose/agentic                                                                                           |
+| Agent, Python           | `pip install a2ui-agent-sdk`                                                                                                                       |
+| Agent, TypeScript       | `npm install @a2ui/agent` (early 0.x, see [known gaps](https://github.com/a2ui-project/a2ui/blob/main/typescript/agents/a2ui_agent/KNOWN_GAPS.md)) |
 
 Do **not** use `flutter_genui` or `genui_a2ui`: both are discontinued.
 
