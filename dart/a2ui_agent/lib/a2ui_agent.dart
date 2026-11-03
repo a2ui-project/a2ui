@@ -67,5 +67,5 @@ export 'src/rpc/renderer_function_calls.dart';
 export 'src/rpc/router.dart';
 export 'src/utils/catalog_resolver.dart';
 export 'src/utils/renderer_capabilities.dart';
-export 'src/utils/renderer_state.dart' show RendererState;
+export 'src/utils/renderer_state.dart' show InboundResult, RendererState;
 export 'src/utils/validation.dart';

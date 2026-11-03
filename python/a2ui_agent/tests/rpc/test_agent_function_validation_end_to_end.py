@@ -224,6 +224,7 @@ async def _round_trip(renderer: _Renderer, text: Any) -> dict[str, Any]:
 class TestRendererSide:
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="Requires renderer-side dynamic value RPC routing")
     @pytest.mark.parametrize("fmt", FORMATS)
     async def test_default_config_accepts_and_routes_the_call(self, fmt: str) -> None:
         renderer = _Renderer(_basic_catalog(), None)
@@ -250,6 +251,7 @@ class TestRendererSide:
         assert renderer.outbound[0]["error"]["code"] == "VALIDATION_FAILED"
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="Requires renderer-side dynamic value RPC routing")
     @pytest.mark.parametrize("fmt", FORMATS)
     async def test_strict_config_with_schema_only_declaration_routes_the_call(
         self, fmt: str

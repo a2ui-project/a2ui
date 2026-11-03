@@ -88,8 +88,6 @@ import type {
   V10RendererCapabilities,
 } from '@a2ui/web_core/v1_0';
 export type {
-  AgentToRendererMessage,
-  RendererToAgentMessage,
   RendererToAgentMessage as V10RendererToAgentMessage,
   ActionMessage,
   AgentFunctionResponseMessage,

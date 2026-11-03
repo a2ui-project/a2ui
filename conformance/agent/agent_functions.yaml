@@ -902,3 +902,59 @@
         b: pending
         d: pending
       expect_pending_count: 2
+
+- name: test_call_renderer_function_rejects_renderer_only_function
+  description: >-
+    An outbound call to a function whose catalog declaration has allowedCallers rendererOnly is rejected with INVALID_FUNCTION_CALL.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - call: {label: a, catalogId: conformance/simplified, name: formatString, args: {value: "test"}}
+      expect_error: {code: INVALID_FUNCTION_CALL}
+
+- name: test_call_renderer_function_rejects_requires_user_activation_function
+  description: >-
+    An outbound call to a function whose catalog declaration has requiresUserActivation true is rejected with INVALID_FUNCTION_CALL.
+  action: call_renderer_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - call: {label: a, catalogId: conformance/simplified, name: openUrl, args: {url: "https://example.com"}}
+      expect_error: {code: INVALID_FUNCTION_CALL}
+
+- name: test_renderer_state_call_renderer_function_tracking_on_commit_vs_rollback
+  description: >-
+    RendererState tracks callRendererFunction messages on outermost commit, while rolled-back turns track nothing.
+  action: renderer_state_tracking
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  steps:
+    - apply:
+        - version: "1.0"
+          callRendererFunction:
+            functionCallId: "call-commit-1"
+            callFunction:
+              "@call": notify
+              catalogId: conformance/agent_functions
+              args: {message: "committed"}
+      expect_tracked_count: 1
+    - apply_fail:
+        - version: "1.0"
+          callRendererFunction:
+            functionCallId: "call-rollback-2"
+            callFunction:
+              "@call": notify
+              catalogId: conformance/agent_functions
+              args: {message: "rolled_back"}
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "nonexistent_surface"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "fail"
+      expect_tracked_count: 1

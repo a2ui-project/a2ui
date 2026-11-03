@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add outbound `allowedCallers` and `requiresUserActivation` permission checks in `RendererFunctionCalls.call`.
+- Integrate `RendererState` and `A2uiRequestProcessor` with RPC message handling: support `receive` and `drainOutbound`, and track committed `callRendererFunction` messages in `RendererFunctionCalls`.
+
 - Add `parseInboundMessage`, `getInboundMessageKind`, and
   `formatInboundForModel` to validate inbound renderer-to-agent messages
   (`action`, `error`, `callAgentFunction`, and `rendererFunctionResponse`) and

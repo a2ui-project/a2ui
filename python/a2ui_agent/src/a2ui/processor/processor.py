@@ -19,13 +19,13 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Literal, overload
 
-from a2ui.core import A2uiCatalogError, CatalogApi
+from a2ui.core import A2uiCatalogError, A2uiValidationError, CatalogApi
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat, InferenceFormatFactory
 from a2ui.inference_formats.express import ExpressFormatFactory
 from a2ui.parser import Parser, ResponsePart, ResponseStream, StreamPart
-from a2ui.utils import RendererState, validate_payload
+from a2ui.utils import InboundResult, RendererState, validate_payload
 
 __all__ = [
     "A2uiRequestProcessor",
@@ -124,6 +124,12 @@ class A2uiRequestProcessor:
         it to `parse_response` or `open_stream` on every turn.
         """
         return RendererState(self._active_catalogs)
+
+    async def receive(self, message: Any) -> InboundResult:
+        """Receives an inbound renderer message, delegating to the bound renderer state."""
+        if self._state is None:
+            raise A2uiValidationError("No renderer state is bound to this processor.")
+        return await self._state.receive(message)
 
     def parse_response(
         self,

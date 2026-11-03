@@ -26,7 +26,7 @@ import uuid
 
 from pydantic import ValidationError
 
-from a2ui.core import A2uiRpcError, RpcErrorCode
+from a2ui.core import A2uiRpcError, CatalogApi, RpcErrorCode
 from a2ui.core.schema.v1_0 import (
     CallRendererFunction,
     CallRendererFunctionMessage,
@@ -75,6 +75,7 @@ class RendererFunctionCalls:
     def __init__(
         self,
         *,
+        catalogs: Iterable[CatalogApi] | None = None,
         default_timeout: float | None = DEFAULT_RENDERER_CALL_TIMEOUT,
         max_pending: int | None = None,
     ) -> None:
@@ -93,6 +94,7 @@ class RendererFunctionCalls:
             raise ValueError("default_timeout must be positive or None.")
         if max_pending is not None and max_pending < 1:
             raise ValueError("max_pending must be at least 1.")
+        self._catalogs = list(catalogs) if catalogs is not None else None
         self._default_timeout = default_timeout
         self._max_pending = max_pending
         self._pending: dict[str, _PendingCall] = {}
@@ -176,6 +178,24 @@ class RendererFunctionCalls:
                 code=RpcErrorCode.INVALID_FUNCTION_CALL,
                 function_call_id=call_id,
             )
+        if self._catalogs is not None:
+            catalog = next((c for c in self._catalogs if c.id == catalog_id), None)
+            if catalog is not None:
+                fn = catalog.functions.get(name)
+                if fn is not None:
+                    allowed_callers = getattr(fn, "allowed_callers", None) or "rendererOnly"
+                    if allowed_callers not in ("agentOnly", "rendererOrAgent"):
+                        raise A2uiRpcError(
+                            f"Function '{name}' cannot be called by agent (allowedCallers is {allowed_callers}).",
+                            code=RpcErrorCode.INVALID_FUNCTION_CALL,
+                            function_call_id=call_id,
+                        )
+                    if getattr(fn, "requires_user_activation", False):
+                        raise A2uiRpcError(
+                            f"Function '{name}' requires user activation.",
+                            code=RpcErrorCode.INVALID_FUNCTION_CALL,
+                            function_call_id=call_id,
+                        )
         try:
             # Left unset, not None, without a surface, so that
             # `model_dump(exclude_unset=True)` omits it: the schema types
@@ -212,6 +232,61 @@ class RendererFunctionCalls:
         self._pending[call_id] = _PendingCall(name=name, future=future, timer=timer)
         future.add_done_callback(lambda _: self._forget(call_id, future))
         return message, future
+
+    def track(
+        self,
+        message: CallRendererFunctionMessage | Mapping[str, Any],
+        *,
+        timeout: float | None = None,
+    ) -> asyncio.Future[Any]:
+        """Registers an already constructed callRendererFunction message and returns its future."""
+        if self._disposed:
+            raise A2uiRpcError(
+                "RendererFunctionCalls has been disposed.", code=RpcErrorCode.DISPOSED
+            )
+        loop = self._bind_loop()
+        if isinstance(message, CallRendererFunctionMessage):
+            call_id = message.call_renderer_function.function_call_id
+            name = message.call_renderer_function.call_function.call
+        elif isinstance(message, Mapping) and "callRendererFunction" in message:
+            body = message["callRendererFunction"]
+            call_id = str(body.get("functionCallId", ""))
+            call_fn = body.get("callFunction", {})
+            name = str(call_fn.get("@call", ""))
+        else:
+            raise A2uiRpcError(
+                f"Invalid message for tracking: {message}",
+                code=RpcErrorCode.INVALID_FUNCTION_CALL,
+            )
+        if not call_id:
+            raise A2uiRpcError(
+                "functionCallId must not be empty.",
+                code=RpcErrorCode.INVALID_FUNCTION_CALL,
+            )
+        if call_id in self._pending:
+            raise A2uiRpcError(
+                f"A call with functionCallId '{call_id}' is already pending.",
+                code=RpcErrorCode.DUPLICATE,
+                function_call_id=call_id,
+            )
+        if self._max_pending is not None and len(self._pending) >= self._max_pending:
+            raise A2uiRpcError(
+                f"{len(self._pending)} renderer function calls are already pending, the most allowed.",
+                code="TOO_MANY_PENDING",
+                function_call_id=call_id,
+            )
+        future: asyncio.Future[Any] = loop.create_future()
+        effective_timeout = timeout if timeout is not None else self._default_timeout
+        timer = (
+            loop.call_later(
+                effective_timeout, self._time_out, call_id, effective_timeout
+            )
+            if effective_timeout is not None
+            else None
+        )
+        self._pending[call_id] = _PendingCall(name=name, future=future, timer=timer)
+        future.add_done_callback(lambda _: self._forget(call_id, future))
+        return future
 
     def resolve(self, message: RendererFunctionResponseInput) -> None:
         """Settles the call that a `rendererFunctionResponse` answers.

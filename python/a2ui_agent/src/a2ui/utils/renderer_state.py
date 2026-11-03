@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 import contextlib
 import copy
+from dataclasses import dataclass
 import logging
 import re
 import sys
@@ -54,11 +55,33 @@ from a2ui.core.schema import (
     ProtocolVersion,
 )
 from a2ui.core.validation import analyze_topology, validate_component_integrity
+from a2ui.inbound import (
+    InboundMessage,
+    InboundMessageKind,
+    format_inbound_for_model,
+    get_inbound_message_kind,
+    parse_inbound_message,
+)
+from a2ui.rpc import (
+    AgentFunctionRegistry,
+    RendererFunctionCalls,
+    RendererMessageRouter,
+)
 
 __all__ = [
+    "InboundResult",
     "RendererState",
     "validate_payload",
 ]
+
+
+@dataclass
+class InboundResult:
+    """The result of receiving an inbound renderer message."""
+
+    kind: InboundMessageKind
+    message: InboundMessage
+    formatted: str | None = None
 
 _MessagePayload: TypeAlias = (
     AgentToRendererMessagePayload | Iterable[AgentToRendererMessage | Mapping[str, Any]]
@@ -161,6 +184,9 @@ class RendererState:
     def __init__(
         self,
         catalogs: Sequence[CatalogApi],
+        *,
+        agent_functions: AgentFunctionRegistry | None = None,
+        renderer_calls: RendererFunctionCalls | None = None,
     ) -> None:
         """Creates the empty state of a renderer that holds the catalogs.
 
@@ -192,6 +218,10 @@ class RendererState:
             options=MessageProcessorOptions(validation_config=_IN_PROGRESS_VALIDATION),
         )
         self._assumed: set[str] = set()
+        self._agent_functions = agent_functions
+        self._renderer_calls = renderer_calls
+        self._outbound: list[AgentToRendererMessage] = []
+        self._calls: list[dict[str, Any]] = []
         # The updates a v0.8 placeholder surface buffers until its
         # `beginRendering` arrives.
         self._pending: dict[str, list[dict[str, Any]]] = {}
@@ -212,6 +242,100 @@ class RendererState:
     def catalogs(self) -> list[CatalogApi]:
         """The active catalogs in priority order."""
         return list(self._catalogs)
+
+    @property
+    def router(self) -> RendererMessageRouter | None:
+        """The router for inbound renderer RPC messages, if configured."""
+        if self._agent_functions is None and self._renderer_calls is None:
+            return None
+        return RendererMessageRouter(
+            agent_functions=self._agent_functions,
+            renderer_calls=self._renderer_calls,
+        )
+
+    def drain_outbound(self) -> list[AgentToRendererMessage]:
+        """Drains queued outbound messages to be sent to the renderer."""
+        outbound = list(self._outbound)
+        self._outbound.clear()
+        return outbound
+
+    async def receive(self, message: Any) -> InboundResult:
+        """Receives and processes an inbound message from the renderer."""
+        raw = (
+            message
+            if isinstance(message, Mapping)
+            else message.model_dump(by_alias=True, exclude_unset=True)
+        )
+        if "callAgentFunction" in raw or "rendererFunctionResponse" in raw:
+            router = self.router
+            if router is None:
+                raise A2uiValidationError(
+                    "No agent_functions or renderer_calls configured on RendererState."
+                )
+            replies = await router.dispatch(raw)
+            for reply in replies:
+                if hasattr(reply, "model_dump"):
+                    self._outbound.append(reply.model_dump(by_alias=True, exclude_unset=True))
+                else:
+                    self._outbound.append(reply)
+            kind = (
+                "callAgentFunction"
+                if "callAgentFunction" in raw
+                else "rendererFunctionResponse"
+            )
+            return InboundResult(kind=kind, message=message)
+        parsed = parse_inbound_message(message, self._protocol_version)
+        formatted = format_inbound_for_model(parsed)
+        return InboundResult(
+            kind=get_inbound_message_kind(parsed),
+            message=parsed,
+            formatted=formatted,
+        )
+
+    @property
+    def router(self) -> RendererMessageRouter | None:
+        """The router for inbound renderer RPC messages, if configured."""
+        if self._agent_functions is None and self._renderer_calls is None:
+            return None
+        return RendererMessageRouter(
+            agent_functions=self._agent_functions,
+            renderer_calls=self._renderer_calls,
+        )
+
+    def drain_outbound(self) -> list[AgentToRendererMessage]:
+        """Drains queued outbound messages to be sent to the renderer."""
+        outbound = list(self._outbound)
+        self._outbound.clear()
+        return outbound
+
+    async def receive(self, message: Any) -> InboundResult:
+        """Receives and processes an inbound message from the renderer."""
+        raw = (
+            message
+            if isinstance(message, Mapping)
+            else message.model_dump(by_alias=True, exclude_unset=True)
+        )
+        if "callAgentFunction" in raw or "rendererFunctionResponse" in raw:
+            router = self.router
+            if router is None:
+                raise A2uiValidationError(
+                    "No agent_functions or renderer_calls configured on RendererState."
+                )
+            replies = await router.route(message)
+            self._outbound.extend(replies)
+            kind = (
+                "callAgentFunction"
+                if "callAgentFunction" in raw
+                else "rendererFunctionResponse"
+            )
+            return InboundResult(kind=kind, message=message)
+        parsed = parse_inbound_message(message, self._protocol_version)
+        formatted = format_inbound_for_model(parsed)
+        return InboundResult(
+            kind=get_inbound_message_kind(parsed),
+            message=parsed,
+            formatted=formatted,
+        )
 
     @property
     def surface_ids(self) -> list[str]:
@@ -423,6 +547,9 @@ class RendererState:
         except BaseException:
             self._revert(mark)
             raise
+        else:
+            if self._open == 1:
+                self._run_calls()
         finally:
             self._open -= 1
             if not self._open:
@@ -738,12 +865,26 @@ class RendererState:
         model.delete_surface(surface_id)
         self._record(lambda: model.add_surface(restore()))
 
+    def _run_calls(self) -> None:
+        if not self._calls:
+            return
+        calls = list(self._calls)
+        self._calls.clear()
+        self._process(calls)
+        if self._renderer_calls is not None:
+            for call in calls:
+                self._renderer_calls.track(call)
+
     def _apply_message(self, payload: list[dict[str, Any]], index: int) -> str | None:
         """Applies the message at an index and returns the surface it targets."""
         message = payload[index]
         surface_id, creates = _target(message)
         if surface_id is None:
-            self._process([message])
+            if "callRendererFunction" in message:
+                self._calls.append(message)
+                self._record(self._calls.pop)
+            else:
+                self._process([message])
             return None
 
         model = self._processor.model

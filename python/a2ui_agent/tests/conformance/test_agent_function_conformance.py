@@ -40,7 +40,7 @@ from a2ui.core import (
 from a2ui.core.catalog import AgentFunction, AgentFunctionContext
 from a2ui.processor import InMemoryCatalogProvider
 from a2ui.rpc import AgentFunctionRegistry, RendererFunctionCalls
-from a2ui.utils import validate_payload
+from a2ui.utils import RendererState, validate_payload
 
 from .conformance_helpers import load_conformance_json, load_conformance_yaml
 
@@ -257,6 +257,8 @@ async def _run_calls_on_loop(case: Mapping[str, Any], loop: _FakeClockLoop) -> N
         options["default_timeout"] = None if timeout_ms is None else timeout_ms / 1000
     if "max_pending" in args:
         options["max_pending"] = args["max_pending"]
+    if "catalogs" in args:
+        options["catalogs"] = [_catalog(c) for c in args["catalogs"]]
     calls = RendererFunctionCalls(**options)
     futures: dict[str, asyncio.Future[Any]] = {}
     call_ids: dict[str, str] = {}
@@ -338,11 +340,29 @@ def _run_calls(case: Mapping[str, Any]) -> None:
         asyncio.set_event_loop(None)
 
 
+async def _run_renderer_state_tracking_async(case: Mapping[str, Any]) -> None:
+    catalogs = [_catalog(c) for c in case.get("args", {}).get("catalogs", [])]
+    calls = RendererFunctionCalls()
+    state = RendererState(catalogs, renderer_calls=calls)
+    for step in case["steps"]:
+        if "apply" in step:
+            state.apply(step["apply"])
+        elif "apply_fail" in step:
+            with pytest.raises(Exception):
+                state.apply(step["apply_fail"])
+        if "expect_tracked_count" in step:
+            assert calls.pending_count == step["expect_tracked_count"]
+
+
+def _run_renderer_state_tracking(case: Mapping[str, Any]) -> None:
+    asyncio.run(_run_renderer_state_tracking_async(case))
+
 RUNNERS: dict[str, Callable[[Mapping[str, Any]], None]] = {
     "declare_agent_functions": _run_declare,
     "handle_agent_function": _run_handle,
     "validate_payload": _run_validate,
     "call_renderer_function": _run_calls,
+    "renderer_state_tracking": _run_renderer_state_tracking,
 }
 
 

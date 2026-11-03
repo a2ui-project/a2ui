@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Wire `A2uiInboundPartConverter` to route RPC messages through `RendererState.receive`.
+- Wire `A2uiEventConverter` to drain outbound messages from `RendererState.drain_outbound` and emit them as A2UI DataParts.
+
 - Add `A2uiInboundPartConverter` in `a2ui.adk` (and `a2ui.adk.a2a`) to validate inbound A2UI `DataPart`s (`action`, `userAction`, and `error`) via `parse_inbound_message`, convert them into `google.genai.types.Part(text=...)` via `format_inbound_for_model`, return `None` for RPC messages (`callAgentFunction` and `rendererFunctionResponse`), and delegate non-A2UI parts to ADK's default converter.
 - Add `a2ui_rpc_callback`, which returns a `before_agent_callback` that
   answers A2UI v1.0 RPC messages without running the agent. When the user

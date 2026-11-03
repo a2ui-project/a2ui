@@ -35,6 +35,7 @@ import {
   FunctionPruningTransformer,
   PromptGenerator,
   RendererFunctionCalls,
+  RendererState,
   validatePayload,
 } from '../../src/index.js';
 import {classify, loadCases, type LoadedCase} from './loader.js';
@@ -101,6 +102,26 @@ function buildHandler(behavior?: BehaviorSpec): AgentFunctionHandler {
     return () => structuredClone(retVal);
   }
   return () => null;
+}
+
+function runRendererStateTracking(testCase: LoadedCase): void {
+  const args = (testCase.args ?? {}) as {
+    catalogs: CatalogWithAgentFunctionsSpec[];
+  };
+  const catalogs = args.catalogs.map(buildCatalogWithAgentFunctions);
+  const calls = new RendererFunctionCalls();
+  const state = new RendererState(catalogs, {rendererCalls: calls});
+  const steps = (testCase.steps ?? []) as Array<Record<string, unknown>>;
+  for (const step of steps) {
+    if (step['apply'] !== undefined) {
+      state.apply(step['apply'] as never);
+    } else if (step['apply_fail'] !== undefined) {
+      expect(() => state.apply(step['apply_fail'] as never)).toThrow();
+    }
+    if (step['expect_tracked_count'] !== undefined) {
+      expect(calls.pendingCount).toBe(step['expect_tracked_count']);
+    }
+  }
 }
 
 function buildCatalogWithAgentFunctions(spec: CatalogWithAgentFunctionsSpec): CatalogApi {
@@ -346,9 +367,13 @@ async function runCallRendererFunction(testCase: LoadedCase): Promise<void> {
       default_timeout_ms?: number | null;
       max_pending?: number | null;
     };
+    const catalogs = args.catalogs
+      ? (args.catalogs as CatalogWithAgentFunctionsSpec[]).map(buildCatalogWithAgentFunctions)
+      : undefined;
     const calls = new RendererFunctionCalls({
       defaultTimeoutMs: args.default_timeout_ms,
       maxPending: args.max_pending,
+      catalogs,
     });
     const byLabel = new Map<string, TrackedCall>();
     const steps = (testCase.steps ?? []) as CallStepSpec[];
@@ -498,6 +523,9 @@ describe('Conformance: agent_functions.yaml', () => {
           return;
         case 'call_renderer_function':
           await runCallRendererFunction(testCase);
+          return;
+        case 'renderer_state_tracking':
+          runRendererStateTracking(testCase);
           return;
         default:
           throw new Error(`Unhandled conformance action: ${testCase.action}`);

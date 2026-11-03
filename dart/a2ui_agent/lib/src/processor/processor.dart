@@ -109,6 +109,14 @@ class A2uiRequestProcessor {
   /// processor.
   RendererState createState() => RendererState(activeCatalogs);
 
+  /// Receives an inbound renderer message, delegating to the bound renderer state.
+  Future<InboundResult> receive(Object? message) {
+    if (state == null) {
+      throw A2uiValidationError('No renderer state is bound to this processor.');
+    }
+    return state!.receive(message);
+  }
+
   /// Parses a complete LLM response into text and A2UI messages of the
   /// active catalogs' protocol version, in the order the LLM emitted them.
   ///

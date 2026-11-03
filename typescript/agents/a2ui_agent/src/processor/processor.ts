@@ -16,12 +16,12 @@
 
 import {InferenceFormat, InferenceFormatFactory} from '../inference-format.js';
 import {ExpressFormatFactory} from '../inference-formats/express/format.js';
-import {A2uiCatalogError, AgentToRendererMessage, CatalogApi} from '../internal/web-core.js';
+import {A2uiCatalogError, A2uiValidationError, AgentToRendererMessage, CatalogApi} from '../internal/web-core.js';
 import {ContinuingStreamOptions, ParseOptions, Parser, StreamOptions} from '../parser/parser.js';
 import {ResponsePart, StreamPart} from '../parser/response-part.js';
 import {ResponseStream} from '../parser/response-stream.js';
 import {toReleaseLine, toWireProtocolVersion} from '../utils/protocol-version.js';
-import {RendererState} from '../utils/renderer-state.js';
+import {type InboundResult, RendererState} from '../utils/renderer-state.js';
 
 /** Options for a request processor. */
 export interface A2uiRequestProcessorOptions {
@@ -103,6 +103,13 @@ export class A2uiRequestProcessor {
    */
   createState(): RendererState {
     return new RendererState(this._catalogs);
+  }
+
+  async receive(message: unknown): Promise<InboundResult> {
+    if (this._state === undefined) {
+      throw new A2uiValidationError('No renderer state is bound to this processor.');
+    }
+    return this._state.receive(message);
   }
 
   /**

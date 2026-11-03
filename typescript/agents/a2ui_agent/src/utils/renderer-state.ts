@@ -19,6 +19,16 @@
  */
 
 import {
+  formatInboundForModel,
+  getInboundMessageKind,
+  type InboundMessage,
+  type InboundMessageKind,
+  parseInboundMessage,
+} from '../inbound/inbound-message.js';
+import type {AgentFunctionRegistry} from '../rpc/agent-function-registry.js';
+import type {RendererFunctionCalls} from '../rpc/renderer-function-calls.js';
+import {RendererMessageRouter} from '../rpc/router.js';
+import {
   A2uiCatalogError,
   A2uiError,
   A2uiIntegrityError,
@@ -112,6 +122,39 @@ let sharedProcessor: MessageProcessor | undefined;
  * An app that is both the agent and the renderer makes the state with `RendererState.of`,
  * on the processor it renders from, so each message is checked and applied once.
  */
+export interface RendererStateOptions {
+  readonly agentFunctions?: AgentFunctionRegistry;
+  readonly rendererCalls?: RendererFunctionCalls;
+}
+
+export interface InboundResult {
+  readonly kind: InboundMessageKind;
+  readonly message: InboundMessage;
+  readonly formatted?: string;
+}
+
+export interface RendererStateOptions {
+  readonly agentFunctions?: AgentFunctionRegistry;
+  readonly rendererCalls?: RendererFunctionCalls;
+}
+
+export interface InboundResult {
+  readonly kind: InboundMessageKind;
+  readonly message: InboundMessage;
+  readonly formatted?: string;
+}
+
+export interface RendererStateOptions {
+  readonly agentFunctions?: AgentFunctionRegistry;
+  readonly rendererCalls?: RendererFunctionCalls;
+}
+
+export interface InboundResult {
+  readonly kind: InboundMessageKind;
+  readonly message: InboundMessage;
+  readonly formatted?: string;
+}
+
 export class RendererState {
   private readonly _catalogs: CatalogApi[];
   private readonly releaseLine: string;
@@ -154,7 +197,11 @@ export class RendererState {
    *     messages state different versions, for example v0.9 and v1.0 catalogs, or if they
    *     target a protocol version the state does not support, such as v0.8.
    */
-  constructor(catalogs: CatalogApi[]) {
+  readonly agentFunctions?: AgentFunctionRegistry;
+  readonly rendererCalls?: RendererFunctionCalls;
+  private readonly _outbound: Message[] = [];
+
+  constructor(catalogs: CatalogApi[], options?: RendererStateOptions) {
     if (!catalogs || catalogs.length === 0) {
       throw new A2uiCatalogError('A renderer state requires at least one catalog.');
     }
@@ -170,6 +217,8 @@ export class RendererState {
       );
     }
     this._catalogs = [...catalogs];
+    this.agentFunctions = options?.agentFunctions;
+    this.rendererCalls = options?.rendererCalls;
     this.processor = sharedProcessor ?? new MessageProcessor(this._catalogs as never);
   }
 
@@ -190,13 +239,49 @@ export class RendererState {
    * @throws {A2uiCatalogError} If the processor's catalogs could not make a state, as for the
    *     constructor.
    */
-  static of<T extends ComponentApi>(processor: MessageProcessor<T>): RendererState {
+  static of<T extends ComponentApi>(
+    processor: MessageProcessor<T>,
+    options?: RendererStateOptions,
+  ): RendererState {
     sharedProcessor = processor as unknown as MessageProcessor;
     try {
-      return new RendererState(processor.catalogs as unknown as CatalogApi[]);
+      return new RendererState(processor.catalogs as unknown as CatalogApi[], options);
     } finally {
       sharedProcessor = undefined;
     }
+  }
+
+  get router(): RendererMessageRouter | undefined {
+    if (!this.agentFunctions && !this.rendererCalls) return undefined;
+    return new RendererMessageRouter({
+      registry: this.agentFunctions,
+      rendererCalls: this.rendererCalls,
+    });
+  }
+
+  drainOutbound(): Message[] {
+    return this._outbound.splice(0);
+  }
+
+  async receive(message: unknown): Promise<InboundResult> {
+    const raw = message as Record<string, unknown>;
+    if ('callAgentFunction' in raw || 'rendererFunctionResponse' in raw) {
+      const router = this.router;
+      if (!router) {
+        throw new A2uiValidationError(
+          'No agentFunctions or rendererCalls configured on RendererState.',
+        );
+      }
+      const reply = await router.route(message as never);
+      if (reply) {
+        this._outbound.push(reply as never);
+      }
+      const kind = 'callAgentFunction' in raw ? 'callAgentFunction' : 'rendererFunctionResponse';
+      return {kind, message: message as InboundMessage};
+    }
+    const parsed = parseInboundMessage(message, this.releaseLine as never);
+    const formatted = formatInboundForModel(parsed) ?? undefined;
+    return {kind: getInboundMessageKind(parsed), message: parsed, formatted};
   }
 
   /** The active catalogs in priority order. */
@@ -453,7 +538,14 @@ export class RendererState {
   /** Hands the function calls held back to the processor, in the order they were applied. */
   private runCalls(): void {
     const calls = this.calls.splice(0);
-    if (calls.length > 0) this.processUnlogged(calls);
+    if (calls.length > 0) {
+      this.processUnlogged(calls);
+      if (this.rendererCalls) {
+        for (const call of calls) {
+          this.rendererCalls.track(call as never);
+        }
+      }
+    }
   }
 
   /**

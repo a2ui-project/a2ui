@@ -32,6 +32,8 @@ class RendererFunctionCalls {
   /// The maximum number of concurrent pending calls, or null for no cap.
   final int? maxPending;
 
+  final List<CatalogApi>? _catalogs;
+
   final Map<String, _PendingRendererCall> _pending =
       <String, _PendingRendererCall>{};
   final Random _random = Random();
@@ -46,7 +48,9 @@ class RendererFunctionCalls {
   RendererFunctionCalls({
     Duration? defaultTimeout = defaultRendererCallTimeout,
     this.maxPending,
-  }) : _defaultTimeout = defaultTimeout {
+    Iterable<CatalogApi>? catalogs,
+  }) : _defaultTimeout = defaultTimeout,
+       _catalogs = catalogs?.toList() {
     if (defaultTimeout != null && defaultTimeout <= Duration.zero) {
       throw ArgumentError.value(
         defaultTimeout,
@@ -143,6 +147,29 @@ class RendererFunctionCalls {
       surfaceId: surfaceId,
     );
 
+    if (_catalogs != null) {
+      final catalog = _catalogs.where((c) => c.id == catalogId).firstOrNull;
+      if (catalog != null) {
+        final fn = catalog.functions[name];
+        if (fn != null) {
+          if (fn.allowedCallers == AllowedCallers.rendererOnly) {
+            throw A2uiRpcError(
+              "Function '$name' cannot be called by agent (allowedCallers is rendererOnly).",
+              RpcErrorCode.invalidFunctionCall,
+              surfaceId: surfaceId,
+            );
+          }
+          if (fn.requiresUserActivation) {
+            throw A2uiRpcError(
+              "Function '$name' requires user activation.",
+              RpcErrorCode.invalidFunctionCall,
+              surfaceId: surfaceId,
+            );
+          }
+        }
+      }
+    }
+
     final callFunction = <String, Object?>{
       '@call': name,
       'catalogId': catalogId,
@@ -177,6 +204,64 @@ class RendererFunctionCalls {
     }
     _pending[callId] = pending;
     return (message, pending.completer.future);
+  }
+
+  /// Tracks an already constructed [CallRendererFunctionMessage] and registers
+  /// a pending [Future].
+  Future<Object?> track(
+    CallRendererFunctionMessage message, {
+    Duration? timeout,
+  }) {
+    if (_disposed) {
+      throw A2uiRpcError(
+        'RendererFunctionCalls has been disposed.',
+        RpcErrorCode.disposed,
+      );
+    }
+    final callId = message.functionCallId;
+    final name = (message.callFunction['@call'] as String?) ?? '';
+    if (callId.isEmpty) {
+      throw A2uiRpcError(
+        'functionCallId must be a non-empty string.',
+        RpcErrorCode.invalidFunctionCall,
+      );
+    }
+    if (_pending.containsKey(callId)) {
+      throw A2uiRpcError(
+        "A call with functionCallId '$callId' is already pending.",
+        RpcErrorCode.duplicate,
+        functionCallId: callId,
+      );
+    }
+    if (maxPending != null && _pending.length >= maxPending!) {
+      throw A2uiRpcError(
+        'Maximum number of pending renderer function calls ($maxPending) reached.',
+        RpcErrorCode.tooManyPending,
+        functionCallId: callId,
+      );
+    }
+    final pending = _PendingRendererCall(
+      functionCallId: callId,
+      surfaceId: message.surfaceId,
+    );
+    final Duration? effectiveTimeout = timeout ?? _defaultTimeout;
+    if (effectiveTimeout != null) {
+      pending.timer = Timer(effectiveTimeout, () {
+        final _PendingRendererCall? removed = _pending.remove(callId);
+        if (removed == null) return;
+        removed.completeError(
+          A2uiRpcError(
+            "Renderer function '$name' (call '$callId') timed out after "
+            '${effectiveTimeout.inMilliseconds}ms.',
+            RpcErrorCode.timeout,
+            functionCallId: callId,
+            surfaceId: message.surfaceId,
+          ),
+        );
+      });
+    }
+    _pending[callId] = pending;
+    return pending.completer.future;
   }
 
   /// Settles the pending call matching [message]'s `functionCallId`.

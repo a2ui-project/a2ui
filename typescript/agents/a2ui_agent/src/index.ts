@@ -122,7 +122,11 @@ export {
 } from './inbound/inbound-message.js';
 
 // Renderer state and payload validation
-export {RendererState} from './utils/renderer-state.js';
+export {
+  type InboundResult,
+  RendererState,
+  type RendererStateOptions,
+} from './utils/renderer-state.js';
 export {validatePayload} from './utils/validation.js';
 
 // The surface model of web_core. Re-exported because `RendererState.getSurface` returns it.

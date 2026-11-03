@@ -45,6 +45,8 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
       _runValidate(testCase);
     case 'call_renderer_function':
       _runCalls(testCase);
+    case 'renderer_state_tracking':
+      _runRendererStateTracking(testCase);
     default:
       fail('Unhandled conformance action: $action');
   }
@@ -98,6 +100,37 @@ AgentFunction _agentFunction(String name, Map<String, Object?> declaration) {
     allowedCallers: AllowedCallers.fromJson(allowedCallersStr),
     description: declaration['description'] as String?,
   );
+}
+
+List<CatalogApi>? _catalogs(Map<String, Object?>? args) {
+  if (args == null || !args.containsKey('catalogs')) return null;
+  final rawList = args['catalogs']! as List<Object?>;
+  return [for (final item in rawList) _catalog(item! as Map<String, Object?>)];
+}
+
+void _runRendererStateTracking(Map<String, Object?> testCase) {
+  final catalogs = _catalogs(testCase['args'] as Map<String, Object?>?) ?? [];
+  final calls = RendererFunctionCalls();
+  final state = RendererState(catalogs, rendererCalls: calls);
+  final steps = testCase['steps']! as List<Object?>;
+  List<AgentToRendererMessage> parseMsgs(Object? raw) => [
+    for (final Object? msg in raw! as List<Object?>)
+      AgentToRendererMessage.fromJson(msg! as Map<String, Object?>),
+  ];
+  for (final step in steps) {
+    final map = step! as Map<String, Object?>;
+    if (map.containsKey('apply')) {
+      state.apply(parseMsgs(map['apply']));
+    } else if (map.containsKey('apply_fail')) {
+      expect(
+        () => state.apply(parseMsgs(map['apply_fail'])),
+        throwsA(anything),
+      );
+    }
+    if (map.containsKey('expect_tracked_count')) {
+      expect(calls.pendingCount, map['expect_tracked_count']);
+    }
+  }
 }
 
 CatalogApi _catalog(Map<String, Object?> entry) {
@@ -316,9 +349,11 @@ void _runCalls(Map<String, Object?> testCase) {
       );
     }
     final maxPending = args['max_pending'] as int?;
+    final catalogs = _catalogs(testCase['args'] as Map<String, Object?>?);
     final calls = RendererFunctionCalls(
       defaultTimeout: defaultTimeout,
       maxPending: maxPending,
+      catalogs: catalogs,
     );
     final futures = <String, _TrackedCall>{};
     final callIds = <String, String>{};

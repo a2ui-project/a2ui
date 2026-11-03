@@ -17,6 +17,7 @@
 import {
   A2uiRpcError,
   type CallRendererFunctionMessage,
+  type CatalogApi,
   isValidUax31Identifier,
   type RendererFunctionResponseMessage,
   RpcErrorCode,
@@ -80,6 +81,8 @@ export interface RendererFunctionCallsOptions {
    * Pass `null` or omit for no limit.
    */
   readonly maxPending?: number | null;
+  /** Optional catalogs declaring renderer functions to check permissions on call. */
+  readonly catalogs?: readonly CatalogApi[];
 }
 
 /**
@@ -118,6 +121,7 @@ interface PendingEntry {
 export class RendererFunctionCalls {
   private readonly _defaultTimeoutMs: number | null;
   private readonly _maxPending: number | null;
+  private readonly _catalogs?: readonly CatalogApi[];
   private readonly _pending = new Map<string, PendingEntry>();
   private _disposed = false;
 
@@ -151,6 +155,7 @@ export class RendererFunctionCalls {
       }
       this._maxPending = options.maxPending;
     }
+    this._catalogs = options?.catalogs;
   }
 
   /**
@@ -226,6 +231,30 @@ export class RendererFunctionCalls {
         RpcErrorCode.INVALID_FUNCTION_CALL,
         callId,
       );
+    }
+
+    if (this._catalogs) {
+      const cat = this._catalogs.find(c => c.id === options.catalogId);
+      if (cat) {
+        const fn = cat.functions?.get(options.name);
+        if (fn) {
+          const callers = fn.allowedCallers ?? 'rendererOnly';
+          if (callers !== 'agentOnly' && callers !== 'rendererOrAgent') {
+            throw new A2uiRpcError(
+              `Function '${options.name}' cannot be called by agent (allowedCallers is ${callers}).`,
+              RpcErrorCode.INVALID_FUNCTION_CALL,
+              callId,
+            );
+          }
+          if (fn.requiresUserActivation) {
+            throw new A2uiRpcError(
+              `Function '${options.name}' requires user activation.`,
+              RpcErrorCode.INVALID_FUNCTION_CALL,
+              callId,
+            );
+          }
+        }
+      }
     }
 
     if (typeof options.name !== 'string' || !isValidUax31Identifier(options.name)) {
@@ -346,6 +375,84 @@ export class RendererFunctionCalls {
       cancel: {value: cancel, enumerable: false},
     });
     return tuple;
+  }
+
+  /**
+   * Tracks an already constructed callRendererFunction message and registers a pending promise.
+   */
+  track<T = unknown>(
+    message: CallRendererFunctionMessage | Record<string, unknown>,
+    timeoutMs?: number | null,
+  ): CancellablePromise<T> {
+    if (this._disposed) {
+      throw new A2uiRpcError('RendererFunctionCalls has been disposed.', RpcErrorCode.DISPOSED);
+    }
+    const callBody = (
+      'callRendererFunction' in message
+        ? (message as CallRendererFunctionMessage).callRendererFunction
+        : (message as unknown as Record<string, unknown>)
+    ) as Record<string, unknown>;
+    const callId = typeof callBody['functionCallId'] === 'string' ? (callBody['functionCallId'] as string) : '';
+    const callFn = (callBody['callFunction'] ?? {}) as Record<string, unknown>;
+    const name = typeof callFn['@call'] === 'string' ? (callFn['@call'] as string) : '';
+
+    if (!callId) {
+      throw new A2uiRpcError('functionCallId must not be empty.', RpcErrorCode.INVALID_FUNCTION_CALL);
+    }
+    if (this._pending.has(callId)) {
+      throw new A2uiRpcError(
+        `A renderer function call with id '${callId}' is already pending.`,
+        RpcErrorCode.DUPLICATE,
+        callId,
+      );
+    }
+    if (this._maxPending !== null && this._pending.size >= this._maxPending) {
+      throw new A2uiRpcError(
+        `Too many pending renderer function calls (limit is ${this._maxPending}).`,
+        RpcErrorCode.TOO_MANY_PENDING,
+        callId,
+      );
+    }
+
+    let settlePromise: ((value: T) => void) | undefined;
+    let failPromise: ((error: A2uiRpcError) => void) | undefined;
+    const promise = new Promise<T>((resolve, reject) => {
+      settlePromise = resolve;
+      failPromise = reject;
+    }) as CancellablePromise<T>;
+
+    const effectiveTimeoutMs = timeoutMs !== undefined ? timeoutMs : this._defaultTimeoutMs;
+    const entry: PendingEntry = {
+      functionCallId: callId,
+      name,
+      resolve: settlePromise as (value: unknown) => void,
+      reject: failPromise as (error: A2uiRpcError) => void,
+    };
+    if (effectiveTimeoutMs !== null) {
+      entry.timer = setTimeout(() => {
+        this._pending.delete(callId);
+        failPromise?.(
+          new A2uiRpcError(
+            `Renderer function call '${name}' (${callId}) timed out after ${effectiveTimeoutMs}ms.`,
+            RpcErrorCode.TIMEOUT,
+            callId,
+          ),
+        );
+      }, effectiveTimeoutMs);
+    }
+    promise.cancel = (reason?: string) => {
+      if (entry.timer !== undefined) clearTimeout(entry.timer);
+      this._pending.delete(callId);
+      failPromise?.(
+        new A2uiRpcError(
+          reason ?? `Renderer function call '${name}' (${callId}) was cancelled.`,
+          RpcErrorCode.CANCELLED,
+          callId,
+        ),
+      );
+    };
+    this._pending.set(callId, entry);
+    return promise;
   }
 
   /**
