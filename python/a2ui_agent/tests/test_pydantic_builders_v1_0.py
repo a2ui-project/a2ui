@@ -277,6 +277,7 @@ def test_v1_0_components_specific_to_v1_0() -> None:
     """Verifies component additions introduced in Protocol v1.0."""
     tf = TextField(
         label="Username",
+        value=DataBinding(path="/username"),
         placeholder="Enter your username",
         variant="shortText",
         weight=1.5,

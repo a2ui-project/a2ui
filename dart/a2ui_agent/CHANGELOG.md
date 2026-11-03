@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Remove `(Agent to UI)` from the embedded v0.9 `server_to_client.json` and v1.0
+  `agent_to_renderer.json` schema descriptions in `DirectJsonPromptGenerator`
+  ([#1605](https://github.com/a2ui-project/a2ui/pull/1605)).
 - Add `userFocusedThinking` to `A2uiGenerator` and `A2uiRequestProcessor`. When
   it is `true`, `promptSnippet` starts and ends with a rule asking the model to
   think about the user's request rather than the A2UI format, for an app that

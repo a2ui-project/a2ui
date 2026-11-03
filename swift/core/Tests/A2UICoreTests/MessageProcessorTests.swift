@@ -467,6 +467,110 @@ struct MessageProcessorTests {
     #expect(functionsV10?["openUrl"]?["requiresUserActivation"]?.boolValue == true)
     #expect(
       functionsV10?["openUrl"]?["required"] == .array([.string("@call"), .string("args")]))
+    #expect(functionsV10?["@index"] == nil)
+    #expect(functionsV10?.count == 2)
+  }
+
+  @Test func getRendererCapabilitiesWrapsComponentEnvelopeOnlyBeforeV10() throws {
+    let buttonSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "label": { "type": "string" }
+          },
+          "required": ["label"]
+        }
+        """
+    )
+    let catalogV091 = Catalog(
+      id: "cat-v091",
+      protocolVersion: .v091,
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
+    )
+    let catalogV10 = Catalog(
+      id: "cat-v10",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
+    )
+    let processor = MessageProcessor(catalogs: [catalogV091, catalogV10])
+    let capabilities = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        versions: [.v091, .v10],
+        includeInlineCatalogs: true,
+        componentEnvelopeRef: "custom.json#/$defs/Envelope"
+      )
+    )
+
+    let buttonV091 = try #require(
+      capabilities["v0.9.1"]?["inlineCatalogs"]?.arrayValue?.first?["components"]?["Button"]
+    )
+    #expect(buttonV091["allOf/0/$ref"]?.stringValue == "custom.json#/$defs/Envelope")
+
+    let inlineCatalogV10 = try #require(capabilities["1.0"]?["inlineCatalogs"]?.arrayValue?.first)
+    let buttonV10 = try #require(inlineCatalogV10["components"]?["Button"])
+    let expectedButtonV10: JSONValue = .object([
+      "type": .string("object"),
+      "properties": .object([
+        "component": .object(["const": .string("Button")]),
+        "label": .object(["type": .string("string")]),
+      ]),
+      "required": .array([.string("component"), .string("label")]),
+    ])
+    #expect(buttonV10 == expectedButtonV10)
+    // `@index` is a system function every v1.0 catalog provides; catalogs must not declare it.
+    #expect(inlineCatalogV10["functions"] == nil)
+  }
+
+  @Test func getRendererCapabilitiesKeepsV10ComponentDefinitionFields() throws {
+    let cardSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "description": "A card container",
+          "properties": {
+            "child": { "type": "string" }
+          }
+        }
+        """
+    )
+    let catalog = Catalog(
+      id: "cat-v10",
+      protocolVersion: .v10,
+      components: [
+        AnyComponentAPI(
+          name: "Card",
+          schema: cardSchema,
+          allowedParents: ["Column", "Row"],
+          allowedChildren: ["Text"],
+          metadata: ["icon": .string("card"), "category": .string("layout")]
+        )
+      ]
+    )
+    let processor = MessageProcessor(catalogs: [catalog])
+    let capabilities = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        protocolVersion: .v10,
+        includeInlineCatalogs: true
+      )
+    )
+
+    let card = try #require(
+      capabilities["1.0"]?["inlineCatalogs"]?.arrayValue?.first?["components"]?["Card"]
+    )
+    let expectedCard: JSONValue = .object([
+      "type": .string("object"),
+      "description": .string("A card container"),
+      "properties": .object([
+        "component": .object(["const": .string("Card")]),
+        "child": .object(["type": .string("string")]),
+      ]),
+      "required": .array([.string("component")]),
+      "allowedParents": .array([.string("Column"), .string("Row")]),
+      "allowedChildren": .array([.string("Text")]),
+      "metadata": .object(["category": .string("layout"), "icon": .string("card")]),
+    ])
+    #expect(card == expectedCard)
   }
 
   // MARK: - RPC DataContext, Outbound Transport & Lifecycle
