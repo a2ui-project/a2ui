@@ -1,5 +1,5 @@
 ---
-title: 'A2UI over MCP'
+title: 'Serve A2UI Layouts from an MCP Server'
 description: 'Serve reusable A2UI layout templates and per-call data updates from a Model Context Protocol (MCP) server.'
 ---
 
@@ -13,8 +13,8 @@ Instead of repeating the component tree on every tool invocation, the server sen
 
 <Aside type="tip" title="Connecting a client or embedding HTML widgets?">
   To configure `@a2ui/catalog-mcp` and invoke MCP tools from Lit, React, or Angular surfaces, see
-  the [MCP Catalog](../mcp-catalog/) guide. If your MCP server ships a sandboxed HTML widget
-  (`ui://`, `text/html;profile=mcp-app`) rather than A2UI JSON messages, see [MCP Apps in A2UI
+  [Call MCP Tools from A2UI](../mcp-catalog/). If your MCP server ships a sandboxed HTML widget
+  (`ui://`, `text/html;profile=mcp-app`) rather than A2UI JSON messages, see [Embed MCP Apps in A2UI
   Surfaces](../mcp-apps-in-a2ui/).
 </Aside>
 
@@ -577,11 +577,11 @@ An interactive A2UI component (such as a **Get Recipe** button on another surfac
   </TabItem>
 </Tabs>
 
-When `callMcpTool` executes, it reads `_meta.ui.resourceUri`, fetches and caches `a2ui://recipe-card` on first use (skipping `createSurface` if `recipe-card` is already active), and forwards the inline `updateDataModel` messages to `processor`. For Lit, React, and Angular setup details, see the [MCP Catalog](../mcp-catalog/) guide.
+When `callMcpTool` executes, it reads `_meta.ui.resourceUri`, fetches and caches `a2ui://recipe-card` on first use (skipping `createSurface` if `recipe-card` is already active), and forwards the inline `updateDataModel` messages to `processor`. For Lit, React, and Angular setup details, see [Call MCP Tools from A2UI](../mcp-catalog/).
 
 ---
 
-## Advanced topics
+## Production server practices
 
 ### Validate server payloads with the Agent SDK
 
@@ -626,6 +626,59 @@ validatePayload([BasicCatalog.v1_0()], a2uiPayload);
 </Tabs>
 
 For prompt generation, streaming parsers, and stateful validation across turns with `RendererState`, see [How to Integrate with My Agent Server](../agent-integration/).
+
+### Control LLM context visibility
+
+When an LLM host orchestrates your MCP tool calls, attach MCP resource `annotations` (`audience`) to the `EmbeddedResource` to control whether the raw A2UI JSON enters the model's conversation context on subsequent turns:
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="TypeScript">
+
+```typescript
+const uiResource = {
+  type: 'resource' as const,
+  resource: {
+    uri: 'a2ui://recipe-card/data',
+    mimeType: 'application/a2ui+json',
+    text: JSON.stringify(dataModelUpdate),
+  },
+  // Render for the user while keeping raw A2UI JSON out of the LLM context window.
+  annotations: {
+    audience: ['user' as const],
+  },
+};
+```
+
+  </TabItem>
+  <TabItem label="Python">
+
+```python
+ui_resource = types.EmbeddedResource(
+    type="resource",
+    resource=types.TextResourceContents(
+        uri="a2ui://recipe-card/data",
+        mimeType="application/a2ui+json",
+        text=json.dumps(data_model_update),
+    ),
+    # Render for the user while keeping raw A2UI JSON out of the LLM context window.
+    annotations=types.Annotations(audience=["user"]),
+)
+```
+
+  </TabItem>
+</Tabs>
+
+| `audience` value | Behavior                                                                   |
+| ---------------- | -------------------------------------------------------------------------- |
+| _(omitted)_      | Visible to both the user's renderer and the LLM.                           |
+| `["user"]`       | Rendered for the user and excluded from the LLM context window.            |
+| `["assistant"]`  | Passed to the LLM for follow-up reasoning without rendering on the client. |
+
+---
+
+## Full bidirectional A2UI transport over MCP
+
+In Steps 1 to 3 above, UI buttons invoke domain MCP tools (`get_recipe_a2ui`) directly through `callMcpTool`. When an application instead uses MCP as its sole agent-to-renderer transport (without a separate A2A or AG-UI channel), the client also advertises its supported catalogs to the server and forwards generic `action.event` and `surface.onError` payloads through dedicated MCP tools.
 
 ### Negotiate supported catalogs
 
@@ -916,58 +969,11 @@ Subscribe to `surface.onError` on the client and forward validation or expressio
 }
 ```
 
-### Control LLM context visibility
-
-When an LLM host orchestrates your MCP tool calls, attach MCP resource `annotations` (`audience`) to the `EmbeddedResource` to control whether the raw A2UI JSON enters the model's conversation context on subsequent turns:
-
-<Tabs syncKey="sdk-lang">
-  <TabItem label="TypeScript">
-
-```typescript
-const uiResource = {
-  type: 'resource' as const,
-  resource: {
-    uri: 'a2ui://recipe-card/data',
-    mimeType: 'application/a2ui+json',
-    text: JSON.stringify(dataModelUpdate),
-  },
-  // Render for the user while keeping raw A2UI JSON out of the LLM context window.
-  annotations: {
-    audience: ['user' as const],
-  },
-};
-```
-
-  </TabItem>
-  <TabItem label="Python">
-
-```python
-ui_resource = types.EmbeddedResource(
-    type="resource",
-    resource=types.TextResourceContents(
-        uri="a2ui://recipe-card/data",
-        mimeType="application/a2ui+json",
-        text=json.dumps(data_model_update),
-    ),
-    # Render for the user while keeping raw A2UI JSON out of the LLM context window.
-    annotations=types.Annotations(audience=["user"]),
-)
-```
-
-  </TabItem>
-</Tabs>
-
-| `audience` value | Behavior                                                                   |
-| ---------------- | -------------------------------------------------------------------------- |
-| _(omitted)_      | Visible to both the user's renderer and the LLM.                           |
-| `["user"]`       | Rendered for the user and excluded from the LLM context window.            |
-| `["assistant"]`  | Passed to the LLM for follow-up reasoning without rendering on the client. |
-
 ---
 
 ## Next steps
 
-1. Configure `@a2ui/catalog-mcp`, `callMcpTool`, and client-side data functions (`transformData`, `split`, `regexCapture`) in the [MCP Catalog](../mcp-catalog/) guide.
-2. Embed sandboxed HTML MCP Apps (`ui://`) inside A2UI surfaces in [MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/).
-3. Render A2UI surfaces inside a standalone MCP App iframe in [A2UI Dynamic Rendering within MCP Applications](../a2ui-in-mcp-apps/).
+1. Configure `@a2ui/catalog-mcp`, `callMcpTool`, and client-side data functions (`transformData`, `split`, `regexCapture`) in [Call MCP Tools from A2UI](../mcp-catalog/).
+2. Embed sandboxed HTML MCP Apps (`ui://`) inside A2UI surfaces in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/).
+3. Render A2UI surfaces inside a standalone MCP App iframe in [Render A2UI Inside an MCP App](../a2ui-in-mcp-apps/).
 4. Explore runnable MCP servers and clients in [`samples/community/mcp/`](https://github.com/a2ui-project/a2ui/tree/main/samples/community/mcp).

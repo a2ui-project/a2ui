@@ -153,20 +153,25 @@ export default defineConfig({
               slug: 'guides/defining-a-catalog',
             },
             {
-              label: 'MCP Catalog',
-              slug: 'guides/mcp-catalog',
-            },
-            {
-              label: 'A2UI over MCP',
-              slug: 'guides/a2ui-over-mcp',
-            },
-            {
-              label: 'MCP Apps in A2UI Surfaces',
-              slug: 'guides/mcp-apps-in-a2ui',
-            },
-            {
-              label: 'A2UI Dynamic Rendering within MCP Applications',
-              slug: 'guides/a2ui-in-mcp-apps',
+              label: 'Model Context Protocol (MCP)',
+              items: [
+                {
+                  label: 'Call MCP Tools from A2UI',
+                  slug: 'guides/mcp-catalog',
+                },
+                {
+                  label: 'Serve A2UI Layouts from an MCP Server',
+                  slug: 'guides/a2ui-over-mcp',
+                },
+                {
+                  label: 'Embed MCP Apps in A2UI Surfaces',
+                  slug: 'guides/mcp-apps-in-a2ui',
+                },
+                {
+                  label: 'Render A2UI Inside an MCP App',
+                  slug: 'guides/a2ui-in-mcp-apps',
+                },
+              ],
             },
             {
               label: 'Authoring Universal Web Components',

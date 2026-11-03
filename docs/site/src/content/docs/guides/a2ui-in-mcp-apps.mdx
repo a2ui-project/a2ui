@@ -1,5 +1,5 @@
 ---
-title: 'A2UI Dynamic Rendering within MCP Applications'
+title: 'Render A2UI Inside an MCP App'
 description: 'Bundle an A2UI renderer inside an MCP App ui:// resource so existing MCP hosts can display interactive A2UI surfaces without native host code.'
 ---
 
@@ -14,9 +14,10 @@ Instead of requiring every MCP client (such as Claude Desktop, the MCP Inspector
 <Aside type="tip" title="Choosing an MCP integration pattern">
   Use this pattern when the outer host supports MCP Apps (`ui://` HTML iframes) rather than A2UI
   natively. For the inverse architecture (embedding third-party MCP App widgets inside your own A2UI
-  host), see [MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/). If both the host and server support
-  A2UI natively and you want to serve reusable A2UI layout templates over MCP without an iframe, see
-  [A2UI over MCP](../a2ui-over-mcp/) and the [MCP Catalog](../mcp-catalog/) guide.
+  host), see [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/). If both the host and server
+  support A2UI natively and you want to serve reusable A2UI layout templates over MCP without an
+  iframe, see [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/) and [Call MCP Tools from
+  A2UI](../mcp-catalog/).
 </Aside>
 
 <img
@@ -846,7 +847,7 @@ validatePayload([BasicCatalog.v1_0()], a2uiPayload);
 
 ## Next steps
 
-1. Explore the inverse pattern (embedding `ui://` MCP App widgets inside a native A2UI host with `McpApp`) in [MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/).
-2. Serve cached `a2ui://` layout templates and `updateDataModel` tool results to native A2UI hosts in [A2UI over MCP](../a2ui-over-mcp/).
-3. Connect web surfaces directly to MCP tools with `@a2ui/catalog-mcp` and `callMcpTool` in the [MCP Catalog](../mcp-catalog/) guide.
+1. Explore the inverse pattern (embedding `ui://` MCP App widgets inside a native A2UI host with `McpApp`) in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/).
+2. Serve cached `a2ui://` layout templates and `updateDataModel` tool results to native A2UI hosts in [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
+3. Connect web surfaces directly to MCP tools with `@a2ui/catalog-mcp` and `callMcpTool` in [Call MCP Tools from A2UI](../mcp-catalog/).
 4. Package custom web components into your embedded renderer bundle in [How to Define a Catalog](../defining-a-catalog/) and [Authoring Universal Web Components](../authoring-universal-components/).
