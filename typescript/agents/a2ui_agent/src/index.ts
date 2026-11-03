@@ -80,6 +80,11 @@ export {
 
 export {CatalogConfig} from './processor/catalog-config.js';
 
+export {
+  A2UI_CLIENT_CAPABILITIES_KEY,
+  A2UI_RENDERER_CAPABILITIES_KEY,
+  readRendererCapabilities,
+} from './utils/renderer-capabilities.js';
 export {resolveCatalogs} from './utils/catalog-resolver.js';
 
 // Renderer state and payload validation

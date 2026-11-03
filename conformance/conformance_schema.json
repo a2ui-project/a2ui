@@ -15,6 +15,7 @@
       {"$ref": "#/$defs/TransformCatalogTest"},
       {"$ref": "#/$defs/ProvideCatalogTest"},
       {"$ref": "#/$defs/ResolveCatalogsTest"},
+      {"$ref": "#/$defs/ReadRendererCapabilitiesTest"},
       {"$ref": "#/$defs/GeneratePromptSnippetTest"},
       {"$ref": "#/$defs/HasFormatContentTest"},
       {"$ref": "#/$defs/UnwrapTest"},
@@ -85,6 +86,7 @@
             "process_messages",
             "provide_catalog",
             "prune",
+            "read_renderer_capabilities",
             "render",
             "resolve_catalogs",
             "resolve_path",
@@ -1403,6 +1405,31 @@
             }
           },
           "additionalProperties": false
+        },
+        "expect_error": {"$ref": "#/$defs/ExpectError"}
+      },
+      "required": ["action", "args"]
+    },
+    "ReadRendererCapabilitiesTest": {
+      "type": "object",
+      "description": "Reading and validating renderer capabilities for a protocol version from transport message metadata.",
+      "properties": {
+        "action": {"const": "read_renderer_capabilities"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "version": {"type": "string"},
+            "metadata": {
+              "type": ["object", "null"],
+              "description": "The transport message metadata mapping, or null when absent."
+            }
+          },
+          "required": ["version"],
+          "additionalProperties": false
+        },
+        "expect": {
+          "type": ["object", "null"],
+          "description": "The validated renderer capabilities keyed by protocol version, or null when the version's metadata key is absent."
         },
         "expect_error": {"$ref": "#/$defs/ExpectError"}
       },

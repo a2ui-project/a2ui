@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Add `readRendererCapabilities` (along with `A2UI_CLIENT_CAPABILITIES_KEY` and `A2UI_RENDERER_CAPABILITIES_KEY`) to read and validate protocol-versioned renderer capabilities from transport message metadata.
+
 ## 0.1.0
 
 - **BREAKING CHANGE**: Remove duplicate and non-idiomatic APIs across `@a2ui/agent` ([#3592](https://github.com/a2ui-project/a2ui/issues/3592), [#3758](https://github.com/a2ui-project/a2ui/pull/3758)):
