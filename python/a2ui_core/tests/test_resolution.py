@@ -765,9 +765,9 @@ def test_data_context_v10_coerces_validation_result_in_optional_list():
     }
 
 
-def test_data_context_v09_leaves_valid_objects_alone():
-    """Before v1.0 the validators return booleans, so an object carrying a
-    ``valid`` key is an ordinary data-model object."""
+def test_data_context_v09_coerces_valid_objects_in_dynamic_boolean():
+    """In v0.9 as in v1.0, a ``ValidationResult`` object resolved into a
+    ``DynamicBoolean`` argument is coerced by its ``valid`` boolean."""
     catalog = v0_9.BasicCatalog()
     surface = SurfaceModel(
         "s1", catalog, data_model=DataModel({"flag": {"valid": False}})
@@ -776,8 +776,67 @@ def test_data_context_v09_leaves_valid_objects_alone():
 
     assert (
         ctx.resolve_dynamic_value({"call": "not", "args": {"value": {"path": "/flag"}}})
-        is False
+        is True
     )
+
+
+def test_dynamic_boolean_coercion_table_for_properties_and_arguments():
+    """Verifies ``coerce_dynamic_boolean`` across every row of the coercion
+    table for both component property resolution and function arguments."""
+    from a2ui.core.basic_catalog import v1_0
+    from a2ui.core.resolution.validation_result_coercion import coerce_dynamic_boolean
+
+    cases: list[tuple[Any, bool]] = [
+        (True, True),
+        (False, False),
+        ({"valid": True}, True),
+        ({"valid": False, "message": "Invalid"}, False),
+        ("true", True),
+        ("True", True),
+        ("TRUE", True),
+        ("false", False),
+        ("FALSE", False),
+        ("hello", False),
+        ("", False),
+        ("1", False),
+        (1, True),
+        (-2, True),
+        (0.5, True),
+        (0, False),
+        (0.0, False),
+        (float("nan"), False),
+        (None, False),
+        ({}, False),
+        ({"other": 1}, False),
+        ({"valid": "yes"}, False),
+        ([], False),
+        ([True], False),
+    ]
+
+    for raw, expected in cases:
+        assert coerce_dynamic_boolean(raw) is expected, f"Failed for {raw!r}"
+
+    catalog = v1_0.BasicCatalog()
+    surface = SurfaceModel("s1", catalog, data_model=DataModel({"flag": True}))
+    comp = ComponentModel(
+        "c1",
+        "CheckBox",
+        catalog,
+        {"label": "Flag", "value": {"@path": "/flag"}},
+    )
+    surface.components_model.add_component(comp)
+    comp_ctx = ComponentContext.from_surface(surface, "c1")
+    binder = GenericBinder(comp_ctx)
+    ctx = DataContext(surface, path="/")
+
+    for raw, expected in cases:
+        if isinstance(raw, float) and raw != raw:
+            continue
+        surface.data_model.set("/flag", raw)
+        assert binder.snapshot["value"] is expected, f"Property failed for {raw!r}"
+        assert ctx.resolve_dynamic_value(
+            {"@call": "not", "args": {"value": {"@path": "/flag"}}}
+        ) is (not expected), f"Argument failed for {raw!r}"
 
 
 def test_data_context_validates_arguments_as_written():

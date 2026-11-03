@@ -163,7 +163,7 @@ public final class DataContext {
 
     var resolvedArgs: [String: JSONValue] = [:]
     let argPropsSchema: OrderedDictionary<String, JSONValue>? =
-      atLeastV10 ? function.api.schema.jsonValue["properties"]?.objectValue : nil
+      function.api.schema.jsonValue["properties"]?.objectValue
     if let argsObj = dict["args"]?.dictionaryValue {
       for (argKey, argVal) in argsObj {
         let resolvedVal = resolveDynamicValue(argVal)
@@ -202,10 +202,7 @@ public final class DataContext {
 
   private static func coerceValidationResults(schema: JSONValue, value: JSONValue) -> JSONValue {
     if isDynamicBooleanSchema(schema) {
-      if let members = value.objectValue, let valid = members["valid"]?.boolValue {
-        return .boolean(valid)
-      }
-      return value
+      return .boolean(value.coercedDynamicBoolean)
     }
     if let itemsSchema = schema["items"], let arr = value.arrayValue {
       return .array(arr.map { coerceValidationResults(schema: itemsSchema, value: $0) })

@@ -9,6 +9,12 @@
 - (v1_0) The basic catalog `regex` function's `pattern` description now names
   the A2UI regex dialect and its safety limits
   ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
+- `DynamicBoolean` properties and function arguments now coerce any resolved
+  value to a boolean according to the protocol specification: booleans are kept
+  as is, `ValidationResult` objects coerce to `valid`, strings coerce to `True`
+  only when case-insensitively equal to `"true"` (and `False` for `"false"` and
+  all other strings), numbers coerce to `value != 0` (`NaN` is `False`), and
+  `None`, absent values, other objects, and arrays coerce to `False`.
 - **BREAKING CHANGE**: `DataContext` refuses a function whose `allowed_callers`
   is `agentOnly`, before running it, so a binding, check or function call
   action that calls one reports an `EXPRESSION_ERROR` instead of running it, as

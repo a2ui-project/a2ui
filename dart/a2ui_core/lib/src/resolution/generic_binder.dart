@@ -40,8 +40,14 @@ class BehaviorNode {
   final Behavior type;
   final Map<String, BehaviorNode>? shape;
   final BehaviorNode? element;
+  final bool isBoolean;
 
-  BehaviorNode(this.type, {this.shape, this.element});
+  BehaviorNode(
+    this.type, {
+    this.shape,
+    this.element,
+    this.isBoolean = false,
+  });
 }
 
 /// An unresolved child reference and the data scope it would render against.
@@ -188,7 +194,8 @@ class GenericBinder {
     Map<String, dynamic>? parentResult,
   }) {
     if (_disposed) return null;
-    if (value == null) {
+    if (value == null &&
+        !(behavior.type == Behavior.dynamic && behavior.isBoolean)) {
       return behavior.type == Behavior.dynamic
           ? const ResolvedBinding<Object?>(null)
           : null;
@@ -210,7 +217,9 @@ class GenericBinder {
             ? (value[atLeastV10 ? '@path' : 'path'] as String)
             : null;
         ResolvedBinding<Object?> wrap(Object? current) {
-          final Object? snapshot = _snapshotBindingValue(current);
+          final Object? coerced =
+              behavior.isBoolean ? coerceDynamicBoolean(current) : current;
+          final Object? snapshot = _snapshotBindingValue(coerced);
           return boundPath == null
               ? ResolvedBinding<Object?>(snapshot)
               : WritableBinding<Object?>(
@@ -559,11 +568,13 @@ class GenericBinder {
     if (_schemaReader.referencesType(schemasToInspect, 'Action')) {
       return BehaviorNode(Behavior.action);
     }
+    if (_schemaReader.referencesType(schemasToInspect, 'DynamicBoolean')) {
+      return BehaviorNode(Behavior.dynamic, isBoolean: true);
+    }
     if (const [
       'DynamicValue',
       'DynamicString',
       'DynamicNumber',
-      'DynamicBoolean',
       'DynamicStringList',
     ].any((type) => _schemaReader.referencesType(schemasToInspect, type))) {
       return BehaviorNode(Behavior.dynamic);
@@ -589,7 +600,11 @@ class GenericBinder {
               : (s['properties'] as Map)['path'] != null) &&
           (s['properties'] as Map)['componentId'] == null,
     );
-    if (hasPath) return BehaviorNode(Behavior.dynamic);
+    if (hasPath) {
+      final bool hasBoolBranch =
+          schemasToInspect.any((s) => s['type'] == 'boolean');
+      return BehaviorNode(Behavior.dynamic, isBoolean: hasBoolBranch);
+    }
 
     final Map<String, Object?> allProperties = _schemaReader.properties(
       schemasToInspect,
