@@ -585,7 +585,11 @@ public final class MessageProcessor: ObservableObject {
     do {
       let adapter = try adapterFactory.resolveFromPayload(payload)
       envelopeVersion = adapter.version
-      operations = try adapter.extractOperations(from: payload)
+      let effectivePayload =
+        (adapter.version == .v10 && validationConfig.allowUnknownElements)
+        ? Self.strippingV10CreateSurfaceTheme(from: payload)
+        : payload
+      operations = try adapter.extractOperations(from: effectivePayload)
     } catch {
       let rawContext = extractRawEnvelopeContext(from: payload, error: error)
       let surfaceID = extractSurfaceID(from: error, fallback: rawContext.surfaceID ?? "")
@@ -634,6 +638,27 @@ public final class MessageProcessor: ObservableObject {
     var surfaceID: String?
     var functionCallID: String?
     var isCallRendererFunction: Bool = false
+  }
+
+  private static func strippingV10CreateSurfaceTheme(from payload: JSONValue) -> JSONValue {
+    switch payload {
+    case .array(let items):
+      return .array(items.map(strippingV10CreateSurfaceTheme(from:)))
+    case .object(var dict):
+      if let messages = dict["messages"]?.arrayValue {
+        dict["messages"] = .array(messages.map(strippingV10CreateSurfaceTheme(from:)))
+        return .object(dict)
+      }
+      if var createSurface = dict["createSurface"]?.objectValue,
+        createSurface["theme"] != nil
+      {
+        createSurface.removeValue(forKey: "theme")
+        dict["createSurface"] = .object(createSurface)
+      }
+      return .object(dict)
+    default:
+      return payload
+    }
   }
 
   private func extractRawEnvelopeContext(

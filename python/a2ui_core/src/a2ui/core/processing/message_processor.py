@@ -219,6 +219,27 @@ class MessageProcessor:
         if self.error_handler:
             self.model.on_error.subscribe(self.error_handler)
 
+    def _strip_v10_create_surface_theme(self, payload: Any) -> Any:
+        """Drops theme from v1.0 createSurface envelopes when validation allows unknown elements."""
+        if isinstance(payload, list):
+            return [self._strip_v10_create_surface_theme(item) for item in payload]
+        if isinstance(payload, dict):
+            if "messages" in payload and isinstance(payload["messages"], list):
+                return {
+                    **payload,
+                    "messages": [
+                        self._strip_v10_create_surface_theme(item)
+                        for item in payload["messages"]
+                    ],
+                }
+            cs = payload.get("createSurface")
+            if isinstance(cs, dict) and "theme" in cs:
+                return {
+                    **payload,
+                    "createSurface": {k: v for k, v in cs.items() if k != "theme"},
+                }
+        return payload
+
     def _extract_operations(
         self, messages: AgentToRendererMessagePayload
     ) -> list[InternalOperation]:
@@ -226,7 +247,13 @@ class MessageProcessor:
         if isinstance(messages, InternalOperation):
             return [messages]
         adapter = VersionAdapterFactory.resolve_from_payload(messages)
-        return adapter.extract_operations(messages)
+        effective_messages: Any = messages
+        if adapter.version == ProtocolVersion.V1_0 and (
+            self.validation_config is None
+            or self.validation_config.allow_unknown_elements
+        ):
+            effective_messages = self._strip_v10_create_surface_theme(messages)
+        return adapter.extract_operations(effective_messages)
 
     def _handle_processing_error(
         self, err: A2uiError, raw_messages: Any

@@ -724,7 +724,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         throw err;
       }
     }
-    const itemOps = adapter.extractOperations(item);
+    const effectiveItem =
+      adapter.version === '1.0' &&
+      (!this.validationConfig || this.validationConfig.allowUnknownElements)
+        ? this.stripV10CreateSurfaceTheme(item)
+        : item;
+    const itemOps = adapter.extractOperations(effectiveItem);
     const itemVer = envelopeContext.version;
     for (const op of itemOps) {
       if (itemVer && toCanonicalVersion(itemVer)) {
@@ -735,6 +740,37 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       (op as {envelopeContext?: ErrorEnvelopeContext}).envelopeContext = envelopeContext;
     }
     return itemOps;
+  }
+
+  private stripV10CreateSurfaceTheme(payload: unknown): unknown {
+    if (Array.isArray(payload)) {
+      return payload.map(item => this.stripV10CreateSurfaceTheme(item));
+    }
+    if (typeof payload !== 'object' || payload === null) {
+      return payload;
+    }
+    const msgObj = payload as Record<string, unknown>;
+    if (Array.isArray(msgObj.messages)) {
+      return {
+        ...msgObj,
+        messages: msgObj.messages.map(item => this.stripV10CreateSurfaceTheme(item)),
+      };
+    }
+    if (
+      typeof msgObj.version === 'string' &&
+      toCanonicalVersion(msgObj.version) === '1.0' &&
+      typeof msgObj.createSurface === 'object' &&
+      msgObj.createSurface !== null &&
+      !Array.isArray(msgObj.createSurface) &&
+      'theme' in msgObj.createSurface
+    ) {
+      const {theme: _ignoredTheme, ...csWithoutTheme} = msgObj.createSurface as Record<
+        string,
+        unknown
+      >;
+      return {...msgObj, createSurface: csWithoutTheme};
+    }
+    return payload;
   }
 
   /**

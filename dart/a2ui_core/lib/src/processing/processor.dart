@@ -701,9 +701,15 @@ class MessageProcessor<T extends ComponentApi> {
       case final Map<Object?, Object?> envelope
           when envelope.keys.every((key) => key is String):
         final Map<String, Object?> json = envelope.cast<String, Object?>();
+        final VersionAdapter adapter = adapterRegistry.resolve(json);
+        final Map<String, Object?> adaptedJson =
+            (adapter.version == A2uiProtocolVersion.v1_0 &&
+                    (_config == null || _config!.allowUnknownElements))
+                ? _stripV10CreateSurfaceTheme(json)
+                : json;
         return (
-          json: json,
-          operations: adapterRegistry.resolve(json).toOperations(json),
+          json: adaptedJson,
+          operations: adapter.toOperations(adaptedJson),
         );
       default:
         throw A2uiValidationError(
@@ -711,6 +717,21 @@ class MessageProcessor<T extends ComponentApi> {
           'got ${item.runtimeType}.',
         );
     }
+  }
+
+  Map<String, Object?> _stripV10CreateSurfaceTheme(Map<String, Object?> json) {
+    final Object? createSurface = json['createSurface'];
+    if (createSurface is Map && createSurface.containsKey('theme')) {
+      return <String, Object?>{
+        ...json,
+        'createSurface': <String, Object?>{
+          for (final MapEntry<Object?, Object?> entry in createSurface.entries)
+            if (entry.key is String && entry.key != 'theme')
+              entry.key as String: entry.value,
+        },
+      };
+    }
+    return json;
   }
 
   /// Applies [message]'s operations in order and returns, for each, the

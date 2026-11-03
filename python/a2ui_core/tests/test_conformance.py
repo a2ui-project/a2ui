@@ -1080,7 +1080,8 @@ def _assert_expected_surface_state(
                 continue
             assert surface is not None
             if "theme" in s_exp:
-                assert surface.theme == s_exp["theme"]
+                expected_theme = {} if s_exp["theme"] is None else s_exp["theme"]
+                assert surface.theme == expected_theme
             if "metadata" in s_exp:
                 assert surface.metadata == s_exp["metadata"]
             if "sendDataModel" in s_exp:

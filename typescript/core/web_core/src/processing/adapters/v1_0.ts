@@ -82,7 +82,6 @@ export class V1Point0Adapter extends BaseVersionAdapter {
         type: 'createSurface',
         surfaceId: String(cs?.surfaceId || ''),
         catalogId: typeof cs?.catalogId === 'string' ? cs.catalogId : undefined,
-        theme: cs?.theme,
         sendDataModel: Boolean(cs?.sendDataModel),
         components: Array.isArray(cs?.components)
           ? (cs.components as InternalComponentPayload[])
