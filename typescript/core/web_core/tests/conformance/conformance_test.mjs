@@ -40,14 +40,7 @@ import {
 import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
 import {SUPPORTED_PROTOCOL_VERSIONS} from '../../dist/src/processing/adapters/base.js';
 import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/message-processor.js';
-import {
-  effect,
-  getValue,
-  isSignal,
-  peekValue,
-  setValue,
-  signal,
-} from '../../dist/src/reactivity/signals.js';
+import {effect, getValue, isSignal, peekValue} from '../../dist/src/reactivity/signals.js';
 import {DataContext} from '../../dist/src/resolution/data-context.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
