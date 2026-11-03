@@ -1,4 +1,4 @@
-// Copyright 2026 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 import A2UICore
 import A2UISwiftUI
 
@@ -22,6 +21,7 @@ extension Node {
   /// `ComponentNodeView` renders `EmptyView()` for the others (`Surface.render` returns `nil`
   /// when no catalog has the type). Stacks leave them out so that they take no spacing or
   /// `Spacer` slot.
+  @MainActor
   func renderedChildren(
     for key: String,
     in catalogs: [String: Catalog<ComponentImplementation>]
