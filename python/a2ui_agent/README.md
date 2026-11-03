@@ -85,8 +85,9 @@ The following directories contain the base protocol logic, parsing, and schema o
 ### Messages from the renderer (`src/a2ui/rpc`)
 
 - **`processor.py`**: `RendererToAgentMessageProcessor` processes the messages a renderer sends to the agent. It answers `callAgentFunction` by running the agent functions of the agent's catalogs, and passes `action`, `error` and `rendererFunctionResponse` to optional callbacks.
+- **`renderer_function_calls.py`**: `RendererFunctionCalls` builds `callRendererFunction` messages for one conversation and settles their futures when the `rendererFunctionResponse` arrives. Its `resolve` method is the processor's `on_renderer_function_response` callback.
 
-See [Agent Functions](agent_development.md#5-agent-functions) for how to use it.
+See [Agent Functions](agent_development.md#5-agent-functions) for how to use them.
 
 ## Agent framework integrations
 

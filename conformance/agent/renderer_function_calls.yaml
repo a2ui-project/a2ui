@@ -1,0 +1,255 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The agent's calls to renderer functions with `callRendererFunction` (v1.0):
+# building the message, settling calls with the renderer's responses,
+# timeouts, disposal and the limit on pending calls. Renderer calls run on a
+# fake clock that only an `advance_ms` step moves, so no case waits on real
+# time.
+
+# --- Calling renderer functions ---
+
+- name: test_call_renderer_function_builds_the_message_without_waiting
+  description: >-
+    A call returns its callRendererFunction message at once, with a generated functionCallId and the catalogId the message requires, and stays pending until the renderer answers.
+  action: call_renderer_function
+  steps:
+    - call:
+        label: a
+        catalogId: conformance/agent_functions
+        name: notify
+        args: {message: Saved}
+        surfaceId: s1
+      expect_message:
+        version: "1.0"
+        callRendererFunction:
+          surfaceId: s1
+          callFunction:
+            "@call": notify
+            catalogId: conformance/agent_functions
+            args: {message: Saved}
+      expect_calls:
+        a: pending
+      expect_pending_count: 1
+
+- name: test_call_renderer_function_without_surface_or_args
+  description: >-
+    A call made without a surface leaves surfaceId out of the message, and one made without arguments sends empty args.
+  action: call_renderer_function
+  steps:
+    - call:
+        label: a
+        catalogId: conformance/agent_functions
+        name: now
+      expect_message:
+        version: "1.0"
+        callRendererFunction:
+          callFunction:
+            "@call": now
+            catalogId: conformance/agent_functions
+            args: {}
+      expect_calls:
+        a: pending
+
+- name: test_call_renderer_function_with_an_empty_surface_id
+  description: >-
+    An empty surfaceId counts as no surface: it is left out of the message, which a renderer would otherwise reject.
+  action: call_renderer_function
+  steps:
+    - call:
+        label: a
+        catalogId: conformance/agent_functions
+        name: now
+        surfaceId: ""
+      expect_message:
+        version: "1.0"
+        callRendererFunction:
+          callFunction:
+            "@call": now
+            catalogId: conformance/agent_functions
+            args: {}
+      expect_calls:
+        a: pending
+
+- name: test_call_renderer_function_with_an_empty_name
+  description: >-
+    A call needs a function name: an empty one fails with INVALID_FUNCTION_CALL before anything is registered.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: ""}
+      expect_error: {code: INVALID_FUNCTION_CALL}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_settled_by_its_response
+  description: >-
+    A rendererFunctionResponse settles the call whose functionCallId it copies with its value, and leaves the other calls pending.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
+    - call: {label: b, catalogId: conformance/agent_functions, name: getTimezone}
+      expect_pending_count: 2
+    - respond: {call: b, value: Europe/Paris}
+      expect_calls:
+        a: pending
+        b: {value: Europe/Paris}
+      expect_pending_count: 1
+    - respond: {call: a, value: {language: fr, region: FR}}
+      expect_calls:
+        a: {value: {language: fr, region: FR}}
+        b: {value: Europe/Paris}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_settled_with_a_null_value
+  description: A response whose value is null settles the call with null.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getSelection}
+    - respond: {call: a, value: null}
+      expect_calls:
+        a: {value: null}
+
+- name: test_call_renderer_function_failed_by_an_error_response
+  description: A response that carries an error fails the call with the renderer's code.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocation}
+    - respond:
+        call: a
+        error: {code: PERMISSION_DENIED, message: "The user declined."}
+      expect_calls:
+        a: {error: {code: PERMISSION_DENIED, message: "The user declined."}}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_ignores_an_unknown_response
+  description: >-
+    A response whose functionCallId matches no call comes from the network, so it is ignored without failing, and the pending calls stay pending.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
+    - respond: {functionCallId: never-sent, value: en}
+      expect_calls:
+        a: pending
+      expect_pending_count: 1
+
+- name: test_call_renderer_function_ignores_a_duplicate_response
+  description: A second response to a settled call is ignored, and the call keeps the first value.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
+    - respond: {call: a, value: en}
+    - respond: {call: a, value: fr}
+      expect_calls:
+        a: {value: en}
+
+- name: test_call_renderer_function_times_out_after_thirty_seconds_by_default
+  description: >-
+    A call waits 30 seconds for its response by default, the same as the renderer waits for the agent, then fails with TIMEOUT and stops being pending.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
+    - advance_ms: 29999
+      expect_calls:
+        a: pending
+    - advance_ms: 1
+      expect_calls:
+        a: {error: {code: TIMEOUT}}
+      expect_pending_count: 0
+
+- name: test_call_renderer_function_ignores_a_late_response
+  description: A response that arrives after its call timed out is ignored, and the call stays failed.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale, timeout_ms: 100}
+    - advance_ms: 100
+      expect_calls:
+        a: {error: {code: TIMEOUT}}
+    - respond: {call: a, value: en}
+      expect_calls:
+        a: {error: {code: TIMEOUT}}
+
+- name: test_call_renderer_function_with_its_own_timeout
+  description: A timeout given to one call replaces the default for that call only.
+  action: call_renderer_function
+  steps:
+    - call: {label: short, catalogId: conformance/agent_functions, name: getLocale, timeout_ms: 500}
+    - call: {label: default, catalogId: conformance/agent_functions, name: getTimezone}
+    - advance_ms: 500
+      expect_calls:
+        short: {error: {code: TIMEOUT}}
+        default: pending
+
+- name: test_call_renderer_function_with_a_default_timeout
+  description: A default timeout given when the calls are set up applies to every call that sets none of its own.
+  action: call_renderer_function
+  args:
+    default_timeout_ms: 2000
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
+    - advance_ms: 1999
+      expect_calls:
+        a: pending
+    - advance_ms: 1
+      expect_calls:
+        a: {error: {code: TIMEOUT}}
+
+- name: test_call_renderer_function_settled_before_its_timeout
+  description: A call that is answered in time does not time out later.
+  action: call_renderer_function
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale, timeout_ms: 1000}
+    - advance_ms: 400
+    - respond: {call: a, value: en}
+    - advance_ms: 1000
+      expect_calls:
+        a: {value: en}
+
+- name: test_call_renderer_function_dispose_fails_pending_calls
+  description: >-
+    Disposing the calls fails every pending call with CANCELLED and the reason given, leaves settled calls alone, refuses later calls with DISPOSED, and ignores later responses.
+  action: call_renderer_function
+  steps:
+    - call: {label: done, catalogId: conformance/agent_functions, name: getLocale}
+    - call: {label: a, catalogId: conformance/agent_functions, name: getTimezone}
+    - call: {label: b, catalogId: conformance/agent_functions, name: getLocation}
+    - respond: {call: done, value: en}
+    - dispose: {reason: "the session ended"}
+      expect_calls:
+        done: {value: en}
+        a: {error: {code: CANCELLED, message: "the session ended"}}
+        b: {error: {code: CANCELLED, message: "the session ended"}}
+      expect_pending_count: 0
+    - respond: {call: a, value: Europe/Paris}
+      expect_calls:
+        a: {error: {code: CANCELLED}}
+    - call: {label: c, catalogId: conformance/agent_functions, name: getLocale}
+      expect_error: {code: DISPOSED}
+
+- name: test_call_renderer_function_limits_pending_calls
+  description: >-
+    With a limit on pending calls, a call beyond it fails with TOO_MANY_PENDING instead of piling up, and settling a call makes room for another.
+  action: call_renderer_function
+  args:
+    max_pending: 2
+  steps:
+    - call: {label: a, catalogId: conformance/agent_functions, name: getLocale}
+    - call: {label: b, catalogId: conformance/agent_functions, name: getTimezone}
+    - call: {label: c, catalogId: conformance/agent_functions, name: getLocation}
+      expect_error: {code: TOO_MANY_PENDING}
+      expect_pending_count: 2
+    - respond: {call: a, value: en}
+    - call: {label: d, catalogId: conformance/agent_functions, name: getLocation}
+      expect_calls:
+        b: pending
+        d: pending
+      expect_pending_count: 2

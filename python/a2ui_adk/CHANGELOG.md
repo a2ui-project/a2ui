@@ -1,5 +1,24 @@
 ## Unreleased
 
+- `a2ui_rpc_callback` takes `renderer_calls`, a provider of the session's
+  `RendererFunctionCalls` such as `A2uiRendererCallsStore.get`, and `catalogs`
+  becomes optional (pass one or both). A `rendererFunctionResponse` that
+  answers a pending call settles it through the processor's
+  `on_renderer_function_response` without running the agent; a malformed one
+  fails the call it names. A response that answers no pending call, such as
+  one to a call the model wrote, still goes to the agent. It needs the `a2a`
+  extra. [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
+- Add `a2ui_rpc_interceptor`, an `A2aAgentExecutor` interceptor that ends a
+  task `completed` when its request held only `callAgentFunction` and
+  `rendererFunctionResponse` messages and ADK would end it `working` because
+  there was nothing to send back. Other final states are left as they are. It
+  needs the `a2a` extra.
+  [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
+- Add `A2uiRendererCallsStore`, which keeps a `RendererFunctionCalls` for each
+  session. `get` returns the session's instance, creating it on first use, and
+  is the `renderer_calls` provider of `a2ui_rpc_callback`. `remove` disposes a
+  session's instance, which fails its pending calls.
+  [#3535](https://github.com/a2ui-project/a2ui/issues/3535)
 - Add `a2ui_rpc_callback`, which returns a `before_agent_callback` that
   answers the renderer's A2UI v1.0 `callAgentFunction` messages without
   running the agent. When the user content holds only such calls, it builds a

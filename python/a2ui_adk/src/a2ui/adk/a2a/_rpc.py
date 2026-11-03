@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from a2a import types as a2a_types
 from google.adk.a2a.converters import part_converter
 from google.genai import types as genai_types
 
@@ -26,6 +27,11 @@ from a2ui.a2a import get_a2ui_messages
 
 CALL_AGENT_FUNCTION = "callAgentFunction"
 AGENT_FUNCTION_RESPONSE = "agentFunctionResponse"
+RENDERER_FUNCTION_RESPONSE = "rendererFunctionResponse"
+
+# The renderer's messages that `a2ui_rpc_callback` may answer without the
+# model, and which `a2ui_rpc_interceptor` completes.
+RENDERER_RPC_KINDS = frozenset({CALL_AGENT_FUNCTION, RENDERER_FUNCTION_RESPONSE})
 
 # The agent function messages, in both directions, which `a2ui_rpc_callback`
 # answers without the model. The renderer's other messages (`action`, `error`,
@@ -37,6 +43,25 @@ def message_kind(message: Mapping[str, Any]) -> str | None:
     """The message's type key, such as `callAgentFunction`."""
     keys = [key for key in message if key != "version"]
     return keys[0] if len(keys) == 1 else None
+
+
+def is_renderer_rpc_only(parts: list[a2a_types.Part]) -> bool:
+    """Whether every part is a renderer message that the callback may answer."""
+    messages = get_a2ui_messages(parts)
+    return (
+        bool(messages)
+        and len(messages) == len(parts)
+        and all(message_kind(message) in RENDERER_RPC_KINDS for message in messages)
+    )
+
+
+def renderer_function_response_id(message: Mapping[str, Any]) -> str | None:
+    """The `functionCallId` of a `rendererFunctionResponse`, if it has one."""
+    body = message.get(RENDERER_FUNCTION_RESPONSE)
+    if not isinstance(body, Mapping):
+        return None
+    call_id = body.get("functionCallId")
+    return call_id if isinstance(call_id, str) and call_id else None
 
 
 def genai_part_a2ui_messages(part: genai_types.Part) -> list[dict[str, Any]]:

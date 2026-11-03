@@ -38,7 +38,8 @@
       {"$ref": "#/$defs/DeclareAgentFunctionsTest"},
       {"$ref": "#/$defs/HandleAgentFunctionTest"},
       {"$ref": "#/$defs/ValidatePayloadTest"},
-      {"$ref": "#/$defs/ProcessRendererMessageTest"}
+      {"$ref": "#/$defs/ProcessRendererMessageTest"},
+      {"$ref": "#/$defs/CallRendererFunctionTest"}
     ]
   },
   "$defs": {
@@ -2594,6 +2595,151 @@
         }
       },
       "required": ["category"],
+      "additionalProperties": false
+    },
+    "CallRendererFunctionTest": {
+      "type": "object",
+      "description": "Calling renderer functions from the agent with callRendererFunction, and settling the calls with the renderer's responses, on a fake clock that only `advance_ms` steps move.",
+      "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "call_renderer_function"},
+        "args": {
+          "type": "object",
+          "properties": {
+            "default_timeout_ms": {
+              "type": ["integer", "null"],
+              "exclusiveMinimum": 0,
+              "description": "How long a call waits for its response unless it sets its own timeout. Without it, the SDK's default, 30000. Null waits without a limit."
+            },
+            "max_pending": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The most calls that may wait for a response at once."
+            }
+          },
+          "additionalProperties": false
+        },
+        "steps": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/RendererCallStep"},
+          "minItems": 1
+        }
+      },
+      "required": ["name", "action", "steps"],
+      "additionalProperties": false
+    },
+    "RendererCallState": {
+      "description": "The state of a call: still pending, settled with a value, or failed with an RPC error code. `error.message` is a substring of the failure's message.",
+      "oneOf": [
+        {"const": "pending"},
+        {
+          "type": "object",
+          "properties": {"value": {}},
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {"type": "string"},
+                "message": {"type": "string"}
+              },
+              "required": ["code"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "RendererCallStep": {
+      "type": "object",
+      "description": "One step of a call_renderer_function case: exactly one of `call`, `respond`, `advance_ms` or `dispose`, then its expectations, checked once pending asynchronous work has run.",
+      "properties": {
+        "call": {
+          "type": "object",
+          "description": "Makes a call. `label` names it for later steps.",
+          "properties": {
+            "label": {"type": "string"},
+            "catalogId": {"type": "string"},
+            "name": {"type": "string"},
+            "args": {"type": "object"},
+            "surfaceId": {"type": "string"},
+            "timeout_ms": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "description": "How long this call waits for its response, in place of the default."
+            }
+          },
+          "required": ["label", "catalogId", "name"],
+          "additionalProperties": false
+        },
+        "respond": {
+          "type": "object",
+          "description": "Hands the calls a rendererFunctionResponse, for the call `call` labels or for a literal `functionCallId`.",
+          "properties": {
+            "call": {"type": "string"},
+            "functionCallId": {"type": "string"},
+            "value": {},
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {"type": "string"},
+                "message": {"type": "string"}
+              },
+              "required": ["code", "message"],
+              "additionalProperties": false
+            }
+          },
+          "allOf": [
+            {"oneOf": [{"required": ["call"]}, {"required": ["functionCallId"]}]},
+            {"oneOf": [{"required": ["value"]}, {"required": ["error"]}]}
+          ],
+          "additionalProperties": false
+        },
+        "advance_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Moves the fake clock forward."
+        },
+        "dispose": {
+          "type": "object",
+          "description": "Disposes the calls, with an optional reason.",
+          "properties": {
+            "reason": {"type": "string"}
+          },
+          "additionalProperties": false
+        },
+        "expect_message": {
+          "type": "object",
+          "description": "On a `call` step, the callRendererFunction message, less its functionCallId."
+        },
+        "expect_error": {
+          "$ref": "#/$defs/ExpectError",
+          "description": "On a `call` step, the call is refused with this RPC error code instead of being made."
+        },
+        "expect_calls": {
+          "type": "object",
+          "description": "The state of the calls it names, by label.",
+          "additionalProperties": {"$ref": "#/$defs/RendererCallState"}
+        },
+        "expect_pending_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many calls are waiting for a response."
+        }
+      },
+      "oneOf": [
+        {"required": ["call"]},
+        {"required": ["respond"]},
+        {"required": ["advance_ms"]},
+        {"required": ["dispose"]}
+      ],
       "additionalProperties": false
     },
     "ExpectError": {

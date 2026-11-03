@@ -32,6 +32,15 @@
   generator through `InferenceFormat.prompt_generator`, and subclass
   `PromptGenerator` to write a format of your own.
   [#3568](https://github.com/a2ui-project/a2ui/pull/3568)
+- Add `RendererFunctionCalls` to `a2ui.rpc`, which sends v1.0
+  `callRendererFunction` messages for one conversation and settles each call's
+  future from the renderer's `rendererFunctionResponse`, with timeouts (30
+  seconds by default), `max_pending` and `dispose()`. Its `resolve` method is
+  the `on_renderer_function_response` callback of
+  `RendererToAgentMessageProcessor`; a malformed response that names a pending
+  call fails that call at once. `is_pending` tells whether a response answers
+  one of its calls. `agent_development.md` describes it
+  ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
 - **BREAKING CHANGE**: (v1_0) The `TextField` builder in
   `a2ui.builder.v1_0.catalogs.basic` requires `value`, following the basic
   catalog. Recommended migration: pass `value`, such as
