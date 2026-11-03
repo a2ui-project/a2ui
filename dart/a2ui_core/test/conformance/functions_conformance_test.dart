@@ -81,6 +81,23 @@ Object? _evaluate(Map<String, Object?> testCase) {
   return result is ReadonlySignal<Object?> ? result.value : result;
 }
 
+/// Returns [result] in the shape of [expected] so the two compare equal.
+///
+/// v1.0 validators return a [ValidationResult], while the suite states the
+/// outcome as a map, so only the keys the case names are compared.
+Object? _comparable(Object? result, Object? expected) {
+  if (result is ValidationResult && expected is Map<String, Object?>) {
+    final Map<String, Object?> fields = {
+      'valid': result.valid,
+      'message': result.message,
+      'code': result.code,
+      'severity': result.severity,
+    };
+    return {for (final String key in expected.keys) key: fields[key]};
+  }
+  return result;
+}
+
 /// The catalog a document in `catalogPaths` stands for: this SDK's basic
 /// catalog for the published basic catalog documents, whose functions run,
 /// and otherwise the document's signatures alone.
@@ -194,7 +211,10 @@ void main() {
               );
               return;
             }
-            expect(_evaluate(testCase), equals(testCase['expect']));
+            expect(
+              _comparable(_evaluate(testCase), testCase['expect']),
+              equals(testCase['expect']),
+            );
           default:
             fail('Unhandled action $action in functions.yaml.');
         }
