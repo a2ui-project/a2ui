@@ -3985,7 +3985,7 @@ While there are breaking changes to the catalog API between v0.9 and v1.0, v1.0 
 <p>Unlike static display components (like <code>Text</code>), input components modify the renderer-side data model immediately upon user interaction.</p>
 <ol>
 <li><strong>Read (Model -&gt; View):</strong> When the component renders, it reads its value from the bound <code>path</code>. If the Data Model is updated via <code>updateDataModel</code>, the component re-renders to reflect the new value.</li>
-<li><strong>Write (View -&gt; Model):</strong> When the user interacts with the component (e.g., types a character, toggles a box), the renderer <strong>immediately</strong> updates the value at the bound <code>path</code> in the local Data Model.</li>
+<li><strong>Write (View -&gt; Model):</strong> When the user interacts with the component (e.g., types a character, toggles a box), the renderer <strong>immediately</strong> updates the value at the bound <code>path</code> in the local Data Model. If the path does not exist yet, the renderer creates it, so an input can be bound to a path the agent never initialized.</li>
 </ol>
 <h4 id="reactivity">Reactivity<a class="headerlink" href="#reactivity" title="Permanent link">¶</a></h4>
 <p>Because the local Data Model is the single source of truth, updates from input components are <strong>reactive</strong>.</p>

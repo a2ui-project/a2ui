@@ -2566,6 +2566,7 @@ Do not migrate v0.9 payloads with a blanket find-and-replace of <code>"path":</c
 <ul>
 <li>Added <code>posterUrl</code> property to the <code>Video</code> component in <code>catalogs/basic/catalog.json</code>, allowing a preview image to be displayed before the video plays.</li>
 <li>Added <code>placeholder</code> prop to the <code>TextField</code> component schema, and removed <code>TextField.validationRegexp</code> in favor of <code>checks</code> using the <code>regex</code> validation function.</li>
+<li>Made <code>value</code> required on the <code>TextField</code> component, as it is on the other input components. Without a binding, the text a user types never reaches the data model.</li>
 <li>Added a <code>steps</code> property to the <code>Slider</code> component schema to snap values to discrete intervals.</li>
 <li>Updated <code>openUrl</code> function definition in <code>catalogs/basic/catalog.json</code> to set <code>"requiresUserActivation": true</code>.</li>
 <li>Refactored component definitions in <code>catalogs/basic/catalog.json</code> from <code>allOf: [ComponentCommon, ...]</code> and <code>unevaluatedProperties: false</code> to direct explicit property definitions (including explicit <code>component</code> const and <code>weight</code> props) or <code>$defs/Checkable</code>.</li>
@@ -2652,6 +2653,7 @@ Do not migrate v0.9 payloads with a blanket find-and-replace of <code>"path":</c
 <li>Ensure all generated catalog entity names conform to UAX #31 identifier rules.</li>
 <li>Do not include <code>allowedCallers</code> or <code>returnType</code> properties in wire-level <code>FunctionCall</code> payloads. Set static <code>allowedCallers</code>, <code>returnType</code>, and optional <code>requiresUserActivation</code> metadata in catalog function definitions where needed.</li>
 <li>Update <code>Video</code>, <code>TextField</code>, and <code>Slider</code> components to support optional <code>posterUrl</code>, <code>placeholder</code>, and <code>steps</code> properties, and migrate any <code>TextField.validationRegexp</code> usage to <code>checks</code> with the <code>regex</code> validation function. Update <code>openUrl</code> functions to specify <code>"requiresUserActivation": true</code>.</li>
+<li>Set <code>value</code> on every <code>TextField</code>, usually a binding such as <code>{"@path": "/form/email"}</code>. The path does not have to exist in the data model yet: the renderer creates it when the user types.</li>
 <li>Explicitly set values to <code>null</code> in <code>updateDataModel</code> messages to delete keys at specified paths. The <code>value</code> property is now required, and omitting it is a schema validation error.</li>
 <li>Handle remote function execution requests from renderers (<code>callAgentFunction</code>) and respond with <code>agentFunctionResponse</code> messages.</li>
 <li>Rename all references, constants, and endpoints mapping to <code>server_to_client.json</code> or <code>server_capabilities.json</code> to use <code>agent_to_renderer.json</code> and <code>agent_capabilities.json</code>.</li>
