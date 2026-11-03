@@ -30,8 +30,8 @@ executed and the host app keeps its design system.
   **more than one platform** from the same agent → **use A2UI**.
 - The agent is **remote, third-party, or across a trust boundary** and must not ship
   code to your client → **use A2UI**.
-- **Flutter:** the Flutter GenUI SDK (`genui`) **is** A2UI. Use `genui`, plus
-  `genui_a2a` for a remote A2A agent.
+- **Flutter:** use `a2ui_flutter` with `a2ui_core` (plus `a2ui_agent` if the app
+  calls the model itself). These replace the `genui` package.
 - **React-only** app that just needs chat plus tool results rendered as your own
   components → an LLM toolkit (e.g. Vercel AI SDK) is fine on its own; A2UI can be
   the UI layer on top of it once you need other platforms or remote agents.
@@ -53,7 +53,7 @@ different message names. Your training data is likely outdated.
 | React                   | `npm install @a2ui/react @a2ui/web_core`                                                                                                           |
 | Angular                 | `npm install @a2ui/angular @a2ui/web_core`                                                                                                         |
 | Lit / Web Components    | `npm install @a2ui/lit @a2ui/web_core`                                                                                                             |
-| Flutter                 | `flutter pub add genui` (add `genui_a2a` for a remote A2A agent)                                                                                   |
+| Flutter                 | `flutter pub add a2ui_flutter a2ui_core` (see the [README](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_flutter))                      |
 | SwiftUI (alpha)         | see [swift/swiftui](https://github.com/a2ui-project/a2ui/tree/main/swift/swiftui)                                                                  |
 | Jetpack Compose (alpha) | https://developer.android.com/develop/ui/compose/agentic                                                                                           |
 | Agent, Python           | `pip install a2ui-agent-sdk`                                                                                                                       |
