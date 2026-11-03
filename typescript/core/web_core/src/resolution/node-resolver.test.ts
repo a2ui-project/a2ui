@@ -1710,3 +1710,208 @@ describe('NodeResolver omitted property pruning on update (#3779)', () => {
     surface.dispose();
   });
 });
+
+describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
+  it('resolves child and children for z.record, z.any, and z.unknown schemas and disposes removed children', () => {
+    for (const [label, dynamicSchema] of [
+      ['z.record', z.record(z.unknown())],
+      ['z.any', z.any()],
+      ['z.unknown', z.unknown()],
+    ] as const) {
+      const DynamicApi: ComponentApi = {name: 'DynamicWidget', schema: dynamicSchema};
+      const catalog = new Catalog<ComponentApi>(`dyn-${label}`, '0.9', [DynamicApi, TextApi]);
+      const surface = new SurfaceModel('surf-1', catalog);
+      const resolver = new NodeResolver(surface, catalog);
+
+      add(surface, 'root', 'DynamicWidget', {
+        title: 'Header',
+        child: 'single-kid',
+        children: ['list-a', 'list-b'],
+      });
+      add(surface, 'single-kid', 'Text', {text: 'Single'});
+      add(surface, 'list-a', 'Text', {text: 'One'});
+      add(surface, 'list-b', 'Text', {text: 'Two'});
+
+      const root = getValue(resolver.rootNode);
+      assert.ok(root, `${label}: expected root node`);
+      assert.strictEqual(props(root).title, 'Header');
+
+      const singleChild = props(root).child;
+      assert.ok(isComponentNode(singleChild), `${label}: expected single child node`);
+      assert.strictEqual(singleChild.componentId, 'single-kid');
+
+      const listChildren = props(root).children as ComponentNode[];
+      assert.strictEqual(listChildren.length, 2, `${label}: expected 2 list children`);
+      assert.ok(listChildren.every(isComponentNode), `${label}: expected resolved list nodes`);
+      assert.deepStrictEqual(
+        listChildren.map(c => c.componentId),
+        ['list-a', 'list-b'],
+      );
+
+      // Updating properties disposes removed child nodes cleanly.
+      const removedChild = listChildren[1];
+      const rootModel = surface.componentsModel.get('root')!;
+      rootModel.properties = {title: 'Updated', children: ['list-a']};
+      assert.strictEqual(removedChild.disposed, true, `${label}: removed child should dispose`);
+      assert.strictEqual(
+        singleChild.disposed,
+        true,
+        `${label}: omitted single child should dispose`,
+      );
+      assert.strictEqual(Object.hasOwn(props(root), 'child'), false);
+      assert.strictEqual((props(root).children as ComponentNode[]).length, 1);
+
+      resolver.dispose();
+    }
+  });
+
+  it('resolves child and children for empty-shape z.object({}), passthrough, catchall, and Catalog.fromJson schemas', () => {
+    const EmptyApi: ComponentApi = {name: 'EmptyBox', schema: z.object({})};
+    const PassthroughApi: ComponentApi = {
+      name: 'PassthroughBox',
+      schema: z.object({variant: z.string().optional()}).passthrough(),
+    };
+    const CatchallApi: ComponentApi = {
+      name: 'CatchallBox',
+      schema: z.object({variant: z.string().optional()}).catchall(z.unknown()),
+    };
+    const catalog = new Catalog<ComponentApi>('open-obj-catalog', '0.9', [
+      EmptyApi,
+      PassthroughApi,
+      CatchallApi,
+      TextApi,
+    ]);
+    const surface = new SurfaceModel('surf-open', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+
+    add(surface, 'root', 'EmptyBox', {children: ['pt', 'ca']});
+    add(surface, 'pt', 'PassthroughBox', {variant: 'card', child: 'leaf-1'});
+    add(surface, 'ca', 'CatchallBox', {variant: 'row', children: ['leaf-2']});
+    add(surface, 'leaf-1', 'Text', {text: 'Leaf 1'});
+    add(surface, 'leaf-2', 'Text', {text: 'Leaf 2'});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const [ptNode, caNode] = props(root).children as ComponentNode[];
+    assert.ok(isComponentNode(ptNode));
+    assert.ok(isComponentNode(caNode));
+    assert.ok(isComponentNode(props(ptNode).child));
+    assert.strictEqual((props(ptNode).child as ComponentNode).componentId, 'leaf-1');
+    const caChildren = props(caNode).children as ComponentNode[];
+    assert.strictEqual(caChildren.length, 1);
+    assert.ok(isComponentNode(caChildren[0]));
+    assert.strictEqual(caChildren[0].componentId, 'leaf-2');
+    resolver.dispose();
+
+    const loadedJsonCatalog = Catalog.fromJson({
+      catalogId: 'https://example.com/json-open.json',
+      components: {
+        DynamicContainer: {
+          type: 'object',
+          properties: {heading: {type: 'string'}},
+          additionalProperties: true,
+        },
+        UnannotatedStack: {
+          type: 'object',
+          properties: {
+            child: {type: 'string'},
+            children: {type: 'array', items: {type: 'string'}},
+          },
+        },
+        Label: {
+          type: 'object',
+          properties: {text: {type: 'string'}},
+          additionalProperties: false,
+        },
+      },
+    });
+    const jsonCatalog = new Catalog(
+      loadedJsonCatalog.id,
+      loadedJsonCatalog.protocolVersion,
+      Array.from(loadedJsonCatalog.components.values()),
+      [],
+    );
+    const jsonSurface = new SurfaceModel('surf-json', jsonCatalog);
+    const jsonResolver = new NodeResolver(jsonSurface, jsonCatalog);
+
+    jsonSurface.componentsModel.addComponent(
+      new ComponentModel('root', 'DynamicContainer', {heading: 'Top', child: 'stack'}, jsonCatalog),
+    );
+    jsonSurface.componentsModel.addComponent(
+      new ComponentModel(
+        'stack',
+        'UnannotatedStack',
+        {child: 'lbl-1', children: ['lbl-2']},
+        jsonCatalog,
+      ),
+    );
+    jsonSurface.componentsModel.addComponent(
+      new ComponentModel('lbl-1', 'Label', {text: 'First'}, jsonCatalog),
+    );
+    jsonSurface.componentsModel.addComponent(
+      new ComponentModel('lbl-2', 'Label', {text: 'Second'}, jsonCatalog),
+    );
+
+    const jsonRoot = getValue(jsonResolver.rootNode);
+    assert.ok(jsonRoot);
+    const stackNode = props(jsonRoot).child as ComponentNode;
+    assert.ok(isComponentNode(stackNode));
+    assert.strictEqual(stackNode.componentId, 'stack');
+    assert.ok(isComponentNode(props(stackNode).child));
+    assert.strictEqual((props(stackNode).child as ComponentNode).componentId, 'lbl-1');
+    const stackChildren = props(stackNode).children as ComponentNode[];
+    assert.strictEqual(stackChildren.length, 1);
+    assert.ok(isComponentNode(stackChildren[0]));
+    assert.strictEqual(stackChildren[0].componentId, 'lbl-2');
+
+    jsonResolver.dispose();
+  });
+
+  it('resolves unannotated z.object({child, children}) alongside explicit custom ref fields without misclassifying incompatible types', () => {
+    const UnannotatedApi: ComponentApi = {
+      name: 'UnannotatedLayout',
+      schema: z.object({
+        header: ComponentIdSchema.optional(),
+        child: z.string().optional(),
+        children: z.array(z.string()).optional(),
+      }),
+    };
+    const IncompatibleApi: ComponentApi = {
+      name: 'IncompatibleFields',
+      schema: z.object({
+        child: z.boolean().optional(),
+        children: z.number().optional(),
+      }),
+    };
+    const catalog = new Catalog<ComponentApi>('mixed-catalog', '0.9', [
+      UnannotatedApi,
+      IncompatibleApi,
+      TextApi,
+    ]);
+    const surface = new SurfaceModel('surf-mixed', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+
+    add(surface, 'root', 'UnannotatedLayout', {
+      header: 'hdr',
+      child: 'body',
+      children: ['inc'],
+    });
+    add(surface, 'hdr', 'Text', {text: 'Header'});
+    add(surface, 'body', 'Text', {text: 'Body'});
+    add(surface, 'inc', 'IncompatibleFields', {child: true, children: 3});
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.ok(isComponentNode(props(root).header));
+    assert.strictEqual((props(root).header as ComponentNode).componentId, 'hdr');
+    assert.ok(isComponentNode(props(root).child));
+    assert.strictEqual((props(root).child as ComponentNode).componentId, 'body');
+
+    const [incNode] = props(root).children as ComponentNode[];
+    assert.ok(isComponentNode(incNode));
+    assert.strictEqual(props(incNode).child, true);
+    assert.strictEqual(props(incNode).children, 3);
+
+    resolver.dispose();
+  });
+});
