@@ -32,6 +32,11 @@ export interface HostEntry {
 export class HostOwner {
   // Nominal: only `new HostOwner()` is one.
   declare private readonly nominal: never;
+  surface?: SurfaceModel<ComponentApi>;
+
+  constructor(surface?: SurfaceModel<ComponentApi>) {
+    this.surface = surface;
+  }
 }
 
 const rendered = new WeakMap<Element, HostOwner>();

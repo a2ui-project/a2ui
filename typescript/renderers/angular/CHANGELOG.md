@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Deprecate `ComponentBinder.bind(context)` and `AngularWcHost.context` in favor of `ComponentBinder.bindNode(node)` and `AngularWcHost.node`, and update `ComponentHostComponent` and `AngularWcHost` to subscribe to `node.props` and `node.metadata` directly.
+
 ## 0.14.0
 
 - Add `metadata` (`input<A2uiMetadata | undefined>()`) and `extensions` (`computed<Extensions | undefined>()`) signals on `CatalogComponent` and `CatalogComponentInstance`, bound reactively from `ComponentNode.metadata` in `ComponentHostComponent` and `ComponentBinder.bindNode`. [#3469](https://github.com/a2ui-project/a2ui/issues/3469), [#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)

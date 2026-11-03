@@ -22,7 +22,7 @@ import {
   ComponentRef,
   NgZone,
 } from '@angular/core';
-import {ComponentContext, type ComponentNode} from '@a2ui/web_core/v0_9';
+import {ComponentContext, type ComponentNode, effect, getValue} from '@a2ui/web_core/v0_9';
 import type {AngularCatalog, AngularComponentImplementation} from './types';
 
 import {ComponentBinder} from '../core/component-binder.service';
@@ -96,17 +96,21 @@ export class AngularWcHost extends HTMLElement {
             `'provideA2Ui'.`,
         );
       }
+      const node = this._node;
       const context = this._context;
-      if (!context) {
+      if (!node && !context) {
         throw new Error(
-          `Cannot instantiate Web Component '${this.tagName.toLowerCase()}': 'context' must be ` +
+          `Cannot instantiate Web Component '${this.tagName.toLowerCase()}': 'node' or 'context' must be ` +
             `set before the element is connected.`,
         );
       }
-      const type = context.componentModel.type;
       // The catalog entry that owns this element pairs it with the Angular component to mount.
-      const catalog = context.componentModel.catalog as AngularCatalog;
-      const entry = catalog.components.get(type) as AngularComponentImplementation | undefined;
+      const entry = node
+        ? (node.impl as AngularComponentImplementation | undefined)
+        : ((context!.componentModel.catalog as AngularCatalog).components.get(
+            context!.componentModel.type,
+          ) as AngularComponentImplementation | undefined);
+      const type = node?.type ?? context!.componentModel.type;
       if (typeof entry?.component !== 'function') {
         throw new Error(
           `Cannot instantiate Web Component '${this.tagName.toLowerCase()}': catalog entry ` +
@@ -125,10 +129,51 @@ export class AngularWcHost extends HTMLElement {
     }
 
     // `disconnectedCallback` drops the subscription and a moved element reconnects without
-    // `context` being set again, so (re)subscribe on every connect. `subscribeToContext`
-    // unsubscribes first, so this never subscribes twice.
-    this.subscribeToContext(this.context);
+    // `node` or `context` being set again, so (re)subscribe on every connect.
+    if (this._node) {
+      this.subscribeToNode(this._node);
+    } else if (this._context) {
+      this.subscribeToContext(this._context);
+    }
     this.updateContext();
+  }
+
+  private subscribeToNode(node: ComponentNode) {
+    this.contextSubscription?.unsubscribe();
+    let lastProps = getValue(node.props);
+    const stop = effect(() => {
+      const nextProps = getValue(node.props);
+      if (nextProps === lastProps) return;
+      lastProps = nextProps;
+      const notify = () => {
+        if (this.hasSameBoundKeys(nextProps, node.context?.componentModel.properties)) {
+          this.componentRef?.changeDetectorRef.detectChanges();
+        } else {
+          this.updateContext();
+        }
+      };
+      if (this.ngZone) {
+        this.ngZone.run(notify);
+      } else {
+        notify();
+      }
+    });
+    this.contextSubscription = {unsubscribe: stop};
+  }
+
+  private hasSameBoundKeys(
+    nextProps: Record<string, unknown>,
+    rawProps?: Record<string, unknown>,
+  ): boolean {
+    if (!this.boundProps) return false;
+    const boundKeys = Object.keys(this.boundProps);
+    const nextKeys = Object.keys(nextProps);
+    if (boundKeys.length !== nextKeys.length) return false;
+    return nextKeys.every(
+      key =>
+        Object.prototype.hasOwnProperty.call(this.boundProps, key) &&
+        (!rawProps || this.boundProps![key].raw === rawProps[key]),
+    );
   }
 
   private subscribeToContext(ctx: ComponentContext) {
@@ -154,8 +199,8 @@ export class AngularWcHost extends HTMLElement {
     if (node.context) {
       this._context = node.context;
     }
-    if (this._context) {
-      this.subscribeToContext(this._context);
+    if (this.componentRef) {
+      this.subscribeToNode(node);
       this.updateContext();
     }
   }
@@ -164,32 +209,38 @@ export class AngularWcHost extends HTMLElement {
     return this._node;
   }
 
+  /** @deprecated Assign `node` instead. */
   set context(ctx: ComponentContext) {
     if (this._node && this._node.context !== ctx) {
       this._node = undefined;
     }
     this._context = ctx;
-    this.subscribeToContext(ctx);
+    if (this._node) {
+      this.subscribeToNode(this._node);
+    } else {
+      this.subscribeToContext(ctx);
+    }
     this.updateContext();
   }
 
+  /** @deprecated Read `node` instead. */
   get context(): ComponentContext {
     return this._context!;
   }
 
   private updateContext() {
-    if (!this.componentRef || !this.binder || !this._context) return;
+    const node = this._node;
+    const context = this._context ?? node?.context;
+    if (!this.componentRef || !this.binder || (!node && !context)) return;
 
     this.binder.unbind(this.boundProps);
-    const boundProps = this._node
-      ? this.binder.bindNode(this._node)
-      : this.binder.bind(this._context);
+    const boundProps = node ? this.binder.bindNode(node) : this.binder.bind(context!);
     this.boundProps = boundProps;
 
     this.componentRef.setInput('props', boundProps);
-    this.componentRef.setInput('surfaceId', this._context.dataContext.surface?.id);
-    this.componentRef.setInput('componentId', this._context.componentModel.id);
-    this.componentRef.setInput('dataContextPath', this._context.dataContext.path);
+    this.componentRef.setInput('surfaceId', context?.dataContext.surface?.id);
+    this.componentRef.setInput('componentId', node?.componentId ?? context!.componentModel.id);
+    this.componentRef.setInput('dataContextPath', node?.dataPath ?? context!.dataContext.path);
 
     this.componentRef.changeDetectorRef.detectChanges();
   }

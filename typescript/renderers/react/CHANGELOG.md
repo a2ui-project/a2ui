@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Deprecate `ReactComponentImplementation.render`, `ReactRenderProps`, `ReactRenderProps.context`, `ReactA2uiComponentProps.context`, and `ReactWcHost.context`, and stop assigning `element.context` in `WebComponentNode`. Recommended migration: implement `view({node, buildChild})` (or read resolved `props` and `metadata` in `createComponentImplementation`), obtain the `SurfaceModel` via `useA2uiSurface()`, and assign `node` on host elements.
+
 ## 0.15.0
 
 - **BREAKING CHANGE**: `createComponentImplementation` and `createBinderlessComponentImplementation` keep the `allowedParents` and `allowedChildren` of the `ComponentApi` they receive. The message processor now enforces them for custom React components, so a payload that breaks them is rejected with `UNALLOWED_PARENT` or `UNALLOWED_CHILD` (previously accepted). [#3533](https://github.com/a2ui-project/a2ui/issues/3533)

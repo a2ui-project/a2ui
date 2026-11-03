@@ -541,7 +541,7 @@ describe('ComponentHostComponent', () => {
       const wcEl = testFixture.nativeElement.querySelector('mock-host-wc') as MockWcElement;
       expect(wcEl).toBeTruthy();
       expect(wcEl.node.componentId).toBe('root');
-      expect(wcEl.context.componentModel.id).toBe('root');
+      expect(wcEl.context).toBeUndefined();
 
       surface.componentsModel.get('root')!.properties = {label: 'Updated label'};
       flush(testFixture);
