@@ -479,7 +479,10 @@ def test_converter_checks_text_against_the_processors_bound_state():
 def test_converter_leaves_thought_parts_to_adk():
     converter = _converter()
     part = genai_types.Part(
-        text=f"Thinking about {A2UI_OPEN_TAG}\ninvalid_json\n{A2UI_CLOSE_TAG}",
+        text=(
+            "The user wants a quiet"
+            f" model.\n{A2UI_OPEN_TAG}\ninvalid_json\n{A2UI_CLOSE_TAG}"
+        ),
         thought=True,
     )
 
@@ -488,3 +491,22 @@ def test_converter_leaves_thought_parts_to_adk():
     assert len(a2a_parts) == 1
     assert isinstance(a2a_parts[0].root, a2a_types.TextPart)
     assert a2a_parts[0].root.metadata == {"adk_thought": True}
+
+
+def test_converter_removes_the_sentences_about_a2ui_from_a_thought():
+    converter = _converter()
+    part = genai_types.Part(
+        text="The Bosch is the quietest. I'll put it in a `Card`.", thought=True
+    )
+
+    a2a_parts = converter.convert(part)
+
+    assert len(a2a_parts) == 1
+    assert a2a_parts[0].root.text == "The Bosch is the quietest."
+
+
+def test_converter_drops_a_thought_that_is_all_about_a2ui():
+    converter = _converter()
+    part = genai_types.Part(text="Next I set up the data model.", thought=True)
+
+    assert converter.convert(part) == []

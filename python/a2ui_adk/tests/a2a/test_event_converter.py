@@ -395,7 +395,9 @@ def test_event_converter_does_not_feed_thought_parts_into_stream():
         converter(_event(partial=True), invocation_context)
         convert_part = mock_base_converter.call_args[0][4]
         thought_parts = convert_part(
-            genai_types.Part(text="<a2ui-json>draft", thought=True)
+            genai_types.Part(
+                text="The user wants a quiet model.\n<a2ui-json>draft", thought=True
+            )
         )
 
     assert len(thought_parts) == 1
