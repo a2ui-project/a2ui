@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Add `userFocusedThinking` to `A2uiGeneratorOptions`, the new fourth argument of the `A2uiGenerator` constructor, and to `A2uiRequestProcessorOptions`. When it is `true`, `promptSnippet` ends with a rule asking the model to think about the user's request rather than the A2UI format, for an app that shows the model's thinking. [#3576](https://github.com/a2ui-project/a2ui/issues/3576)
+- Add `userFocusedThinking` to `A2uiGeneratorOptions`, the new fourth argument of the `A2uiGenerator` constructor, and to `A2uiRequestProcessorOptions`. When it is `true`, `promptSnippet` ends with a rule asking the model to think about the user's request rather than the A2UI format, for an app that shows the model's thinking. [#3576](https://github.com/a2ui-project/a2ui/issues/3576), [#3874](https://github.com/a2ui-project/a2ui/pull/3874)
 
 ## 0.1.0
 
