@@ -1,0 +1,28 @@
+[
+  {
+    "version": "1.0",
+    "updateComponents": {
+      "surfaceId": "conformance",
+      "components": [
+        {
+          "component": "Text",
+          "id": "container_1__text_1",
+          "text": "Settings",
+          "variant": "body"
+        },
+        {
+          "component": "Column",
+          "id": "container_1__column_1",
+          "children": ["container_1__text_1", "external_child_42"],
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Card",
+          "id": "container_1",
+          "child": "container_1__column_1"
+        }
+      ]
+    }
+  }
+]

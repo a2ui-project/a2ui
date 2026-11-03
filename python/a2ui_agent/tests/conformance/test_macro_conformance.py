@@ -155,6 +155,11 @@ def test_suite_covers_every_golden() -> None:
 
     from .macro_suite import GOLDEN_DIR
 
-    on_disk = {f for f in os.listdir(GOLDEN_DIR) if f.endswith(".json")}
-    declared = {case.golden for case in GOLDEN_CASES}
+    on_disk: set[str] = set()
+    for dirpath, _dirnames, filenames in os.walk(GOLDEN_DIR):
+        for fname in filenames:
+            if fname.endswith(".json"):
+                rel = os.path.relpath(os.path.join(dirpath, fname), GOLDEN_DIR)
+                on_disk.add(rel.replace(os.sep, "/"))
+    declared = {case.golden for case in GOLDEN_CASES if case.golden is not None}
     assert on_disk == declared

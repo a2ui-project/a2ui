@@ -16,9 +16,11 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
-from .builder_suite import Case, load_cases, run_case, validate_payload
+from .builder_suite import GOLDEN_DIR, Case, load_cases, run_case, validate_payload
 from .conformance_helpers import case_params
 
 SUITE = "agent/builder/builder.yaml"
@@ -40,10 +42,11 @@ def test_golden_is_spec_valid(case: Case) -> None:
 
 def test_suite_covers_every_golden() -> None:
     """No golden file is orphaned by a case being renamed or removed."""
-    import os
-
-    from .builder_suite import GOLDEN_DIR
-
-    on_disk = {f for f in os.listdir(GOLDEN_DIR) if f.endswith(".json")}
+    on_disk: set[str] = set()
+    for dirpath, _dirnames, filenames in os.walk(GOLDEN_DIR):
+        for fname in filenames:
+            if fname.endswith(".json"):
+                rel = os.path.relpath(os.path.join(dirpath, fname), GOLDEN_DIR)
+                on_disk.add(rel.replace(os.sep, "/"))
     declared = {case.golden for case in CASES}
     assert on_disk == declared

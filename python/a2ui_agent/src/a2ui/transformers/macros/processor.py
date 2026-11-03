@@ -18,6 +18,7 @@ import types
 from collections.abc import Sequence as AbcSequence
 from typing import Any, Optional, Sequence, Union, get_args, get_origin
 
+from a2ui.builder import v0_9 as _v0_9, v1_0 as _v1_0
 from a2ui.builder.core import (
     ComponentBuilderNode,
     ComponentRef,
@@ -30,6 +31,30 @@ from a2ui.builder.v0_9 import (
     DataBinding,
 )
 from a2ui.transformers.macros.macro import _MacroMetadata
+
+_ACTION_TYPES = (Action, _v1_0.Action)
+_ACCESSIBILITY_TYPES = (AccessibilityAttributes, _v1_0.AccessibilityAttributes)
+_DATA_BINDING_TYPES = (DataBinding, _v1_0.DataBinding)
+
+
+def _uses_v1_0(meta: _MacroMetadata) -> bool:
+    ret = meta.return_type
+    if isinstance(ret, type) and issubclass(ret, _v1_0.ComponentBuilderNode):
+        return True
+    for param in meta.parameters.values():
+        t = param.type_hint
+        if t in (
+            _v1_0.Action,
+            _v1_0.AccessibilityAttributes,
+            _v1_0.DataBinding,
+            _v1_0.DynamicString,
+            _v1_0.DynamicNumber,
+            _v1_0.DynamicBoolean,
+            _v1_0.DynamicStringList,
+            _v1_0.DynamicValue,
+        ):
+            return True
+    return False
 
 
 def _is_component_type(t: Any) -> bool:
@@ -72,9 +97,9 @@ def _is_action_type(t: Any) -> bool:
     if origin is Union or (hasattr(types, "UnionType") and origin is types.UnionType):
         non_none = [a for a in args if a is not type(None)]
         return any(_is_action_type(a) for a in non_none)
-    if t is Action:
+    if t in _ACTION_TYPES:
         return True
-    if isinstance(t, type) and issubclass(t, Action):
+    if isinstance(t, type) and issubclass(t, _ACTION_TYPES):
         return True
     return False
 
@@ -85,17 +110,21 @@ def _is_accessibility_type(t: Any) -> bool:
     if origin is Union or (hasattr(types, "UnionType") and origin is types.UnionType):
         non_none = [a for a in args if a is not type(None)]
         return any(_is_accessibility_type(a) for a in non_none)
-    if t is AccessibilityAttributes:
+    if t in _ACCESSIBILITY_TYPES:
         return True
-    if isinstance(t, type) and issubclass(t, AccessibilityAttributes):
+    if isinstance(t, type) and issubclass(t, _ACCESSIBILITY_TYPES):
         return True
     return False
 
 
-def _coerce_action(value: dict[str, Any]) -> Action:
+def _coerce_action(
+    value: dict[str, Any],
+    action_cls: Any = Action,
+    action_event_cls: Any = ActionEvent,
+) -> Any:
     """Builds an Action from the shapes inference output uses for one.
 
-    Three spellings show up in practice and all mean the same thing: the wire
+    Three forms show up in practice and all mean the same thing: the wire
     form ``{"event": {"name": ...}}``, the abbreviated ``{"event": "name"}``,
     and a bare event body ``{"name": ..., "context": ...}``. Anything else -
     notably ``{"functionCall": ...}`` - is already the wire form and is handed
@@ -103,10 +132,10 @@ def _coerce_action(value: dict[str, Any]) -> Action:
     """
     inner = value.get("event")
     if isinstance(inner, str):
-        return Action(event=ActionEvent(name=inner))
+        return action_cls(event=action_event_cls(name=inner))
     if not {"event", "functionCall", "function_call"} & value.keys():
-        return Action(event=ActionEvent.model_validate(value))
-    return Action.model_validate(value)
+        return action_cls(event=action_event_cls.model_validate(value))
+    return action_cls.model_validate(value)
 
 
 class _MacroProcessor:
@@ -140,6 +169,14 @@ class _MacroProcessor:
         if meta is None:
             raise KeyError(f"Macro '{macro_name}' is not registered.")
 
+        is_v1_0 = _uses_v1_0(meta)
+        data_binding_cls = _v1_0.DataBinding if is_v1_0 else DataBinding
+        action_cls = _v1_0.Action if is_v1_0 else Action
+        action_event_cls = _v1_0.ActionEvent if is_v1_0 else ActionEvent
+        accessibility_cls = (
+            _v1_0.AccessibilityAttributes if is_v1_0 else AccessibilityAttributes
+        )
+
         # Coerce parameters from incoming JSON values to rich builder AST types
         coerced_args: dict[str, Any] = {}
         for p_name, p_val in args.items():
@@ -159,14 +196,15 @@ class _MacroProcessor:
                         ComponentRef(id=x) if isinstance(x, str) else x for x in p_val
                     ]
 
-                # 3. Coerce DataBinding dictionary: {"path": "/..."}
+                # 3. Coerce DataBinding dictionary: {"path": "/..."} or {"@path": "/..."}
                 elif (
                     isinstance(p_val, dict)
-                    and "path" in p_val
+                    and ("path" in p_val or "@path" in p_val)
                     and len(p_val) == 1
-                    and not isinstance(p_val, DataBinding)
+                    and not isinstance(p_val, _DATA_BINDING_TYPES)
                 ):
-                    coerced_args[p_name] = DataBinding(path=p_val["path"])
+                    path_val = p_val["path"] if "path" in p_val else p_val["@path"]
+                    coerced_args[p_name] = data_binding_cls(path=path_val)
 
                 # 4. Coerce Action shorthands.
                 #
@@ -175,21 +213,27 @@ class _MacroProcessor:
                 # checker. Inference output is not type-checked, though, so the
                 # shorthands an LLM naturally emits are mapped here instead.
                 elif isinstance(p_val, str) and _is_action_type(t):
-                    coerced_args[p_name] = Action(event=ActionEvent(name=p_val))
+                    coerced_args[p_name] = action_cls(
+                        event=action_event_cls(name=p_val)
+                    )
                 elif (
                     isinstance(p_val, dict)
                     and _is_action_type(t)
-                    and not isinstance(p_val, Action)
+                    and not isinstance(p_val, _ACTION_TYPES)
                 ):
-                    coerced_args[p_name] = _coerce_action(p_val)
+                    coerced_args[p_name] = _coerce_action(
+                        p_val,
+                        action_cls=action_cls,
+                        action_event_cls=action_event_cls,
+                    )
 
                 # 5. Coerce AccessibilityAttributes
                 elif (
                     isinstance(p_val, dict)
                     and _is_accessibility_type(t)
-                    and not isinstance(p_val, AccessibilityAttributes)
+                    and not isinstance(p_val, _ACCESSIBILITY_TYPES)
                 ):
-                    coerced_args[p_name] = AccessibilityAttributes(**p_val)
+                    coerced_args[p_name] = accessibility_cls(**p_val)
 
                 else:
                     coerced_args[p_name] = p_val

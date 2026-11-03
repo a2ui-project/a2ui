@@ -14,9 +14,10 @@
 
 import collections.abc
 from collections.abc import Iterable as AbcIterable, Sequence as AbcSequence
+from dataclasses import dataclass
 from enum import Enum
 import inspect
-from dataclasses import dataclass
+import types
 from typing import (
     Any,
     Callable,
@@ -29,6 +30,7 @@ from typing import (
     get_type_hints,
 )
 
+from a2ui.builder import v0_9 as _v0_9, v1_0 as _v1_0
 from a2ui.builder.core import (
     ComponentBuilderNode,
     ComponentRef,
@@ -46,6 +48,18 @@ from a2ui.builder.v0_9 import (
     DynamicValue,
     FunctionCall,
 )
+
+_DYNAMIC_VALUE_TYPES = (_v0_9.DynamicValue, _v1_0.DynamicValue)
+_DYNAMIC_STRING_LIST_TYPES = (_v0_9.DynamicStringList, _v1_0.DynamicStringList)
+_DYNAMIC_STRING_TYPES = (_v0_9.DynamicString, _v1_0.DynamicString)
+_DYNAMIC_NUMBER_TYPES = (_v0_9.DynamicNumber, _v1_0.DynamicNumber)
+_DYNAMIC_BOOLEAN_TYPES = (_v0_9.DynamicBoolean, _v1_0.DynamicBoolean)
+_DATA_BINDING_TYPES = (DataBinding, _v1_0.DataBinding)
+_FUNCTION_CALL_TYPES = (FunctionCall, _v1_0.FunctionCall)
+_ACTION_TYPES = (Action, _v1_0.Action)
+_CHECK_RULE_TYPES = (CheckRule, _v1_0.CheckRule)
+_ACCESSIBILITY_TYPES = (AccessibilityAttributes, _v1_0.AccessibilityAttributes)
+_DYNAMIC_CHILD_LIST_TYPES = (DynamicChildList, _v1_0.DynamicChildList)
 
 
 def _to_pascal_case(s: str) -> str:
@@ -146,27 +160,27 @@ def _map_type_hint_to_schema(
     """Maps a Python type hint to a canonical A2UI JSON schema property."""
     schema: dict[str, Any]
 
-    if t == DynamicValue:
+    if t in _DYNAMIC_VALUE_TYPES:
         schema = {"$ref": f"{ref_prefix}DynamicValue"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t == DynamicStringList:
+    if t in _DYNAMIC_STRING_LIST_TYPES:
         schema = {"$ref": f"{ref_prefix}DynamicStringList"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t == DynamicString:
+    if t in _DYNAMIC_STRING_TYPES:
         schema = {"$ref": f"{ref_prefix}DynamicString"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t == DynamicNumber:
+    if t in _DYNAMIC_NUMBER_TYPES:
         schema = {"$ref": f"{ref_prefix}DynamicNumber"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t == DynamicBoolean:
+    if t in _DYNAMIC_BOOLEAN_TYPES:
         schema = {"$ref": f"{ref_prefix}DynamicBoolean"}
         if param_desc:
             schema["description"] = param_desc
@@ -176,7 +190,7 @@ def _map_type_hint_to_schema(
     args = get_args(t)
 
     # Handle Optional[T] / Union[T, None] / Dynamic Unions
-    if origin is Union:
+    if origin is Union or (hasattr(types, "UnionType") and origin is types.UnionType):
         non_none_args = [a for a in args if a is not type(None)]
         if len(non_none_args) == 1:
             return _map_type_hint_to_schema(
@@ -184,15 +198,17 @@ def _map_type_hint_to_schema(
             )
 
         has_binding = any(
-            a is DataBinding or (isinstance(a, type) and issubclass(a, DataBinding))
+            a in _DATA_BINDING_TYPES
+            or (isinstance(a, type) and issubclass(a, _DATA_BINDING_TYPES))
             for a in non_none_args
         )
         has_func = any(
-            a is FunctionCall or (isinstance(a, type) and issubclass(a, FunctionCall))
+            a in _FUNCTION_CALL_TYPES
+            or (isinstance(a, type) and issubclass(a, _FUNCTION_CALL_TYPES))
             for a in non_none_args
         )
         types_set = set(non_none_args)
-        expr_types = {DataBinding, FunctionCall}
+        expr_types = set(_DATA_BINDING_TYPES) | set(_FUNCTION_CALL_TYPES)
 
         if has_binding or has_func:
             if str in types_set and len(types_set - (expr_types | {str})) == 0:
@@ -224,7 +240,7 @@ def _map_type_hint_to_schema(
                         )
                     )
                 )
-                or a is DynamicChildList
+                or a in _DYNAMIC_CHILD_LIST_TYPES
                 for a in types_set
             ):
                 schema = {"$ref": f"{ref_prefix}ChildList"}
@@ -246,7 +262,7 @@ def _map_type_hint_to_schema(
             ):
                 if any(
                     get_origin(a) in (list, Sequence, AbcSequence, tuple, set)
-                    or a is DynamicChildList
+                    or a in _DYNAMIC_CHILD_LIST_TYPES
                     for a in types_set
                 ):
                     schema = {"$ref": f"{ref_prefix}ChildList"}
@@ -270,7 +286,7 @@ def _map_type_hint_to_schema(
             for a in types_set
         ) and any(
             get_origin(a) in (list, Sequence, AbcSequence, tuple, set)
-            or a is DynamicChildList
+            or a in _DYNAMIC_CHILD_LIST_TYPES
             for a in types_set
         ):
             schema = {"$ref": f"{ref_prefix}ChildList"}
@@ -302,32 +318,32 @@ def _map_type_hint_to_schema(
         return enum_schema
 
     # Direct Protocol References
-    if t is DataBinding:
+    if t in _DATA_BINDING_TYPES:
         schema = {"$ref": f"{ref_prefix}DataBinding"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t is Action:
+    if t in _ACTION_TYPES:
         schema = {"$ref": f"{ref_prefix}Action"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t is CheckRule:
+    if t in _CHECK_RULE_TYPES:
         schema = {"$ref": f"{ref_prefix}CheckRule"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t is AccessibilityAttributes:
+    if t in _ACCESSIBILITY_TYPES:
         schema = {"$ref": f"{ref_prefix}AccessibilityAttributes"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t is FunctionCall:
+    if t in _FUNCTION_CALL_TYPES:
         schema = {"$ref": f"{ref_prefix}FunctionCall"}
         if param_desc:
             schema["description"] = param_desc
         return schema
-    if t is DynamicChildList:
+    if t in _DYNAMIC_CHILD_LIST_TYPES:
         schema = {"$ref": f"{ref_prefix}ChildList"}
         if param_desc:
             schema["description"] = param_desc
@@ -500,7 +516,13 @@ def macro(
                 inspect.Parameter.VAR_KEYWORD,
             ):
                 continue
-            type_hint = hints.get(p_name, Any)
+            default_hint = (
+                param.annotation
+                if param.annotation is not inspect.Parameter.empty
+                and not isinstance(param.annotation, str)
+                else Any
+            )
+            type_hint = hints.get(p_name, default_hint)
             is_req = param.default is inspect.Parameter.empty
             param_desc = (
                 param_docs.get(p_name)
