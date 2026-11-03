@@ -911,3 +911,33 @@ payload that calls one depends on its validation settings:
    still routes the calls. A strict renderer can take those declarations from
    the agent's catalog document: `catalog.to_json()` writes agent functions
    like any other function, without the handler.
+
+#### 5e. With A2A and ADK
+
+Over A2A, each A2UI message is one `DataPart` of the A2A message.
+`a2ui-a2a` reads them with `get_a2ui_messages(message)` and wraps the router's
+replies with `create_a2ui_parts(replies)`, for an `AgentExecutor` of your own.
+
+With ADK and its `A2aAgentExecutor`, `a2ui-adk` does the routing for you.
+`a2ui_rpc_callback` returns a `before_agent_callback` that answers a request
+holding only RPC messages and skips the agent, and `A2uiRendererCallsStore`
+keeps each session's `RendererFunctionCalls`:
+
+```python
+from a2ui.adk import A2uiRendererCallsStore, a2ui_rpc_callback
+
+renderer_calls = A2uiRendererCallsStore()
+agent = LlmAgent(
+    ...,
+    before_agent_callback=a2ui_rpc_callback(
+        agent_functions=registry, renderer_calls=renderer_calls.get
+    ),
+)
+```
+
+Add `a2ui_rpc_interceptor()` to the executor's `execute_interceptors`, so a
+task whose request held only RPC messages ends `completed` even when there is
+no reply to send. The RPC messages stay in the session's events but not in the
+model's prompt: `SendA2uiToClientToolset` removes them, and agents without it
+pass `exclude_a2ui_rpc_from_prompt` as their `before_model_callback`. See the
+[`a2ui-adk` README](../a2ui_adk/README.md) for details.

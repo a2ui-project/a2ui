@@ -240,6 +240,32 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
         return A2uiPartConverter(await self._ui_tool._resolve_processor(ctx))
 
+    async def process_llm_request(
+        self, *, tool_context: tool_context.ToolContext, llm_request: LlmRequest
+    ) -> None:
+        """Keeps A2UI RPC messages out of the model's request.
+
+        A2UI RPC messages (`callAgentFunction`, `agentFunctionResponse`,
+        `callRendererFunction`, `rendererFunctionResponse`) that the session's
+        events hold are removed from the request's contents, as
+        `exclude_a2ui_rpc_from_prompt` does. The events keep them. It runs
+        whether or not A2UI is enabled for the request. Without the `a2a`
+        extra, no A2A parts reach the session, so there is nothing to remove.
+        """
+        await super().process_llm_request(
+            tool_context=tool_context, llm_request=llm_request
+        )
+        # Imported here, since it needs the `a2a` extra.
+        from . import _is_missing_a2a_extra
+
+        try:
+            from .a2a.rpc_prompt_filter import strip_a2ui_rpc_parts
+        except ModuleNotFoundError as e:
+            if not _is_missing_a2a_extra(e):
+                raise
+            return
+        strip_a2ui_rpc_parts(llm_request)
+
     class _SendA2uiJsonToClientTool(base_tool.BaseTool):
         TOOL_NAME = A2UI_TOOL_NAME
         VALIDATED_A2UI_JSON_KEY = A2UI_VALIDATED_JSON_KEY
