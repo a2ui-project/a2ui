@@ -98,7 +98,9 @@ def thinking_scorer() -> Scorer:
         return Score(
             value=1 - _length(shown) / total,
             answer=thinking,
-            explanation=f"The thinking an app shows after `remove_a2ui_thinking`:\n\n{shown}",
+            explanation=(
+                f"The thinking an app shows after `remove_a2ui_thinking`:\n\n{shown}"
+            ),
             metadata={"characters": total, "shown_characters": _length(shown)},
         )
 
