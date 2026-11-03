@@ -30,7 +30,87 @@ import 'suites.dart';
 ///
 /// A case that needs something this SDK does not implement is skipped with
 /// the reason.
+const Map<String, Set<String>> _knownKeys = {
+  'case:compile': {
+    ...caseMetadataKeys,
+    'args',
+    'expect',
+    'expect_error',
+    'expect_present',
+    'input',
+  },
+  'case:decompile': {
+    ...caseMetadataKeys,
+    'args',
+    'expect_contains',
+    'expect_error',
+    'expect_recompiled',
+    'expect_round_trip',
+    'messages',
+  },
+  'case:generate_prompt_snippet': {
+    ...caseMetadataKeys,
+    'args',
+    'expect_absent',
+    'expect_contains',
+    'expect_deterministic',
+    'expect_error',
+  },
+  'case:has_format_content': {...caseMetadataKeys, 'args', 'expect', 'input'},
+  'case:parse_chunk': {
+    ...caseMetadataKeys,
+    'args',
+    'expect_close',
+    'expect_error',
+    'expect_matches_single_shot',
+    'steps',
+  },
+  'case:parse_response': {
+    ...caseMetadataKeys,
+    'args',
+    'expect',
+    'expect_error',
+    'input',
+  },
+  'case:unwrap': {...caseMetadataKeys, 'args', 'expect', 'input'},
+  'case:wrap': {
+    ...caseMetadataKeys,
+    'args',
+    'expect_contains',
+    'expect_output',
+    'expect_round_trip',
+    'parts',
+  },
+  'args:compile': {'catalog', 'catalogs', 'format'},
+  'args:decompile': {'catalog', 'catalogs', 'format'},
+  'args:generate_prompt_snippet': {
+    'allowed_messages',
+    'catalogs',
+    'examples',
+    'format',
+  },
+  'args:has_format_content': {'complete', 'format'},
+  'args:parse_chunk': {
+    'after_rejected_block',
+    'catalog',
+    'format',
+    'progressive_keys',
+    'wrapped',
+  },
+  'args:parse_response': {'catalog', 'format', 'wrapped'},
+  'args:unwrap': {'format'},
+  'args:wrap': {'format'},
+  'step:parse_chunk': {
+    'expect',
+    'expect_error',
+    'expect_in_block',
+    'expect_partial_results',
+    'input',
+  },
+};
+
 void main() {
+  final allCaseNames = <String>{};
   for (final suite in [
     'compiler',
     'response_parser',
@@ -44,15 +124,14 @@ void main() {
         final List<Map<String, Object?>> cases = loadSuite(path);
         test('suite is not empty', () => expect(cases, isNotEmpty));
         for (final testCase in cases) {
-          test(
-            testCase['name']! as String,
-            () => _runCase(testCase, version),
-            skip: _skipReason(testCase, version),
-          );
+          final name = testCase['name']! as String;
+          allCaseNames.add(name);
+          test(name, () => _runCase(testCase, version));
         }
       });
     }
   }
+  verifyNoUnusedEntries('express', allCaseNames, _v1OnlyCases.keys);
 }
 
 const String _oneCatalogPerSurface =
@@ -127,7 +206,20 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
 }
 
 void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
-  if (testCase['action'] == 'parse_chunk') {
+  if (_skipReason(testCase, version) case final String reason) {
+    markTestSkipped(reason);
+    return;
+  }
+  final action = testCase['action'] as String?;
+  final Set<String>? allowedCaseKeys = _knownKeys['case:$action'];
+  if (allowedCaseKeys == null) {
+    throw UnsupportedError('Unknown action $action');
+  }
+  assertKnownKeys(testCase, allowedCaseKeys, 'case:$action');
+  final args = testCase['args']! as Map<String, Object?>;
+  assertKnownKeys(args, _knownKeys['args:$action']!, 'args:$action');
+  expect(args['format'], 'express');
+  if (action == 'parse_chunk') {
     _runChunks(testCase, version);
     return;
   }
@@ -137,7 +229,7 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
     return;
   }
   final Object? result = _perform(testCase, version);
-  switch (testCase['action']) {
+  switch (action) {
     case 'generate_prompt_snippet':
       _checkSnippet(testCase, version, result! as String);
     case 'wrap':
@@ -178,6 +270,11 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
   for (final (int i, Object? step)
       in (testCase['steps']! as List<Object?>).indexed) {
     final stepCase = step! as Map<String, Object?>;
+    assertKnownKeys(
+      stepCase,
+      _knownKeys['step:parse_chunk']!,
+      'step:parse_chunk',
+    );
     final chunk = stepCase['input']! as String;
     chunks.add(chunk);
     if (stepCase['expect_error'] case final Object error) {

@@ -131,7 +131,7 @@ jobs:
       - name: Run tests
         working-directory: ${{ matrix.package.path }}
         env:
-          A2UI_CONFORMANCE_MANIFEST_DIR: ${{ (matrix.package.path == 'dart/a2ui_core' || matrix.package.path == 'dart/a2ui_flutter') && format('{0}/a2ui-manifest', runner.temp) || '' }}
+          A2UI_CONFORMANCE_MANIFEST_DIR: ${{ (matrix.package.path == 'dart/a2ui_core' || matrix.package.path == 'dart/a2ui_flutter' || matrix.package.path == 'dart/a2ui_agent') && format('{0}/a2ui-manifest', runner.temp) || '' }}
         run: |
           if [ -d "test" ]; then
             flutter test --test-randomize-ordering-seed=random
@@ -159,6 +159,16 @@ jobs:
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness flutter \
             --corpus adapter
+      - name: Set up Python for agent conformance manifest check
+        if: matrix.package.path == 'dart/a2ui_agent'
+        uses: ./.github/actions/setup-python
+      - name: Check executed agent conformance cases
+        if: matrix.package.path == 'dart/a2ui_agent'
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus agent \
+            --harness dart-agent
 
   # The e2e_test packages are excluded from the matrix above because their
   # tests call a live Gemini model, which needs credentials and quota that are
