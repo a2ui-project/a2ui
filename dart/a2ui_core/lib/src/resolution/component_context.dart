@@ -24,11 +24,10 @@ class ComponentContext {
   final ComponentModel componentModel;
   final DataContext dataContext;
 
-  /// By default, expression errors are dispatched on the surface:
-  /// as `EXECUTION_ERROR` naming the `functionCallId` when the cause is an
-  /// [A2uiRpcError] from a call the agent answered with a failure, and as
-  /// `EXPRESSION_ERROR` otherwise. Supply [onError] to control their
-  /// reporting policy instead.
+  /// By default, expression errors are dispatched on the surface as
+  /// `EXPRESSION_ERROR`, naming the `functionCallId` when the cause is an
+  /// [A2uiRpcError] from an agent call that failed or timed out. Supply
+  /// [onError] to control their reporting policy instead.
   ///
   /// [parentDataContext] links this component's data context to the context
   /// of the component that references it, and [index] records its position
@@ -59,9 +58,11 @@ class ComponentContext {
 
   /// Builds the [A2uiRendererError] for [error] on [surface].
   ///
-  /// When [error]'s cause is an [A2uiRpcError], the error code is
-  /// `EXECUTION_ERROR` and `functionCallId` is set (omitting `surfaceId` when
-  /// `functionCallId` is non-null to satisfy the v1.0 wire `oneOf` rule).
+  /// The error code is `EXPRESSION_ERROR` for an agent call that failed or
+  /// timed out, as for any other failed expression. When [error]'s cause is
+  /// such an [A2uiRpcError], `functionCallId` is set (omitting `surfaceId`
+  /// when `functionCallId` is non-null to satisfy the v1.0 wire `oneOf`
+  /// rule).
   static A2uiRendererError clientErrorFor(
     SurfaceModel surface,
     A2uiExpressionError error,
@@ -69,7 +70,7 @@ class ComponentContext {
     final Object? cause = error.cause;
     return cause is A2uiRpcError
         ? A2uiRendererError(
-            code: RpcErrorCode.executionError.wireValue,
+            code: error.code,
             surfaceId: cause.functionCallId == null ? surface.id : null,
             functionCallId: cause.functionCallId,
             message: error.message,

@@ -16,6 +16,12 @@
 
 import {html, nothing, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
+import {
+  getAccessibilityDescription,
+  getAccessibilityLabel,
+  getValidationErrorId,
+  renderValidationErrors,
+} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {CheckBoxSupportedApis} from './supported_apis.js';
 
@@ -92,11 +98,15 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<CheckBoxSupp
             type="checkbox"
             class=${classMap(inputClasses)}
             .checked=${props.value || false}
+            aria-label=${getAccessibilityLabel(props.accessibility)}
+            aria-description=${getAccessibilityDescription(props.accessibility)}
+            aria-invalid=${isInvalid ? 'true' : nothing}
+            aria-describedby=${getValidationErrorId(this.domId, props)}
             @change=${(e: Event) => props.setValue?.((e.target as HTMLInputElement).checked)}
           />
           <span class="a2ui-check-box-text">${props.label}</span>
         </label>
-        ${this.renderValidationErrors(props)}
+        ${renderValidationErrors(this.domId, props)}
       </div>
     `;
   }

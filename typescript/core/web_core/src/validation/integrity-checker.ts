@@ -178,7 +178,15 @@ export interface TopologyOptions {
 export interface ValidationConfig extends TopologyOptions {
   /** Target protocol version expected for incoming messages (e.g. 'v0.8', 'v0.9', 'v1.0'). */
   targetVersion?: ProtocolVersion | string;
-  /** Whether to allow component types that do not exist in the surface catalog. Defaults to false. */
+  /**
+   * Whether to allow components and functions that the resolved catalog does
+   * not define. Defaults to false.
+   *
+   * A renderer that uses agent-side functions must either set this to `true`
+   * or declare those functions, without implementations, in the catalog the
+   * calls resolve to. Otherwise validation rejects the calls before they can
+   * be routed to the agent with `callAgentFunction`.
+   */
   allowUnknownElements?: boolean;
   /** Allowed top-level message operation types (e.g. ['createSurface', 'updateComponents']). */
   allowedMessages?: string[];
