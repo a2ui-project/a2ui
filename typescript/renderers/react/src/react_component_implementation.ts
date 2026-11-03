@@ -50,6 +50,13 @@ export type ReactRenderProps = {
   context: ComponentContext;
   buildChild: (id: string, basePath?: string) => React.ReactNode;
   metadata?: A2uiMetadata;
+  /**
+   * Pass to the element that should carry `accessibility.label` and
+   * `accessibility.description`, such as the component's input
+   * (`<input ref={accessibilityRef}>`). Without it, the component's host
+   * element is labelled with them as a `role="group"`.
+   */
+  accessibilityRef?: (element: Element | null) => void;
 };
 
 /** A catalog entry implemented as a React component. */
@@ -78,4 +85,11 @@ export type ReactA2uiComponentProps<T> = {
   buildChild: (id: string, basePath?: string) => React.ReactNode;
   context: ComponentContext;
   metadata?: A2uiMetadata;
+  /**
+   * Pass to the element that should carry `accessibility.label` and
+   * `accessibility.description`, such as the component's input
+   * (`<input ref={accessibilityRef}>`). Without it, the component's host
+   * element is labelled with them as a `role="group"`.
+   */
+  accessibilityRef?: (element: Element | null) => void;
 };

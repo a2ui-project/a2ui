@@ -9,6 +9,7 @@
 - (v1_0) The basic catalog `regex` function's `pattern` description now names the A2UI regex dialect and its safety limits ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
 - **BREAKING CHANGE**: `A2uiLitElement` now renders into light DOM by default (`createRenderRoot()` returns `this`) instead of shadow DOM. Recommended migration: subclasses that rely on shadow DOM encapsulation should override `createRenderRoot()` to call `HTMLElement.prototype.attachShadow({mode: 'open'})` ([#3801](https://github.com/a2ui-project/a2ui/pull/3801)).
 - (v1_0) `Catalog.toJson()` no longer emits `unevaluatedProperties: false` or catchall subschemas on code-defined component schemas, matching published v1.0 catalog documents so that components (and catalogs reloaded with `Catalog.fromJson()`) accept `ComponentCommon` fields (`id`, `catalogId`, `accessibility`, and `metadata`) in `Catalog.validationSchema` and protocol JSON Schema validation, while preserving `unevaluatedProperties: true` for `.passthrough()` components ([#3513](https://github.com/a2ui-project/a2ui/issues/3513), [#3760](https://github.com/a2ui-project/a2ui/pull/3760)).
+- Export `setHostAccessibilityAttributes` and the `ResolvedAccessibilityAttributes` type from `@a2ui/web_core/v0_9/universal` so framework host elements apply `aria-live`, `aria-hidden`, and `inert` the way the basic catalog does. [#3499](https://github.com/a2ui-project/a2ui/issues/3499)
 
 ## 0.15.0
 

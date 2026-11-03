@@ -14,10 +14,15 @@
  * limitations under the License.
  */
 
-import type {ComponentContext, ComponentNode} from '@a2ui/web_core/v0_9';
+import {effect, getValue, type ComponentContext, type ComponentNode} from '@a2ui/web_core/v0_9';
 import type {A2uiWebComponentElement} from '@a2ui/web_core/v0_9/universal';
 import {HostRegistry, isReactRendered, ownerAbove} from '../host_registry';
 import type {ReactComponentImplementation} from '../react_component_implementation';
+import {
+  HostAccessibility,
+  accessibilityTargetOf,
+  resolvedAccessibility,
+} from './host_accessibility';
 
 /**
  * The custom element that stands in the DOM for a node implemented in React
@@ -26,6 +31,9 @@ import type {ReactComponentImplementation} from '../react_component_implementati
  * renderer creates it (a Lit `Column` rendering its children), it registers
  * with its surface's `HostRegistry` under the nearest React-rendered element
  * above it, whose React content portals the node's content into it.
+ *
+ * The host applies the node's `accessibility` attributes itself, so every
+ * React implementation gets them (see `host_accessibility.ts`).
  */
 export interface ReactHostElement extends A2uiWebComponentElement {
   node?: ComponentNode<ReactComponentImplementation>;
@@ -36,10 +44,14 @@ export class ReactWcHost extends HTMLElement implements ReactHostElement {
   context?: ComponentContext;
   private _node?: ComponentNode<ReactComponentImplementation>;
   private registry?: HostRegistry;
+  private readonly accessibility = new HostAccessibility(this);
+  private accessibilityNode?: ComponentNode<ReactComponentImplementation>;
+  private stopAccessibility?: () => void;
 
   connectedCallback() {
     this.style.display = 'contents';
     this.register();
+    this.bindAccessibility();
   }
 
   disconnectedCallback() {
@@ -49,6 +61,7 @@ export class ReactWcHost extends HTMLElement implements ReactHostElement {
       if (!this.isConnected) {
         this.registry?.delete(this);
         this.registry = undefined;
+        this.unbindAccessibility();
       }
     });
   }
@@ -57,6 +70,7 @@ export class ReactWcHost extends HTMLElement implements ReactHostElement {
     this._node = node;
     this.context = node?.context;
     this.register();
+    this.bindAccessibility();
   }
 
   get node(): ComponentNode<ReactComponentImplementation> | undefined {
@@ -74,5 +88,29 @@ export class ReactWcHost extends HTMLElement implements ReactHostElement {
       this.registry = registry;
     }
     registry.add(this, node, ownerAbove(this));
+  }
+
+  /** Keeps the ARIA attributes in step with the node while the host is connected. */
+  private bindAccessibility() {
+    const node = this._node;
+    if (!this.isConnected || node === this.accessibilityNode) return;
+    this.unbindAccessibility();
+    this.accessibilityNode = node;
+    if (!node) {
+      this.accessibility.apply(undefined, null);
+      return;
+    }
+    this.stopAccessibility = effect(() => {
+      this.accessibility.apply(
+        resolvedAccessibility(getValue(node.props)),
+        getValue(accessibilityTargetOf(node)),
+      );
+    });
+  }
+
+  private unbindAccessibility() {
+    this.stopAccessibility?.();
+    this.stopAccessibility = undefined;
+    this.accessibilityNode = undefined;
   }
 }

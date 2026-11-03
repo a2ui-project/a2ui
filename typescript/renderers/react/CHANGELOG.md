@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: `a2ui-react-<name>` host elements apply the component's `accessibility` attributes: `aria-live`, `aria-hidden`, and `inert` on the host, and `aria-label` and `aria-description` on the host with `role="group"` (unless the host already has a `role`). A component built with `createComponentImplementation` or `createBinderlessComponentImplementation` can pass the new `accessibilityRef` prop to an inner element to receive `aria-label` and `aria-description` instead. Recommended migration: a component that already sets `aria-label` from `props.accessibility.label` on an inner element should pass `accessibilityRef` to that element, or the label is announced twice. [#3499](https://github.com/a2ui-project/a2ui/issues/3499)
+
 ## 0.15.0
 
 - **BREAKING CHANGE**: `createComponentImplementation` and `createBinderlessComponentImplementation` keep the `allowedParents` and `allowedChildren` of the `ComponentApi` they receive. The message processor now enforces them for custom React components, so a payload that breaks them is rejected with `UNALLOWED_PARENT` or `UNALLOWED_CHILD` (previously accepted). [#3533](https://github.com/a2ui-project/a2ui/issues/3533)
