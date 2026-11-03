@@ -13,7 +13,7 @@ To learn about A2UI, see [a2ui.org](https://a2ui.org/):
 - [Transports](https://a2ui.org/concepts/transports/), which carry messages
   between the agent and the app
 - [Agent development](https://a2ui.org/guides/agent-development/)
-- [Catalogs](https://a2ui.org/preview/concepts/catalogs/), and how to register
+- [Catalogs](https://a2ui.org/concepts/catalogs/), and how to register
   one in an agent and a renderer
 - [The v1.0 specification](https://a2ui.org/specification/v1.0-a2ui/)
 
