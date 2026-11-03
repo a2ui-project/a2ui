@@ -1779,3 +1779,498 @@
               - id: root
                 component: Text
                 text: Updated
+
+- name: test_v10_component_nesting_depth_at_limit
+  description: Tests that a chain of nested components at the exact global depth limit (50) passes validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Card
+                child: c0
+              - id: c0
+                component: Card
+                child: c1
+              - id: c1
+                component: Card
+                child: c2
+              - id: c2
+                component: Card
+                child: c3
+              - id: c3
+                component: Card
+                child: c4
+              - id: c4
+                component: Card
+                child: c5
+              - id: c5
+                component: Card
+                child: c6
+              - id: c6
+                component: Card
+                child: c7
+              - id: c7
+                component: Card
+                child: c8
+              - id: c8
+                component: Card
+                child: c9
+              - id: c9
+                component: Card
+                child: c10
+              - id: c10
+                component: Card
+                child: c11
+              - id: c11
+                component: Card
+                child: c12
+              - id: c12
+                component: Card
+                child: c13
+              - id: c13
+                component: Card
+                child: c14
+              - id: c14
+                component: Card
+                child: c15
+              - id: c15
+                component: Card
+                child: c16
+              - id: c16
+                component: Card
+                child: c17
+              - id: c17
+                component: Card
+                child: c18
+              - id: c18
+                component: Card
+                child: c19
+              - id: c19
+                component: Card
+                child: c20
+              - id: c20
+                component: Card
+                child: c21
+              - id: c21
+                component: Card
+                child: c22
+              - id: c22
+                component: Card
+                child: c23
+              - id: c23
+                component: Card
+                child: c24
+              - id: c24
+                component: Card
+                child: c25
+              - id: c25
+                component: Card
+                child: c26
+              - id: c26
+                component: Card
+                child: c27
+              - id: c27
+                component: Card
+                child: c28
+              - id: c28
+                component: Card
+                child: c29
+              - id: c29
+                component: Card
+                child: c30
+              - id: c30
+                component: Card
+                child: c31
+              - id: c31
+                component: Card
+                child: c32
+              - id: c32
+                component: Card
+                child: c33
+              - id: c33
+                component: Card
+                child: c34
+              - id: c34
+                component: Card
+                child: c35
+              - id: c35
+                component: Card
+                child: c36
+              - id: c36
+                component: Card
+                child: c37
+              - id: c37
+                component: Card
+                child: c38
+              - id: c38
+                component: Card
+                child: c39
+              - id: c39
+                component: Card
+                child: c40
+              - id: c40
+                component: Card
+                child: c41
+              - id: c41
+                component: Card
+                child: c42
+              - id: c42
+                component: Card
+                child: c43
+              - id: c43
+                component: Card
+                child: c44
+              - id: c44
+                component: Card
+                child: c45
+              - id: c45
+                component: Card
+                child: c46
+              - id: c46
+                component: Card
+                child: c47
+              - id: c47
+                component: Card
+                child: c48
+              - id: c48
+                component: Card
+                child: c49
+              - id: c49
+                component: Text
+                text: Leaf
+
+- name: test_v10_component_nesting_depth_one_past_limit_error
+  description: Tests that a chain of nested components one past the global depth limit (51) fails validation with RecursionError in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Card
+                child: c0
+              - id: c0
+                component: Card
+                child: c1
+              - id: c1
+                component: Card
+                child: c2
+              - id: c2
+                component: Card
+                child: c3
+              - id: c3
+                component: Card
+                child: c4
+              - id: c4
+                component: Card
+                child: c5
+              - id: c5
+                component: Card
+                child: c6
+              - id: c6
+                component: Card
+                child: c7
+              - id: c7
+                component: Card
+                child: c8
+              - id: c8
+                component: Card
+                child: c9
+              - id: c9
+                component: Card
+                child: c10
+              - id: c10
+                component: Card
+                child: c11
+              - id: c11
+                component: Card
+                child: c12
+              - id: c12
+                component: Card
+                child: c13
+              - id: c13
+                component: Card
+                child: c14
+              - id: c14
+                component: Card
+                child: c15
+              - id: c15
+                component: Card
+                child: c16
+              - id: c16
+                component: Card
+                child: c17
+              - id: c17
+                component: Card
+                child: c18
+              - id: c18
+                component: Card
+                child: c19
+              - id: c19
+                component: Card
+                child: c20
+              - id: c20
+                component: Card
+                child: c21
+              - id: c21
+                component: Card
+                child: c22
+              - id: c22
+                component: Card
+                child: c23
+              - id: c23
+                component: Card
+                child: c24
+              - id: c24
+                component: Card
+                child: c25
+              - id: c25
+                component: Card
+                child: c26
+              - id: c26
+                component: Card
+                child: c27
+              - id: c27
+                component: Card
+                child: c28
+              - id: c28
+                component: Card
+                child: c29
+              - id: c29
+                component: Card
+                child: c30
+              - id: c30
+                component: Card
+                child: c31
+              - id: c31
+                component: Card
+                child: c32
+              - id: c32
+                component: Card
+                child: c33
+              - id: c33
+                component: Card
+                child: c34
+              - id: c34
+                component: Card
+                child: c35
+              - id: c35
+                component: Card
+                child: c36
+              - id: c36
+                component: Card
+                child: c37
+              - id: c37
+                component: Card
+                child: c38
+              - id: c38
+                component: Card
+                child: c39
+              - id: c39
+                component: Card
+                child: c40
+              - id: c40
+                component: Card
+                child: c41
+              - id: c41
+                component: Card
+                child: c42
+              - id: c42
+                component: Card
+                child: c43
+              - id: c43
+                component: Card
+                child: c44
+              - id: c44
+                component: Card
+                child: c45
+              - id: c45
+                component: Card
+                child: c46
+              - id: c46
+                component: Card
+                child: c47
+              - id: c47
+                component: Card
+                child: c48
+              - id: c48
+                component: Card
+                child: c49
+              - id: c49
+                component: Card
+                child: c50
+              - id: c50
+                component: Text
+                text: Leaf
+      expectError:
+        category: RecursionError
+        message: Global recursion limit exceeded
+
+- name: test_v10_recursion_limit_function_call_depth_at_limit
+  description: Tests that nested function calls at the exact maximum depth (5) pass validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  "@call": formatString
+                  args:
+                    value:
+                      "@call": formatString
+                      args:
+                        value:
+                          "@call": formatString
+                          args:
+                            value:
+                              "@call": formatString
+                              args:
+                                value:
+                                  "@call": formatString
+                                  args:
+                                    value: "At limit"
+
+- name: test_v10_recursion_limit_function_call_depth_one_past_limit_error
+  description: Tests that nested function calls one past the maximum depth (6) fail validation with RecursionError in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  "@call": formatString
+                  args:
+                    value:
+                      "@call": formatString
+                      args:
+                        value:
+                          "@call": formatString
+                          args:
+                            value:
+                              "@call": formatString
+                              args:
+                                value:
+                                  "@call": formatString
+                                  args:
+                                    value:
+                                      "@call": formatString
+                                      args:
+                                        value: "One past limit"
+      expectError:
+        category: RecursionError
+        message: functionCall depth
+
+- name: test_v10_uax31_astral_plane_identifier_accepted
+  description: Tests that an astral-plane UAX #31 identifier starting with XID_Start U+1D465 ('𝑥Label') is accepted for component types and IDs in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalog:
+    catalogId: astral_v10
+    components:
+      Stack:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Stack}
+          children:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - children
+      "𝑥Label":
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: "𝑥Label"}
+          text: {type: string}
+        required:
+          - component
+          - text
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: astral_v10
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                children: ["𝑥Label"]
+              - id: "𝑥Label"
+                component: "𝑥Label"
+                text: "Astral plane"
+
+- name: test_v10_uax31_astral_non_identifier_component_type_error
+  description: Tests that an astral-plane non-identifier character (U+1F600 '😀') used as a component type fails UAX #31 validation in v1.0 even when unknown elements are allowed.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: false
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: "😀"
+      expectError:
+        category: ValidationError
+        message: "😀"

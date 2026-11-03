@@ -283,18 +283,44 @@ public final class MessageProcessor: ObservableObject {
       catalogDictionary["components"] = .object(componentsDictionary)
     }
 
-    if !catalog.functions.isEmpty {
-      if version.isAtLeastV10 {
-        catalogDictionary["functions"] = .object(generateV10InlineFunctions(catalog))
-      } else {
-        catalogDictionary["functions"] = .array(generateV09InlineFunctions(catalog))
+    let v10Functions = version.isAtLeastV10 ? generateV10InlineFunctions(catalog) : [:]
+    let v09Functions = version.isAtLeastV10 ? [] : generateV09InlineFunctions(catalog)
+    if version.isAtLeastV10 {
+      if !v10Functions.isEmpty {
+        catalogDictionary["functions"] = .object(v10Functions)
       }
+    } else if !v09Functions.isEmpty {
+      catalogDictionary["functions"] = .array(v09Functions)
     }
 
     if !version.isAtLeastV10, let themeSchema = catalog.themeSchema {
       let schemaJSON = schemaToJSONValue(themeSchema) ?? .object([:])
       let processedTheme = processRefs(schemaJSON)
       catalogDictionary["theme"] = processedTheme["properties"] ?? processedTheme
+    }
+
+    if version.isAtLeastV10 {
+      var defs: OrderedDictionary<String, JSONValue> = [:]
+      if !componentsDictionary.isEmpty {
+        let componentRefs: [JSONValue] = componentsDictionary.keys.sorted().map {
+          .object(["$ref": .string("#/components/\($0)")])
+        }
+        defs["anyComponent"] = .object([
+          "oneOf": .array(componentRefs),
+          "discriminator": .object(["propertyName": .string("component")]),
+        ])
+      }
+      if !v10Functions.isEmpty {
+        let functionRefs: [JSONValue] = v10Functions.keys.sorted().map { name in
+          .object(["$ref": .string("#/functions/\(name)")])
+        }
+        defs["anyFunction"] = .object([
+          "oneOf": .array(functionRefs)
+        ])
+      }
+      if !defs.isEmpty {
+        catalogDictionary["$defs"] = .object(defs)
+      }
     }
 
     return .object(catalogDictionary)
@@ -334,9 +360,27 @@ public final class MessageProcessor: ObservableObject {
         properties[key] = value
       }
     }
+    if let allOf = processedSchema["allOf"]?.arrayValue {
+      for subschema in allOf {
+        if let subProps = subschema["properties"]?.objectValue {
+          for (key, value) in subProps {
+            properties[key] = value
+          }
+        }
+      }
+    }
     if let originalRequired = processedSchema["required"]?.arrayValue {
       for requiredProperty in originalRequired where !required.contains(requiredProperty) {
         required.append(requiredProperty)
+      }
+    }
+    if let allOf = processedSchema["allOf"]?.arrayValue {
+      for subschema in allOf {
+        if let subRequired = subschema["required"]?.arrayValue {
+          for requiredProperty in subRequired where !required.contains(requiredProperty) {
+            required.append(requiredProperty)
+          }
+        }
       }
     }
 
@@ -355,9 +399,10 @@ public final class MessageProcessor: ObservableObject {
     _ catalog: AnyCatalog
   ) -> OrderedDictionary<String, JSONValue> {
     var functionsDict: OrderedDictionary<String, JSONValue> = [:]
-    for key in catalog.functions.keys.sorted() {
+    for key in catalog.functions.keys.sorted() where !key.hasPrefix("@") {
       guard let functionImplementation = catalog.functions[key] else { continue }
       let functionAPI = functionImplementation.api
+      guard !functionAPI.name.hasPrefix("@") else { continue }
       functionsDict[functionAPI.name] = buildV10InlineFunction(functionAPI)
     }
     return functionsDict
@@ -402,9 +447,10 @@ public final class MessageProcessor: ObservableObject {
 
   private func generateV09InlineFunctions(_ catalog: AnyCatalog) -> [JSONValue] {
     var functionsArray: [JSONValue] = []
-    for key in catalog.functions.keys.sorted() {
+    for key in catalog.functions.keys.sorted() where !key.hasPrefix("@") {
       guard let functionImplementation = catalog.functions[key] else { continue }
       let functionAPI = functionImplementation.api
+      guard !functionAPI.name.hasPrefix("@") else { continue }
       let schemaJSON = schemaToJSONValue(functionAPI.schema) ?? .object([:])
       let processedParameters = processRefs(schemaJSON)
 

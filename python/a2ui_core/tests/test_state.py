@@ -399,18 +399,21 @@ def test_data_model_has_path_forbidden_keys():
             dm.has_path(f"/{seg}")
 
 
-def test_data_model_stores_references_directly():
+def test_data_model_stores_defensive_copies():
     raw_dict = {"item": [1, 2, 3]}
     dm = DataModel(raw_dict)
-    assert dm.get("/") is raw_dict
+    assert dm.get("/") == raw_dict
+    assert dm.get("/") is not raw_dict
 
     obj = {"inner": "val"}
     dm.set("/obj", obj)
-    assert dm.get("/obj") is obj
+    assert dm.get("/obj") == obj
+    assert dm.get("/obj") is not obj
 
     arr = [10, 20]
     dm.set("/arr", arr)
-    assert dm.get("/arr") is arr
+    assert dm.get("/arr") == arr
+    assert dm.get("/arr") is not arr
 
 
 def test_exception_hierarchy_normalization():

@@ -920,7 +920,7 @@ struct MessageProcessorConformanceTests {
         _ = try processor.getRendererCapabilities(options: options)
         Issue.record("[\(name)] Expected getRendererCapabilities to throw")
       } catch {
-        assertProcessErrorCategory(error: error, expectError: expectError, name: name)
+        try assertProcessErrorCategory(error: error, expectError: expectError, name: name)
       }
       return
     }

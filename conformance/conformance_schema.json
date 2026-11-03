@@ -650,7 +650,7 @@
         },
         "op": {
           "type": "string",
-          "enum": ["get", "set", "delete", "dispose"],
+          "enum": ["get", "set", "delete", "dispose", "mutate_input"],
           "description": "The operation to apply."
         },
         "path": {

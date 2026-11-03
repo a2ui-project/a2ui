@@ -64,8 +64,7 @@ jobs:
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness swift-core \
-            --corpus core \
-            --exclude "core/message_processor_scaling.yaml=performance: runs in the test (performance) job with A2UI_RUN_TIMING=1"
+            --corpus core
 
   ios-build:
     # `swift test` above builds for macOS only, so `#if os(iOS)` and UIKit code
@@ -135,6 +134,7 @@ jobs:
           persist-credentials: false
       - name: Run timing tests
         env:
+          A2UI_PERFORMANCE: "1"
           A2UI_RUN_TIMING: "1"
         run: >-
           swift test -c release -Xswiftc -enable-testing --enable-swift-testing

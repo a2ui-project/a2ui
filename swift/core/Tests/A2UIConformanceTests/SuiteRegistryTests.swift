@@ -109,7 +109,7 @@ struct SuiteRegistryTests {
         ConformanceManifest.record(
           testCase,
           status: .skipped,
-          reason: "set A2UI_RUN_TIMING=1 to run timing cases"
+          reason: "set A2UI_PERFORMANCE=1 or A2UI_RUN_TIMING=1 to run timing cases"
         )
       }
     }

@@ -57,6 +57,8 @@ import {
   BASIC_FUNCTIONS as V0_9_BASIC_FUNCTIONS,
   ThemeSchema as V0_9_ThemeSchema,
 } from '../../dist/src/v0_9/basic_catalog/index.js';
+import {CommonSchemas as V0_9_COMMON_SCHEMAS} from '../../dist/src/v0_9/schema/common-types.js';
+import {CommonSchemas as V1_0_COMMON_SCHEMAS} from '../../dist/src/v1_0/schema/common-types.js';
 import {PayloadValidator} from '../../dist/src/validation/index.js';
 import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolution.js';
 
@@ -133,7 +135,41 @@ const SKIP_TEST_NAMES = new Set();
  * then case name, with the behaviour that differs. They are reported as
  * skipped with that reason. An entry that matches no case fails the run.
  */
-const KNOWN_DIVERGENCES = new Map();
+const KNOWN_DIVERGENCES = new Map([
+  [
+    'core/common_types.yaml',
+    new Map([
+      [
+        'test_v10_index_system_function_requires_call',
+        'IndexSystemFunctionSchema.args in web_core is not strict and allows extra argument keys',
+      ],
+      [
+        'test_v10_dynamic_value_object_branches_are_exclusive',
+        'v1.0 DataBindingSchema and DynamicValueSchema literal object branch in web_core are not strict on extra/reserved keys',
+      ],
+      [
+        'test_v10_function_call_rejects_unknown_keys',
+        'v1.0 FunctionCallSchema in web_core allows extra keys on function call objects',
+      ],
+      [
+        'test_v09_function_call_rejects_unknown_keys',
+        'v0.9 FunctionCallSchema in web_core is not strict and allows extra keys',
+      ],
+      [
+        'test_v09_dynamic_value_branches_are_exclusive',
+        'v0.9 FunctionCallSchema in web_core is not strict, so an object with both call and path matches FunctionCallSchema',
+      ],
+      [
+        'test_v091_function_call_rejects_unknown_keys',
+        'v0.9 FunctionCallSchema in web_core is not strict and allows extra keys',
+      ],
+      [
+        'test_v091_dynamic_value_branches_are_exclusive',
+        'v0.9 FunctionCallSchema in web_core is not strict, so an object with both call and path matches FunctionCallSchema',
+      ],
+    ]),
+  ],
+]);
 
 /**
  * The `expect` keys a `from_json` case may use (`FromJsonExpect` in
@@ -239,12 +275,11 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['transform_catalog', 'catalog transformers are agent-side only'],
   ['provide_catalog', 'catalog providers are agent-side only'],
   ['resolve_catalogs', 'catalog resolution is agent-side only'],
-  ['common_types_schema', 'web_core does not generate the common types schema from its own models'],
+  ['common_types_schema', 'no schema generation from models'],
   [
     'agent_to_renderer_schema',
     'web_core does not generate the agent_to_renderer schema from its own models',
   ],
-  ['validate_common_type', 'web_core has no per-definition validators for the common types'],
   [
     'measure_growth',
     'the timing cases depend on the machine, so `yarn test:timing` runs them apart from the other tests (tests/timing/)',
@@ -454,6 +489,9 @@ async function dispatchTestCase(testCase) {
       break;
     case 'dispatch_action':
       await validateDispatchActionTestCase(testCase);
+      break;
+    case 'validate_common_type':
+      validateCommonTypeTestCase(testCase);
       break;
     default:
       throw new Error(`Unhandled action type in conformance harness: '${action}'`);
@@ -2290,6 +2328,15 @@ const DATA_MODEL_KNOWN_KEYS = {
       'path',
     ]),
     dispose: new Set(['expectError', 'expect_error', 'op']),
+    mutate_input: new Set([
+      'expectError',
+      'expect_error',
+      'expect_notified',
+      'expect_values',
+      'op',
+      'path',
+      'value',
+    ]),
   },
 };
 
@@ -2315,6 +2362,7 @@ function validateDataModelTestCase(testCase) {
     }
   }
 
+  const inputState = {lastSetValue: undefined};
   if (steps && Array.isArray(steps)) {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
@@ -2327,7 +2375,7 @@ function validateDataModelTestCase(testCase) {
         assertKnownKeys(expectErr, EXPECT_ERROR_KNOWN_KEYS.error, 'data_model.step.expectError');
         assert.throws(
           () => {
-            applyDataModelOp(model, step);
+            applyDataModelOp(model, step, inputState);
           },
           err => {
             if (expectErr.message) {
@@ -2344,7 +2392,7 @@ function validateDataModelTestCase(testCase) {
         continue;
       }
 
-      applyDataModelOp(model, step);
+      applyDataModelOp(model, step, inputState);
 
       if (step.expect_notified !== undefined) {
         const notified = [];
@@ -2380,7 +2428,7 @@ function validateDataModelTestCase(testCase) {
   }
 }
 
-function applyDataModelOp(model, step) {
+function applyDataModelOp(model, step, inputState) {
   const {op, path: stepPath, value, expect: stepExpect, expect_absent, expect_type} = step;
   switch (op) {
     case 'get': {
@@ -2412,7 +2460,35 @@ function applyDataModelOp(model, step) {
     }
     case 'set': {
       assertKnownKeys(step, DATA_MODEL_KNOWN_KEYS.step.set, 'data_model.step.set');
-      model.set(stepPath, value);
+      const callerValue = value !== undefined ? structuredClone(value) : undefined;
+      if (inputState) {
+        inputState.lastSetValue = callerValue;
+      }
+      model.set(stepPath, callerValue);
+      break;
+    }
+    case 'mutate_input': {
+      assertKnownKeys(
+        step,
+        DATA_MODEL_KNOWN_KEYS.step.mutate_input,
+        'data_model.step.mutate_input',
+      );
+      const tokens = (stepPath ?? '')
+        .split('/')
+        .filter(Boolean)
+        .map(t => t.replace(/~1/g, '/').replace(/~0/g, '~'));
+      let curr = inputState?.lastSetValue;
+      if (tokens.length > 0 && curr !== null && curr !== undefined) {
+        for (let i = 0; i < tokens.length - 1; i++) {
+          curr = Array.isArray(curr) ? curr[Number(tokens[i])] : curr[tokens[i]];
+        }
+        const last = tokens[tokens.length - 1];
+        if (Array.isArray(curr)) {
+          curr[Number(last)] = value;
+        } else if (curr && typeof curr === 'object') {
+          curr[last] = value;
+        }
+      }
       break;
     }
     case 'delete': {
@@ -4090,6 +4166,61 @@ function validateEvaluateFunctionTestCase(testCase) {
       delete globalThis.window;
     } else {
       globalThis.window = originalWindow;
+    }
+  }
+}
+
+const VALIDATE_COMMON_TYPE_KNOWN_KEYS = {
+  case: new Set([
+    'action',
+    'definition',
+    'description',
+    'features',
+    'name',
+    'protocolVersion',
+    'steps',
+  ]),
+  step: new Set(['expectError', 'value']),
+};
+
+function validateCommonTypeTestCase(testCase) {
+  assertKnownKeys(testCase, VALIDATE_COMMON_TYPE_KNOWN_KEYS.case, 'validate_common_type');
+  assertKnownKeysList(
+    testCase.steps,
+    VALIDATE_COMMON_TYPE_KNOWN_KEYS.step,
+    'validate_common_type.steps',
+  );
+  const rawVersion = testCase.protocolVersion || 'v0.9';
+  const version = toCanonicalVersion(rawVersion);
+  const schemas = version === '1.0' ? V1_0_COMMON_SCHEMAS : V0_9_COMMON_SCHEMAS;
+  const schema = schemas[testCase.definition];
+  assert.ok(
+    schema,
+    `No common type schema found for '${testCase.definition}' in protocol version '${rawVersion}'`,
+  );
+
+  for (let i = 0; i < testCase.steps.length; i++) {
+    const step = testCase.steps[i];
+    if (step.expectError) {
+      assertKnownKeys(
+        step.expectError,
+        EXPECT_ERROR_KNOWN_KEYS.error,
+        `validate_common_type.steps[${i}].expectError`,
+      );
+    }
+    const result = schema.safeParse(step.value);
+    if (step.expectError) {
+      assert.strictEqual(
+        result.success,
+        false,
+        `Step ${i}: expected validation error for ${testCase.definition} with ${JSON.stringify(step.value)}, but succeeded`,
+      );
+    } else {
+      assert.strictEqual(
+        result.success,
+        true,
+        `Step ${i}: expected ${testCase.definition} to accept ${JSON.stringify(step.value)}, got error: ${result.error?.message}`,
+      );
     }
   }
 }

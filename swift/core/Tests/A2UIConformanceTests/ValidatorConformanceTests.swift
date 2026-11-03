@@ -101,10 +101,14 @@ struct ValidatorConformanceTests {
       )
     }
     let targetVersion = resolveTargetVersion(for: testCase, versionPrefix: versionPrefix)
-    let config = makeValidationConfig(
-      strictMode: testCase.strictMode,
-      targetVersion: targetVersion
-    )
+    let config =
+      testCase.validationConfig.flatMap {
+        ConformanceTestHelper.validationConfig(from: $0, targetVersion: targetVersion)
+      }
+      ?? makeValidationConfig(
+        strictMode: testCase.strictMode,
+        targetVersion: targetVersion
+      )
     let catalogs = try buildCatalogsWithAliases(for: testCase)
     let handler = ValidatorErrorCaptureHandler()
     let processor = MessageProcessor(
