@@ -94,7 +94,6 @@ so `A2uiMessage.fromJson` and `A2uiTransportAdapter` go away:
 ```dart
 processor = MessageProcessor<ComponentImplementation>(
   catalogs: [myCatalog],
-  defaultVersion: A2uiProtocolVersion.v0_9,
   validationConfig: ValidationConfig.relaxed,
 );
 processor.model.onSurfaceCreated.subscribe(_addSurface);
@@ -160,16 +159,25 @@ CatalogImplementation(
   throws on a duplicate name. Filter `BasicComponents.all` before adding an
   override.
 - `catalogIdAliases` is gone. Register the same component list under each id
-  the agent may send. Note that `basicCatalog()` registers only
-  `BasicCatalog.v0_9Id`, not genui's legacy
+  the agent may send (hoisting `BasicCatalog.v0_9().functions.values.toList(growable: false)`
+  and the shared `components` list so they are not rebuilt per alias). Note that
+  `basicCatalog()` registers only `BasicCatalog.v0_9Id`, not genui's legacy
   `https://a2ui.org/specification/v0_9/basic_catalog.json`.
 - A missing or unknown `catalogId` on a v0.9 `createSurface` is an error
-  (`A2uiValidationError` when absent, `A2uiCatalogError` when unregistered),
-  not a tolerated stub. Notice also that `Catalog([...])` with no `catalogId`
-  in genui synthesized an unreachable `inline_catalog_<hashCode>` id: pick a
-  stable id, register every id the agent sends up front, and if a legacy v0.9
-  backend omits `catalogId` on `createSurface`, inject the default id into the
-  decoded map before calling `processMessages`.
+  (`A2uiValidationError` when absent or `null`, `A2uiCatalogError` when
+  unregistered), not a tolerated stub. Notice also that `Catalog([...])` with no
+  `catalogId` in genui synthesized an unreachable `inline_catalog_<hashCode>`
+  id: pick a stable id, register every id the agent sends up front, and if a
+  legacy v0.9 backend omits `catalogId` (or sends `{"catalogId": null}`) on
+  `createSurface`, check `createSurface['catalogId'] != null` (not
+  `containsKey('catalogId')`) and inject the default id into the decoded map
+  before calling `processMessages`.
+- When a stateful widget receives a growing list of streamed message payloads in
+  `didUpdateWidget`, keep the existing `MessageProcessor` and feed only the
+  newly appended slice (`widget.payloads.sublist(oldWidget.payloads.length)`)
+  rather than disposing and recreating the processor on every chunk; recreating
+  the processor creates a new `SurfaceModel` (`ObjectKey(surface)`) and resets
+  stateful subtree state such as expanded cards or scroll positions.
 - For v1.0, put only your own components in your catalog, set
   `protocolVersion: A2uiProtocolVersion.v1_0`, and register `basicCatalog()`
   beside it.
@@ -211,10 +219,18 @@ ComponentImplementation(
 Rules that differ from genui:
 
 - Read with `props.string/number/boolean/list/value(key)`; the builder reruns
-  when any bound value changes. Properties declared with non-dynamic schemas
-  (plain `Schema.string()`, `Schema.object()`, `Schema.list()`) are passed
-  through unchanged as deep-frozen snapshots (`props.value(key)` returns an
-  unmodifiable `Map` or `List`).
+  when any bound value changes. Because `MessageProcessor` validates every
+  `updateComponents` payload against `ComponentImplementation.schema` and
+  `NodeResolver` only binds `{"path": "/..."}` references on properties whose
+  schema permits dynamic values, declare any property that may receive a data
+  binding with `CommonSchemas.dynamicString` / `dynamicNumber` /
+  `dynamicBoolean` / `dynamicStringList` rather than plain `Schema.string()` /
+  `number()` / `boolean()`. Properties declared with non-dynamic schemas
+  (`Schema.object()`, `Schema.list()`) are passed through unchanged as
+  deep-frozen snapshots (`props.value(key)` returns an unmodifiable `Map` or
+  `List`); use pattern matching (`switch (props.value('params')) { final Map<String, dynamic> m => m, _ => const <String, dynamic>{} }`)
+  rather than an unchecked `as Map<String, dynamic>?` cast so an unexpected
+  payload shape does not throw a `TypeError` during build.
 - A factory constructor can be passed directly as `builder` when it matches
   `ComponentWidgetBuilder`:
   `factory MyWidget.fromNode(BuildContext context, ComponentNode<ComponentImplementation> node, ComponentProps props, ChildWidgetBuilder buildChild)`
@@ -350,7 +366,7 @@ import 'package:json_schema_builder/json_schema_builder.dart' hide ValidationRes
 | `BasicCatalogItems.basicCatalogRules`                                                  | `BasicComponents.api.instructions`                                                                                                                                                                                                     |                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `CatalogItem(name:, dataSchema:, widgetBuilder:, exampleData:, isImplicitlyFlexible:)` | `ComponentImplementation(name:, schema:, builder:)`                                                                                                                                                                                    | `exampleData` and `isImplicitlyFlexible` have no equivalent. If porting `genui`'s built-in `BasicCatalogItems` example JSON for v0.9 tests, fix three legacy keys rejected by `a2ui_core`'s strict schemas: `Button` (`"primary": true` -> `"variant": "primary"`), `DateTimeInput` (`"variant": "date"`/`"time"` -> `"enableDate": true`/`"enableTime": true`), and `Tabs` (`tabItems[].label`/`content` -> `title`/`child`, remove `"activeTab"`). |
 | `widgetBuilder: (CatalogItemContext itemContext) => ...`                               | `builder: (BuildContext context, ComponentNode<ComponentImplementation> node, ComponentProps props, ChildWidgetBuilder buildChild) => ...`                                                                                             | `a2ui_flutter/lib/src/component_implementation.dart`.                                                                                                                                                                                                                                                                                                                                                                                                |
-| `itemContext.data` (raw JSON)                                                          | `props` (resolved values)                                                                                                                                                                                                              | To pass all resolved properties as a `Map<String, Object?>` to an existing `fromJson` helper, build `{for (final key in props.keys) key: props.value(key)}`. Authored JSON is still at `node.context!.componentModel.properties` if needed.                                                                                                                                                                                                          |
+| `itemContext.data` (raw JSON)                                                          | `props` (resolved values)                                                                                                                                                                                                              | To pass all resolved properties as a `Map<String, Object?>` to an existing `fromJson` or transformer helper, build `{...?node.context?.componentModel.properties, for (final key in props.keys) key: props.value(key)}` (preferring `node.context?.` over `node.context!`). Reading `componentModel.properties` alone leaves `{"path": "..."}` bindings unresolved.                                                                                  |
 | `itemContext.id`                                                                       | `node.componentId`; `node.instanceId` for keys                                                                                                                                                                                         | `instanceId` is unique per tree position (template children get a suffix).                                                                                                                                                                                                                                                                                                                                                                           |
 | `itemContext.type`                                                                     | `node.type`                                                                                                                                                                                                                            |                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `itemContext.buildChild(childId, [dataContext])`                                       | `buildChild(props.child('key')!)` / `for (final c in props.children('key')) buildChild(c)`                                                                                                                                             | Template children are already expanded into nodes.                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -401,10 +417,17 @@ import 'package:json_schema_builder/json_schema_builder.dart' hide ValidationRes
 
 `CommonSchemasV1` has no `action`, `componentId` or `childList` member; use
 the `$ref` forms. A child reference declared as plain `Schema.string()` is
-not resolved to a node and the builder receives the id string. `CommonSchemas.*`
-are static `Schema` constants rather than factory functions; to preserve a
+not resolved to a node and the builder receives the id string. Note that
+`A2uiSchemas.checkable()` returned `S.list(items: validationCheck())` for the
+`'checks'` property itself, whereas `CommonSchemas.checkable` is an enclosing
+`Schema.object(properties: {'checks': ...})`; for a `'checks'` entry in a
+component's `properties:` map, use `Schema.list(items: CommonSchemas.checkRule)`.
+`CommonSchemas.*` are static `Schema` constants (carrying `'commonTypesRef'`
+metadata used by `ComponentRefMap`) rather than factory functions; to preserve a
 property `description` from `A2uiSchemas.*(description: '...')`, use
-`Schema.fromMap({...CommonSchemas.dynamicString.value, 'description': '...'})`.
+`Schema.fromMap({...CommonSchemas.dynamicString.value, 'description': '...'})`,
+and for `A2uiSchemas.stringReference(enumValues: [...])` that must also accept
+data bindings, use `Schema.combined(anyOf: [Schema.string(enumValues: [...]), CommonSchemas.dataBinding, CommonSchemas.functionCall])`.
 
 ### 3. Client functions
 
@@ -439,7 +462,7 @@ property `description` from `A2uiSchemas.*(description: '...')`, use
 | `DataPath('/a/b')`, `.segments`, `.join`, `.basename`, `.dirname`                                                                                                                                              | `String` JSON Pointer; `DataModel.resolvePath(path, basePath)`                                                                                                                             | No `DataPath` class.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `dataModel.update(DataPath, value)`                                                                                                                                                                            | `dataModel.set(path, value)`                                                                                                                                                               | `set(path, null)` deletes; `set('/', map)` replaces the root.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `dataModel.getValue<T>(DataPath)` (throws `DataModelTypeException`)                                                                                                                                            | `dataModel.get(path)` → `Object?`; `dataModel.has(path)`                                                                                                                                   | Cast yourself.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `dataModel.subscribe<T>(DataPath)` → `ValueNotifier<T?>`                                                                                                                                                       | `dataModel.watch<T>(path)` → `ReadonlySignal<T?>`; `dataModel.subscribe<T>(path, onChange)` → `DataSubscription<T>`                                                                        | `subscribe` does not fire for the current value. `effect`, `computed`, `signal` are re-exported from `preact_signals`.                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `dataModel.subscribe<T>(DataPath)` → `ValueNotifier<T?>`                                                                                                                                                       | `dataModel.watch<T>(path)` → `ReadonlySignal<T?>`; `dataModel.subscribe<T>(path, onChange)` → `DataSubscription<T>`                                                                        | `subscribe` does not fire for the current value. `effect`, `computed`, `signal` are re-exported from `preact_signals`. Because `DataModel.watch<T>(path)` caches signals via `WeakReference`, a custom `ValueNotifier` adapter built on `watch` must retain active notifiers or subscriptions until `dispose()` (or use `DataModel.subscribe`) so the signal is not garbage-collected while listeners are attached.                                                                                                                                   |
 | `dataModel.bindExternalState({path, source, twoWay})`                                                                                                                                                          | none                                                                                                                                                                                       | A listener on the source that calls `set`, and an `effect` on `watch` the other way.                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `A2uiValidationException(message, {surfaceId, path, json, cause})`                                                                                                                                             | `A2uiValidationError(message, {path, errors, cause, surfaceId})` (code `VALIDATION_FAILED`); subclasses `A2uiIntegrityError` (`INTEGRITY_ERROR`), `A2uiRecursionError` (`RECURSION_ERROR`) | Base class `A2uiError(message, {code, cause, surfaceId, functionCallId})`; `path` exists only on `A2uiValidationError` and `A2uiDataError`, so pattern-match before reading `error.path`.                                                                                                                                                                                                                                                                                                                                                             |
 | `A2uiFunctionException(message, {functionName, argumentKey})`                                                                                                                                                  | `A2uiExpressionError(message, {expression, details})` (`EXPRESSION_ERROR`); failures at run time arrive as `A2uiRendererError` with code `EXECUTION_ERROR`                                 |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
@@ -500,7 +523,6 @@ After:
 ```dart
 final processor = MessageProcessor<ComponentImplementation>(
   catalogs: [myCatalog],
-  defaultVersion: A2uiProtocolVersion.v0_9,
   validationConfig: ValidationConfig.relaxed, // what a streamed surface needs
 );
 
@@ -516,8 +538,8 @@ void onAgentJson(Object? json) {
 onAgentJson(jsonDecode(body));
 ```
 
-`A2uiError implements Exception`, so place `on A2uiError` _before_ any general `on Exception` clause (otherwise the analyzer reports `#dead_code_on_catch_subtype`). An app that called `transport.addChunk` once per decoded item keeps the same failure granularity by calling `processMessages(item)` in a loop instead of passing the whole batch (a batch stops at the first failing message). `defaultVersion` does not fill in a missing `"version"`; every envelope must
-carry one (`"v0.9"`, `"v0.9.1"` or `"1.0"`). There is no text parser in
+`A2uiError implements Exception`, so place `on A2uiError` _before_ any general `on Exception` clause (otherwise the analyzer reports `#dead_code_on_catch_subtype`), and avoid bare `catch (_)` blocks around message ingestion so genuine `TypeError`s in builders or handlers are not silently swallowed. An app that called `transport.addChunk` once per decoded item keeps the same failure granularity by calling `processMessages(item)` in a loop instead of passing the whole batch (a batch stops at the first failing message). Note that `MessageProcessor`'s optional `defaultVersion` parameter does not fill in a missing `"version"` on message envelopes (it only cross-checks `ValidationConfig.targetVersion`); every envelope must
+carry `"version"` (`"v0.9"`, `"v0.9.1"` or `"1.0"`). There is no text parser in
 `a2ui_core`: an app that extracted JSON from model text with
 `A2uiTransportAdapter` moves to `a2ui_agent`, recipe (f).
 
