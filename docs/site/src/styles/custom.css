@@ -129,52 +129,95 @@ header.header {
   color: #0f172a;
 }
 
-.sl-markdown-content table:not(:where(.not-content *)) {
-  display: block;
+/* Polished Markdown tables (Holistic card container + cell padding + responsive scroll) */
+.sl-markdown-content .table-wrapper {
   width: 100%;
   max-width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  border-collapse: separate;
-  border-spacing: 0;
   border: 1px solid var(--sl-color-hairline-light);
   border-radius: 8px;
+  margin: 1.5rem 0;
+  background: var(--sl-color-bg);
+}
+
+.sl-markdown-content .table-wrapper table {
+  width: 100% !important;
+  min-width: 100% !important;
+  display: table !important;
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
   font-size: 0.9rem;
-  overflow-wrap: normal;
-  word-break: normal;
 }
 
-.sl-markdown-content table:not(:where(.not-content *)) :is(th, td) {
-  padding: 0.65rem 0.9rem;
-  border-bottom: 1px solid var(--sl-color-hairline-light);
-  vertical-align: top;
-  overflow-wrap: normal;
-  word-break: normal;
+@media (max-width: 768px) {
+  .sl-markdown-content .table-wrapper table {
+    min-width: 580px !important;
+  }
 }
 
-.sl-markdown-content table:not(:where(.not-content *)) :is(th:first-child, td:first-child) {
-  padding-inline-start: 1rem;
+/* Fallback if a table is not inside .table-wrapper */
+.sl-markdown-content table:not(.table-wrapper table) {
+  width: 100%;
+  display: table;
+  border-collapse: collapse;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  font-size: 0.9rem;
 }
 
-.sl-markdown-content table:not(:where(.not-content *)) tbody tr:last-child td {
-  border-bottom: none;
+.sl-markdown-content thead {
+  background: var(--sl-color-bg-sidebar);
 }
 
-.sl-markdown-content table:not(:where(.not-content *)) th {
+.sl-markdown-content th {
   background: var(--sl-color-bg-sidebar);
   font-weight: 600;
   text-align: left;
-  white-space: nowrap;
+  color: var(--sl-color-white);
+  border-bottom: 1px solid var(--sl-color-hairline-light);
 }
 
-.sl-markdown-content table:not(:where(.not-content *)) td:first-child {
-  white-space: nowrap;
+:root[data-theme='light'] .sl-markdown-content th {
+  color: #0f172a;
 }
 
-.sl-markdown-content table:not(:where(.not-content *)) :is(th:last-child, td:last-child) {
-  padding-inline-end: 1rem;
-  width: 100%;
-  min-width: 12.5rem;
+.sl-markdown-content :is(th, td):not(:where(.not-content *)) {
+  padding: 0.75rem 1rem !important;
+  border-bottom: 1px solid var(--sl-color-hairline-light);
+  vertical-align: top;
+  line-height: 1.55;
+  overflow-wrap: break-word;
+}
+
+.sl-markdown-content td code {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+/* Ensure comfortable left and right padding inside bordered tables across all doc pages */
+.sl-markdown-content :is(th:first-child, td:first-child):not(:where(.not-content *)) {
+  padding-inline-start: 1.25rem !important;
+}
+
+.sl-markdown-content :is(th:last-child, td:last-child):not(:where(.not-content *)) {
+  padding-inline-end: 1.25rem !important;
+}
+
+.sl-markdown-content tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+.sl-markdown-content tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+:root[data-theme='light'] .sl-markdown-content tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.02);
 }
 
 /* GitHub-flavored alert callouts rendered by remark-a2ui-includes */

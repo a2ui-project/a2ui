@@ -32,6 +32,7 @@ import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
 import {
   CommonSchemas,
+  DataBindingSchema,
   type ChildList,
   type DataBinding,
   type DynamicString,
@@ -721,6 +722,64 @@ describe('GenericBinder Checkable Trait', () => {
       extra: 'another_prop',
     };
     assert.strictEqual(notificationCount, 1);
+  });
+
+  it('drops properties that a component update removes', () => {
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
+    const compModel = new ComponentModel(
+      'c9',
+      'Test',
+      {value: 'kept', accessibility: {label: 'Name'}},
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c9'), schema);
+    binder.subscribe(() => {});
+
+    compModel.properties = {value: 'kept'};
+
+    assert.strictEqual(binder.snapshot.value, 'kept');
+    assert.ok(!('accessibility' in binder.snapshot));
+  });
+
+  it('keeps the validation state of checks across a component update', () => {
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
+    const checks = [
+      {condition: {call: 'required', args: {value: {path: '/val'}}}, message: 'Required'},
+    ];
+    const compModel = new ComponentModel('c10', 'Test', {value: {path: '/val'}, checks}, catalog);
+    surface.componentsModel.addComponent(compModel);
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c10'), schema);
+    binder.subscribe(() => {});
+
+    compModel.properties = {value: {path: '/val'}, checks};
+
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Required']);
+  });
+
+  it('keeps the validation state of checks in a nested object across a component update', () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    const schema = z.object({
+      section: z.object({
+        value: CommonSchemas.DynamicString,
+        checks: CommonSchemas.Checkable.shape.checks,
+      }),
+    });
+    const section = {
+      value: {path: '/val'},
+      checks: [{condition: {call: 'required', args: {value: {path: '/val'}}}, message: 'Required'}],
+    };
+    const compModel = new ComponentModel('c11', 'Test', {section}, catalog);
+    surface.componentsModel.addComponent(compModel);
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c11'), schema);
+    assert.strictEqual(binder.snapshot.section.isValid, false);
+    binder.subscribe(() => {});
+
+    compModel.properties = {section};
+
+    assert.strictEqual(binder.snapshot.section.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.section.validationErrors, ['Required']);
   });
 
   describe('scrapeSchemaBehavior schema inference', () => {
@@ -1458,5 +1517,25 @@ describe('getSafeChildList helper function', () => {
     assert.strictEqual(safe.length, MAX_DYNAMIC_CHILD_LIST_SIZE);
     assert.strictEqual(safe[0], 0);
     assert.strictEqual(safe[MAX_DYNAMIC_CHILD_LIST_SIZE - 1], MAX_DYNAMIC_CHILD_LIST_SIZE - 1);
+  });
+
+  it('does not coerce non-boolean values on polymorphic dynamic unions containing ZodBoolean', () => {
+    const polySchema = z.object({
+      id: z.string(),
+      component: z.literal('Poly'),
+      val: z.union([z.string(), z.boolean(), DataBindingSchema]),
+    });
+    const catalog = new Catalog('poly', [{name: 'Poly', schema: polySchema}], []);
+    const surface = new SurfaceModel('s1', catalog, {});
+    surface.dataModel.set('/v', 'hello');
+    surface.componentsModel.addComponent(
+      new ComponentModel('c1', 'Poly', {val: {path: '/v'}}, catalog),
+    );
+    const binder = new GenericBinder<{val: string | boolean}>(
+      new ComponentContext(surface, 'c1'),
+      polySchema,
+    );
+    assert.strictEqual(binder.snapshot.val, 'hello');
+    binder.dispose();
   });
 });

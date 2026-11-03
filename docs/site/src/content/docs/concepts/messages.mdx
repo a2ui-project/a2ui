@@ -8,7 +8,7 @@ import SchemaChips from '../../../components/docs/common/SchemaChips.astro';
 
 A2UI agents and client renderers communicate by exchanging asynchronous JSON messages in both directions to manage UI surfaces and handle user interactions. These message types can be sent over a variety of transports, including [Agent-to-Agent (A2A)](https://a2a-protocol.org) and [Model Context Protocol (MCP)](https://modelcontextprotocol.io).
 
-Alongside explicit A2UI messages, implementations can use [metadata](#metadata) when renderer context needs to piggyback onto requests triggered for other purposes. For example, when a user sends a text prompt, the renderer can attach its supported catalogs or synchronized surface state to the outgoing request.
+Alongside explicit A2UI messages, implementations can use [metadata](#metadata) to include renderer context in requests sent for other purposes. For example, when a user sends a text prompt, the renderer can attach its supported catalogs or synchronized surface state to the outgoing request.
 
 ---
 
@@ -705,7 +705,7 @@ Returning the device timezone for a preceding `callRendererFunction` call:
   ]}
 />
 
-Transport metadata lets the renderer piggyback A2UI context onto outgoing requests triggered for other purposes (such as user text prompts in A2A or request metadata in MCP), flowing from the renderer to the agent.
+Transport metadata lets the renderer attach A2UI context to outgoing requests sent for other purposes (such as user text prompts in A2A or request metadata in MCP), flowing from the renderer to the agent.
 
 | Metadata key (v1.0)        | Metadata key (v0.9.1)    | Purpose                                                                                       |
 | :------------------------- | :----------------------- | :-------------------------------------------------------------------------------------------- |

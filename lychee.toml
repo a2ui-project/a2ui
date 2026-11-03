@@ -80,11 +80,15 @@ exclude_path = [
   ".git",
   "dist",
   "build",
-  # The specification/ tree is copied into docs/public/specification/ at build time
-  # (see the "Copy schemas" step in docs.yml). Check only the original source copies
-  # because the published copies have broken relative links due to being nested
-  # deeper inside docs/public/.
+  # MkDocs build output directory
+  "^site/",
+  # The specification/ tree is copied into docs/public/specification/ and
+  # docs/site/public/specification/ at build time (see docs.yml and
+  # docs/site/scripts/prepare-spec-assets.mjs). Check only the original source
+  # copies because the published copies have broken relative links due to being
+  # nested deeper inside docs/.
   "^docs/public/specification",
+  "^docs/site/public/specification",
   # Exclude Python virtual environment directories
   "\\.venv",
   "venv",

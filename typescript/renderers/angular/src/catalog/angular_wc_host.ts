@@ -23,8 +23,14 @@ import {
   NgZone,
 } from '@angular/core';
 import {ComponentContext, type ComponentNode} from '@a2ui/web_core/v0_9';
+import {
+  type AccessibilityTargets,
+  bindHostAccessibility,
+  createAccessibilityTargets,
+} from '@a2ui/web_core/v0_9/universal';
 import type {AngularCatalog, AngularComponentImplementation} from './types';
 
+import {A2UI_ACCESSIBILITY_TARGETS} from '../core/accessibility';
 import {ComponentBinder} from '../core/component-binder.service';
 import type {BoundProperty} from '../core/types';
 
@@ -64,6 +70,10 @@ export function clearDefaultUniversalInjector(injector: Injector): void {
  * the element's `context` (the entry that owns this element), so `context` must be set before the
  * element is attached to the document. `customElements` refuses to define one class under two tag
  * names, so {@link toWebComponent} derives an empty subclass per Angular component.
+ *
+ * While connected with a `node`, the element applies the node's `accessibility` attributes and
+ * validation state, on itself or on the elements the component marks with
+ * `a2uiAccessibilityTarget` and `a2uiValidationErrors`.
  */
 export class AngularWcHost extends HTMLElement {
   private componentRef?: ComponentRef<object>;
@@ -75,6 +85,13 @@ export class AngularWcHost extends HTMLElement {
   private boundProps?: Record<string, BoundProperty>;
   private contextSubscription?: {unsubscribe: () => void};
   private _injector?: Injector;
+  /**
+   * Created on the first connect, once `ComponentBinder` has set up Angular reactivity, so its
+   * signals are Angular signals.
+   */
+  private accessibilityTargets?: AccessibilityTargets;
+  private accessibilityNode?: ComponentNode;
+  private stopAccessibility?: () => void;
 
   set injector(inj: Injector | undefined) {
     this._injector = inj;
@@ -116,9 +133,15 @@ export class AngularWcHost extends HTMLElement {
       this.appRef = injector.get(ApplicationRef);
       this.binder = injector.get(ComponentBinder);
       this.ngZone = injector.get(NgZone, null);
+      this.accessibilityTargets ??= createAccessibilityTargets();
       this.componentRef = createComponent(entry.component, {
         environmentInjector: injector.get(EnvironmentInjector),
-        elementInjector: injector,
+        // The component marks its elements in this element's targets, not in
+        // those of the `ComponentHostComponent` that may have created it.
+        elementInjector: Injector.create({
+          providers: [{provide: A2UI_ACCESSIBILITY_TARGETS, useValue: this.accessibilityTargets}],
+          parent: injector,
+        }),
         hostElement: this,
       });
       this.appRef.attachView(this.componentRef.hostView);
@@ -129,6 +152,7 @@ export class AngularWcHost extends HTMLElement {
     // unsubscribes first, so this never subscribes twice.
     this.subscribeToContext(this.context);
     this.updateContext();
+    this.bindAccessibility();
   }
 
   private subscribeToContext(ctx: ComponentContext) {
@@ -148,7 +172,9 @@ export class AngularWcHost extends HTMLElement {
     this._node = node;
     if (!node) {
       // Parents assign `node` (possibly undefined) and then `context`; `set context`
-      // rebinds, so clearing the node must not tear down the current bindings.
+      // rebinds, so clearing the node must not tear down the current bindings. The
+      // accessibility binding follows the node, so it stops here.
+      this.unbindAccessibility();
       return;
     }
     if (node.context) {
@@ -158,6 +184,7 @@ export class AngularWcHost extends HTMLElement {
       this.subscribeToContext(this._context);
       this.updateContext();
     }
+    this.bindAccessibility();
   }
 
   get node(): ComponentNode | undefined {
@@ -171,6 +198,7 @@ export class AngularWcHost extends HTMLElement {
     this._context = ctx;
     this.subscribeToContext(ctx);
     this.updateContext();
+    this.bindAccessibility();
   }
 
   get context(): ComponentContext {
@@ -194,7 +222,26 @@ export class AngularWcHost extends HTMLElement {
     this.componentRef.changeDetectorRef.detectChanges();
   }
 
+  /** Keeps the ARIA attributes in step with the node while the element is connected. */
+  private bindAccessibility() {
+    const node = this._node;
+    const targets = this.accessibilityTargets;
+    if (!this.isConnected || !targets || node === this.accessibilityNode) return;
+    this.unbindAccessibility();
+    this.accessibilityNode = node;
+    if (node) {
+      this.stopAccessibility = bindHostAccessibility(this, node, targets);
+    }
+  }
+
+  private unbindAccessibility() {
+    this.stopAccessibility?.();
+    this.stopAccessibility = undefined;
+    this.accessibilityNode = undefined;
+  }
+
   disconnectedCallback() {
+    this.unbindAccessibility();
     this.contextSubscription?.unsubscribe();
     this.contextSubscription = undefined;
     this.binder?.unbind(this.boundProps);
