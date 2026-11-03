@@ -143,6 +143,8 @@ jobs:
             --harness ts-agent \
             --exclude "agent/direct_json/scaling.yaml=performance: runs in ci-timing via test:timing" \
             --exclude "agent/express/scaling.yaml=performance: runs in ci-timing via test:timing"
+      - name: Test React 17 Compatibility
+        run: yarn workspace @a2ui/react run test:react17
       - name: Test React 18 Compatibility
         run: yarn workspace @a2ui/react run test:react18
       - name: Verify NPM Publish Script
