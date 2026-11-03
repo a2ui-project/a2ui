@@ -2089,6 +2089,7 @@
         "name": {"type": "string"},
         "description": {"type": "string"},
         "protocolVersion": {"$ref": "#/$defs/ProtocolVersion"},
+        "strictMode": {"type": "boolean"},
         "catalogPaths": {"type": "array", "items": {"type": "string"}},
         "catalogs": {"type": "array", "items": {"type": "object"}},
         "action": {"const": "render_surface"},
@@ -2117,6 +2118,7 @@
               "expectActions": {"type": "array", "items": {"type": "object"}},
               "expectErrors": {"type": "array", "items": {"type": "object"}},
               "expectSameViewIdentity": {"type": "array", "items": {"type": "string"}},
+              "expectThemeAbsent": {"type": "boolean"},
               "expectActiveSubscriptions": {"type": "integer"},
               "expectOutbound": {"$ref": "#/$defs/OutboundEnvelopeList"}
             },

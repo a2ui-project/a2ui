@@ -222,6 +222,7 @@ enum AdapterHarness {
     "features",
     "action",
     "protocolVersion",
+    "strictMode",
     "catalogPaths",
     "catalogs",
     "steps",
@@ -247,6 +248,7 @@ enum AdapterHarness {
     "expectErrors",
     "expectOutbound",
     "expectSameViewIdentity",
+    "expectThemeAbsent",
     "expectActiveSubscriptions",
   ]
 
@@ -616,10 +618,12 @@ enum AdapterHarness {
     let protocolVersion = (caseSpec["protocolVersion"] as? String) ?? "1.0"
     let handler = AdapterTestActionHandler()
     let (coreCatalogs, uiCatalogs) = try buildCatalogs(for: caseSpec)
+    let validationConfig: ValidationConfig =
+      (caseSpec["strictMode"] as? Bool) == true ? .strict : .relaxed
     let processor = MessageProcessor(
       catalogs: coreCatalogs,
       actionHandler: handler,
-      validationConfig: .relaxed
+      validationConfig: validationConfig
     )
     processor.outboundListener = { message in
       handler.recordOutbound(message)
@@ -964,6 +968,18 @@ enum AdapterHarness {
         expected: expA11y,
         context: context
       )
+    }
+    if (step["expectThemeAbsent"] as? Bool) == true,
+      let surface = session.mountedHarness?.surface
+    {
+      let theme = surface.viewModel.theme
+      let isThemeEmpty = (theme == nil || theme?.isEmpty == true)
+      #expect(isThemeEmpty, "\(context): expected empty theme")
+      let resolvedColor = Color.a2uiPrimary(from: theme)
+      #expect(resolvedColor == Color.accentColor, "\(context): expected default accentColor")
+      if !isThemeEmpty || resolvedColor != Color.accentColor {
+        throw AdapterConformanceError("\(context): expectThemeAbsent failed")
+      }
     }
     if let expSubs = step["expectActiveSubscriptions"] as? Int,
       let harness = session.mountedHarness

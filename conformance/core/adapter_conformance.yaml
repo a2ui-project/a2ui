@@ -579,9 +579,10 @@
         hidden_note:
           hidden: true
 
-- name: v10_theme_ignored_parity
-  description: Verifies that a v1.0 surface renders identically with default host styling without requiring or applying a wire theme property.
+- name: v10_theme_dropped_in_permissive_mode_renders_like_none
+  description: "Verifies that when a v1.0 createSurface includes a theme under permissive mode (strictMode: false), the processor drops the theme field and the surface renders identically to a surface created without a theme."
   protocolVersion: "1.0"
+  strictMode: false
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   action: render_surface
@@ -592,6 +593,8 @@
           createSurface:
             surfaceId: "adapter_surface"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            theme:
+              primaryColor: "#FF00AA"
             components:
               - id: "root"
                 component: "Card"
@@ -606,6 +609,8 @@
           - id: "body_text"
             type: "Text"
             text: "Theme Independent v1.0"
+      expectThemeAbsent: true
+      expectErrors: []
 
 - name: fallback_states_unknown_type_and_cyclic_diagnostics
   description: Verifies that unknown component types and same-scope cyclic references render safe fallback placeholders and emit UNKNOWN_COMPONENT_TYPE and CYCLIC_REFERENCE diagnostics on surface.onError.

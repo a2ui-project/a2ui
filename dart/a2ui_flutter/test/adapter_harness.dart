@@ -41,6 +41,7 @@ const Set<String> adapterCaseKnownKeys = {
   'features',
   'action',
   'protocolVersion',
+  'strictMode',
   'catalogPaths',
   'catalogs',
   'steps',
@@ -66,6 +67,7 @@ const Set<String> adapterStepKnownKeys = {
   'expectErrors',
   'expectOutbound',
   'expectSameViewIdentity',
+  'expectThemeAbsent',
   'expectActiveSubscriptions',
 };
 
@@ -331,11 +333,10 @@ String? findUnsupportedReason(
 }
 
 void assertAllUnsupportedMatched() {
-  final List<String> unused =
-      unsupported.keys
-          .where((k) => !_matchedUnsupportedKeys.contains(k))
-          .toList()
-        ..sort();
+  final List<String> unused = unsupported.keys
+      .where((k) => !_matchedUnsupportedKeys.contains(k))
+      .toList()
+    ..sort();
   if (unused.isNotEmpty) {
     fail('Unused unsupported entries did not match any case: $unused');
   }
@@ -460,10 +461,10 @@ CatalogImplementation _buildCustomStatusBadgeCatalog(
 
 class _IncrementCounterFunction extends FunctionImplementation {
   _IncrementCounterFunction()
-    : super(
-        name: 'incrementCounter',
-        argumentSchema: Schema.fromMap({'type': 'object'}),
-      );
+      : super(
+          name: 'incrementCounter',
+          argumentSchema: Schema.fromMap({'type': 'object'}),
+        );
 
   @override
   Object? execute(
@@ -480,7 +481,11 @@ class _IncrementCounterFunction extends FunctionImplementation {
 }
 
 class AdapterHarnessSession {
-  AdapterHarnessSession([this.tester, this.protocolVersion = '1.0']) {
+  AdapterHarnessSession([
+    this.tester,
+    this.protocolVersion = '1.0',
+    this.strictMode,
+  ]) {
     final CatalogImplementation v10Catalog = _buildV10BasicCatalog(
       renderedNodes: renderedNodes,
       openedUrls: openedUrls,
@@ -491,6 +496,11 @@ class AdapterHarnessSession {
     processor = MessageProcessor<ComponentImplementation>(
       catalogs: [v0_9.basicCatalog(), v10Catalog, customCatalog],
       defaultVersion: A2uiProtocolVersion.v1_0,
+      validationConfig: strictMode == true
+          ? ValidationConfig.strict
+          : strictMode == false
+              ? ValidationConfig.relaxed
+              : null,
       outboundListener: (msg) {
         outbound.add(
           jsonDecode(jsonEncode(msg.toJson())) as Map<String, Object?>,
@@ -508,11 +518,10 @@ class AdapterHarnessSession {
         if (currentOp != 'programmatic_invoke') {
           outbound.add(
             jsonDecode(
-                  jsonEncode(
-                    ErrorMessage(version: protocolVersion, error: err).toJson(),
-                  ),
-                )
-                as Map<String, Object?>,
+              jsonEncode(
+                ErrorMessage(version: protocolVersion, error: err).toJson(),
+              ),
+            ) as Map<String, Object?>,
           );
         }
       });
@@ -521,6 +530,7 @@ class AdapterHarnessSession {
 
   WidgetTester? tester;
   final String protocolVersion;
+  final bool? strictMode;
   String? currentOp;
   late final MessageProcessor<ComponentImplementation> processor;
   SurfaceModel<ComponentImplementation>? surface;
@@ -542,14 +552,12 @@ class AdapterHarnessSession {
   ) async {
     final messages = <Map<String, Object?>>[
       for (final Object? raw in rawMessages)
-        Map<String, Object?>.from(raw! as Map),
+        <String, Object?>{
+          'version': protocolVersion,
+          ...Map<String, Object?>.from(raw! as Map),
+        },
     ];
-    processor.processMessages(
-      AgentToRendererMessagePayload.fromJson(
-        messages,
-        protocolVersion: A2uiProtocolVersion.v1_0,
-      ),
-    );
+    processor.processMessages(messages);
     if (!mounted && surface != null) {
       mounted = true;
       await activeTester.pumpWidget(
@@ -572,14 +580,17 @@ class AdapterHarnessSession {
 AdapterHarnessSession mountSurface([
   Map<String, Object?>? caseSpec,
   WidgetTester? tester,
-]) => AdapterHarnessSession(
-  tester,
-  (caseSpec?['protocolVersion'] as String?) ?? '1.0',
-);
+]) =>
+    AdapterHarnessSession(
+      tester,
+      (caseSpec?['protocolVersion'] as String?) ?? '1.0',
+      caseSpec?['strictMode'] as bool?,
+    );
 
 ComponentNode<ComponentImplementation>? extractViewTree(
   AdapterHarnessSession session,
-) => session.rootNode;
+) =>
+    session.rootNode;
 
 void assertViewTree(
   ComponentNode<ComponentImplementation>? actual,
@@ -801,7 +812,7 @@ void _assertStepExpectations(
   }
   if (step['expectSameViewIdentity'] case final List<Object?> keys) {
     final Map<String, (ComponentNode<ComponentImplementation>, Element?)>
-    current = _collectIdentityMap(tester, harness.rootNode);
+        current = _collectIdentityMap(tester, harness.rootNode);
     for (final rawKey in keys) {
       final key = rawKey! as String;
       expect(current[key]?.$1, same(harness.savedNodes[key]));
@@ -824,6 +835,14 @@ void _assertStepExpectations(
   if (step['expectAccessibilityTree']
       case final Map<String, Object?> expectedA11y) {
     _assertAccessibilityTree(tester, expectedA11y);
+  }
+  if (step['expectThemeAbsent'] == true) {
+    expect(harness.surface!.theme, isEmpty);
+    final Element cardElement = tester.element(find.byType(Card).first);
+    expect(
+      Theme.of(cardElement).colorScheme.primary,
+      isNot(const Color(0xFFFF00AA)),
+    );
   }
   if (step['expectActiveSubscriptions'] case final int expectedSubs) {
     final int liveViews = find
@@ -852,7 +871,7 @@ List<ComponentNode<ComponentImplementation>> _directChildren(
 }
 
 Map<String, (ComponentNode<ComponentImplementation>, Element?)>
-_collectIdentityMap(
+    _collectIdentityMap(
   WidgetTester tester,
   ComponentNode<ComponentImplementation>? root,
 ) {
@@ -882,12 +901,9 @@ void _snapshotIdentities(WidgetTester tester, AdapterHarnessSession harness) {
   harness.savedElements.clear();
   harness.savedNodes.clear();
   final Map<String, (ComponentNode<ComponentImplementation>, Element?)>
-  identities = _collectIdentityMap(tester, harness.rootNode);
-  for (final MapEntry<
-        String,
-        (ComponentNode<ComponentImplementation>, Element?)
-      >
-      entry
+      identities = _collectIdentityMap(tester, harness.rootNode);
+  for (final MapEntry<String,
+          (ComponentNode<ComponentImplementation>, Element?)> entry
       in identities.entries) {
     harness.savedNodes[entry.key] = entry.value.$1;
     if (entry.value.$2 != null) {
@@ -902,7 +918,7 @@ ComponentNode<ComponentImplementation>? _findNodeById(
   String id,
 ) {
   final Map<String, (ComponentNode<ComponentImplementation>, Element?)>
-  identities = _collectIdentityMap(tester, harness.rootNode);
+      identities = _collectIdentityMap(tester, harness.rootNode);
   return identities[id]?.$1;
 }
 
@@ -1061,9 +1077,9 @@ Map<String, Object?> _frameActionEnvelope(
   A2uiRendererAction action,
   String protocolVersion,
 ) {
-  final actionMap =
-      jsonDecode(jsonEncode(action.toJson())) as Map<String, Object?>
-        ..remove('catalogId');
+  final actionMap = jsonDecode(jsonEncode(action.toJson()))
+      as Map<String, Object?>
+    ..remove('catalogId');
   return <String, Object?>{'version': protocolVersion, 'action': actionMap};
 }
 
@@ -1073,9 +1089,8 @@ void _validateOutboundEnvelopes(
 ) {
   final bool isV09 =
       protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9');
-  final _OutboundSchemaOracle oracle = isV09
-      ? _v09OutboundOracle
-      : _v10OutboundOracle;
+  final _OutboundSchemaOracle oracle =
+      isV09 ? _v09OutboundOracle : _v10OutboundOracle;
   for (var i = 0; i < envelopes.length; i++) {
     final List<ValidationError> validationErrors = oracle.validate(
       envelopes[i],
@@ -1194,13 +1209,12 @@ List<SemanticsData> _collectSemanticsData(
     });
   }
 
-  for (final Element element
-      in find
-          .descendant(
-            of: viewFinder,
-            matching: find.byWidgetPredicate((_) => true),
-          )
-          .evaluate()) {
+  for (final Element element in find
+      .descendant(
+        of: viewFinder,
+        matching: find.byWidgetPredicate((_) => true),
+      )
+      .evaluate()) {
     final RenderObject? renderObject = element.renderObject;
     if (renderObject != null && renderObject.debugSemantics != null) {
       addNode(renderObject.debugSemantics!);
@@ -1238,9 +1252,8 @@ void _assertComponentSemantics(
     expect(_hasRole(subtreeData, expectedRole), isTrue);
   }
   if (spec['checked'] case final bool expectedChecked) {
-    final CheckedState expectedState = expectedChecked
-        ? CheckedState.isTrue
-        : CheckedState.isFalse;
+    final CheckedState expectedState =
+        expectedChecked ? CheckedState.isTrue : CheckedState.isFalse;
     expect(
       subtreeData.any((d) => d.flagsCollection.isChecked == expectedState),
       isTrue,
@@ -1249,11 +1262,12 @@ void _assertComponentSemantics(
 }
 
 bool _hasRole(List<SemanticsData> data, String role) => switch (role) {
-  'button' => data.any((d) => d.flagsCollection.isButton),
-  'textbox' => data.any((d) => d.flagsCollection.isTextField),
-  'checkbox' => data.any(
-    (d) => d.flagsCollection.isChecked != CheckedState.none,
-  ),
-  'radiogroup' => data.any((d) => d.flagsCollection.isInMutuallyExclusiveGroup),
-  _ => false,
-};
+      'button' => data.any((d) => d.flagsCollection.isButton),
+      'textbox' => data.any((d) => d.flagsCollection.isTextField),
+      'checkbox' => data.any(
+          (d) => d.flagsCollection.isChecked != CheckedState.none,
+        ),
+      'radiogroup' =>
+        data.any((d) => d.flagsCollection.isInMutuallyExclusiveGroup),
+      _ => false,
+    };

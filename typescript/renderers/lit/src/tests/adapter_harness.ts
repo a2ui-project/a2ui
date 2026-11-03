@@ -119,6 +119,7 @@ export interface AdapterStep {
   expectErrors?: ExpectedError[];
   expectOutbound?: Array<Record<string, unknown>>;
   expectAccessibilityTree?: Record<string, ExpectedAccessibilityNode>;
+  expectThemeAbsent?: boolean;
   expectActiveSubscriptions?: number;
 }
 
@@ -133,6 +134,7 @@ export interface AdapterTestCase {
   description?: string;
   features?: string[];
   protocolVersion?: string;
+  strictMode?: boolean;
   action?: string;
   catalogPaths?: string[];
   catalogs?: SecondaryCatalogSpec[];
@@ -175,6 +177,7 @@ export const KNOWN_KEYS = {
     'features',
     'action',
     'protocolVersion',
+    'strictMode',
     'catalogPaths',
     'catalogs',
     'steps',
@@ -194,6 +197,7 @@ export const KNOWN_KEYS = {
     'expectErrors',
     'expectOutbound',
     'expectSameViewIdentity',
+    'expectThemeAbsent',
     'expectActiveSubscriptions',
   ]),
   adapterOps: new Set([
@@ -1107,6 +1111,15 @@ function verifyStepExpectations(session: AdapterSession, step: AdapterStep): voi
       assertAccessibilityNode(session.surfaceEl, compId, expected);
     }
   }
+  if (step.expectThemeAbsent && session.surface && session.surfaceEl) {
+    assert.deepEqual(session.surface.theme ?? {}, {});
+    for (const el of Array.from(session.surfaceEl.querySelectorAll('*'))) {
+      const htmlEl = el as HTMLElement;
+      assert.equal(htmlEl.style.getPropertyValue('--a2ui-color-primary'), '');
+      const inlineStyle = (htmlEl.getAttribute('style') ?? '').toLowerCase();
+      assert.ok(!inlineStyle.includes('#ff00aa') && !inlineStyle.includes('255, 0, 170'));
+    }
+  }
   if (step.expectActiveSubscriptions !== undefined && session.surface) {
     assert.equal(countActiveSurfaceSubscriptions(session.surface), step.expectActiveSubscriptions);
   }
@@ -1122,7 +1135,24 @@ export function mountSurface(
   ];
   const recordedOutbound: Array<Record<string, unknown>> = [];
   const protocolVersion = caseSpec?.protocolVersion ?? '1.0';
+  const validationConfig =
+    caseSpec?.strictMode === true
+      ? {
+          allowOrphanComponents: false,
+          allowDanglingReferences: false,
+          allowMissingRoot: false,
+          allowUnknownElements: false,
+        }
+      : caseSpec?.strictMode === false
+        ? {
+            allowOrphanComponents: true,
+            allowDanglingReferences: true,
+            allowMissingRoot: true,
+            allowUnknownElements: true,
+          }
+        : undefined;
   const processor = new MessageProcessor<LitComponentApi>(catalogs, undefined, {
+    validationConfig,
     outboundListener: msg => {
       recordedOutbound.push(structuredClone(msg) as unknown as Record<string, unknown>);
     },

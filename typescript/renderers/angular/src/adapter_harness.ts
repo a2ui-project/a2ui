@@ -132,6 +132,7 @@ export interface AdapterStep {
   expectErrors?: ExpectedErrorEntry[];
   expectOutbound?: Array<Record<string, unknown>>;
   expectSameViewIdentity?: string[];
+  expectThemeAbsent?: boolean;
   expectActiveSubscriptions?: number;
 }
 
@@ -140,6 +141,7 @@ export interface AdapterTestCase {
   description?: string;
   features?: string[];
   protocolVersion: string;
+  strictMode?: boolean;
   action: string;
   catalogPaths?: string[];
   catalogs?: ExtraCatalogEntry[];
@@ -189,6 +191,7 @@ export const KNOWN_KEYS = {
     'features',
     'action',
     'protocolVersion',
+    'strictMode',
     'catalogPaths',
     'catalogs',
     'steps',
@@ -208,6 +211,7 @@ export const KNOWN_KEYS = {
     'expectErrors',
     'expectOutbound',
     'expectSameViewIdentity',
+    'expectThemeAbsent',
     'expectActiveSubscriptions',
   ]),
   adapterOps: new Set([
@@ -997,6 +1001,17 @@ function assertStepIdentityAndModel(
   if (step.expectDataModel !== undefined) {
     expect(state.surface!.dataModel.get('/')).toEqual(step.expectDataModel);
   }
+  if (step.expectThemeAbsent && state.surface && state.fixture) {
+    expect(state.surface.theme ?? {}).toEqual({});
+    const container = state.fixture.nativeElement as HTMLElement;
+    for (const el of Array.from(container.querySelectorAll('*'))) {
+      const htmlEl = el as HTMLElement;
+      expect(htmlEl.style.getPropertyValue('--a2ui-color-primary')).toBe('');
+      const inlineStyle = (htmlEl.getAttribute('style') ?? '').toLowerCase();
+      expect(inlineStyle).not.toContain('#ff00aa');
+      expect(inlineStyle).not.toContain('255, 0, 170');
+    }
+  }
   if (step.expectActiveSubscriptions !== undefined) {
     expect(countActiveSubscriptions(state.surface!)).toBe(step.expectActiveSubscriptions);
   }
@@ -1144,12 +1159,29 @@ export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState 
   ];
   const outbound: Array<Record<string, unknown>> = [];
   const protocolVersion = caseSpec?.protocolVersion ?? '1.0';
+  const validationConfig =
+    caseSpec?.strictMode === true
+      ? {
+          allowOrphanComponents: false,
+          allowDanglingReferences: false,
+          allowMissingRoot: false,
+          allowUnknownElements: false,
+        }
+      : caseSpec?.strictMode === false
+        ? {
+            allowOrphanComponents: true,
+            allowDanglingReferences: true,
+            allowMissingRoot: true,
+            allowUnknownElements: true,
+          }
+        : undefined;
   TestBed.configureTestingModule({
     imports: [SurfaceComponent],
     providers: [
       provideA2UI({
         catalogs,
         processorOptions: {
+          validationConfig,
           outboundListener: msg => {
             outbound.push(structuredClone(msg) as unknown as Record<string, unknown>);
           },

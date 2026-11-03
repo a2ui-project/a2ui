@@ -377,3 +377,34 @@ def test_renderer_error_validates_against_spec(valid_renderer_error):
 def test_renderer_error_rejects_spec_violations(invalid_renderer_error):
     with pytest.raises(jsonschema.ValidationError):
         validate_renderer_error_payload(invalid_renderer_error)
+
+
+def test_render_surface_strict_mode_and_expect_theme_absent_schema():
+    valid_case = {
+        "name": "v10_theme_dropped_in_permissive_mode_renders_like_none",
+        "action": "render_surface",
+        "protocolVersion": "1.0",
+        "strictMode": False,
+        "steps": [
+            {
+                "op": "process_messages",
+                "messages": [],
+                "expectThemeAbsent": True,
+                "expectErrors": [],
+            }
+        ],
+    }
+    VALIDATOR.validate([valid_case])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{**valid_case, "strictMode": "permissive"}])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate(
+            [
+                {
+                    **valid_case,
+                    "steps": [{**valid_case["steps"][0], "expectThemeAbsent": "yes"}],
+                }
+            ]
+        )
