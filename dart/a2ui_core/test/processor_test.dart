@@ -1578,13 +1578,13 @@ void main() {
               'catalogId': catalog.id,
               'dataModel': {
                 'a': 1,
-                'x/y': {'c': 2},
+                'x/y~z': {'c': 2},
               },
               'components': [
                 {
                   'id': 'root',
                   'component': 'Counter',
-                  'count': {'@path': '/x~1y/c'},
+                  'count': {'@path': '/x~1y~0z/c'},
                 },
               ],
             },
@@ -1597,7 +1597,7 @@ void main() {
           's1',
         )!;
         expect(rootNotifications, 2);
-        expect(surface.dataModel.get('/x~1y/c'), 2);
+        expect(surface.dataModel.get('/x~1y~0z/c'), 2);
         expect(warnings, isEmpty);
         expect(errors, isEmpty);
         final countBinding = resolver?.rootNode.value?.props.value['count']

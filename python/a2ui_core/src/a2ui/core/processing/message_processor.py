@@ -166,7 +166,9 @@ def _merge_validation_errors(
     if len(added) == len(second.details):
         message = f"{first}\n{second}"
     elif added:
-        lines = "\n".join(f"{detail.path}: {detail.message}" for detail in added)
+        lines = "\n".join(
+            f"{detail.path}: {detail.message}" for detail in added
+        )
         message = f"{first}\nValidation failed for component:\n{lines}"
     else:
         message = str(first)
@@ -303,7 +305,9 @@ class MessageProcessor:
         """Executes a single internal operation asynchronously, returning a response dict if RPC call, else None."""
         if isinstance(op, InternalCallRendererFunctionOp):
             is_user_activated = (
-                getattr(context, "is_user_activated", False) if context else False
+                getattr(context, "is_user_activated", False)
+                if context
+                else False
             )
             data_context = self._resolve_rpc_data_context(op)
             call_msg = CallRendererFunctionMessage(
@@ -315,7 +319,11 @@ class MessageProcessor:
                     callFunction=FunctionCall(  # type: ignore[call-arg]
                         call=op.call,
                         args=op.args,
-                        **({"catalogId": op.catalog_id} if op.catalog_id else {}),
+                        **(
+                            {"catalogId": op.catalog_id}
+                            if op.catalog_id
+                            else {}
+                        ),
                     ),
                     **(
                         {"surfaceId": op.surface_id}
@@ -402,7 +410,9 @@ class MessageProcessor:
             props.pop("id", None)
             props.pop("component", None)
             req = [
-                r for r in s_dict.get("required") or [] if r not in ("id", "component")
+                r
+                for r in s_dict.get("required") or []
+                if r not in ("id", "component")
             ]
             components[name] = {
                 "allOf": [
@@ -429,7 +439,9 @@ class MessageProcessor:
             if isinstance(s, type) and hasattr(s, "model_json_schema"):
                 s = s.model_json_schema()
             s_dict = copy.deepcopy(s) if isinstance(s, dict) else {}
-            if "parameters" in s_dict and isinstance(s_dict["parameters"], dict):
+            if "parameters" in s_dict and isinstance(
+                s_dict["parameters"], dict
+            ):
                 params = s_dict["parameters"]
             elif (
                 "properties" in s_dict
@@ -449,9 +461,9 @@ class MessageProcessor:
             desc = getattr(fn, "description", None) or s_dict.get("description")
             if isinstance(desc, str) and desc:
                 fn_entry["description"] = desc
-            fn_entry["returnType"] = getattr(fn, "return_type", None) or s_dict.get(
-                "returnType", "any"
-            )
+            fn_entry["returnType"] = getattr(
+                fn, "return_type", None
+            ) or s_dict.get("returnType", "any")
             fn_entry["parameters"] = params
             functions.append(fn_entry)
 
@@ -460,7 +472,11 @@ class MessageProcessor:
         )
         theme: dict[str, Any] | None = None
         if isinstance(raw_theme, dict) and raw_theme:
-            theme = raw_theme["properties"] if "properties" in raw_theme else raw_theme
+            theme = (
+                raw_theme["properties"]
+                if "properties" in raw_theme
+                else raw_theme
+            )
 
         result: dict[str, Any] = {
             "catalogId": getattr(catalog, "catalog_id", ""),
@@ -537,14 +553,17 @@ class MessageProcessor:
         effective_versions = options.versions
         effective_include_inline = options.include_inline_catalogs
         envelope_ref = (
-            options.component_envelope_ref or "common_types.json#/$defs/ComponentCommon"
+            options.component_envelope_ref
+            or "common_types.json#/$defs/ComponentCommon"
         )
 
         capabilities: dict[str, Any] = {}
         for ver in effective_versions:
             if not ver:
                 continue
-            ver_str = ver.value if isinstance(ver, ProtocolVersion) else str(ver)
+            ver_str = (
+                ver.value if isinstance(ver, ProtocolVersion) else str(ver)
+            )
             version_caps: dict[str, Any] = {
                 "supportedCatalogIds": [
                     cat_id
@@ -561,7 +580,9 @@ class MessageProcessor:
                             inline_catalogs.append(inline)
                     else:
                         inline_catalogs.append(
-                            self._generate_legacy_inline_catalog(c, envelope_ref)
+                            self._generate_legacy_inline_catalog(
+                                c, envelope_ref
+                            )
                         )
                 version_caps["inlineCatalogs"] = inline_catalogs
             capabilities[ver_str] = version_caps
@@ -592,7 +613,9 @@ class MessageProcessor:
 
         if version is not None:
             ver_str = (
-                version.value if isinstance(version, ProtocolVersion) else str(version)
+                version.value
+                if isinstance(version, ProtocolVersion)
+                else str(version)
             )
             surfaces = {}
             for surface in enabled_surfaces:
@@ -693,7 +716,11 @@ class MessageProcessor:
                     args=op.args,
                     **({"catalogId": op.catalog_id} if op.catalog_id else {}),
                 ),
-                **({"surfaceId": op.surface_id} if op.surface_id is not None else {}),
+                **(
+                    {"surfaceId": op.surface_id}
+                    if op.surface_id is not None
+                    else {}
+                ),
             ),
         )
         try:
@@ -752,7 +779,8 @@ class MessageProcessor:
                     f"Catalog not found: {catalog_id}", surface_id=surface_id
                 )
             raise A2uiCatalogError(
-                "No default catalog available for surface.", surface_id=surface_id
+                "No default catalog available for surface.",
+                surface_id=surface_id,
             )
 
         if self.model.get_surface(surface_id):
@@ -763,7 +791,9 @@ class MessageProcessor:
         if theme and surface_catalog is not None:
             self._validate_surface_theme(surface_id, surface_catalog, theme)
 
-        surface_proto_ver = getattr(surface_catalog, "protocol_version", None) or (
+        surface_proto_ver = getattr(
+            surface_catalog, "protocol_version", None
+        ) or (
             to_protocol_version(msg_version)
             if no_default_catalog and msg_version
             else None
@@ -772,9 +802,13 @@ class MessageProcessor:
             surface_catalog is not None
             and surface_proto_ver
             and msg_version
-            and not is_catalog_version_compatible(surface_proto_ver, msg_version)
+            and not is_catalog_version_compatible(
+                surface_proto_ver, msg_version
+            )
         ):
-            cat_name = catalog_id or getattr(surface_catalog, "catalog_id", "unknown")
+            cat_name = catalog_id or getattr(
+                surface_catalog, "catalog_id", "unknown"
+            )
             raise _CatalogVersionMismatchError(
                 f"Surface '{surface_id}' catalog '{cat_name}' specification version"
                 f" ({surface_proto_ver}) does not match message protocol version"
@@ -814,33 +848,52 @@ class MessageProcessor:
             )
         self.model.add_surface(new_surface)
 
-        if op.data_model is not None:
-            for key, value in op.data_model.items():
-                escaped_key = key.replace("~", "~0").replace("/", "~1")
-                path = f"/{escaped_key}"
-                try:
-                    new_surface.data_model.set(path, value)
-                except A2uiError as err:
-                    if err.path is None:
-                        err.path = path
-                    if err.surface_id is None:
-                        err.surface_id = surface_id
-                    raise
+        try:
+            if op.data_model is not None:
+                for key, value in op.data_model.items():
+                    escaped_key = key.replace("~", "~0").replace("/", "~1")
+                    path = f"/{escaped_key}"
+                    try:
+                        if key == "":
+                            current_root = dict(
+                                new_surface.data_model.get("/") or {}
+                            )
+                            if value is None and is_at_least_version(
+                                surface_proto_ver, ProtocolVersion.V1_0
+                            ):
+                                current_root.pop("", None)
+                            else:
+                                current_root[""] = value
+                            new_surface.data_model.set("/", current_root)
+                        else:
+                            new_surface.data_model.set(path, value)
+                    except A2uiError as err:
+                        if err.path is None:
+                            err.path = path
+                        if err.surface_id is None:
+                            err.surface_id = surface_id
+                        raise
 
-        if op.components is not None:
-            self._process_update_components_op(
-                InternalUpdateComponentsOp(
-                    surface_id=surface_id, components=op.components
+            if op.components is not None:
+                self._process_update_components_op(
+                    InternalUpdateComponentsOp(
+                        surface_id=surface_id, components=op.components
+                    )
                 )
-            )
+        except Exception:
+            self.model.delete_surface(surface_id)
+            raise
 
-    def _process_update_components_op(self, op: InternalUpdateComponentsOp) -> None:
+    def _process_update_components_op(
+        self, op: InternalUpdateComponentsOp
+    ) -> None:
         """Processes an updateComponents operation, validating catalog and component consistency."""
         surface_id = op.surface_id
         surface = self.model.get_surface(surface_id)
         if not surface:
             raise A2uiIntegrityError(
-                f"Surface not found for message: {surface_id}", surface_id=surface_id
+                f"Surface not found for message: {surface_id}",
+                surface_id=surface_id,
             )
 
         components = op.components
@@ -853,16 +906,20 @@ class MessageProcessor:
 
         surface_at_least_v10 = bool(
             surface.protocol_version
-            and is_at_least_version(surface.protocol_version, ProtocolVersion.V1_0)
+            and is_at_least_version(
+                surface.protocol_version, ProtocolVersion.V1_0
+            )
         )
         new_component_models: list[ComponentModel] = []
         for comp_idx, comp in enumerate(components):
             comp_dict = (
                 comp
                 if isinstance(comp, dict)
-                else comp.model_dump(by_alias=True, exclude_none=True)
-                if hasattr(comp, "model_dump")
-                else cast(dict[str, Any], comp)
+                else (
+                    comp.model_dump(by_alias=True, exclude_none=True)
+                    if hasattr(comp, "model_dump")
+                    else cast(dict[str, Any], comp)
+                )
             )
             c_id = comp_dict.get("id")
             if not c_id:
@@ -898,7 +955,9 @@ class MessageProcessor:
                     path=f"/components/{comp_idx}/component",
                     surface_id=surface_id,
                 )
-            c_type = cast(str, comp_type_raw or (existing.type if existing else ""))
+            c_type = cast(
+                str, comp_type_raw or (existing.type if existing else "")
+            )
 
             comp_cat_id = comp_dict.get("catalogId")
             if (
@@ -924,13 +983,16 @@ class MessageProcessor:
             # From v1.0 an empty catalogId names a catalog too (none has that
             # ID); before v1.0 it counts as absent.
             names_catalog = (
-                comp_cat_id is not None if surface_at_least_v10 else bool(comp_cat_id)
+                comp_cat_id is not None
+                if surface_at_least_v10
+                else bool(comp_cat_id)
             )
             if names_catalog:
                 comp_catalog = self._resolve_catalog(comp_cat_id)
                 if not comp_catalog:
                     raise A2uiCatalogError(
-                        f"Catalog not found: {comp_cat_id}", surface_id=surface_id
+                        f"Catalog not found: {comp_cat_id}",
+                        surface_id=surface_id,
                     )
                 comp_ver = getattr(comp_catalog, "protocol_version", None)
                 surface_ver = surface.protocol_version
@@ -963,7 +1025,9 @@ class MessageProcessor:
                     surface_id=surface_id,
                 )
 
-            raw_metadata = comp_dict.get("metadata") if surface_at_least_v10 else None
+            raw_metadata = (
+                comp_dict.get("metadata") if surface_at_least_v10 else None
+            )
             properties = {
                 k: v
                 for k, v in comp_dict.items()
@@ -982,7 +1046,9 @@ class MessageProcessor:
         nested_error: A2uiValidationError | None = None
         if surface_at_least_v10:
             try:
-                self._validate_nested_function_calls(surface, new_component_models)
+                self._validate_nested_function_calls(
+                    surface, new_component_models
+                )
             except A2uiValidationError as e:
                 nested_error = e
 
@@ -1013,7 +1079,9 @@ class MessageProcessor:
                 ):
                     surface.components_model.replace_component(new_comp)
                 else:
-                    existing.apply_update(new_comp.properties, new_comp.metadata)
+                    existing.apply_update(
+                        new_comp.properties, new_comp.metadata
+                    )
             else:
                 surface.components_model.add_component(new_comp)
         surface.components_model.components_update_applied(new_component_models)
@@ -1066,7 +1134,9 @@ class MessageProcessor:
                 visit(comp, value, key)
 
         if errors:
-            first_path = self._resolve_first_nested_call_error_path(errors, components)
+            first_path = self._resolve_first_nested_call_error_path(
+                errors, components
+            )
             raise A2uiValidationError(
                 "\n".join(summaries),
                 details=errors,
@@ -1086,7 +1156,9 @@ class MessageProcessor:
         except Exception as e:
             details = e.details if isinstance(e, A2uiValidationError) else []
             err_path = (
-                e.path if isinstance(e, A2uiValidationError) and e.path else "/theme"
+                e.path
+                if isinstance(e, A2uiValidationError) and e.path
+                else "/theme"
             )
             raise A2uiValidationError(
                 f"Validation failed for theme on surface '{surface_id}': {e}",
@@ -1149,7 +1221,10 @@ class MessageProcessor:
         try:
             catalog = surface.resolve_catalog(catalog_id, subject=subject)
         except A2uiCatalogError as err:
-            if catalog_id is not None and self._resolve_catalog(catalog_id) is not None:
+            if (
+                catalog_id is not None
+                and self._resolve_catalog(catalog_id) is not None
+            ):
                 raise A2uiCatalogError(
                     f"Catalog '{catalog_id}' is not available on surface"
                     f" {surface.id}: its protocol version does not match the"
@@ -1171,9 +1246,9 @@ class MessageProcessor:
             # catalog.
             return
         try:
-            PayloadValidator(catalog, config=self.validation_config).validate_function(
-                name, call.get("args")
-            )
+            PayloadValidator(
+                catalog, config=self.validation_config
+            ).validate_function(name, call.get("args"))
         except A2uiValidationError as e:
             summaries.append(
                 f"Validation failed for function call '{name}' in component"
@@ -1181,12 +1256,15 @@ class MessageProcessor:
             )
             errors.extend(rebase_function_error_details(e, name, call_path))
 
-    def _process_update_data_model_op(self, op: InternalUpdateDataModelOp) -> None:
+    def _process_update_data_model_op(
+        self, op: InternalUpdateDataModelOp
+    ) -> None:
         surface_id = op.surface_id
         surface = self.model.get_surface(surface_id)
         if not surface:
             raise A2uiIntegrityError(
-                f"Surface not found for message: {surface_id}", surface_id=surface_id
+                f"Surface not found for message: {surface_id}",
+                surface_id=surface_id,
             )
 
         if (

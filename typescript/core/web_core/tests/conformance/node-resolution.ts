@@ -331,7 +331,11 @@ interface ResolutionContext {
   errors: A2uiErrorPayload[];
 }
 
-function watchNodes(nodes: Map<string, ComponentNode>, watches: Map<ComponentNode, Watch>): void {
+function watchNodes(
+  nodes: Map<string, ComponentNode>,
+  watches: Map<ComponentNode, Watch>,
+  onPropsUpdated?: () => void,
+): void {
   for (const [path, node] of nodes) {
     const existing = watches.get(node);
     if (existing) {
@@ -349,6 +353,7 @@ function watchNodes(nodes: Map<string, ComponentNode>, watches: Map<ComponentNod
       const props = getValue(node.props);
       watch.emissions++;
       watch.lastProps = normalize(props, watch.path);
+      onPropsUpdated?.();
     });
     const stopMetadata = effect(() => {
       getValue(node.metadata);
@@ -367,11 +372,11 @@ function watchNodes(nodes: Map<string, ComponentNode>, watches: Map<ComponentNod
 }
 
 function watchCreatedNodes(
-  nodes: Map<string, ComponentNode>,
+  resolver: NodeResolver,
   createdEmissions: Map<ComponentNode, number>,
   createdStops: Array<() => void>,
 ): void {
-  for (const node of nodes.values()) {
+  for (const node of mountedNodes(resolver).values()) {
     if (createdEmissions.has(node)) continue;
     createdEmissions.set(node, 0);
     let initial = true;
@@ -379,9 +384,10 @@ function watchCreatedNodes(
       getValue(node.props);
       if (initial) {
         initial = false;
-        return;
+      } else {
+        createdEmissions.set(node, (createdEmissions.get(node) ?? 0) + 1);
       }
-      createdEmissions.set(node, (createdEmissions.get(node) ?? 0) + 1);
+      watchCreatedNodes(resolver, createdEmissions, createdStops);
     });
     createdStops.push(stop);
   }
@@ -508,7 +514,7 @@ export async function runNodeResolutionCase(
     ctx.resolver = r;
     const stopRoot = effect(() => {
       getValue(r.rootNode);
-      watchCreatedNodes(mountedNodes(r), createdEmissions, createdStops);
+      watchCreatedNodes(r, createdEmissions, createdStops);
     });
     const stopActions = s.onAction.subscribe(action => {
       events.push({
@@ -544,7 +550,11 @@ export async function runNodeResolutionCase(
     for (const [index, step] of testCase.steps.entries()) {
       const reason = `${testCase.name} step ${index} (${step.op})`;
       const before = ctx.resolver ? mountedNodes(ctx.resolver) : new Map<string, ComponentNode>();
-      watchNodes(before, watches);
+      watchNodes(before, watches, () => {
+        if (ctx.resolver) {
+          watchCreatedNodes(ctx.resolver, createdEmissions, createdStops);
+        }
+      });
       for (const watch of watches.values()) {
         watch.emissions = 0;
         watch.metadataEmissions = 0;

@@ -51,7 +51,10 @@ def _normalize(value: Any, path: str) -> Any:
     if is_component_node(value):
         return {"node": path}
     if isinstance(value, ResolvedBinding):
-        return {"value": _normalize(value.value, path), "writable": is_writable(value)}
+        return {
+            "value": _normalize(value.value, path),
+            "writable": is_writable(value),
+        }
     if callable(value):
         return {"action": True}
     if isinstance(value, list):
@@ -152,9 +155,13 @@ def _update_components(
     for comp in components:
         comp_id = comp["id"]
         comp_type = comp["component"]
-        metadata = copy.deepcopy(comp["metadata"]) if "metadata" in comp else None
+        metadata = (
+            copy.deepcopy(comp["metadata"]) if "metadata" in comp else None
+        )
         properties = {
-            k: v for k, v in comp.items() if k not in ("id", "component", "metadata")
+            k: v
+            for k, v in comp.items()
+            if k not in ("id", "component", "metadata")
         }
         existing = surface.components_model.get(comp_id)
         if existing is not None:
@@ -199,8 +206,12 @@ def _build_recording_catalog(
     for fn_name, fn_api in (parsed.functions or {}).items():
 
         def make_impl(name: str) -> Callable[..., Any]:
-            def _impl(args: dict[str, Any], _ctx: Any = None, _sig: Any = None) -> Any:
-                functions_log.append({"name": name, "args": _normalize(args, "")})
+            def _impl(
+                args: dict[str, Any], _ctx: Any = None, _sig: Any = None
+            ) -> Any:
+                functions_log.append(
+                    {"name": name, "args": _normalize(args, "")}
+                )
                 return None
 
             return _impl
@@ -219,6 +230,7 @@ def _build_recording_catalog(
 def _watch_nodes(
     nodes: dict[str, ComponentNode],
     watches: dict[ComponentNode, _Watch],
+    on_props_updated: Callable[[], None] | None = None,
 ) -> None:
     for path, node in nodes.items():
         existing = watches.get(node)
@@ -230,6 +242,8 @@ def _watch_nodes(
         def on_props(props: dict[str, Any], watch: _Watch = w) -> None:
             watch.emissions += 1
             watch.last_props = _normalize(props, watch.path)
+            if on_props_updated is not None:
+                on_props_updated()
 
         def on_meta(meta: dict[str, Any] | None, watch: _Watch = w) -> None:
             watch.metadata_emissions += 1
@@ -250,19 +264,24 @@ def _watch_nodes(
 
 
 def _watch_created_nodes(
-    nodes: dict[str, ComponentNode],
+    resolver: NodeResolver | None,
     created_emissions: dict[ComponentNode, int],
     created_stops: list[Callable[[], None]],
 ) -> None:
-    for node in nodes.values():
+    if resolver is None:
+        return
+    for node in _mounted_nodes(resolver).values():
         if node in created_emissions:
             continue
         created_emissions[node] = 0
-        sub = node.on_updated.subscribe(
-            lambda _props, n=node: created_emissions.__setitem__(
-                n, created_emissions.get(n, 0) + 1
-            )
-        )
+
+        def on_created_props(
+            _props: dict[str, Any], n: ComponentNode = node
+        ) -> None:
+            created_emissions[n] = created_emissions.get(n, 0) + 1
+            _watch_created_nodes(resolver, created_emissions, created_stops)
+
+        sub = node.on_updated.subscribe(on_created_props)
         created_stops.append(sub.unsubscribe)
 
 
@@ -289,7 +308,9 @@ def _collect_watch_counts(
             ), f"{reason}: {w.path} last metadata emission"
         if w.destroyed:
             destroyed[w.path] = destroyed.get(w.path, 0) + w.destroyed
-            assert node.disposed, f"{reason}: {w.path} destruction without disposal"
+            assert (
+                node.disposed
+            ), f"{reason}: {w.path} destruction without disposal"
     return emissions, metadata_emissions, destroyed
 
 
@@ -342,7 +363,9 @@ def _check_step_state(
             actual_created == exp_created
         ), f"{reason}: created_emissions expected {exp_created}, got {actual_created}"
     if "metadata_emissions" in expected:
-        assert metadata_emissions == (expected.get("metadata_emissions") or {}), (
+        assert metadata_emissions == (
+            expected.get("metadata_emissions") or {}
+        ), (
             f"{reason}: metadata_emissions expected"
             f" {expected.get('metadata_emissions') or {}}, got {metadata_emissions}"
         )
@@ -359,7 +382,9 @@ def _check_step_state(
             before, path
         ), f"{reason}: {path} replacement"
     for path, val in (expected.get("data") or {}).items():
-        assert surface is not None, f"{reason}: no surface for data check {path}"
+        assert (
+            surface is not None
+        ), f"{reason}: no surface for data check {path}"
         assert (
             _normalize(surface.data_model.get(path), path) == val
         ), f"{reason}: data {path}"
@@ -395,15 +420,21 @@ def _execute_step_op(
     elif op == "process_messages":
         processor.process_messages(step["messages"])
     elif op == "write":
-        binding = _required_node(before, step["node"]).props.get(step["property"])
+        binding = _required_node(before, step["node"]).props.get(
+            step["property"]
+        )
         assert isinstance(binding, ResolvedBinding) and is_writable(
             binding
         ), f"{reason}: not a writable binding"
         binding.set(step["value"])
     elif op == "invoke":
-        action = _required_node(before, step["node"]).props.get(step["property"])
+        action = _required_node(before, step["node"]).props.get(
+            step["property"]
+        )
         assert callable(action), f"{reason}: not an action"
-        raw_meta = copy.deepcopy(step["metadata"]) if "metadata" in step else None
+        raw_meta = (
+            copy.deepcopy(step["metadata"]) if "metadata" in step else None
+        )
         res = action(metadata=raw_meta) if raw_meta is not None else action()
         if inspect.isawaitable(res):
             import asyncio
@@ -416,7 +447,9 @@ def _execute_step_op(
         raise AssertionError(f"Unknown node operation: {op}")
 
 
-def run_node_resolution_case(test_case: dict[str, Any], conformance_root: Path) -> None:
+def run_node_resolution_case(
+    test_case: dict[str, Any], conformance_root: Path
+) -> None:
     """Executes a single resolve_nodes conformance test case."""
     assert test_case.get("action") == "resolve_nodes"
     fixture_path = conformance_root / test_case["fixture"]
@@ -425,7 +458,9 @@ def run_node_resolution_case(test_case: dict[str, Any], conformance_root: Path) 
     events: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
 
-    catalog = _build_recording_catalog(conformance_root / fixture["catalog"], functions)
+    catalog = _build_recording_catalog(
+        conformance_root / fixture["catalog"], functions
+    )
     processor = MessageProcessor([catalog])
     watches: dict[ComponentNode, _Watch] = {}
     created_emissions: dict[ComponentNode, int] = {}
@@ -442,30 +477,34 @@ def run_node_resolution_case(test_case: dict[str, Any], conformance_root: Path) 
         resolver = NodeResolver(s, catalog)
         r = resolver
         sub_root = r.on_root_replaced.subscribe(
-            lambda _: _watch_created_nodes(
-                _mounted_nodes(r), created_emissions, created_stops
-            )
+            lambda _: _watch_created_nodes(r, created_emissions, created_stops)
         )
         sub_actions = s.on_action.subscribe(
-            lambda action: events.append({
-                "name": action.get("name"),
-                "source_component_id": action.get("sourceComponentId"),
-                "context": _normalize(action.get("context") or {}, ""),
-                **(
-                    {"metadata": copy.deepcopy(action["metadata"])}
-                    if action.get("metadata") is not None
-                    else {}
-                ),
-            })
+            lambda action: events.append(
+                {
+                    "name": action.get("name"),
+                    "source_component_id": action.get("sourceComponentId"),
+                    "context": _normalize(action.get("context") or {}, ""),
+                    **(
+                        {"metadata": copy.deepcopy(action["metadata"])}
+                        if action.get("metadata") is not None
+                        else {}
+                    ),
+                }
+            )
         )
         sub_errors = s.on_error.subscribe(lambda err: errors.append(dict(err)))
-        cleanup_callbacks.extend([
-            sub_root.unsubscribe,
-            sub_actions.unsubscribe,
-            sub_errors.unsubscribe,
-        ])
+        cleanup_callbacks.extend(
+            [
+                sub_root.unsubscribe,
+                sub_actions.unsubscribe,
+                sub_errors.unsubscribe,
+            ]
+        )
 
-    sub_surface_created = processor.model.on_surface_created.subscribe(attach_surface)
+    sub_surface_created = processor.model.on_surface_created.subscribe(
+        attach_surface
+    )
     cleanup_callbacks.append(sub_surface_created.unsubscribe)
 
     if fixture.get("surface", True):
@@ -496,7 +535,13 @@ def run_node_resolution_case(test_case: dict[str, Any], conformance_root: Path) 
             op = step["op"]
             reason = f"{test_case['name']} step {index} ({op})"
             before = _mounted_nodes(resolver) if resolver is not None else {}
-            _watch_nodes(before, watches)
+            _watch_nodes(
+                before,
+                watches,
+                lambda: _watch_created_nodes(
+                    resolver, created_emissions, created_stops
+                ),
+            )
             for w in watches.values():
                 w.emissions = 0
                 w.metadata_emissions = 0

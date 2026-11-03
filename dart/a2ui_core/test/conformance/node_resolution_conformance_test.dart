@@ -256,6 +256,7 @@ class _Runner {
           if (subscribing) return;
           createdEmissions.update(node, (count) => count + 1,
               ifAbsent: () => 1);
+          _watchCreatedNodes(nodes());
         }),
       );
       subscribing = false;
@@ -275,6 +276,7 @@ class _Runner {
           final String path = watched[node]!;
           emissions.update(node, (count) => count + 1, ifAbsent: () => 1);
           lastEmission[node] = _normalize(props, path);
+          _watchCreatedNodes(nodes());
         }),
       );
       subscriptions.add(

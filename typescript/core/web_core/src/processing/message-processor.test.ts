@@ -35,7 +35,8 @@ import {BASIC_FUNCTIONS} from '../catalogs/basic/v1/functions/basic_functions.js
 import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';
-import {SurfaceModel} from '../state/surface-model.js';
+import {ResolvedBinding} from '../resolution/resolved-binding.js';
+import {SurfaceModel, type A2uiErrorPayload} from '../state/surface-model.js';
 import {validateCompositionConstraints} from '../state/validation-helpers.js';
 import {peekValue} from '../reactivity/signals.js';
 import {z} from 'zod';
@@ -2372,7 +2373,7 @@ describe('MessageProcessor', () => {
       const proc = new MessageProcessor<ComponentApi>([cat]);
 
       let rootNotifications = 0;
-      const surfaceErrors: any[] = [];
+      const surfaceErrors: A2uiErrorPayload[] = [];
       let resolver: NodeResolver | undefined;
 
       proc.model.onSurfaceCreated.subscribe(surface => {
@@ -2391,27 +2392,29 @@ describe('MessageProcessor', () => {
           createSurface: {
             surfaceId: 's1',
             catalogId: 'cat-v10',
-            dataModel: {a: 1, 'x/y': {c: 2}},
+            dataModel: {a: 1, 'x/y~z': {c: 2}},
             components: [
               {
                 id: 'root',
                 component: 'Counter',
-                count: {'@path': '/x~1y/c'},
+                count: {'@path': '/x~1y~0z/c'},
               },
             ],
           },
-        } as any,
+        },
       ]);
 
       const surface = proc.getSurface('s1')!;
       assert.strictEqual(rootNotifications, 2);
-      assert.strictEqual(surface.dataModel.get('/x~1y/c'), 2);
+      assert.strictEqual(surface.dataModel.get('/x~1y~0z/c'), 2);
       assert.deepStrictEqual(surfaceErrors, []);
       const rootNode = peekValue(resolver!.rootNode);
       assert.ok(rootNode);
-      const rootProps = peekValue(rootNode.props) as any;
-      assert.strictEqual(rootProps.count.value, 2);
+      const rootProps = peekValue(rootNode.props);
+      assert.ok(rootProps['count'] instanceof ResolvedBinding);
+      assert.strictEqual(rootProps['count'].value, 2);
       resolver?.dispose();
+      proc.dispose();
     });
   });
 });

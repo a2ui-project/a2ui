@@ -874,11 +874,21 @@ public final class MessageProcessor: ObservableObject {
     do {
       if let dataModel = op.dataModel {
         for (key, value) in dataModel {
-          let escapedKey =
-            key
-            .replacingOccurrences(of: "~", with: "~0")
-            .replacingOccurrences(of: "/", with: "~1")
-          try vm.dataModel.setThrowing("/\(escapedKey)", value: value)
+          if key.isEmpty {
+            var currentRoot = vm.dataModel.get("/")?.objectValue ?? [:]
+            if value == .null {
+              currentRoot.removeValue(forKey: "")
+            } else {
+              currentRoot[""] = value
+            }
+            try vm.dataModel.setThrowing("/", value: .object(currentRoot))
+          } else {
+            let escapedKey =
+              key
+              .replacingOccurrences(of: "~", with: "~0")
+              .replacingOccurrences(of: "/", with: "~1")
+            try vm.dataModel.setThrowing("/\(escapedKey)", value: value)
+          }
         }
       }
 

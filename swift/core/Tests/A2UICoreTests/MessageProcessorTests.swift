@@ -877,13 +877,11 @@ struct MessageProcessorTests {
     let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
     var rootNotifications = 0
     var watchCancellable: AnyCancellable?
-    var resolver: NodeResolver?
     let surfaceCancellable = processor.surfaceGroupModel.$surfacesMap.sink { map in
       guard let surface = map["s1"], watchCancellable == nil else { return }
       watchCancellable = try? surface.dataModel.watch("/") { _ in
         rootNotifications += 1
       }
-      resolver = NodeResolver(surface: surface)
     }
     defer {
       surfaceCancellable.cancel()
@@ -904,13 +902,13 @@ struct MessageProcessorTests {
           },
           "dataModel": {
             "a": 1,
-            "x/y": { "c": 2 }
+            "x/y~z": { "c": 2 }
           },
           "components": [
             {
               "id": "root",
               "component": "Counter",
-              "count": { "@path": "/x~1y/c" }
+              "count": { "@path": "/x~1y~0z/c" }
             }
           ]
         }
@@ -920,11 +918,12 @@ struct MessageProcessorTests {
     try processor.processMessages(payload)
     let surface = try #require(processor.surfaceGroupModel["s1"])
     #expect(surface.metadata?["extensions"]?["custom_ext"]?["enabled"]?.boolValue == true)
+    #expect(watchCancellable != nil)
     #expect(rootNotifications == 2)
-    #expect(surface.dataModel.get("/x~1y/c")?.intValue == 2)
+    #expect(surface.dataModel.get("/x~1y~0z/c")?.intValue == 2)
     #expect(handler.capturedErrors.isEmpty)
-    #expect(resolver != nil)
     #expect(surface.rootNode?.double(for: "count") == 2)
+    #expect(surface.rootNode?.box.propsRevision == 0)
   }
 
   @Test func processPayloadResolvesLenientV10VersionOnError() throws {

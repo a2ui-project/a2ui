@@ -115,6 +115,7 @@ struct NodeResolutionConformanceTests {
       assertStepExpectations(
         initialExpect,
         surface: processor.surfaceGroupModel["s"],
+        beforeBoxes: [],
         capture: capture,
         caseName: name
       )
@@ -122,12 +123,17 @@ struct NodeResolutionConformanceTests {
 
     let steps = (testCase["steps"] as? [[String: Any]]) ?? []
     for step in steps {
+      let beforeBoxes = Set(
+        collectMountedNodes(from: processor.surfaceGroupModel["s"]?.rootNode)
+          .values.map { ObjectIdentifier($0.box) }
+      )
       capture.clearStep()
       try executeStep(step, processor: processor, caseName: name)
       if let stepExpect = step["expect"] as? [String: Any] {
         assertStepExpectations(
           stepExpect,
           surface: processor.surfaceGroupModel["s"],
+          beforeBoxes: beforeBoxes,
           capture: capture,
           caseName: name
         )
@@ -415,9 +421,49 @@ struct NodeResolutionConformanceTests {
     return surface.componentsModel.components[childDefID] == nil
   }
 
+  private func collectMountedNodes(from root: Node?) -> [String: Node] {
+    var result: [String: Node] = [:]
+    guard let root else { return result }
+    func visit(_ value: any Resolved, path: String) {
+      if let node = value as? Node {
+        result[path] = node
+        for (key, propVal) in node.properties {
+          visit(propVal, path: "\(path)/\(key)")
+        }
+      } else if let nodes = value as? [Node] {
+        for (idx, child) in nodes.enumerated() {
+          visit(child, path: "\(path)/\(idx)")
+        }
+      } else if let arr = value as? ResolvedArray {
+        for (idx, elem) in arr.elements.enumerated() {
+          visit(elem, path: "\(path)/\(idx)")
+        }
+      } else if let dict = value as? ResolvedDictionary {
+        for (key, elem) in dict.storage {
+          visit(elem, path: "\(path)/\(key)")
+        }
+      }
+    }
+    visit(root, path: "root")
+    return result
+  }
+
+  private func collectCreatedPropsEmissions(
+    from root: Node?,
+    beforeBoxes: Set<ObjectIdentifier>
+  ) -> [String: Int] {
+    var result: [String: Int] = [:]
+    for (path, node) in collectMountedNodes(from: root)
+    where !beforeBoxes.contains(ObjectIdentifier(node.box)) {
+      result[path] = Int(node.box.propsRevision)
+    }
+    return result
+  }
+
   private func assertStepExpectations(
     _ expect: [String: Any],
     surface: SurfaceViewModel?,
+    beforeBoxes: Set<ObjectIdentifier>,
     capture: NodeResolutionActionCapture,
     caseName: String
   ) {
@@ -425,17 +471,17 @@ struct NodeResolutionConformanceTests {
       assertExpectedNodes(expectedNodes, surface: surface, caseName: caseName)
     }
     if let expectedCreatedEmissions = expect["created_emissions"] as? [String: Int] {
-      for (nodePath, expectedCount) in expectedCreatedEmissions {
-        if let node = findNodeByPath(nodePath, from: surface?.rootNode, surface: surface) {
-          let actualCount = Int(node.box.revision)
-          #expect(
-            actualCount == expectedCount,
-            "[\(caseName)] created_emissions mismatch at '\(nodePath)': got \(actualCount), expected \(expectedCount)"
-          )
-        } else {
-          Issue.record("[\(caseName)] Expected node at '\(nodePath)' for created_emissions")
-        }
-      }
+      let actualCreated = collectCreatedPropsEmissions(
+        from: surface?.rootNode,
+        beforeBoxes: beforeBoxes
+      )
+      #expect(
+        actualCreated == expectedCreatedEmissions,
+        """
+        [\(caseName)] created_emissions mismatch: got \(actualCreated), \
+        expected \(expectedCreatedEmissions)
+        """
+      )
     }
     if let expectedData = expect["data"] as? [String: Any], let surface {
       for (path, rawVal) in expectedData {

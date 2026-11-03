@@ -11,9 +11,8 @@
   ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
 - `MessageProcessor` writes an inline `createSurface.dataModel` as one
   `DataModel.set` per top-level key (`/<escaped_key>`, escaping `~` as `~0` and
-  `/` as `~1` per RFC 6901) before applying inline `createSurface.components`,
-  and `V1Point0Adapter` passes inline `components` and `dataModel` on
-  `InternalCreateSurfaceOp` instead of splitting them into separate operations.
+  `/` as `~1` per RFC 6901) before applying inline `createSurface.components`
+  ([#3857](https://github.com/a2ui-project/a2ui/pull/3857)).
 - **BREAKING CHANGE**: `DataContext` refuses a function whose `allowed_callers`
   is `agentOnly`, before running it, so a binding, check or function call
   action that calls one reports an `EXPRESSION_ERROR` instead of running it, as
@@ -493,7 +492,6 @@
   **Unshimmed Internal Modules & Renames:**
 
   Internal modules were moved without shims; callers should import from the new paths directly:
-
   - `a2ui.core.rendering` (and `.component_context`, `.data_context`, `.generic_binder`): moved to `a2ui.core.resolution` (and matching submodules).
   - `a2ui.core.validating` (and `.integrity_checker`, `.topology_analyzer`): moved to `a2ui.core.validation` (and `a2ui.core.state.validation_helpers`).
   - `validate_component_integrity`: moved to `a2ui.core.validation` as `(components: dict[str, ComponentModel], root_id: str = ROOT_ID, config: ValidationConfig | None = None) -> None`.
