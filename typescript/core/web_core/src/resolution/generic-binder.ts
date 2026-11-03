@@ -540,6 +540,10 @@ export class GenericBinder<T> {
 
     const props = this.context.componentModel.properties;
 
+    // Rebuild from an empty snapshot, so a property the update removed is
+    // gone. Check bindings write `isValid` and its siblings into it while
+    // binding.
+    this.currentProps = {};
     const resolved = this.resolveAndBind(props, this.behaviorTree, [], false) as
       | Record<string, unknown>
       | undefined;

@@ -723,6 +723,40 @@ describe('GenericBinder Checkable Trait', () => {
     assert.strictEqual(notificationCount, 1);
   });
 
+  it('drops properties that a component update removes', () => {
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
+    const compModel = new ComponentModel(
+      'c9',
+      'Test',
+      {value: 'kept', accessibility: {label: 'Name'}},
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c9'), schema);
+    binder.subscribe(() => {});
+
+    compModel.properties = {value: 'kept'};
+
+    assert.strictEqual(binder.snapshot.value, 'kept');
+    assert.ok(!('accessibility' in binder.snapshot));
+  });
+
+  it('keeps the validation state of checks across a component update', () => {
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
+    const checks = [
+      {condition: {call: 'required', args: {value: {path: '/val'}}}, message: 'Required'},
+    ];
+    const compModel = new ComponentModel('c10', 'Test', {value: {path: '/val'}, checks}, catalog);
+    surface.componentsModel.addComponent(compModel);
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c10'), schema);
+    binder.subscribe(() => {});
+
+    compModel.properties = {value: {path: '/val'}, checks};
+
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Required']);
+  });
+
   describe('scrapeSchemaBehavior schema inference', () => {
     it('should infer behavior from schema descriptions', () => {
       // Description-based matching across formats (relative, URI, pipe-annotated)
