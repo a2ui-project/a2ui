@@ -38,8 +38,8 @@ This approach ensures that agent-generated UIs are
   **SwiftUI / Jetpack Compose**, or **more than one platform** from the same agent.
 - **Use A2UI** when the agent is **remote, third-party, or across a trust
   boundary** and must not send executable code to your renderer.
-- **Use A2UI on Flutter** through the [GenUI SDK](https://docs.flutter.dev/ai/genui)
-  (`genui`), which renders A2UI natively: `flutter pub add genui genui_a2a`.
+- **Use A2UI on Flutter** with [`a2ui_flutter`](dart/a2ui_flutter/):
+  `flutter pub add a2ui_flutter a2ui_core`. It replaces the `genui` package.
 - **You may not need A2UI** for a **React-only chat** that renders tool results as
   your own components; an LLM toolkit alone may be enough. A2UI fits once you add
   platforms or remote agents.
