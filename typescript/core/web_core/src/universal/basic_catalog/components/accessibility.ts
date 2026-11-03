@@ -15,68 +15,20 @@
  */
 
 import {html, nothing, type TemplateResult} from 'lit';
-import type {z} from 'zod';
 
-import type {ResolveA2uiProp} from '../../../resolution/generic-binder.js';
-import type {AccessibilityAttributesSupportedSchemas} from './supported_apis.js';
+import type {ResolvedAccessibilityAttributes} from '../../host_accessibility.js';
 
-type ResolvedUnionMember<T> = T extends unknown ? Partial<ResolveA2uiProp<T>> : never;
-type UnionKeys<T> = T extends unknown ? keyof T : never;
-
-type SupportedAccessibilityAttributes = z.infer<AccessibilityAttributesSupportedSchemas>;
-type AccessibilityAttributeKey = UnionKeys<SupportedAccessibilityAttributes>;
-
-/** Resolved accessibility attributes inferred across supported protocol versions. */
-export type ResolvedAccessibilityAttributes = ResolvedUnionMember<SupportedAccessibilityAttributes>;
+// The host-level setter lives with the host bindings that frameworks share,
+// so that they do not depend on the basic catalog.
+export {
+  type ResolvedAccessibilityAttributes,
+  setHostAccessibilityAttributes,
+} from '../../host_accessibility.js';
 
 /** Props that the binder adds to components with validation checks. */
 export interface CheckableResolvedProps {
   isValid?: boolean;
   validationErrors?: string[];
-}
-
-// Quoted keys survive minification and enforce completeness across AccessibilityAttributeKey.
-const HOST_ACCESSIBILITY_SETTERS: Record<
-  AccessibilityAttributeKey,
-  (host: HTMLElement, a11y: ResolvedAccessibilityAttributes | undefined) => void
-> = {
-  // Forwarded to inner semantic controls or container groups by components.
-  'label': () => {},
-  'description': () => {},
-  'live': (host, a11y) => {
-    const live = a11y && 'live' in a11y ? a11y.live : undefined;
-    if (live != null) {
-      host.setAttribute('aria-live', String(live));
-    } else {
-      host.removeAttribute('aria-live');
-    }
-  },
-  'hidden': (host, a11y) => {
-    const hidden =
-      a11y && Object.hasOwn(a11y, 'hidden') ? (a11y as {hidden?: unknown}).hidden : undefined;
-    if (typeof hidden === 'boolean') {
-      host.setAttribute('aria-hidden', String(hidden));
-    } else {
-      host.removeAttribute('aria-hidden');
-    }
-    // aria-hidden alone leaves focusable descendants in the tab order, so a
-    // hidden subtree is also made inert.
-    const isHidden = hidden === true;
-    host.inert = isHidden;
-    host.toggleAttribute('inert', isHidden);
-  },
-};
-
-const HOST_ACCESSIBILITY_SETTER_LIST = Object.values(HOST_ACCESSIBILITY_SETTERS);
-
-/** Sets host-level `aria-live`, `aria-hidden`, and `inert` attributes on a custom element. */
-export function setHostAccessibilityAttributes(
-  host: HTMLElement,
-  a11y?: ResolvedAccessibilityAttributes,
-): void {
-  for (const setAttribute of HOST_ACCESSIBILITY_SETTER_LIST) {
-    setAttribute(host, a11y);
-  }
 }
 
 /**
