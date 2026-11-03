@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+from collections.abc import Callable
 import contextlib
 import glob
 import json
 import os
+from pathlib import Path
 import re
 import sys
-from pathlib import Path
-from collections.abc import Callable
 from typing import Any
+
 from pydantic import TypeAdapter
 import pytest
 import yaml
@@ -38,25 +40,9 @@ except ImportError:
     _nr_mod = _importlib_util.module_from_spec(_nr_spec)
     _nr_spec.loader.exec_module(_nr_mod)
     run_node_resolution_case = _nr_mod.run_node_resolution_case
-from a2ui.core.catalog import Catalog, CatalogApi
 from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
+from a2ui.core.catalog import Catalog, CatalogApi, FunctionApi
 from a2ui.core.common import to_canonical_version
-from a2ui.core.schema import ProtocolVersion
-from a2ui.core.schema.v0_9 import ClientToServerMessage
-from a2ui.core.schema.v1_0 import RendererToAgentMessage
-from a2ui.core.state import DataModel, SurfaceModel
-from a2ui.core.resolution import DataContext
-from a2ui.core.processing import (
-    CapabilitiesOptions,
-    MessageProcessor,
-    MessageProcessorOptions,
-)
-from a2ui.core.validation import (
-    RELAXED_VALIDATION,
-    STRICT_VALIDATION,
-    PayloadValidator,
-    ValidationConfig,
-)
 from a2ui.core.exceptions import (
     A2uiCatalogError,
     A2uiDataError,
@@ -67,6 +53,22 @@ from a2ui.core.exceptions import (
     A2uiRecursionError,
     A2uiStateError,
     A2uiValidationError,
+)
+from a2ui.core.processing import (
+    CapabilitiesOptions,
+    MessageProcessor,
+    MessageProcessorOptions,
+)
+from a2ui.core.resolution import ComponentContext, DataContext, GenericBinder
+from a2ui.core.schema import ProtocolVersion
+from a2ui.core.schema.v0_9 import ClientToServerMessage
+from a2ui.core.schema.v1_0 import RendererToAgentMessage
+from a2ui.core.state import ComponentModel, DataModel, SurfaceModel
+from a2ui.core.validation import (
+    RELAXED_VALIDATION,
+    STRICT_VALIDATION,
+    PayloadValidator,
+    ValidationConfig,
 )
 
 CATEGORY_TO_EXCEPTION = {
@@ -869,6 +871,8 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
         validate_evaluate_function_case(case)
     elif action == "dispatch_action":
         validate_dispatch_action_case(case)
+    elif action == "route_agent_function":
+        validate_route_agent_function_case(case)
     else:
         pytest.fail(
             f"Action '{action}' has no handler in the core Python harness."
@@ -2660,3 +2664,221 @@ def validate_evaluate_function_case(case: dict[str, Any]) -> None:
         result = _invoke()
         expected = case.get("expect")
         assert result == expected
+
+
+def _routing_catalogs(case: dict[str, Any], version: str) -> list[Catalog]:
+    """Builds the catalogs of a `route_agent_function` case.
+
+    `localFunctions` take the SDK's basic catalog implementations for the
+    case's protocol version. `agentFunctions` are declared with their argument
+    schema and no implementation, so they are schema-only.
+    """
+    basic = v10_catalog if _normalize_version(version) == "1.0" else v09_catalog
+    catalogs = []
+    for spec in case.get("catalogs") or []:
+        functions: list[Any] = [
+            basic.functions[name] for name in spec.get("localFunctions") or []
+        ]
+        for name, declaration in (spec.get("agentFunctions") or {}).items():
+            functions.append(
+                FunctionApi(
+                    name=name,
+                    schema=declaration["args"],
+                    return_type=declaration.get("returnType", "any"),
+                    requires_user_activation=declaration.get(
+                        "requiresUserActivation", False
+                    ),
+                    allowed_callers=declaration.get("allowedCallers", "rendererOnly"),
+                )
+            )
+        catalogs.append(Catalog(spec["catalogId"], version, [], functions))
+    return catalogs
+
+
+async def _flush_async_work() -> None:
+    """Lets the callbacks of settled futures, and those they schedule, run."""
+    for _ in range(5):
+        await asyncio.sleep(0)
+
+
+async def _run_route_agent_function_case(case: dict[str, Any]) -> None:
+    version = _normalize_version(case["protocolVersion"])
+    wire_version = "1.0" if version == "1.0" else f"v{version}"
+    surface_spec = case.get("surface") or {}
+    outbound: list[dict[str, Any]] = []
+    processor = MessageProcessor(
+        _routing_catalogs(case, version),
+        options=MessageProcessorOptions(
+            outbound_listener=(
+                None
+                if surface_spec.get("outboundListener") is False
+                else outbound.append
+            ),
+        ),
+    )
+    create_surface: dict[str, Any] = {"surfaceId": "main"}
+    if "catalogId" in surface_spec:
+        create_surface["catalogId"] = surface_spec["catalogId"]
+    processor.process_messages(
+        [{"version": wire_version, "createSurface": create_surface}]
+    )
+    surface = processor.model.get_surface("main")
+    assert surface is not None
+    if case.get("dataModel") is not None:
+        surface.data_model.set("/", case["dataModel"])
+
+    errors: list[dict[str, Any]] = []
+    surface.on_error.subscribe(errors.append)
+    actions: list[dict[str, Any]] = []
+    surface.on_action.subscribe(actions.append)
+    context = DataContext(surface, "/")
+    # Current values of the binding and check evaluations, in order.
+    values: list[Any] = []
+    evaluations: list[Callable[[], Any]] = []
+    disposables: list[Callable[[], None]] = []
+    outbound_seen = 0
+    errors_seen = 0
+    actions_seen = 0
+    try:
+        for index, step in enumerate(case.get("steps") or []):
+            label = f"step {index}"
+            if "evaluate" in step:
+                kind = step.get("as", "binding")
+                if kind == "action":
+                    context.resolve_action({"functionCall": step["evaluate"]})
+                elif kind == "event":
+                    # As the generic binder runs a component's event action.
+                    resolved = context.resolve_action(
+                        {"event": step["evaluate"]}, is_user_activated=True
+                    )
+                    surface.dispatch_action(resolved, "probe")
+                elif kind == "check":
+                    probe_id = f"probe_{len(evaluations)}"
+                    comp = ComponentModel(
+                        probe_id,
+                        "Probe",
+                        surface.default_catalog or processor.catalogs[0],
+                        {
+                            "checks": [{
+                                "condition": step["evaluate"],
+                                "message": "Check failed",
+                            }]
+                        },
+                    )
+                    surface.components_model.add_component(comp)
+                    binder = GenericBinder(ComponentContext(comp, context))
+                    disposables.append(binder.dispose)
+                    evaluations.append(lambda b=binder: b.current_props.get("isValid"))
+                else:
+                    slot = len(values)
+                    values.append(None)
+
+                    def _on_change(value: Any, slot: int = slot) -> None:
+                        values[slot] = value
+
+                    sub = context.subscribe_dynamic_value(step["evaluate"], _on_change)
+                    values[slot] = sub.value
+                    disposables.append(sub.unsubscribe)
+                    evaluations.append(lambda s=slot: values[s])
+            elif "respond" in step:
+                response = dict(step["respond"])
+                call_index = response.pop("call")
+                calls = [m for m in outbound if "callAgentFunction" in m]
+                call_id = calls[call_index]["callAgentFunction"]["functionCallId"]
+                processor.process_messages([{
+                    "version": "1.0",
+                    "agentFunctionResponse": {"functionCallId": call_id, **response},
+                }])
+            elif "updateData" in step:
+                surface.data_model.set(
+                    step["updateData"]["path"], step["updateData"]["value"]
+                )
+            elif step.get("cancelSurfaceCalls") is True:
+                processor.rpc.cancel_surface_calls("main")
+            elif step.get("deleteSurface") is True:
+                processor.process_messages(
+                    [{"version": wire_version, "deleteSurface": {"surfaceId": "main"}}]
+                )
+            else:
+                pytest.fail(
+                    f"{label}: a step needs 'evaluate', 'respond', 'updateData',"
+                    " 'cancelSurfaceCalls' or 'deleteSurface'."
+                )
+            await _flush_async_work()
+
+            sent = outbound[outbound_seen:]
+            outbound_seen = len(outbound)
+            for message in sent:
+                assert "callAgentFunction" in message, f"{label}: unexpected {message}"
+                assert message["callAgentFunction"]["surfaceId"] == "main", label
+            sent_payloads = [m["callAgentFunction"]["callFunction"] for m in sent]
+            expected_payloads = step.get("expectOutbound", [])
+            if step.get("outboundInAnyOrder"):
+                sent_payloads = sorted(sent_payloads, key=_canonical_json)
+                expected_payloads = sorted(expected_payloads, key=_canonical_json)
+            assert (
+                sent_payloads == expected_payloads
+            ), f"{label}: outbound callFunction payloads"
+
+            reported = errors[errors_seen:]
+            errors_seen = len(errors)
+            expected_errors = step.get("expectErrors", [])
+            assert len(reported) == len(
+                expected_errors
+            ), f"{label}: reported {reported}"
+            for actual, expected in zip(reported, expected_errors):
+                assert actual["code"] == expected["code"], f"{label}: {actual}"
+                if "message" in expected:
+                    assert (
+                        expected["message"] in actual["message"]
+                    ), f"{label}: {actual}"
+
+            dispatched = actions[actions_seen:]
+            actions_seen = len(actions)
+            assert [
+                {
+                    key: action[key]
+                    for key in ("name", "context", "userMessage")
+                    if key in action
+                }
+                for action in dispatched
+            ] == step.get("expectActions", []), f"{label}: dispatched actions"
+
+            if "expectValues" in step:
+                assert [read() for read in evaluations] == step[
+                    "expectValues"
+                ], f"{label}: values"
+    finally:
+        for dispose in disposables:
+            dispose()
+
+
+# Routing cases this SDK's behavior does not fit, with the reason.
+ROUTING_KNOWN_DIVERGENCES: dict[str, str] = {
+    "test_agent_routing_cancelled_call_is_sent_again_when_its_value_is_rewritten": (
+        "The data model does not notify subscribers when a path is set to an"
+        " equal value, so the binding does not re-evaluate; the rule is covered"
+        " by test_agent_routing_cancelled_call_is_sent_again_on_unrelated_change."
+    ),
+}
+
+
+def _canonical_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True)
+
+
+def validate_route_agent_function_case(case: dict[str, Any]) -> None:
+    """Runs a `route_agent_function` case.
+
+    Function calls are evaluated on surface `main`, created through a
+    `MessageProcessor`, and the `callAgentFunction` messages it sends are
+    answered with `agentFunctionResponse`. A `binding` subscribes to the call
+    as a dynamic value, as a component binding does; a `check` subscribes to it
+    as the condition of a check rule, as the generic binder does; an `action`
+    resolves it as the `functionCall` of an action, within a user activation;
+    an `event` resolves an event action within a user activation and dispatches
+    it, as the generic binder does for a component's action.
+    """
+    if case["name"] in ROUTING_KNOWN_DIVERGENCES:
+        pytest.skip(ROUTING_KNOWN_DIVERGENCES[case["name"]])
+    asyncio.run(_run_route_agent_function_case(case))

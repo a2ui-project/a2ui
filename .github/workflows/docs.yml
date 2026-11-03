@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Builds and publishes the MkDocs documentation site.
+# Builds and publishes the MkDocs documentation site (`docs/public`) and the
+# Astro preview site (`docs/site`, published under `/preview/`).
 #
-# On a pull request that touches docs sources, it runs a build-only check to
-# catch errors without publishing. On a push to `main`, it builds and deploys
-# the site to GitHub Pages via `mkdocs gh-deploy`. Before building, it copies
-# the specification schemas into the docs tree (flattening versioned JSON to the
+# On a pull request that touches docs sources, it runs a build-only check for
+# both sites to catch errors without publishing. On a push to `main`, it builds
+# both sites, stages the Astro output into `site/preview/`, and deploys to
+# GitHub Pages via `ghp-import`. Before building, it copies the
+# specification schemas into the docs tree (flattening versioned JSON to the
 # version root for clean URLs) and converts GitHub-style admonitions to the
 # MkDocs format. Runs only on the upstream `a2ui-project/a2ui` repository.
 name: Docs
@@ -28,10 +30,14 @@ on:
       - main
     paths:
       - ".github/workflows/docs.yml"
+      - ".github/actions/setup-python/**"
       - "requirements-docs.txt"
       - "pyproject.toml"
       - "lychee.toml"
       - "mkdocs.yaml"
+      - "hooks.py"
+      - "specification/**"
+      - "catalogs/**"
       - "docs/**"
   pull_request:
     branches:
@@ -67,10 +73,14 @@ jobs:
           filters: |
             docs:
               - ".github/workflows/docs.yml"
+              - ".github/actions/setup-python/**"
               - "requirements-docs.txt"
               - "pyproject.toml"
               - "mkdocs.yaml"
+              - "hooks.py"
               - "lychee.toml"
+              - "specification/**"
+              - "catalogs/**"
               - "docs/**"
               - "**.md"
 
@@ -82,6 +92,9 @@ jobs:
     permissions:
       contents: write
       actions: read
+    env:
+      # Root package.json declares yarn as packageManager; allow standalone npm in docs/site.
+      COREPACK_ENABLE_STRICT: "0"
 
     steps:
       - name: Checkout Code
@@ -89,9 +102,10 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: ${{ github.event_name == 'push' }}
 
       - name: Configure Git Credentials
+        if: github.event_name == 'push'
         run: |
           git config --global user.name github-actions[bot]
           git config --global user.email 41898282+github-actions[bot]@users.noreply.github.com
@@ -105,6 +119,16 @@ jobs:
         run: |
           uv venv
           uv pip install -r requirements-docs.txt
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: "docs/site/package-lock.json"
+
+      - name: Install preview site dependencies
+        run: npm --prefix docs/site ci || npm --prefix docs/site install --no-package-lock
 
       - name: Validate documentation conversion script
         run: uv run pytest docs/scripts/test_convert_docs.py
@@ -138,6 +162,10 @@ jobs:
         if: github.event_name == 'pull_request'
         run: uv run mkdocs build
 
+      - name: Build Preview Site (PR Check)
+        if: github.event_name == 'pull_request'
+        run: ASTRO_BASE=/preview/ npm --prefix docs/site run build
+
       # Pre-submit only: verify that links in every Markdown file resolve,
       # catching broken internal paths and dead external URLs. Placeholder URLs
       # and tuning live in lychee.toml at the repository root.
@@ -167,4 +195,10 @@ jobs:
       - name: Deploy development version from main branch
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          uv run mkdocs gh-deploy
+          uv run mkdocs build
+          ASTRO_BASE=/preview/ npm --prefix docs/site run build
+          rm -rf site/preview && cp -R docs/site/dist site/preview
+          rm -f site/preview/CNAME site/preview/.nojekyll
+          uv run ghp-import --no-jekyll --push \
+            --message "Deployed $(git rev-parse --short HEAD) with MkDocs version: $(uv run python -c 'import mkdocs; print(mkdocs.__version__)')" \
+            site

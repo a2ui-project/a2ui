@@ -179,3 +179,22 @@ class ValidationResult {
       'ValidationResult(valid: $valid, message: $message, code: $code, '
       'severity: $severity)';
 }
+
+/// Coerces a resolved `DynamicBoolean` value to a `bool`.
+///
+/// - A `bool` is returned unchanged.
+/// - A [ValidationResult], or a map with a boolean `valid` entry, coerces to
+///   its `valid` boolean.
+/// - A `String` coerces to `true` only when it equals `'true'`
+///   case-insensitively; `'false'` and all other strings coerce to `false`.
+/// - A `num` coerces to `value != 0` (`NaN` coerces to `false`).
+/// - `null`, any other map, or any list coerces to `false`.
+bool coerceDynamicBoolean(Object? value) => switch (value) {
+      final bool b => b,
+      ValidationResult(:final valid) => valid,
+      final Map<Object?, Object?> map when map['valid'] is bool =>
+        map['valid']! as bool,
+      final String s => s.toLowerCase() == 'true',
+      final num n => n != 0 && !n.isNaN,
+      _ => false,
+    };
