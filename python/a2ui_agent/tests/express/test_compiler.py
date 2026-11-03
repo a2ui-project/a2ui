@@ -236,10 +236,22 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         self.assertEqual(ctx.exception.fn_name, "openUrl")
         self.assertEqual(ctx.exception.param_name, "url")
 
-        # 5. Missing root definition
+        # 5. Nothing to compile at all
         with self.assertRaises(ExpressUndefinedRootError) as ctx:
-            compiler.compile('some_var = Text("Hello")')
+            compiler.compile("")
         self.assertEqual(ctx.exception.root_target, "root")
+
+    def test_components_without_root_update_the_default_surface(self):
+        """A block that defines components but no root updates the surface rather than failing."""
+        compiler = ExpressCompiler([self.catalog])
+        messages = to_message_dicts(compiler.compile('some_var = Text("Hello")'))
+        self.assertEqual(len(messages), 1)
+        update = messages[0]["updateComponents"]
+        self.assertEqual(update["surfaceId"], "default_surface")
+        self.assertEqual(
+            update["components"],
+            [{"id": "some_var", "component": "Text", "text": "Hello"}],
+        )
 
     def test_line_wrapped_identifiers_and_strings(self):
         """Verifies stray newlines inside identifiers, paths, and single-line strings are repaired."""
