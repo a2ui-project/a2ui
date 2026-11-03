@@ -666,6 +666,7 @@ List<ComponentApi> basicComponentsV1_0() => [
               'required': <Object?>[
                 'component',
                 'label',
+                'value',
               ],
             },
           ],

@@ -668,9 +668,6 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         name: 'Badge',
         schema: z.object({title: z.string()}).strict(),
       };
-      override createRenderRoot() {
-        return this;
-      }
       override render() {
         const props = this.controller?.props;
         if (!props) return nothing;
