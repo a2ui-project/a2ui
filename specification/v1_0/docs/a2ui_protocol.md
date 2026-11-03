@@ -4,7 +4,7 @@
 <div style="text-align: center;">
   <div class="centered-logo-text-group">
     <img src="../../../docs/public/assets/A2UI_dark.svg" alt="A2UI Protocol Logo" width="100">
-    <h1>A2UI (Agent to UI) Protocol v1.0</h1>
+    <h1>A2UI Protocol v1.0</h1>
   </div>
 </div>
 
@@ -36,7 +36,7 @@ The major differences between version 1.0 and 0.9 (including 0.9.1) are:
 
 - **Bidirectional Function Calls**: Supports explicit, typed function invocation messages (`callRendererFunction`, `callAgentFunction`, `rendererFunctionResponse`, and `agentFunctionResponse`) verified against runtime catalog definitions.
 - **Single-Message UI Instantiation**: Allows initial component trees and data models to be embedded directly within `createSurface`, enabling complete UI composition in a single payload.
-- **Decoupled Branding**: Removes rigid theme properties (removing hardcoded brand colors) to defer visual styling entirely to the target framework's native theme.
+- **Decoupled Branding**: Removes rigid theme properties (removing hardcoded brand colors) to defer visual styling entirely to the target framework's native theme. A v1.0 `createSurface` that carries `theme` is invalid.
 - **Enhanced Catalog Schemas**: Refactors function definitions into object maps for direct O(1) lookups and supports standard JSON Schema metadata fields (`$schema`, `$id`) on inline catalogs.
 - **Strict Identifier & Context Standards**: Enforces Unicode (UAX #31) naming rules across all catalog entities and reserves the `@` namespace for universal system context evaluations (such as `@index`).
 
@@ -125,7 +125,7 @@ A2UI v1.0 is defined by three interacting JSON schemas.
 
 The [`common_types.json`] schema defines reusable primitives used throughout the protocol.
 
-- **`DynamicString` / `DynamicNumber` / `DynamicBoolean` / `DynamicStringList`**: The core of the data binding system. Any property that can be bound to data is defined as a `Dynamic*` type. It accepts either a literal value, a `DataBinding` (`{"@path": "..."}` using [JSON Pointer]), or a `FunctionCall` (`{"@call": "...", "args": {...}}`). When a `DynamicBoolean` resolves to a `ValidationResult` object (an object with a boolean `valid` property), it is coerced to `result.valid`.
+- **`DynamicString` / `DynamicNumber` / `DynamicBoolean` / `DynamicStringList`**: The core of the data binding system. Any property that can be bound to data is defined as a `Dynamic*` type. It accepts either a literal value, a `DataBinding` (`{"@path": "..."}` using [JSON Pointer]), or a `FunctionCall` (`{"@call": "...", "args": {...}}`). When a `DynamicBoolean` resolves to a `ValidationResult` object (an object with a boolean `valid` property), it is coerced to `result.valid`; strings, numbers, `null`, objects, and arrays are coerced as defined under [`DynamicBoolean` and `CheckRule` Coercion](#dynamicboolean-and-checkrule-coercion).
 - **`ChildList`**: Defines how containers hold children. It supports:
   - `array`: A static array of `ComponentId` component references.
   - `object`: A template for generating children from a list in the data model (requires a template `componentId` and a JSON Pointer `path` string; note that `path` here is a plain string property on the template object, not a `DataBinding` `{"@path": "..."}` object).
@@ -187,6 +187,8 @@ The `createSurface` message implicitly instantiates the canonical `Surface` cont
 - `components` (array, optional): A list containing UI components for the surface, allowing the renderer to build and populate the UI tree immediately on surface creation. Conforms to the `ComponentsList` schema.
 - `dataModel` (object, optional): A plain JSON object representing the initial root state of the data model.
 - `metadata` (object, optional): Surface-level metadata containing an optional `extensions` map (`common_types.json#/$defs/Extensions`).
+
+When a single `createSurface` carries both `dataModel` and `components`, the renderer applies `dataModel` first, so components bind against the initial data on their first resolution. Separate messages keep arrival order (see [`callRendererFunction`](#callrendererfunction)).
 
 **Example:**
 
@@ -524,7 +526,10 @@ Because JSON Schema cannot inspect arbitrary catalog component property semantic
 
 - **Plumb Accessibility Attributes**: Map all relevant A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to the underlying UI framework's accessibility APIs (e.g., WAI-ARIA `aria-label`, `aria-describedby`, `aria-live`, and `aria-hidden` for web renderers; `Semantics` properties for Flutter; `AccessibilityNodeInfo` / `accessibilityLabel` for Android and iOS renderers).
 - **Infer Default Semantics**: Use component types and non-accessibility properties (such as visible titles or text labels) to configure accessibility defaults automatically. When explicit `AccessibilityAttributes` (e.g., `label` or `description`) are provided, they MUST override inferred visual defaults. For example, a button component with a title of `"Submit"` and an explicit `accessibility.label` of `"Send Form"` must be announced by assistive technologies as `"Send Form"`.
-- **SDK Linter Checks**: SDK tooling and catalog linters MUST verify that component schemas accepting actions or input bindings declare accessible label requirements or fallbacks.
+
+**Catalog tooling SHOULD:**
+
+- **Catalog Linter Checks**: Catalog tooling SHOULD warn when a component that accepts an action or user input declares no text-bearing label property (or, in strict mode, no required text-bearing property). A component accepts an action when one of its properties references `common_types.json#/$defs/Action`, and accepts user input when it includes `common_types.json#/$defs/Checkable`. A text-bearing property is a string or `DynamicString` property, a child component reference, or an array of objects that each declare a text-bearing property. Because JSON Schema does not say which property holds the input value, tooling MAY exclude the property it treats as the input value (by convention `value`). This is a heuristic: it cannot prove a label exists, and a warning can be acknowledged per component.
 
 ### The component catalog
 
@@ -986,7 +991,7 @@ Interactive components that accept user input (`TextField`, `CheckBox`, `Slider`
 Unlike static display components (like `Text`), input components modify the renderer-side data model immediately upon user interaction.
 
 1.  **Read (Model -> View):** When the component renders, it reads its value from the bound `path`. If the Data Model is updated via `updateDataModel`, the component re-renders to reflect the new value.
-2.  **Write (View -> Model):** When the user interacts with the component (e.g., types a character, toggles a box), the renderer **immediately** updates the value at the bound `path` in the local Data Model.
+2.  **Write (View -> Model):** When the user interacts with the component (e.g., types a character, toggles a box), the renderer **immediately** updates the value at the bound `path` in the local Data Model. If the path does not exist yet, the renderer creates it, so an input can be bound to a path the agent never initialized.
 
 #### Reactivity
 
@@ -1122,7 +1127,7 @@ Because `ValidationResult` permits additional unconstrained properties, validati
 
 #### `DynamicBoolean` and `CheckRule` Coercion
 
-To allow validation functions (`required`, `email`, `regex`, `length`, `numeric`, which return `ValidationResult`) to compose with boolean properties and functions accepting `DynamicBoolean` arguments (such as `and`, `or`, and `not`, which return `boolean`), renderers apply two coercion rules:
+To allow validation functions (`required`, `email`, `regex`, `length`, `numeric`, which return `ValidationResult`) to compose with boolean properties and functions accepting `DynamicBoolean` arguments (such as `and`, `or`, and `not`, which return `boolean`), renderers apply three coercion rules:
 
 1. **`ValidationResult` → `boolean` in `DynamicBoolean`**:
    - Schema validation of a `DynamicBoolean` occurs on the written wire payload (which accepts a literal `boolean`, any `DataBinding`, or any `FunctionCall`) before nested expressions are evaluated.
@@ -1132,6 +1137,19 @@ To allow validation functions (`required`, `email`, `regex`, `length`, `numeric`
    - When a `CheckRule.condition` evaluates to `true`, the renderer coerces it to `{"valid": true}`.
    - When a `CheckRule.condition` evaluates to `false`, the renderer coerces it to `{"valid": false, "message": <CheckRule.message>, "severity": "error"}`.
    - When a `CheckRule.condition` evaluates to a `ValidationResult` with `valid: false`, `CheckRule.message` is used as a fallback if `ValidationResult.message` is omitted, and `severity` defaults to `"error"` if omitted.
+3. **Any value → `boolean` in `DynamicBoolean`**:
+   - This coercion applies wherever a `DynamicBoolean` is resolved, including component properties typed `DynamicBoolean` and `DynamicBoolean` function arguments (`and`, `or`, `not`, and any catalog function whose argument schema references `DynamicBoolean`), before the function runs:
+
+     | Resolved value                                                 | Coerced `boolean`             |
+     | :------------------------------------------------------------- | :---------------------------- |
+     | `boolean`                                                      | Unchanged (`true` or `false`) |
+     | `ValidationResult` (an object with a boolean `valid` property) | `result.valid`                |
+     | `string` `"true"` or `"false"` (in any letter case)            | `true` or `false`             |
+     | Any other `string`, including `""` and `"hello"`               | `false`                       |
+     | `number` `0`                                                   | `false`                       |
+     | Any other `number`                                             | `true`                        |
+     | `null` or absent                                               | `false`                       |
+     | Any other object or array                                      | `false`                       |
 
 _Example Component Definition:_
 
@@ -1246,23 +1264,23 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 >
 > **Escaping via Prefix Doubling**: Plain objects that require literal property names starting with `@` must escape them by doubling the prefix: `"@@path"` evaluates to `"@path"`, `"@@type"` evaluates to `"@type"`, etc. Plain objects with `"path"` and `"call"` keys are literal objects and are never intercepted as dynamic bindings.
 
-| Function           | Description                                                              |
-| :----------------- | :----------------------------------------------------------------------- |
-| **@index**         | Returns the 0-based index of the current item during template rendering. |
-| **required**       | Checks that the value is not null, undefined, or empty.                  |
-| **regex**          | Checks that the value matches a regular expression string.               |
-| **length**         | Checks string length constraints.                                        |
-| **numeric**        | Checks numeric range constraints.                                        |
-| **email**          | Checks that the value is a valid email address.                          |
-| **formatString**   | Does string interpolation of data model values and registered functions. |
-| **formatNumber**   | Formats a number with grouping and precision.                            |
-| **formatCurrency** | Formats a number as a currency string.                                   |
-| **formatDate**     | Formats a date/time using a pattern.                                     |
-| **pluralize**      | Selects a localized string based on a numeric count.                     |
-| **openUrl**        | Opens a URL in a browser (requires user activation).                     |
-| **and**            | Logical AND operation on a list of boolean values or validation results. |
-| **or**             | Logical OR operation on a list of boolean values or validation results.  |
-| **not**            | Logical NOT operation on a boolean value or validation result.           |
+| Function           | Description                                                                     |
+| :----------------- | :------------------------------------------------------------------------------ |
+| **@index**         | Returns the 0-based index of the current item during template rendering.        |
+| **required**       | Checks that the value is not null, undefined, or empty.                         |
+| **regex**          | Checks that the value contains a match for a pattern in the A2UI regex dialect. |
+| **length**         | Checks string length constraints.                                               |
+| **numeric**        | Checks numeric range constraints.                                               |
+| **email**          | Checks that the value is a valid email address.                                 |
+| **formatString**   | Does string interpolation of data model values and registered functions.        |
+| **formatNumber**   | Formats a number with grouping and precision.                                   |
+| **formatCurrency** | Formats a number as a currency string.                                          |
+| **formatDate**     | Formats a date/time using a pattern.                                            |
+| **pluralize**      | Selects a localized string based on a numeric count.                            |
+| **openUrl**        | Opens a URL in a browser (requires user activation).                            |
+| **and**            | Logical AND operation on a list of boolean values or validation results.        |
+| **or**             | Logical OR operation on a list of boolean values or validation results.         |
+| **not**            | Logical NOT operation on a boolean value or validation result.                  |
 
 ### The `formatString` function
 
@@ -1317,6 +1335,36 @@ When a non-string value is interpolated, the renderer converts it to a string:
 - **Numbers/Booleans**: Standard string representation.
 - **Null/Undefined**: An empty string `""`.
 - **Objects/Arrays**: Stringified as JSON to ensure consistency across different renderer implementations.
+
+### The `regex` function
+
+The `regex` validation function evaluates a regular expression pattern in the **A2UI regex dialect** and applies a static safety check before matching. Any catalog function that accepts a regular expression pattern (`regex`, `regexCapture`, `split`) SHOULD use this dialect and safety check.
+
+#### `regex` dialect
+
+The dialect is a portable subset of ECMAScript `Pattern` syntax, evaluated in Unicode mode (`u`) with no other flags:
+
+1. **Matching semantics**: Matching is case-sensitive. `.` matches any code point except U+000A, U+000D, U+2028, and U+2029. `^` and `$` match only at the start and end of the value (no multiline mode, and `$` does not match before a trailing newline). `\d`, `\w`, and `\b` are ASCII-only. `\s` is the ECMAScript WhiteSpace and LineTerminator set. The function uses search semantics: it returns valid when the pattern matches anywhere in the value, like `RegExp.prototype.test`.
+2. **Allowed syntax**: Literals, `.`, character classes with ranges and negation, the class escapes `\d \D \w \W \s \S`, `\b \B`, control escapes `\t \n \v \f \r`, `\0` not followed by a digit, `\xHH`, `\uHHHH`, `\u{H...}`, identity escapes of syntax characters, capturing groups `( )`, non-capturing groups `(?: )`, lookahead `(?= )` and `(?! )`, alternation, and the quantifiers `* + ? {n} {n,} {n,m}` with optional lazy `?`.
+3. **Not allowed**: Backreferences (`\1`-`\9`, `\k<name>`), lookbehind (`(?<=`, `(?<!`), named groups (`(?<name>`), `\p{...}`/`\P{...}`, `\cX`, legacy octal escapes, and inline flags. A pattern that does not parse in this dialect, or uses a construct that is not allowed, fails with `code: "EXPRESSION_ERROR"`.
+
+#### `regex` safety check
+
+Before any matching, the renderer applies a static safety check and rejects the pattern with `code: "EXPRESSION_ERROR"` when:
+
+1. It is longer than 256 code points.
+2. A quantifier whose upper bound is above 1 applies to a subexpression that contains an unbounded quantifier (`*`, `+`, `{n,}`).
+3. An unbounded quantifier applies to an alternation where two branches can start with the same character.
+4. Two unbounded-quantified atoms with overlapping character sets are adjacent in one concatenation, where only zero-width assertions or items that can match the empty string lie between them.
+
+`?` and `{0,1}` count as upper bound 1. Counted bounds such as `{1,1000}` are bounded. A group whose only content is one quantified atom counts as that atom. Rule 3 compares the first-character sets of the branches after unwrapping groups.
+
+A value longer than 4,096 code points does not match; `regex` returns `{"valid": false}` and reports no error.
+
+#### `regex` examples
+
+- **Accepted**: `^[a-z]+@[a-z]+\.com$`, `^(?=.*\d).{8,}$`, `\w+\s+\w+`.
+- **Rejected**: `(a+)+$` (rule 2), `(a|ab)*c` (rule 3), `\d+\s*\d+` (rule 4), `(\w)\1` (backreference).
 
 ### The `@index` function
 
@@ -1552,31 +1600,31 @@ When a UI component binding or validation rule depends on a function that routes
 
 If a function call within a content pipeline fails (returns an `agentFunctionResponse` containing an `error` payload, throws a local execution error, times out, or triggers a transport error), the renderer applies the following recovery rules:
 
-- **Dynamic Value Binding Failure:** The property binding resolves to `null` (or a declared fallback value), and the renderer logs an evaluation error without crashing the surrounding component tree.
-- **Validation Rule Failure (`Checkable`):** The check rule evaluates as invalid, displaying the rule's specified error message to the user.
-- **Action Pipeline Failure:** Halts execution of any subsequent steps in the action execution pipeline and dispatches a local error boundary event or toast notification. Any side effects of previously executed steps are preserved.
+- **Dynamic Value Binding Failure:** The binding resolves to `null` (there is no declared fallback value in v1.0). The renderer reports an `error` with `code: "EXPRESSION_ERROR"`, including the call's `functionCallId` when a routed agent function failed or the `surfaceId` for a local evaluation failure. The component and its siblings stay mounted and keep resolving their other bindings.
+- **Validation Rule Failure (`Checkable`):** The check evaluates to `{"valid": false, "message": <CheckRule.message>, "severity": "error"}`, using the error's message when `CheckRule.message` is omitted.
+- **Action Pipeline Failure:** The renderer stops the remaining steps of that action, dispatches no further events from it, and reports an `error` (`code: "EXPRESSION_ERROR"` with the failed call's `functionCallId` when a routed agent function failed, or `code: "EXECUTION_ERROR"` with the `surfaceId` when a local renderer function ran and failed). Effects of steps that already ran are kept. The surface stays mounted. Whether the adapter also shows the failure to the user (inline message, toast) is the adapter's choice.
 
 ---
 
 ## Capabilities and metadata
 
-In A2UI v1.0, capabilities and other metadata are exchanged via **transport metadata** or initialization payloads (e.g., A2A metadata, Agent Cards, or MCP initialization) rather than as first-class A2UI messages.
+In A2UI v1.0, capabilities and other metadata travel in **transport metadata** or a **transport handshake**, with each transport binding defining where they are placed rather than encoding them as first-class A2UI messages.
 
 ### Agent capabilities
 
-An agent advertises its capabilities using the [`agent_capabilities.json`] schema. This indicates which catalogs it can generate UI for, and whether it accepts inline catalogs from the renderer. The exact mechanism depends on the transport (e.g., the `params` object in an A2A AgentCard, or agent capabilities in MCP).
+An agent advertises its capabilities using the [`agent_capabilities.json`] schema. This indicates which catalogs it can generate UI for, and whether it accepts inline catalogs from the renderer. Each transport binding defines where this advertisement is carried.
 
 **Properties:**
 
 - `1.0` (object, required): The capability structure for version 1.0 of the A2UI protocol.
-  - `supportedCatalogIds` (array of strings, required): An array of strings identifying the Catalog Definition Schemas the agent can generate.
+  - `supportedCatalogIds` (array of strings, optional): An array of strings identifying the Catalog Definition Schemas the agent can generate.
   - `acceptsInlineCatalogs` (boolean, optional, default `false`): Indicates if the agent can accept custom inline component/function catalogs in the renderer's capabilities metadata.
 
 ### Renderer capabilities
 
-The `a2uiRendererCapabilities` object in the transport metadata follows the [`renderer_capabilities.json`] schema to describe the renderer's capabilities.
+The `a2uiRendererCapabilities` object in transport metadata follows the [`renderer_capabilities.json`] schema to describe the renderer's capabilities.
 
-If `a2uiRendererCapabilities` is carried on message metadata (eg, in A2A), it should be scoped to that conversation turn, and omitting it on subsequent messages should withdraw A2UI support for those turns. If `a2uiRendererCapabilities` is carried on session metadata (eg, in MCP initialize) it should be scoped to the session.
+Capabilities carried per message are scoped to that message's turn, and omitting them withdraws A2UI for that turn; capabilities carried at session setup are scoped to the session. Each transport binding states which applies (see [Capability scoping](../extensions/a2a/docs/a2ui_extension_specification.md#capability-scoping) for the A2A rule).
 
 **Properties:**
 

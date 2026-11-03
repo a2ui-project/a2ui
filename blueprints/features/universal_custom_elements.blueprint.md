@@ -51,6 +51,7 @@ A web adapter whose implementations are not custom elements (React function comp
 - When the adapter's own dispatcher creates a host element, the node's content renders as the element's children in the usual way.
 - When a universal element creates a host element (a universal `Column` rendering a native `Badge`), the host registers itself with its surface's **host registry** under the nearest adapter-rendered element above it in the DOM. That ancestor's view mounts the node's content into the host. The adapter tree then nests like the DOM, so ambient context, error boundaries, and events pass through a universal element in between.
 - A host that is disconnected and reconnected within one task keeps its registration and its mounted state.
+- The host element maps the node's `accessibility` attributes, so native implementations get them without code of their own. It sets `aria-live`, `aria-hidden`, and `inert` on itself. It puts `aria-label` and `aria-description` on the inner element the implementation designates (in React, the element given `accessibilityRef`; in Angular, the element marked `a2uiAccessibilityTarget`), or, when there is none, on itself with `role="group"` unless it already has a `role`. The designated element also gets `aria-invalid` while a check fails, and `aria-describedby` pointing at the element the implementation designates for validation errors (in React, the element given `validationErrorsRef`; in Angular, the element marked `a2uiValidationErrors`) while there are errors. It adds that element's `id` to any ids already in `aria-describedby`. An attribute the implementation set itself is kept: the host replaces it only while it has a value of its own to set, and then restores it.
 - The adapter prepares every catalog on the surface this way, `defaultCatalog` and each entry of `availableCatalogs`, before it renders the first node. A native entry in a secondary catalog that was not wrapped cannot be rendered by a universal container.
 
 ### **6. Styling**
@@ -189,7 +190,7 @@ These cases run in each web adapter that implements the feature. They are framew
   - A host moved within the DOM in one task keeps its mounted state.
 - **Styling**
   - Two different elements with the same internal selector do not style each other.
-  - A `createSurface` at v1.0 or later with a `theme` object renders exactly as one without it.
+  - A v1.0 `createSurface` accepted under relaxed validation with a `theme` object renders exactly as one without it.
 - **Shared basic catalog**
   - `accessibility.label` on a basic catalog component appears as `aria-label` on its inner semantic control (or on a `role="group"` container host).
   - A failed check with severity `error` renders its message; the element's action is disabled.

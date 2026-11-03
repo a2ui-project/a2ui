@@ -294,6 +294,23 @@ function assertAxeInvariants(container: HTMLElement, rules: string[] = []): void
       );
     }
   }
+  if (rules.includes('aria-hidden-focus')) {
+    const hiddenSubtrees = Array.from(container.querySelectorAll('[aria-hidden="true"]'));
+    const focusableSelector =
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+    for (const subtree of hiddenSubtrees) {
+      const focusables = [
+        ...(subtree.matches(focusableSelector) ? [subtree] : []),
+        ...Array.from(subtree.querySelectorAll(focusableSelector)),
+      ];
+      for (const focusable of focusables) {
+        assert.ok(
+          Boolean(focusable.closest('[inert]')),
+          `aria-hidden="true" subtree contains focusable element <${focusable.tagName.toLowerCase()}> without inert`,
+        );
+      }
+    }
+  }
 }
 
 async function verifyAssertions(

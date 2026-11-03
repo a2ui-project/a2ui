@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {AccessibilityTargetDirective} from '@a2ui/angular';
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {ImageApi} from '@a2ui/web_core/v0_9/basic_catalog';
@@ -34,9 +35,10 @@ import {ImageApi} from '@a2ui/web_core/v0_9/basic_catalog';
 @Component({
   selector: 'a2ui-v09-image',
   standalone: true,
-  imports: [],
+  imports: [AccessibilityTargetDirective],
   template: `
     <img
+      a2uiAccessibilityTarget
       [src]="url()"
       [alt]="description()"
       [style.object-fit]="fit()"
