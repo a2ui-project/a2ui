@@ -74,10 +74,9 @@
 - **Breaking:** A function call naming a `catalogId` on a `DataContext`
   created without `invokerForCatalog` is now reported as a `CATALOG_ERROR`
   rather than an `EXPRESSION_ERROR`.
-<<<<<<< HEAD
-- (v1_0) `PayloadValidator` now validates component type names against UAX #31 identifier syntax on v1.0+ surfaces.
-=======
->>>>>>> 1ccf163b0e8d9a3a981889f1ec45c462591096cc
+  <<<<<<< HEAD
+- # (v1_0) `PayloadValidator` now validates component type names against UAX #31 identifier syntax on v1.0+ surfaces.
+  > > > > > > > 1ccf163b0e8d9a3a981889f1ec45c462591096cc
 - **Breaking:** Unify the v1.0 protocol version wire value on `'1.0'` (without
   a `'v'` prefix) across message envelopes, `MessageProcessor.getRendererCapabilities`,
   `RpcHandler`, and catalog documents (`A2uiProtocolVersion.v1_0.jsonValue` is
