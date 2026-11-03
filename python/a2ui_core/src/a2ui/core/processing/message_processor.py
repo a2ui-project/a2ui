@@ -365,7 +365,7 @@ class MessageProcessor:
             if self.model.get_surface(surface_id) is not surface:
                 raise A2uiRpcError(
                     f"Pending calls for surface '{surface_id}' were cancelled.",
-                    code=RpcErrorCode.CANCELLED,
+                    code=RpcErrorCode.CANCELLED.value,
                 )
             return self.rpc.call_agent_function(
                 surface_id,

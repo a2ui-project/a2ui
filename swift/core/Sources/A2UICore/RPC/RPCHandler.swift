@@ -345,7 +345,8 @@ public final class RPCHandler {
   /// `FunctionError.surfaceCallsCancelled`.
   public func cancelPendingCalls(forSurfaceID surfaceID: String) {
     let error = FunctionError.surfaceCallsCancelled(surfaceID: surfaceID)
-    for (callID, pending) in pendingCalls where pending.surfaceID == surfaceID {
+    let callsToCancel = pendingCalls.filter { $0.value.surfaceID == surfaceID }
+    for (callID, pending) in callsToCancel {
       pendingCalls.removeValue(forKey: callID)
       pending.timeoutTask?.cancel()
       pending.continuation.resume(throwing: error)

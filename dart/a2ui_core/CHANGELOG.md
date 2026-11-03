@@ -2,10 +2,7 @@
 
 ## Unreleased
 
-<<<<<<< HEAD
-=======
 - (v1_0) The basic catalog `regex` function's `pattern` description now names the A2UI regex dialect and its safety limits ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
->>>>>>> 1ccf163b0e8d9a3a981889f1ec45c462591096cc
 - **Breaking:** (v1_0) An agent error or timeout (`A2uiRpcError`) in a
   dynamic value, a `checks` rule or an action is reported on
   `SurfaceModel.onError` as `EXPRESSION_ERROR` instead of `EXECUTION_ERROR`,
@@ -77,10 +74,6 @@
 - **Breaking:** A function call naming a `catalogId` on a `DataContext`
   created without `invokerForCatalog` is now reported as a `CATALOG_ERROR`
   rather than an `EXPRESSION_ERROR`.
-<<<<<<< HEAD
-
-=======
->>>>>>> 1ccf163b0e8d9a3a981889f1ec45c462591096cc
 - **Breaking:** Unify the v1.0 protocol version wire value on `'1.0'` (without
   a `'v'` prefix) across message envelopes, `MessageProcessor.getRendererCapabilities`,
   `RpcHandler`, and catalog documents (`A2uiProtocolVersion.v1_0.jsonValue` is
