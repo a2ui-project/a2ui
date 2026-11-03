@@ -234,6 +234,23 @@ def _run_format(
         chunks: list[str] = model_chunks[format_name]
         expected_wire: list[dict[str, Any]] = turn["expectWire"]
 
+        version = str(scenario.get("protocolVersion", "1.0"))
+        for wire_part in expected_wire:
+            for msg in wire_part.get("a2ui", []):
+                if "updateComponents" in msg:
+                    sid = msg["updateComponents"]["surfaceId"]
+                    create_msg = {
+                        "version": version,
+                        "createSurface": {
+                            "surfaceId": sid,
+                            "catalogId": catalogs[0].catalog_id,
+                        },
+                    }
+                    if stream_state.get_surface(sid) is None:
+                        stream_state.apply([create_msg])
+                    if single_shot_state.get_surface(sid) is None:
+                        single_shot_state.apply([create_msg])
+
         stream = parser.open_stream(state=stream_state)
         streamed_parts: list[dict[str, Any]] = []
         for chunk in chunks:

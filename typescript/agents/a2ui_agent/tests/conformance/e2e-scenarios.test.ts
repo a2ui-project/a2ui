@@ -192,6 +192,30 @@ function runFormat(
       `scenario ${testCase.name} turn ${turnIdx} missing chunks for ${formatName}`,
     ).toBeDefined();
 
+    const expectedWire = (turn.expectWire ?? []) as Array<Record<string, unknown>>;
+    for (const wirePart of expectedWire) {
+      const a2uiList = wirePart.a2ui as Array<Record<string, unknown>> | undefined;
+      for (const msg of a2uiList ?? []) {
+        const updateComp = msg.updateComponents as Record<string, unknown> | undefined;
+        if (updateComp && typeof updateComp.surfaceId === 'string') {
+          const sid = updateComp.surfaceId;
+          const createMsg = {
+            version: protocolVersion === 'v0.9.1' ? 'v0.9' : protocolVersion,
+            createSurface: {
+              surfaceId: sid,
+              catalogId: catalogs[0].id,
+            },
+          };
+          if (!streamState.getSurface(sid)) {
+            streamState.apply([createMsg]);
+          }
+          if (!singleShotState.getSurface(sid)) {
+            singleShotState.apply([createMsg]);
+          }
+        }
+      }
+    }
+
     const stream = parser.openStream({state: streamState});
     const streamedParts: Array<Record<string, unknown>> = [];
     for (const chunk of chunks) {

@@ -327,10 +327,15 @@ Future<void> _runScenario(
       for (final Object? rawPart in expectWire) {
         final part = rawPart! as Map<String, Object?>;
         if (part['a2ui'] case final List<Object?> messages) {
-          await runStep(session, <String, Object?>{
-            'op': 'process_messages',
-            'messages': messages,
-          }, tester);
+          try {
+            await runStep(session, <String, Object?>{
+              'op': 'process_messages',
+              'messages': messages,
+            }, tester);
+          } on A2uiError catch (_) {
+            // Expected for negative scenarios such as missing_surface_error,
+            // which verify the resulting outbound error envelope below.
+          }
           turnOutbound.addAll(captureOutbound(session));
           turnErrors.addAll(session.errors);
         }

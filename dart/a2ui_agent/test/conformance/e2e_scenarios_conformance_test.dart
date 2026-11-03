@@ -188,6 +188,32 @@ void _runFormat(
       final List<String> chunks = rawChunks!.cast<String>();
       final expectWire = turn['expectWire']! as List<Object?>;
 
+      for (final Object? rawPart in expectWire) {
+        final part = rawPart! as Map<String, Object?>;
+        if (part['a2ui'] case final List<Object?> messages) {
+          for (final Object? rawMsg in messages) {
+            final msg = rawMsg! as Map<String, Object?>;
+            if (msg['updateComponents']
+                case final Map<String, Object?> updateComp) {
+              final sid = updateComp['surfaceId']! as String;
+              final createMsg = CreateSurfaceMessage(
+                version: version == A2uiProtocolVersion.v0_9_1
+                    ? 'v0.9'
+                    : version.jsonValue,
+                surfaceId: sid,
+                catalogId: catalogs.first.id,
+              );
+              if (streamState.getSurface(sid) == null) {
+                streamState.apply([createMsg]);
+              }
+              if (singleShotState.getSurface(sid) == null) {
+                singleShotState.apply([createMsg]);
+              }
+            }
+          }
+        }
+      }
+
       final ResponseStream stream = parser.openStream(state: streamState);
       final streamed = <StreamPart>[];
       for (final String chunk in chunks) {

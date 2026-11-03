@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from a2ui.core import Catalog, MessageProcessor, NodeResolver
+from a2ui.core import A2uiError, Catalog, MessageProcessor, NodeResolver
 from a2ui.core.resolution.component_node import ComponentNode, is_component_node
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -166,7 +166,10 @@ def outcome_of(scenario: dict[str, Any]) -> list[dict[str, Any]]:
         # 1. Process all a2ui messages for this turn
         for wire_part in turn.get("expectWire", []):
             if isinstance(wire_part, dict) and "a2ui" in wire_part:
-                processor.process_messages(wire_part["a2ui"])
+                try:
+                    processor.process_messages(wire_part["a2ui"])
+                except A2uiError:
+                    pass
 
         # 2. Extract resolved node trees for all current surfaces
         surfaces_outcome: dict[str, list[dict[str, Any]]] = {}

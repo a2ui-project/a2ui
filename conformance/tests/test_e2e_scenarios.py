@@ -268,6 +268,24 @@ def test_e2e_scenario_validation(name: str, scenario: dict[str, Any]):
                 isinstance(chunks, list) and chunks
             ), f"Turn {turn_idx} format '{fmt_name}' chunks must be a non-empty list"
 
+            # Seed state for turns that intentionally emit updates for an uncreated
+            # surface (e.g. missing_surface_error) so the parser still validates
+            # component schemas and wire output.
+            for wire_part in turn.get("expectWire", []):
+                for msg in wire_part.get("a2ui", []):
+                    if "updateComponents" in msg:
+                        sid = msg["updateComponents"]["surfaceId"]
+                        if state.get_surface(sid) is None:
+                            state.apply([
+                                {
+                                    "version": version,
+                                    "createSurface": {
+                                        "surfaceId": sid,
+                                        "catalogId": catalogs[0].catalog_id,
+                                    },
+                                }
+                            ])
+
             # Stream chunks through parser
             stream = parser.open_stream(state=state)
             parts = []

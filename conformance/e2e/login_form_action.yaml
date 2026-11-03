@@ -1,0 +1,307 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: login_form_action
+  action: e2e_scenario
+  description: Login form with email and password fields, typed email, Sign In action, and signed-in confirmation.
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  formats:
+    - direct_json
+    - express
+  source:
+    kind: hand_authored
+    from: dart/a2ui_flutter/e2e_test/test/chat_turn_test.dart
+  turns:
+    - userText: 'Show a login form with an email field, a password field, and a "Sign In" button.'
+      modelChunks:
+        direct_json:
+          - "Please sign in below.\n\n<a"
+          - "2ui-json>\n"
+          - |
+            [
+              {
+                "version": "1.0",
+                "createSurface": {
+                  "surfaceId": "login",
+                  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+                  "sendDataModel": true,
+                  "components": [
+                    {
+                      "id": "root",
+                      "component": "Card",
+                      "child": "form"
+                    },
+                    {
+                      "id": "form",
+                      "component": "Column",
+                      "children": [
+                        "heading",
+                        "emailField",
+                        "passwordField",
+                        "signInButton"
+                      ]
+                    },
+                    {
+                      "id": "heading",
+                      "component": "Text",
+                      "text": "### Sign in to your account"
+                    },
+                    {
+                      "id": "emailField",
+                      "component": "TextField",
+                      "label": "Email",
+                      "value": {
+                        "@path": "/email"
+                      }
+                    },
+                    {
+                      "id": "passwordField",
+                      "component": "TextField",
+                      "label": "Password",
+                      "value": {
+                        "@path": "/password"
+                      },
+                      "variant": "obscured"
+                    },
+                    {
+                      "id": "signInButton",
+                      "component": "Button",
+                      "variant": "primary",
+                      "child": "signInLabel",
+                      "action": {
+                        "event": {
+                          "name": "sign_in",
+                          "context": {
+                            "email": {
+                              "@path": "/email"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "id": "signInLabel",
+                      "component": "Text",
+                      "text": "Sign In"
+                    }
+                  ],
+                  "dataModel": {
+                    "email": "",
+                    "password": ""
+                  }
+                }
+              }
+            ]
+            </a2ui-json>
+        express:
+          - "Please sign in below.\n\n<a"
+          - "2ui>\n"
+          - |
+            surface("login", sendDataModel=true)
+            $/email = ""
+            $/password = ""
+            root = Card(form)
+            form = Column([heading, emailField, passwordField, signInButton])
+            heading = Text("### Sign in to your account")
+            emailField = TextField("Email", $/email)
+            passwordField = TextField("Password", $/password, _, "obscured")
+            signInButton = Button(signInLabel, "primary", Event("sign_in", {email: $/email}))
+            signInLabel = Text("Sign In")
+            </a2ui>
+      expectWire:
+        - text: "Please sign in below."
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: login
+                catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+                sendDataModel: true
+                components:
+                  - id: root
+                    component: Card
+                    child: form
+                  - id: form
+                    component: Column
+                    children:
+                      - heading
+                      - emailField
+                      - passwordField
+                      - signInButton
+                  - id: heading
+                    component: Text
+                    text: "### Sign in to your account"
+                  - id: emailField
+                    component: TextField
+                    label: Email
+                    value:
+                      "@path": /email
+                  - id: passwordField
+                    component: TextField
+                    label: Password
+                    value:
+                      "@path": /password
+                    variant: obscured
+                  - id: signInButton
+                    component: Button
+                    variant: primary
+                    child: signInLabel
+                    action:
+                      event:
+                        name: sign_in
+                        context:
+                          email:
+                            "@path": /email
+                  - id: signInLabel
+                    component: Text
+                    text: Sign In
+                dataModel:
+                  email: ""
+                  password: ""
+      expectViewTree:
+        login:
+          id: root
+          type: Card
+          children:
+            - id: form
+              type: Column
+              children:
+                - id: heading
+                  type: Text
+                  text: "### Sign in to your account"
+                - id: emailField
+                  type: TextField
+                  label: Email
+                  value: ""
+                - id: passwordField
+                  type: TextField
+                  label: Password
+                  value: ""
+                - id: signInButton
+                  type: Button
+                  children:
+                    - id: signInLabel
+                      type: Text
+                      text: Sign In
+      expectErrors: []
+      uiOps:
+        - op: user_input
+          surfaceId: login
+          targetNode: emailField
+          inputValue: ada@example.com
+        - op: user_gesture
+          surfaceId: login
+          targetNode: signInButton
+      expectDataModel:
+        login:
+          email: ada@example.com
+          password: ""
+      expectOutbound:
+        - version: "1.0"
+          action:
+            name: sign_in
+            surfaceId: login
+            sourceComponentId: signInButton
+            timestamp:
+              $match: any
+            context:
+              email: ada@example.com
+    - userText: null
+      modelChunks:
+        direct_json:
+          - "You are now signed in.\n\n<a"
+          - "2ui-json>\n"
+          - |
+            [
+              {
+                "version": "1.0",
+                "updateComponents": {
+                  "surfaceId": "login",
+                  "components": [
+                    {
+                      "id": "root",
+                      "component": "Card",
+                      "child": "confirmation"
+                    },
+                    {
+                      "id": "confirmation",
+                      "component": "Column",
+                      "children": [
+                        "signedInTitle",
+                        "signedInDetail"
+                      ]
+                    },
+                    {
+                      "id": "signedInTitle",
+                      "component": "Text",
+                      "text": "### Welcome back!"
+                    },
+                    {
+                      "id": "signedInDetail",
+                      "component": "Text",
+                      "text": "Signed in as ada@example.com.",
+                      "variant": "body"
+                    }
+                  ]
+                }
+              }
+            ]
+            </a2ui-json>
+        express:
+          - "You are now signed in.\n\n<a"
+          - "2ui>\n"
+          - |
+            surface("login", update=true)
+            root = Card(confirmation)
+            confirmation = Column([signedInTitle, signedInDetail])
+            signedInTitle = Text("### Welcome back!")
+            signedInDetail = Text("Signed in as ada@example.com.", "body")
+            </a2ui>
+      expectWire:
+        - text: "You are now signed in."
+        - a2ui:
+            - version: "1.0"
+              updateComponents:
+                surfaceId: login
+                components:
+                  - id: root
+                    component: Card
+                    child: confirmation
+                  - id: confirmation
+                    component: Column
+                    children:
+                      - signedInTitle
+                      - signedInDetail
+                  - id: signedInTitle
+                    component: Text
+                    text: "### Welcome back!"
+                  - id: signedInDetail
+                    component: Text
+                    text: Signed in as ada@example.com.
+                    variant: body
+      expectViewTree:
+        login:
+          id: root
+          type: Card
+          children:
+            - id: confirmation
+              type: Column
+              children:
+                - id: signedInTitle
+                  type: Text
+                  text: "### Welcome back!"
+                - id: signedInDetail
+                  type: Text
+                  text: Signed in as ada@example.com.

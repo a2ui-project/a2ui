@@ -716,7 +716,12 @@ Future<void> _executeStep(
 
 Finder _findNodeView(String instanceId, [Finder? ancestor]) {
   final Finder base = find.byWidgetPredicate(
-    (w) => w.key == NodeKey(instanceId) && w is! KeyedSubtree && w is! Flexible,
+    (w) =>
+        (w.key == NodeKey(instanceId) ||
+            (w.key is NodeKey &&
+                (w.key! as NodeKey).value.startsWith('$instanceId-['))) &&
+        w is! KeyedSubtree &&
+        w is! Flexible,
   );
   return ancestor == null
       ? base
@@ -732,7 +737,7 @@ Future<void> _executeUserInput(
 ) async {
   final String targetId = _stepTargetId(step);
   final Object? value = step['inputValue'] ?? step['value'];
-  final Finder scope = _findNodeView(targetId);
+  final Finder scope = _findNodeView(targetId).first;
   if (value is String) {
     final Finder field = find.descendant(
       of: scope,
@@ -755,7 +760,7 @@ Future<void> _executeUserGesture(
   Map<String, Object?> step,
 ) async {
   final String targetId = _stepTargetId(step);
-  final Finder scope = _findNodeView(targetId);
+  final Finder scope = _findNodeView(targetId).first;
   final Finder button = find.descendant(
     of: scope,
     matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
