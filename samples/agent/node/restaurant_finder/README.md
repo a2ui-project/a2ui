@@ -4,7 +4,7 @@ This is a restaurant-finder agent that serves the A2A protocol over HTTP on port
 
 The agent answers each request in the A2UI version the renderer asks for:
 
-- A request whose metadata carries `a2uiRendererCapabilities` with a `"v1.0"` entry gets v1.0 messages.
+- A request whose metadata carries `a2uiRendererCapabilities` with a `"1.0"` entry gets v1.0 messages.
 - A request whose metadata carries `a2uiClientCapabilities` with a `"v0.9"` entry gets v0.9 messages.
 - A request with no capabilities gets v0.9, which every sample client in this repository renders.
 
@@ -117,7 +117,7 @@ curl -N -X POST http://localhost:10002/a2a/json-rpc \
         "parts": [{"kind": "text", "text": "top 5 chinese restaurants in New York"}],
         "metadata": {
           "a2uiRendererCapabilities": {
-            "v1.0": {
+            "1.0": {
               "supportedCatalogIds": ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"]
             }
           }
@@ -155,7 +155,7 @@ curl -N -X POST http://localhost:10002/a2a/json-rpc \
         "parts": [{
           "kind": "data",
           "data": {
-            "version": "v1.0",
+            "version": "1.0",
             "action": {
               "name": "book_restaurant",
               "surfaceId": "restaurants",
@@ -170,7 +170,7 @@ curl -N -X POST http://localhost:10002/a2a/json-rpc \
         }],
         "metadata": {
           "a2uiRendererCapabilities": {
-            "v1.0": {
+            "1.0": {
               "supportedCatalogIds": ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"]
             }
           }
@@ -198,7 +198,7 @@ curl -N -X POST http://localhost:10002/a2a/json-rpc \
         "parts": [{
           "kind": "data",
           "data": {
-            "version": "v1.0",
+            "version": "1.0",
             "action": {
               "name": "submit_booking",
               "surfaceId": "booking",
@@ -215,7 +215,7 @@ curl -N -X POST http://localhost:10002/a2a/json-rpc \
         }],
         "metadata": {
           "a2uiRendererCapabilities": {
-            "v1.0": {
+            "1.0": {
               "supportedCatalogIds": ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"]
             }
           }

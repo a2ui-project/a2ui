@@ -15,6 +15,7 @@
  */
 
 import type {ProtocolVersion} from './adapters/base.js';
+import type {ErrorEnvelopeContext} from './message-error-mapper.js';
 
 /**
  * Generic component representation within internal processing operations.
@@ -136,13 +137,16 @@ export interface InternalAgentFunctionResponseOp {
 /**
  * Union of all normalized internal operations processed by the message pipeline.
  */
-export type InternalOperation =
+export type InternalOperation = (
   | InternalCreateSurfaceOp
   | InternalUpdateComponentsOp
   | InternalUpdateDataModelOp
   | InternalDeleteSurfaceOp
   | InternalCallRendererFunctionOp
-  | InternalAgentFunctionResponseOp;
+  | InternalAgentFunctionResponseOp
+) & {
+  envelopeContext?: ErrorEnvelopeContext;
+};
 
 /**
  * All supported internal operation type discriminator strings.

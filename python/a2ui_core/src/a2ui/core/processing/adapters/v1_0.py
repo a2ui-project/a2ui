@@ -72,6 +72,7 @@ class V1Point0Adapter(BaseVersionAdapter):
                     surface_id=self._get_surface_id(cs),
                     catalog_id=cs.get("catalogId"),
                     send_data_model=bool(cs.get("sendDataModel", False)),
+                    metadata=cs.get("metadata"),
                     version=message.get("version")
                     or (
                         self.version.value
@@ -147,7 +148,7 @@ class V1Point0Adapter(BaseVersionAdapter):
             res.append(
                 InternalAgentFunctionResponseOp(
                     function_call_id=resp_data.function_call_id,
-                    version=str(getattr(af_resp, "version", "v1.0")),
+                    version=str(getattr(af_resp, "version", "1.0")),
                     value=resp_data.value,
                     error=resp_data.error.model_dump(by_alias=True)
                     if resp_data.error

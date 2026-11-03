@@ -68,7 +68,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's-default',
           catalogId: basicCatalog.id,
@@ -76,7 +76,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's-default',
           components: [
@@ -129,15 +129,15 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     });
   });
 
-  it('applies accessibility attributes (aria-label, aria-description, aria-live, aria-hidden) on BasicCatalogA2uiLitElement', async () => {
+  it('applies accessibility attributes across BasicCatalogA2uiLitElement host and inner semantic element', async () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's-a11y', catalogId: basicCatalog.id},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 's-a11y',
           path: '/a11yLabel',
@@ -145,7 +145,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's-a11y',
           components: [
@@ -174,15 +174,23 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       e.context = new ComponentContext(surface, 'txt1');
     });
 
-    assert.strictEqual(el.getAttribute('aria-label'), 'Dynamic Accessible Label');
-    assert.strictEqual(el.getAttribute('aria-description'), 'Extra description');
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    assert.strictEqual(el.hasAttribute('aria-description'), false);
     assert.strictEqual(el.getAttribute('aria-live'), 'polite');
     assert.strictEqual(el.getAttribute('aria-hidden'), 'true');
+    assert.strictEqual(el.inert, true);
+    assert.strictEqual(el.hasAttribute('inert'), true);
 
-    // Verify subsequent reactive data model updates propagate to host attributes
+    const innerText = el.querySelector('.a2ui-text');
+    assert.notStrictEqual(innerText, null);
+    assert.strictEqual(innerText?.getAttribute('role'), 'note');
+    assert.strictEqual(innerText?.getAttribute('aria-label'), 'Dynamic Accessible Label');
+    assert.strictEqual(innerText?.getAttribute('aria-description'), 'Extra description');
+
+    // Verify subsequent reactive data model updates propagate to the inner element
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 's-a11y',
           path: '/a11yLabel',
@@ -190,19 +198,84 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         },
       },
     ]);
-    await (el as any).updateComplete;
-    assert.strictEqual(el.getAttribute('aria-label'), 'Updated Accessible Label');
+    await asyncUpdate(el, () => {});
+    assert.strictEqual(innerText?.getAttribute('aria-label'), 'Updated Accessible Label');
+  });
+
+  it('makes a container inert while accessibility.hidden is true', async () => {
+    const processor = new MessageProcessor([basicCatalog]);
+    processor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {surfaceId: 's-hidden', catalogId: basicCatalog.id},
+      },
+      {
+        version: '1.0',
+        updateDataModel: {surfaceId: 's-hidden', path: '/hidden', value: true},
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 's-hidden',
+          components: [
+            {
+              id: 'root',
+              component: 'Row',
+              accessibility: {hidden: {'@path': '/hidden'}},
+              children: ['btn'],
+            },
+            {id: 'btn', component: 'Button', child: 'btn_text', action: {event: {name: 'noop'}}},
+            {id: 'btn_text', component: 'Text', text: 'Click'},
+          ],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('s-hidden')!;
+    const el = document.createElement('a2ui-basic-row') as A2uiLitElement;
+    cleanupElements.push(el);
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'root');
+    });
+
+    assert.strictEqual(el.getAttribute('aria-hidden'), 'true');
+    assert.strictEqual(el.inert, true);
+    assert.strictEqual(el.hasAttribute('inert'), true);
+
+    processor.processMessages([
+      {
+        version: '1.0',
+        updateDataModel: {surfaceId: 's-hidden', path: '/hidden', value: false},
+      },
+    ]);
+    await asyncUpdate(el, () => {});
+    assert.strictEqual(el.getAttribute('aria-hidden'), 'false');
+    assert.strictEqual(el.inert, false);
+    assert.strictEqual(el.hasAttribute('inert'), false);
+
+    processor.processMessages([
+      {
+        version: '1.0',
+        updateDataModel: {surfaceId: 's-hidden', path: '/hidden', value: null},
+      },
+    ]);
+    await asyncUpdate(el, () => {});
+    assert.strictEqual(el.hasAttribute('aria-hidden'), false);
+    assert.strictEqual(el.inert, false);
+    assert.strictEqual(el.hasAttribute('inert'), false);
   });
 
   it('renders TextField placeholder, Video posterUrl, and Slider steps in v1.0 basicCatalog', async () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's-props', catalogId: basicCatalog.id},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's-props',
           components: [
@@ -267,11 +340,11 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's-checks', catalogId: basicCatalog.id},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 's-checks',
           path: '/warningResult',
@@ -284,7 +357,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's-checks',
           components: [
@@ -399,11 +472,11 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's-act', catalogId: basicCatalog.id},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's-act',
           components: [
@@ -497,11 +570,11 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       const processor = new MessageProcessor([testCatalog as any]);
       processor.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {surfaceId: 's-leak', catalogId: testCatalog.id},
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {surfaceId: 's-leak', path: '/targetUrl', value: 'https://initial.com'},
         },
       ]);
@@ -560,11 +633,11 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const processor = new MessageProcessor([customV1Catalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's-idx', catalogId: customV1Catalog.id},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 's-idx',
           path: '/items',
@@ -572,7 +645,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's-idx',
           components: [{id: 'item1', component: 'CustomItem', indexNum: 0}],
@@ -595,9 +668,6 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         name: 'Badge',
         schema: z.object({title: z.string()}).strict(),
       };
-      override createRenderRoot() {
-        return this;
-      }
       override render() {
         const props = this.controller?.props;
         if (!props) return nothing;
@@ -622,11 +692,11 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog, secondaryCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's-multi', catalogId: basicCatalog.id},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 's-multi',
           components: [
@@ -675,11 +745,11 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 'sSliderBounds', catalogId: basicCatalog.id},
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'sSliderBounds',
           components: [

@@ -1,0 +1,195 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+import config from 'virtual:starlight/user-config';
+import LanguageSelect from 'virtual:starlight/components/LanguageSelect';
+import Search from 'virtual:starlight/components/Search';
+import SocialIcons from 'virtual:starlight/components/SocialIcons';
+
+const shouldRenderSearch =
+  config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const pathname = Astro.url.pathname;
+const isSpec = pathname.includes('/specification/');
+const isDocs = !isSpec && pathname !== `${base}/` && pathname !== '/';
+---
+
+<div class="a2-sl-header sl-flex">
+  <div class="a2-sl-header__left sl-flex">
+    <a href={`${base}/`} class="a2-sl-brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="2.5" y="3.5" width="19" height="17" rx="4" stroke="currentColor" stroke-width="2" />
+        <circle cx="8.5" cy="11" r="1.6" fill="#14b8a6" />
+        <circle cx="15.5" cy="11" r="1.6" fill="#14b8a6" />
+        <path d="M8.5 15.5h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      </svg>
+      <span>A2UI</span>
+    </a>
+    <span class="a2-sl-header__slash" aria-hidden="true">/</span>
+    <nav class="a2-sl-header__tabs" aria-label="Primary section navigation">
+      <a href={`${base}/`} class="a2-sl-tab">Overview</a>
+      <a href={`${base}/quickstart/`} class:list={['a2-sl-tab', { 'is-active': isDocs }]} aria-current={isDocs ? 'page' : undefined}>Docs</a>
+      <a href={`${base}/specification/v1.0-a2ui/`} class:list={['a2-sl-tab', { 'is-active': isSpec }]} aria-current={isSpec ? 'page' : undefined}>Specification</a>
+    </nav>
+  </div>
+
+  <div class="a2-sl-header__right sl-flex print:hidden">
+    {shouldRenderSearch && <Search />}
+    <div class="sl-hidden md:sl-flex a2-sl-header__controls">
+      <div class="sl-flex social-icons">
+        <SocialIcons />
+      </div>
+      <button type="button" class="a2-sl-theme-btn" id="a2-sl-theme-toggle" title="Toggle Dark / Light Mode" aria-label="Toggle Dark / Light Mode">
+        <span>☀️ / 🌙</span>
+      </button>
+      <LanguageSelect />
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  (() => {
+    const btn = document.getElementById('a2-sl-theme-toggle');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      try {
+        localStorage.setItem('starlight-theme', next);
+        localStorage.setItem('a2ui-theme', next);
+      } catch (e) {}
+      window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: next } }));
+    });
+  })();
+</script>
+
+<style>
+  .a2-sl-header {
+    justify-content: space-between;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    gap: 16px;
+  }
+
+  .a2-sl-header__left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .a2-sl-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    font-weight: 800;
+    font-size: 18px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--sl-color-white);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .a2-sl-brand:hover {
+    color: var(--sl-color-white);
+  }
+
+  .a2-sl-header__slash {
+    color: var(--sl-color-gray-4);
+    font-size: 18px;
+    font-weight: 300;
+    line-height: 1;
+    margin: 0 4px;
+    user-select: none;
+  }
+
+  .a2-sl-header__tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .a2-sl-header__tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .a2-sl-tab {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    color: var(--sl-color-gray-2);
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    white-space: nowrap;
+    transition: color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .a2-sl-tab:hover {
+    color: var(--sl-color-white);
+    background: var(--sl-color-gray-6);
+  }
+
+  .a2-sl-tab.is-active {
+    color: var(--sl-color-text-accent);
+    background: rgba(20, 184, 166, 0.12);
+    font-weight: 600;
+  }
+
+  .a2-sl-header__right {
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .a2-sl-header__controls,
+  .social-icons {
+    gap: 0.85rem;
+    align-items: center;
+  }
+
+  .social-icons::after {
+    content: '';
+    height: 1.5rem;
+    border-inline-end: 1px solid var(--sl-color-hairline);
+  }
+
+  .a2-sl-theme-btn {
+    background: var(--sl-color-bg-sidebar);
+    border: 1px solid var(--sl-color-hairline);
+    color: var(--sl-color-white);
+    padding: 0.35rem 0.7rem;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+    transition: border-color 0.15s ease;
+  }
+
+  .a2-sl-theme-btn:hover {
+    border-color: var(--sl-color-accent);
+  }
+</style>

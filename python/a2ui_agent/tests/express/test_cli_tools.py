@@ -63,14 +63,14 @@ class TestCliTools(unittest.TestCase):
                 json.dumps({
                     "messages": [
                         {
-                            "version": "v1.0",
+                            "version": "1.0",
                             "createSurface": {
                                 "surfaceId": "test_surface",
                                 "catalogId": BASIC_CATALOG_ID,
                             },
                         },
                         {
-                            "version": "v1.0",
+                            "version": "1.0",
                             "updateComponents": {
                                 "surfaceId": "test_surface",
                                 "components": [
@@ -107,7 +107,7 @@ class TestCliTools(unittest.TestCase):
         )
         self.assertIsInstance(res, list)
         envelope = res[0]
-        self.assertEqual(envelope["version"], "v1.0")
+        self.assertEqual(envelope["version"], "1.0")
         self.assertEqual(envelope["createSurface"]["surfaceId"], "my_surface")
         self.assertEqual(envelope["createSurface"]["catalogId"], catalog_id)
 
@@ -189,7 +189,7 @@ class TestCliTools(unittest.TestCase):
             "content_grid = Row([left_panel, right_panel])",
             lines,
         )
-        self.assertTrue(lines[-1].startswith("$/logs = ["))
+        self.assertTrue(lines[-1].startswith("$/ = {logs: ["))
 
     @patch("sys.stdout")
     def test_decompiler_main_cli(self, mock_stdout):
@@ -290,7 +290,7 @@ class TestCliTools(unittest.TestCase):
             is_mlx=True,
         )
         self.assertIn("Hello MLX", dsl_output)
-        self.assertEqual(compiled_json[0]["version"], "v1.0")
+        self.assertEqual(compiled_json[0]["version"], "1.0")
 
     @patch("urllib.request.urlopen")
     def test_run_inference_mlx_error_empty_choices(self, mock_urlopen):
@@ -335,9 +335,7 @@ class TestCliTools(unittest.TestCase):
         """Verifies run_inference raises ValueError if updateComponents message is missing."""
         invalid_json_file = os.path.join(self.temp_dir.name, "invalid_sample.json")
         with open(invalid_json_file, "w", encoding="utf-8") as f:
-            f.write(
-                json.dumps({"messages": [{"version": "v1.0", "createSurface": {}}]})
-            )
+            f.write(json.dumps({"messages": [{"version": "1.0", "createSurface": {}}]}))
         with self.assertRaises(ValueError):
             run_inference.run_inference_and_validate(
                 invalid_json_file, CATALOG_PATH, "model"

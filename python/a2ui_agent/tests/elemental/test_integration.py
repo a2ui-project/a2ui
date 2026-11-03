@@ -115,8 +115,8 @@ class TestElementalIntegration(unittest.TestCase):
     def test_elemental_parser_unclosed_tag_parsing(self):
         """Verify parser unclosed tag auto-closing and compilation with is_final=False."""
         truncated_response = (
-            'Conversational preamble:\n<a2ui>\n  <body id="welcome">\n    <ui-Column>\n'
-            '      <ui-Text text="Hello"'
+            'Conversational preamble:\n<a2ui>\n  <body id="welcome">\n   '
+            ' <ui-Column>\n      <ui-Text text="Hello"'
         )
 
         parts = ElementalParser([self.catalog]).parse_response(truncated_response)

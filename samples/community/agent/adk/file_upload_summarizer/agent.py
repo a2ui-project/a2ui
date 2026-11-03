@@ -20,7 +20,10 @@ from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.core import CatalogApi
 from a2ui.core.schema import ProtocolVersion
-from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+from a2ui.inference_formats.direct_json import (
+    DEFAULT_WORKFLOW_RULES,
+    DirectJsonFormatFactory,
+)
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import to_version_number
 from google.adk.agents.llm_agent import LlmAgent
@@ -257,7 +260,7 @@ class FileUploadSummarizerAgent:
         if processor:
             instruction = "\n\n".join([
                 ROLE_DESCRIPTION,
-                processor.format.prompt_generator.generate_base_rules(),
+                DEFAULT_WORKFLOW_RULES,
                 WORKFLOW_DESCRIPTION,
                 f"## UI Description:\n{UI_DESCRIPTION}",
             ])

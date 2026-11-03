@@ -291,7 +291,10 @@ def test_direct_node_serialization():
 def test_children_are_emitted_before_their_parent():
     """Verifies depth-first post-order, so every reference resolves to an earlier sibling."""
     comps = flatten_component_tree(
-        Card(id="outer", child=Column(id="inner", children=[Text(id="leaf", text="x")]))
+        Card(
+            id="outer",
+            child=Column(id="inner", children=[Text(id="leaf", text="x")]),
+        )
     )
     assert [c["id"] for c in comps] == ["outer__leaf", "outer__inner", "outer"]
 
@@ -402,9 +405,11 @@ def test_serialization_aliases_are_honoured():
 
 def test_aliased_fields_can_be_parsed_from_camel_case_wire_format():
     """Verifies models with alias can parse their wire camelCase dictionaries."""
-    field = TextField.model_validate(
-        {"component": "TextField", "label": "ZIP", "validationRegexp": "^[0-9]{5}$"}
-    )
+    field = TextField.model_validate({
+        "component": "TextField",
+        "label": "ZIP",
+        "validationRegexp": "^[0-9]{5}$",
+    })
     assert field.validation_regexp == "^[0-9]{5}$"
 
 
@@ -518,7 +523,10 @@ def test_locally_defined_models_still_serialize_as_core_models():
         action_adapter.validate_python(call_form), ActionFunctionCallWrapper
     )
 
-    for degenerate in ({}, {"event": {"name": "s"}, "functionCall": {"call": "c"}}):
+    for degenerate in (
+        {},
+        {"event": {"name": "s"}, "functionCall": {"call": "c"}},
+    ):
         with pytest.raises(ValidationError):
             action_adapter.validate_python(degenerate)
     for degenerate_kwargs in (

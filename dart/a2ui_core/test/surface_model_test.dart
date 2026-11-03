@@ -272,7 +272,7 @@ void main() {
       expect(
         () => SurfaceModel<ComponentApi>(
           's1',
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
           defaultCatalog:
               catalogNamed('basic', protocolVersion: A2uiProtocolVersion.v1_0),
           availableCatalogs: [
@@ -282,7 +282,7 @@ void main() {
         throwsA(
           catalogError(
             "Protocol version mismatch: cannot mix catalog 'old' (v0.9) with "
-            'surface version v1.0.',
+            'surface version 1.0.',
             catalogId: 'old',
           ),
         ),
@@ -319,7 +319,7 @@ void main() {
       expect(
         () => SurfaceModel<ComponentApi>(
           's1',
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
           defaultCatalog:
               catalogNamed('basic', protocolVersion: A2uiProtocolVersion.v1_0),
           availableCatalogs: [catalogNamed('legacy')],
@@ -327,7 +327,7 @@ void main() {
         throwsA(
           catalogError(
             'Protocol version mismatch: cannot mix unversioned catalog '
-            "'legacy' with surface version v1.0.",
+            "'legacy' with surface version 1.0.",
             catalogId: 'legacy',
           ),
         ),
@@ -335,13 +335,13 @@ void main() {
       expect(
         () => SurfaceModel<ComponentApi>(
           's1',
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
           defaultCatalog: catalogNamed('legacy'),
         ),
         throwsA(
           catalogError(
             'Protocol version mismatch: cannot mix unversioned catalog '
-            "'legacy' with surface version v1.0.",
+            "'legacy' with surface version 1.0.",
             catalogId: 'legacy',
           ),
         ),
@@ -414,6 +414,59 @@ void main() {
       expect(surface.metadata, {
         'extensions': {'x': 1},
       });
+    });
+
+    test('supports metadata accessors, signals, events, and extension helpers',
+        () async {
+      final surface = SurfaceModel<ComponentApi>('s1');
+      final changes = <Map<String, Object?>?>[];
+      surface.onMetadataChanged.subscribe(changes.add);
+
+      expect(surface.metadata, isNull);
+      expect(surface.extensions, isNull);
+      expect(surface.metadataSignal.value, isNull);
+
+      surface.setExtension('ext_a', 1);
+      await Future<void>.microtask(() {});
+      expect(surface.metadata, {
+        'extensions': {'ext_a': 1},
+      });
+      expect(surface.extensions, {'ext_a': 1});
+      expect(surface.metadataSignal.value, {
+        'extensions': {'ext_a': 1},
+      });
+      expect(changes, hasLength(1));
+
+      // No-op when setting identical value
+      surface.setExtension('ext_a', 1);
+      await Future<void>.microtask(() {});
+      expect(changes, hasLength(1));
+
+      // setExtension with null stores null
+      surface.setExtension('ext_a', null);
+      await Future<void>.microtask(() {});
+      expect(surface.extensions, {'ext_a': null});
+      expect(changes, hasLength(2));
+
+      // removeExtension deletes key and collapses empty metadata to null
+      surface.removeExtension('ext_a');
+      await Future<void>.microtask(() {});
+      expect(surface.metadata, isNull);
+      expect(surface.extensions, isNull);
+      expect(surface.metadataSignal.value, isNull);
+      expect(changes, hasLength(3));
+      expect(changes.last, isNull);
+
+      // Empty metadata envelopes normalize to null via setter
+      surface.metadata = <String, Object?>{};
+      expect(surface.metadata, isNull);
+      surface.metadata = <String, Object?>{'extensions': <String, Object?>{}};
+      expect(surface.metadata, isNull);
+
+      expect(
+        () => surface.setExtension('bad-key', 1),
+        throwsA(isA<A2uiValidationError>()),
+      );
     });
 
     test('dispatches action with UTC timestamp that serializes with trailing Z',

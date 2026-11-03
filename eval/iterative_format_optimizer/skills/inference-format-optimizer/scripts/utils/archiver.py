@@ -192,7 +192,8 @@ def archive_run(
                 json.dump(log_data, f, indent=2)
         except Exception as e:
             print(
-                f"Warning: Could not load eval log {eval_logs[0]}: {e}", file=sys.stderr
+                f"Warning: Could not load eval log {eval_logs[0]}: {e}",
+                file=sys.stderr,
             )
 
     if not metrics_extracted and os.path.exists(
@@ -206,7 +207,8 @@ def archive_run(
                 metrics_extracted = meta_json.get("metrics", {})
         except Exception as e:
             print(
-                f"Warning: Could not load fallback run_meta.json: {e}", file=sys.stderr
+                f"Warning: Could not load fallback run_meta.json: {e}",
+                file=sys.stderr,
             )
 
     meta_payload = {

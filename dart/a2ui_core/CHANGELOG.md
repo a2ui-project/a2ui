@@ -2,6 +2,178 @@
 
 ## Unreleased
 
+- **Breaking:** (v1_0) The basic catalog `TextField` requires `value`, as
+  the other input components do, so a `TextField` without one fails
+  validation instead of accepting input that never reaches the data model.
+  To migrate, bind `value` to a data model path, such as
+  `{"@path": "/form/email"}`. The path does not have to exist yet
+  ([#3830](https://github.com/a2ui-project/a2ui/issues/3830), [#3868](https://github.com/a2ui-project/a2ui/pull/3868)).
+- (v1_0) The basic catalog `regex` function's `pattern` description now names the A2UI regex dialect and its safety limits ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
+- **Breaking:** (v1_0) An agent error or timeout (`A2uiRpcError`) in a
+  dynamic value, a `checks` rule or an action is reported on
+  `SurfaceModel.onError` as `EXPRESSION_ERROR` instead of `EXECUTION_ERROR`,
+  as the other SDKs report it. The error still names the `functionCallId`
+  and carries the agent's message. To migrate, handle agent failures under
+  `EXPRESSION_ERROR` ([#3739](https://github.com/a2ui-project/a2ui/pull/3739)).
+- **Breaking:** A local function that throws, or whose `Future` fails, while
+  an action runs it (a `functionCall` action, or an `event` action's
+  `context` or `userMessage`) is reported as `EXECUTION_ERROR` on every
+  protocol version; invalid arguments and refused calls stay
+  `EXPRESSION_ERROR`. A function a binding runs is unchanged. To migrate,
+  handle failures of action functions under `EXECUTION_ERROR`
+  ([#3739](https://github.com/a2ui-project/a2ui/pull/3739)).
+- **Breaking:** An `event` action whose `context` or `userMessage` calls a
+  function, on any protocol version, is dispatched once those calls settle,
+  on a later microtask, through the new `DataContext.resolveActionAsync`.
+  The entries are evaluated one after another, and the arguments inside an
+  entry together; from v1.0, if one fails, the later ones are not evaluated
+  and the action is not dispatched. An action that calls no function is
+  still dispatched synchronously. A malformed value in an action is
+  reported as `EXPRESSION_ERROR` instead of being thrown. To migrate, do
+  not expect such an action on `onAction` within the call that triggered it
+  ([#3739](https://github.com/a2ui-project/a2ui/pull/3739)).
+- **Breaking:** `MessageProcessor.dispose()` disposes its surfaces before
+  the RPC layer, and `deleteSurface` cancels the surface's pending agent
+  calls (the new `RpcHandler.cancelSurfaceCalls`). A cancelled call is not
+  reported as an error, and a surface that is deleted or disposed (the new
+  `SurfaceModel.isDisposed`) sends no agent call: `SurfaceModel.callAgentFunction`
+  fails each with `RpcErrorCode.cancelled`. To migrate, stop treating
+  `CANCELLED` errors on teardown as failures
+  ([#3739](https://github.com/a2ui-project/a2ui/pull/3739)).
+- (v1_0) Agent function fallback routing follows the v1.0 specification
+  ([#3415](https://github.com/a2ui-project/a2ui/issues/3415),
+  [#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3739](https://github.com/a2ui-project/a2ui/pull/3739)):
+  - **Breaking:** A function call whose catalog cannot be resolved (an
+    unknown `catalogId`, or no default catalog on the surface) is reported as
+    a `CATALOG_ERROR` and is no longer sent to the agent. Only a call to a
+    function that its resolved catalog does not have is sent as
+    `callAgentFunction`.
+  - **Breaking:** A call is sent only where its result can wait: a
+    `resolveSignal` binding, a `checks` rule, or an action. A one-shot
+    `DataContext.resolveDynamicValue`, an argument of an agent-initiated
+    `callRendererFunction`, and a `${...}` part of a `formatString` template
+    never send one; a function no catalog implements fails there with
+    `EXPRESSION_ERROR` as before routing. To migrate, read agent results
+    through `resolveSignal`.
+  - The outbound `callFunction` always names the `catalogId` of the catalog
+    the call resolved to, also when the call relied on the surface's default
+    catalog. Pending calls that differ only in whether they name the default
+    catalog share one request.
+  - **Breaking:** `MessageProcessor` gives a surface a
+    `SurfaceModel.callAgentFunction` only when the surface is v1.0 and the
+    processor has an `outboundListener`. Without one, a call to a missing
+    function stays a local `EXPRESSION_ERROR` instead of failing with
+    `NO_LISTENER`.
+  - A function call whose argument reads an agent call that is still pending
+    waits for it to settle instead of running with a null argument, in
+    bindings, check rules and actions. If an argument's agent call fails,
+    the enclosing call does not run, and the failure is reported once. A
+    binding remembers a failed call until its arguments change or it is
+    mounted again; a cancelled call is not remembered.
+  - Settling an agent call re-evaluates only the bindings that read it.
+  - A call whose resolved arguments have no JSON form, such as a
+    non-finite number, is not sent: it fails locally with an
+    `EXPRESSION_ERROR`.
+  - A shared agent answer is stored as unmodifiable maps and lists, so one
+    reader cannot change it for the others.
+- **Breaking:** A function call naming a `catalogId` on a `DataContext`
+  created without `invokerForCatalog` is now reported as a `CATALOG_ERROR`
+  rather than an `EXPRESSION_ERROR`.
+- **Breaking:** Unify the v1.0 protocol version wire value on `'1.0'` (without
+  a `'v'` prefix) across message envelopes, `MessageProcessor.getRendererCapabilities`,
+  `RpcHandler`, and catalog documents (`A2uiProtocolVersion.v1_0.jsonValue` is
+  now `'1.0'`), while accepting `'v1.0'` in `A2uiProtocolVersion.tryParseSemVer`
+  and `Catalog.fromJson` ([#3097](https://github.com/a2ui-project/a2ui/issues/3097),
+  [#3726](https://github.com/a2ui-project/a2ui/pull/3726)).
+- Added extension metadata APIs across `SurfaceModel` (`metadata`, `extensions`, `metadataSignal`, `onMetadataChanged`, `setExtension`, `removeExtension`), `ComponentModel` (`metadata`, `extensions`, `onMetadataChanged`, `setExtension`, `removeExtension`), `ComponentNode` (`metadata: ReadonlySignal<A2uiMetadata?>`), `ComponentApi` (`metadata` parsed and serialized by `Catalog.fromJson()` / `Catalog.toJson()`), and `SurfaceModel.dispatchAction(..., {A2uiMetadata? metadata})` / `NodeAction([ActionDispatchOptions? options])` ([#3103](https://github.com/a2ui-project/a2ui/issues/3103), [#3468](https://github.com/a2ui-project/a2ui/issues/3468), [#3469](https://github.com/a2ui-project/a2ui/issues/3469), [#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)).
+- (v1_0) Factored `weight` in the v1.0 basic catalog into `#/$defs/Weight`.
+  Component schemas in `BasicCatalog.v1_0`, `Catalog.fromJson` (for leaf
+  catalog `$defs`), and `Catalog.resolvedComponentSchemas` inline catalog-local
+  `$defs` with `catalogDefRef` markers so in-memory component schemas remain
+  self-contained, while `Catalog.toJson()` and `Catalog.validationSchema`
+  restore `#/$defs/...` references
+  ([#2724](https://github.com/a2ui-project/a2ui/pull/2724)).
+- **Breaking:** `MessageProcessor.catalogs` cannot be modified: it is a copy
+  of the list the processor was created with, and adding to it throws
+  `UnsupportedError`. Pass every catalog when creating the processor
+  ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `MessageErrorMapper`, `SurfaceGroupModel.onError`, and
+  `MessageProcessor.processMessagesWithErrors` for mapping `A2uiError`
+  exceptions into structured wire-format `ErrorMessage` envelopes, and
+  populated structured `A2uiErrorDetail` entries on `PayloadValidator`
+  component and function validation failures.
+- `GenericBinder` and `ValidationResult.fromEvaluation` (`explicitMessage`) now
+  apply an explicit `CheckRule.message` on an evaluated check over the default
+  message of a failing `ValidationResult` returned by a check function, while
+  preserving `ValidationResult.message` on path-bound checks
+  ([#3583](https://github.com/a2ui-project/a2ui/pull/3583)).
+- `MessageProcessor.processMessages` and `processMessagesAsync` take a
+  `validationConfig` for one call, which replaces the processor's own while
+  the call checks and applies its messages. An agent that checks its messages
+  against a renderer's processor passes the checks it makes, whatever config
+  the renderer was created with ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Added `Catalog.derive`, which builds a catalog with a new id from the
+  entries of an existing one that `components` and `functions` name and the
+  new entries in `addComponents` and `addFunctions`. The new catalog keeps
+  the source's protocol version, theme and document layout, and not its
+  `$id`, title, description or instructions, which describe the source; pass
+  its own `instructions`. A name the source has no entry of throws
+  `A2uiCatalogError` ([#3597](https://github.com/a2ui-project/a2ui/issues/3597)).
+- Fixed: `PayloadValidator` checks the string formats `json_schema_builder`
+  validates (`date`, `time`, `date-time`, `email`, `ipv4`, `ipv6`). A catalog
+  property that declares one of these formats is now enforced; previously the
+  format was ignored. A literal `min` or `max` on the basic catalog's
+  `DateTimeInput` now validates; previously it matched all three branches of
+  the `oneOf` that tells them apart and was always rejected
+  ([#3123](https://github.com/a2ui-project/a2ui/issues/3123)).
+
+## 0.4.0
+
+- **Breaking:** Removed cross-catalog `$ref` resolution across peer
+  catalogs ([#3232](https://github.com/a2ui-project/a2ui/issues/3232),
+  [#3575](https://github.com/a2ui-project/a2ui/pull/3575)). A catalog's
+  schemas resolve only against its own document and `common_types.json`
+  again:
+  - Removed `Catalog.withPeerCatalogs`, `Catalog.peerCatalogs` and
+    `linkCatalogs`.
+  - Removed the `peers` argument of `resolveSchemaRefs` and the fourth `peers`
+    argument of `inlineLocalRefs`.
+  - `MessageProcessor` no longer links copies of the catalogs passed to it;
+    `MessageProcessor.catalogs` holds the catalogs as given.
+  - `Catalog.fromJson` throws `A2uiCatalogError` for a v1.0 catalog holding a
+    `$ref` to a document other than `common_types.json` or the catalog itself
+    (`catalog.json`), such as `basic_catalog.json#/components/Text`, and never
+    fetches it. Copy the referenced definitions into the catalog's own
+    `$defs` instead.
+- `argumentErrors`, the argument check of `Catalog.invoke` and of a
+  `callRendererFunction`, checks a `ValidationResult` argument as its JSON
+  object instead of throwing `StateError`, and on a catalog for v1.0 or later
+  accepts one, or any object with a boolean `valid`, in a boolean position, so
+  `and`, `or` and `not` over validation rules run.
+- A component's `accessibility.hidden` resolves as a dynamic value, as its
+  `label` and `description` do, so it reaches `node.props` as a binding to
+  its value, and a `hidden` bound to a data path follows the data.
+- `regex` with an invalid pattern puts the parse message in the error's
+  `details` instead of the `FormatException` object, so the error encodes as
+  JSON.
+- **Breaking:** Error and warning listeners run after the call that found
+  the problem returns, never during it, so a listener may update UI state
+  directly. Delivery is a microtask later. A test that checks what a
+  listener collected right after `processMessages`, `NodeResolver()`, a
+  data model write or `dispatchError` must first
+  `await Future<void>.delayed(Duration.zero)`, or `await tester.pump()` in a
+  widget test.
+- From v1.0, `Catalog.invoke` reads a `ValidationResult` (or a map carrying a
+  `valid` key) that a function argument resolves to by its validity wherever
+  the function's argument schema types that argument as `DynamicBoolean`, as
+  the specification defines the type. This applies to every `DynamicBoolean`
+  argument, in the basic catalog and in custom catalogs, so `formatNumber`'s
+  `grouping` and a custom function's boolean parameters read a failing
+  validation as `false`, and such an argument no longer fails the argument
+  schema check. Catalogs below v1.0, whose validation functions return
+  booleans, are unchanged.
+
 - Added `SurfaceComponentsModel.insertComponent`, which adds a component at
   a given position in the model's order rather than at the end, for putting
   a component back where it was, and `insertComponents`, which adds several

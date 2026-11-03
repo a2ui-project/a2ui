@@ -19,6 +19,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 import '../../parser/parser.dart';
 import '../../parser/response_part.dart';
 import '../../parser/response_stream.dart';
+import '../../parser/text_run.dart';
 import '../../utils/renderer_state.dart';
 import 'blocks.dart';
 import 'json_reader.dart';
@@ -239,6 +240,18 @@ class DirectJsonParser extends Parser {
     bool wrapped = true,
     RendererState? state,
   }) => DirectJsonResponseStream._(
+    this,
+    wrapped: wrapped,
+    state: state ?? RendererState(catalogs),
+  );
+
+  /// Opens a [DirectJsonResponseStream] for one response that reads past a
+  /// rejected block. See [Parser.openContinuingStream] and [openStream].
+  @override
+  DirectJsonContinuingResponseStream openContinuingStream({
+    bool wrapped = true,
+    RendererState? state,
+  }) => DirectJsonContinuingResponseStream._(
     this,
     wrapped: wrapped,
     state: state ?? RendererState(catalogs),

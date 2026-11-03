@@ -33,21 +33,28 @@ cases_adk_extensions = get_conformance_cases("extensions/adk/adk_extensions.yaml
     ids=[c[0] for c in cases_adk_extensions],
 )
 def test_adk_extensions_conformance(name, test_case):
-    from a2ui.adk import SendA2uiToClientToolset
-    from a2ui.core import Catalog
     from unittest.mock import MagicMock, patch
+
+    from a2ui.adk import SendA2uiToClientToolset
+    from a2ui.core.basic_catalog import BasicCatalog
+    from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+    from a2ui.processor import A2uiRequestProcessor
 
     action = test_case["action"]
     args = test_case.get("args", {})
 
     if action == "execute_tool":
+        tool_cls = SendA2uiToClientToolset._SendA2uiJsonToClientTool
         a2ui_json_str = args.get("a2uiJson")
-        tool_args = {"a2ui_json": a2ui_json_str} if a2ui_json_str else args
+        tool_args = (
+            {tool_cls.A2UI_PAYLOAD_ARG_NAME: a2ui_json_str} if a2ui_json_str else args
+        )
 
-        catalog_mock = MagicMock(spec=Catalog)
-
-        tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
-            [catalog_mock], "examples"
+        # The shared cases write the payload in Direct JSON.
+        tool = tool_cls(
+            A2uiRequestProcessor(
+                [BasicCatalog("0.8")], format_factory=DirectJsonFormatFactory()
+            )
         )
 
         tool_context_mock = MagicMock()
@@ -143,31 +150,3 @@ def test_adk_extensions_conformance(name, test_case):
         expected = test_case["expect"]
         if "clientDataModel" in expected:
             assert client_data_model == expected["clientDataModel"]
-
-    elif action == "resolve_path":
-        from a2ui.extensions.file_resolve import (
-            FileResolver,
-            FileResolverSecurityError,
-        )
-
-        resolver = FileResolver()
-        file_info = args["fileInfo"]
-
-        expect_error = test_case.get("expectError")
-        if expect_error:
-            with pytest.raises((FileResolverSecurityError, Exception)) as exc_info:
-                asyncio.run(resolver.resolve_bytes(file_info))
-            msg = (
-                expect_error.get("message", "")
-                if isinstance(expect_error, dict)
-                else expect_error
-            )
-            if msg:
-                assert msg in str(exc_info.value)
-        else:
-            raw_bytes, detected_mime = asyncio.run(resolver.resolve_bytes(file_info))
-            expected = test_case["expect"]
-            if "text" in expected:
-                assert raw_bytes.decode("utf-8") == expected["text"]
-            if "mimeType" in expected:
-                assert detected_mime == expected["mimeType"]

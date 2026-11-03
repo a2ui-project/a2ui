@@ -78,12 +78,12 @@ def get_ui_prompt(
         prompt_parts.append(f"## Workflow Description:\n{WORKFLOW_DESCRIPTION}")
     if UI_DESCRIPTION:
         prompt_parts.append(f"## UI Description:\n{UI_DESCRIPTION}")
-    prompt_parts.append(processor.prompt_snippet)
     examples = load_examples(
         processor.active_catalogs, examples_path, validate=validate_examples
     )
     if examples:
         prompt_parts.append(f"### Examples:\n{examples}")
+    prompt_parts.append(processor.prompt_snippet)
     return "\n\n".join(prompt_parts)
 
 

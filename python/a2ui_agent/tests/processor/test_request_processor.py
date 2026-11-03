@@ -35,7 +35,7 @@ def test_request_processor_rejects_empty_catalogs():
 
 
 def test_generator_and_processor_default_to_express_format():
-    basic = BasicCatalog("v1.0")
+    basic = BasicCatalog("1.0")
     generator = A2uiGenerator(catalogs=[CatalogConfig(basic)])
     assert isinstance(generator.factory, ExpressFormatFactory)
 
@@ -45,13 +45,13 @@ def test_generator_and_processor_default_to_express_format():
 
 
 def test_generator_rejects_none_capabilities():
-    generator = A2uiGenerator(catalogs=[CatalogConfig(BasicCatalog("v1.0"))])
+    generator = A2uiGenerator(catalogs=[CatalogConfig(BasicCatalog("1.0"))])
     with pytest.raises(A2uiCatalogError, match="Renderer capabilities are required"):
         generator.create_processor(None)  # type: ignore[arg-type]
 
 
 def test_generator_and_processor_end_to_end():
-    basic = BasicCatalog("v1.0")
+    basic = BasicCatalog("1.0")
     custom = Catalog.from_json(
         {
             "catalogId": "https://a2ui.org/catalogs/custom",
@@ -67,20 +67,20 @@ def test_generator_and_processor_end_to_end():
                 }
             },
         },
-        protocol_version="v1.0",
+        protocol_version="1.0",
         catalog_id="https://a2ui.org/catalogs/custom",
     )
 
     example_turn = to_message_models([
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": basic.catalog_id,
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [{"id": "root", "component": "Text", "text": "Example"}],
@@ -100,7 +100,7 @@ def test_generator_and_processor_end_to_end():
     )
 
     capabilities = {
-        "v1.0": {
+        "1.0": {
             "supportedCatalogIds": [
                 "https://a2ui.org/catalogs/custom",
                 basic.catalog_id,
@@ -133,10 +133,10 @@ def test_generator_and_processor_end_to_end():
     assert isinstance(direct_json_processor.format, DirectJsonFormat)
     assert "<a2ui-json>" in direct_json_processor.prompt_snippet
     parts = direct_json_processor.parse_response(
-        'Hello!\n<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main",'
-        ' "catalogId": "https://a2ui.org/catalogs/custom"}}, {"version": "v1.0",'
-        ' "updateComponents": {"surfaceId": "main", "components": [{"id": "root",'
-        ' "component": "Badge", "label": "VIP"}]}}]</a2ui-json>'
+        'Hello!\n<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId":'
+        ' "main", "catalogId": "https://a2ui.org/catalogs/custom"}}, {"version":'
+        ' "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id":'
+        ' "root", "component": "Badge", "label": "VIP"}]}}]</a2ui-json>'
     )
     assert len(parts) == 2
     assert isinstance(parts[0], TextPart)
@@ -146,18 +146,18 @@ def test_generator_and_processor_end_to_end():
 
 
 def test_processor_validates_examples_against_active_catalogs():
-    basic = BasicCatalog("v1.0")
+    basic = BasicCatalog("1.0")
     pruned = ComponentPruningTransformer(["Column"]).transform(basic)
     bad_example = to_message_models([
         {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "s1",
                 "catalogId": basic.catalog_id,
             },
         },
         {
-            "version": "v1.0",
+            "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s1",
                 "components": [
@@ -171,9 +171,9 @@ def test_processor_validates_examples_against_active_catalogs():
 
 
 def test_generator_binds_the_state_to_the_processor():
-    basic = BasicCatalog("v1.0")
+    basic = BasicCatalog("1.0")
     generator = A2uiGenerator(catalogs=[CatalogConfig(basic)])
-    capabilities = {"v1.0": {"supportedCatalogIds": [basic.catalog_id]}}
+    capabilities = {"1.0": {"supportedCatalogIds": [basic.catalog_id]}}
     state = generator.create_processor(capabilities).create_state()
 
     processor = generator.create_processor(capabilities, state=state)
@@ -182,9 +182,9 @@ def test_generator_binds_the_state_to_the_processor():
 
 
 def test_generator_rejects_a_state_for_other_catalogs():
-    basic = BasicCatalog("v1.0")
+    basic = BasicCatalog("1.0")
     generator = A2uiGenerator(catalogs=[CatalogConfig(basic)])
-    capabilities = {"v1.0": {"supportedCatalogIds": [basic.catalog_id]}}
+    capabilities = {"1.0": {"supportedCatalogIds": [basic.catalog_id]}}
     other = RendererState([Catalog(catalog_id="other", protocol_version="1.0")])
 
     with pytest.raises(A2uiCatalogError, match="active catalogs"):

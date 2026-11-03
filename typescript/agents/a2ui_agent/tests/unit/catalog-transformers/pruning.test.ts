@@ -41,7 +41,7 @@ describe('Pruning Transformers', () => {
   };
 
   it('ComponentPruningTransformer correctly prunes components and is immutable', () => {
-    const catalog = new Catalog('test', 'v1.0', [compA, compB], [funcX, funcY]);
+    const catalog = new Catalog('test', '1.0', [compA, compB], [funcX, funcY]);
 
     // Access getters to memoize their state on the original catalog
     const originalSchema = catalog.validationSchema;
@@ -76,7 +76,7 @@ describe('Pruning Transformers', () => {
   });
 
   it('FunctionPruningTransformer correctly prunes functions and is immutable', () => {
-    const catalog = new Catalog('test', 'v1.0', [compA, compB], [funcX, funcY]);
+    const catalog = new Catalog('test', '1.0', [compA, compB], [funcX, funcY]);
 
     const originalSchema = catalog.validationSchema;
 
@@ -104,7 +104,7 @@ describe('Pruning Transformers', () => {
   });
 
   it('ComponentPruningTransformer keeps no components when given a null allowlist', () => {
-    const catalog = new Catalog('test', 'v1.0', [compA, compB], [funcX, funcY]);
+    const catalog = new Catalog('test', '1.0', [compA, compB], [funcX, funcY]);
     const transformer = new ComponentPruningTransformer(null);
     const pruned = transformer.transform(catalog);
 
@@ -114,7 +114,7 @@ describe('Pruning Transformers', () => {
   });
 
   it('FunctionPruningTransformer keeps no functions when given a null allowlist', () => {
-    const catalog = new Catalog('test', 'v1.0', [compA, compB], [funcX, funcY]);
+    const catalog = new Catalog('test', '1.0', [compA, compB], [funcX, funcY]);
     const transformer = new FunctionPruningTransformer(null);
     const pruned = transformer.transform(catalog);
 

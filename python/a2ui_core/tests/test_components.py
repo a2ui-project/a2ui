@@ -137,8 +137,8 @@ def test_text_component_variant_enum():
     # A JSON Schema default is documentation, not a value the producer should add.
     comp_default = TextComponent(id="text_1", component="Text", text="Hello Default")
     assert comp_default.variant is None
-    assert TextComponent.model_json_schema()["properties"]["variant"]["default"] == (
-        "body"
+    assert (
+        TextComponent.model_json_schema()["properties"]["variant"]["default"] == "body"
     )
 
     # 2. Validation fails on invalid variant value

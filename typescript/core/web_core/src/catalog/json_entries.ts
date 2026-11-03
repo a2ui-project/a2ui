@@ -16,6 +16,7 @@
 
 import type {z} from 'zod';
 
+import {A2uiMetadata} from '../common/metadata.js';
 import type {JsonSchemaObject} from './spec_annotations.js';
 
 /**
@@ -89,6 +90,8 @@ export class JsonComponentApi {
   declare readonly allowedParents?: string[];
   /** Allowed child component types, as the definition declares them. */
   declare readonly allowedChildren?: string[];
+  /** Component-level metadata, as the definition declares it. */
+  declare readonly metadata?: A2uiMetadata;
 
   /**
    * @param name The component's name.
@@ -106,6 +109,8 @@ export class JsonComponentApi {
       schema: () => deriveSchema(jsonSchema),
       allowedParents: () => stringList(jsonSchema['allowedParents']),
       allowedChildren: () => stringList(jsonSchema['allowedChildren']),
+      metadata: () =>
+        isObject(jsonSchema['metadata']) ? (jsonSchema['metadata'] as A2uiMetadata) : undefined,
     });
     Object.freeze(this);
   }

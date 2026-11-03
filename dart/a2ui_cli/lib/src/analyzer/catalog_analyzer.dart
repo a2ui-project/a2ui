@@ -25,6 +25,7 @@ String capitalize(String s) {
 class CatalogAnalyzer {
   final Map<String, EnumType> _enums = {};
   final Map<String, AnalysedObjectModel> _objectModels = {};
+  bool _isV10 = false;
 
   /// Every type name the emitter will declare, in one namespace.
   ///
@@ -45,6 +46,7 @@ class CatalogAnalyzer {
   AnalysedCatalog analyzeCatalog(CodegenCatalog catalog) {
     _enums.clear();
     _objectModels.clear();
+    _isV10 = catalog.catalog.protocolVersion == A2uiProtocolVersion.v1_0;
     _reservedNames
       ..clear()
       ..addAll(catalog.components.keys);
@@ -198,7 +200,7 @@ class CatalogAnalyzer {
           isRequired: isRequired,
         );
       }
-      if (defName == 'ComponentId') {
+      if (defName == 'ComponentId' || (_isV10 && defName == 'Child')) {
         return PropertyDescriptor(
           name: propName,
           type: const ComponentRefType(),
@@ -429,7 +431,7 @@ class CatalogAnalyzer {
           '';
       final String itemDef = itemRef.isNotEmpty ? itemRef.split('/').last : '';
 
-      if (itemDef == 'ComponentId') {
+      if (itemDef == 'ComponentId' || (_isV10 && itemDef == 'Child')) {
         return PropertyDescriptor(
           name: propName,
           type: const ComponentListType(),

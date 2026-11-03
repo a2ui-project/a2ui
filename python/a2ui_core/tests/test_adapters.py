@@ -55,6 +55,7 @@ def test_supported_protocol_versions():
     assert "0.8" in SUPPORTED_PROTOCOL_VERSIONS
     assert "1.1" not in SUPPORTED_PROTOCOL_VERSIONS
     assert "0.9" in DEFAULT_CATALOG_COMPATIBILITY.get("0.9.1", frozenset())
+    assert ProtocolVersion("1.0") == ProtocolVersion.V1_0
 
 
 def test_is_catalog_version_compatible():
@@ -165,7 +166,7 @@ def test_adapter_catalog_compatibility_methods():
 def test_version_adapter_factory_get_adapter():
     """Verifies that VersionAdapterFactory resolves adapters and checks compatibility."""
     adapter = VersionAdapterFactory.get_adapter("v1.0")
-    assert adapter.version.value == "v1.0"
+    assert adapter.version.value == "1.0"
     assert adapter.is_catalog_compatible("1.0") is True
 
     adapter_09 = VersionAdapterFactory.get_adapter("v0.9.1")
@@ -178,7 +179,7 @@ def test_version_adapter_factory_get_adapter():
 def test_resolve_v1_0_and_extract_operations():
     """Verifies resolving v1.0 adapter and extracting operations with initial state and surface properties."""
     payload = {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
             "surfaceId": "s1",
             "catalogId": "basic",
@@ -326,7 +327,7 @@ def test_extract_operations_invalid_version_raises_validation_error():
     v10_adapter = VersionAdapterFactory.get_adapter("v1.0")
     with pytest.raises(
         A2uiValidationError,
-        match=r"version: Input should be 'v1\.0'",
+        match=r"version: Input should be '1\.0'",
     ):
         v10_adapter.extract_operations({
             "version": "v0.9",
@@ -375,7 +376,8 @@ def test_unrecognized_or_missing_version_strings():
     with pytest.raises(
         A2uiValidationError,
         match=(
-            r"Unsupported protocol version 'v99\.0'\. Supported versions: v0\.8, v0\.9,"
+            r"Unsupported protocol version 'v99\.0'\. Supported versions: v0\.8,"
+            r" v0\.9,"
             r" v0\.9\.1, v1\.0\."
         ),
     ):
@@ -399,8 +401,11 @@ def test_resolves_v0_9_1_version_string_to_v0_9_adapter():
 def test_batch_payloads():
     """Verifies resolving adapter and extracting operations from batch array payloads."""
     payload = [
-        {"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "basic"}},
-        {"version": "v1.0", "deleteSurface": {"surfaceId": "s1"}},
+        {
+            "version": "1.0",
+            "createSurface": {"surfaceId": "s1", "catalogId": "basic"},
+        },
+        {"version": "1.0", "deleteSurface": {"surfaceId": "s1"}},
     ]
     adapter = VersionAdapterFactory.resolve_from_payload(payload)
     assert adapter.version == ProtocolVersion.V1_0
@@ -415,9 +420,9 @@ def test_wrapped_messages_payload():
     """Verifies resolving adapter and extracting operations from wrapped { messages: [...] } payload."""
     payload = {
         "messages": [
-            {"version": "v1.0", "createSurface": {"surfaceId": "s1"}},
+            {"version": "1.0", "createSurface": {"surfaceId": "s1"}},
             {
-                "version": "v1.0",
+                "version": "1.0",
                 "updateComponents": {
                     "surfaceId": "s1",
                     "components": [{"id": "root", "component": "Column"}],
@@ -436,10 +441,10 @@ def test_wrapped_messages_payload():
 
 def test_extract_operations_v1_0_actions():
     """Verifies extracting updateComponents, updateDataModel, and deleteSurface operations."""
-    adapter = VersionAdapterFactory.get_adapter("v1.0")
+    adapter = VersionAdapterFactory.get_adapter("1.0")
 
     uc_ops = adapter.extract_operations({
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
             "surfaceId": "s1",
             "components": [{"id": "c1", "component": "Text", "text": "Hi"}],
@@ -451,7 +456,7 @@ def test_extract_operations_v1_0_actions():
     assert uc_ops[0].components == [{"id": "c1", "component": "Text", "text": "Hi"}]
 
     ud_ops = adapter.extract_operations({
-        "version": "v1.0",
+        "version": "1.0",
         "updateDataModel": {
             "surfaceId": "s1",
             "path": "/user/name",
@@ -465,7 +470,7 @@ def test_extract_operations_v1_0_actions():
     assert ud_ops[0].value == "Alice"
 
     ds_ops = adapter.extract_operations({
-        "version": "v1.0",
+        "version": "1.0",
         "deleteSurface": {
             "surfaceId": "s1",
         },
@@ -538,13 +543,13 @@ def test_extract_operations_cross_version_action_rejection():
             "beginRendering": {"surfaceId": "s1"},
         })
 
-    v10_adapter = VersionAdapterFactory.get_adapter("v1.0")
+    v10_adapter = VersionAdapterFactory.get_adapter("1.0")
     with pytest.raises(
         A2uiValidationError,
-        match=r"action 'beginRendering' is not supported in protocol version v1.0",
+        match=r"action 'beginRendering' is not supported in protocol version 1.0",
     ):
         v10_adapter.extract_operations({
-            "version": "v1.0",
+            "version": "1.0",
             "beginRendering": {"surfaceId": "s1"},
         })
 
@@ -582,8 +587,8 @@ def test_version_normalization_without_leading_v():
         assert len(ops) == 1
         assert isinstance(ops[0], InternalCreateSurfaceOp)
 
-    v10_adapter = VersionAdapterFactory.get_adapter("v1.0")
-    for ver in ["1.0", "v1.0"]:
+    v10_adapter = VersionAdapterFactory.get_adapter("1.0")
+    for ver in ["1.0"]:
         ops = v10_adapter.extract_operations({
             "version": ver,
             "createSurface": {

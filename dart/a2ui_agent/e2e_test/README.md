@@ -14,3 +14,8 @@ because it requires an API key. To run it locally:
 export GEMINI_API_KEY=your_api_key
 dart test
 ```
+
+A test that calls the model is skipped, with a warning, when the
+model stays unavailable through every retry: the API key is out of quota
+(HTTP 429) or the model is overloaded (HTTP 503). That says nothing about the
+code under test, so it does not fail the run.

@@ -40,6 +40,18 @@ describe('DataModel', () => {
     assert.strictEqual(Object.keys(model.get('/user')).includes('name'), false);
   });
 
+  it('removes keys when value is null unless preserveNull is set', () => {
+    model.set('/user/name', null);
+    assert.strictEqual(Object.keys(model.get('/user')).includes('name'), false);
+
+    model.set('/user/nickname', null, true);
+    assert.strictEqual(model.get('/user/nickname'), null);
+    assert.strictEqual(Object.keys(model.get('/user')).includes('nickname'), true);
+
+    model.set('/items/1', null, true);
+    assert.deepStrictEqual(model.get('/items'), ['a', null, 'c']);
+  });
+
   // --- Subscriptions (TS-specific Subscription API) ---
 
   it('returns a subscription object', () => {

@@ -111,11 +111,43 @@ enum A2UISchemaGenerator {
       .joined(separator: "\n")
   }
 
-  private static func rewriteRefs(_ node: Any, isV10: Bool) -> Any {
+  private static func rewriteRefs(
+    _ node: Any,
+    isV10: Bool,
+    localDefs: [String: Any] = [:],
+    visitedDefs: Set<String> = []
+  ) -> Any {
     if let list = node as? [Any] {
-      return list.map { rewriteRefs($0, isV10: isV10) }
+      return list.map {
+        rewriteRefs($0, isV10: isV10, localDefs: localDefs, visitedDefs: visitedDefs)
+      }
     }
     if let dict = node as? [String: Any] {
+      if let refStr = dict["$ref"] as? String,
+        refStr.hasPrefix("#/$defs/")
+      {
+        let defName = String(refStr.dropFirst("#/$defs/".count))
+        if !visitedDefs.contains(defName),
+          let localDef = localDefs[defName],
+          var resolved = rewriteRefs(
+            localDef,
+            isV10: isV10,
+            localDefs: localDefs,
+            visitedDefs: visitedDefs.union([defName])
+          ) as? [String: Any]
+        {
+          for (key, value) in dict where key != "$ref" {
+            resolved[key] = rewriteRefs(
+              value,
+              isV10: isV10,
+              localDefs: localDefs,
+              visitedDefs: visitedDefs
+            )
+          }
+          return resolved
+        }
+      }
+
       var out: [String: Any] = [:]
       for (key, value) in dict {
         if key == "$ref", let refStr = value as? String {
@@ -133,7 +165,12 @@ enum A2UISchemaGenerator {
             out[key] = value
           }
         } else {
-          out[key] = rewriteRefs(value, isV10: isV10)
+          out[key] = rewriteRefs(
+            value,
+            isV10: isV10,
+            localDefs: localDefs,
+            visitedDefs: visitedDefs
+          )
         }
       }
       return out
@@ -488,6 +525,9 @@ enum A2UISchemaGenerator {
       throw GeneratorError.invalidJSON("catalog.json components")
     }
 
+    let v091Defs = (v091Catalog["$defs"] as? [String: Any]) ?? [:]
+    let v10Defs = (v10Catalog["$defs"] as? [String: Any]) ?? [:]
+
     var sections: [String] = [
       """
       // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
@@ -505,8 +545,8 @@ enum A2UISchemaGenerator {
         continue
       }
 
-      let v09Schema = buildV09ComponentSchema(v091Def)
-      let v10Schema = buildV10ComponentSchema(v10Def)
+      let v09Schema = buildV09ComponentSchema(v091Def, localDefs: v091Defs)
+      let v10Schema = buildV10ComponentSchema(v10Def, localDefs: v10Defs)
 
       let propName = compName.prefix(1).lowercased() + compName.dropFirst()
       let v09Body = try formatEmbeddedJSON(v09Schema, indent: 8)
@@ -550,8 +590,12 @@ enum A2UISchemaGenerator {
     return sections.joined(separator: "\n\n") + "\n"
   }
 
-  private static func buildV09ComponentSchema(_ compDef: [String: Any]) -> [String: Any] {
-    let schema = (rewriteRefs(compDef, isV10: false) as? [String: Any]) ?? compDef
+  private static func buildV09ComponentSchema(
+    _ compDef: [String: Any],
+    localDefs: [String: Any]
+  ) -> [String: Any] {
+    let schema =
+      (rewriteRefs(compDef, isV10: false, localDefs: localDefs) as? [String: Any]) ?? compDef
     let commonProps: [String: Any] = [
       "id": ["$ref": "\(v091BaseURI)#/$defs/ComponentId"],
       "accessibility": ["$ref": "\(v091BaseURI)#/$defs/AccessibilityAttributes"],
@@ -609,8 +653,12 @@ enum A2UISchemaGenerator {
     return result
   }
 
-  private static func buildV10ComponentSchema(_ compDef: [String: Any]) -> [String: Any] {
-    let schema = (rewriteRefs(compDef, isV10: true) as? [String: Any]) ?? compDef
+  private static func buildV10ComponentSchema(
+    _ compDef: [String: Any],
+    localDefs: [String: Any]
+  ) -> [String: Any] {
+    let schema =
+      (rewriteRefs(compDef, isV10: true, localDefs: localDefs) as? [String: Any]) ?? compDef
     let commonProps: [String: Any] = [
       "id": ["$ref": "\(v10BaseURI)#/$defs/ComponentId"],
       "catalogId": ["type": "string"],

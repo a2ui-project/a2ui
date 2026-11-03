@@ -27,7 +27,7 @@ public struct GalleryMainView: View {
     NavigationSplitView(columnVisibility: $columnVisibility) {
       List(selection: $viewModel.selectedSample) {
         ForEach(SampleStream.Category.allCases, id: \.self) { category in
-          let streams = viewModel.sampleStreams.filter { $0.category == category }
+          let streams = viewModel.filteredStreams.filter { $0.category == category }
           if !streams.isEmpty {
             Section(header: Text(category.rawValue)) {
               ForEach(streams) { stream in
@@ -51,6 +51,20 @@ public struct GalleryMainView: View {
             }
           }
         }
+      }
+      .safeAreaInset(edge: .top, spacing: 0) {
+        VStack(spacing: 0) {
+          Picker("Protocol Version", selection: $viewModel.selectedVersion) {
+            ForEach(SampleStream.ProtocolVersion.allCases) { version in
+              Text(version.rawValue).tag(version)
+            }
+          }
+          .pickerStyle(.segmented)
+          .padding(.horizontal, 16)
+          .padding(.vertical, 8)
+          Divider()
+        }
+        .background(.bar)
       }
       .navigationTitle("A2UI Gallery")
       .onAppear {

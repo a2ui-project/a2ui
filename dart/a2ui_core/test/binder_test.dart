@@ -475,7 +475,6 @@ void main() {
                 'result': {'path': '/r2'},
               },
             },
-            'message': 'Fallback 2',
           },
           {
             'condition': {
@@ -484,7 +483,6 @@ void main() {
                 'result': {'path': '/r3'},
               },
             },
-            'message': 'Fallback 3',
           },
           {
             'condition': {
@@ -493,7 +491,6 @@ void main() {
                 'result': {'path': '/r4'},
               },
             },
-            'message': 'Fallback 4',
           },
           {
             'condition': {
@@ -503,6 +500,19 @@ void main() {
               },
             },
             'message': 'Fallback 5',
+          },
+          {
+            'condition': {
+              'call': 'checkResult',
+              'args': {
+                'result': {'path': '/r2'},
+              },
+            },
+            'message': 'Explicit rule override',
+          },
+          {
+            'condition': {'path': '/r2'},
+            'message': 'Path fallback ignored when message present',
           },
         ],
       });
@@ -515,6 +525,8 @@ void main() {
       expect(binder.resolvedProps.value['validationErrors'], [
         'Function error message',
         'Fallback 5',
+        'Explicit rule override',
+        'Function error message',
       ]);
       expect(binder.resolvedProps.value['validationResults'], [
         const ValidationResult(
@@ -538,6 +550,18 @@ void main() {
         const ValidationResult(
           valid: false,
           message: 'Fallback 5',
+          severity: 'error',
+        ),
+        const ValidationResult(
+          valid: false,
+          message: 'Explicit rule override',
+          code: 'ERR_CUSTOM',
+          severity: 'error',
+        ),
+        const ValidationResult(
+          valid: false,
+          message: 'Function error message',
+          code: 'ERR_CUSTOM',
           severity: 'error',
         ),
       ]);
@@ -570,7 +594,8 @@ void main() {
       customSurface.dispose();
     });
 
-    test('reports validation error for non-map rule entries in checks', () {
+    test('reports validation error for non-map rule entries in checks',
+        () async {
       final errors = <A2uiRendererError>[];
       surface.onError.subscribe(errors.add);
       surface.dataModel.set('/valid', false);
@@ -590,6 +615,7 @@ void main() {
 
       final context = ComponentContext(surface, comp);
       final binder = GenericBinder(context, TestTextFieldApi().schema);
+      await Future<void>.delayed(Duration.zero);
 
       expect(errors, hasLength(2));
       expect(errors[0].code, 'VALIDATION_FAILED');
@@ -718,7 +744,7 @@ void main() {
           's-v1',
           defaultCatalog:
               catalog.copyWith(protocolVersion: A2uiProtocolVersion.v1_0),
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
         );
         addTearDown(v1Surface.dispose);
         v1Surface.dataModel.set('/val', 'initial');
@@ -765,7 +791,7 @@ void main() {
         final errors = <A2uiRendererError>[];
         final v1Surface = SurfaceModel<ComponentApi>(
           's-v1-fn',
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
           defaultCatalog: Catalog<ComponentApi, FunctionImplementation>(
             id: 'test-v1',
             protocolVersion: A2uiProtocolVersion.v1_0,
@@ -855,7 +881,7 @@ void main() {
         's-v1-tpl',
         defaultCatalog:
             catalog.copyWith(protocolVersion: A2uiProtocolVersion.v1_0),
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
       );
       addTearDown(v1Surface.dispose);
       v1Surface.dataModel.set('/todos', [

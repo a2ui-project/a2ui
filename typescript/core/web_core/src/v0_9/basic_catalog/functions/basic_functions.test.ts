@@ -20,8 +20,15 @@ import {effect, Signal, getValue} from '../../../reactivity/signals.js';
 
 import fs from 'node:fs';
 import path from 'node:path';
-import {BASIC_FUNCTIONS, createBasicCatalogFunctions} from './basic_functions.js';
+import {
+  BASIC_FUNCTIONS,
+  LEGACY_V09_FUNCTIONS,
+  V09_SPEC_FUNCTIONS,
+  createBasicCatalogFunctions,
+} from './basic_functions.js';
 import {BASIC_FUNCTION_APIS} from './basic_functions_api.js';
+import {LEGACY_V09_FUNCTION_APIS} from './legacy_functions_api.js';
+import {basicCatalog} from '../catalog.js';
 import {DataModel} from '../../../state/data-model.js';
 import {DataContext} from '../../../resolution/data-context.js';
 import {A2uiExpressionError} from '../../../errors.js';
@@ -40,6 +47,39 @@ describe('BASIC_FUNCTION_APIS Spec Parity', () => {
       const specFuncNames = Object.keys(specCatalog.functions || {}).sort();
       const codeFuncNames = BASIC_FUNCTION_APIS.map(f => f.name).sort();
       assert.deepStrictEqual(codeFuncNames, specFuncNames);
+      assert.deepStrictEqual([...basicCatalog.functions.keys()].sort(), specFuncNames);
+      assert.deepStrictEqual(V09_SPEC_FUNCTIONS.map(f => f.name).sort(), specFuncNames);
+    }
+  });
+
+  it('keeps the legacy 0.9.x functions in BASIC_FUNCTIONS but out of basicCatalog', () => {
+    const legacyNames = [
+      'add',
+      'subtract',
+      'multiply',
+      'divide',
+      'equals',
+      'not_equals',
+      'greater_than',
+      'less_than',
+      'contains',
+      'starts_with',
+      'ends_with',
+    ];
+    assert.deepStrictEqual(
+      LEGACY_V09_FUNCTION_APIS.map(f => f.name),
+      legacyNames,
+    );
+    assert.deepStrictEqual(
+      LEGACY_V09_FUNCTIONS.map(f => f.name),
+      legacyNames,
+    );
+    assert.deepStrictEqual(
+      BASIC_FUNCTIONS.map(f => f.name),
+      [...legacyNames, ...V09_SPEC_FUNCTIONS.map(f => f.name)],
+    );
+    for (const name of legacyNames) {
+      assert.ok(!basicCatalog.functions.has(name), `${name} must not be in basicCatalog`);
     }
   });
 });
@@ -65,6 +105,33 @@ const createTestDataContext = (
 describe('BASIC_FUNCTIONS', () => {
   const dataModel = new DataModel({a: 10, b: 20});
   const context = createTestDataContext(dataModel, '/');
+
+  describe('Legacy 0.9.x functions', () => {
+    it('arithmetic', () => {
+      assert.strictEqual(invoke('add', {a: 1, b: 2}, context), 3);
+      assert.strictEqual(invoke('subtract', {a: 5, b: 2}, context), 3);
+      assert.strictEqual(invoke('multiply', {a: 3, b: 4}, context), 12);
+      assert.strictEqual(invoke('divide', {a: 8, b: 2}, context), 4);
+      assert.strictEqual(invoke('divide', {a: 1, b: 0}, context), Infinity);
+    });
+    it('comparison', () => {
+      assert.strictEqual(invoke('equals', {a: 1, b: 1}, context), true);
+      assert.strictEqual(invoke('not_equals', {a: 1, b: 2}, context), true);
+      assert.strictEqual(invoke('greater_than', {a: 2, b: 1}, context), true);
+      assert.strictEqual(invoke('less_than', {a: 2, b: 1}, context), false);
+      assert.throws(() => invoke('equals', {a: 1}, context), A2uiExpressionError);
+    });
+    it('strings', () => {
+      assert.strictEqual(invoke('contains', {string: 'hello', substring: 'ell'}, context), true);
+      assert.strictEqual(invoke('starts_with', {string: 'hello', prefix: 'he'}, context), true);
+      assert.strictEqual(invoke('ends_with', {string: 'hello', suffix: 'lo'}, context), true);
+      assert.strictEqual(invoke('ends_with', {string: 'hello', suffix: 'he'}, context), false);
+      assert.throws(
+        () => invoke('contains', {string: null, substring: 'null'}, context),
+        A2uiExpressionError,
+      );
+    });
+  });
 
   describe('Logical', () => {
     it('and', () => {

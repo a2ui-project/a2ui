@@ -101,4 +101,5 @@ export {
   TextApi,
   TextFieldApi,
   VideoApi,
+  WeightSchema,
 } from './basic_components.js';

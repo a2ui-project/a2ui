@@ -75,6 +75,7 @@ from .agent_to_renderer import (
     AGENT_TO_RENDERER_DEFS,
 )
 from .catalog_definition import (
+    CatalogMetadata,
     FunctionCallValidationSchema,
     FunctionDefinition,
     ComponentDefinition,
@@ -95,6 +96,7 @@ from .agent_capabilities import (
     A2uiAgentCapabilities,
 )
 from .renderer_to_agent import (
+    ActionMetadata,
     A2uiRendererAction,
     ActionPayload,
     A2uiRendererActionMessage,
@@ -167,6 +169,7 @@ __all__ = [
     "AgentToRendererMessageList",
     "AgentToRendererMessageListWrapper",
     "AGENT_TO_RENDERER_DEFS",
+    "CatalogMetadata",
     "FunctionCallValidationSchema",
     "FunctionDefinition",
     "ComponentDefinition",
@@ -181,6 +184,7 @@ __all__ = [
     "V10AgentCapabilities",
     "V1_0AgentCapabilities",
     "A2uiAgentCapabilities",
+    "ActionMetadata",
     "A2uiRendererAction",
     "ActionPayload",
     "A2uiRendererActionMessage",

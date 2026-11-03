@@ -48,9 +48,16 @@ export {
   type RawResponsePart,
   type A2uiPart,
   type ResponsePart,
+  type ErrorPart,
+  type StreamPart,
 } from './parser/response-part.js';
 
-export {type ParseOptions, Parser} from './parser/parser.js';
+export {
+  type ContinuingStreamOptions,
+  type ParseOptions,
+  type StreamOptions,
+  Parser,
+} from './parser/parser.js';
 export {type ResponseStream} from './parser/response-stream.js';
 
 export {PromptGenerator} from './prompt/generator.js';
@@ -100,10 +107,17 @@ export {DirectJsonDecompiler} from './inference-formats/direct-json/decompiler.j
 // Express inference format
 export {
   type ExpressFormatOptions,
+  type ExpressFormatFactoryOptions,
   ExpressFormat,
   ExpressFormatFactory,
 } from './inference-formats/express/format.js';
-export {ExpressParser} from './inference-formats/express/parser.js';
+export {type ExpressParserOptions, ExpressParser} from './inference-formats/express/parser.js';
+export {
+  DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
+  type ExpressStreamOptions,
+  type ExpressStreamSource,
+  ExpressResponseStream,
+} from './inference-formats/express/response-stream.js';
 export {ExpressPromptGenerator} from './inference-formats/express/prompt-generator.js';
 export {ExpressDecompiler} from './inference-formats/express/decompiler.js';
 export {
@@ -128,6 +142,13 @@ export {
 // Facades
 export {A2uiGenerator} from './processor/generator.js';
 export {type A2uiRequestProcessorOptions, A2uiRequestProcessor} from './processor/processor.js';
+export {
+  type AnswerPart,
+  type AnswerSurfacePart,
+  type AnswerTextPart,
+  type StreamedAnswerOptions,
+  StreamedAnswer,
+} from './processor/streamed-answer.js';
 
 // Skill generator
 export {

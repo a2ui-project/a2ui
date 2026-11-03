@@ -24,19 +24,40 @@ let activeRoot: Root | null = null;
 
 const TEST_CONTAINER_ID = 'test-container';
 
+export type SpecVersionInput = '0.9' | '1.0' | 'v0.9' | 'v1.0';
+
 /**
  * Mounts the <App> component preloaded with the specified example.
  *
  * @param filename The exact filename of the A2UI JSON example (e.g., "02_email-compose.json").
- * @param onAction Optional callback to capture action dispatch events.
+ * @param onActionOrVersion Optional callback to capture action dispatch events, or protocol version.
+ * @param versionOrOnAction Optional protocol version, or callback to capture action dispatch events.
  * @returns A promise that resolves to the container element.
  */
 export async function loadExample(
   filename: string,
-  onAction?: (action: A2uiClientAction) => void,
+  onActionOrVersion?: ((action: A2uiClientAction) => void) | SpecVersionInput,
+  versionOrOnAction?: SpecVersionInput | ((action: A2uiClientAction) => void),
 ): Promise<HTMLDivElement> {
   // Clean up previous runs
   await cleanup();
+
+  const onAction =
+    typeof onActionOrVersion === 'function'
+      ? onActionOrVersion
+      : typeof versionOrOnAction === 'function'
+        ? versionOrOnAction
+        : undefined;
+  const rawVersion =
+    typeof onActionOrVersion === 'string'
+      ? onActionOrVersion
+      : typeof versionOrOnAction === 'string'
+        ? versionOrOnAction
+        : undefined;
+  // Always pass an explicit version: the explorer writes the selected version
+  // into the URL, so relying on its URL fallback would leak a previous test's
+  // version into the next one.
+  const initialVersion = rawVersion === '1.0' || rawVersion === 'v1.0' ? 'v1.0' : 'v0.9';
 
   const container = document.createElement('div');
   container.id = TEST_CONTAINER_ID;
@@ -49,7 +70,7 @@ export async function loadExample(
   activeRoot = root;
 
   await act(async () => {
-    root.render(<App initialExampleId={id} onAction={onAction} />);
+    root.render(<App initialExampleId={id} initialVersion={initialVersion} onAction={onAction} />);
     await whenSettled();
   });
 
@@ -112,4 +133,40 @@ export function getSurface(root: Element): HTMLElement {
     throw new Error('surfaceContainer not found in root element');
   }
   return surface as HTMLElement;
+}
+
+/**
+ * Sets an input element's value via the native prototype setter and dispatches a bubbling input event.
+ */
+export function changeInputValue(input: HTMLInputElement, value: string): void {
+  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    'value',
+  )?.set;
+  if (nativeInputValueSetter) {
+    nativeInputValueSetter.call(input, value);
+  } else {
+    input.value = value;
+  }
+  input.dispatchEvent(new Event('input', {bubbles: true}));
+}
+
+/**
+ * Polls a condition function at a fixed interval until it returns true or times out.
+ */
+export async function waitForCondition(
+  condition: () => boolean,
+  timeout = 1000,
+  interval = 50,
+): Promise<boolean> {
+  const start = performance.now();
+  while (true) {
+    if (condition()) {
+      return true;
+    }
+    if (performance.now() - start > timeout) {
+      return false;
+    }
+    await new Promise(resolve => setTimeout(resolve, interval));
+  }
 }

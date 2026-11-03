@@ -65,7 +65,7 @@ describe('v1.0 Example: Advanced Form Validator', () => {
     emailInput.dispatchEvent(new Event('input'));
     await whenSettled(gallery);
 
-    expect(getDeepTextContent(surface)).toContain('Must be a valid email address.');
+    expect(getDeepTextContent(surface)).toContain('Invalid email format');
   });
 
   it('should show error for invalid phone', async () => {
@@ -77,7 +77,7 @@ describe('v1.0 Example: Advanced Form Validator', () => {
     phoneInput.dispatchEvent(new Event('input'));
     await whenSettled(gallery);
 
-    expect(getDeepTextContent(surface)).toContain('Value does not match required pattern.');
+    expect(getDeepTextContent(surface)).toContain('Invalid phone format');
   });
 
   it('should show error for invalid zip', async () => {
@@ -89,6 +89,6 @@ describe('v1.0 Example: Advanced Form Validator', () => {
     zipInput.dispatchEvent(new Event('input'));
     await whenSettled(gallery);
 
-    expect(getDeepTextContent(surface)).toContain('Value does not match required pattern.');
+    expect(getDeepTextContent(surface)).toContain('Must be exactly 5 digits');
   });
 });

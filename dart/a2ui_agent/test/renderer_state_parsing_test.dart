@@ -320,9 +320,8 @@ void main() {
       expect(componentIds(state), {'root'});
     });
 
-    test('a chunk that fails after applying a block leaves the state '
-        'unchanged', () {
-      // A chunk that throws returns no parts, so the state keeps none of it.
+    test('a chunk that fails after finishing a block keeps the block and '
+        'returns it with the error', () {
       final state = RendererState([basic]);
       final DirectJsonResponseStream stream = parser().openStream(state: state);
       final Map<String, Object?> otherCreate = {
@@ -339,17 +338,67 @@ void main() {
         },
       };
 
-      expect(
-        () => stream.feed(
-          block([
-                create,
-                update([text('root')]),
-              ]) +
-              block([otherCreate, invalid]),
-        ),
-        throwsA(isA<A2uiValidationError>()),
-      );
-      expect(state.surfaceIds, isEmpty);
+      Object? error;
+      try {
+        stream.feed(
+          'Before ${block([
+            create,
+            update([text('root')]),
+          ])} between '
+          '${block([otherCreate, invalid])}',
+        );
+      } on Object catch (e) {
+        error = e;
+      }
+
+      expect(error, isA<A2uiValidationError>());
+      final List<ResponsePart> partial = (error! as A2uiError).partialResults;
+      expect(partial.map((p) => p.runtimeType), [TextPart, A2uiPart, TextPart]);
+      expect((partial.first as TextPart).text, 'Before');
+      expect((partial.last as TextPart).text, 'between');
+      expect(state.surfaceIds, ['s']);
+    });
+
+    test(
+      'a block that fails in a later chunk keeps what earlier chunks emitted',
+      () {
+        final DirectJsonResponseStream stream = parser().openStream();
+
+        A2uiError? error;
+        try {
+          // The surface's create closes and is emitted before the component
+          // the state rejects.
+          stream
+            ..feed('<a2ui-json>[${jsonEncode(create)}, ')
+            ..feed(
+              '${jsonEncode(update([
+                {'id': 'root', 'component': 'Bogus'},
+              ]))}]'
+              '</a2ui-json>',
+            );
+        } on A2uiError catch (e) {
+          error = e;
+        }
+
+        expect(error, isNotNull);
+        expect(stream.state.surfaceIds, ['s']);
+        expect(error!.partialResults, isEmpty);
+      },
+    );
+
+    test('close sets partialResults on the error it throws', () {
+      final DirectJsonResponseStream stream = parser().openStream()
+        ..feed('Text <a2ui-json>[');
+
+      A2uiError? error;
+      try {
+        stream.close();
+      } on A2uiError catch (e) {
+        error = e;
+      }
+
+      expect(error, isA<A2uiParseError>());
+      expect(error!.partialResults, isEmpty);
     });
 
     test('close flushes text held as a possible tag', () {
@@ -603,6 +652,132 @@ void main() {
 
       parser().parseResponse(block([changeA]), state: state);
       expect(components(state)['a'], containsPair('text', 'Changed'));
+    });
+  });
+
+  group('isInBlock', () {
+    test('is true from the end of an opening tag to its closing tag', () {
+      final DirectJsonResponseStream stream = parser().openStream();
+
+      stream.feed('Hello <a2ui');
+      expect(stream.isInBlock, isFalse);
+      stream.feed('-json>[');
+      expect(stream.isInBlock, isTrue);
+      stream.feed('${jsonEncode(create)}] </a2ui');
+      expect(stream.isInBlock, isTrue);
+      stream.feed('-json> after');
+      expect(stream.isInBlock, isFalse);
+    });
+
+    test('is true for an unwrapped stream until it ends', () {
+      final DirectJsonResponseStream stream = parser().openStream(
+        wrapped: false,
+      );
+
+      expect(stream.isInBlock, isTrue);
+      stream.feed(jsonEncode([create]));
+      expect(stream.isInBlock, isTrue);
+      stream.close();
+      expect(stream.isInBlock, isFalse);
+    });
+
+    test('is false once the stream has ended inside a block', () {
+      final DirectJsonResponseStream stream = parser().openStream()
+        ..feed('<a2ui-json>[');
+
+      expect(stream.close, throwsA(isA<A2uiParseError>()));
+      expect(stream.isInBlock, isFalse);
+    });
+  });
+
+  group('openContinuingStream', () {
+    final Map<String, Object?> bogus = update([
+      {'id': 'root', 'component': 'Bogus'},
+    ]);
+
+    test(
+      'returns an error part in place of a rejected block, and reads on',
+      () {
+        final DirectJsonContinuingResponseStream stream = parser()
+            .openContinuingStream();
+        final Map<String, Object?> otherCreate = {
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 'other', 'catalogId': basic.id},
+        };
+
+        final List<StreamPart> parts = stream.feed(
+          'Before ${block([otherCreate, bogus])} between '
+          '${block([
+            create,
+            update([text('root')]),
+          ])} after',
+        );
+
+        expect(parts.map((p) => p.runtimeType), [
+          TextPart,
+          ErrorPart,
+          TextPart,
+          A2uiPart,
+          TextPart,
+        ]);
+        expect((parts[1] as ErrorPart).error, isA<A2uiError>());
+        expect(stream.state.surfaceIds, ['s']);
+        expect(stream.close(), isEmpty);
+      },
+    );
+
+    test('keeps what a rejected block emitted and skips the rest of it', () {
+      final DirectJsonContinuingResponseStream stream = parser()
+          .openContinuingStream();
+      final Map<String, Object?> skipped = {
+        'version': 'v0.9',
+        'createSurface': {'surfaceId': 'skipped', 'catalogId': basic.id},
+      };
+
+      final List<StreamPart> first = stream.feed(
+        '<a2ui-json>[${jsonEncode(create)}, ${jsonEncode(bogus)}',
+      );
+      final List<StreamPart> second = stream.feed(
+        ', ${jsonEncode(skipped)}]</a2ui-json> Done.',
+      );
+
+      expect(first.whereType<A2uiPart>(), hasLength(1));
+      expect([...first, ...second].whereType<ErrorPart>(), hasLength(1));
+      expect(second.whereType<TextPart>().single.text, 'Done.');
+      expect(stream.state.surfaceIds, ['s']);
+    });
+
+    test('reports a block that cannot be read', () {
+      final List<StreamPart> parts = parser().openContinuingStream().feed(
+        '<a2ui-json>not json</a2ui-json> after',
+      );
+
+      expect(parts.map((p) => p.runtimeType), [ErrorPart, TextPart]);
+      expect((parts.first as ErrorPart).error, isA<A2uiParseError>());
+    });
+
+    test('returns an error part for a block still open at the end', () {
+      final DirectJsonContinuingResponseStream stream =
+          parser().openContinuingStream()..feed('Text <a2ui-json>[');
+
+      final List<StreamPart> parts = stream.close();
+
+      expect(parts.single, isA<ErrorPart>());
+    });
+
+    test('returns an error part for a rejected unwrapped response', () {
+      final DirectJsonContinuingResponseStream stream = parser()
+          .openContinuingStream(wrapped: false);
+
+      expect(stream.feed('not json'), isEmpty);
+      expect(stream.close().single, isA<ErrorPart>());
+    });
+
+    test('still ends on an error that does not reject a block', () {
+      final DirectJsonContinuingResponseStream stream =
+          parser().openContinuingStream()..close();
+
+      expect(() => stream.feed('text'), throwsStateError);
     });
   });
 

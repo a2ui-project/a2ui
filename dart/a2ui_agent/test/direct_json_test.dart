@@ -263,6 +263,16 @@ void main() {
       }
     });
 
+    test('rejects a number out of range with a parse error', () {
+      expect(
+        () => compile(
+          '[{"version": "v0.9", "updateDataModel": '
+          '{"surfaceId": "s", "path": "/x", "value": 1e400}}]',
+        ),
+        throwsError<A2uiParseError>(),
+      );
+    });
+
     test('rejects a payload without catalogs', () {
       expect(
         () => DirectJsonParser([]).compile('[${create('s')}]'),
@@ -638,6 +648,20 @@ void main() {
           ' <a2ui>root = Text("x")</a2ui>',
         ),
       ]);
+    });
+
+    test('emits nothing for a number out of range until the block closes '
+        'with a parse error', () {
+      final DirectJsonResponseStream reader = parser().openStream();
+      expect(
+        reader.feed(
+          '<a2ui-json>[${create('s')}, {"version": "v0.9", '
+          '"updateDataModel": {"surfaceId": "s", "path": "/x", "value": 1e400',
+        ),
+        [isA<A2uiPart>()],
+      );
+      expect(reader.feed('}}'), isEmpty);
+      expect(() => reader.feed(']</a2ui-json>'), throwsError<A2uiParseError>());
     });
 
     test('rejects catalogs of different versions when it opens', () {

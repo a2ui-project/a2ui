@@ -146,41 +146,13 @@ When the agent uses that catalog, it generates a payload strictly conforming to 
 
 ### Catalog Linking
 
-A catalog's only external references are to the protocol's `common_types.json` and to **peer catalogs**: other catalogs that the agent or renderer already holds locally, because they are registered with it or supplied together with the referencing catalog. Peer catalogs are never fetched over the network.
+A2UI Catalogs must be standalone (no references to external files) to simplify LLM inference and dependency management.
 
-A reference into a peer has the form `<peer document>#/components/<Name>` (a whole component, usually inherited with `allOf`), `<peer document>#/components/<Name>/properties/<property>` (one property's schema) or `<peer document>#/functions/<Name>/...`. `<peer document>` is the peer's `catalogId` or `$id`, or a path or file name that ends one of them:
+While the final catalog must be freestanding, you may still author your catalogs modularly using JSON Schema `$ref` pointing to external documents during local development.
 
-```json
-{
-  "catalogId": "https://example.com/catalogs/branded/v1/catalog.json",
-  "components": {
-    "BrandedText": {
-      "type": "object",
-      "allOf": [
-        {"$ref": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json#/components/Text"}
-      ],
-      "properties": {
-        "component": {"const": "BrandedText"},
-        "badge": {"$ref": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json#/components/Text/properties/text"}
-      },
-      "required": ["component", "badge"]
-    }
-  }
-}
-```
+To automate bundling and registering these external file references, this catalog registration process is called **"Linking"** and is consolidated under a single, multi-platform Node.js script (**`register-catalogs.js`**).
 
-The SDKs resolve such references at runtime against the other catalogs you register or pass in (`linkCatalogs` / `link_catalogs`, `withPeerCatalogs` / `with_peer_catalogs`; the agent SDKs and `MessageProcessor` link the catalogs they are given). Peers are matched in this order, and the first match wins:
-
-1. `common_types.json` always means the protocol's common types, and a document named exactly `catalog.json` means the referencing catalog itself.
-2. A peer whose `catalogId` or `$id` equals the document or ends with it as a path suffix.
-3. A path ending in `/catalog.json` that no peer matched in step 2 means the referencing catalog itself.
-4. A peer whose `$id` or `catalogId` has the same file name as the document. Only `catalog.json` itself is generic, so `mcp_catalog.json` matches a peer by file name.
-
-A reference that matches no peer is a catalog error. Prefer full `$id`s, which always match exactly one peer. See [Cross-Catalog References](../../../specification/v1_0/docs/a2ui_protocol.md#cross-catalog-references) in the v1.0 specification for the normative rules.
-
-You can also bundle external references into a freestanding catalog at build time. This catalog registration process, also called **"Linking"**, is consolidated under a single, multi-platform Node.js script (**`register-catalogs.js`**).
-
-This linking script is natively wrapped inside **Xcode Build Phases** (for iOS/macOS client builds) and **Gradle tasks** (for Android client builds) to compile, aggregate, and link static and dynamic schemas seamlessly during your application's build phase. Renderers that don't resolve peer catalogs at runtime need bundled catalogs.
+This linking script is natively wrapped inside **Xcode Build Phases** (for iOS/macOS client builds) and **Gradle tasks** (for Android client builds) to compile, aggregate, and link static and dynamic schemas seamlessly during your application's build phase.
 
 ### Composition & Imports
 

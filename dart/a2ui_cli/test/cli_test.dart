@@ -31,6 +31,24 @@ String _findRepoRoot() {
   return dir.path;
 }
 
+/// The `dart` CLI executable (`Platform.resolvedExecutable` when running under
+/// `dart`, or locating `dart-sdk/bin/dart` when running under `flutter_tester`).
+String get _dartExecutable {
+  final String exe = Platform.resolvedExecutable;
+  final String name = p.basename(exe);
+  if (name == 'dart' || name == 'dart.exe') return exe;
+  final dartBin = Platform.isWindows ? 'dart.exe' : 'dart';
+  for (
+    Directory dir = File(exe).parent;
+    dir.parent.path != dir.path;
+    dir = dir.parent
+  ) {
+    final candidate = File(p.join(dir.path, 'dart-sdk', 'bin', dartBin));
+    if (candidate.existsSync()) return candidate.path;
+  }
+  return dartBin;
+}
+
 /// Helper that runs [runCli] while capturing [stdout] and [stderr].
 Future<({int exitCode, String stdout, String stderr})> _captureCli(
   List<String> args,
@@ -78,38 +96,58 @@ void main() {
         final ({int exitCode, String stdout, String stderr}) result =
             await _captureCli([flag]);
         expect(result.exitCode, equals(0));
-        expect(result.stdout.trim(), equals('0.0.1-wip001'));
+        expect(result.stdout.trim(), equals('0.1.0'));
       }
     });
 
+    test('honors -DCLI_VERSION compile-time override', () {
+      final ProcessResult result = Process.runSync(_dartExecutable, [
+        'run',
+        '-DCLI_VERSION=9.9.9-test',
+        'bin/a2ui.dart',
+        '--version',
+      ], workingDirectory: p.join(repoRoot, 'dart', 'a2ui_cli'));
+      expect(result.exitCode, equals(0), reason: result.stderr.toString());
+      expect(result.stdout.toString().trim(), equals('9.9.9-test'));
+    });
+
     test(
-      'fails with exit code 1 on unsupported v1.0 catalog version',
+      'succeeds with exit code 0 on supported v1.0 catalog versions',
       () async {
         final Directory tmpDir = Directory.systemTemp.createTempSync(
           'cli-test-v1-',
         );
         try {
-          final v1File = File(p.join(tmpDir.path, 'v1_catalog.json'))
-            ..writeAsStringSync(
-              jsonEncode(<String, Object?>{
-                'catalogId': 'test_v1',
-                'protocolVersion': '1.0',
-                'components': <String, Object?>{},
-              }),
+          for (final (int i, String version) in [
+            '1.0',
+            'v1.0',
+            '1.0.0',
+            '1.0.0-rc.1',
+          ].indexed) {
+            final catalogId = 'test_v1_$i';
+            final v1File = File(p.join(tmpDir.path, '$catalogId.json'))
+              ..writeAsStringSync(
+                jsonEncode(<String, Object?>{
+                  'catalogId': catalogId,
+                  'protocolVersion': version,
+                  'components': <String, Object?>{},
+                }),
+              );
+            final ({int exitCode, String stdout, String stderr}) result =
+                await _captureCli([
+                  'codegen',
+                  '-c',
+                  v1File.path,
+                  '-o',
+                  tmpDir.path,
+                ]);
+            expect(result.exitCode, equals(0), reason: 'version=$version');
+            expect(result.stdout, contains('Successfully generated'));
+            expect(
+              File(p.join(tmpDir.path, '$catalogId.py')).readAsStringSync(),
+              contains('from a2ui.builder.v1_0 import ('),
             );
-          final ({int exitCode, String stdout, String stderr}) result =
-              await _captureCli([
-                'codegen',
-                '-c',
-                v1File.path,
-                '-o',
-                tmpDir.path,
-              ]);
-          expect(result.exitCode, equals(1));
-          expect(
-            result.stderr,
-            contains('Unsupported catalog protocol version'),
-          );
+          }
         } finally {
           tmpDir.deleteSync(recursive: true);
         }
@@ -117,33 +155,36 @@ void main() {
     );
 
     test(
-      'fails with exit code 1 on unsupported v0.8 catalog version',
+      'fails with exit code 1 on unsupported catalog versions (v0.8, 1.1, 2.0)',
       () async {
         final Directory tmpDir = Directory.systemTemp.createTempSync(
-          'cli-test-v08-',
+          'cli-test-unsupported-',
         );
         try {
-          final v08File = File(p.join(tmpDir.path, 'v08_catalog.json'))
-            ..writeAsStringSync(
-              jsonEncode(<String, Object?>{
-                'catalogId': 'test_v08',
-                'protocolVersion': 'v0.8',
-                'components': <String, Object?>{},
-              }),
+          for (final version in ['v0.8', '1.1', '2.0']) {
+            final badFile = File(p.join(tmpDir.path, 'bad_catalog.json'))
+              ..writeAsStringSync(
+                jsonEncode(<String, Object?>{
+                  'catalogId': 'test_unsupported',
+                  'protocolVersion': version,
+                  'components': <String, Object?>{},
+                }),
+              );
+            final ({int exitCode, String stdout, String stderr}) result =
+                await _captureCli([
+                  'codegen',
+                  '-c',
+                  badFile.path,
+                  '-o',
+                  tmpDir.path,
+                ]);
+            expect(result.exitCode, equals(1), reason: 'version=$version');
+            expect(
+              result.stderr,
+              contains('Unsupported catalog protocol version'),
+              reason: 'version=$version',
             );
-          final ({int exitCode, String stdout, String stderr}) result =
-              await _captureCli([
-                'codegen',
-                '-c',
-                v08File.path,
-                '-o',
-                tmpDir.path,
-              ]);
-          expect(result.exitCode, equals(1));
-          expect(
-            result.stderr,
-            contains('Unsupported catalog protocol version'),
-          );
+          }
         } finally {
           tmpDir.deleteSync(recursive: true);
         }
@@ -352,6 +393,65 @@ void main() {
       } finally {
         tmpDir.deleteSync(recursive: true);
       }
+    });
+  });
+
+  group('Compile Tool (tool/compile.dart)', () {
+    test('displays usage information with --help and -h', () {
+      final String compileScript = p.join(
+        repoRoot,
+        'dart',
+        'a2ui_cli',
+        'tool',
+        'compile.dart',
+      );
+      for (final flag in ['--help', '-h']) {
+        final ProcessResult result = Process.runSync(_dartExecutable, [
+          compileScript,
+          flag,
+        ]);
+        expect(result.exitCode, equals(0));
+        expect(result.stdout, contains('Usage: dart tool/compile.dart'));
+        expect(result.stdout, contains('--target'));
+        expect(result.stdout, contains('--version'));
+        expect(result.stdout, contains('--output'));
+      }
+    });
+
+    test('exits with code 64 on unknown flag', () {
+      final String compileScript = p.join(
+        repoRoot,
+        'dart',
+        'a2ui_cli',
+        'tool',
+        'compile.dart',
+      );
+      final ProcessResult result = Process.runSync(_dartExecutable, [
+        compileScript,
+        '--invalid-option',
+      ]);
+      expect(result.exitCode, equals(64));
+      expect(
+        result.stderr,
+        contains('Could not find an option named "--invalid-option"'),
+      );
+    });
+
+    test('exits with code 64 on target mismatch', () {
+      final String compileScript = p.join(
+        repoRoot,
+        'dart',
+        'a2ui_cli',
+        'tool',
+        'compile.dart',
+      );
+      final ProcessResult result = Process.runSync(_dartExecutable, [
+        compileScript,
+        '--target',
+        'nonexistent-arch',
+      ]);
+      expect(result.exitCode, equals(64));
+      expect(result.stderr, contains('does not match host'));
     });
   });
 }

@@ -332,7 +332,7 @@ struct AgentToRendererMessageTests {
     )
     let data = try JSONEncoder().encode(original)
     let json = try #require(String(data: data, encoding: .utf8))
-    #expect(json.contains("\"version\":\"v1.0\""))
+    #expect(json.contains("\"version\":\"1.0\""))
   }
 
   // MARK: - v1.0 Message Tests
@@ -341,7 +341,7 @@ struct AgentToRendererMessageTests {
     let json = try #require(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s1",
           "components": [
@@ -368,7 +368,7 @@ struct AgentToRendererMessageTests {
     let json = try #require(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "callRendererFunction": {
           "functionCallId": "call_123",
           "callFunction": {
@@ -394,7 +394,7 @@ struct AgentToRendererMessageTests {
     let json = try #require(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "agentFunctionResponse": {
           "functionCallId": "call_456",
           "value": 42
@@ -412,7 +412,7 @@ struct AgentToRendererMessageTests {
   }
 
   @Test func protocolVersionDecoding() throws {
-    for version in ["v0.9", "v0.9.1", "v1.0"] {
+    for version in ["v0.9", "v0.9.1", "1.0"] {
       let json = try #require(
         """
         {
@@ -429,7 +429,7 @@ struct AgentToRendererMessageTests {
       }
     }
 
-    for invalid in ["v0.8", "v2.0", "0.9", "0.9.1", "1.0", "0.8", "invalid"] {
+    for invalid in ["v0.8", "v1.0", "v2.0", "0.9", "0.9.1", "0.8", "invalid"] {
       let json = try #require(
         """
         {
@@ -459,7 +459,7 @@ struct AgentToRendererMessageTests {
   @Test func validatorRejectsUnrecognizedAction() throws {
     let processor = MessageProcessor(catalogs: [])
     let payload = JSONValue.object([
-      "version": .string("v1.0"),
+      "version": .string("1.0"),
       "unknownAction": .object([:]),
     ])
     #expect(throws: A2UIValidationError.self) {
@@ -473,7 +473,7 @@ struct AgentToRendererMessageTests {
 
     // Valid v1.0 callRendererFunction
     let validPayload = JSONValue.object([
-      "version": .string("v1.0"),
+      "version": .string("1.0"),
       "callRendererFunction": .object([
         "functionCallId": .string("call_1"),
         "callFunction": .object([
@@ -506,7 +506,7 @@ struct AgentToRendererMessageTests {
 
     // Valid with value
     let validVal = JSONValue.object([
-      "version": .string("v1.0"),
+      "version": .string("1.0"),
       "agentFunctionResponse": .object([
         "functionCallId": .string("call_1"),
         "value": .string("res"),
@@ -516,7 +516,7 @@ struct AgentToRendererMessageTests {
 
     // Valid with error
     let validErr = JSONValue.object([
-      "version": .string("v1.0"),
+      "version": .string("1.0"),
       "agentFunctionResponse": .object([
         "functionCallId": .string("call_1"),
         "error": .object([
@@ -529,7 +529,7 @@ struct AgentToRendererMessageTests {
 
     // Invalid: both value and error
     let both = JSONValue.object([
-      "version": .string("v1.0"),
+      "version": .string("1.0"),
       "agentFunctionResponse": .object([
         "functionCallId": .string("call_1"),
         "value": .string("res"),
@@ -548,7 +548,7 @@ struct AgentToRendererMessageTests {
     let json = try #require(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s1",
           "catalogId": "default",
@@ -610,7 +610,7 @@ struct AgentToRendererMessageTests {
 
   @Test func parseAllHandlesSingleArrayAndWrappedEnvelopesWithoutCatalog() throws {
     let singlePayload: JSONValue = [
-      "version": "v1.0",
+      "version": "1.0",
       "deleteSurface": ["surfaceId": "s1"],
     ]
     let singleParsed = try AgentToRendererMessage.parseAll(singlePayload)
@@ -619,11 +619,11 @@ struct AgentToRendererMessageTests {
 
     let arrayPayload: JSONValue = [
       [
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": ["surfaceId": "s1", "catalogId": "basic"],
       ],
       [
-        "version": "v1.0",
+        "version": "1.0",
         "deleteSurface": ["surfaceId": "s1"],
       ],
     ]
@@ -635,7 +635,7 @@ struct AgentToRendererMessageTests {
     #expect(wrappedParsed == arrayParsed)
 
     let invalidPayload: JSONValue = [
-      "version": "v1.0",
+      "version": "1.0",
       "createSurface": ["surfaceId": "s1", "catalogId": "basic"],
       "deleteSurface": ["surfaceId": "s1"],
     ]
