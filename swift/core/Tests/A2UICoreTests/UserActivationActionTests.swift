@@ -221,7 +221,7 @@ struct UserActivationActionTests {
       functionHandler: handler,
       protocolVersion: .v10
     )
-    #expect(inactiveContext.userActivation == false)
+    #expect(inactiveContext.isUserActivated == false)
     let deniedResult = inactiveContext.resolveDynamicValue(callExpression)
     #expect(deniedResult == .null)
     #expect(gatedFunction.callCount == 0)
@@ -240,7 +240,7 @@ struct UserActivationActionTests {
       path: "/",
       functionHandler: handler,
       protocolVersion: .v10,
-      userActivation: true
+      isUserActivated: true
     )
     let overrideDenied = activeContext.resolveDynamicValue(callExpression, userActivation: false)
     #expect(overrideDenied == .null)

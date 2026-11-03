@@ -85,7 +85,8 @@ private final class ActionTestFunction: FunctionImplementation, Sendable {
     name: String,
     block: @escaping @MainActor @Sendable ([String: JSONValue], DataContext) throws -> JSONValue
   ) {
-    let emptySchema = (try? Schema(instance: "{}"))
+    let emptySchema =
+      (try? Schema(instance: "{}"))
       ?? (try! Schema(rawSchema: .object([:]), context: Context(dialect: .draft2020_12)))
     self.api = FunctionAPI(
       name: name,
@@ -142,7 +143,7 @@ struct ActionsConformanceTests {
       functionHandler: handler,
       protocolVersion: protocolVersion,
       index: index,
-      userActivation: userActivation
+      isUserActivated: userActivation
     )
 
     let rawAction =
@@ -310,13 +311,16 @@ struct ActionsConformanceTests {
     }
 
     if let expectErrorDict = testCase["expectError"] as? [String: Any] {
-      assertActionErrorMatches(capturedErrors: capturedErrors, expectError: expectErrorDict, name: name)
+      assertActionErrorMatches(
+        capturedErrors: capturedErrors, expectError: expectErrorDict, name: name)
     } else {
       #expect(capturedErrors.isEmpty, "\(name): unexpected action errors \(capturedErrors)")
     }
 
     if testCase["expectDispatched"] is NSNull {
-      #expect(dispatched == nil, "\(name): expected no dispatched action, got \(String(describing: dispatched))")
+      #expect(
+        dispatched == nil,
+        "\(name): expected no dispatched action, got \(String(describing: dispatched))")
       return
     }
 

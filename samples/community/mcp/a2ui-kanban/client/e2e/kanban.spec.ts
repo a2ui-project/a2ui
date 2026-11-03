@@ -379,6 +379,43 @@ test.describe('Kanban showcase: the four communication channels', () => {
       'Plan Migrate DB',
     );
   });
+
+  test('CUJ 5: direct A2UI-to-MCP function pipeline (callMcpTool + transformData + updateDataModel without an agent turn)', async ({
+    page,
+  }) => {
+    await page.getByRole('button', {name: 'Show me the sprint board'}).click();
+    const boardFrame = await waitForBoardFrame(page);
+
+    // Explanatory captions.
+    await expect(page.locator('.surface')).toContainText(
+      'Counts and selection are computed from the board data',
+    );
+    await expect(page.locator('.surface')).toContainText('Add a task directly');
+
+    const agentTurnCountBefore = await page.locator('.entry.agent').count();
+
+    // Clicking the button chains callMcpTool("create_task"), transformData, and
+    // updateDataModel directly in the browser without an agent turn.
+    await page.getByRole('button', {name: 'Add task'}).click();
+
+    await expect(page.locator('.surface')).toContainText('Todo: 3');
+    await expect(boardFrame.locator('.column[data-column-id="todo"] li.card')).toHaveCount(3);
+    await expect(boardFrame.locator('.column[data-column-id="todo"]')).toContainText(
+      'Document MCP catalog',
+    );
+    expect(await page.locator('.entry.agent').count()).toBe(agentTurnCountBefore);
+
+    const debugPane = page.locator('aside.debug-pane');
+    await expect(debugPane.locator('[data-debug-section="mcp-server"]')).toContainText(
+      '"name": "create_task"',
+    );
+    await expect(debugPane.locator('[data-debug-section="mcp-apps"]')).toContainText(
+      'ui/notifications/data-model-update',
+    );
+    await expect(debugPane.locator('[data-debug-section="architecture"]')).toContainText(
+      'How this surface works (@a2ui/catalog-mcp)',
+    );
+  });
 });
 
 test.describe('Kanban showcase: host features', () => {
