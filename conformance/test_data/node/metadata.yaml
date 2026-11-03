@@ -25,6 +25,6 @@ components:
     action:
       event:
         name: save
-        context: {name: {'@path': /name}}
+        context: {name: {"@path": /name}}
     metadata: {extensions: {com_example_trace: t1}}
   - {id: label, component: Text, text: Save}

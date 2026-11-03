@@ -207,4 +207,3 @@ Pass `--report-only` in either mode to print findings without returning a non-ze
 ### Recording a known gap with `uncovered`
 
 When adding a new feature to `features.yaml` before its declarative conformance YAML cases exist (or when a requirement is architectural or unit-tested outside the YAML suites), include an `uncovered` string on the entry explaining where the behavior is verified or tracked. Once a conformance YAML case is tagged with the feature ID, remove `uncovered` from that entry so static and per-harness coverage checks enforce it.
-

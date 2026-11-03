@@ -17,733 +17,739 @@
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#createsurface
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#createsurface-operation-ordering
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-02
   title: updateComponents message handling (incremental add, replace, and root validation)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#updatecomponents
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#surfacecomponentsmodel-componentmodel
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-03
   title: updateDataModel message handling (root replacement, JSON Pointer paths, and key deletion)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#updatedatamodel
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#datamodel
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-04
   title: deleteSurface message handling and lifecycle resource cleanup
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#deletesurface
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#surfacegroupmodel-surfacemodel
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-05
   title: callRendererFunction inbound RPC message execution and response dispatch
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#callrendererfunction
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#d-bidirectional-remote-procedure-call-rpc-layer-a2uicorerpc
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-06
   title: agentFunctionResponse inbound RPC settlement for pending callAgentFunction requests
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#agentfunctionresponse
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#d-bidirectional-remote-procedure-call-rpc-layer-a2uicorerpc
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-07
   title: Protocol version discrimination and routing (v0.8, v0.9, v0.9.1, and v1.0)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#envelope-message-structure
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#version-adapters-a2uicoreprocessingadapters
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-08
   title: Catalog structure and identification (catalogId, components, functions, and theme)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#catalog-structure
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#catalog
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-09
   title: Catalog entity naming rules (UAX 31 identifier validation for components and functions)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#catalog-entity-naming-rules
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#uax-31-identifier-validation
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-10
   title: Mixable catalogs and multi-catalog component and function resolution per surface
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#mixable-catalogs-and-component-resolution-logic
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#catalog-scope
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-11
   title: Adjacency-list UI composition model with flat component array and id/root references
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#ui-composition-the-adjacency-list-model
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#surfacecomponentsmodel-componentmodel
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-12
   title: Composition validation rules (root existence, dangling references, cycles, and orphans)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#composition-validation-rules
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#graph-validation-runs-before-mutation-against-a-candidate-graph
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-13
   title: Dynamic child list templates (template.componentId and template.dataBinding for arrays and maps)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#collection-scopes-relative-paths
   blueprintAnchor: blueprints/features/node_resolution.blueprint.md#4-children
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-14
   title: Root-scope RFC 6901 JSON Pointer path resolution
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-root-scope
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#datamodel
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-15
   title: Collection-scope relative path resolution within list templates
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#collection-scopes-relative-paths
   blueprintAnchor: blueprints/features/node_resolution.blueprint.md#3-bindings
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-16
   title: Data binding syntax and normalization across v0.9 path and v1.0 @path forms
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#path-resolution-scope
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#version-adapters-a2uicoreprocessingadapters
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-17
   title: Two-way input binding read/write contract and reactive local DataModel mutation
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#two-way-binding-input-components
   blueprintAnchor: blueprints/features/node_resolution.blueprint.md#3-bindings
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-18
   title: Missing-path read/write semantics (null read resolution and auto-vivifying object/array writes)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#agent-to-renderer-updates
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#datamodel
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-19
   title: formatString function with ${...} interpolation, data bindings, nested calls, and escaping
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-formatstring-function
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#expression-resolution-logic-formatstring
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-20
   title: regex validation function and ReDoS safety check
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-regex-function
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#regular-expression-guard-regex
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-21
-  title: '@index contextual function with collection-scope restriction and step/offset arguments'
+  title: "@index contextual function with collection-scope restriction and step/offset arguments"
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-index-function
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#f-resolution-layer-a2uicoreresolution
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-22
   title: Built-in Basic Catalog functions (length, numeric, email, required, and, or, not, openUrl)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#functions
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#the-basic-catalog-standard-core-apis
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-23
   title: Outbound action event message formatting and context binding resolution (v0.9 and v1.0)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#action
   blueprintAnchor: blueprints/features/node_resolution.blueprint.md#5-actions
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-24
   title: Outbound callAgentFunction RPC request message generation
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#callagentfunction
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#d-bidirectional-remote-procedure-call-rpc-layer-a2uicorerpc
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-25
   title: Outbound rendererFunctionResponse RPC result and error message generation
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#rendererfunctionresponse
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#d-bidirectional-remote-procedure-call-rpc-layer-a2uicorerpc
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-26
   title: Outbound error event reporting (VALIDATION_FAILED, INTEGRITY_ERROR, EXPRESSION_ERROR)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#error
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#g-exceptions-a2uicoreexceptions
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-27
   title: Component validation and CheckRule evaluation (ValidationResult and DynamicBoolean coercion)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#component-validation-check-rules
   blueprintAnchor: blueprints/features/node_resolution.blueprint.md#6-checks
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-28
   title: Polymorphic function usage in UI content (dynamic bindings, CheckRule conditions, and actions)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#1-polymorphic-function-usage-in-ui-content
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#f-resolution-layer-a2uicoreresolution
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-29
   title: Asynchronous function evaluation, pending states, and stale call cancellation
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#2-asynchronous-evaluation-pending-states
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#f-resolution-layer-a2uicoreresolution
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-30
   title: Function failure propagation and recovery rules across bindings, CheckRules, and actions
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#3-failure-propagation-recovery-rules
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#rpc-execution-lifecycle-safeguards
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-31
   title: Renderer capabilities generation (v0.9 supportedCatalogIds and v1.0 catalogs/inlineCatalogs)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#renderer-capabilities
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#capabilities-objects
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-32
   title: Renderer data model synchronization envelope (sendDataModel flag and clientDataModel output)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#renderer-data-model
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#renderer-data-model-synchronization
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-33
   title: Catalog-agnostic accessibility metadata (accessibility.label and accessibility.description)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#catalog-agnostic-accessibility-requirements
   blueprintAnchor: blueprints/features/node_resolution.blueprint.md#8-metadata
   claimedBy:
-  - ts-web-core
-  - dart-core
-  - swift-core
-  uncovered: Covered by renderer accessibility conformance suite (conformance/core/accessibility.yaml)
+    - ts-web-core
+    - dart-core
+    - swift-core
+  uncovered:
+    Covered by renderer accessibility conformance suite (conformance/core/accessibility.yaml)
     under F-RND-15.
 - id: F-CORE-34
-  title: 'FunctionCall normalizing syntax (@fn: value shorthand vs call/args object)'
+  title: "FunctionCall normalizing syntax (@fn: value shorthand vs call/args object)"
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#common-types
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#version-adapters-a2uicoreprocessingadapters
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-35
   title: Basic Catalog v1.0 schema modernization (Modal entryPointChild, Icon.name, CheckBox.value)
   specAnchor: specification/v1_0/docs/evolution_guide.md#22-standard-catalogs-basic
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#the-basic-catalog-standard-core-apis
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-36
   title: Transport decoupling across A2A, AG-UI, and MCP bindings
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#transport-decoupling
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#package-boundary-non-goals
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
-  uncovered: Architectural boundary verified by transport extension suites and live E2E agent-renderer
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
+  uncovered:
+    Architectural boundary verified by transport extension suites and live E2E agent-renderer
     pairs rather than isolated core YAML cases.
 - id: F-CORE-37
   title: Catalog API and implementation separation (CatalogApi, ComponentApi, FunctionApi, copy_with)
   specAnchor: specification/v1_0/docs/a2ui_custom_functions.md#1-define-the-catalog
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#strict-api-implementation-separation
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-38
   title: ValidationConfig limits (maxComponentsPerSurface, maxComponentDepth, maxDataModelDepth, maxDataModelBytes)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#standard-validation-error-format
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#validationconfig-payloadvalidator
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-39
   title: RPC execution lifecycle safeguards (timeoutMs, maxPendingCalls, and userActivation gating)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#callagentfunction
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#rpc-execution-lifecycle-safeguards
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-40
   title: Granular reactivity and observer isolation across surfaces, components, and data paths
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#reactivity
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#3-granular-reactivity
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-41
   title: GenericBinder two-way binding lifecycle, initial sync, and disposal
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-readwrite-contract
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#genericbinder
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-42
   title: Canonical error codes and structured ValidationError reporting
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#standard-validation-error-format
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#g-exceptions-a2uicoreexceptions
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-43
   title: Agent-side vs renderer-side MessageProcessor execution patterns and ExecutionContext
   specAnchor: specification/v1_0/docs/sdks_spec.md#a2ui-core-sdk-a2ui_core-a2uicore
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#renderer-vs-agent-execution-patterns
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
-  uncovered: Covered by agent SDK processor and validator suites (F-AGT-09 and F-AGT-63) rather than standalone
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
+  uncovered:
+    Covered by agent SDK processor and validator suites (F-AGT-09 and F-AGT-63) rather than standalone
     core YAML cases.
 - id: F-CORE-44
   title: Zero-network, zero-disk-I/O in-memory JSON Schema reference resolution
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-protocol-schemas
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#in-memory-schema-resolution-zero-network-zero-disk-io
   claimedBy:
-  - python-core
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - python-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-CORE-45
   title: Node Resolution Layer (ResolvedNode, ChildList, NodeKey, ActionDispatcher, and resolve())
   specAnchor: specification/v1_0/docs/sdks_spec.md#framework-adapters-react_renderer-compose_renderer-etc
   blueprintAnchor: blueprints/features/node_resolution.blueprint.md#node-resolution-feature-blueprint
   claimedBy:
-  - ts-web-core
-  - dart-core
-  - swift-core
+    - ts-web-core
+    - dart-core
+    - swift-core
 - id: F-AGT-01
   title: CatalogTransformer base pipeline and sequential chaining
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#catalogtransformer
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-02
   title: ComponentPruningTransformer component filtering and dangling child reference rewriting
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#componentpruningtransformer
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-03
   title: FunctionPruningTransformer function filtering and empty functions removal
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#functionpruningtransformer
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-04
-  title: PromptGenerator template-method assembly (generate, generate_Format_instructions, generate_catalog_description,
+  title:
+    PromptGenerator template-method assembly (generate, generate_Format_instructions, generate_catalog_description,
     render_examples)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#promptgenerator
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-05
   title: Multi-catalog prompt generation and format-level generate_prompt_snippet
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#mixable-catalogs-and-component-resolution-logic
   blueprintAnchor: blueprints/features/skill_generator.blueprint.md#3-multi-catalog-prompt-skill-generation
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-06
   title: Skill and SkillSet domain models, YAML frontmatter serialization, and scoped directory export
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
   blueprintAnchor: blueprints/features/skill_generator.blueprint.md#skill-generator-feature-blueprint
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-07
   title: Common Parser interface (has_a2ui_content, unwrap, wrap, parse_response, parse_chunk)
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#parser
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-08
   title: ResponseStream incremental chunk parser (append, close, text_parts, a2ui_messages,parts)
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#responsestream
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-09
   title: Validation layer delegation to Core MessageProcessor and PayloadValidator
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#standard-validation-error-format
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#d-validation-layer
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-10
   title: Surface state tracking across turns during validation (RendererState integration)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#composition-validation-rules
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#surface-state-during-validation
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-11
   title: Agent-callable function validation during response parsing
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#callrendererfunction
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#agent-callable-functions
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-12
   title: InferenceFormat and InferenceFormatFactory registry and custom format registration
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#inferenceformatfactory-inferenceformat
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-13
   title: CatalogProvider, FileSystemCatalogProvider, and ListCatalogProvider
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-component-catalog
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#catalog-providers
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-14
   title: CatalogConfig with CatalogTransformer pipeline and example loading
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-component-catalog
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#catalogconfig
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-15
   title: A2uiGenerator startup facade, catalog caching, and create_processor negotiation
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#a2uigenerator
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-16
-  title: A2uiRequestProcessor per-request facade (generate_prompt_snippet, validate_examples, parse_response,
+  title:
+    A2uiRequestProcessor per-request facade (generate_prompt_snippet, validate_examples, parse_response,
     parse_chunk)
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#a2uirequestprocessor
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-17
   title: resolve_catalogs capability negotiation for v0.9 and v1.0
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#renderer-capabilities
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#resolve_catalogs-a2uiutilscatalog_resolver
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-18
   title: read_renderer_capabilities metadata extractor for v1.0 and v0.9
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#renderer-capabilities
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#read_renderer_capabilities
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-19
   title: DirectJsonFormat prompt generation, JSON fence stripping, and response parsing
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#a-direct_json-format-a2uiinference_formatsdirect_json
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-20
   title: DirectJsonResponseStream incremental top-level JSON object extraction across chunks
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#example-stream
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#a-direct_json-format-a2uiinference_formatsdirect_json
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-21
   title: ExpressFormat prompt generation, compiler, and decompiler
   specAnchor: specification/proposals/atom/a2ui_atom.md#a2ui-atom-technical-specification
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#b-express-format-a2uiinference_formatsexpress
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-22
   title: ExpressResponseStream incremental streaming compilation and delta emission
   specAnchor: specification/proposals/atom/a2ui_atom.md#compilation-example
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#incremental-streaming-expressresponsestream
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-23
   title: Express data model compilation and decompilation
   specAnchor: specification/proposals/atom/a2ui_atom.md#data-model-population
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#data-model-compilation-and-decompilation
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-24
   title: Express ANTLR4 grammar and parser parity across SDKs
   specAnchor: specification/proposals/atom/a2ui_atom.md#syntax-and-grammar
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#grammar-and-parser-generation
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-25
   title: Legacy v0.8 A2uiSchemaManager and SendA2uiToClientToolset backward compatibility
   specAnchor: specification/v0_8/docs/a2ui_protocol.md
   blueprintAnchor: blueprints/codebases/python/a2ui_agent/codebase.blueprint.md#local-technical-decisions-overrides
   claimedBy:
-  - python-agent
+    - python-agent
 - id: F-AGT-26
   title: Typesafe Builder API (ComponentNode, SurfaceBuilder, ChildList, CheckRule, and Macro)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#ui-composition-the-adjacency-list-model
   blueprintAnchor: blueprints/features/typesafe_builder_api.blueprint.md#typesafe-builder-api-feature-blueprint
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-27
   title: A2A extension URI constants and version mapping (v0.8, v0.9, v1.0)
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#extension-uri
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-28
   title: A2A DataPart serialization and deserialization with mimeType application/json+a2ui
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#data-encoding
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-29
   title: A2A part serialization and deserialization (a2ui_part_serde)
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#data-encoding
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
-  - python-agent
+    - python-agent
 - id: F-AGT-30
   title: A2A capability extraction from request message metadata
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#a2uirenderercapabilities
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#read_renderer_capabilities
   claimedBy:
-  - python-agent
+    - python-agent
 - id: F-AGT-31
   title: A2A extension activation header negotiation (try_activate_a2ui_extension)
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#a2a-extension-activation
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
-  - python-agent
+    - python-agent
 - id: F-AGT-32
   title: A2A AgentExtension builder with supportedCatalogIds and acceptsInlineCatalogs params
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#agent-card
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
-  - python-agent
+    - python-agent
 - id: F-AGT-33
   title: ADK SendA2uiToClientToolset dynamic system instructions and tool execution
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
-  - python-agent
+    - python-agent
 - id: F-AGT-34
   title: ADK A2uiEventConverter outbound stream part conversion
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#agent-to-renderer-messages
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
-  - python-agent
+    - python-agent
 - id: F-AGT-35
   title: ADK A2uiPartConverter factories (create_from_prompt_parser and create_from_stream_parser)
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#agent-to-renderer-messages
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
-  - python-agent
+    - python-agent
 - id: F-AGT-36
   title: ADK A2aAgentExecutor capability-aware request lifecycle
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#processing-rules
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
-  - python-agent
+    - python-agent
   uncovered: Covered by Python ADK unit tests and live E2E agent tests.
 - id: F-AGT-37
   title: RendererState multi-turn session tracking for surfaces, components, and data models
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#composition-validation-rules
   blueprintAnchor: blueprints/features/agent_renderer_app.blueprint.md#2-a-renderer-state-on-the-renderers-processor-agent
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-38
   title: RendererState.of / attach binding to A2uiRequestProcessor across turns
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#composition-validation-rules
   blueprintAnchor: blueprints/features/agent_renderer_app.blueprint.md#agent-rendererstateof
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-39
   title: RendererState.data_model_for_surface and include_data_model prompt injection
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#renderer-data-model
   blueprintAnchor: blueprints/features/agent_renderer_app.blueprint.md#2-a-renderer-state-on-the-renderers-processor-agent
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
   uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-40
   title: StreamedAnswer async wrapper over chunk stream yielding text and validated A2UI messages
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#example-stream
   blueprintAnchor: blueprints/features/agent_renderer_app.blueprint.md#agent-streamedanswer
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-41
   title: AgentFunction and AgentFunctionRegistry declaration and lookup
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#callagentfunction
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#agent-callable-functions
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-42
-  title: Agent-side RPC execution loop (callAgentFunction -> agentFunctionResponse and callRendererFunction
+  title:
+    Agent-side RPC execution loop (callAgentFunction -> agentFunctionResponse and callRendererFunction
     -> rendererFunctionResponse)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#transport-interaction-patterns
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#d-bidirectional-remote-procedure-call-rpc-layer-a2uicorerpc
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-43
   title: Legacy Kotlin A2uiAgent multi-turn streaming loop with tool registry
   specAnchor: specification/v0_9_1/docs/a2ui_protocol.md#protocol-overview-data-flow
@@ -755,557 +761,560 @@
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#parser
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-45
   title: DirectJSON streaming tolerance for invalid JSON and validation errors within a block
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#standard-validation-error-format
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#a-direct_json-format-a2uiinference_formatsdirect_json
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-46
   title: Express streaming compilation resilience when an earlier surface statement fails
   specAnchor: specification/proposals/atom/a2ui_atom.md#messages-and-surfaces
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#incremental-streaming-expressresponsestream
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-47
   title: Express decompile and recompile round-trip equivalence
   specAnchor: specification/proposals/atom/a2ui_atom.md#compilation-example
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#format-round-trip-and-specification-example-testing
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-48
   title: Prompt token overhead and scaling budgets across inference formats
   specAnchor: specification/proposals/atom/a2ui_atom.md#core-design-goals
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#6-conformance-test-plan
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-49
   title: Catalog example validation against active negotiated catalogs during create_processor
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#a2uigenerator
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-50
   title: Format-agnostic example normalization and ordering in PromptGenerator
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#promptgenerator
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-51
   title: Express inline createSurface compilation when components and dataModel precede children
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#createsurface
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#b-express-format-a2uiinference_formatsexpress
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-52
   title: Express component declaration field ordering (positional vs named properties, checks, and bindings)
   specAnchor: specification/proposals/atom/a2ui_atom.md#expressions-and-component-declarations
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#b-express-format-a2uiinference_formatsexpress
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-53
   title: Express function call compilation for local and agent-side functions
   specAnchor: specification/proposals/atom/a2ui_atom.md#validation-and-logic-expressions
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#b-express-format-a2uiinference_formatsexpress
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-54
   title: Builder API cross-surface ComponentRef rejection during build_components
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#ui-composition-the-adjacency-list-model
   blueprintAnchor: blueprints/features/typesafe_builder_api.blueprint.md#external-surface-references-componentref
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-55
   title: FileSystemCatalogProvider recursive catalog.json discovery and invalid file skipping
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-component-catalog
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#catalog-providers
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-56
   title: RendererState turn lifecycle for deleteSurface and recreate with same surfaceId
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#deletesurface
   blueprintAnchor: blueprints/features/agent_renderer_app.blueprint.md#2-a-renderer-state-on-the-renderers-processor-agent
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-57
   title: Inbound renderer-to-agent action event parsing and model input formatting (v0.9 and v1.0)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#action
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-58
   title: Inbound renderer-to-agent error event parsing and self-correction formatting (v0.9 and v1.0)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#error
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-59
   title: Inbound a2uiRendererDataModel / a2uiClientDataModel extraction and RendererState sync
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#a2uirendererdatamodel
   blueprintAnchor: blueprints/features/agent_renderer_app.blueprint.md#2-a-renderer-state-on-the-renderers-processor-agent
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
   uncovered: Agent and extension conformance suite tagging pending.
 - id: F-AGT-60
-  title: Inbound callAgentFunction RPC dispatch to registered AgentFunction and agentFunctionResponse
+  title:
+    Inbound callAgentFunction RPC dispatch to registered AgentFunction and agentFunctionResponse
     generation
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#callagentfunction
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#d-bidirectional-remote-procedure-call-rpc-layer-a2uicorerpc
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-61
   title: Outbound callRendererFunction invocation and inbound rendererFunctionResponse correlation
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#rendererfunctionresponse
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md#d-bidirectional-remote-procedure-call-rpc-layer-a2uicorerpc
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-AGT-62
   title: ADK A2uiInboundPartConverter inbound DataPart routing for actions, errors, and RPC
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#renderer-to-agent-events
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
-  - python-agent
+    - python-agent
   uncovered: Covered by Python ADK unit tests in python/a2ui_adk/tests/ and live E2E agent servers.
 - id: F-AGT-63
-  title: Agent-side output validation rejecting undeclared components, undeclared functions, and broken
+  title:
+    Agent-side output validation rejecting undeclared components, undeclared functions, and broken
     graphs
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#composition-validation-rules
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#d-validation-layer
   claimedBy:
-  - python-agent
-  - ts-agent
-  - dart-agent
+    - python-agent
+    - ts-agent
+    - dart-agent
 - id: F-RND-01
   title: Surface lifecycle rendering (createSurface, incremental updateComponents, deleteSurface)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#envelope-message-structure
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#41-surface
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-02
   title: Hierarchical tree rendering from flat adjacency list in declared child order
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#ui-composition-the-adjacency-list-model
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#6-node-dispatcher-mechanics-nodeview
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-03
   title: Dynamic child list template expansion for arrays and maps with @index support
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#collection-scopes-relative-paths
   blueprintAnchor: blueprints/features/node_resolution.blueprint.md#4-children
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-04
   title: Reactive one-way data binding from updateDataModel to rendered component properties
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#reactivity
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#3-consuming-the-node-api
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-05
   title: Two-way input binding for TextField, CheckBox, Slider, ChoicePicker, and DateTimeInput
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#two-way-binding-input-components
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#3-consuming-the-node-api
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-06
   title: User-initiated action dispatch resolving context bindings and emitting outbound action envelope
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#defining-actions
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#actions-user-activation-and-asynchronous-bindings
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-07
   title: Local function action execution (action.functionCall) without outbound agent message
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#local-actions
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#actions-user-activation-and-asynchronous-bindings
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-08
   title: User activation gating for requiresUserActivation functions (such as openUrl)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#local-actions
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#actions-user-activation-and-asynchronous-bindings
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-09
   title: CheckRule reactive validation states, error message display, and Button disabled gating
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#component-validation-check-rules
   blueprintAnchor: blueprints/features/node_resolution.blueprint.md#6-checks
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-10
   title: Asynchronous function binding pending state and settled value re-render
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#2-asynchronous-evaluation-pending-states
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#actions-user-activation-and-asynchronous-bindings
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-11
   title: Function failure recovery in property bindings, CheckRules, and action pre-flight
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#3-failure-propagation-recovery-rules
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#actions-user-activation-and-asynchronous-bindings
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-12
   title: Basic Catalog layout components (Row, Column, List, Card, Tabs, Modal, Divider)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#components
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#5-basic-catalog-implementation
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-13
   title: Basic Catalog display and media components (Text, Image, Icon, Video, AudioPlayer)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#components
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#5-basic-catalog-implementation
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-14
   title: Basic Catalog interactive components (Button, TextField, CheckBox, ChoicePicker, Slider, DateTimeInput)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#components
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#5-basic-catalog-implementation
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-15
-  title: Accessibility label and description mapping to platform semantics (aria-label, aria-describedby,
+  title:
+    Accessibility label and description mapping to platform semantics (aria-label, aria-describedby,
     Semantics)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#catalog-agnostic-accessibility-requirements
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#accessibility
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-16
   title: Safe Markdown subset rendering in Text (headings, emphasis, lists, links, code, raw HTML sanitization)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#components
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#5-basic-catalog-implementation
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
-  - markdown-it-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
+    - markdown-it-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-17
   title: Placeholder node rendering for unresolved or unknown component IDs without crashing
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#updatecomponents
   blueprintAnchor: blueprints/features/node_resolution.blueprint.md#9-placeholders
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-18
   title: Multi-version Basic Catalog support (v0.9 and v1.0 property shapes)
   specAnchor: specification/v1_0/docs/evolution_guide.md#22-standard-catalogs-basic
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#building-v10-and-v09-basic-catalogs-and-sharing-component-code
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-19
   title: Custom component catalog registration and rendering alongside Basic Catalog
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#mixable-catalogs-and-component-resolution-logic
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#42-componentimplementation
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-20
   title: Universal Custom Elements interop across Lit, React, and Angular renderers
   specAnchor: specification/v1_0/docs/sdks_spec.md#framework-adapters-react_renderer-compose_renderer-etc
   blueprintAnchor: blueprints/features/universal_custom_elements.blueprint.md#universal-custom-elements-feature-blueprint
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-RND-21
   title: View lifecycle teardown and Node onDestroyed / addCleanup resource release
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#deletesurface
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#7-lifecycle-destruction
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-01
   title: Adapter consumes ResolvedNode, ChildList, and ActionDispatcher without reimplementing Core logic
   specAnchor: specification/v1_0/docs/sdks_spec.md#framework-adapters-react_renderer-compose_renderer-etc
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#what-core-owns-do-not-reimplement
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-02
   title: Surface component mounts root NodeView and scopes catalog lookup to SurfaceModel
   specAnchor: specification/v1_0/docs/sdks_spec.md#framework-adapters-react_renderer-compose_renderer-etc
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#41-surface
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-03
   title: NodeView dispatcher resolves ComponentImplementation by type and renders Placeholder when unresolved
   specAnchor: specification/v1_0/docs/sdks_spec.md#framework-adapters-react_renderer-compose_renderer-etc
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#6-node-dispatcher-mechanics-nodeview
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-04
   title: ChildList keyed reconciliation using NodeKey (componentId and instanceId)
   specAnchor: specification/v1_0/docs/sdks_spec.md#framework-adapters-react_renderer-compose_renderer-etc
   blueprintAnchor: blueprints/features/node_resolution.blueprint.md#4-children
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-05
   title: ComponentImplementation Form 1/2/3/4 idiomatic property and binding access
   specAnchor: specification/v1_0/docs/sdks_spec.md#framework-adapters-react_renderer-compose_renderer-etc
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#42-componentimplementation
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-06
   title: User-activation propagation into ActionDispatcher.dispatch(action, userActivated)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#local-actions
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#actions-user-activation-and-asynchronous-bindings
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-07
   title: Accessibility wrapper applies resolved label and description to host semantics
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#catalog-agnostic-accessibility-requirements
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#accessibility
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-08
   title: Node teardown hooks (addCleanup and onDestroyed) invoked on component removal or surface deletion
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#deletesurface
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#node-teardown-callbacks-addcleanup-and-ondestroyed
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-09
   title: Shared v0.9 and v1.0 Basic Catalog component implementations via normalized props
   specAnchor: specification/v1_0/docs/evolution_guide.md#22-standard-catalogs-basic
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#building-v10-and-v09-basic-catalogs-and-sharing-component-code
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-10
   title: Universal CustomElementImplementation contract (tagName, create, ObservedNode)
   specAnchor: specification/v1_0/docs/sdks_spec.md#framework-adapters-react_renderer-compose_renderer-etc
   blueprintAnchor: blueprints/features/universal_custom_elements.blueprint.md#2-element-contract
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-11
   title: Idempotent customElements.define registration and tag conflict validation
   specAnchor: specification/v1_0/docs/sdks_spec.md#framework-adapters-react_renderer-compose_renderer-etc
   blueprintAnchor: blueprints/features/universal_custom_elements.blueprint.md#3-registration
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-12
   title: Light-DOM child slot projection across nested custom elements and framework views
   specAnchor: specification/v1_0/docs/sdks_spec.md#framework-adapters-react_renderer-compose_renderer-etc
   blueprintAnchor: blueprints/features/universal_custom_elements.blueprint.md#two-trees-one-nesting
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-13
   title: Shared web Basic Catalog custom elements consumed across Lit, React, and Angular
   specAnchor: specification/v1_0/docs/sdks_spec.md#framework-adapters-react_renderer-compose_renderer-etc
   blueprintAnchor: blueprints/features/universal_custom_elements.blueprint.md#7-shared-basic-catalog
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-14
   title: Theme CSS custom properties and styling propagation across adapter boundaries
   specAnchor: specification/v1_0/docs/sdks_spec.md#framework-adapters-react_renderer-compose_renderer-etc
   blueprintAnchor: blueprints/features/universal_custom_elements.blueprint.md#6-styling
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.
 - id: F-BP-15
   title: Gallery application fixture rendering and interactive component verification
   specAnchor: specification/v1_0/docs/sdks_spec.md#framework-adapters-react_renderer-compose_renderer-etc
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#9-gallery-app-specification
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Covered by per-framework gallery integration tests and Playwright live-pair suites.
 - id: F-BP-16
   title: Required adapter conformance test suite execution across all 12 core adapter scenarios
   specAnchor: specification/v1_0/docs/sdks_spec.md#framework-adapters-react_renderer-compose_renderer-etc
   blueprintAnchor: blueprints/modules/a2ui_framework_adapter.blueprint.md#required-adapter-test-suite
   claimedBy:
-  - lit-renderer
-  - react-renderer
-  - angular-renderer
-  - flutter-renderer
-  - swiftui-renderer
+    - lit-renderer
+    - react-renderer
+    - angular-renderer
+    - flutter-renderer
+    - swiftui-renderer
   uncovered: Adapter conformance tagging tracked in renderer and blueprint suite tagging.

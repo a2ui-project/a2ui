@@ -37,13 +37,7 @@
     },
     "Feature": {
       "type": "object",
-      "required": [
-        "id",
-        "title",
-        "specAnchor",
-        "blueprintAnchor",
-        "claimedBy"
-      ],
+      "required": ["id", "title", "specAnchor", "blueprintAnchor", "claimedBy"],
       "properties": {
         "id": {
           "$ref": "#/$defs/FeatureId"
