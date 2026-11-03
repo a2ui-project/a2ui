@@ -1,5 +1,8 @@
 ## Unreleased
 
+- (v1_0) The basic catalog `regex` function's `pattern` description now names
+  the A2UI regex dialect and its safety limits
+  ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
 - Add `RpcHandler.cancel_surface_calls` to cancel pending outbound agent
   function calls with `RpcErrorCode.CANCELLED`.
 - **BREAKING CHANGE**: `DataContext` refuses a function whose `allowed_callers`

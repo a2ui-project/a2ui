@@ -23,6 +23,9 @@ import OrderedJSON
 @MainActor
 public final class RPCHandler {
 
+  /// The default timeout duration in seconds for outbound agent function calls.
+  public static let defaultTimeoutSeconds: TimeInterval = 30
+
   private struct PendingCall {
     let surfaceID: String
     let continuation: CheckedContinuation<JSONValue, any Error>
@@ -254,7 +257,7 @@ public final class RPCHandler {
     functionCallID: String? = nil,
     args: [String: JSONValue]? = nil,
     version: A2UIProtocolVersion,
-    timeoutSeconds: TimeInterval = 30.0,
+    timeoutSeconds: TimeInterval = RPCHandler.defaultTimeoutSeconds,
     sendOutbound: @escaping @Sendable (RendererToAgentMessage) -> Void
   ) async throws -> JSONValue {
     let callID = functionCallID ?? UUID().uuidString
