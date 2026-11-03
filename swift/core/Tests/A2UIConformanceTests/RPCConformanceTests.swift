@@ -1097,27 +1097,23 @@ struct RPCConformanceTests {
       testName: testName
     )
 
+    var responsePayload: [String: JSONValue] = [
+      "functionCallId": .string(actualCall.functionCallID)
+    ]
     if let errObj = scenario["inboundResponseError"] {
-      processor.rpcHandler.handleAgentResponse(
-        AgentFunctionResponseMessage(
-          functionCallID: actualCall.functionCallID,
-          error: FunctionErrorPayload(
-            code: errObj["code"]?.stringValue ?? "EXECUTION_ERROR",
-            message: errObj["message"]?.stringValue ?? "RPC error"
-          ),
-          version: .v10
-        )
-      )
+      responsePayload["error"] = .object([
+        "code": .string(errObj["code"]?.stringValue ?? "EXECUTION_ERROR"),
+        "message": .string(errObj["message"]?.stringValue ?? "RPC error"),
+      ])
     } else {
-      let inboundVal = scenario["inboundResponseValue"] ?? .null
-      processor.rpcHandler.handleAgentResponse(
-        AgentFunctionResponseMessage(
-          functionCallID: actualCall.functionCallID,
-          value: inboundVal,
-          version: .v10
-        )
-      )
+      responsePayload["value"] = scenario["inboundResponseValue"] ?? .null
     }
+    try processor.processMessages(
+      .object([
+        "version": .string("v1.0"),
+        "agentFunctionResponse": .object(responsePayload),
+      ])
+    )
     for _ in 0..<20 {
       await Task.yield()
     }
