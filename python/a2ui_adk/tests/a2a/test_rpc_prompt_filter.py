@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for keeping A2UI RPC messages out of the model's prompt.
+"""Tests for keeping agent function calls out of the model's prompt.
 
 The parts are built with ADK's own A2A part converter, as `A2aAgentExecutor`
 builds them, and the end-to-end tests run a real `LlmAgent` with a stub model
@@ -40,10 +40,9 @@ import pytest
 from a2ui.a2a import create_a2ui_part, get_a2ui_messages
 from a2ui.adk import SendA2uiToClientToolset
 from a2ui.adk.a2a import a2ui_rpc_callback, exclude_a2ui_rpc_from_prompt
+from a2ui.core import AgentFunction, AgentFunctionContext
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.core.catalog import AgentFunction, AgentFunctionContext
 from a2ui.core.schema import ProtocolVersion
-from a2ui.rpc import AgentFunctionRegistry
 
 CATALOG_ID = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
 
@@ -155,14 +154,22 @@ def _assert_rpc_removed(llm_request: LlmRequest) -> None:
     assert [content.role for content in llm_request.contents] == [
         "user",
         "model",
+        "model",
+        "user",
         "user",
         "user",
     ]
     assert _texts(llm_request.contents) == ["show me rates", "here", "and"]
-    assert _a2ui_messages(llm_request.contents) == [CREATE_SURFACE, ACTION]
+    # Renderer function calls and their responses are for the model.
+    assert _a2ui_messages(llm_request.contents) == [
+        CREATE_SURFACE,
+        RENDERER_CALL,
+        RENDERER_RESPONSE,
+        ACTION,
+    ]
 
 
-def test_callback_removes_rpc_parts_and_keeps_the_rest() -> None:
+def test_callback_removes_agent_function_parts_and_keeps_the_rest() -> None:
     llm_request = _request()
 
     result = exclude_a2ui_rpc_from_prompt(MagicMock(spec=CallbackContext), llm_request)
@@ -171,10 +178,11 @@ def test_callback_removes_rpc_parts_and_keeps_the_rest() -> None:
     _assert_rpc_removed(llm_request)
 
 
-def test_callback_leaves_requests_without_rpc_unchanged() -> None:
+def test_callback_leaves_requests_without_agent_function_calls_unchanged() -> None:
     contents = [
         genai_types.Content(role="user", parts=[_text("hi")]),
         genai_types.Content(role="user", parts=[_part(ACTION)]),
+        genai_types.Content(role="user", parts=[_part(RENDERER_RESPONSE)]),
     ]
     llm_request = LlmRequest(contents=list(contents))
 
@@ -184,7 +192,7 @@ def test_callback_leaves_requests_without_rpc_unchanged() -> None:
 
 
 @pytest.mark.asyncio
-async def test_toolset_removes_rpc_parts() -> None:
+async def test_toolset_removes_agent_function_parts() -> None:
     toolset = SendA2uiToClientToolset(a2ui_enabled=False, a2ui_processor=MagicMock())
     llm_request = _request()
 
@@ -234,7 +242,7 @@ async def _run_rpc_then_text(agent: LlmAgent) -> list[genai_types.Content]:
 @pytest.mark.parametrize("path", ["toolset", "callback"])
 async def test_model_never_sees_rpc_turns_that_the_session_keeps(path: str) -> None:
     model = _RecordingLlm(model="recording", requests=[])
-    rpc_callback = a2ui_rpc_callback(agent_functions=AgentFunctionRegistry([CATALOG]))
+    rpc_callback = a2ui_rpc_callback(catalogs=[CATALOG])
     if path == "toolset":
         agent = LlmAgent(
             name="agent",
@@ -261,3 +269,28 @@ async def test_model_never_sees_rpc_turns_that_the_session_keeps(path: str) -> N
     # The session still holds the call and its reply.
     assert _a2ui_messages(session_contents) == [CALL, REPLY]
     assert "hello" in _texts(session_contents)
+
+
+@pytest.mark.asyncio
+async def test_model_sees_a_renderer_function_response() -> None:
+    model = _RecordingLlm(model="recording", requests=[])
+    agent = LlmAgent(
+        name="agent",
+        model=model,
+        before_agent_callback=a2ui_rpc_callback(catalogs=[CATALOG]),
+        before_model_callback=exclude_a2ui_rpc_from_prompt,
+    )
+    runner = Runner(
+        app_name="app", agent=agent, session_service=InMemorySessionService()
+    )
+    session = await runner.session_service.create_session(app_name="app", user_id="u")
+
+    async for _ in runner.run_async(
+        user_id="u",
+        session_id=session.id,
+        new_message=genai_types.Content(role="user", parts=[_part(RENDERER_RESPONSE)]),
+    ):
+        pass
+
+    (llm_request,) = model.requests
+    assert _a2ui_messages(llm_request.contents) == [RENDERER_RESPONSE]

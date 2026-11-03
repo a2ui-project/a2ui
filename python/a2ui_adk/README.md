@@ -44,10 +44,6 @@ Available with the base install:
   since ADK's session services save state as JSON and can't hold one. Its
   `is_enabled` and `get` methods are the callbacks for the toolset,
   `A2uiInstruction` and `A2uiEventConverter`.
-- `A2uiRendererCallsStore` keeps each session's `RendererFunctionCalls` (from
-  `a2ui.rpc`), which holds the agent's pending `callRendererFunction` calls.
-  Its `get` method returns the session's instance, creating it on first use,
-  and `remove` disposes it when the session ends.
 
 Available with the `a2a` extra:
 
@@ -57,25 +53,21 @@ Available with the `a2a` extra:
   from its `a2ui_processor` argument, such as `A2uiProcessorStore.get`. Pass
   it to ADK's `A2aAgentExecutor`.
 - `a2ui_rpc_callback` (also in `a2ui.adk.a2a`) returns a
-  `before_agent_callback` that answers A2UI v1.0 RPC messages without running
-  the agent. When the request holds only `callAgentFunction` and
-  `rendererFunctionResponse` messages, it runs the agent functions of an
-  `AgentFunctionRegistry` and settles the session's renderer function calls,
-  and returns the `agentFunctionResponse` replies as the agent's response. For
-  any other request it returns None, so the agent runs. With
-  `A2aAgentExecutor`, the replies reach the client as A2UI parts.
-- `a2ui_rpc_interceptor` (also in `a2ui.adk.a2a`) returns an
-  `A2aAgentExecutor` interceptor that ends a task `completed` when its request
-  held only `callAgentFunction` and `rendererFunctionResponse` messages. ADK's
-  executor would otherwise end a task with nothing to send back, such as one
-  holding only `rendererFunctionResponse`, in the `working` state.
+  `before_agent_callback` that answers the renderer's A2UI v1.0
+  `callAgentFunction` messages without running the agent. When the request
+  holds only such calls, it runs them through a
+  `RendererToAgentMessageProcessor` (from `a2ui.rpc`) built from the agent's
+  catalogs, and returns the `agentFunctionResponse` replies as the agent's
+  response. For any other request, including the renderer's `action`, `error`
+  and `rendererFunctionResponse` messages, it returns None, so the agent runs.
+  With `A2aAgentExecutor`, the replies reach the client as A2UI parts.
 - `exclude_a2ui_rpc_from_prompt` (also in `a2ui.adk.a2a`) is a
-  `before_model_callback` that removes A2UI RPC messages in either direction
-  (`callAgentFunction`, `agentFunctionResponse`, `callRendererFunction`,
-  `rendererFunctionResponse`) from the contents sent to the model. The session's
-  events keep them, and other A2UI messages, such as `action` or
-  `createSurface`, are kept. `SendA2uiToClientToolset` does the same for its
-  agent, so only agents without the toolset need the callback.
+  `before_model_callback` that removes the `callAgentFunction` and
+  `agentFunctionResponse` messages from the contents sent to the model. The
+  session's events keep them, and other A2UI messages, such as `action`,
+  `rendererFunctionResponse` or `createSurface`, are kept.
+  `SendA2uiToClientToolset` does the same for its agent, so only agents
+  without the toolset need the callback.
 - `A2uiSubagentMap` and `SurfaceIdAlreadyExistsError` (also in
   `a2ui.adk.orchestration`) track which subagent owns each surface in an
   orchestrator that talks to its subagents over A2A.
@@ -87,44 +79,39 @@ raises an `ImportError` that explains how to install the extra.
 from a2ui.adk import A2uiEventConverter, A2uiInstruction, SendA2uiToClientToolset
 ```
 
-To answer the renderer's RPC messages, pass the callback to the agent. To
+To answer the renderer's agent function calls, pass the callback to the agent
+with the agent's catalogs, or with a provider that returns them per context. To
 keep a callback of your own, pass a list; ADK runs them in order until one
 returns content:
 
 ```python
-from a2ui.adk import A2uiRendererCallsStore, a2ui_rpc_callback
-from a2ui.rpc import AgentFunctionRegistry
+from a2ui.adk import A2uiProcessorStore, a2ui_rpc_callback
 
-renderer_calls = A2uiRendererCallsStore()
+processors = A2uiProcessorStore()
+
+
+def active_catalogs(ctx):
+    processor = processors.get(ctx)
+    return processor.active_catalogs if processor else None
+
+
 agent = LlmAgent(
     ...,
     before_agent_callback=[
-        a2ui_rpc_callback(
-            agent_functions=AgentFunctionRegistry(catalogs),
-            renderer_calls=renderer_calls.get,
-        ),
+        a2ui_rpc_callback(catalogs=active_catalogs),
         my_before_agent_callback,
     ],
 )
 ```
 
-To end RPC-only tasks `completed`, add the interceptor to the executor:
+`agent_function_timeout` (seconds) cancels an agent function that takes too
+long, as for `RendererToAgentMessageProcessor`. A request whose calls all lack
+a `functionCallId` gets a response with no parts, which `A2aAgentExecutor`
+ends in the `working` state.
 
-```python
-from a2ui.adk import A2uiEventConverter, a2ui_rpc_interceptor
-
-config = A2aAgentExecutorConfig(
-    event_converter=A2uiEventConverter(a2ui_processor=processors.get),
-    execute_interceptors=[a2ui_rpc_interceptor()],
-)
-```
-
-ADK stores the RPC messages and their replies in the session's events like any
-other turn. `SendA2uiToClientToolset` removes them from the model's prompt; an
-agent without the toolset passes
-`before_model_callback=exclude_a2ui_rpc_from_prompt`. This includes the
-`callRendererFunction` messages the agent sent: the model asked for them
-through a tool, whose call and result already record the exchange.
+ADK stores the calls and their replies in the session's events like any other
+turn. `SendA2uiToClientToolset` removes them from the model's prompt; an agent
+without the toolset passes `before_model_callback=exclude_a2ui_rpc_from_prompt`.
 
 ## Running tests
 

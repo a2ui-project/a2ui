@@ -19,35 +19,24 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from a2a import types as a2a_types
 from google.adk.a2a.converters import part_converter
 from google.genai import types as genai_types
 
 from a2ui.a2a import get_a2ui_messages
 
 CALL_AGENT_FUNCTION = "callAgentFunction"
-RENDERER_FUNCTION_RESPONSE = "rendererFunctionResponse"
+AGENT_FUNCTION_RESPONSE = "agentFunctionResponse"
 
-# The RPC messages a renderer sends, which `a2ui_rpc_callback` answers.
-RENDERER_RPC_KINDS = frozenset({CALL_AGENT_FUNCTION, RENDERER_FUNCTION_RESPONSE})
-# Every RPC message, in both directions.
-RPC_KINDS = RENDERER_RPC_KINDS | {"agentFunctionResponse", "callRendererFunction"}
+# The agent function messages, in both directions, which `a2ui_rpc_callback`
+# answers without the model. The renderer's other messages (`action`, `error`,
+# `rendererFunctionResponse`) are for the model's turn.
+RPC_KINDS = frozenset({CALL_AGENT_FUNCTION, AGENT_FUNCTION_RESPONSE})
 
 
 def message_kind(message: Mapping[str, Any]) -> str | None:
     """The message's type key, such as `callAgentFunction`."""
     keys = [key for key in message if key != "version"]
     return keys[0] if len(keys) == 1 else None
-
-
-def is_renderer_rpc_only(parts: list[a2a_types.Part]) -> bool:
-    """Whether every part is an RPC message that a renderer sends."""
-    messages = get_a2ui_messages(parts)
-    return (
-        bool(messages)
-        and len(messages) == len(parts)
-        and all(message_kind(message) in RENDERER_RPC_KINDS for message in messages)
-    )
 
 
 def genai_part_a2ui_messages(part: genai_types.Part) -> list[dict[str, Any]]:
@@ -62,7 +51,7 @@ def genai_part_a2ui_messages(part: genai_types.Part) -> list[dict[str, Any]]:
 
 
 def is_rpc_part(part: genai_types.Part) -> bool:
-    """Whether a GenAI part holds an A2UI RPC message, in either direction."""
+    """Whether a GenAI part holds an agent function message, in either direction."""
     if part.inline_data is None:
         # ADK carries A2A data parts as inline data; skip the rest cheaply.
         return False

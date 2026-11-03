@@ -243,11 +243,10 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
     async def process_llm_request(
         self, *, tool_context: tool_context.ToolContext, llm_request: LlmRequest
     ) -> None:
-        """Keeps A2UI RPC messages out of the model's request.
+        """Keeps agent function calls out of the model's request.
 
-        A2UI RPC messages (`callAgentFunction`, `agentFunctionResponse`,
-        `callRendererFunction`, `rendererFunctionResponse`) that the session's
-        events hold are removed from the request's contents, as
+        The `callAgentFunction` and `agentFunctionResponse` messages that the
+        session's events hold are removed from the request's contents, as
         `exclude_a2ui_rpc_from_prompt` does. The events keep them. It runs
         whether or not A2UI is enabled for the request. Without the `a2a`
         extra, no A2A parts reach the session, so there is nothing to remove.
