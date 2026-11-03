@@ -20,6 +20,7 @@ catalogs (and stamped with their catalogId when several are active), the
 protocol version, and multi-catalog prompt rules.
 """
 
+import sys
 from typing import Any
 
 import pytest
@@ -31,6 +32,7 @@ from a2ui.inference_formats.express import (
     ExpressCompiler,
     ExpressFormat,
     ExpressParser,
+    ExpressPromptGenerator,
     ExpressValidationError,
 )
 from a2ui.parser import A2uiCompilationValidationError
@@ -882,6 +884,41 @@ def test_pre_v1_0_prompt_rules_omit_event_user_message(version: str) -> None:
         '   Event("save_deal", {rep: $/form/rep})'
     ) in filtered
     assert "userMessage=" not in filtered
+
+
+def test_prompt_rules_normalize_crlf_line_endings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sys.modules[ExpressPromptGenerator.__module__],
+        "EXPRESS_RULES",
+        EXPRESS_RULES.replace("\n", "\r\n"),
+    )
+    fmt_v09 = ExpressFormat([_primary(version="v0.9.1")])
+    rules_v09 = fmt_v09.prompt_generator.generate_base_rules()
+    assert "\r\n" not in rules_v09
+    assert (
+        "8. Action events: represent server-side actions using the Event helper:\n"
+        '   Event("save_deal", {rep: $/form/rep})'
+    ) in rules_v09
+    assert "userMessage=" not in rules_v09
+
+    filtered_v09 = fmt_v09.prompt_generator.generate_base_rules(
+        allowed_messages=["updateComponents"]
+    )
+    assert "\r\n" not in filtered_v09
+    assert (
+        "7. Action events: represent server-side actions using the Event helper:\n"
+        '   Event("save_deal", {rep: $/form/rep})'
+    ) in filtered_v09
+    assert "userMessage=" not in filtered_v09
+
+    fmt_v10 = ExpressFormat([_primary(version="1.0")])
+    filtered_v10 = fmt_v10.prompt_generator.generate_base_rules(
+        allowed_messages=["updateComponents"]
+    )
+    assert "\r\n" not in filtered_v10
+    assert "`Event(name, context?, userMessage=...)`" in filtered_v10
 
 
 def test_multi_catalog_prompt_rules_explain_catalog_selection() -> None:

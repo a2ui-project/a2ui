@@ -262,6 +262,7 @@ def _filter_express_rules(
     allowed_messages: Sequence[str], *, rules_source: str = EXPRESS_RULES
 ) -> str:
     """Filters Express rules to only the rules for the allowed message types."""
+    rules_source = rules_source.replace("\r\n", "\n")
     allowed = set(allowed_messages)
     creates = "createSurface" in allowed or "CreateSurfaceMessage" in allowed
     components = (
@@ -355,11 +356,9 @@ class ExpressPromptGenerator(PromptGenerator):
         effective_allowed = (
             allowed_messages if allowed_messages is not None else self._allowed_messages
         )
-        source_rules = (
-            EXPRESS_RULES
-            if is_at_least_version(self._version, ProtocolVersion.V1_0)
-            else EXPRESS_RULES.replace(_EVENT_RULE_V1_0, _EVENT_RULE_PRE_V1_0)
-        )
+        source_rules = EXPRESS_RULES.replace("\r\n", "\n")
+        if not is_at_least_version(self._version, ProtocolVersion.V1_0):
+            source_rules = source_rules.replace(_EVENT_RULE_V1_0, _EVENT_RULE_PRE_V1_0)
         base = (
             source_rules
             if effective_allowed is None
