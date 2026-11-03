@@ -818,6 +818,7 @@ Matcher _matchesError(
   final category = expectError['category'] as String?;
   final message = expectError['message'] as String?;
   Matcher matcher = switch (category) {
+    null => isA<A2uiError>(),
     'DataError' => isA<A2uiDataError>(),
     'ValidationError' => anyOf(
         isA<A2uiValidationError>(),
@@ -830,7 +831,10 @@ Matcher _matchesError(
     'RecursionError' => isA<A2uiRecursionError>(),
     'StateError' => isA<A2uiStateError>(),
     'ParseError' => isA<A2uiParseError>(),
-    _ => isA<A2uiError>(),
+    'ExpressionError' => isA<A2uiExpressionError>(),
+    _ => throw UnknownConformanceKeyError(
+        'Unknown expectError.category "$category".',
+      ),
   };
   if (message != null) {
     final String pattern = alignErrorPattern(message);
