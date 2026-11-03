@@ -252,12 +252,7 @@
       "command": "node tests/conformance/conformance_test.mjs",
       "dependencies": [
         "build"
-      ],
-      "files": [
-        "tests/conformance/**",
-        "../../../conformance/**"
-      ],
-      "output": []
+      ]
     },
     "test:timing": {
       "command": "node --expose-gc --test --test-concurrency=1 \"tests/timing/**/*_test.mjs\"",

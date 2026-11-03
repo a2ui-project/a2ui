@@ -137,53 +137,68 @@ public enum ConformanceTestHelper {
   /// specification version.
   public static func buildCatalogs(for testCase: ConformanceTestCase) throws -> [AnyCatalog] {
     if let inlineCatalog = testCase.inlineCatalog {
-      let version =
-        testCase.protocolVersion
-        ?? inlineCatalog["protocolVersion"]?.stringValue
-        ?? inlineCatalog["protocol_version"]?.stringValue
-        ?? "v0.9"
-      let commonTypes = try? commonTypesSchema(
-        forProtocolVersion: version
+      return buildInlineCatalogs(
+        inlineCatalog: inlineCatalog,
+        protocolVersion: testCase.protocolVersion
       )
-      var catalogs: [AnyCatalog] = []
-      if inlineCatalog["components"] != nil || inlineCatalog["functions"] != nil
-        || inlineCatalog["theme"] != nil
-      {
-        catalogs.append(
-          buildCatalog(
-            catalogSchema: inlineCatalog,
-            commonTypes: commonTypes,
-            protocolVersion: version
-          )
-        )
-      }
-      if inlineCatalog["components"] == nil {
-        let basicVersion: A2UIProtocolVersion =
-          (version.hasPrefix("v1") || version.hasPrefix("1")) ? .v10 : .v091
-        catalogs.append(contentsOf: basicCatalogs(for: basicVersion))
-      }
-      return catalogs
     }
     return try testCase.catalogPaths.map { path in
-      if path == "catalogs/basic/v1/catalog.json" {
-        return BasicCatalog.makeCatalog(version: .v10)
-      }
-      let fallbackVersion: String?
-      if path.contains("/v0_9_1/") {
-        fallbackVersion = "v0.9.1"
-      } else if path.contains("/v0_9/") {
-        fallbackVersion = "v0.9"
-      } else if path.contains("/v0_8/") {
-        fallbackVersion = "v0.8"
-      } else {
-        fallbackVersion = testCase.protocolVersion
-      }
-      return buildCatalog(
-        catalogSchema: try loadRepositoryJSON(path: path),
-        commonTypes: try commonTypesSchema(forCatalogPath: path),
-        protocolVersion: fallbackVersion
+      try buildCatalogFromPath(path, defaultProtocolVersion: testCase.protocolVersion)
+    }
+  }
+
+  private static func buildInlineCatalogs(
+    inlineCatalog: JSONValue,
+    protocolVersion: String?
+  ) -> [AnyCatalog] {
+    let version =
+      protocolVersion
+      ?? inlineCatalog["protocolVersion"]?.stringValue
+      ?? inlineCatalog["protocol_version"]?.stringValue
+      ?? "v0.9"
+    let commonTypes = try? commonTypesSchema(forProtocolVersion: version)
+    var catalogs: [AnyCatalog] = []
+    if inlineCatalog["components"] != nil || inlineCatalog["functions"] != nil
+      || inlineCatalog["theme"] != nil
+    {
+      catalogs.append(
+        buildCatalog(
+          catalogSchema: inlineCatalog,
+          commonTypes: commonTypes,
+          protocolVersion: version
+        )
       )
     }
+    if inlineCatalog["components"] == nil {
+      let basicVersion: A2UIProtocolVersion =
+        (version.hasPrefix("v1") || version.hasPrefix("1")) ? .v10 : .v091
+      catalogs.append(contentsOf: basicCatalogs(for: basicVersion))
+    }
+    return catalogs
+  }
+
+  private static func buildCatalogFromPath(
+    _ path: String,
+    defaultProtocolVersion: String?
+  ) throws -> AnyCatalog {
+    if path == "catalogs/basic/v1/catalog.json" {
+      return BasicCatalog.makeCatalog(version: .v10)
+    }
+    let fallbackVersion: String?
+    if path.contains("/v0_9_1/") {
+      fallbackVersion = "v0.9.1"
+    } else if path.contains("/v0_9/") {
+      fallbackVersion = "v0.9"
+    } else if path.contains("/v0_8/") {
+      fallbackVersion = "v0.8"
+    } else {
+      fallbackVersion = defaultProtocolVersion
+    }
+    return buildCatalog(
+      catalogSchema: try loadRepositoryJSON(path: path),
+      commonTypes: try commonTypesSchema(forCatalogPath: path),
+      protocolVersion: fallbackVersion
+    )
   }
 
   /// Returns the basic catalog for the given protocol version with `id: "basic"`
@@ -1076,7 +1091,274 @@ public struct ConformanceExpectError: Sendable {
 
 public typealias ConformanceExpectRendererError = ConformanceExpectError.RendererError
 
+/// A single conformance case loaded from a shared YAML suite for parameterized test execution.
+public struct ConformanceCase: Sendable, CustomTestStringConvertible {
+  public let suite: String
+  public let name: String
+  public let json: JSONValue
+
+  public init(suite: String, name: String, json: JSONValue) {
+    self.suite = suite
+    self.name = name
+    self.json = json
+  }
+
+  public var testDescription: String {
+    "\(suite)::\(name)"
+  }
+
+  public var rawDictionary: [String: Any] {
+    ConformanceTestHelper.rawCaseDictionary(suite: suite, name: name)
+      ?? (ConformanceTestHelper.fromJSONValue(json) as? [String: Any])
+      ?? [:]
+  }
+
+  public func parsedTestCase() -> ConformanceTestCase? {
+    ConformanceTestHelper.parseTestCases(from: [rawDictionary]).first
+  }
+}
+
+/// Thrown when a conformance YAML dictionary contains an unrecognized key or dispatch value.
+public struct UnknownConformanceKeyError: Error, CustomStringConvertible, Sendable {
+  public let message: String
+
+  public init(_ message: String) {
+    self.message = message
+  }
+
+  public var description: String { message }
+}
+
 extension ConformanceTestHelper {
+  /// Maps each supported `conformance/core/*.yaml` suite to the actions and test files that run it.
+  public static let coreSuiteActions: [String: [String: String]] = [
+    "core/accessibility.yaml": [
+      "accessibility_check": "AccessibilityConformanceTests.swift"
+    ],
+    "core/actions.yaml": [
+      "dispatch_action": "ActionsConformanceTests.swift"
+    ],
+    "core/agent_function_routing.yaml": [
+      "route_agent_function": "AgentFunctionRoutingConformanceTests.swift"
+    ],
+    "core/catalog.yaml": [
+      "derive": "CatalogDeriveConformanceTests.swift",
+      "from_json": "CatalogConformanceTests.swift",
+      "round_trip": "CatalogConformanceTests.swift",
+      "to_json": "CatalogConformanceTests.swift",
+      "validation_schema": "CatalogConformanceTests.swift",
+    ],
+    "core/composition_constraints.yaml": [
+      "process_messages": "ValidatorConformanceTests.swift",
+      "validate": "ValidatorConformanceTests.swift",
+    ],
+    "core/data_context.yaml": [
+      "resolve_path": "DataModelPointerConformanceTests.swift"
+    ],
+    "core/data_deletion.yaml": [
+      "validate": "DataModelPointerConformanceTests.swift"
+    ],
+    "core/data_model.yaml": [
+      "data_model": "DataModelConformanceTests.swift"
+    ],
+    "core/data_model_pointers.yaml": [
+      "validate": "DataModelPointerConformanceTests.swift"
+    ],
+    "core/error_responses.yaml": [
+      "validate": "ValidatorConformanceTests.swift"
+    ],
+    "core/expressions.yaml": [
+      "parse_expression_template": "ExpressionsConformanceTests.swift",
+      "validate": "ExpressionsConformanceTests.swift",
+    ],
+    "core/functions.yaml": [
+      "evaluate_function": "BasicCatalogConformanceTests.swift",
+      "validate": "BasicCatalogConformanceTests.swift",
+    ],
+    "core/index_function.yaml": [
+      "validate": "BasicCatalogConformanceTests.swift"
+    ],
+    "core/message_processor_scaling.yaml": [
+      "measure_growth": "MessageProcessorScalingConformanceTests.swift"
+    ],
+    "core/message_processor_v0_9.yaml": [
+      "get_renderer_capabilities": "MessageProcessorConformanceTests.swift",
+      "get_renderer_data_model": "MessageProcessorConformanceTests.swift",
+      "process_messages": "MessageProcessorConformanceTests.swift",
+      "resolve_path": "MessageProcessorConformanceTests.swift",
+    ],
+    "core/message_processor_v1_0.yaml": [
+      "get_renderer_capabilities": "MessageProcessorConformanceTests.swift",
+      "get_renderer_data_model": "MessageProcessorConformanceTests.swift",
+      "process_messages": "MessageProcessorConformanceTests.swift",
+      "validate": "MessageProcessorConformanceTests.swift",
+    ],
+    "core/multi_catalog.yaml": [
+      "select_catalog": "MultiCatalogConformanceTests.swift",
+      "validate": "MultiCatalogConformanceTests.swift",
+    ],
+    "core/node_resolution.yaml": [
+      "resolve_nodes": "NodeResolutionConformanceTests.swift"
+    ],
+    "core/reserved_keys.yaml": [
+      "process_messages": "ValidatorConformanceTests.swift",
+      "validate": "ValidatorConformanceTests.swift",
+    ],
+    "core/rpc_functions.yaml": [
+      "handle_rpc": "RPCConformanceTests.swift"
+    ],
+    "core/validation_result.yaml": [
+      "validate": "BasicCatalogConformanceTests.swift"
+    ],
+    "core/validator_v0_9.yaml": [
+      "validate": "ValidatorConformanceTests.swift"
+    ],
+    "core/validator_v1_0.yaml": [
+      "validate": "ValidatorConformanceTests.swift"
+    ],
+  ]
+
+  /// Maps each unsupported `conformance/core/*.yaml` suite to the reason it is skipped in Swift.
+  public static let unsupportedCoreSuites: [String: String] = [
+    "core/adapter_conformance.yaml":
+      "render_surface cases require the SwiftUI framework adapter harness",
+    "core/agent_to_renderer.yaml":
+      "agent_to_renderer_schema is not implemented in the Swift core harness",
+    "core/common_types.yaml":
+      "common_types_schema and validate_common_type are not implemented in the Swift core harness",
+    "core/message_processor_v0_8.yaml":
+      "protocol version v0.8 is not supported by A2UICore",
+    "core/validator_v0_8.yaml":
+      "protocol version v0.8 is not supported by A2UICore",
+  ]
+
+  /// Case-level documentation keys permitted in every conformance test case dictionary.
+  public static let metadataCaseKeys: Set<String> = ["name", "description", "features"]
+
+  private static let cacheLock = NSLock()
+  nonisolated(unsafe) private static var suiteCasesCache: [String: [ConformanceCase]] = [:]
+  nonisolated(unsafe) private static var rawCasesCache: [String: [String: [String: Any]]] = [:]
+
+  /// Loads and caches all cases from `suite`, optionally filtered to a single `action`.
+  public static func cases(_ suite: String, action: String? = nil) -> [ConformanceCase] {
+    let all = loadAllSuiteCases(suite)
+    guard let action else { return all }
+    return all.filter { $0.json["action"]?.stringValue == action }
+  }
+
+  /// Loads and caches all cases from `suite` whose `action` is in `actions`.
+  public static func cases(_ suite: String, actions: Set<String>) -> [ConformanceCase] {
+    let all = loadAllSuiteCases(suite)
+    return all.filter { actions.contains($0.json["action"]?.stringValue ?? "") }
+  }
+
+  private static func loadAllSuiteCases(_ suite: String) -> [ConformanceCase] {
+    cacheLock.lock()
+    if let cached = suiteCasesCache[suite] {
+      cacheLock.unlock()
+      return cached
+    }
+    cacheLock.unlock()
+
+    guard let rawYAML = try? loadYAML(filename: suite) else { return [] }
+    let rawDicts: [[String: Any]]
+    if let array = rawYAML as? [[String: Any]] {
+      rawDicts = array
+    } else if let dict = rawYAML as? [String: Any], let list = dict["cases"] as? [[String: Any]] {
+      rawDicts = list
+    } else {
+      rawDicts = []
+    }
+
+    var builtCases: [ConformanceCase] = []
+    var rawByName: [String: [String: Any]] = [:]
+    for dict in rawDicts {
+      guard let name = dict["name"] as? String else { continue }
+      rawByName[name] = dict
+      builtCases.append(ConformanceCase(suite: suite, name: name, json: toJSONValue(dict)))
+    }
+
+    cacheLock.lock()
+    suiteCasesCache[suite] = builtCases
+    rawCasesCache[suite] = rawByName
+    cacheLock.unlock()
+    return builtCases
+  }
+
+  fileprivate static func rawCaseDictionary(suite: String, name: String) -> [String: Any]? {
+    _ = loadAllSuiteCases(suite)
+    cacheLock.lock()
+    defer { cacheLock.unlock() }
+    return rawCasesCache[suite]?[name]
+  }
+
+  /// Converts a `JSONValue` back into Foundation-style values (`[String: Any]`, `[Any]`, scalars).
+  public static func fromJSONValue(_ value: JSONValue) -> Any {
+    switch value {
+    case .object(let ordered):
+      var dict: [String: Any] = [:]
+      for (key, val) in ordered {
+        dict[key] = fromJSONValue(val)
+      }
+      return dict
+    case .array(let items):
+      return items.map { fromJSONValue($0) }
+    case .string(let str):
+      return str
+    case .boolean(let bool):
+      return bool
+    case .integer(let int):
+      return int
+    case .number(let double):
+      if let exactInt = Int(exactly: double) {
+        return exactInt
+      }
+      return double
+    case .null:
+      return NSNull()
+    }
+  }
+
+  /// Verifies that every key in `dict` belongs to `allowed` (or `metadataCaseKeys` when
+  /// `allowMetadata` is true), throwing `UnknownConformanceKeyError` on the first unknown key.
+  public static func assertKnownKeys(
+    _ dict: [String: Any],
+    _ allowed: Set<String>,
+    _ location: String,
+    allowMetadata: Bool = true
+  ) throws {
+    let permitted = allowMetadata ? allowed.union(metadataCaseKeys) : allowed
+    for key in dict.keys.sorted() where !permitted.contains(key) {
+      let msg = "Unknown \(location) key '\(key)' (allowed: \(permitted.sorted()))"
+      throw UnknownConformanceKeyError(msg)
+    }
+  }
+
+  /// Verifies that every key in `dict` belongs to `allowed` (or `metadataCaseKeys` when
+  /// `allowMetadata` is true), throwing `UnknownConformanceKeyError` on the first unknown key.
+  public static func assertKnownKeys(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    _ allowed: Set<String>,
+    _ location: String,
+    allowMetadata: Bool = true
+  ) throws {
+    let permitted = allowMetadata ? allowed.union(metadataCaseKeys) : allowed
+    for key in dict.keys.sorted() where !permitted.contains(key) {
+      let msg = "Unknown \(location) key '\(key)' (allowed: \(permitted.sorted()))"
+      throw UnknownConformanceKeyError(msg)
+    }
+  }
+
+  public static func parsePayload(_ payload: JSONValue) throws -> [AgentToRendererMessage] {
+    let data = try JSONEncoder().encode(payload)
+    let decoder = JSONDecoder()
+    if let list = try? decoder.decode([AgentToRendererMessage].self, from: data) {
+      return list
+    }
+    let single = try decoder.decode(AgentToRendererMessage.self, from: data)
+    return [single]
+  }
+
   /// Runs a `validate` case that renders components on a surface: processes each step's payload,
   /// checks the errors a step expects, and compares the resolved properties of the expected
   /// components.
@@ -1096,11 +1378,11 @@ extension ConformanceTestHelper {
     )
     // Expression errors raised while resolving nodes reach the surface as `EXPRESSION_ERROR`
     // rather than being thrown out of `processMessages`.
-    var capturedErrors: [RendererError] = []
+    let capturedErrors = ValidateErrorCaptureBox()
     processor.outboundListener = { message in
       MainActor.assumeIsolated {
         if case .error(let error) = message {
-          capturedErrors.append(error)
+          capturedErrors.errors.append(error)
         }
       }
     }
@@ -1109,15 +1391,15 @@ extension ConformanceTestHelper {
       guard let payload = step.payload else {
         continue
       }
-      capturedErrors.removeAll()
+      capturedErrors.errors.removeAll()
 
       let isFinalStep = stepIndex == testCase.steps.count - 1
       if let expectedError = step.expectError ?? (isFinalStep ? testCase.expectError : nil) {
-        assertValidateStepFails(
+        try assertValidateStepFails(
           payload: payload,
           processor: processor,
           expectedError: expectedError,
-          capturedErrors: { capturedErrors },
+          capturedErrors: { capturedErrors.errors },
           context: "\(testCase.name) step \(stepIndex)"
         )
         continue
@@ -1125,13 +1407,29 @@ extension ConformanceTestHelper {
 
       try processor.processMessages(payload)
       #expect(
-        capturedErrors.isEmpty,
-        "\(testCase.name): unexpected error at step \(stepIndex): \(capturedErrors)"
+        capturedErrors.errors.isEmpty,
+        "\(testCase.name): unexpected error at step \(stepIndex): \(capturedErrors.errors)"
       )
 
-      let expectedSurfaces =
-        (step.expect ?? (isFinalStep ? testCase.expect : nil))?["surfaces"]?.objectValue ?? [:]
+      let activeExpect = step.expect ?? (isFinalStep ? testCase.expect : nil)
+      if let expectObj = activeExpect?.objectValue {
+        try assertKnownKeys(
+          expectObj,
+          ["surfaces"],
+          "expect in '\(testCase.name)'",
+          allowMetadata: false
+        )
+      }
+      let expectedSurfaces = activeExpect?["surfaces"]?.objectValue ?? [:]
       for (surfaceID, expectedSurface) in expectedSurfaces {
+        if let surfObj = expectedSurface.objectValue {
+          try assertKnownKeys(
+            surfObj,
+            ["components"],
+            "expect.surfaces.\(surfaceID) in '\(testCase.name)'",
+            allowMetadata: false
+          )
+        }
         let surface = try #require(
           processor.surfaceGroupModel[surfaceID],
           "\(testCase.name): expected surface '\(surfaceID)'"
@@ -1164,7 +1462,7 @@ extension ConformanceTestHelper {
     expectedError: ConformanceExpectError,
     capturedErrors: () -> [RendererError],
     context: String
-  ) {
+  ) throws {
     var thrownError: (any Error)?
     do {
       try processor.processMessages(payload)
@@ -1186,8 +1484,13 @@ extension ConformanceTestHelper {
       }
       errorMessages.append(a2uiError.message)
       if let category = expectedError.category {
+        let matchesCategory = try errorMatchesCategory(
+          a2uiError,
+          category: category,
+          context: context
+        )
         #expect(
-          errorMatchesCategory(a2uiError, category: category),
+          matchesCategory,
           "\(context): expected a \(category), got \(type(of: a2uiError)): \(a2uiError.message)"
         )
       }
@@ -1209,17 +1512,22 @@ extension ConformanceTestHelper {
   }
 
   /// Whether `error` belongs to a conformance `expectError.category`, as in the Dart runner.
-  private static func errorMatchesCategory(_ error: any A2UIError, category: String) -> Bool {
+  private static func errorMatchesCategory(
+    _ error: any A2UIError,
+    category: String,
+    context: String
+  ) throws -> Bool {
     switch category {
     case "ValidationError":
-      error is A2UIValidationError || error is A2UIIntegrityError
+      return error is A2UIValidationError || error is A2UIIntegrityError
         || error is A2UIRecursionError || error is A2UICatalogError
-    case "CatalogError": error is A2UICatalogError
-    case "IntegrityError": error is A2UIIntegrityError
-    case "RecursionError": error is A2UIRecursionError
-    case "DataError": error is A2UIDataError
-    case "ParseError": error is A2UIParseError
-    default: true
+    case "CatalogError": return error is A2UICatalogError
+    case "IntegrityError": return error is A2UIIntegrityError
+    case "RecursionError": return error is A2UIRecursionError
+    case "DataError": return error is A2UIDataError
+    case "ParseError": return error is A2UIParseError
+    default:
+      throw UnknownConformanceKeyError("\(context): unknown error category '\(category)'")
     }
   }
 
@@ -1269,16 +1577,10 @@ extension ConformanceTestHelper {
       )
     }
   }
+}
 
-  public static func parsePayload(_ payload: JSONValue) throws -> [AgentToRendererMessage] {
-    let data = try JSONEncoder().encode(payload)
-    let decoder = JSONDecoder()
-    if let list = try? decoder.decode([AgentToRendererMessage].self, from: data) {
-      return list
-    }
-    let single = try decoder.decode(AgentToRendererMessage.self, from: data)
-    return [single]
-  }
+private final class ValidateErrorCaptureBox: @unchecked Sendable {
+  var errors: [RendererError] = []
 }
 
 @MainActor

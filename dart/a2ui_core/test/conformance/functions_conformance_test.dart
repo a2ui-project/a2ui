@@ -81,23 +81,6 @@ Object? _evaluate(Map<String, Object?> testCase) {
   return result is ReadonlySignal<Object?> ? result.value : result;
 }
 
-/// Returns [result] in the shape of [expected] so the two compare equal.
-///
-/// v1.0 validators return a [ValidationResult], while the suite states the
-/// outcome as a map, so only the keys the case names are compared.
-Object? _comparable(Object? result, Object? expected) {
-  if (result is ValidationResult && expected is Map<String, Object?>) {
-    final Map<String, Object?> fields = {
-      'valid': result.valid,
-      'message': result.message,
-      'code': result.code,
-      'severity': result.severity,
-    };
-    return {for (final String key in expected.keys) key: fields[key]};
-  }
-  return result;
-}
-
 /// The catalog a document in `catalogPaths` stands for: this SDK's basic
 /// catalog for the published basic catalog documents, whose functions run,
 /// and otherwise the document's signatures alone.
@@ -162,6 +145,26 @@ Object? _evaluateOnSurface(Map<String, Object?> testCase) {
   });
 }
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:evaluate_function': {
+    ...caseMetadataKeys,
+    'args',
+    'catalogId',
+    'catalogPaths',
+    'dataModel',
+    'expect',
+    'expectError',
+    'expect_error',
+    'function',
+    'locale',
+    'protocolVersion',
+    'surface',
+  },
+  'surface:evaluate_function': {
+    'catalogId',
+  },
+};
+
 void main() {
   // The suite's `validate` cases render basic-catalog components on a
   // surface, so `message_processor_conformance_test.dart` runs them.
@@ -172,53 +175,71 @@ void main() {
   ];
 
   group('functions conformance', () {
-    for (final testCase in cases) {
-      final name = testCase['name']! as String;
-      final action = testCase['action']! as String;
-
-      test(name, () {
-        switch (action) {
-          case 'evaluate_function':
-            final Object? expectError =
-                testCase['expectError'] ?? testCase['expect_error'];
-            if (expectError is Map<String, Object?>) {
-              final category = expectError['category']! as String;
-              final Type? expectedType = _categoryToError[category];
-              if (expectedType == null) {
-                fail('Unmapped error category $category.');
-              }
-              final message = expectError['message'] as String?;
-              expect(
-                () => _evaluate(testCase),
-                throwsA(
-                  predicate(
-                    (Object? e) {
-                      final bool matchesType = switch (category) {
-                        'CatalogError' => e is A2uiCatalogError,
-                        'ExpressionError' => e is A2uiExpressionError,
-                        'ValidationError' => e is A2uiValidationError,
-                        _ => e.runtimeType == expectedType,
-                      };
-                      return matchesType &&
-                          (message == null ||
-                              RegExp(message)
-                                  .hasMatch((e! as A2uiError).message));
-                    },
-                    'throws $expectedType'
-                    '${message == null ? '' : " matching '$message'"}',
-                  ),
-                ),
-              );
-              return;
-            }
-            expect(
-              _comparable(_evaluate(testCase), testCase['expect']),
-              equals(testCase['expect']),
-            );
-          default:
-            fail('Unhandled action $action in functions.yaml.');
-        }
-      });
-    }
+    runConformanceSuite(
+      cases,
+      _runFunctionCase,
+      suite: 'core/functions.yaml',
+    );
   });
+}
+
+void _runFunctionCase(Map<String, Object?> testCase) {
+  final action = testCase['action']! as String;
+  switch (action) {
+    case 'evaluate_function':
+      assertKnownKeys(
+        testCase,
+        _knownKeys['case:evaluate_function']!,
+        'case:evaluate_function',
+      );
+      if (testCase['surface'] case final Map<String, Object?> surfaceBlock) {
+        assertKnownKeys(
+          surfaceBlock,
+          _knownKeys['surface:evaluate_function']!,
+          'surface:evaluate_function',
+        );
+      }
+      final Object? expectError =
+          testCase['expectError'] ?? testCase['expect_error'];
+      if (expectError is Map<String, Object?>) {
+        assertKnownKeys(expectError, knownExpectErrorKeys, 'expectError');
+        _assertFunctionError(testCase, expectError);
+        return;
+      }
+      expect(_evaluate(testCase), equals(testCase['expect']));
+    default:
+      fail('Unhandled action $action in functions.yaml.');
+  }
+}
+
+void _assertFunctionError(
+  Map<String, Object?> testCase,
+  Map<String, Object?> expectError,
+) {
+  final category = expectError['category']! as String;
+  final Type? expectedType = _categoryToError[category];
+  if (expectedType == null) {
+    fail('Unmapped error category $category.');
+  }
+  final message = expectError['message'] as String?;
+  expect(
+    () => _evaluate(testCase),
+    throwsA(
+      predicate(
+        (Object? e) {
+          final bool matchesType = switch (category) {
+            'CatalogError' => e is A2uiCatalogError,
+            'ExpressionError' => e is A2uiExpressionError,
+            'ValidationError' => e is A2uiValidationError,
+            _ => e.runtimeType == expectedType,
+          };
+          return matchesType &&
+              (message == null ||
+                  RegExp(message).hasMatch((e! as A2uiError).message));
+        },
+        'throws $expectedType'
+        '${message == null ? '' : " matching '$message'"}',
+      ),
+    ),
+  );
 }
