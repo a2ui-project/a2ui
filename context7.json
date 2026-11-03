@@ -4,10 +4,14 @@
   "description": "Open protocol and renderers for agent-generated UI: agents stream declarative JSON, apps render it with native React, Angular, Lit, Flutter (GenUI), SwiftUI and Jetpack Compose components.",
   "folders": [
     "docs/public",
+    "typescript/core/web_core",
     "typescript/renderers",
     "typescript/agents",
+    "python/a2ui_core",
     "python/a2ui_agent",
     "dart/a2ui_core",
+    "dart/a2ui_agent",
+    "dart/a2ui_flutter",
     "samples/client",
     "samples/agent",
     "skills"
