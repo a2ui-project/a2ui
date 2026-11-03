@@ -1713,7 +1713,7 @@ public final class NodeResolver: Sendable {
       dataContextPath: basePath,
       rawUserMessage: userMessageValue,
       metadata: actionMetadata,
-      triggerWithUserActivation: { [weak self] _, callMetadata in
+      triggerWithUserActivation: { [weak self] userActivation, callMetadata in
         guard let self else { return }
         guard self.reportFailedActionChecksIfNeeded(checks, componentID: componentID) else {
           return
@@ -1733,7 +1733,8 @@ public final class NodeResolver: Sendable {
           metadata: mergedMetadata,
           basePath: basePath,
           index: index,
-          componentID: componentID
+          componentID: componentID,
+          isUserActivated: userActivation
         )
       }
     )
@@ -1866,6 +1867,7 @@ public final class NodeResolver: Sendable {
     basePath: String?,
     index: Int?,
     componentID: String,
+    isUserActivated: Bool = true,
     actionCache: AgentCallCache = AgentCallCache()
   ) {
     guard !isDisposed, !actionCache.isStopped else { return }
@@ -1875,7 +1877,7 @@ public final class NodeResolver: Sendable {
       functionHandler: self,
       protocolVersion: effectiveProtocolVersion,
       index: index,
-      isUserActivated: true
+      isUserActivated: isUserActivated
     )
     let resume: @MainActor () -> Void = { [weak self] in
       self?.runEventAction(
@@ -1886,6 +1888,7 @@ public final class NodeResolver: Sendable {
         basePath: basePath,
         index: index,
         componentID: componentID,
+        isUserActivated: isUserActivated,
         actionCache: actionCache
       )
     }
