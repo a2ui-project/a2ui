@@ -108,9 +108,10 @@ type Growing =
  *
  * A message is emitted, and applied to the state, as soon as it reads and the state accepts
  * it, and again each time it grows. Only `updateComponents` and `updateDataModel` are emitted
- * while they grow; any other message is held until its object closes, and the messages after
- * it wait with it. When a block closes, the messages it holds are applied in full and every
- * surface they touched is checked in full.
+ * while they grow, an `updateDataModel` once its value has begun to arrive; any other message
+ * is held until its object closes, and the messages after it wait with it. When a block
+ * closes, the messages it holds are applied in full and every surface they touched is checked
+ * in full.
  *
  * Each chunk is read once. The scan for the close tag and the read of the open block go on
  * where the previous chunk left them, a message that has closed is not read or checked
@@ -393,7 +394,7 @@ export class DirectJsonResponseStream<
         }
         this.committed += 1;
       }
-      if (!this.stalled && isObject(open) && GROWING_KEYS.some(key => key in open)) {
+      if (!this.stalled && mayGrow(open)) {
         try {
           ready.push(...this.applyMessage(this.committed, open, false));
         } catch (e) {
@@ -579,6 +580,19 @@ export class DirectJsonResponseStream<
 
 function isResponsePart(part: StreamPart): part is ResponsePart {
   return part.type !== 'error';
+}
+
+/**
+ * Whether a message still arriving may be applied and emitted already.
+ *
+ * It must be one a renderer applies again as it grows. An `updateDataModel` must also hold its
+ * value: without one, it removes the data at its path, or all of it before its path arrives.
+ */
+function mayGrow(envelope: unknown): boolean {
+  if (!isObject(envelope) || !GROWING_KEYS.some(key => key in envelope)) return false;
+  if (!('updateDataModel' in envelope)) return true;
+  const dataModel = envelope.updateDataModel;
+  return isObject(dataModel) && 'value' in dataModel;
 }
 
 /** What the stream keeps of a message it applied whole while it grows. */

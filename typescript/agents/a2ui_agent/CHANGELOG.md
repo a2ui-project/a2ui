@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `DirectJsonResponseStream` emits an `updateDataModel` that is still arriving only once its `value` has begun to arrive, as the Python and Dart SDKs do. A chunk that ended before the value used to emit the message without one, which removes the data at its `path`, or the whole data model when the chunk also ended before the `path`, and the full message that followed did not restore what lay outside its own `path`. [#3929](https://github.com/a2ui-project/a2ui/issues/3929)
+
 ## 0.1.0
 
 - **BREAKING CHANGE**: Remove duplicate and non-idiomatic APIs across `@a2ui/agent` ([#3592](https://github.com/a2ui-project/a2ui/issues/3592), [#3758](https://github.com/a2ui-project/a2ui/pull/3758)):

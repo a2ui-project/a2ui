@@ -412,6 +412,34 @@ describe('DirectJsonResponseStream', () => {
     expect(state.getSurface('s1')!.dataModel.get('/')).toEqual(value);
   });
 
+  it.each([
+    ['v0.9', basicV09],
+    ['1.0', basicV10],
+  ])('holds a %s updateDataModel until its value begins to arrive', (version, catalog) => {
+    const parser = new DirectJsonParser([catalog]);
+    const state = new RendererState([catalog]);
+    state.apply([
+      {version, createSurface: {surfaceId: 's1', catalogId: catalog.id}},
+      {version, updateDataModel: {surfaceId: 's1', value: {items: ['a', 'b'], other: 1}}},
+    ]);
+    const opened = parser.openStream({state});
+
+    // Without its value, the message would remove the data at its path, or all of it
+    // before its path arrives.
+    const emitted = [
+      `${OPEN}[{"version": "${version}", "updateDataModel": {"surfaceId": "s1", `,
+      '"path": "/items", ',
+      `"value": ["c", "d"]}}]${CLOSE}`,
+    ].map(chunk => messagesOf(opened.feed(chunk)));
+
+    expect(emitted).toEqual([
+      [],
+      [],
+      [{version, updateDataModel: {surfaceId: 's1', path: '/items', value: ['c', 'd']}}],
+    ]);
+    expect(state.getSurface('s1')!.dataModel.get('/')).toEqual({items: ['c', 'd'], other: 1});
+  });
+
   it('emits nothing after a closed message the state rejects, and throws when the block closes', () => {
     const parser = new DirectJsonParser([basicV10]);
     const id = basicV10.id;
