@@ -38,6 +38,24 @@ export function loadedDefinition(entry: object): JsonSchemaObject | undefined {
 }
 
 /**
+ * Copies the JSON Schema definition loaded by `Catalog.fromJson` from `source`
+ * to `target`, when `source` has one.
+ *
+ * Used by `AgentFunction.fromApi` so that binding a handler to a loaded
+ * `JsonFunctionApi` preserves its authored JSON Schema definition when
+ * `Catalog.toJson` writes the catalog back out.
+ *
+ * @param source The original catalog entry.
+ * @param target The wrapper entry.
+ */
+export function copyLoadedDefinition(source: object, target: object): void {
+  const definition = definitions.get(source);
+  if (definition !== undefined) {
+    definitions.set(target, definition);
+  }
+}
+
+/**
  * Defines lazily computed, enumerable getters on `target`, so that an object
  * spread of it copies their values.
  */

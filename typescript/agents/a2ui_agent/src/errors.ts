@@ -26,6 +26,8 @@ export {
   A2uiStateError,
   A2uiIntegrityError,
   A2uiRecursionError,
+  A2uiRpcError,
+  RpcErrorCode,
 } from './internal/web-core.js';
 
 /**

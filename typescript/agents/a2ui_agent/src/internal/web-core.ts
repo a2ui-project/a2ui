@@ -23,11 +23,16 @@
  */
 
 // ./catalog
-export {Catalog} from '@a2ui/web_core/catalog';
+export {AgentFunction, Catalog, createAgentFunction, isAgentFunction} from '@a2ui/web_core/catalog';
 export type {
+  AgentFunctionContext,
+  AgentFunctionHandler,
+  AgentFunctionInit,
+  AgentFunctionOptions,
   CatalogApi,
   CatalogInterface,
   ComponentApi,
+  CopyWithCatalogOptions,
   FunctionApi,
   FunctionImplementation,
 } from '@a2ui/web_core/catalog';
@@ -61,6 +66,10 @@ export {
   DeleteSurfaceMessageSchema as V10DeleteSurfaceMessageSchema,
   CallRendererFunctionMessageSchema as V10CallRendererFunctionMessageSchema,
   AgentFunctionResponseMessageSchema as V10AgentFunctionResponseMessageSchema,
+  CallAgentFunctionMessageSchema as V10CallAgentFunctionMessageSchema,
+  RendererFunctionResponseMessageSchema as V10RendererFunctionResponseMessageSchema,
+  ActionMessageSchema as V10ActionMessageSchema,
+  ErrorMessageSchema as V10ErrorMessageSchema,
   AgentToRendererMessageSchema,
   RendererToAgentMessageSchema,
   Schemas as V10Schemas,
@@ -68,7 +77,13 @@ export {
   V10_STANDARD_DEFS,
 } from '@a2ui/web_core/v1_0';
 import type {
+  ActionMessage,
+  AgentFunctionResponseMessage,
   AgentToRendererMessage,
+  CallAgentFunctionMessage,
+  CallRendererFunctionMessage,
+  ErrorMessage,
+  RendererFunctionResponseMessage,
   RendererToAgentMessage,
   V10RendererCapabilities,
 } from '@a2ui/web_core/v1_0';
@@ -76,6 +91,14 @@ export type {
   AgentToRendererMessage,
   RendererToAgentMessage,
   RendererToAgentMessage as V10RendererToAgentMessage,
+  ActionMessage,
+  AgentFunctionResponseMessage,
+  AgentToRendererMessage,
+  CallAgentFunctionMessage,
+  CallRendererFunctionMessage,
+  ErrorMessage,
+  RendererFunctionResponseMessage,
+  RendererToAgentMessage,
   V10RendererCapabilities,
 };
 
@@ -83,6 +106,9 @@ export type {
  * Version-neutral alias for renderer capabilities across protocol versions.
  */
 export type RendererCapabilities = V10RendererCapabilities;
+
+// ./validation
+export {PayloadValidator} from '@a2ui/web_core/validation';
 
 // ./validating
 export {
@@ -116,6 +142,8 @@ export {
   A2uiStateError,
   A2uiIntegrityError,
   A2uiRecursionError,
+  A2uiRpcError,
+  RpcErrorCode,
 } from '@a2ui/web_core/errors';
 
 // ./adapters

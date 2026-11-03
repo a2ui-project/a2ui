@@ -2,6 +2,7 @@
 
 - Add `parseInboundMessage`, `getInboundMessageKind`, `formatInboundForModel`, `InboundMessage`, and `InboundMessageKind` to validate inbound renderer-to-agent messages (`action`, `userAction`, `error`, `callAgentFunction`, and `rendererFunctionResponse`) across protocol versions v0.8, v0.9, and v1.0 and format user actions and renderer errors for model input.
 - Add `readRendererCapabilities` (along with `A2UI_CLIENT_CAPABILITIES_KEY` and `A2UI_RENDERER_CAPABILITIES_KEY`) to read and validate protocol-versioned renderer capabilities from transport message metadata.
+- Add v1.0 Agent Function and Renderer Function RPC helpers (`AgentFunctionRegistry`, `RendererFunctionCalls`, and `RendererMessageRouter`) and re-export `AgentFunction`, `createAgentFunction`, `isAgentFunction`, `A2uiRpcError`, `RpcErrorCode`, and v1.0 RPC message types from `@a2ui/web_core`. `AgentFunctionRegistry` dispatches inbound `callAgentFunction` envelopes to registered `AgentFunction` handlers with Zod argument validation, bounded concurrency, timeouts, cancellation, and disposal. `RendererFunctionCalls` formats outbound `callRendererFunction` envelopes and correlates `rendererFunctionResponse` replies with pending call limits, timeouts, cancellation, and disposal. `RendererMessageRouter` routes inbound `RendererToAgentMessage` payloads across `callAgentFunction`, `rendererFunctionResponse`, `action`, `error`, and unhandled fallbacks.
 
 ## 0.1.0
 

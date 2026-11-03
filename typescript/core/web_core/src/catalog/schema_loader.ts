@@ -890,7 +890,7 @@ function collectArgSubSchemas(
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
  * @returns Zod object schema validating function arguments.
  */
-function convertFunctionArgsJsonSchemaToZod(
+export function convertFunctionArgsJsonSchemaToZod(
   rawSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
   defCache = new Map<string, z.ZodTypeAny>(),
@@ -933,7 +933,10 @@ function convertFunctionArgsJsonSchemaToZod(
 /**
  * Extracts declared parameter names from a function's argument schema.
  */
-function functionParameterNames(schema: unknown, rootDoc?: Record<string, unknown>): string[] {
+export function functionParameterNames(
+  schema: unknown,
+  rootDoc?: Record<string, unknown>,
+): string[] {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
     return [];
   }
@@ -1078,13 +1081,31 @@ function parseFunctionDefinitions(
 function functionArgsSchema(
   d: Readonly<Record<string, unknown>>,
 ): Record<string, unknown> | undefined {
-  const props =
+  let props =
     d.properties &&
     typeof d.properties === 'object' &&
     d.properties !== null &&
     !Array.isArray(d.properties)
       ? (d.properties as Record<string, unknown>)
       : undefined;
+  if (!props?.args && Array.isArray(d.allOf)) {
+    for (const member of d.allOf) {
+      if (
+        member &&
+        typeof member === 'object' &&
+        !Array.isArray(member) &&
+        (member as Record<string, unknown>).properties &&
+        typeof (member as Record<string, unknown>).properties === 'object' &&
+        (member as Record<string, unknown>).properties !== null &&
+        !Array.isArray((member as Record<string, unknown>).properties)
+      ) {
+        props = {
+          ...props,
+          ...((member as Record<string, unknown>).properties as Record<string, unknown>),
+        };
+      }
+    }
+  }
   let argsSchema = props?.args ?? d.args ?? d.parameters;
   if (!argsSchema && props && !('call' in props) && !('@call' in props) && !('function' in props)) {
     argsSchema = d;

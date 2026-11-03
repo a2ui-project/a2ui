@@ -368,16 +368,20 @@ function serializeFunctionModel(
   defs?: Readonly<JsonObject>,
 ): JsonObject {
   const args = zodToUnbundledJson(fn.schema, localDefs, commonTypesUri);
+  const allowedCallers = Object.hasOwn(fn, 'explicitAllowedCallers')
+    ? (fn as {explicitAllowedCallers?: FunctionApi['allowedCallers']}).explicitAllowedCallers
+    : fn.allowedCallers;
+  const requiresUserActivation = Object.hasOwn(fn, 'explicitRequiresUserActivation')
+    ? (fn as {explicitRequiresUserActivation?: boolean}).explicitRequiresUserActivation
+    : fn.requiresUserActivation;
   if (asListItem) {
     return {
       name,
       ...(fn.description ? {description: fn.description} : {}),
       returnType: fn.returnType,
       parameters: args,
-      ...(fn.allowedCallers ? {allowedCallers: fn.allowedCallers} : {}),
-      ...(fn.requiresUserActivation !== undefined
-        ? {requiresUserActivation: fn.requiresUserActivation}
-        : {}),
+      ...(allowedCallers ? {allowedCallers} : {}),
+      ...(requiresUserActivation !== undefined ? {requiresUserActivation} : {}),
     };
   }
   closeObjectSchema(args);
@@ -388,17 +392,17 @@ function serializeFunctionModel(
   if (fn.description) result.description = fn.description;
   if (isAtLeastV10) {
     result.returnType = fn.returnType;
-    if (fn.allowedCallers) result.allowedCallers = fn.allowedCallers;
-    if (fn.requiresUserActivation !== undefined) {
-      result.requiresUserActivation = fn.requiresUserActivation;
+    if (allowedCallers) result.allowedCallers = allowedCallers;
+    if (requiresUserActivation !== undefined) {
+      result.requiresUserActivation = requiresUserActivation;
     }
     result.properties = {'@call': {const: name}, args};
     result.required = argsRequired ? ['@call', 'args'] : ['@call'];
     return result;
   }
-  if (fn.allowedCallers) result.allowedCallers = fn.allowedCallers;
-  if (fn.requiresUserActivation !== undefined) {
-    result.requiresUserActivation = fn.requiresUserActivation;
+  if (allowedCallers) result.allowedCallers = allowedCallers;
+  if (requiresUserActivation !== undefined) {
+    result.requiresUserActivation = requiresUserActivation;
   }
   result.properties = {call: {const: name}, args, returnType: {const: fn.returnType}};
   result.required = argsRequired ? ['call', 'args'] : ['call'];
