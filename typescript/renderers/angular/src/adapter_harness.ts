@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { ChangeDetectionStrategy, Component, computed } from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import {ChangeDetectionStrategy, Component, computed} from '@angular/core';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {
   A2uiClientMessageSchema,
   CommonSchemas,
@@ -27,10 +27,10 @@ import {
   ResolvedBinding,
   type SurfaceModel,
 } from '@a2ui/web_core/v0_9';
-import { basicCatalog } from '@a2ui/web_core/catalogs/basic/v1';
-import type { A2uiWebComponentElement } from '@a2ui/web_core/v0_9/universal';
-import { RendererToAgentMessageSchema } from '@a2ui/web_core/v1_0';
-import { z } from 'zod';
+import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import type {A2uiWebComponentElement} from '@a2ui/web_core/v0_9/universal';
+import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
+import {z} from 'zod';
 import {
   A2uiRendererService,
   AngularCatalog,
@@ -108,7 +108,7 @@ export interface ExtraCatalogEntry {
     {
       type: string;
       required?: string[];
-      properties?: Record<string, { type?: string; const?: string; $ref?: string }>;
+      properties?: Record<string, {type?: string; const?: string; $ref?: string}>;
     }
   >;
 }
@@ -256,9 +256,9 @@ function assertObjectKeys(obj: unknown, allowed: ReadonlySet<string>, where: str
   if (typeof obj !== 'object' || Array.isArray(obj)) {
     throw new Error(`${where}: expected object`);
   }
-  const unknown = Object.keys(obj as Record<string, unknown>).filter((key) => !allowed.has(key));
+  const unknown = Object.keys(obj as Record<string, unknown>).filter(key => !allowed.has(key));
   if (unknown.length > 0) {
-    throw new Error(`${where}: unknown keys: ${unknown.map((k) => `${where}.${k}`).join(', ')}`);
+    throw new Error(`${where}: unknown keys: ${unknown.map(k => `${where}.${k}`).join(', ')}`);
   }
 }
 
@@ -427,7 +427,7 @@ export function findUnsupportedReason(
 }
 
 export function assertAllUnsupportedMatched(): void {
-  const unused = Object.keys(UNSUPPORTED).filter((key) => !matchedUnsupportedKeys.has(key));
+  const unused = Object.keys(UNSUPPORTED).filter(key => !matchedUnsupportedKeys.has(key));
   if (unused.length > 0) {
     throw new Error(
       `Unused UNSUPPORTED entries did not match any executed case: ${unused.join(', ')}`,
@@ -438,10 +438,10 @@ export function assertAllUnsupportedMatched(): void {
 export function writeManifestRecord(rec: ManifestRecord): void {
   const karma = (
     window as unknown as {
-      __karma__?: { info?: (payload: { conformanceManifestRecord: ManifestRecord }) => void };
+      __karma__?: {info?: (payload: {conformanceManifestRecord: ManifestRecord}) => void};
     }
   ).__karma__;
-  karma?.info?.({ conformanceManifestRecord: rec });
+  karma?.info?.({conformanceManifestRecord: rec});
 }
 
 const RESERVED_VIEW_KEYS = new Set([
@@ -481,7 +481,7 @@ class ConformanceCustomWidgetComponent extends CatalogComponent<AnyDuringSchemaA
 
 export function getConformanceSuites(): KarmaConformanceConfig {
   const karma = (
-    window as unknown as { __karma__?: { config?: { conformanceSuites?: KarmaConformanceConfig } } }
+    window as unknown as {__karma__?: {config?: {conformanceSuites?: KarmaConformanceConfig}}}
   ).__karma__;
   const suites = karma?.config?.conformanceSuites;
   if (!suites) {
@@ -528,7 +528,7 @@ export function buildExtraCatalog(entry: ExtraCatalogEntry): AngularCatalog {
           : CommonSchemas.DynamicString.optional();
     }
     return createComponentImplementation(
-      { name, schema: z.object(shape) },
+      {name, schema: z.object(shape)},
       ConformanceCustomWidgetComponent,
     );
   });
@@ -540,10 +540,10 @@ export async function settleSurfaceDom(fixture: ComponentFixture<SurfaceComponen
   for (let pass = 0; pass < 4; pass++) {
     TestBed.flushEffects();
     fixture.detectChanges();
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
     const elements = Array.from(container.querySelectorAll('*'));
     for (const el of elements) {
-      const litEl = el as unknown as { updateComplete?: Promise<boolean> };
+      const litEl = el as unknown as {updateComplete?: Promise<boolean>};
       if (litEl.updateComplete) {
         await litEl.updateComplete;
       }
@@ -662,7 +662,7 @@ function findDomElementForNode(
   node: ComponentNode,
 ): HTMLElement | undefined {
   const match = Array.from(container.querySelectorAll('*')).find(
-    (el) => (el as A2uiWebComponentElement).node === node,
+    el => (el as A2uiWebComponentElement).node === node,
   );
   return match as HTMLElement | undefined;
 }
@@ -726,7 +726,7 @@ export function assertViewTree(
 function isNestedComponentElement(host: HTMLElement, candidate: Element): boolean {
   let current: Element | null = candidate;
   while (current && current !== host) {
-    const a2uiEl = current as unknown as { context?: unknown; node?: unknown };
+    const a2uiEl = current as unknown as {context?: unknown; node?: unknown};
     if (a2uiEl.context || a2uiEl.node) {
       return true;
     }
@@ -850,19 +850,19 @@ export function assertAxeRules(container: HTMLElement, rules: string[]): void {
 
 function countActiveSubscriptions(surface: SurfaceModel<AngularComponentImplementation>): number {
   const createdListeners =
-    (surface.componentsModel.onCreated as unknown as { listeners?: Set<unknown> }).listeners
-      ?.size ?? 0;
+    (surface.componentsModel.onCreated as unknown as {listeners?: Set<unknown>}).listeners?.size ??
+    0;
   const deletedListeners =
-    (surface.componentsModel.onDeleted as unknown as { listeners?: Set<unknown> }).listeners
-      ?.size ?? 0;
+    (surface.componentsModel.onDeleted as unknown as {listeners?: Set<unknown>}).listeners?.size ??
+    0;
   let componentUpdatedListeners = 0;
   for (const comp of surface.componentsModel.values) {
     componentUpdatedListeners +=
-      (comp.onUpdated as unknown as { listeners?: Set<unknown> }).listeners?.size ?? 0;
+      (comp.onUpdated as unknown as {listeners?: Set<unknown>}).listeners?.size ?? 0;
   }
   const dataModelInternal = surface.dataModel as unknown as {
     subscriptions?: Set<unknown>;
-    signals?: Map<string, { _targets?: unknown }>;
+    signals?: Map<string, {_targets?: unknown}>;
   };
   let activeSignalTargets = 0;
   for (const sig of dataModelInternal.signals?.values() ?? []) {
@@ -896,8 +896,8 @@ async function performStepOperation(state: HarnessState, step: AdapterStep): Pro
     const input = compEl?.querySelector('input, textarea') as HTMLInputElement | null;
     expect(input).withContext(`Input element for "${targetId}"`).not.toBeNull();
     input!.value = String(step.inputValue ?? '');
-    input!.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-    input!.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    input!.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
+    input!.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
     return;
   }
   if (step.op === 'user_gesture') {
@@ -999,7 +999,7 @@ function mapNodesToDomElements(
   const result = new Map<string, HTMLElement>();
   const allElements = Array.from(container.querySelectorAll('*'));
   for (const [nodePath, node] of nodes) {
-    const match = allElements.find((el) => (el as A2uiWebComponentElement).node === node);
+    const match = allElements.find(el => (el as A2uiWebComponentElement).node === node);
     if (match) {
       result.set(nodePath, match as HTMLElement);
     }
@@ -1140,7 +1140,7 @@ export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState 
       provideA2UI({
         catalogs,
         processorOptions: {
-          outboundListener: (msg) => {
+          outboundListener: msg => {
             outbound.push(structuredClone(msg) as unknown as Record<string, unknown>);
           },
         },
@@ -1158,15 +1158,15 @@ export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState 
     previousNodes: new Map(),
     previousDomElements: new Map(),
   };
-  rendererService.surfaceGroup.onSurfaceCreated.subscribe((surface) => {
+  rendererService.surfaceGroup.onSurfaceCreated.subscribe(surface => {
     state.surface = surface;
-    surface.onAction.subscribe((action) => {
+    surface.onAction.subscribe(action => {
       state.actions.push(action as unknown as Record<string, unknown>);
       state.outbound.push(
         frameActionEnvelope(action as unknown as Record<string, unknown>, state.protocolVersion),
       );
     });
-    surface.onError.subscribe((err) => {
+    surface.onError.subscribe(err => {
       state.errors.push(err as unknown as Record<string, unknown>);
       if (state.currentOp !== 'programmatic_invoke') {
         state.outbound.push(

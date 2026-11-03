@@ -619,11 +619,11 @@ enum AdapterHarness {
     let processor = MessageProcessor(
       catalogs: coreCatalogs,
       actionHandler: handler,
-      validationConfig: .relaxed,
-      outboundListener: { message in
-        handler.recordOutbound(message)
-      }
+      validationConfig: .relaxed
     )
+    processor.outboundListener = { message in
+      handler.recordOutbound(message)
+    }
     return AdapterSession(
       caseName: caseName,
       protocolVersion: protocolVersion,
