@@ -33,10 +33,12 @@ from a2ui.core.resolution import (
     DataContext,
     GenericBinder,
     MissingDataBindingWarning,
+    NodeResolver,
 )
 from a2ui.core.rpc import CallOptions
 from a2ui.core.schema.v0_9.constants import PROTOCOL_VERSION
 from a2ui.core.schema.v1_0.common_types import FunctionCall
+from a2ui.core.state import SurfaceModel
 from a2ui.core.validation import STRICT_VALIDATION
 
 
@@ -173,7 +175,10 @@ def test_message_processor_custom_catalog_component_validation():
 
     processor.process_messages([{
         "version": PROTOCOL_VERSION,
-        "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
+        "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": catalog.catalog_id,
+        },
     }])
 
     processor.process_messages([{
@@ -207,7 +212,11 @@ def test_message_processor_custom_catalog_component_validation():
             "version": PROTOCOL_VERSION,
             "updateComponents": {
                 "surfaceId": "s1",
-                "components": [{"id": "root", "component": "Chart", "title": "Sales"}],
+                "components": [{
+                    "id": "root",
+                    "component": "Chart",
+                    "title": "Sales",
+                }],
             },
         }])
 
@@ -270,7 +279,10 @@ def test_message_processor_rpc_error_handling(mock_catalog):
         "version": "1.0",
         "agentFunctionResponse": {
             "functionCallId": "call_123",
-            "error": {"code": "INVALID_PARAMS", "message": "Missing param"},
+            "error": {
+                "code": "INVALID_PARAMS",
+                "message": "Missing param",
+            },
         },
     }])
     assert fut.done()
@@ -796,7 +808,10 @@ def _v10_generated_basic_and_custom_processor() -> tuple[MessageProcessor, str]:
     )
     processor.process_messages([{
         "version": "1.0",
-        "createSurface": {"surfaceId": "s", "catalogId": basic.catalog_id},
+        "createSurface": {
+            "surfaceId": "s",
+            "catalogId": basic.catalog_id,
+        },
     }])
     return processor, basic.catalog_id
 
@@ -804,7 +819,10 @@ def _v10_generated_basic_and_custom_processor() -> tuple[MessageProcessor, str]:
 def _v10_update(processor: MessageProcessor, *components: dict[str, Any]) -> None:
     processor.process_messages([{
         "version": "1.0",
-        "updateComponents": {"surfaceId": "s", "components": list(components)},
+        "updateComponents": {
+            "surfaceId": "s",
+            "components": list(components),
+        },
     }])
 
 
@@ -944,7 +962,10 @@ def test_v10_calls_in_unknown_component_type_are_checked_by_processor():
     )
     processor.process_messages([{
         "version": "1.0",
-        "createSurface": {"surfaceId": "s", "catalogId": basic.catalog_id},
+        "createSurface": {
+            "surfaceId": "s",
+            "catalogId": basic.catalog_id,
+        },
     }])
 
     def details(call: dict[str, Any]) -> list[tuple[str, str]]:
@@ -1064,7 +1085,8 @@ def test_v10_call_with_empty_name_is_rejected_by_strict_processor():
 
     with pytest.raises(A2uiValidationError) as excinfo:
         _v10_update(
-            processor, {"id": "root", "component": "Text", "text": {"@call": ""}}
+            processor,
+            {"id": "root", "component": "Text", "text": {"@call": ""}},
         )
     assert [(d.path, d.code) for d in excinfo.value.details] == [
         ("components.root.text", "invalid_identifier")
@@ -1181,3 +1203,61 @@ def test_v10_message_processor_surface_and_component_metadata():
                 }],
             },
         }])
+
+
+def test_create_surface_writes_data_model_per_top_level_key():
+    catalog = Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/test-inline-data",
+            "components": {
+                "Counter": {
+                    "type": "object",
+                    "properties": {
+                        "count": {
+                            "$ref": "common_types.json#/$defs/DynamicNumber",
+                        }
+                    },
+                    "required": ["count"],
+                }
+            },
+            "functions": {},
+        },
+        protocol_version="1.0",
+    )
+    processor = MessageProcessor(
+        catalogs=[catalog],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+
+    root_notifications: list[Any] = []
+    surface_errors: list[Any] = []
+    resolvers: list[NodeResolver] = []
+
+    def on_surface_created(surface: SurfaceModel) -> None:
+        surface.data_model.subscribe("/", root_notifications.append)
+        surface.on_error.subscribe(surface_errors.append)
+        resolvers.append(NodeResolver(surface, catalog))
+
+    processor.model.on_surface_created.subscribe(on_surface_created)
+
+    processor.process_messages([{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s1",
+            "catalogId": catalog.catalog_id,
+            "dataModel": {"a": 1, "x/y~z": {"c": 2}},
+            "components": [{
+                "id": "root",
+                "component": "Counter",
+                "count": {"@path": "/x~1y~0z/c"},
+            }],
+        },
+    }])
+
+    surface = processor.model.get_surface("s1")
+    assert surface is not None
+    assert len(root_notifications) == 2
+    assert surface.data_model.get("/x~1y~0z/c") == 2
+    assert surface_errors == []
+    assert resolvers[0].root is not None
+    assert resolvers[0].root.props["count"].value == 2

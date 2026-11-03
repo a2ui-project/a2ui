@@ -1103,19 +1103,46 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
     this.model.addSurface(surface);
 
-    if (dataModel) {
-      // Assign the whole object at the root rather than building a pointer per
-      // key. Key names are literal property names, so a key containing '/' or
-      // '~' would otherwise be misread as a nested path.
-      surface.dataModel.set('/', dataModel);
-    }
+    try {
+      if (dataModel) {
+        for (const [key, value] of Object.entries(dataModel)) {
+          const escapedKey = key.replace(/~/g, '~0').replace(/\//g, '~1');
+          const path = `/${escapedKey}`;
+          try {
+            if (key === '') {
+              const currentRoot = (surface.dataModel.get('/') ?? {}) as Record<string, unknown>;
+              const nextRoot = {...currentRoot};
+              if (
+                value === undefined ||
+                (value === null && isAtLeastVersion(surface.protocolVersion, '1.0'))
+              ) {
+                delete nextRoot[''];
+              } else {
+                nextRoot[''] = value;
+              }
+              surface.dataModel.set('/', nextRoot);
+            } else {
+              surface.dataModel.set(path, value);
+            }
+          } catch (err: unknown) {
+            if (err instanceof A2uiDataError && !err.surfaceId) {
+              err.surfaceId = surfaceId;
+            }
+            throw err;
+          }
+        }
+      }
 
-    if (components && components.length > 0) {
-      this.processUpdateComponentsOp({
-        type: 'updateComponents',
-        surfaceId,
-        components,
-      });
+      if (components && components.length > 0) {
+        this.processUpdateComponentsOp({
+          type: 'updateComponents',
+          surfaceId,
+          components,
+        });
+      }
+    } catch (err: unknown) {
+      this.model.deleteSurface(surfaceId);
+      throw err;
     }
   }
 
