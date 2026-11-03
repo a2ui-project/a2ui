@@ -8,6 +8,16 @@
   To migrate, bind `value` to a data model path, such as
   `{"@path": "/form/email"}`. The path does not have to exist yet
   ([#3830](https://github.com/a2ui-project/a2ui/issues/3830), [#3868](https://github.com/a2ui-project/a2ui/pull/3868)).
+- **Breaking:** `DynamicBoolean` properties and function arguments now coerce
+  any resolved value to a boolean according to the protocol specification (via
+  the new `coerceDynamicBoolean` helper): booleans are kept as is,
+  `ValidationResult` objects coerce to `valid`, strings coerce to `true` only
+  when case-insensitively equal to `'true'` (and `false` for `'false'` and all
+  other strings), numbers coerce to `value != 0` (`NaN` is `false`), and
+  `null`, absent values, other objects, and arrays coerce to `false`. To
+  migrate, pass explicit booleans, non-zero/zero numbers, `'true'`/`'false'`
+  strings, or `ValidationResult` maps rather than relying on truthiness or
+  `null` pass-through ([#3850](https://github.com/a2ui-project/a2ui/pull/3850)).
 - (v1_0) The basic catalog `regex` function's `pattern` description now names the A2UI regex dialect and its safety limits ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
 - `MessageProcessor` writes an inline `createSurface.dataModel` as one
   `DataModel.set` per top-level key (`/<escaped_key>`, escaping `~` as `~0` and

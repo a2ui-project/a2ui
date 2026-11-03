@@ -30,6 +30,8 @@ export {
   type RendererConfiguration,
   ComponentHostComponent,
   type ComponentKey,
+  AccessibilityTargetDirective,
+  ValidationErrorsDirective,
   SurfaceComponent,
   SurfaceNodeResolver,
   CatalogComponent,

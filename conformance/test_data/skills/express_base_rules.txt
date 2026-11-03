@@ -36,8 +36,11 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 7. Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").
 
-8. Action events: represent server-side actions using the Event helper:
+8. Action events: represent server-side actions using the Event helper, `Event(name, context?, userMessage=...)`:
    Event("save_deal", {rep: $/form/rep})
+   Event("reply", userMessage="Replying now")
+   Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)
+   The context map is optional. Pass `userMessage=` as a keyword argument (a string, `$path` binding, or function call) to set the message shown on the user's behalf when the event fires.
 
 9. Nested functions: call client functions directly using catalog signatures, for example myFunction("value").
 

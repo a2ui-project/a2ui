@@ -308,8 +308,15 @@ extension Node {
   }
 
   /// Returns the resolved action for the given property key.
+  @available(*, deprecated, renamed: "action(for:userActivation:)")
   public func action(for key: String) -> ResolvedAction? {
     properties[key] as? ResolvedAction
+  }
+
+  /// Returns the resolved action for the given property key, gated on `userActivation`
+  /// when the action invokes a local function that requires user activation.
+  public func action(for key: String, userActivation: Bool) -> ResolvedAction? {
+    (properties[key] as? ResolvedAction)?.withUserActivation(userActivation)
   }
 
   /// Returns the single child `Node` for the given property key.
