@@ -27,6 +27,14 @@ const UNSUPPORTED_SUITES: ReadonlyArray<{suite: string; reason: string}> = [
     reason: 'the composite macro API is a Python-only helper not implemented in TypeScript',
   },
   {
+    suite: 'agent/elemental/compiler.yaml',
+    reason: 'Elemental and Atom are experimental and Python-only',
+  },
+  {
+    suite: 'agent/atom/compiler.yaml',
+    reason: 'Elemental and Atom are experimental and Python-only',
+  },
+  {
     suite: 'agent/legacy/streaming_parser.yaml',
     reason: 'superseded by direct_json/response_streaming.yaml and express/response_streaming.yaml',
   },

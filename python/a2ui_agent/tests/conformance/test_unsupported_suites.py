@@ -28,6 +28,7 @@ from .conformance_helpers import (
 )
 
 ACTIVE_SUITES: frozenset[str] = frozenset({
+    "agent/atom/compiler.yaml",
     "agent/builder/builder.yaml",
     "agent/catalog_provider.yaml",
     "agent/catalog_resolution.yaml",
@@ -38,6 +39,7 @@ ACTIVE_SUITES: frozenset[str] = frozenset({
     "agent/direct_json/response_parser.yaml",
     "agent/direct_json/response_streaming.yaml",
     "agent/direct_json/scaling.yaml",
+    "agent/elemental/compiler.yaml",
     "agent/express/compiler.yaml",
     "agent/express/decompiler.yaml",
     "agent/express/prompt_generator.yaml",

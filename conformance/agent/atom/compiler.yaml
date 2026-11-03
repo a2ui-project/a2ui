@@ -1,0 +1,141 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Compiling and decompiling the experimental Atom format: an S-expression
+# notation in which `(surface "id")` names the surface the following component
+# forms create, the outermost form is the root component, nested forms are its
+# children, `:key value` pairs are properties, and `(updateDataModel ...)` and
+# `(deleteSurface ...)` forms carry the other surface operations.
+#
+# Atom is experimental and implemented only by the Python Agent SDK; the other
+# SDKs record this suite as skipped. The cases are written against v1.0, where
+# a new surface and its components travel in one `createSurface` message, which
+# Atom writes with an empty `dataModel`. A decompile case with
+# `expect_round_trip` states that compiling the notation written for the
+# messages gives the messages back.
+
+- name: test_compile_atom_surface_form_creates_a_surface
+  description: A surface form followed by a component form compiles to one createSurface carrying the surface id, the catalog, the root component and its nested children, with the ids the forms declare.
+  action: compile
+  args:
+    format: atom
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |
+    (surface "s1")
+    (Card
+      (Text :id "body" :text "Hello"))
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "body"
+          - id: "body"
+            component: "Text"
+            text: "Hello"
+        dataModel: {}
+
+- name: test_compile_atom_update_data_model_form
+  description: An updateDataModel form compiles to an updateDataModel message at the path it names.
+  action: compile
+  args:
+    format: atom
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '(updateDataModel "s1" :path "/title" :value "Hello")'
+  expect:
+    - version: "1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/title"
+        value: "Hello"
+
+- name: test_compile_atom_delete_surface_form
+  description: A deleteSurface form compiles to a deleteSurface message for the surface it names.
+  action: compile
+  args:
+    format: atom
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '(deleteSurface "s1")'
+  expect:
+    - version: "1.0"
+      deleteSurface:
+        surfaceId: "s1"
+
+- name: test_compile_atom_unknown_component_is_a_validation_error
+  description: A form naming a component the catalog does not declare is a validation error rather than an unknown component in the output.
+  action: compile
+  args:
+    format: atom
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: '(surface "s1") (Mystery :text "x")'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_decompile_atom_surface_round_trips
+  description: A createSurface message writes back out as a surface form and nested component forms with the component ids, and compiling that notation gives the message back.
+  action: decompile
+  args:
+    format: atom
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Card"
+            child: "body"
+          - id: "body"
+            component: "Text"
+            text: "Hello"
+        dataModel: {}
+  expect_contains:
+    - '(surface "s1")'
+    - '(Card'
+    - '(Text :id "body" :text "Hello")'
+  expect_round_trip: true
+
+- name: test_decompile_atom_data_model_update_round_trips
+  description: An updateDataModel message writes back out as an updateDataModel form at the path, and compiling that gives the message back.
+  action: decompile
+  args:
+    format: atom
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/title"
+        value: "Hello"
+  expect_contains:
+    - '(updateDataModel "s1" :path "/title" :value "Hello")'
+  expect_round_trip: true
+
+- name: test_decompile_atom_delete_surface_round_trips
+  description: A deleteSurface message writes back out as a deleteSurface form, and compiling that gives the message back.
+  action: decompile
+  args:
+    format: atom
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      deleteSurface:
+        surfaceId: "s1"
+  expect_contains:
+    - '(deleteSurface "s1")'
+  expect_round_trip: true
