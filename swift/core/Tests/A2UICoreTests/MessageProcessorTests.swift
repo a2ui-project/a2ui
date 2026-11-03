@@ -864,10 +864,13 @@ struct MessageProcessorTests {
               {
                 "type": "object",
                 "properties": {
-                  "count": { "$ref": "common_types.json#/$defs/DynamicNumber" }
+                  "count": {
+                    "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicNumber"
+                  }
                 }
               }
-              """
+              """,
+            remoteSchemas: A2UICommonSchema.allSchemas
           )
         )
       ]
