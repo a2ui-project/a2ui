@@ -205,7 +205,7 @@ class HubScriptedLlm(BaseLlm):
 
         if not chunks:
             return
-        if not stream:
+        if not stream or not a2ui_enabled:
             yield _response("".join(chunks))
             return
         for chunk in chunks:
