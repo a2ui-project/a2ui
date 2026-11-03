@@ -47,7 +47,7 @@ You define the components and functions your client can render in `catalog.json`
       "properties": {
         "component": {"const": "FlightCard"},
         "flightNumber": {
-          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+          "$ref": "common_types.json#/$defs/DynamicString",
           "description": "IATA flight designator, such as 'LH 454'."
         }
         // ... origin, destination, price, passengers
@@ -162,12 +162,24 @@ The Agent SDK compiler processes the stream as it arrives:
 2. Validates that each component exists in the catalog and that its properties match the schema, reporting invalid output as soon as it appears.
 3. Emits the wire messages: `createSurface` opens the surface on the client, `updateComponents` sends the validated component list, and `updateDataModel` sends the initial data values.
 
-#### Layout and data on the wire
+#### Messages on the wire
 
-The tabs below show the `updateComponents` and `updateDataModel` messages the compiler emits for this example. Component IDs are chosen by the compiler; the ones here are for readability.
+The tabs below show the `createSurface`, `updateComponents`, and `updateDataModel` messages the compiler emits for this example. Component IDs are chosen by the compiler; the ones here are for readability.
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0 (Candidate)">
+
+Surface creation message, defined by [`CreateSurfaceMessage`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage):
+
+```json
+{
+  "version": "1.0",
+  "createSurface": {
+    "surfaceId": "flight-booking-surface",
+    "catalogId": "https://example.com/catalogs/travel/v1/catalog.json"
+  }
+}
+```
 
 Layout message, defined by [`UpdateComponentsMessage`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateComponentsMessage):
 
@@ -177,14 +189,14 @@ Layout message, defined by [`UpdateComponentsMessage`](/specification/v1.0/schem
   "updateComponents": {
     "surfaceId": "flight-booking-surface",
     "components": [
-      {"id": "root", "component": "Card", "child": "layout-col"},
+      {"id": "root", "component": "Card", "child": "layout_col"},
       {
-        "id": "layout-col",
+        "id": "layout_col",
         "component": "Column",
-        "children": ["flight-outbound", "flight-return", "submit-btn"]
+        "children": ["flight_outbound", "flight_return", "submit_btn"]
       },
       {
-        "id": "flight-outbound",
+        "id": "flight_outbound",
         "component": "FlightCard",
         "flightNumber": "LH 454",
         "origin": "BER",
@@ -193,7 +205,7 @@ Layout message, defined by [`UpdateComponentsMessage`](/specification/v1.0/schem
         "passengers": {"@path": "/outbound/pax"}
       },
       {
-        "id": "flight-return",
+        "id": "flight_return",
         "component": "FlightCard",
         "flightNumber": "UA 901",
         "origin": "SFO",
@@ -201,11 +213,11 @@ Layout message, defined by [`UpdateComponentsMessage`](/specification/v1.0/schem
         "price": {"@path": "/return/price"},
         "passengers": {"@path": "/return/pax"}
       },
-      {"id": "submit-label", "component": "Text", "text": "Confirm booking"},
+      {"id": "submit_label", "component": "Text", "text": "Confirm booking"},
       {
-        "id": "submit-btn",
+        "id": "submit_btn",
         "component": "Button",
-        "child": "submit-label",
+        "child": "submit_label",
         "variant": "primary",
         "action": {
           "event": {
@@ -241,6 +253,18 @@ Data message, defined by [`UpdateDataModelMessage`](/specification/v1.0/schemas/
   </TabItem>
   <TabItem label="v0.9.1 (Active)">
 
+Surface creation message, defined by [`CreateSurfaceMessage`](/specification/v0.9.1/schemas/#server_to_client.json/$defs/CreateSurfaceMessage):
+
+```json
+{
+  "version": "v0.9",
+  "createSurface": {
+    "surfaceId": "flight-booking-surface",
+    "catalogId": "https://example.com/catalogs/travel/v0_9/catalog.json"
+  }
+}
+```
+
 Layout message, defined by [`UpdateComponentsMessage`](/specification/v0.9.1/schemas/#server_to_client.json/$defs/UpdateComponentsMessage):
 
 ```json
@@ -249,14 +273,14 @@ Layout message, defined by [`UpdateComponentsMessage`](/specification/v0.9.1/sch
   "updateComponents": {
     "surfaceId": "flight-booking-surface",
     "components": [
-      {"id": "root", "component": "Card", "child": "layout-col"},
+      {"id": "root", "component": "Card", "child": "layout_col"},
       {
-        "id": "layout-col",
+        "id": "layout_col",
         "component": "Column",
-        "children": ["flight-outbound", "flight-return", "submit-btn"]
+        "children": ["flight_outbound", "flight_return", "submit_btn"]
       },
       {
-        "id": "flight-outbound",
+        "id": "flight_outbound",
         "component": "FlightCard",
         "flightNumber": "LH 454",
         "origin": "BER",
@@ -265,7 +289,7 @@ Layout message, defined by [`UpdateComponentsMessage`](/specification/v0.9.1/sch
         "passengers": {"path": "/outbound/pax"}
       },
       {
-        "id": "flight-return",
+        "id": "flight_return",
         "component": "FlightCard",
         "flightNumber": "UA 901",
         "origin": "SFO",
@@ -273,11 +297,11 @@ Layout message, defined by [`UpdateComponentsMessage`](/specification/v0.9.1/sch
         "price": {"path": "/return/price"},
         "passengers": {"path": "/return/pax"}
       },
-      {"id": "submit-label", "component": "Text", "text": "Confirm booking"},
+      {"id": "submit_label", "component": "Text", "text": "Confirm booking"},
       {
-        "id": "submit-btn",
+        "id": "submit_btn",
         "component": "Button",
-        "child": "submit-label",
+        "child": "submit_label",
         "variant": "primary",
         "action": {
           "event": {
@@ -321,30 +345,30 @@ The client receives `createSurface`, `updateComponents`, and `updateDataModel` o
 2. Resolves the flat component list and data model into a hierarchical node layer starting at `root`, following each `child` and `children` ID and binding path references (such as `/outbound/pax`) to their values in the data model.
 3. Builds the native widgets from that node tree and subscribes each widget to updates on its bound properties.
 
-At this point, the client's node layer joins the component hierarchy with the resolved values from the data model. `Card` (`root`) wraps `Column` (`layout-col`), which contains the two `FlightCard` nodes with their bound prices and passenger counts alongside `Button` (`submit-btn`) and its `Text` label:
+At this point, the client's node layer joins the component hierarchy with the resolved values from the data model. `Card` (`root`) wraps `Column` (`layout_col`), which contains the two `FlightCard` nodes with their bound prices and passenger counts alongside `Button` (`submit_btn`) and its `Text` label:
 
 ```text
 Surface ("flight-booking-surface")
 └── Card ("root")
-    └── Column ("layout-col")
-        ├── FlightCard ("flight-outbound")
+    └── Column ("layout_col")
+        ├── FlightCard ("flight_outbound")
         │     flightNumber: "LH 454"
         │     origin: "BER"
         │     destination: "SFO"
         │     price: 455        ← /outbound/price
         │     passengers: 1     ← /outbound/pax
-        ├── FlightCard ("flight-return")
+        ├── FlightCard ("flight_return")
         │     flightNumber: "UA 901"
         │     origin: "SFO"
         │     destination: "BER"
         │     price: 970        ← /return/price
         │     passengers: 2     ← /return/pax
-        └── Button ("submit-btn")
+        └── Button ("submit_btn")
             │ variant: "primary"
             │ action: event "confirm_booking"
             │   outboundPax: 1  ← /outbound/pax
             │   returnPax: 2    ← /return/pax
-            └── Text ("submit-label")
+            └── Text ("submit_label")
                   text: "Confirm booking"
 ```
 
@@ -368,7 +392,7 @@ Defined by [`renderer_to_agent.json`](/specification/v1.0/schemas/#renderer_to_a
   "action": {
     "name": "confirm_booking",
     "surfaceId": "flight-booking-surface",
-    "sourceComponentId": "submit-btn",
+    "sourceComponentId": "submit_btn",
     "timestamp": "2026-10-12T08:30:00Z",
     "context": {"outboundPax": 2, "returnPax": 2}
   }
@@ -386,7 +410,7 @@ Defined by [`client_to_server.json`](/specification/v0.9.1/schemas/#client_to_se
   "action": {
     "name": "confirm_booking",
     "surfaceId": "flight-booking-surface",
-    "sourceComponentId": "submit-btn",
+    "sourceComponentId": "submit_btn",
     "timestamp": "2026-10-12T08:30:00Z",
     "context": {"outboundPax": 2, "returnPax": 2}
   }

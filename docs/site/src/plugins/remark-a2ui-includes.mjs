@@ -92,8 +92,18 @@ function resolveAstUrl(rawTarget, sourcePagePath) {
   else if (sourcePagePath.includes('v1.0')) versionPrefix = 'v1.0';
 
   const versionFolder = versionPrefix ? versionPrefix.replace(/\./g, '_') : null;
-  const [rawBase, rawAnchor] = rawTarget.split('#');
+  const hashIdx = rawTarget.indexOf('#');
+  const rawBase = hashIdx === -1 ? rawTarget : rawTarget.slice(0, hashIdx);
+  const rawAnchor = hashIdx === -1 ? '' : rawTarget.slice(hashIdx + 1);
   const anchor = rawAnchor ? `#${rawAnchor}` : '';
+
+  if (rawBase.startsWith('/') && !rawBase.startsWith('//')) {
+    if (basePrefix && rawBase !== basePrefix && !rawBase.startsWith(`${basePrefix}/`)) {
+      return `${basePrefix}${rawBase}${anchor}`;
+    }
+    return rawTarget;
+  }
+
   const basePath = rawBase.replace(/^\.\//, '');
 
   if (versionPrefix) {
@@ -212,6 +222,7 @@ export function remarkA2uiIncludes() {
     const hasAlert = /\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/.test(rawValue);
 
     if (!hasSnippet && !hasAlert) {
+      walkAstAndRewriteLinks(tree, filePath);
       return;
     }
 
