@@ -2511,7 +2511,7 @@
 <li><a href="https://a2a-protocol.org">A2A Protocol Documentation</a>.</li>
 </ul>
 <hr />
-<h1 id="a2ui-agent-to-agent-ui-extension-spec-v10">A2UI (Agent-to-Agent UI) Extension spec v1.0<a class="headerlink" href="#a2ui-agent-to-agent-ui-extension-spec-v10" title="Permanent link">&para;</a></h1>
+<h1 id="a2ui-extension-spec-v10">A2UI Extension spec v1.0<a class="headerlink" href="#a2ui-extension-spec-v10" title="Permanent link">&para;</a></h1>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>This document is intended for developers implementing the A2UI A2A extension. The extension adds A2UI v1.0 support to A2A, a format for agents to send streaming, interactive user interfaces to renderers.</p>
 <p>Note that A2UI extension activation is optional as renderers and agents can negotiate A2UI support using A2A <code>message.metadata["a2uiRendererCapabilities"]</code> which is attached to every A2A message from the renderer and contains the supported protocol version and catalogs. Agents advertising A2UI support in their AgentCard is encouraged as renderers may rely on it to determine if they should send <code>message.metadata["a2uiRendererCapabilities"]</code>, however it is not explicitly required.</p>
