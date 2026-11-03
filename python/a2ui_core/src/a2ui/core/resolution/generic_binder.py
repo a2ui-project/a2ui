@@ -54,18 +54,14 @@ class BehaviorNode:
     is_boolean: bool = False
 
 
-CHECKABLE_REF_NAMES: Final[frozenset[str]] = frozenset(
-    {"Checkable", "CheckRule"}
-)
+CHECKABLE_REF_NAMES: Final[frozenset[str]] = frozenset({"Checkable", "CheckRule"})
 ACTION_REF_NAMES: Final[frozenset[str]] = frozenset({"Action"})
-STRUCTURAL_REF_NAMES: Final[frozenset[str]] = frozenset(
-    {
-        "ChildList",
-        "ComponentId",
-        "Child",
-        "TemplateChildList",
-    }
-)
+STRUCTURAL_REF_NAMES: Final[frozenset[str]] = frozenset({
+    "ChildList",
+    "ComponentId",
+    "Child",
+    "TemplateChildList",
+})
 
 
 @cache
@@ -122,14 +118,12 @@ def _is_dynamic_def(def_schema: Any) -> bool:
     return dynamic_literal_kinds(_localize_branch_refs(items)) is not None
 
 
-_SPECIAL_BEHAVIORS: Final[frozenset[BehaviorType]] = frozenset(
-    {
-        BehaviorType.CHECKABLE,
-        BehaviorType.ACTION,
-        BehaviorType.STRUCTURAL,
-        BehaviorType.DYNAMIC,
-    }
-)
+_SPECIAL_BEHAVIORS: Final[frozenset[BehaviorType]] = frozenset({
+    BehaviorType.CHECKABLE,
+    BehaviorType.ACTION,
+    BehaviorType.STRUCTURAL,
+    BehaviorType.DYNAMIC,
+})
 
 
 def _merge_all_of_branch(
@@ -239,9 +233,7 @@ def _classify_container(
     if schema_type == "object" or "properties" in schema:
         props = schema.get("properties")
         if isinstance(props, dict):
-            if "componentId" in props and (
-                "path" in props or "dataBinding" in props
-            ):
+            if "componentId" in props and ("path" in props or "dataBinding" in props):
                 return BehaviorNode(BehaviorType.STRUCTURAL)
             if "explicitList" in props or "template" in props:
                 return BehaviorNode(BehaviorType.STRUCTURAL)
@@ -496,9 +488,7 @@ class GenericBinder:
         def setter(new_value: Any) -> None:
             if isinstance(raw_val, dict):
                 binding_key = (
-                    "@path"
-                    if self.context.data_context.at_least_v10
-                    else "path"
+                    "@path" if self.context.data_context.at_least_v10 else "path"
                 )
                 path_val = raw_val.get(binding_key)
                 if isinstance(path_val, str) and (
@@ -570,10 +560,7 @@ class GenericBinder:
         self, value: dict[str, Any], path: list[str], is_sync: bool
     ) -> Any:
         template_obj = value.get("template") if "template" in value else value
-        if (
-            not isinstance(template_obj, dict)
-            or "componentId" not in template_obj
-        ):
+        if not isinstance(template_obj, dict) or "componentId" not in template_obj:
             return value
         comp_id = template_obj.get("componentId")
         template_path = (
@@ -651,9 +638,7 @@ class GenericBinder:
             self._update_deep_value(path, coerce(new_val))
             self._notify()
 
-        bound = self.context.data_context.subscribe_dynamic_value(
-            value, on_change
-        )
+        bound = self.context.data_context.subscribe_dynamic_value(value, on_change)
         if not is_sync:
             self.data_listeners.append(bound)
         else:
@@ -680,12 +665,8 @@ class GenericBinder:
                     # closure returns the result's current value, None while
                     # an agent function's answer is pending.
                     result = self.context.data_context.resolve_action(value)
-                    if hasattr(result, "subscribe") and callable(
-                        result.subscribe
-                    ):
-                        return (
-                            result.peek() if hasattr(result, "peek") else None
-                        )
+                    if hasattr(result, "subscribe") and callable(result.subscribe):
+                        return result.peek() if hasattr(result, "peek") else None
                     return result
             resolved = self.context.data_context.resolve_action(value)
             return self.context.dispatch_action(resolved, metadata=metadata)
@@ -724,9 +705,7 @@ class GenericBinder:
         except Exception:
             dumped = {
                 "valid": False,
-                "message": explicit_rule_msg
-                or fallback_msg
-                or "Validation failed",
+                "message": explicit_rule_msg or fallback_msg or "Validation failed",
             }
 
         if not dumped.get("valid") and "severity" not in dumped:
@@ -740,16 +719,10 @@ class GenericBinder:
     ) -> tuple[bool, list[str], list[dict[str, Any]], dict[str, Any]]:
         # A rule whose condition waits for an agent call (None) does not
         # fail while it is pending.
-        failed_rules = [
-            r for r in rule_results if r is not None and not r["valid"]
-        ]
-        error_rules = [
-            r for r in failed_rules if r.get("severity", "error") == "error"
-        ]
+        failed_rules = [r for r in rule_results if r is not None and not r["valid"]]
+        error_rules = [r for r in failed_rules if r.get("severity", "error") == "error"]
         is_valid = len(error_rules) == 0
-        validation_errors = [
-            r["message"] for r in error_rules if r.get("message")
-        ]
+        validation_errors = [r["message"] for r in error_rules if r.get("message")]
         validation_results = [
             {k: v for k, v in r.items() if k != "_is_obj"} for r in failed_rules
         ]
@@ -844,9 +817,7 @@ class GenericBinder:
             else:
                 bound.unsubscribe()
 
-            rule_results[idx] = rule_result(
-                bound.value, explicit_msg, fallback_msg
-            )
+            rule_results[idx] = rule_result(bound.value, explicit_msg, fallback_msg)
 
         _apply_validation_state(reactive=False)
         return value
@@ -856,13 +827,8 @@ class GenericBinder:
         if not isinstance(condition, dict):
             return False
         if self.context.data_context.at_least_v10:
-            return (
-                isinstance(condition.get("@path"), str)
-                and "@call" not in condition
-            )
-        return (
-            isinstance(condition.get("path"), str) and "call" not in condition
-        )
+            return isinstance(condition.get("@path"), str) and "@call" not in condition
+        return isinstance(condition.get("path"), str) and "call" not in condition
 
     def _notify(self) -> None:
         for listener in list(self.listeners):
@@ -871,9 +837,7 @@ class GenericBinder:
             except Exception:
                 pass
 
-    def subscribe(
-        self, listener: Callable[[dict[str, Any]], None]
-    ) -> Subscription:
+    def subscribe(self, listener: Callable[[dict[str, Any]], None]) -> Subscription:
         """Registers a listener to receive resolved updates to the component properties."""
         self.listeners.add(listener)
         listener(self.current_props)
