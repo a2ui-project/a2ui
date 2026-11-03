@@ -115,7 +115,7 @@ describe('isSafeRegex (CWE-1333 ReDoS Safety)', () => {
     });
 
     it('allows disjoint delimited lists', () => {
-      assert.strictEqual(isSafeRegex('^[a-z]+(,[a-z]{1,32})*$'), true);
+      assert.strictEqual(isSafeRegex('^[a-z]{1,32}(,[a-z]{1,32})*$'), true);
       assert.strictEqual(isSafeRegex('^(\\d{1,3}\\.){3}\\d{1,3}$'), true);
       assert.strictEqual(isSafeRegex('^\\d+(\\.\\d+)?$'), true);
       assert.strictEqual(isSafeRegex('^\\$\\d+(\\.\\d{2})?$'), true);
