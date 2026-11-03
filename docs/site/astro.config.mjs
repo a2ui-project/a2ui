@@ -82,7 +82,7 @@ export default defineConfig({
           items: [
             {
               label: '← Back to Overview',
-              link: `${(process.env.ASTRO_BASE || '').replace(/\/$/, '')}/`,
+              link: '/',
             },
           ],
         },
