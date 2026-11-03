@@ -59,7 +59,7 @@ export type RegexAnalysisResult =
   | {readonly ok: true; readonly tree: RegexNode}
   | {
       readonly ok: false;
-      readonly reason: RegexRejection | 'SYNTAX';
+      readonly reason: RegexRejection;
       readonly detail: string;
     };
 
@@ -118,7 +118,6 @@ const SYNTAX_CHARS = new Set<number>([
   0x7d, // }
   0x7c, // |
   0x2f, // /
-  0x2d, // -
 ]);
 
 const CONTROL_ESCAPES = new Map<number, number>([
@@ -365,7 +364,7 @@ function parseEscape(s: Scanner, inClass: boolean): EscapeResult {
   if (controlCp !== undefined) return {kind: 'single', cp: controlCp};
   const numOrHex = parseNumericOrHexEscape(s, cp);
   if (numOrHex !== null) return {kind: 'single', cp: numOrHex};
-  if (SYNTAX_CHARS.has(cp)) return {kind: 'single', cp};
+  if (SYNTAX_CHARS.has(cp) || (inClass && cp === 0x2d)) return {kind: 'single', cp};
   throw new RegexSyntaxError('Unsupported escape sequence', true);
 }
 
@@ -797,7 +796,7 @@ export function analyzeRegex(pattern: string): RegexAnalysisResult {
     if (err instanceof RegexSyntaxError) {
       return {
         ok: false,
-        reason: err.unsupported ? 'UNSUPPORTED_SYNTAX' : 'SYNTAX',
+        reason: 'UNSUPPORTED_SYNTAX',
         detail: err.message,
       };
     }

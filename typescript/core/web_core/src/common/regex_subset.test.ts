@@ -62,7 +62,8 @@ describe('regex_subset', () => {
       '[^0-9]',
       'a*?b+?c??d{1,3}?e{2,}?',
       '\\t\\n\\v\\f\\r',
-      '\\^\\$\\\\\\.\\*\\+\\?\\(\\)\\[\\]\\{\\}\\|\\/\\-',
+      '\\^\\$\\\\\\.\\*\\+\\?\\(\\)\\[\\]\\{\\}\\|\\/',
+      '[\\-]',
     ];
 
     for (const pattern of validPatterns) {
@@ -89,6 +90,7 @@ describe('regex_subset', () => {
       '\\01',
       '\\1',
       '\\a',
+      '\\-',
       '[a&&b]',
       '[a--b]',
       '[[a-z]]',
@@ -143,11 +145,11 @@ describe('regex_subset', () => {
     ];
 
     for (const pattern of syntaxErrorPatterns) {
-      it(`rejects malformed pattern ${JSON.stringify(pattern)} with SYNTAX`, () => {
+      it(`rejects malformed pattern ${JSON.stringify(pattern)} with UNSUPPORTED_SYNTAX`, () => {
         const res = analyzeRegex(pattern);
         assert.strictEqual(res.ok, false);
         if (!res.ok) {
-          assert.strictEqual(res.reason, 'SYNTAX');
+          assert.strictEqual(res.reason, 'UNSUPPORTED_SYNTAX');
         }
         assert.throws(() => parseRegexSubset(pattern), RegexSyntaxError);
       });

@@ -33,6 +33,8 @@ from a2ui.core import (
 from a2ui.core.common import (
     CharSetNode,
     CodePointRange,
+)
+from a2ui.core.common.regex_subset import (
     chars,
     complement_ranges,
     count_code_points,
@@ -72,7 +74,8 @@ def test_constants() -> None:
         r"[^0-9]",
         r"a*?b+?c??d{1,3}?e{2,}?",
         r"\t\n\v\f\r",
-        r"\^\$\\\.\*\+\?\(\)\[\]\{\}\|\/\-",
+        r"\^\$\\\.\*\+\?\(\)\[\]\{\}\|\/",
+        r"[\-]",
     ],
 )
 def test_grammar_acceptance(pattern: str) -> None:
@@ -98,6 +101,7 @@ def test_grammar_acceptance(pattern: str) -> None:
         r"\01",
         r"\1",
         r"\a",
+        r"\-",
         r"[a&&b]",
         r"[a--b]",
         r"[[a-z]]",
@@ -152,10 +156,10 @@ def test_unsupported_syntax_rejections(pattern: str) -> None:
 def test_syntax_rejections(pattern: str) -> None:
     res = analyze_regex(pattern)
     assert res.ok is False
-    assert res.reason == "SYNTAX"
+    assert res.reason == "UNSUPPORTED_SYNTAX"
     with pytest.raises(RegexSyntaxError):
         parse_regex_subset(pattern)
-    with pytest.raises(A2uiExpressionError, match="SYNTAX"):
+    with pytest.raises(A2uiExpressionError, match="UNSUPPORTED_SYNTAX"):
         compile_guarded(pattern)
 
 

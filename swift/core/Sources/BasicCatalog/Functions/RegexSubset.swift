@@ -94,7 +94,9 @@ public enum RegexSubset {
   /// Maximum length of an input value in Unicode code points for regex matching.
   public static let maxValueCodePoints = 4096
 
-  private static let maxQuantifierBound = 256
+  private static let maxQuantifierBound = 65535
+  private static let surrogateStart: UInt32 = 0xD800
+  private static let surrogateEnd: UInt32 = 0xDFFF
   private static let maxCodePoint: UInt32 = 0x10FFFF
   private static let cacheCapacity = 256
 
@@ -120,19 +122,45 @@ public enum RegexSubset {
   private static let spaceRanges: [CodePointRange] = [
     CodePointRange(start: 0x09, end: 0x0D),
     CodePointRange(start: 0x20, end: 0x20),
+    CodePointRange(start: 0xA0, end: 0xA0),
+    CodePointRange(start: 0x1680, end: 0x1680),
+    CodePointRange(start: 0x2000, end: 0x200A),
+    CodePointRange(start: 0x2028, end: 0x2029),
+    CodePointRange(start: 0x202F, end: 0x202F),
+    CodePointRange(start: 0x205F, end: 0x205F),
+    CodePointRange(start: 0x3000, end: 0x3000),
+    CodePointRange(start: 0xFEFF, end: 0xFEFF),
   ]
   private static let nonSpaceRanges: [CodePointRange] = complementRanges(spaceRanges)
 
-  private static let dotRanges: [CodePointRange] = [
+  private static let dotRanges: [CodePointRange] = normalizeRanges([
     CodePointRange(start: 0x00, end: 0x09),
     CodePointRange(start: 0x0B, end: 0x0C),
-    CodePointRange(start: 0x0E, end: maxCodePoint),
-  ]
+    CodePointRange(start: 0x0E, end: 0x2027),
+    CodePointRange(start: 0x202A, end: maxCodePoint),
+  ])
 
   // MARK: - Range algebra
 
+  private static func excludeSurrogates(_ r: CodePointRange) -> [CodePointRange] {
+    if r.start > r.end { return [] }
+    let hi = Swift.min(r.end, maxCodePoint)
+    if r.start > hi { return [] }
+    if hi < surrogateStart || r.start > surrogateEnd {
+      return [CodePointRange(start: r.start, end: hi)]
+    }
+    var out: [CodePointRange] = []
+    if r.start < surrogateStart {
+      out.append(CodePointRange(start: r.start, end: surrogateStart - 1))
+    }
+    if hi > surrogateEnd {
+      out.append(CodePointRange(start: surrogateEnd + 1, end: hi))
+    }
+    return out
+  }
+
   public static func normalizeRanges(_ ranges: [CodePointRange]) -> [CodePointRange] {
-    let valid = ranges.filter { $0.start <= $0.end }
+    let valid = ranges.flatMap(excludeSurrogates)
     guard !valid.isEmpty else { return [] }
     let sorted = valid.sorted {
       $0.start != $1.start ? $0.start < $1.start : $0.end < $1.end
@@ -152,12 +180,14 @@ public enum RegexSubset {
   }
 
   public static func complementRanges(_ ranges: [CodePointRange]) -> [CodePointRange] {
-    let normalized = normalizeRanges(ranges)
+    let normalized = normalizeRanges(
+      ranges + [CodePointRange(start: surrogateStart, end: surrogateEnd)]
+    )
     var out: [CodePointRange] = []
     var cursor: UInt32 = 0
     for r in normalized {
       if r.start > cursor {
-        out.append(CodePointRange(start: cursor, end: r.start - 1))
+        out.append(contentsOf: excludeSurrogates(CodePointRange(start: cursor, end: r.start - 1)))
       }
       if r.end >= maxCodePoint {
         return out
@@ -165,7 +195,7 @@ public enum RegexSubset {
       cursor = r.end + 1
     }
     if cursor <= maxCodePoint {
-      out.append(CodePointRange(start: cursor, end: maxCodePoint))
+      out.append(contentsOf: excludeSurrogates(CodePointRange(start: cursor, end: maxCodePoint)))
     }
     return out
   }
@@ -310,11 +340,17 @@ public enum RegexSubset {
         throw RegexSyntaxError("Unclosed or malformed brace quantifier", offset: startOffset)
       }
       if minVal > RegexSubset.maxQuantifierBound {
-        throw RegexSyntaxError("Quantifier lower bound exceeds 256", offset: startOffset)
+        throw RegexSyntaxError(
+          "Quantifier lower bound exceeds \(RegexSubset.maxQuantifierBound)",
+          offset: startOffset
+        )
       }
       if let maxVal {
         if maxVal > RegexSubset.maxQuantifierBound {
-          throw RegexSyntaxError("Quantifier upper bound exceeds 256", offset: startOffset)
+          throw RegexSyntaxError(
+            "Quantifier upper bound exceeds \(RegexSubset.maxQuantifierBound)",
+            offset: startOffset
+          )
         }
         if maxVal < minVal {
           throw RegexSyntaxError("Quantifier range out of order", offset: startOffset)
@@ -401,6 +437,11 @@ public enum RegexSubset {
 
     mutating func parseScalarEscape(_ cp: UInt32, escOffset: Int) throws -> UInt32? {
       switch cp {
+      case 0x30:  // \0
+        if let nextCp = peek(), nextCp >= 0x30 && nextCp <= 0x39 {
+          throw RegexSyntaxError("Octal escape is not supported", offset: escOffset)
+        }
+        return 0x00
       case 0x74: return 0x09  // \t
       case 0x6E: return 0x0A  // \n
       case 0x72: return 0x0D  // \r
@@ -525,6 +566,12 @@ public enum RegexSubset {
           throw RegexSyntaxError("Trailing backslash in character class", offset: atomOffset)
         }
         let esc = try next()
+        if esc == 0x62 {  // \b inside [...] -> U+0008
+          return (0x08, [CodePointRange(start: 0x08, end: 0x08)])
+        }
+        if esc == 0x2D {  // \- inside [...] -> U+002D
+          return (0x2D, [CodePointRange(start: 0x2D, end: 0x2D)])
+        }
         if let classRanges = classEscapeRanges(esc) {
           return (nil, classRanges)
         }
@@ -555,7 +602,7 @@ public enum RegexSubset {
     func isSyntaxChar(_ cp: UInt32) -> Bool {
       switch cp {
       case 0x5E, 0x24, 0x5C, 0x2E, 0x2A, 0x2B, 0x3F,
-        0x28, 0x29, 0x5B, 0x5D, 0x7B, 0x7D, 0x7C, 0x2F, 0x2D:
+        0x28, 0x29, 0x5B, 0x5D, 0x7B, 0x7D, 0x7C, 0x2F:
         return true
       default:
         return false
@@ -669,22 +716,7 @@ public enum RegexSubset {
     }
   }
 
-  private static func collectAltBranches(_ node: RegexNode, into out: inout [RegexNode]) {
-    switch node {
-    case .alt(let branches):
-      for b in branches {
-        collectAltBranches(b, into: &out)
-      }
-    case .group(_, let child):
-      collectAltBranches(child, into: &out)
-    default:
-      out.append(node)
-    }
-  }
-
-  private static func altBranchesOverlap(_ altNode: RegexNode) -> Bool {
-    var branches: [RegexNode] = []
-    collectAltBranches(altNode, into: &branches)
+  private static func branchesOverlap(_ branches: [RegexNode]) -> Bool {
     let firstSets = branches.map { firstSet(unwrap($0)) }
     for i in 0..<firstSets.count {
       for j in (i + 1)..<firstSets.count {
@@ -696,19 +728,6 @@ public enum RegexSubset {
     return false
   }
 
-  private static func containsOverlappingAlt(_ node: RegexNode) -> Bool {
-    switch node {
-    case .empty, .charSet, .anchor, .lookahead:
-      return false
-    case .group(_, let child), .repeatNode(let child, _, _, _):
-      return containsOverlappingAlt(child)
-    case .concat(let items):
-      return items.contains(where: containsOverlappingAlt)
-    case .alt(let branches):
-      return altBranchesOverlap(node) || branches.contains(where: containsOverlappingAlt)
-    }
-  }
-
   private static func hasOverlappingAlternation(_ node: RegexNode) -> Bool {
     switch node {
     case .empty, .charSet, .anchor:
@@ -716,7 +735,7 @@ public enum RegexSubset {
     case .group(_, let child), .lookahead(_, let child):
       return hasOverlappingAlternation(child)
     case .repeatNode(let child, _, let max, _):
-      if (max == nil || max! > 1) && containsOverlappingAlt(child) {
+      if max == nil, case .alt(let branches) = unwrap(child), branchesOverlap(branches) {
         return true
       }
       return hasOverlappingAlternation(child)
@@ -727,22 +746,7 @@ public enum RegexSubset {
     }
   }
 
-  private static func flattenConcat(_ node: RegexNode, into out: inout [RegexNode]) {
-    switch node {
-    case .concat(let items):
-      for item in items {
-        flattenConcat(item, into: &out)
-      }
-    case .group(_, let child):
-      flattenConcat(child, into: &out)
-    default:
-      out.append(node)
-    }
-  }
-
-  private static func concatHasAdjacentOverlap(_ concatNode: RegexNode) -> Bool {
-    var items: [RegexNode] = []
-    flattenConcat(concatNode, into: &items)
+  private static func concatHasAdjacentOverlap(_ items: [RegexNode]) -> Bool {
     for i in 0..<items.count {
       guard case .repeatNode(let xChild, _, let xMax, _) = unwrap(items[i]),
         xMax == nil
@@ -775,7 +779,7 @@ public enum RegexSubset {
     case .alt(let branches):
       return branches.contains(where: hasAdjacentOverlap)
     case .concat(let items):
-      return concatHasAdjacentOverlap(node) || items.contains(where: hasAdjacentOverlap)
+      return concatHasAdjacentOverlap(items) || items.contains(where: hasAdjacentOverlap)
     }
   }
 

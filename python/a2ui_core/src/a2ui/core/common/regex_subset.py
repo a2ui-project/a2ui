@@ -131,7 +131,7 @@ class RegexAnalysisResult:
 
     ok: bool
     tree: RegexNode | None = None
-    reason: RegexRejection | Literal["SYNTAX"] | None = None
+    reason: RegexRejection | None = None
     detail: str | None = None
 
 
@@ -189,7 +189,6 @@ _SYNTAX_CHARS: frozenset[int] = frozenset({
     0x7D,  # }
     0x7C,  # |
     0x2F,  # /
-    0x2D,  # -
 })
 
 _CONTROL_ESCAPES: dict[int, int] = {
@@ -446,7 +445,7 @@ def _parse_escape(s: _Scanner, in_class: bool) -> _EscapeResult:
     num_or_hex = _parse_numeric_or_hex_escape(s, cp)
     if num_or_hex is not None:
         return _EscapeResult(kind="single", cp=num_or_hex)
-    if cp in _SYNTAX_CHARS:
+    if cp in _SYNTAX_CHARS or (in_class and cp == 0x2D):
         return _EscapeResult(kind="single", cp=cp)
     raise RegexSyntaxError("Unsupported escape sequence", True)
 
@@ -813,7 +812,7 @@ def analyze_regex(pattern: str) -> RegexAnalysisResult:
     except RegexSyntaxError as err:
         return RegexAnalysisResult(
             ok=False,
-            reason="UNSUPPORTED_SYNTAX" if err.unsupported else "SYNTAX",
+            reason="UNSUPPORTED_SYNTAX",
             detail=str(err),
         )
     rejection = check_regex_safety(pattern, tree)
@@ -916,7 +915,7 @@ def compile_guarded(pattern: str) -> re.Pattern[str]:
         return re.compile(translated)
     except re.error as err:
         raise A2uiExpressionError(
-            f"Invalid regex pattern (SYNTAX): {pattern}",
+            f"Invalid regex pattern (UNSUPPORTED_SYNTAX): {pattern}",
             expression="regex",
         ) from err
 

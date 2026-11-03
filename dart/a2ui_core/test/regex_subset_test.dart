@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_core/src/primitives/regex_subset.dart'
+    show countCodePoints;
 import 'package:test/test.dart';
 
 void main() {
@@ -34,8 +36,11 @@ void main() {
         '[^0-9]',
         r'[\d\w\s\D\W\S]',
         r'\t\n\r\f\v',
-        r'\^\$\\\.\*\+\?\(\)\[\]\{\}\|\/\-',
+        r'\^\$\\\.\*\+\?\(\)\[\]\{\}\|\/',
         r'\x41\u0042\u{43}\u{1F600}',
+        r'\0',
+        r'[\b]',
+        'a{1,1000}',
         '[-a]',
         '[a-]',
         r'[\-a]',
@@ -71,7 +76,8 @@ void main() {
         r'\a',
         r'\e',
         r'\cA',
-        r'\0',
+        r'\01',
+        r'\-',
         r'[[:alpha:]]',
         r'[a&&b]',
         r'[a[b]]',
@@ -80,8 +86,8 @@ void main() {
         r'[z-a]',
         r'[\d-z]',
         r'[a-\d]',
-        r'a{257}',
-        r'a{1,257}',
+        r'a{65536}',
+        r'a{1,65536}',
         r'a{5,3}',
         r'a{}',
         r'a{,3}',

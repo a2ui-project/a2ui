@@ -28,7 +28,9 @@ const int maxRegexPatternCodePoints = 256;
 const int maxRegexValueCodePoints = 4096;
 
 const int _maxCodePoint = 0x10FFFF;
-const int _maxQuantifierBound = 256;
+const int _surrogateStart = 0xD800;
+const int _surrogateEnd = 0xDFFF;
+const int _maxQuantifierBound = 65535;
 const int _compiledRegexCacheLimit = 256;
 
 /// Inclusive `[lo, hi]` Unicode code-point range (`0 <= lo <= hi <= 0x10FFFF`).
@@ -240,14 +242,26 @@ class RegexSyntaxError implements Exception {
 // Character set operations
 // ---------------------------------------------------------------------------
 
+List<CodePointRange> _excludeSurrogates(CodePointRange r) {
+  final int lo = math.max(0, r.lo);
+  final int hi = math.min(_maxCodePoint, r.hi);
+  if (lo > hi) return const <CodePointRange>[];
+  if (hi < _surrogateStart || lo > _surrogateEnd) {
+    return <CodePointRange>[CodePointRange(lo, hi)];
+  }
+  final out = <CodePointRange>[];
+  if (lo < _surrogateStart) {
+    out.add(CodePointRange(lo, _surrogateStart - 1));
+  }
+  if (hi > _surrogateEnd) {
+    out.add(CodePointRange(_surrogateEnd + 1, hi));
+  }
+  return out;
+}
+
 List<CodePointRange> _normalizeRanges(Iterable<CodePointRange> ranges) {
   final nonEmpty = <CodePointRange>[
-    for (final r in ranges)
-      if (r.lo <= r.hi)
-        CodePointRange(
-          math.max(0, r.lo),
-          math.min(_maxCodePoint, r.hi),
-        ),
+    for (final r in ranges) ..._excludeSurrogates(r),
   ];
   if (nonEmpty.isEmpty) return const <CodePointRange>[];
   nonEmpty.sort(
@@ -268,18 +282,21 @@ List<CodePointRange> _normalizeRanges(Iterable<CodePointRange> ranges) {
 }
 
 List<CodePointRange> _complementRanges(List<CodePointRange> ranges) {
-  final List<CodePointRange> norm = _normalizeRanges(ranges);
+  final List<CodePointRange> norm = _normalizeRanges(<CodePointRange>[
+    ...ranges,
+    const CodePointRange(_surrogateStart, _surrogateEnd),
+  ]);
   final out = <CodePointRange>[];
   var cursor = 0;
   for (final r in norm) {
     if (r.lo > cursor) {
-      out.add(CodePointRange(cursor, r.lo - 1));
+      out.addAll(_excludeSurrogates(CodePointRange(cursor, r.lo - 1)));
     }
     cursor = r.hi + 1;
     if (cursor > _maxCodePoint) break;
   }
   if (cursor <= _maxCodePoint) {
-    out.add(CodePointRange(cursor, _maxCodePoint));
+    out.addAll(_excludeSurrogates(CodePointRange(cursor, _maxCodePoint)));
   }
   return out;
 }
@@ -327,6 +344,14 @@ final List<CodePointRange> _nonWordRanges = _complementRanges(_wordRanges);
 final List<CodePointRange> _spaceRanges = _normalizeRanges(const [
   CodePointRange(0x09, 0x0D),
   CodePointRange(0x20, 0x20),
+  CodePointRange(0xA0, 0xA0),
+  CodePointRange(0x1680, 0x1680),
+  CodePointRange(0x2000, 0x200A),
+  CodePointRange(0x2028, 0x2029),
+  CodePointRange(0x202F, 0x202F),
+  CodePointRange(0x205F, 0x205F),
+  CodePointRange(0x3000, 0x3000),
+  CodePointRange(0xFEFF, 0xFEFF),
 ]);
 
 final List<CodePointRange> _nonSpaceRanges = _complementRanges(_spaceRanges);
@@ -334,7 +359,8 @@ final List<CodePointRange> _nonSpaceRanges = _complementRanges(_spaceRanges);
 final List<CodePointRange> _dotRanges = _normalizeRanges(const [
   CodePointRange(0x00, 0x09),
   CodePointRange(0x0B, 0x0C),
-  CodePointRange(0x0E, _maxCodePoint),
+  CodePointRange(0x0E, 0x2027),
+  CodePointRange(0x202A, _maxCodePoint),
 ]);
 
 // ---------------------------------------------------------------------------
@@ -372,7 +398,6 @@ const Set<String> _syntaxEscapeChars = <String>{
   '}',
   '|',
   '/',
-  '-',
 };
 
 const Map<String, int> _controlEscapes = <String, int>{
@@ -660,6 +685,15 @@ class _Parser {
   int? _parseScalarEscape(String ch, int escStart) {
     final int? ctrl = _controlEscapes[ch];
     if (ctrl != null) return ctrl;
+    if (ch == '0') {
+      if (peek() != null && _isAsciiDigit(peek()!)) {
+        throw RegexSyntaxError(
+          r'Octal escape sequences are not supported',
+          escStart,
+        );
+      }
+      return 0x00;
+    }
     if (_syntaxEscapeChars.contains(ch)) return ch.runes.first;
     if (ch == 'x') return _readFixedHex(2, escStart, r'\xHH');
     if (ch == 'u') {
@@ -825,6 +859,12 @@ class _Parser {
         );
       }
       final String esc = next();
+      if (esc == 'b') {
+        return (isSet: false, cp: 0x08, setRanges: null, offset: atomOffset);
+      }
+      if (esc == '-') {
+        return (isSet: false, cp: 0x2D, setRanges: null, offset: atomOffset);
+      }
       final List<CodePointRange>? classRanges = _charClassEscapes[esc];
       if (classRanges != null) {
         return (
@@ -949,41 +989,25 @@ bool _hasNestedQuantifier(RegexNode node) => switch (node) {
             _hasNestedQuantifier(body),
     };
 
-void _collectAltBranches(RegexNode node, List<RegexNode> out) {
-  switch (node) {
-    case AltRegexNode(:final branches):
-      for (final b in branches) {
-        _collectAltBranches(b, out);
-      }
-    case GroupRegexNode(:final body):
-      _collectAltBranches(body, out);
-    default:
-      out.add(node);
+RegexNode _unwrapSingle(RegexNode node) {
+  var cur = node;
+  while (cur is GroupRegexNode) {
+    cur = cur.body;
   }
+  return cur;
 }
 
-bool _altHasOverlappingBranches(AltRegexNode alt) {
-  final branches = <RegexNode>[];
-  _collectAltBranches(alt, branches);
-  for (var i = 0; i < branches.length; i++) {
-    final List<CodePointRange> fi = firstSet(branches[i]);
-    for (int j = i + 1; j < branches.length; j++) {
-      final List<CodePointRange> fj = firstSet(branches[j]);
-      if (_rangesIntersect(fi, fj)) return true;
+bool _branchesOverlap(List<RegexNode> branches) {
+  final firstSets = <List<CodePointRange>>[
+    for (final b in branches) firstSet(_unwrapSingle(b)),
+  ];
+  for (var i = 0; i < firstSets.length; i++) {
+    for (int j = i + 1; j < firstSets.length; j++) {
+      if (_rangesIntersect(firstSets[i], firstSets[j])) return true;
     }
   }
   return false;
 }
-
-bool _containsOverlappingAlt(RegexNode node) => switch (node) {
-      EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
-      LookaheadRegexNode() => false,
-      GroupRegexNode(:final body) => _containsOverlappingAlt(body),
-      ConcatRegexNode(:final items) => items.any(_containsOverlappingAlt),
-      AltRegexNode(:final branches) => _altHasOverlappingBranches(node) ||
-          branches.any(_containsOverlappingAlt),
-      RepeatRegexNode(:final body) => _containsOverlappingAlt(body),
-    };
 
 bool _hasOverlappingAlternationInRepeat(RegexNode node) => switch (node) {
       EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
@@ -994,35 +1018,18 @@ bool _hasOverlappingAlternationInRepeat(RegexNode node) => switch (node) {
         items.any(_hasOverlappingAlternationInRepeat),
       AltRegexNode(:final branches) =>
         branches.any(_hasOverlappingAlternationInRepeat),
-      RepeatRegexNode(:final body) =>
-        (_isRepeatingQuantifier(node) && _containsOverlappingAlt(body)) ||
-            _hasOverlappingAlternationInRepeat(body),
+      RepeatRegexNode(:final max, :final body) => () {
+          final RegexNode inner = _unwrapSingle(body);
+          if (max == null &&
+              inner is AltRegexNode &&
+              _branchesOverlap(inner.branches)) {
+            return true;
+          }
+          return _hasOverlappingAlternationInRepeat(body);
+        }(),
     };
 
-void _flattenConcat(RegexNode node, List<RegexNode> out) {
-  switch (node) {
-    case ConcatRegexNode(:final items):
-      for (final item in items) {
-        _flattenConcat(item, out);
-      }
-    case GroupRegexNode(:final body):
-      _flattenConcat(body, out);
-    default:
-      out.add(node);
-  }
-}
-
-RegexNode _unwrapSingle(RegexNode node) {
-  var cur = node;
-  while (cur is GroupRegexNode) {
-    cur = cur.body;
-  }
-  return cur;
-}
-
-bool _concatHasAdjacentOverlap(ConcatRegexNode concat) {
-  final items = <RegexNode>[];
-  _flattenConcat(concat, items);
+bool _concatHasAdjacentOverlap(List<RegexNode> items) {
   for (var i = 0; i < items.length; i++) {
     final RegexNode ux = _unwrapSingle(items[i]);
     if (ux is! RepeatRegexNode || ux.max != null) continue;
@@ -1047,7 +1054,7 @@ bool _hasAdjacentOverlap(RegexNode node) => switch (node) {
         _hasAdjacentOverlap(body),
       AltRegexNode(:final branches) => branches.any(_hasAdjacentOverlap),
       ConcatRegexNode(:final items) =>
-        _concatHasAdjacentOverlap(node) || items.any(_hasAdjacentOverlap),
+        _concatHasAdjacentOverlap(items) || items.any(_hasAdjacentOverlap),
     };
 
 /// Checks the four static safety rules against [pattern] and its parsed [tree].

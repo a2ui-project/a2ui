@@ -136,7 +136,11 @@ function getCompiledRegex(pattern: string): RegExp {
   try {
     compiled = new RegExp(pattern, 'u');
   } catch (e) {
-    throw new A2uiExpressionError(`Invalid regex pattern (SYNTAX): ${pattern}`, 'regex', e);
+    throw new A2uiExpressionError(
+      `Invalid regex pattern (UNSUPPORTED_SYNTAX): ${pattern}`,
+      'regex',
+      e,
+    );
   }
   if (compiledRegexCache.size >= MAX_REGEX_CACHE_ENTRIES) {
     const oldestKey = compiledRegexCache.keys().next().value;
