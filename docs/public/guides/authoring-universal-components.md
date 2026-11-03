@@ -437,7 +437,9 @@ If the agent bound `value` to a data model path (for example, `{"path": "/user/n
 
 ### Styling and theming
 
-Like any `LitElement`, an `A2uiLitElement` renders into a Shadow Root by default, so its `static styles` are encapsulated. CSS custom properties still inherit through the shadow boundary, which lets the host application theme the component without reaching inside it:
+Unlike a standard `LitElement`, `A2uiLitElement` renders into the Light DOM by default (`createRenderRoot()` returns `this`) so the host application's global stylesheet, design system, and utility classes apply directly inside the component. `A2uiLitElement` still applies your `static styles` in the Light DOM by rewriting `:host` to the element's tag name, scoping the remaining selectors under it, and adopting the resulting stylesheet into the document (or the enclosing shadow root) once per tag.
+
+You can theme the component from the host application using CSS custom properties:
 
 === "Angular"
 
@@ -485,15 +487,13 @@ Like any `LitElement`, an `A2uiLitElement` renders into a Shadow Root by default
     }
     ```
 
-If you want the host application's global stylesheet, design system, or utility classes (such as Tailwind or Bootstrap) to apply inside your component, opt into the Light DOM by overriding `createRenderRoot()`:
+If your component requires style encapsulation or `<slot>` projection, opt into Shadow DOM by overriding `createRenderRoot()`:
 
 ```typescript
 override createRenderRoot() {
-  return this;
+  return this.attachShadow({mode: 'open'});
 }
 ```
-
-`A2uiLitElement` still applies your `static styles` in the Light DOM. It rewrites `:host` to the element's tag name, scopes the remaining selectors under it, and adopts the resulting stylesheet into the document (or the enclosing shadow root) once per tag.
 
 ### Writing a component without Lit
 

@@ -484,11 +484,6 @@ export class A2uiVegaChartElement extends A2uiLitElement<
     return this.renderRoot.querySelector<HTMLElement>('#chart-container');
   }
 
-  /** Renders into the light DOM, like the basic catalog, so page styles reach the chart. */
-  override createRenderRoot() {
-    return this;
-  }
-
   /**
    * `A2uiLitElement.update` skips rendering without a controller. Standalone
    * use has no controller, so render once a `spec` property is set, and keep
