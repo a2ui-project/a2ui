@@ -22,17 +22,17 @@ import {
   ComponentRef,
   NgZone,
 } from '@angular/core';
-import { ComponentContext, type ComponentNode, effect, getValue } from '@a2ui/web_core/v0_9';
+import {ComponentContext, type ComponentNode, effect, getValue} from '@a2ui/web_core/v0_9';
 import {
   type AccessibilityTargets,
   bindHostAccessibility,
   createAccessibilityTargets,
 } from '@a2ui/web_core/v0_9/universal';
-import type { AngularCatalog, AngularComponentImplementation } from './types';
+import type {AngularCatalog, AngularComponentImplementation} from './types';
 
-import { A2UI_ACCESSIBILITY_TARGETS } from '../core/accessibility';
-import { ComponentBinder } from '../core/component-binder.service';
-import type { BoundProperty } from '../core/types';
+import {A2UI_ACCESSIBILITY_TARGETS} from '../core/accessibility';
+import {ComponentBinder} from '../core/component-binder.service';
+import type {BoundProperty} from '../core/types';
 
 let defaultInjector: Injector | undefined;
 
@@ -83,7 +83,7 @@ export class AngularWcHost extends HTMLElement {
   private _node?: ComponentNode;
   private _context?: ComponentContext;
   private boundProps?: Record<string, BoundProperty>;
-  private contextSubscription?: { unsubscribe: () => void };
+  private contextSubscription?: {unsubscribe: () => void};
   private _injector?: Injector;
   /**
    * Created on the first connect, once `ComponentBinder` has set up Angular reactivity, so its
@@ -143,7 +143,7 @@ export class AngularWcHost extends HTMLElement {
         // The component marks its elements in this element's targets, not in
         // those of the `ComponentHostComponent` that may have created it.
         elementInjector: Injector.create({
-          providers: [{ provide: A2UI_ACCESSIBILITY_TARGETS, useValue: this.accessibilityTargets }],
+          providers: [{provide: A2UI_ACCESSIBILITY_TARGETS, useValue: this.accessibilityTargets}],
           parent: injector,
         }),
         hostElement: this,
@@ -182,7 +182,7 @@ export class AngularWcHost extends HTMLElement {
         notify();
       }
     });
-    this.contextSubscription = { unsubscribe: stop };
+    this.contextSubscription = {unsubscribe: stop};
   }
 
   private hasSameBoundKeys(
@@ -194,7 +194,7 @@ export class AngularWcHost extends HTMLElement {
     const nextKeys = Object.keys(nextProps);
     if (boundKeys.length !== nextKeys.length) return false;
     return nextKeys.every(
-      (key) =>
+      key =>
         Object.prototype.hasOwnProperty.call(this.boundProps, key) &&
         (!rawProps || this.boundProps![key].raw === rawProps[key]),
     );

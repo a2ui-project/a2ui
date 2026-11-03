@@ -31,7 +31,7 @@ import {
   untracked,
   NgZone,
 } from '@angular/core';
-import { NgComponentOutlet } from '@angular/common';
+import {NgComponentOutlet} from '@angular/common';
 import {
   type A2uiMetadata,
   ComponentContext,
@@ -49,14 +49,14 @@ import {
   registerUniversalElement,
   type WebComponentImplementation,
 } from '@a2ui/web_core/v0_9/universal';
-import { A2UI_ACCESSIBILITY_TARGETS, provideAccessibilityTargets } from './accessibility';
-import { A2uiRendererService } from './a2ui-renderer.service';
-import { Child, ComponentBinder } from './component-binder.service';
-import { SurfaceNodeResolver } from './surface-node-resolver.service';
-import { BoundProperty } from './types';
+import {A2UI_ACCESSIBILITY_TARGETS, provideAccessibilityTargets} from './accessibility';
+import {A2uiRendererService} from './a2ui-renderer.service';
+import {Child, ComponentBinder} from './component-binder.service';
+import {SurfaceNodeResolver} from './surface-node-resolver.service';
+import {BoundProperty} from './types';
 
-import type { AngularCatalog, AngularComponentImplementation } from '../catalog/types';
-import { CatalogComponentInstance } from './catalog_component_instance';
+import type {AngularCatalog, AngularComponentImplementation} from '../catalog/types';
+import {CatalogComponentInstance} from './catalog_component_instance';
 
 interface UniversalComponentHostElement extends HTMLElement {
   node?: ComponentNode;
@@ -157,8 +157,8 @@ export class ComponentHostComponent {
   private readonly ngZone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly injector = inject(Injector);
-  private readonly sharedResolver = inject(SurfaceNodeResolver, { optional: true });
-  private readonly accessibilityTargets = inject(A2UI_ACCESSIBILITY_TARGETS, { self: true });
+  private readonly sharedResolver = inject(SurfaceNodeResolver, {optional: true});
+  private readonly accessibilityTargets = inject(A2UI_ACCESSIBILITY_TARGETS, {self: true});
   private ownResolver?: SurfaceNodeResolver;
 
   protected readonly componentType = signal<Type<CatalogComponentInstance> | null>(null);
@@ -168,7 +168,7 @@ export class ComponentHostComponent {
     const type = this.componentType();
     if (!type) return false;
     const mirror = reflectComponentType(type);
-    return mirror?.inputs.some((i) => i.templateName === 'metadata') ?? false;
+    return mirror?.inputs.some(i => i.templateName === 'metadata') ?? false;
   });
   protected readonly componentInputs = computed<Record<string, unknown>>(() => {
     const inputs: Record<string, unknown> = {
@@ -209,7 +209,7 @@ export class ComponentHostComponent {
         untracked(() => this.waitForSurface(surfaceId));
         return;
       }
-      const { id, basePath } = parseKey(key);
+      const {id, basePath} = parseKey(key);
       // Tracked: re-runs when the resolved node for this key changes.
       const node = this.resolveNode(surface, key, id, basePath);
       untracked(() => this.mount(surface, node, id, basePath));
@@ -227,14 +227,14 @@ export class ComponentHostComponent {
     console.warn(`Surface ${surfaceId} not found. Waiting for it...`);
     this.surfaceSub?.unsubscribe();
     let unsubscribed = false;
-    const sub = this.rendererService.surfaceGroup?.onSurfaceCreated?.subscribe((s) => {
+    const sub = this.rendererService.surfaceGroup?.onSurfaceCreated?.subscribe(s => {
       if (s.id === surfaceId) {
         unsubscribed = true;
         if (this.surfaceSub) {
           this.surfaceSub.unsubscribe();
           this.surfaceSub = undefined;
         }
-        this.ngZone.run(() => this.surfaceRetry.update((n) => n + 1));
+        this.ngZone.run(() => this.surfaceRetry.update(n => n + 1));
       }
     });
     if (sub) {
@@ -384,7 +384,7 @@ export class ComponentHostComponent {
     const nextKeys = Object.keys(nextProps);
     if (boundKeys.length !== nextKeys.length) return false;
     return nextKeys.every(
-      (key) =>
+      key =>
         Object.prototype.hasOwnProperty.call(this.currentBoundProps, key) &&
         (!rawProps || this.currentBoundProps![key].raw === rawProps[key]),
     );
@@ -450,9 +450,9 @@ export class ComponentHostComponent {
   }
 }
 
-function parseKey(key: ComponentKey): { id: string; basePath: string } {
+function parseKey(key: ComponentKey): {id: string; basePath: string} {
   if (typeof key === 'object' && key !== null && 'id' in key) {
-    return { id: key.id, basePath: key.basePath || '/' };
+    return {id: key.id, basePath: key.basePath || '/'};
   }
-  return { id: key, basePath: '/' };
+  return {id: key, basePath: '/'};
 }
