@@ -108,4 +108,39 @@ describe('ExpressionParser', () => {
       returnType: 'any',
     });
   });
+
+  it('parses @-prefixed system function calls and rejects bare or mid-path @', () => {
+    assert.deepStrictEqual(parser.parse('${@index()}: ${name}'), [
+      {call: '@index', args: {}, returnType: 'any'},
+      ': ',
+      {path: 'name'},
+    ]);
+    assert.deepStrictEqual(parser.parseExpression('@index(offset: 1)'), {
+      call: '@index',
+      args: {offset: 1},
+      returnType: 'any',
+    });
+    assert.throws(() => {
+      parser.parse('${@index}');
+    }, /Expected '\(' after function name '@index'/);
+    assert.throws(() => {
+      parser.parse('${@}');
+    }, /Invalid identifier starting with '@' in expression/);
+    assert.throws(() => {
+      parser.parse('${a@b}');
+    }, /Unexpected characters at end of expression: '@b'/);
+  });
+
+  it('rejects unclosed string literals and trailing backslashes', () => {
+    assert.throws(() => {
+      parser.parseExpression("'unclosed");
+    }, /Unclosed string literal/);
+    assert.throws(() => {
+      parser.parseExpression("'abc\\");
+    }, /Unclosed string literal/);
+    assert.throws(() => {
+      parser.parseExpression('fn(a: "unclosed)');
+    }, /Unclosed string literal/);
+    assert.strictEqual(parser.parseExpression("'it\\'s'"), "it's");
+  });
 });

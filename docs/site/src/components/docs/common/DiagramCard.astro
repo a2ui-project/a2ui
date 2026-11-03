@@ -1,0 +1,62 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+interface Props {
+  title: string;
+  mermaid: string; // The canonical structural specification
+}
+
+const { title, mermaid } = Astro.props;
+---
+
+<div class="diagram-card not-content">
+  <!-- Human View: Rich Visual Card Layout -->
+  <div class="human-view">
+    <h4 class="diagram-title">{title}</h4>
+    <slot />
+  </div>
+
+  <!-- Agent & Accessibility View: Machine-readable spec hidden from human UI -->
+  <script
+    type="text/vnd.mermaid"
+    data-agent-diagram="spec"
+    style="display: none;"
+    set:html={mermaid.trim().replace(/<\//g, '<\\/')}
+  />
+</div>
+
+<style>
+  .diagram-card {
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 1.5rem 0;
+    background: var(--sl-color-bg-sidebar);
+  }
+
+  .human-view {
+    padding: 1.5rem;
+  }
+
+  .diagram-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: var(--sl-color-white);
+  }
+</style>

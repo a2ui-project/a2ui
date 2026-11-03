@@ -77,12 +77,23 @@ final class GalleryActionHandler: ActionHandling, @unchecked Sendable {
 public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
 
   @Published public var sampleStreams: [SampleStream] = []
+  @Published public var selectedVersion: SampleStream.ProtocolVersion = .v091 {
+    didSet {
+      guard oldValue != selectedVersion else { return }
+      synchronizeSelectionForVersion()
+    }
+  }
   @Published public var selectedSample: SampleStream? = nil {
     didSet {
       if oldValue?.id != selectedSample?.id {
         resetStream()
       }
     }
+  }
+
+  /// Sample streams matching the currently selected protocol version.
+  public var filteredStreams: [SampleStream] {
+    sampleStreams.filter { $0.protocolVersion == selectedVersion }
   }
 
   @Published public private(set) var currentStepIndex: Int = 0
@@ -110,8 +121,20 @@ public final class GalleryViewModel: @unchecked Sendable, ObservableObject {
   public func loadStreams() {
     let loaded = SampleLoader.loadAllSamples()
     self.sampleStreams = loaded
-    if selectedSample == nil, let first = loaded.first {
-      self.selectedSample = first
+    if selectedSample == nil || selectedSample?.protocolVersion != selectedVersion {
+      synchronizeSelectionForVersion()
+    }
+  }
+
+  private func synchronizeSelectionForVersion() {
+    let matching = filteredStreams
+    if let currentFileName = selectedSample?.fileName,
+      !currentFileName.isEmpty,
+      let counterpart = matching.first(where: { $0.fileName == currentFileName })
+    {
+      selectedSample = counterpart
+    } else {
+      selectedSample = matching.first
     }
   }
 

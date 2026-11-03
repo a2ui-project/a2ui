@@ -27,8 +27,20 @@ import {
 import {childRefKindOf} from '../types/child-ref-helpers.js';
 import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
+import {ActionDispatchOptions} from '../common/metadata.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
+import {resolveSignalKeepingPending} from './data-context-internal.js';
 import {isAtLeastVersion} from '../common/semver.js';
+import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
+import {effect, getValue, peekValue} from '../reactivity/signals.js';
+
+/** The outcome of one check rule. */
+interface CheckRuleResult {
+  valid: boolean;
+  message: string;
+  code?: string;
+  severity: 'error' | 'warning' | 'info';
+}
 
 // --- Schema Scraping ---
 
@@ -371,7 +383,7 @@ export interface ResolvedChildRef {
 export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
   ? HasStringIndex<NonNullable<T>> extends true
     ? Exclude<T, DynamicTypes>
-    : (() => Promise<void>) | Extract<T, undefined>
+    : ((options?: ActionDispatchOptions) => Promise<void>) | Extract<T, undefined>
   : IsChildList<T> extends true
     ? (string | ResolvedChildRef)[] | Extract<T, undefined>
     : Exclude<T, DynamicTypes> extends never
@@ -482,7 +494,10 @@ export class GenericBinder<T> {
   // Actions resolve to closures, which downstream value comparison cannot
   // inspect; reusing the closure while the raw payload is unchanged keeps
   // unchanged action props reference-identical across rebuilds.
-  private actionClosures = new Map<string, {raw: unknown; closure: () => Promise<void>}>();
+  private actionClosures = new Map<
+    string,
+    {raw: unknown; closure: (options?: ActionDispatchOptions) => Promise<void>}
+  >();
 
   /**
    * Creates a new binder for the given component context and schema.
@@ -503,10 +518,8 @@ export class GenericBinder<T> {
 
   private resolveInitialProps() {
     const props = this.context.componentModel.properties;
-    const resolved = this.resolveAndBind(props, this.behaviorTree, [], true) as
-      | Record<string, unknown>
-      | undefined;
-    this.currentProps = {...this.currentProps, ...(resolved || {})} as Partial<T>;
+    const resolved = this.resolveAndBind(props, this.behaviorTree, [], true);
+    this.currentProps = mergeBindingState(this.currentProps, resolved ?? {}) as Partial<T>;
   }
 
   private connect() {
@@ -525,10 +538,12 @@ export class GenericBinder<T> {
 
     const props = this.context.componentModel.properties;
 
-    const resolved = this.resolveAndBind(props, this.behaviorTree, [], false) as
-      | Record<string, unknown>
-      | undefined;
-    this.currentProps = {...this.currentProps, ...(resolved || {})} as Partial<T>;
+    // Rebuild from an empty snapshot, so a property the update removed is
+    // gone. Check bindings write `isValid` and its siblings into it while
+    // binding.
+    this.currentProps = {};
+    const resolved = this.resolveAndBind(props, this.behaviorTree, [], false);
+    this.currentProps = mergeBindingState(this.currentProps, resolved ?? {}) as Partial<T>;
 
     this.notify();
   }
@@ -572,13 +587,16 @@ export class GenericBinder<T> {
     return res;
   }
 
-  private bindAction(value: unknown, path: string[]): () => Promise<void> {
+  private bindAction(
+    value: unknown,
+    path: string[],
+  ): (options?: ActionDispatchOptions) => Promise<void> {
     const cacheKey = path.join('/');
     const cached = this.actionClosures.get(cacheKey);
     if (cached && jsonEquals(cached.raw, value)) {
       return cached.closure;
     }
-    const closure = async () => {
+    const closure = async (options?: ActionDispatchOptions) => {
       if (!value || typeof value !== 'object') {
         return;
       }
@@ -593,14 +611,20 @@ export class GenericBinder<T> {
         });
         return;
       }
-      const resolved = this.context.dataContext.resolveAction(
+      let resolved = this.context.dataContext.resolveAction(
         value as Action | Record<string, unknown>,
         {userActivation: true},
       );
+      // An event action whose entries wait on asynchronous calls resolves to
+      // a Promise, which settles to `undefined` when an entry failed. A
+      // synchronous one is dispatched without waiting.
+      if (isThenable(resolved)) {
+        resolved = await resolved;
+      }
       if (resolved === undefined) {
         return;
       }
-      await this.context.dispatchAction(resolved as Action);
+      await this.context.dispatchAction(resolved as Action, options?.metadata);
     };
     this.actionClosures.set(cacheKey, {raw: value, closure});
     return closure;
@@ -721,11 +745,31 @@ export class GenericBinder<T> {
       const ruleObj =
         typeof rule === 'object' && rule !== null ? (rule as Record<string, unknown>) : undefined;
       const condition = ruleObj && ruleObj.condition !== undefined ? ruleObj.condition : rule;
-      const explicitMessage = typeof ruleObj?.message === 'string' ? ruleObj.message : undefined;
-      ruleResults[index].message = explicitMessage ?? 'Validation failed';
+      const ruleMessage = typeof ruleObj?.message === 'string' ? ruleObj.message : undefined;
+      // An explicit rule message overrides the message a condition function
+      // returns. A path-bound check reads a result the agent or application
+      // wrote, whose message carries the finding, so there the rule message
+      // is only the fallback.
+      const explicitMessage = this.isPathBoundCondition(condition) ? undefined : ruleMessage;
+      const fallbackMessage = ruleMessage ?? 'Validation failed';
+      ruleResults[index].message = fallbackMessage;
+
+      if (this.context.dataContext.atLeastV10) {
+        this.bindCheckCondition(
+          condition,
+          isSync,
+          result => {
+            ruleResults[index] = result;
+          },
+          updateValidationState,
+          explicitMessage,
+          fallbackMessage,
+        );
+        return;
+      }
 
       const bound = this.context.dataContext.subscribeDynamicValue(condition, newVal => {
-        ruleResults[index] = this.extractValidationResult(newVal, explicitMessage);
+        ruleResults[index] = this.extractValidationResult(newVal, explicitMessage, fallbackMessage);
         updateValidationState();
       });
 
@@ -735,13 +779,106 @@ export class GenericBinder<T> {
         bound.unsubscribe();
       }
 
-      ruleResults[index] = this.extractValidationResult(bound.value, explicitMessage);
+      ruleResults[index] = this.extractValidationResult(
+        bound.value,
+        explicitMessage,
+        fallbackMessage,
+      );
     });
 
     // Set initial state
     applyValidationState();
 
     return value;
+  }
+
+  /**
+   * Binds the condition of one check rule on a v1.0 surface.
+   *
+   * While the condition waits on an asynchronous call, such as a function
+   * call routed to the agent, the rule is pending and counts as valid. When
+   * the call settles the rule is evaluated; if the call failed the rule is
+   * invalid. Either way subscribers are notified.
+   *
+   * @param condition The rule's condition.
+   * @param isSync Whether the binding is resolved once, without subscriptions.
+   * @param setResult Stores the rule's result.
+   * @param onUpdate Recomputes the validation state and notifies subscribers.
+   * @param explicitMessage Message that overrides the one the condition returns.
+   * @param fallbackMessage Message used when the condition returns none.
+   */
+  private bindCheckCondition(
+    condition: unknown,
+    isSync: boolean,
+    setResult: (result: CheckRuleResult) => void,
+    onUpdate: () => void,
+    explicitMessage: string | undefined,
+    fallbackMessage: string,
+  ): void {
+    const sig = resolveSignalKeepingPending(this.context.dataContext, condition);
+    let active = !isSync;
+    let current: unknown;
+    const apply = (value: unknown, notify: boolean) => {
+      current = value;
+      const settled = settleDeep(value);
+      if (isThenable(settled)) {
+        setResult({valid: true, message: fallbackMessage, severity: 'error'});
+        Promise.resolve(settled).then(
+          settledValue => {
+            if (!active || current !== value) return;
+            setResult(this.checkResultOf(settledValue, explicitMessage, fallbackMessage));
+            onUpdate();
+          },
+          () => {
+            if (!active || current !== value) return;
+            setResult({valid: false, message: fallbackMessage, severity: 'error'});
+            onUpdate();
+          },
+        );
+      } else {
+        setResult(this.checkResultOf(settled, explicitMessage, fallbackMessage));
+      }
+      if (notify) onUpdate();
+    };
+
+    if (isSync) {
+      apply(peekValue(sig), false);
+      sig.unsubscribe?.();
+      return;
+    }
+    let initial = true;
+    const dispose = effect(() => {
+      const value = getValue(sig);
+      if (!initial) apply(value, true);
+    });
+    initial = false;
+    apply(peekValue(sig), false);
+    this.dataListeners.push(() => {
+      active = false;
+      dispose();
+      sig.unsubscribe?.();
+    });
+  }
+
+  /** The result of a check rule whose condition settled to `value`. */
+  private checkResultOf(
+    value: unknown,
+    explicitMessage: string | undefined,
+    fallbackMessage: string,
+  ): CheckRuleResult {
+    if (findFailedArgument(value)) {
+      return {valid: false, message: fallbackMessage, severity: 'error'};
+    }
+    return this.extractValidationResult(value, explicitMessage, fallbackMessage);
+  }
+
+  /** Whether a check condition is a data binding rather than a function call. */
+  private isPathBoundCondition(condition: unknown): boolean {
+    if (typeof condition !== 'object' || condition === null) return false;
+    const rec = condition as Record<string, unknown>;
+    return this.context.dataContext.atLeastV10
+      ? typeof rec['@path'] === 'string' && !('@call' in rec)
+      : typeof rec['path'] === 'string' && !('call' in rec);
   }
 
   private bindObject(
@@ -886,6 +1023,36 @@ export class GenericBinder<T> {
   get snapshot() {
     return this.currentProps as T;
   }
+}
+
+/**
+ * Merges resolved props over the state bindings wrote while binding, at any
+ * depth. A check writes `isValid`, `validationErrors` and `validationResults`
+ * next to its `checks`, which can be inside a nested object.
+ *
+ * @param written The props that bindings wrote while binding.
+ * @param resolved The props that binding resolved.
+ * @returns `resolved`, with the values from `written` that it lacks.
+ */
+function mergeBindingState(written: unknown, resolved: unknown): unknown {
+  if (resolved === undefined) return written;
+  if (Array.isArray(written) && Array.isArray(resolved)) {
+    return resolved.map((item, index) => mergeBindingState(written[index], item));
+  }
+  if (isPlainObject(written) && isPlainObject(resolved)) {
+    const merged: Record<string, unknown> = {...written};
+    for (const [key, value] of Object.entries(resolved)) {
+      merged[key] = mergeBindingState(written[key], value);
+    }
+    return merged;
+  }
+  return resolved;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 /**

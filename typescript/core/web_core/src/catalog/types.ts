@@ -17,10 +17,13 @@
 import {z} from 'zod';
 import type {ProtocolVersion} from '../processing/adapters/base.js';
 import {DataContext} from '../resolution/data-context.js';
+import {allowsAgentRouting} from '../resolution/data-context-internal.js';
+import type {SurfaceModel} from '../state/surface-model.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
+import {A2uiMetadata} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
-import {isThenable, settleDeep} from '../common/settle_deep.js';
+import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {SpecVersion} from '../spec_versions.js';
 import {parseCatalogSchema} from './schema_loader.js';
 import type {JsonSchemaObject} from './spec_annotations.js';
@@ -189,6 +192,9 @@ export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
 
   /** Optional allowed child component types (e.g. ['Text', 'Button']). */
   readonly allowedChildren?: string[];
+
+  /** Optional component-level metadata from the catalog definition. */
+  readonly metadata?: A2uiMetadata;
 }
 
 /**
@@ -911,18 +917,32 @@ function createCatalogInvoker<F extends FunctionApi>(
   protocolVersion: ProtocolVersion | string,
   functions: ReadonlyMap<string, F>,
 ): FunctionInvoker {
+  const atLeastV10 = isAtLeastVersion(protocolVersion, SpecVersion.V1_0);
   return (name, rawArgs, ctx, abortSignal) => {
     const fn =
       functions.get(name) ??
-      (isAtLeastVersion(protocolVersion, SpecVersion.V1_0) && name === '@index'
-        ? (IndexImplementation as unknown as F)
-        : undefined);
+      (atLeastV10 && name === '@index' ? (IndexImplementation as unknown as F) : undefined);
+    const execute = (fn as Partial<FunctionImplementation> | undefined)?.execute;
+
+    if (typeof execute !== 'function') {
+      // From v1.0, a function the renderer does not implement (undeclared, or
+      // declared schema-only) runs on the agent: the fallback routing of
+      // `callAgentFunction`. Reserved `@` system functions never do, and
+      // neither do evaluations that cannot wait for the agent.
+      const surface =
+        atLeastV10 && !name.startsWith('@') && ctx && allowsAgentRouting(ctx)
+          ? ctx.surface
+          : undefined;
+      if (surface?.agentFunctionCaller) {
+        return routeToAgent(surface, catalogId, name, fn, rawArgs, ctx, abortSignal);
+      }
+    }
+
     if (!fn) {
       throw new A2uiExpressionError(`Function not found in catalog '${catalogId}': ${name}`, name);
     }
     assertRendererCaller(fn);
     assertUserActivation(fn, ctx);
-    const execute = (fn as Partial<FunctionImplementation>).execute;
     if (typeof execute !== 'function') {
       throw new A2uiExpressionError(
         `Function '${name}' in catalog '${catalogId}' is schema-only and has no implementation.`,
@@ -930,14 +950,12 @@ function createCatalogInvoker<F extends FunctionApi>(
       );
     }
 
-    const parseAndExecute = (resolvedArgs: unknown): unknown => {
+    return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
       try {
         // From v1.0 a `DynamicBoolean` argument may resolve to the
         // `ValidationResult` a validation function returns; it is read by its
         // validity, as the specification defines the type.
-        const args = isAtLeastVersion(protocolVersion, SpecVersion.V1_0)
-          ? coerceValidationResults(fn.schema, resolvedArgs)
-          : resolvedArgs;
+        const args = atLeastV10 ? coerceValidationResults(fn.schema, resolvedArgs) : resolvedArgs;
         const safeArgs = fn.schema.parse(args);
         return execute.call(fn, safeArgs, ctx, abortSignal);
       } catch (e: any) {
@@ -950,19 +968,79 @@ function createCatalogInvoker<F extends FunctionApi>(
         }
         throw e;
       }
-    };
-
-    // An argument produced by an asynchronous function arrives as a pending
-    // Promise. Validation and execution wait for every such argument, while
-    // fully settled arguments keep the call synchronous.
-    const settledArgs = settleDeep(rawArgs);
-    if (!isThenable(settledArgs)) {
-      return parseAndExecute(settledArgs);
-    }
-    return Promise.resolve(settledArgs).then(resolvedArgs =>
-      abortSignal?.aborted ? undefined : parseAndExecute(resolvedArgs),
-    );
+    });
   };
+}
+
+/**
+ * Runs `run` with the settled arguments of a call.
+ *
+ * An argument produced by an asynchronous function arrives as a pending
+ * Promise. `run` waits for every such argument, while fully settled arguments
+ * keep the call synchronous. A failed argument is returned instead of running,
+ * even when the evaluation was aborted meanwhile, so the enclosing call stops.
+ * Otherwise an aborted evaluation resolves to `undefined` without running.
+ *
+ * @param rawArgs The resolved arguments, which may hold pending values.
+ * @param abortSignal Signal that marks the evaluation as stale.
+ * @param run Validates and runs the call with the settled arguments.
+ * @returns The result of `run`, a Promise of it, or the failed argument.
+ */
+function whenArgumentsSettle(
+  rawArgs: unknown,
+  abortSignal: AbortSignal | undefined,
+  run: (resolvedArgs: unknown) => unknown,
+): unknown {
+  const settledArgs = settleDeep(rawArgs);
+  if (!isThenable(settledArgs)) {
+    return findFailedArgument(settledArgs) ?? run(settledArgs);
+  }
+  return Promise.resolve(settledArgs).then(
+    resolvedArgs =>
+      findFailedArgument(resolvedArgs) ?? (abortSignal?.aborted ? undefined : run(resolvedArgs)),
+  );
+}
+
+/**
+ * Sends a call the renderer does not implement to the agent.
+ *
+ * A declared (schema-only) function is refused if it is `agentOnly` or needs
+ * a user gesture the evaluation lacks, and its settled arguments are
+ * validated and parsed against its schema before sending, so the agent
+ * receives what a local implementation would. The call always names the
+ * catalog it resolved to, so the agent never has to know the surface's
+ * default catalog. Action calls bypass the shared-call cache.
+ */
+function routeToAgent(
+  surface: SurfaceModel<any, any>,
+  catalogId: string,
+  name: string,
+  fn: FunctionApi | undefined,
+  rawArgs: unknown,
+  ctx: DataContext,
+  abortSignal: AbortSignal | undefined,
+): unknown {
+  if (fn) {
+    assertRendererCaller(fn);
+    assertUserActivation(fn, ctx);
+  }
+  const bypassCache = Boolean(ctx.isActionExecution);
+  return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
+    let args = (resolvedArgs ?? {}) as Record<string, unknown>;
+    if (fn) {
+      args = coerceValidationResults(fn.schema, args) as Record<string, unknown>;
+      const parsed = fn.schema.safeParse(args);
+      if (!parsed.success) {
+        throw new A2uiExpressionError(
+          `Validation failed for function '${name}': ${parsed.error.message}`,
+          name,
+          parsed.error.errors,
+        );
+      }
+      args = parsed.data as Record<string, unknown>;
+    }
+    return surface.callAgentFunction({'@call': name, catalogId, args}, {abortSignal, bypassCache});
+  });
 }
 
 /**

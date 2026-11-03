@@ -27,6 +27,7 @@ class ComponentApi:
         allowed_parents: list[str] | None = None,
         allowed_children: list[str] | None = None,
         from_document: bool = False,
+        metadata: dict[str, Any] | None = None,
     ):
         """Initializes the component API.
 
@@ -44,12 +45,14 @@ class ComponentApi:
                 it is; for a component defined in code, it points local
                 references to common types at the catalog's
                 `common_types_uri`.
+            metadata: Optional static component-level metadata envelope.
         """
         self.name = name
         self.schema = schema
         self.allowed_parents = allowed_parents
         self.allowed_children = allowed_children
         self.from_document = from_document
+        self.metadata = metadata
 
     @property
     def comp_type(self) -> str:
@@ -66,12 +69,14 @@ class ComponentImplementation(ComponentApi):
         model_class: Type[BaseModel],
         allowed_parents: list[str] | None = None,
         allowed_children: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         super().__init__(
             name=name,
             schema=schema,
             allowed_parents=allowed_parents,
             allowed_children=allowed_children,
+            metadata=metadata,
         )
         self.model_class = model_class
         self._type_adapter: TypeAdapter[Any] | None = None
@@ -92,6 +97,7 @@ class ModelComponentApi(ComponentImplementation):
         name: str | None = None,
         allowed_parents: list[str] | None = None,
         allowed_children: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         if not (isinstance(model_class, type) and issubclass(model_class, BaseModel)):
             raise ValueError(f"Expected a Pydantic BaseModel class, got {model_class}")
@@ -108,6 +114,7 @@ class ModelComponentApi(ComponentImplementation):
             model_class=model_class,
             allowed_parents=allowed_parents,
             allowed_children=allowed_children,
+            metadata=metadata,
         )
 
     @staticmethod

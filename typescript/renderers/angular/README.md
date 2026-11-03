@@ -92,6 +92,33 @@ import {ComponentHostComponent} from '@a2ui/angular/v0_9';
 export class CustomLayoutComponent {}
 ```
 
+### Accessibility of custom components
+
+A catalog component renders inside a host element: `<a2ui-v09-component-host>`, or `<a2ui-ng-<name>>` when a Web Component such as the basic catalog's `Column` renders it. The host maps the component's `accessibility` attributes to ARIA without help from the component. It sets `aria-live` from `live`, and `aria-hidden` and `inert` from `hidden`, on itself. By default it also puts `label` and `description` on itself as `aria-label` and `aria-description`, with `role="group"` unless the host already has a `role`.
+
+If the label belongs on an element inside the component, such as its input, mark that element with `a2uiAccessibilityTarget`. The host then puts `aria-label` and `aria-description` there instead, and `aria-invalid="true"` while a check fails. Mark the element that shows the validation errors with `a2uiValidationErrors`. While there are errors, the target gets `aria-describedby` pointing at it, and the element gets an `id` if it has none:
+
+```typescript
+import {Component} from '@angular/core';
+import {
+  AccessibilityTargetDirective,
+  CatalogComponent,
+  ValidationErrorsDirective,
+} from '@a2ui/angular';
+
+@Component({
+  selector: 'app-email-field',
+  imports: [AccessibilityTargetDirective, ValidationErrorsDirective],
+  template: `
+    <input a2uiAccessibilityTarget [value]="props().value?.value() ?? ''" />
+    @if (props().validationErrors?.value()?.length) {
+      <div a2uiValidationErrors>{{ props().validationErrors?.value()?.join(' ') }}</div>
+    }
+  `,
+})
+export class EmailFieldComponent extends CatalogComponent<typeof EmailFieldApi> {}
+```
+
 ## Core Service: `A2uiRendererService`
 
 The `A2uiRendererService` is the heart of the Angular renderer. It bridges the A2UI `MessageProcessor` to Angular's reactive system.

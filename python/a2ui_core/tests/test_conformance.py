@@ -503,29 +503,70 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
     )
 
 
+def _error_message_matches(expected: str, actual: str) -> bool:
+    """Whether an expected error message matches an emitted one.
+
+    The suites state a message in one SDK's wording; the alternations below
+    reconcile the phrasing the other SDKs use for the same condition.
+    """
+    exp_m = expected.lower().replace('"', "'").replace("','", "', '")
+    act_m = actual.lower().replace('"', "'").replace("','", "', '")
+    if exp_m in act_m:
+        return True
+    return (
+        (
+            "not of type" in exp_m
+            and any(t in act_m for t in ("input should be", "type_mismatch", "must be"))
+        )
+        or (
+            "is a required property" in exp_m
+            and any(t in act_m for t in ("field required", "missing"))
+        )
+        or ("non-dict" in exp_m and ("primitive" in act_m or "non-dict" in act_m))
+        or ("orphan" in exp_m and ("orphan" in act_m or "not reachable" in act_m))
+        or ("circular" in exp_m and ("circular" in act_m or "self-reference" in act_m))
+    )
+
+
 def _assert_renderer_error_message(
     exp_re: dict[str, Any], err_obj: dict[str, Any]
 ) -> None:
     if "message" not in exp_re or not exp_re["message"]:
         return
-    exp_m = str(exp_re["message"]).lower()
-    act_m = str(err_obj.get("message") or "").lower()
-    type_ok = "not of type" in exp_m and any(
-        t in act_m for t in ("input should be", "type_mismatch", "must be")
-    )
-    req_ok = "is a required property" in exp_m and any(
-        t in act_m for t in ("field required", "missing")
-    )
-    dict_ok = "non-dict" in exp_m and ("primitive" in act_m or "non-dict" in act_m)
-    assert exp_m in act_m or type_ok or req_ok or dict_ok, (
+    assert _error_message_matches(
+        str(exp_re["message"]), str(err_obj.get("message") or "")
+    ), (
         f"rendererError.message expected '{exp_re['message']}' in"
         f" '{err_obj.get('message')}'"
     )
 
 
+def _renderer_error_path_matches(
+    expected: str, actual: Any, err_details: list[Any]
+) -> bool:
+    """Whether an emitted `rendererError.error.path` matches the expected one.
+
+    A missing required field is reported at the field in Python and at the
+    component in the other SDKs, so the parent pointer of a `missing_field`
+    detail is accepted as well.
+    """
+    if actual == expected:
+        return True
+    if not isinstance(actual, str):
+        return False
+    for d in err_details:
+        if getattr(d, "code", None) != "missing_field":
+            continue
+        m = re.match(r"^'([^']+)' is a required property", getattr(d, "message", ""))
+        if m and actual == f"{expected}/{m.group(1)}":
+            return True
+    return False
+
+
 def _assert_renderer_error(
     exp_re: dict[str, Any],
     captured_renderer_errors: list[dict[str, Any]] | None,
+    err_details: list[Any] | None = None,
 ) -> None:
     assert (
         captured_renderer_errors
@@ -534,13 +575,34 @@ def _assert_renderer_error(
     ver = str(msg.get("version") or "v0.9")
     schema_cls = RendererToAgentMessage if "1.0" in ver else ClientToServerMessage
     TypeAdapter(schema_cls).validate_python(msg)
+    if "version" in exp_re:
+        assert msg.get("version") == exp_re["version"], (
+            f"rendererError.version expected {exp_re['version']!r},"
+            f" got {msg.get('version')!r}"
+        )
+    # The expectation is an envelope (`version` + `error`); older cases state
+    # the error fields at the top level.
+    exp_err = exp_re.get("error", exp_re)
     err_obj = msg.get("error") or {}
-    for key in ("code", "surfaceId", "functionCallId", "path"):
-        if key in exp_re:
-            assert (
-                err_obj.get(key) == exp_re[key]
-            ), f"rendererError.{key} expected {exp_re[key]!r}, got {err_obj.get(key)!r}"
-    _assert_renderer_error_message(exp_re, err_obj)
+    for key in ("code", "surfaceId", "functionCallId"):
+        if key in exp_err:
+            assert err_obj.get(key) == exp_err[key], (
+                f"rendererError.{key} expected {exp_err[key]!r}, got"
+                f" {err_obj.get(key)!r}"
+            )
+    if "path" in exp_err:
+        assert _renderer_error_path_matches(
+            exp_err["path"], err_obj.get("path"), err_details or []
+        ), (
+            f"rendererError.path expected {exp_err['path']!r}, got"
+            f" {err_obj.get('path')!r}"
+        )
+    if "functionCallId" in exp_err and "surfaceId" not in exp_err:
+        assert err_obj.get("surfaceId") is None, (
+            "rendererError.surfaceId expected to be absent for a function call"
+            f" error, got {err_obj.get('surfaceId')!r}"
+        )
+    _assert_renderer_error_message(exp_err, err_obj)
 
 
 def _candidate_detail_paths(d: Any) -> list[str]:
@@ -640,7 +702,9 @@ def _assert_error_dict_expectations(
     if isinstance(expect_error.get("details"), list):
         _assert_error_details_list(expect_error["details"], err_details)
     if isinstance(expect_error.get("rendererError"), dict):
-        _assert_renderer_error(expect_error["rendererError"], captured_renderer_errors)
+        _assert_renderer_error(
+            expect_error["rendererError"], captured_renderer_errors, err_details
+        )
 
 
 @contextlib.contextmanager
@@ -683,32 +747,13 @@ def assert_raises(
         )
         err_str = f"{str(excinfo.value).lower()} {detail_msgs}"
         match = (
-            message in str(excinfo.value)
-            or msg_norm in err_str
+            _error_message_matches(message, err_str)
             or (err_details and any(message in d.message for d in err_details))
-            or re.search(re.escape(message), str(excinfo.value))
             or re.search(message, str(excinfo.value))
-            or (
-                "not of type" in msg_norm
-                and (
-                    "input should be" in err_str
-                    or "type_mismatch" in err_str
-                    or "must be a" in err_str
-                )
-            )
-            or (
-                "is a required property" in msg_norm
-                and ("field required" in err_str or "missing" in err_str)
-            )
             or (
                 "additional properties are not allowed" in msg_norm
                 and ("extra inputs are not permitted" in err_str or "extra" in err_str)
             )
-            or (
-                "circular" in msg_norm
-                and ("circular" in err_str or "self-reference" in err_str)
-            )
-            or ("orphan" in msg_norm and "orphan" in err_str)
             or (
                 "was unexpected" in msg_norm
                 and ("unrecognized" in err_str or "unexpected" in err_str)
@@ -719,10 +764,6 @@ def assert_raises(
             or (
                 "cannot be placed under parent" in msg_norm
                 and "cannot be placed under parent" in err_str
-            )
-            or (
-                "non-dict" in msg_norm
-                and ("primitive" in err_str or "non-dict" in err_str)
             )
             or (
                 (
@@ -1040,6 +1081,8 @@ def _assert_expected_surface_state(
             assert surface is not None
             if "theme" in s_exp:
                 assert surface.theme == s_exp["theme"]
+            if "metadata" in s_exp:
+                assert surface.metadata == s_exp["metadata"]
             if "sendDataModel" in s_exp:
                 assert surface.send_data_model == s_exp["sendDataModel"]
             if "dataModel" in s_exp:
@@ -1069,10 +1112,13 @@ def _assert_expected_surface_state(
                         )
                         if "component" in c_exp:
                             assert c_type == c_exp["component"]
+                        if "metadata" in c_exp:
+                            assert comp is not None
+                            assert comp.metadata == c_exp["metadata"]
                         if node_info:
                             node_props = node_info["props"]
                             for p_key, p_val in c_exp.items():
-                                if p_key in ("id", "component"):
+                                if p_key in ("id", "component", "metadata"):
                                     continue
                                 norm_val = _normalize_prop_value(node_props.get(p_key))
                                 assert norm_val == p_val or (
@@ -1293,6 +1339,7 @@ def _assert_self_contained(schema: dict[str, Any]) -> None:
 # than being silently ignored.
 _FROM_JSON_EXPECT_KEYS = frozenset({
     "catalogId",
+    "componentMetadata",
     "components",
     "functions",
     "invalidComponents",
@@ -1437,6 +1484,13 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
             if isinstance(expected["functions"], list):
                 for fn_name in expected["functions"]:
                     assert cat.get_function(fn_name) is not None
+        if "componentMetadata" in expected and isinstance(
+            expected["componentMetadata"], dict
+        ):
+            for comp_name, exp_meta in expected["componentMetadata"].items():
+                comp_api = cat.get_component(comp_name)
+                assert comp_api is not None
+                assert comp_api.metadata == exp_meta
         if expected.get("selfContained"):
             _assert_self_contained(cat.validation_schema)
         if expected.get("matchesBuiltinCatalog"):
@@ -2372,7 +2426,14 @@ def _assert_dispatched_action_event(
         return
     assert len(dispatched) >= 1, "Expected action to be dispatched, but none was"
     actual = dispatched[0]
-    for key in ("name", "context", "userMessage", "surfaceId", "sourceComponentId"):
+    for key in (
+        "name",
+        "context",
+        "userMessage",
+        "surfaceId",
+        "sourceComponentId",
+        "metadata",
+    ):
         if key in expect_dispatched:
             assert actual.get(key) == expect_dispatched[key]
     if expect_dispatched.get("hasTimestamp") or expect_dispatched.get(
@@ -2455,7 +2516,11 @@ def validate_dispatch_action_case(case: dict[str, Any]) -> None:
                 action_payload, is_user_activated=user_activation
             )
             if isinstance(resolved, dict):
-                surface.dispatch_action(resolved, source_component_id=source_comp_id)
+                surface.dispatch_action(
+                    resolved,
+                    source_component_id=source_comp_id,
+                    metadata=case.get("metadata"),
+                )
             if surface_errors:
                 err = surface_errors[-1]
                 raise A2uiValidationError(
@@ -2468,7 +2533,11 @@ def validate_dispatch_action_case(case: dict[str, Any]) -> None:
             action_payload, is_user_activated=user_activation
         )
         if isinstance(resolved, dict):
-            surface.dispatch_action(resolved, source_component_id=source_comp_id)
+            surface.dispatch_action(
+                resolved,
+                source_component_id=source_comp_id,
+                metadata=case.get("metadata"),
+            )
         _assert_dispatched_action_event(case, expect_dispatched, dispatched)
         if expect_data_model is not None:
             assert data_model.get("/") == expect_data_model

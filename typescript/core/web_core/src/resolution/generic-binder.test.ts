@@ -723,6 +723,64 @@ describe('GenericBinder Checkable Trait', () => {
     assert.strictEqual(notificationCount, 1);
   });
 
+  it('drops properties that a component update removes', () => {
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
+    const compModel = new ComponentModel(
+      'c9',
+      'Test',
+      {value: 'kept', accessibility: {label: 'Name'}},
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c9'), schema);
+    binder.subscribe(() => {});
+
+    compModel.properties = {value: 'kept'};
+
+    assert.strictEqual(binder.snapshot.value, 'kept');
+    assert.ok(!('accessibility' in binder.snapshot));
+  });
+
+  it('keeps the validation state of checks across a component update', () => {
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
+    const checks = [
+      {condition: {call: 'required', args: {value: {path: '/val'}}}, message: 'Required'},
+    ];
+    const compModel = new ComponentModel('c10', 'Test', {value: {path: '/val'}, checks}, catalog);
+    surface.componentsModel.addComponent(compModel);
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c10'), schema);
+    binder.subscribe(() => {});
+
+    compModel.properties = {value: {path: '/val'}, checks};
+
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Required']);
+  });
+
+  it('keeps the validation state of checks in a nested object across a component update', () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    const schema = z.object({
+      section: z.object({
+        value: CommonSchemas.DynamicString,
+        checks: CommonSchemas.Checkable.shape.checks,
+      }),
+    });
+    const section = {
+      value: {path: '/val'},
+      checks: [{condition: {call: 'required', args: {value: {path: '/val'}}}, message: 'Required'}],
+    };
+    const compModel = new ComponentModel('c11', 'Test', {section}, catalog);
+    surface.componentsModel.addComponent(compModel);
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c11'), schema);
+    assert.strictEqual(binder.snapshot.section.isValid, false);
+    binder.subscribe(() => {});
+
+    compModel.properties = {section};
+
+    assert.strictEqual(binder.snapshot.section.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.section.validationErrors, ['Required']);
+  });
+
   describe('scrapeSchemaBehavior schema inference', () => {
     it('should infer behavior from schema descriptions', () => {
       // Description-based matching across formats (relative, URI, pipe-annotated)
@@ -953,6 +1011,58 @@ describe('GenericBinder Checkable Trait', () => {
     assert.deepStrictEqual(binder.snapshot.validationErrors, []);
   });
 
+  it('treats a check waiting on an agent call as pending, then valid or invalid when it settles', async () => {
+    const catalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', catalog);
+    const answers: Array<{resolve: (v: unknown) => void; reject: (e: Error) => void}> = [];
+    surface.agentFunctionCaller = () =>
+      new Promise((resolve, reject) => answers.push({resolve, reject}));
+    surface.dataModel.set('/val', 'a');
+    const schema = z.object({
+      field: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c_remote',
+        'Input',
+        {
+          field: 'val',
+          checks: [
+            {
+              condition: {'@call': 'remoteCheck', args: {value: {'@path': '/val'}}},
+              message: 'Rejected by the agent',
+            },
+          ],
+        },
+        catalog,
+      ),
+    );
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c_remote'), schema);
+    let notifications = 0;
+    binder.subscribe(() => notifications++);
+    const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(binder.snapshot.isValid, true, 'a pending check is not a failure');
+    await flush();
+    assert.strictEqual(answers.length, 1);
+    answers[0].resolve(false);
+    await flush();
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Rejected by the agent']);
+    assert.ok(notifications > 0);
+
+    surface.dataModel.set('/val', 'b');
+    assert.strictEqual(binder.snapshot.isValid, true, 'pending again while the new call runs');
+    await flush();
+    const before = notifications;
+    answers[1].reject(new Error('agent down'));
+    await flush();
+    assert.strictEqual(binder.snapshot.isValid, false, 'a failed call makes the rule invalid');
+    assert.ok(notifications > before, 'pending to failed notifies subscribers');
+    binder.dispose();
+  });
+
   it('should reset custom message to fallback message when subsequent evaluation returns boolean or no custom message', async () => {
     const mockCatalog = new Catalog('test', '1.0', [], []);
     const surface = new SurfaceModel('s1', mockCatalog);
@@ -1080,6 +1190,45 @@ describe('GenericBinder Checkable Trait', () => {
     assert.deepStrictEqual(binder.snapshot.validationErrors, [
       'Explicit rule message overrides function message',
     ]);
+  });
+
+  it('should keep the data model message on a path-bound check and fall back to CheckRule.message', async () => {
+    const mockCatalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    surface.dataModel.set('/check', {
+      valid: false,
+      code: 'FROM_DATA',
+      message: 'Message from the data model',
+    });
+
+    const schema = z.object({
+      field: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+    const compModel = new ComponentModel(
+      'c_path_bound',
+      'Input',
+      {
+        field: 'val',
+        checks: [{condition: {'@path': '/check'}, message: 'Rule fallback message'}],
+      },
+      mockCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c_path_bound'), schema);
+    binder.subscribe(() => {});
+
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Message from the data model']);
+
+    // Without a message in the data model, the rule message is the fallback.
+    surface.dataModel.set('/check', {valid: false});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Rule fallback message']);
+
+    surface.dataModel.set('/check', false);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Rule fallback message']);
   });
 
   it('should not treat primitive fields or unannotated condition arrays as CHECKABLE', () => {

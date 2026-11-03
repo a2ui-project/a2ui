@@ -1018,18 +1018,24 @@ void main() {
         'component': 'Alpha',
         'a': 'x',
         'catalogId': 'cat2',
-        'metadata': {'k': 'v'},
+        'metadata': {
+          'extensions': {'k': 'v'},
+        },
       });
 
       final ComponentModel root = components().get('root')!;
       expect(root.properties, {'a': 'x'});
       expect(root.catalog, 'cat2');
-      expect(root.metadata, {'k': 'v'});
+      expect(root.metadata, {
+        'extensions': {'k': 'v'},
+      });
       expect(root.toJson(), {
         'id': 'root',
         'component': 'Alpha',
         'catalogId': 'cat2',
-        'metadata': {'k': 'v'},
+        'metadata': {
+          'extensions': {'k': 'v'},
+        },
         'a': 'x',
       });
     });
