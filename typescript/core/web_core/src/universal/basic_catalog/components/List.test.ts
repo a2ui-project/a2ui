@@ -26,6 +26,7 @@ import {
   Subscription,
 } from '../../../v0_9/index.js';
 import {NodeResolver} from '../../../resolution/node-resolver.js';
+import type {ComponentNode} from '../../../resolution/component-node.js';
 import {getValue} from '../../../reactivity/signals.js';
 import {
   type A2uiWebComponentElement,
@@ -115,68 +116,108 @@ describe('List Component', () => {
     assert.strictEqual(el.textContent?.includes('List Item 2'), true);
   });
 
-  it('emits no item for a child that has not resolved, then adds it on arrival', async () => {
-    // v0.9 and v1.0 share the universal List. The filter runs before the ol/ul/div branch, so
-    // every listStyle shares it too.
-    const v1Catalog = (await import('../../../catalogs/basic/v1/index.js')).basicCatalog;
-    for (const [version, catalog] of [
-      ['v0.9', basicCatalog],
-      ['1.0', v1Catalog],
-    ] as const) {
-      const nodeProcessor = new MessageProcessor([catalog]);
-      nodeProcessor.processMessages([
-        {version, createSurface: {surfaceId: 'node-surface', catalogId: catalog.id}},
-        {
-          version,
-          updateComponents: {
-            surfaceId: 'node-surface',
-            components: [
-              {id: 'root', component: 'List', children: ['a', 'late', 'b']},
-              {id: 'a', component: 'Text', text: 'A'},
-              {id: 'b', component: 'Text', text: 'B'},
-            ],
-          },
+  /**
+   * Mounts a List over `root`, whose `late` child has not arrived, and checks it gets no item;
+   * then runs `sendLate` and checks the item appears in order.
+   */
+  async function expectNoItemUntilArrival(root: ComponentNode, sendLate: () => void) {
+    const el = document.createElement('a2ui-list') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+    await asyncUpdate(el, e => {
+      e.node = root;
+    });
+
+    const items = () => el.querySelectorAll('.a2ui-list-item-none');
+    // `late` has not arrived: no empty item (box, gap) stands in for it.
+    assert.strictEqual(items().length, 2);
+    assert.strictEqual(el.querySelectorAll('a2ui-basic-text').length, 2);
+
+    sendLate();
+    await (el as unknown as {updateComplete: Promise<unknown>}).updateComplete;
+
+    assert.strictEqual(items().length, 3);
+    assert.deepStrictEqual(
+      [...el.querySelectorAll<A2uiWebComponentElement>('a2ui-basic-text')].map(
+        t => t.node?.componentId,
+      ),
+      ['a', 'late', 'b'],
+    );
+  }
+
+  it('emits no item for a child that has not resolved, then adds it on arrival (v0.9)', async () => {
+    const nodeProcessor = new MessageProcessor([basicCatalog]);
+    nodeProcessor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {surfaceId: 'node-surface', catalogId: basicCatalog.id},
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'node-surface',
+          components: [
+            {id: 'root', component: 'List', children: ['a', 'late', 'b']},
+            {id: 'a', component: 'Text', text: 'A'},
+            {id: 'b', component: 'Text', text: 'B'},
+          ],
         },
-      ] as never);
-      const nodeSurface = nodeProcessor.model.getSurface('node-surface')!;
-      const resolver = new NodeResolver(nodeSurface, catalog);
-      const root = getValue(resolver.rootNode)!;
+      },
+    ]);
+    const resolver = new NodeResolver(
+      nodeProcessor.model.getSurface('node-surface')!,
+      basicCatalog,
+    );
 
-      const el = document.createElement('a2ui-list') as A2uiWebComponentElement;
-      element = el;
-      document.body.appendChild(el);
-      await asyncUpdate(el, e => {
-        e.node = root;
-      });
-
-      const items = () => el.querySelectorAll('.a2ui-list-item-none');
-      // `late` has not arrived: no empty item (box, gap) stands in for it.
-      assert.strictEqual(items().length, 2, version);
-      assert.strictEqual(el.querySelectorAll('a2ui-basic-text').length, 2, version);
-
+    await expectNoItemUntilArrival(getValue(resolver.rootNode)!, () =>
       nodeProcessor.processMessages([
         {
-          version,
+          version: 'v0.9',
           updateComponents: {
             surfaceId: 'node-surface',
             components: [{id: 'late', component: 'Text', text: 'Late'}],
           },
         },
-      ] as never);
-      await (el as unknown as {updateComplete: Promise<unknown>}).updateComplete;
+      ]),
+    );
+    resolver.dispose();
+  });
 
-      assert.strictEqual(items().length, 3, version);
-      assert.deepStrictEqual(
-        [...el.querySelectorAll<A2uiWebComponentElement>('a2ui-basic-text')].map(
-          t => t.node?.componentId,
-        ),
-        ['a', 'late', 'b'],
-        version,
-      );
-      resolver.dispose();
-      el.remove();
-      element = null;
-    }
+  it('emits no item for a child that has not resolved, then adds it on arrival (v1.0)', async () => {
+    // v1.0 uses the same universal List as v0.9.
+    const v1Catalog = (await import('../../../catalogs/basic/v1/index.js')).basicCatalog;
+    const nodeProcessor = new MessageProcessor([v1Catalog]);
+    nodeProcessor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {surfaceId: 'node-surface', catalogId: v1Catalog.id},
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'node-surface',
+          components: [
+            {id: 'root', component: 'List', children: ['a', 'late', 'b']},
+            {id: 'a', component: 'Text', text: 'A'},
+            {id: 'b', component: 'Text', text: 'B'},
+          ],
+        },
+      },
+    ]);
+    const resolver = new NodeResolver(nodeProcessor.model.getSurface('node-surface')!, v1Catalog);
+
+    await expectNoItemUntilArrival(getValue(resolver.rootNode)!, () =>
+      nodeProcessor.processMessages([
+        {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 'node-surface',
+            components: [{id: 'late', component: 'Text', text: 'Late'}],
+          },
+        },
+      ]),
+    );
+    resolver.dispose();
   });
 
   it('should track and reuse child elements during a reordering operation', async () => {
