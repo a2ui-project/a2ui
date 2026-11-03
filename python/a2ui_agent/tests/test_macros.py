@@ -1035,11 +1035,8 @@ def test_macro_non_basic_catalog_id_and_to_catalog_default_id():
         )
 
     exp_cross = MacroExpander([CrossCatalogStatusBadge])
-    cross_macro_cat = Catalog.from_json(
-        catalog_schema={**exp_cross.to_catalog().to_json(), "protocolVersion": "1.0"},
-        protocol_version="1.0",
-        catalog_id=macro_cat.catalog_id,
-    )
+    cross_macro_cat = exp_cross.to_catalog()
+    assert cross_macro_cat.protocol_version == "1.0"
     msgs_macro_surface = [
         CreateSurfaceMessageV10(
             version="1.0",
@@ -1823,6 +1820,168 @@ def test_macro_nested_deferred_component_expansion():
     mp.process_messages(
         [m.model_dump(by_alias=True, exclude_none=True) for m in lowered_scoped]
     )
+
+    # Also verify unannotated base primitives inside scoped macros across:
+    #   (a) three-catalog surface (surface_catalog_id = theme_cid)
+    #   (b) same-catalog surface (surface_catalog_id = brand_cid)
+    #   (c) sibling macro hijacking on defaultless / standalone updateComponents
+    #   (d) scoped same-name macro without base_catalogs on standalone / defaultless surface
+    theme_cid = "https://example.com/theme.json"
+    theme_cat = Catalog.from_json(
+        catalog_schema={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "protocolVersion": "1.0",
+            "catalogId": theme_cid,
+            "components": {
+                "ThemeShell": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "ThemeShell"},
+                        "id": {"type": "string"},
+                        "child": {
+                            "$ref": (
+                                "https://a2ui.org/specification/v1_0/json/"
+                                "common_types.json#/$defs/ComponentId"
+                            )
+                        },
+                    },
+                    "required": ["component", "id", "child"],
+                }
+            },
+            "$defs": {"anyComponent": {"oneOf": [{"$ref": "#/components/ThemeShell"}]}},
+        },
+        protocol_version="1.0",
+        catalog_id=theme_cid,
+    )
+
+    full_scoped = MacroExpander(
+        [BrandText, InnerBadgeV10, OuterPanelV10],
+        catalog_id=brand_cid,
+        base_catalogs=[basic_cat_v10, brand_base, theme_cat],
+    )
+    # (a) Three-catalog surface
+    lowered_theme = full_scoped.transform_to_transport([
+        CreateSurfaceMessageV10(
+            version="1.0",
+            createSurface=CreateSurfaceV10(surfaceId="s_theme", catalogId=theme_cid),
+        ),
+        UpdateComponentsMessageV10(
+            version="1.0",
+            updateComponents=UpdateComponentsV10(
+                surfaceId="s_theme",
+                components=[{
+                    "id": "root",
+                    "component": "OuterPanelV10",
+                    "catalogId": brand_cid,
+                    "title": "ThemeTitle",
+                }],
+            ),
+        ),
+    ])
+    assert [c["component"] for c in lowered_theme[1].update_components.components] == [
+        "Text",
+        "Text",
+        "BrandBox",
+        "Column",
+        "Card",
+    ]
+    assert not any(
+        str(c.get("text", "")).startswith("[Brand]")
+        for c in lowered_theme[1].update_components.components
+    )
+
+    # (b) Same-catalog surface (surface_catalog_id = brand_cid)
+    lowered_same = full_scoped.transform_to_transport([
+        CreateSurfaceMessageV10(
+            version="1.0",
+            createSurface=CreateSurfaceV10(surfaceId="s_brand", catalogId=brand_cid),
+        ),
+        UpdateComponentsMessageV10(
+            version="1.0",
+            updateComponents=UpdateComponentsV10(
+                surfaceId="s_brand",
+                components=[{
+                    "id": "root",
+                    "component": "Text",
+                    "text": "BrandOnly",
+                }],
+            ),
+        ),
+    ])
+    assert [c["component"] for c in lowered_same[1].update_components.components] == [
+        "Text",
+        "Card",
+    ]
+    assert (
+        lowered_same[1].update_components.components[0]["text"] == "[Brand] BrandOnly"
+    )
+
+    # (c) Defaultless surface & standalone updateComponents do not hijack plain Text child
+    for standalone_or_defaultless in (
+        [
+            CreateSurfaceMessageV10(
+                version="1.0",
+                createSurface=CreateSurfaceV10(surfaceId="s_def"),
+            ),
+            UpdateComponentsMessageV10(
+                version="1.0",
+                updateComponents=UpdateComponentsV10(
+                    surfaceId="s_def",
+                    components=[{
+                        "id": "root",
+                        "component": "OuterPanelV10",
+                        "catalogId": brand_cid,
+                        "title": "PlainTitle",
+                    }],
+                ),
+            ),
+        ],
+        [
+            UpdateComponentsMessageV10(
+                version="1.0",
+                updateComponents=UpdateComponentsV10(
+                    surfaceId="s_untracked",
+                    components=[{
+                        "id": "root",
+                        "component": "OuterPanelV10",
+                        "catalogId": brand_cid,
+                        "title": "PlainTitle",
+                    }],
+                ),
+            ),
+        ],
+    ):
+        lowered_c = full_scoped.transform_to_transport(standalone_or_defaultless)
+        comps_c = lowered_c[-1].update_components.components
+        assert [c["component"] for c in comps_c] == [
+            "Text",
+            "Text",
+            "BrandBox",
+            "Column",
+            "Card",
+        ]
+        assert not any(str(c.get("text", "")).startswith("[Brand]") for c in comps_c)
+
+    # (d) Scoped same-name macro without base_catalogs on standalone / defaultless surface
+    bare_scoped = MacroExpander([BrandText], catalog_id=brand_cid)
+    lowered_bare = bare_scoped.transform_to_transport([
+        UpdateComponentsMessageV10(
+            version="1.0",
+            updateComponents=UpdateComponentsV10(
+                surfaceId="s_bare",
+                components=[{
+                    "id": "root",
+                    "component": "Text",
+                    "catalogId": brand_cid,
+                    "text": "NoBaseCatalogs",
+                }],
+            ),
+        )
+    ])
+    assert [c["component"] for c in lowered_bare[0].update_components.components] == [
+        "Text",
+        "Card",
+    ]
 
 
 def test_macro_custom_catalog_collision_and_same_name_wrapper(caplog):

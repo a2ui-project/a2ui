@@ -20,7 +20,7 @@ from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 import copy
 import logging
-from typing import Any
+from typing import Any, get_args
 
 from a2ui.constants import CATALOG_COMPONENTS_KEY
 from a2ui.core import A2uiCatalogError, A2uiRecursionError, Catalog, CatalogApi
@@ -39,6 +39,24 @@ _COMPONENT_ENVELOPE_KEYS: frozenset[str] = frozenset({
     "accessibility",
     "metadata",
 })
+
+
+def _annotation_targets_v1_0(t: Any, seen: set[int] | None = None) -> bool:
+    """Returns whether ``t`` or any of its nested type arguments comes from an A2UI v1.0 module."""
+    if seen is None:
+        seen = set()
+    obj_id = id(t)
+    if obj_id in seen:
+        return False
+    seen.add(obj_id)
+    mod = getattr(t, "__module__", "") or ""
+    if mod.startswith((
+        "a2ui.builder.v1_0",
+        "a2ui.core.schema.v1_0",
+        "a2ui.core.basic_catalog.v1_0",
+    )):
+        return True
+    return any(_annotation_targets_v1_0(arg, seen) for arg in get_args(t))
 
 
 def _apply_envelope_fields(
@@ -153,6 +171,7 @@ class MacroExpander:
             set(passthrough_components) if passthrough_components is not None else None
         )
         self.catalog_id: str | None = catalog_id
+        self._registered_protocol_version: str | None = None
         self._catalog_base_components: dict[str, set[str]] = {}
         if catalog_id is not None:
             self._catalog_base_components[catalog_id] = set()
@@ -163,6 +182,10 @@ class MacroExpander:
 
     def register_catalog(self, catalog: CatalogApi) -> None:
         """Registers a base catalog's primitive component names for mixed-catalog scoping."""
+        if catalog.protocol_version and self._registered_protocol_version is None:
+            self._registered_protocol_version = to_version_number(
+                catalog.protocol_version
+            )
         if not catalog.catalog_id:
             return
         schema = catalog.to_json()
@@ -240,17 +263,67 @@ class MacroExpander:
     def to_catalog(self) -> CatalogApi:
         """Exports a standalone Catalog containing exclusively the macro component schemas.
 
+        Infers the catalog's protocol version from any registered base catalog or
+        v1.0 macro annotations, defaulting to ``0.9.1`` otherwise.
+
         Returns:
             A Catalog instance ready to be used by inference formats and prompt generators.
         """
         # catalog_definition.json writes the version without the leading "v".
-        version = to_version_number(ProtocolVersion.V0_9_1)
+        if self._registered_protocol_version is not None:
+            version = self._registered_protocol_version
+        elif any(
+            _annotation_targets_v1_0(m.return_type)
+            or any(_annotation_targets_v1_0(p.type_hint) for p in m.parameters.values())
+            for m in self.macros
+        ):
+            version = to_version_number(ProtocolVersion.V1_0)
+        else:
+            version = to_version_number(ProtocolVersion.V0_9_1)
+
+        is_v1_0 = version == to_version_number(ProtocolVersion.V1_0)
         catalog_id = self.catalog_id or _DEFAULT_MACRO_CATALOG_ID
 
-        components = {m.name: m.to_json_schema() for m in self.macros}
+        components: dict[str, Any] = {}
+        for m in self.macros:
+            comp_schema = m.to_json_schema()
+            if is_v1_0:
+                props = dict(comp_schema.get("properties", {}))
+                props.setdefault("component", {"const": m.name})
+                props.setdefault("id", {"type": "string"})
+                req = list(comp_schema.get("required", []))
+                for req_key in ("component", "id"):
+                    if req_key not in req:
+                        req.insert(0, req_key)
+                comp_schema = {
+                    **comp_schema,
+                    "properties": props,
+                    "required": req,
+                }
+            components[m.name] = comp_schema
+
         any_comp_refs = [
             {"$ref": f"#/{CATALOG_COMPONENTS_KEY}/{m.name}"} for m in self.macros
         ]
+        if is_v1_0:
+            any_comp_def: dict[str, Any] = (
+                {
+                    "oneOf": any_comp_refs,
+                    "discriminator": {"propertyName": "component"},
+                }
+                if any_comp_refs
+                else {"not": {}}
+            )
+            defs: dict[str, Any] = {
+                "anyComponent": any_comp_def,
+                "anyFunction": {"not": {}},
+            }
+        else:
+            defs = {
+                "anyComponent": {
+                    "oneOf": any_comp_refs,
+                }
+            }
 
         schema: dict[str, Any] = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -259,11 +332,7 @@ class MacroExpander:
             "title": "A2UI Macros Catalog",
             "description": "Standalone catalog of high-level A2UI macro components.",
             CATALOG_COMPONENTS_KEY: components,
-            "$defs": {
-                "anyComponent": {
-                    "oneOf": any_comp_refs,
-                }
-            },
+            "$defs": defs,
         }
 
         return Catalog.from_json(
@@ -388,15 +457,10 @@ class MacroExpander:
             and surface_catalog_id not in self._catalog_base_components
         ):
             return False
-        if c_name in self._catalog_base_components.get(surface_catalog_id or "", set()):
+        if any(c_name in comps for comps in self._catalog_base_components.values()):
             return False
-        if c_name in self._catalog_base_components.get(enclosing_catalog_id, set()):
+        if c_name in active_macros and not any(self._catalog_base_components.values()):
             return False
-        if c_name in active_macros:
-            if surface_catalog_id is None and any(
-                c_name in comps for comps in self._catalog_base_components.values()
-            ):
-                return False
         return True
 
     def _expand_component_list(
@@ -457,6 +521,12 @@ class MacroExpander:
                 else:
                     effective_catalog_id = surface_catalog_id
 
+            if meta is not None and depth > 0 and raw_cid is None:
+                if any(
+                    c_name in comps for comps in self._catalog_base_components.values()
+                ):
+                    meta = None
+
             if meta is not None and c_name in active_macros:
                 is_base_primitive = (
                     effective_catalog_id != enclosing_catalog_id
@@ -468,7 +538,7 @@ class MacroExpander:
                         )
                     )
                     or (
-                        effective_catalog_id is None
+                        raw_cid is None
                         and any(
                             c_name in comps
                             for comps in self._catalog_base_components.values()
