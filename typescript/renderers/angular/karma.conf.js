@@ -62,6 +62,20 @@ function ConformanceManifestReporter(baseReporterDecorator) {
 }
 ConformanceManifestReporter.$inject = ['baseReporterDecorator'];
 
+// Karma's middleware injects `config.client` into `context.html` via
+// `data.replace('%CLIENT_CONFIG%', 'window.__karma__.config = ' + JSON.stringify(client))`,
+// which evaluates `String.prototype.replace` `$` patterns (such as `$'` from `'$'` in
+// `catalog.json`) and corrupts the inline `<script>` block. Base64-encoding keeps the
+// serialized client config free of `$` and `</script>` sequences.
+const conformanceSuites = Buffer.from(
+  JSON.stringify({
+    accessibility,
+    adapterConformance,
+    basicCatalogJson,
+  }),
+  'utf8',
+).toString('base64');
+
 module.exports = function (config) {
   config.set({
     basePath: '',
@@ -80,11 +94,7 @@ module.exports = function (config) {
         // for example, you can disable the random execution with `random: false`
         // or set a specific seed with `seed: 4321`
       },
-      conformanceSuites: {
-        accessibility,
-        adapterConformance,
-        basicCatalogJson,
-      },
+      conformanceSuites,
     },
     jasmineHtmlReporter: {
       suppressAll: true, // removes the duplicated traces
