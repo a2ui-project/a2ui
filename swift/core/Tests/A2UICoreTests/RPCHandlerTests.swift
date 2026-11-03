@@ -74,6 +74,34 @@ struct RPCHandlerTests {
     #expect(response.error == nil)
   }
 
+  @Test func incomingCallAfterDisposeAnswersDisposed() async {
+    let handler = RPCHandler()
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [MockEchoFunction()]
+    ).eraseToAnyCatalog()
+    handler.disposeAllPendingCalls()
+
+    let response = await handler.handleIncomingCall(
+      CallRendererFunctionMessage(
+        functionCallID: "call_after_dispose",
+        callFunction: CallFunctionPayload(
+          call: "echo",
+          catalogID: "test",
+          args: ["message": .string("Hello Agent")]
+        ),
+        version: .v10
+      ),
+      catalogs: [catalog.id: catalog]
+    )
+
+    #expect(response.functionCallID == "call_after_dispose")
+    #expect(response.value == nil)
+    #expect(response.error?.code == "DISPOSED")
+  }
+
   @Test func incomingCallUnknownFunction() async {
     let handler = RPCHandler()
     let catalog = Catalog(
@@ -408,9 +436,23 @@ struct RPCHandlerTests {
     processor.dispose()
     do {
       _ = try await task2.value
+      Issue.record("Expected cancelled error")
+    } catch let error as FunctionError {
+      #expect(error == .cancelled(callID: "disp_call"))
+      #expect(error.rpcCode == "CANCELLED")
+    }
+
+    // A call made after dispose fails with DISPOSED, even though a listener is set.
+    do {
+      _ = try await processor.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "afterDisposeFn",
+        functionCallID: "after_dispose_call",
+        version: .v10
+      )
       Issue.record("Expected disposed error")
     } catch let error as FunctionError {
-      #expect(error == .disposed(callID: "disp_call"))
+      #expect(error == .disposed(callID: "after_dispose_call"))
       #expect(error.rpcCode == "DISPOSED")
     }
   }

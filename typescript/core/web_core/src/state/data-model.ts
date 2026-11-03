@@ -62,7 +62,14 @@ function cloneValue<T>(val: T): T {
   if (proto === Object.prototype || proto === null) {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-      out[k] = cloneValue(v);
+      // Define rather than assign, so a JSON-parsed `__proto__` key stays an
+      // inert own property instead of becoming the clone's prototype.
+      Object.defineProperty(out, k, {
+        value: cloneValue(v),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
     return out as T;
   }

@@ -310,27 +310,24 @@ public final class MessageProcessor: ObservableObject {
     }
 
     if version.isAtLeastV10 {
-      var defs: OrderedDictionary<String, JSONValue> = [:]
-      if !componentsDictionary.isEmpty {
-        let componentRefs: [JSONValue] = componentsDictionary.keys.sorted().map {
-          .object(["$ref": .string("#/components/\($0)")])
-        }
-        defs["anyComponent"] = .object([
+      // `catalog_definition.json` requires both unions, so a catalog without components or
+      // without functions still advertises them, as an empty `oneOf`.
+      let componentRefs: [JSONValue] = componentsDictionary.keys.sorted().map {
+        .object(["$ref": .string("#/components/\($0)")])
+      }
+      let functionRefs: [JSONValue] = v10Functions.keys.sorted().map { name in
+        .object(["$ref": .string("#/functions/\(name)")])
+      }
+      let defs: OrderedDictionary<String, JSONValue> = [
+        "anyComponent": .object([
           "oneOf": .array(componentRefs),
           "discriminator": .object(["propertyName": .string("component")]),
-        ])
-      }
-      if !v10Functions.isEmpty {
-        let functionRefs: [JSONValue] = v10Functions.keys.sorted().map { name in
-          .object(["$ref": .string("#/functions/\(name)")])
-        }
-        defs["anyFunction"] = .object([
+        ]),
+        "anyFunction": .object([
           "oneOf": .array(functionRefs)
-        ])
-      }
-      if !defs.isEmpty {
-        catalogDictionary["$defs"] = .object(defs)
-      }
+        ]),
+      ]
+      catalogDictionary["$defs"] = .object(defs)
     }
 
     return .object(catalogDictionary)
@@ -1011,6 +1008,9 @@ public final class MessageProcessor: ObservableObject {
     version: A2UIProtocolVersion,
     timeoutSeconds: TimeInterval = 30.0
   ) async throws -> JSONValue {
+    guard !rpcHandler.isDisposed else {
+      throw FunctionError.disposed(callID: functionCallID ?? UUID().uuidString)
+    }
     guard let listener = outboundListener else {
       throw FunctionError.noListener(name: functionName)
     }

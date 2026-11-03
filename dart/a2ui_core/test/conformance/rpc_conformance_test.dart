@@ -84,6 +84,7 @@ const Map<String, Set<String>> _knownKeys = {
     'dataModel',
     'error',
     'initialValue',
+    'inFlightError',
     'lateResponseIgnored',
     'outboundCall',
     'resolvedValue',
@@ -423,7 +424,11 @@ Future<void> _runInboundMessageScenario(
       sent.whereType<RendererFunctionResponseMessage>();
   final expectedResponse = expected['response'] as Map<String, Object?>?;
   if (expectedResponse == null) {
+    // An ignored message: no response, no outbound message, and no pending
+    // calls left behind.
     expect(responses, isEmpty);
+    expect(sent, isEmpty);
+    expect(processor.rpc.pendingCallCount, 0);
     return;
   }
   expect(responses, hasLength(1));
@@ -456,9 +461,19 @@ void _assertLateResponseIgnored(
   final lateResponse = args['lateInboundResponse'] as Map<String, Object?>?;
   if (lateResponse == null) return;
   final int beforeSent = sent.length;
+  final surfaceErrors = <A2uiRendererError>[];
+  final subscriptions = [
+    for (final surface in processor.model.allSurfaces)
+      surface.onError.subscribe(surfaceErrors.add),
+  ];
   processor.processMessages(lateResponse);
+  for (final subscription in subscriptions) {
+    subscription.unsubscribe();
+  }
   if (expected?['lateResponseIgnored'] == true) {
     expect(sent.length, beforeSent);
+    expect(surfaceErrors, isEmpty);
+    expect(processor.rpc.pendingCallCount, 0);
   }
 }
 
@@ -516,16 +531,15 @@ Future<void> _runOutboundErrorScenario(
   }
 
   if (afterCall == 'cancel') {
-    final signal = CancellationSignal();
+    final surfaceId = outboundCall['surfaceId']! as String;
     final Future<Object?> pending = processor.callAgentFunction(
-      outboundCall['surfaceId']! as String,
+      surfaceId,
       _functionCall(outboundCall),
       options: CallOptions(
         functionCallId: outboundCall['functionCallId'] as String?,
-        signal: signal,
       ),
     );
-    signal.cancel();
+    processor.rpc.cancelSurfaceCalls(surfaceId);
     await expectLater(pending, throwsA(matcher));
     return;
   }
@@ -539,7 +553,17 @@ Future<void> _runOutboundErrorScenario(
       ),
     );
     processor.dispose();
-    await expectLater(pending, throwsA(isA<A2uiRpcError>()));
+    final inFlightError = expected?['inFlightError'] as Map<String, Object?>?;
+    await expectLater(
+      pending,
+      throwsA(
+        isA<A2uiRpcError>().having(
+          (e) => e.code,
+          'code',
+          inFlightError?['code'] ?? 'CANCELLED',
+        ),
+      ),
+    );
     await expectLater(
       processor.callAgentFunction(
         outboundCall['surfaceId']! as String,
@@ -709,6 +733,11 @@ Future<void> _runUiBindingScenario(
       expect(results, isNotNull);
       expect(results, isNotEmpty);
       expect(results!.first.message, msg);
+    }
+    if (valResult['severity'] case final String severity) {
+      expect(results, isNotNull);
+      expect(results, isNotEmpty);
+      expect(results!.first.severity, severity);
     }
     if (valResult['errors'] case final List<Object?> errors) {
       expect(props['validationErrors'], errors);

@@ -2494,6 +2494,7 @@ _HANDLE_RPC_EXPECT_KEYS: frozenset[str] = frozenset({
     "correlatedCallId",
     "dataModel",
     "error",
+    "inFlightError",
     "initialValue",
     "lateResponseIgnored",
     "outboundCall",
@@ -2681,7 +2682,10 @@ def _run_rpc_outbound_error(
             processor.rpc.dispose()
             with pytest.raises(A2uiRpcError) as in_flight_exc:
                 await pending
-            assert in_flight_exc.value.code in ("CANCELLED", "DISPOSED")
+            expected_in_flight = (expect_dict.get("inFlightError") or {}).get(
+                "code", "CANCELLED"
+            )
+            assert in_flight_exc.value.code == expected_in_flight
             with pytest.raises(A2uiRpcError) as exc_info:
                 _start_rpc_outbound_call(processor, outbound_call)
             assert exc_info.value.code == expected_err.get("code", "DISPOSED")
@@ -2935,6 +2939,12 @@ def _run_ui_binding_scenario(
                         )
                     )
                     assert first_msg == exp_vr["message"]
+                if "severity" in exp_vr:
+                    assert obs_node.validation_results, "expected a validation result"
+                    assert (
+                        obs_node.validation_results[0].get("severity")
+                        == exp_vr["severity"]
+                    )
                 if "errors" in exp_vr:
                     assert obs_node.validation_errors == exp_vr["errors"]
 
@@ -3463,6 +3473,10 @@ def _verify_rpc_inbound_message(
             )
         )
         _assert_rpc_response_payload(responses, expect_dict["response"])
+        if expect_dict["response"] is None:
+            # An ignored message: no surface error and no pending calls.
+            assert not captured_renderer_errors
+            assert not processor.rpc._pending_agent_calls
     else:
         pytest.fail(
             "Inbound handle_rpc case requires expectError, expect.error, or"

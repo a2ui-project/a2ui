@@ -358,6 +358,21 @@
     error:
       message: "catalogId"
 
+- name: test_rpc_agent_function_response_unknown_call_id_ignored
+  description: Verifies an inbound agentFunctionResponse whose functionCallId matches no pending call is ignored, raising no error, sending no outbound message, reporting no surface error, and leaving no pending calls.
+  catalog:
+    protocolVersion: "1.0"
+  action: handle_rpc
+  args:
+    message:
+      version: "1.0"
+      agentFunctionResponse:
+        functionCallId: "call-unknown-1"
+        value:
+          status: "verified"
+  expect:
+    response: null
+
 - name: test_rpc_agent_function_response_correlates_pending_call
   description: Verifies an outbound callAgentFunction correlates with and resolves from a matching inbound agentFunctionResponse.
   catalog:
@@ -485,7 +500,7 @@
     code: "DUPLICATE"
 
 - name: test_rpc_call_agent_function_cancelled
-  description: Verifies cancelling an in-flight callAgentFunction rejects with CANCELLED error code.
+  description: Verifies cancelling the surface's pending calls (the surface-scoped cancellation, not a per-call signal) rejects the in-flight callAgentFunction with CANCELLED error code.
   catalog:
     protocolVersion: "1.0"
   action: handle_rpc
@@ -502,7 +517,7 @@
     code: "CANCELLED"
 
 - name: test_rpc_call_agent_function_disposed
-  description: Verifies disposing RPC state rejects callAgentFunction with DISPOSED error code.
+  description: Verifies disposing RPC state rejects the in-flight callAgentFunction with CANCELLED (expect.inFlightError) and a callAgentFunction made after dispose with DISPOSED (expectError).
   catalog:
     protocolVersion: "1.0"
   action: handle_rpc
@@ -515,6 +530,9 @@
         catalogId: "basic"
         args: {}
     afterCall: "dispose"
+  expect:
+    inFlightError:
+      code: "CANCELLED"
   expectError:
     code: "DISPOSED"
 
@@ -581,6 +599,8 @@
         value:
           status: "too-late"
   expect:
+    inFlightError:
+      code: "CANCELLED"
     lateResponseIgnored: true
   expectError:
     code: "DISPOSED"
@@ -838,6 +858,7 @@
     validationResult:
       valid: false
       message: "Name is taken"
+      severity: "error"
     surfaceError:
       code: "EXPRESSION_ERROR"
       functionCallId: "$outboundCallId"

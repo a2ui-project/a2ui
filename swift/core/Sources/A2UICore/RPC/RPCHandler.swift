@@ -33,7 +33,12 @@ public final class RPCHandler {
   }
 
   private var pendingCalls: [String: PendingCall] = [:]
-  private var isDisposed = false
+
+  /// The number of outbound calls still awaiting the agent's response.
+  public var pendingCallCount: Int { pendingCalls.count }
+  /// Whether ``disposeAllPendingCalls()`` has run. A disposed handler rejects new outbound
+  /// calls and answers inbound calls with `DISPOSED`.
+  public private(set) var isDisposed = false
 
   public init() {}
 
@@ -54,6 +59,16 @@ public final class RPCHandler {
     dataContext: DataContext? = nil,
     userActivationPresent: Bool = false
   ) async -> RendererFunctionResponseMessage {
+    guard !isDisposed else {
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: FunctionErrorPayload(
+          code: FunctionError.disposed(callID: message.functionCallID).rpcCode,
+          message: "The renderer's RPC state was disposed."
+        ),
+        version: message.version
+      )
+    }
     let callName = message.callFunction.call
     let targetCatalogID = message.callFunction.catalogID
 
@@ -362,12 +377,13 @@ public final class RPCHandler {
     pendingCalls.removeAll()
   }
 
-  /// Disposes all active pending calls, throwing `FunctionError.disposed`.
+  /// Disposes the handler: rejects every in-flight call with `FunctionError.cancelled`
+  /// (`CANCELLED`), and makes later calls fail with `FunctionError.disposed` (`DISPOSED`).
   public func disposeAllPendingCalls() {
     isDisposed = true
     for (callID, pending) in pendingCalls {
       pending.timeoutTask?.cancel()
-      pending.continuation.resume(throwing: FunctionError.disposed(callID: callID))
+      pending.continuation.resume(throwing: FunctionError.cancelled(callID: callID))
     }
     pendingCalls.removeAll()
   }

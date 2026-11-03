@@ -750,6 +750,7 @@ const RPC_KNOWN_KEYS = {
     'correlatedCallId',
     'dataModel',
     'error',
+    'inFlightError',
     'initialValue',
     'lateResponseIgnored',
     'outboundCall',
@@ -1132,7 +1133,12 @@ async function validateRpcTestCase(testCase) {
         isUserActivated: userActivation,
       });
       if (expectResp === null) {
+        // An ignored message: no response, no outbound message, no surface
+        // error, and no pending calls left behind.
         assert.strictEqual(responses.length, 0);
+        assert.strictEqual(outboundMessages.length, 0);
+        assert.strictEqual(errorMessages.length, 0);
+        assert.strictEqual(processor.rpc.pendingAgentCalls.size, 0);
       } else {
         assert.strictEqual(responses.length, 1);
         const actual = responses[0];
@@ -1216,6 +1222,7 @@ async function validateRpcTestCase(testCase) {
       if (expect?.lateResponseIgnored) {
         assert.strictEqual(outboundMessages.length, beforeOutbound);
         assert.strictEqual(errorMessages.length, beforeErrors);
+        assert.strictEqual(processor.rpc.pendingAgentCalls.size, 0);
       }
     };
     if (args.outboundListener === false) {
@@ -1293,7 +1300,7 @@ async function validateRpcTestCase(testCase) {
         async () => {
           await pending;
         },
-        err => err.code === 'CANCELLED' || err.code === 'DISPOSED',
+        err => err.code === (expect?.inFlightError?.code ?? 'CANCELLED'),
       );
       await assert.rejects(async () => {
         await processor.callAgentFunction(

@@ -109,6 +109,7 @@ struct RPCConformanceTests {
     "dataModel",
     "error",
     "initialValue",
+    "inFlightError",
     "lateResponseIgnored",
     "outboundCall",
     "resolvedValue",
@@ -395,6 +396,16 @@ struct RPCConformanceTests {
           userActivationPresent: userActivation
         )
         assertRPCResponseMatches(response: response, testCase: testCase)
+      } else if case .agentFunctionResponse(let agentResp)? = message {
+        let pendingBefore = rpcHandler.pendingCallCount
+        rpcHandler.handleAgentResponse(agentResp)
+        if case .null? = testCase.expect?["response"] {
+          // An ignored response leaves no pending calls behind.
+          #expect(
+            pendingBefore == 0 && rpcHandler.pendingCallCount == 0,
+            "[\(testCase.name)] an ignored agentFunctionResponse changed pending calls"
+          )
+        }
       }
     } catch {
       assertEnvelopeFaultMatches(
@@ -607,11 +618,18 @@ struct RPCConformanceTests {
     guard let lateInbound = testCase.args?["lateInboundResponse"] else { return }
     let respData = try JSONEncoder().encode(lateInbound)
     let respMsg = try JSONDecoder().decode(AgentToRendererMessage.self, from: respData)
+    let pendingBefore = rpcHandler.pendingCallCount
     if case .agentFunctionResponse(let agentResp) = respMsg {
       rpcHandler.handleAgentResponse(agentResp)
     }
     if testCase.expect?["lateResponseIgnored"]?.boolValue == true {
-      #expect(true)
+      // The handler sends nothing on its own; an ignored response also leaves no
+      // pending calls behind and does not resume the settled call again.
+      #expect(pendingBefore == 0, "[\(testCase.name)] a call was still pending")
+      #expect(
+        rpcHandler.pendingCallCount == 0,
+        "[\(testCase.name)] the late response left a pending call"
+      )
     }
   }
 
@@ -674,28 +692,45 @@ struct RPCConformanceTests {
     }
 
     if afterCall == "cancel" {
-      rpcHandler.cancelAllPendingCalls()
+      rpcHandler.cancelPendingCalls(forSurfaceID: surfaceID)
       do {
         _ = try await callTask.value
         Issue.record("[\(testCase.name)] Expected CANCELLED error")
       } catch let error as FunctionError {
-        if case .cancelled = error {
-          #expect(testCase.expectError?.code == "CANCELLED")
-        } else {
-          Issue.record("[\(testCase.name)] Expected FunctionError.cancelled, got \(error)")
-        }
+        #expect(
+          error.rpcCode == testCase.expectError?.code,
+          "[\(testCase.name)] Expected \(testCase.expectError?.code ?? "nil"), got \(error)"
+        )
       }
     } else if afterCall == "dispose" {
       rpcHandler.disposeAllPendingCalls()
+      let expectedInFlight = testCase.expect?["inFlightError"]?["code"]?.stringValue ?? "CANCELLED"
       do {
         _ = try await callTask.value
-        Issue.record("[\(testCase.name)] Expected DISPOSED error")
+        Issue.record("[\(testCase.name)] Expected \(expectedInFlight) error")
       } catch let error as FunctionError {
-        if case .disposed = error {
-          #expect(testCase.expectError?.code == "DISPOSED")
-        } else {
-          Issue.record("[\(testCase.name)] Expected FunctionError.disposed, got \(error)")
-        }
+        #expect(
+          error.rpcCode == expectedInFlight,
+          "[\(testCase.name)] in-flight call: expected \(expectedInFlight), got \(error)"
+        )
+      }
+      // A call made after dispose fails with expectError.
+      do {
+        _ = try await rpcHandler.callAgentFunction(
+          surfaceID: surfaceID,
+          functionName: call,
+          functionCallID: fnCallID,
+          version: .v10,
+          timeoutSeconds: 5.0,
+          sendOutbound: { _ in }
+        )
+        Issue.record("[\(testCase.name)] Expected a call after dispose to fail")
+      } catch let error as FunctionError {
+        #expect(
+          error.rpcCode == testCase.expectError?.code,
+          "[\(testCase.name)] call after dispose: expected "
+            + "\(testCase.expectError?.code ?? "nil"), got \(error)"
+        )
       }
       try assertLateResponseIgnored(testCase: testCase, rpcHandler: rpcHandler)
     }
@@ -879,6 +914,12 @@ struct RPCConformanceTests {
         #expect(
           targetNode?.validationErrors.contains(expMsg) == true,
           "[\(testCase.name)] validationResult.message mismatch"
+        )
+      }
+      if let expSeverity = expectedValidation["severity"]?.stringValue {
+        #expect(
+          targetNode?.validationResults.first?.severity?.rawValue == expSeverity,
+          "[\(testCase.name)] validationResult.severity mismatch"
         )
       }
     }

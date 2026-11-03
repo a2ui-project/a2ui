@@ -2242,7 +2242,7 @@
             "afterCall": {
               "type": "string",
               "enum": ["cancel", "dispose"],
-              "description": "Lifecycle action applied after registering `outboundCall`."
+              "description": "Lifecycle action applied after registering `outboundCall`. `cancel` cancels the pending calls of `outboundCall.surfaceId` through the surface-scoped cancellation every SDK provides (not a per-call signal, and not every pending call). `dispose` disposes the processor's RPC state."
             },
             "outboundListener": {
               "type": "boolean",
@@ -2271,7 +2271,14 @@
             "resolvedValue": {},
             "lateResponseIgnored": {
               "type": "boolean",
-              "description": "When true, asserts that `lateInboundResponse` does not throw, emits no error envelope, and leaves the settled result unchanged."
+              "description": "When true, asserts that `lateInboundResponse` is ignored: handling it does not throw, sends no outbound message, reports no surface error, leaves no pending calls, and leaves the settled outcome of `outboundCall` unchanged."
+            },
+            "inFlightError": {
+              "type": "object",
+              "properties": {"code": {"type": "string"}},
+              "required": ["code"],
+              "additionalProperties": false,
+              "description": "The error code the in-flight `outboundCall` is rejected with when `afterCall` settles it. `expectError` then gives the code of a call made afterwards."
             },
             "siblings": {
               "type": "object",

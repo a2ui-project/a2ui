@@ -333,6 +333,27 @@ struct MessageProcessorTests {
     #expect(textComponent.objectValue != nil)
   }
 
+  @Test func getRendererCapabilitiesAlwaysWritesBothUnionsForV10() throws {
+    let textSchema = try Schema(instance: "{\"type\": \"object\"}")
+    let catalog = Catalog(
+      id: "no-functions-v10",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Button", schema: textSchema)]
+    )
+    let processor = MessageProcessor(catalogs: [catalog])
+    let caps = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        protocolVersion: .v10,
+        includeInlineCatalogs: true
+      )
+    )
+    let versionCaps = try #require(caps.objectValue?.values.first)
+    let inline = try #require(versionCaps["inlineCatalogs"]?.arrayValue?.first)
+    let defs = try #require(inline["$defs"])
+    #expect(defs["anyComponent"]?["oneOf"]?.arrayValue?.count == 1)
+    #expect(defs["anyFunction"]?["oneOf"]?.arrayValue == [])
+  }
+
   @Test func getRendererCapabilitiesTransformsRefDescriptions() throws {
     let customSchema = try Schema(
       instance: """
