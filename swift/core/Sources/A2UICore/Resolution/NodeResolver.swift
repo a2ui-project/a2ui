@@ -1365,7 +1365,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      let resolvedValue = readData(absPath, from: data)?.boolValue
+      let resolvedValue = readData(absPath, from: data)?.coercedDynamicBoolean ?? false
       return DataBinding<Bool>(
         identity: .path(absPath),
         value: resolvedValue,
@@ -1374,7 +1374,9 @@ public final class NodeResolver: Sendable {
         }
       )
     }
-    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, index: index).boolValue
+    let resolvedValue = evaluateDynamicValue(
+      value, basePath: basePath, index: index
+    ).coercedDynamicBoolean
     return DataBinding<Bool>(
       identity: .literal(value),
       value: resolvedValue,

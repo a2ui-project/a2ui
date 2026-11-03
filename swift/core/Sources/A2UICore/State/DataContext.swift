@@ -235,9 +235,7 @@ public final class DataContext {
     guard var resolvedArguments = resolveArguments(of: dict) else {
       return .null
     }
-    if atLeastV10,
-      let argPropsSchema = function.api.schema.jsonValue["properties"]?.objectValue
-    {
+    if let argPropsSchema = function.api.schema.jsonValue["properties"]?.objectValue {
       for (argKey, resolvedVal) in resolvedArguments {
         if let propSchema = argPropsSchema[argKey] {
           resolvedArguments[argKey] = Self.coerceValidationResults(
@@ -272,6 +270,17 @@ public final class DataContext {
       recordFailedCall()
       return .null
     }
+  }
+
+  private static func isDynamicExpressionBranch(_ schema: JSONValue) -> Bool {
+    if let ref = schema["$ref"]?.stringValue {
+      return ref.hasSuffix("/$defs/DataBinding") || ref.hasSuffix("/$defs/FunctionCall")
+    }
+    if let props = schema["properties"]?.objectValue, props["componentId"] == nil {
+      return props["@path"] != nil || props["path"] != nil
+        || props["@call"] != nil || props["call"] != nil
+    }
+    return false
   }
 
   /// Records a function call that failed with a reported error: it has no value, so a call that
@@ -403,11 +412,22 @@ public final class DataContext {
     if schema["type"]?.stringValue == "boolean" {
       return true
     }
-    for keyword in ["oneOf", "anyOf", "allOf"] {
-      if let subSchemas = schema[keyword]?.arrayValue,
-        subSchemas.contains(where: { isDynamicBooleanSchema($0) })
-      {
-        return true
+    if let allOf = schema["allOf"]?.arrayValue,
+      allOf.contains(where: { isDynamicBooleanSchema($0) })
+    {
+      return true
+    }
+    for keyword in ["oneOf", "anyOf"] {
+      if let subSchemas = schema[keyword]?.arrayValue {
+        let hasBoolean = subSchemas.contains(where: { isDynamicBooleanSchema($0) })
+        let onlyBooleanOrDynamic = subSchemas.allSatisfy {
+          isDynamicBooleanSchema($0)
+            || $0["type"]?.stringValue == "null"
+            || isDynamicExpressionBranch($0)
+        }
+        if hasBoolean && onlyBooleanOrDynamic {
+          return true
+        }
       }
     }
     return false
@@ -415,10 +435,7 @@ public final class DataContext {
 
   private static func coerceValidationResults(schema: JSONValue, value: JSONValue) -> JSONValue {
     if isDynamicBooleanSchema(schema) {
-      if let members = value.objectValue, let valid = members["valid"]?.boolValue {
-        return .boolean(valid)
-      }
-      return value
+      return .boolean(value.coercedDynamicBoolean)
     }
     if let itemsSchema = schema["items"], let arr = value.arrayValue {
       return .array(arr.map { coerceValidationResults(schema: itemsSchema, value: $0) })

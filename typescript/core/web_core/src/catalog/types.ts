@@ -43,7 +43,7 @@ import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
-import {coerceValidationResults} from './validation_result_coercion.js';
+import {coerceDynamicBooleans} from './validation_result_coercion.js';
 
 export type {ComponentChildRefs};
 
@@ -952,10 +952,7 @@ function createCatalogInvoker<F extends FunctionApi>(
 
     return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
       try {
-        // From v1.0 a `DynamicBoolean` argument may resolve to the
-        // `ValidationResult` a validation function returns; it is read by its
-        // validity, as the specification defines the type.
-        const args = atLeastV10 ? coerceValidationResults(fn.schema, resolvedArgs) : resolvedArgs;
+        const args = coerceDynamicBooleans(fn.schema, resolvedArgs);
         const safeArgs = fn.schema.parse(args);
         return execute.call(fn, safeArgs, ctx, abortSignal);
       } catch (e: any) {
@@ -1028,7 +1025,7 @@ function routeToAgent(
   return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
     let args = (resolvedArgs ?? {}) as Record<string, unknown>;
     if (fn) {
-      args = coerceValidationResults(fn.schema, args) as Record<string, unknown>;
+      args = coerceDynamicBooleans(fn.schema, args) as Record<string, unknown>;
       const parsed = fn.schema.safeParse(args);
       if (!parsed.success) {
         throw new A2uiExpressionError(
