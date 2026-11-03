@@ -65,8 +65,9 @@
 # a rule that holds for both formats has a case in each, written against that
 # format's own output, rather than one shared case that a harness has to gate.
 #
-# Every case here is written against v1.0. A case states no version of its own:
-# the version it runs under is the one its catalog document declares, or the one
+# Most cases here are written against v1.0, with version-gated rules also
+# checked against a v0.9 catalog. A case states no version of its own: the
+# version it runs under is the one its catalog document declares, or the one
 # `args` hands the implementation.
 
 # --- What the catalog contributes ---
@@ -211,6 +212,25 @@
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   expect_contains: ["Text(", "Button(", "Card(", "Column("]
+
+- name: test_express_snippet_teaches_event_user_message_from_v1_0
+  description: From v1.0, Action.event carries an optional userMessage field, and the Express snippet teaches the userMessage= keyword argument on Event(...).
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_contains: ["Event(", "userMessage="]
+
+- name: test_express_snippet_omits_event_user_message_before_v1_0
+  description: Before v1.0, Action.event has only name and context and the Express compiler rejects userMessage=, so a v0.9 snippet does not tell the model to emit userMessage=.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/list_item_action_catalog_v09.json"
+  expect_contains: ["Event("]
+  expect_absent: ["userMessage="]
 
 - name: test_express_snippet_describes_only_the_allowed_envelopes
   description: An allowlist of payload envelopes decides which of them the snippet describes, and Express describes an envelope by the statement that compiles to it.
