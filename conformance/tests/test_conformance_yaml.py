@@ -116,7 +116,7 @@ def iter_renderer_errors(case):
 
 def get_yaml_files():
     files = []
-    for domain in ["core", "agent", "extensions"]:
+    for domain in ["core", "agent", "extensions", "e2e"]:
         pattern = os.path.join(CONFORMANCE_DIR, domain, "**", "*.yaml")
         files.extend(
             f

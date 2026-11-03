@@ -346,6 +346,49 @@ Each case in `core/accessibility.yaml` (`action: accessibility_check`) provides 
 
 Where a browser-based test runner cannot read YAML from disk at test time, parse the suite files in the runner configuration and inject them as JSON. For example, [typescript/renderers/angular/karma.conf.js](../typescript/renderers/angular/karma.conf.js) parses `accessibility.yaml`, `adapter_conformance.yaml`, and `catalogs/basic/v1/catalog.json` in Node and exposes them to Jasmine browser specs via `client.conformanceSuites`.
 
+## Golden-transcript harness (`conformance/e2e/`)
+
+The end-to-end golden-transcript harness exercises complete conversational scenarios containing multi-turn exchanges between an agent and a renderer. Each scenario case specifies `action: e2e_scenario`, a `protocolVersion`, `catalogPaths`, `formats`, and a list of `turns`.
+
+### Agent half algorithm
+
+The agent half tests response chunk parsing and wire fidelity:
+1. Initialize the inference format parser for each declared format (`direct_json`, `express`), configured with the scenario's catalogs.
+2. Initialize and maintain an empty parser `RendererState` across the turns of the scenario.
+3. For each turn in `scenario["turns"]`:
+   - Stream the chunks from `turn["modelChunks"][format]` through `parser.open_stream(state=state)`.
+   - Concatenate all returned `ResponsePart` items, merging adjacent `TextPart` items.
+   - Assert that the resulting response parts match `turn["expectWire"]`.
+   - Concatenate all chunks into a single string and parse via `parser.parse_response(full_text, state=state)`, verifying single-shot equality with `expectWire`.
+
+### Renderer half algorithm
+
+The renderer half tests UI tree construction, interaction, and outbound messaging:
+1. Initialize a `MessageProcessor` or UI framework adapter with the catalogs declared in `catalogPaths`.
+2. For each turn in `scenario["turns"]`:
+   - Feed the `a2ui` messages from `turn["expectWire"]` in order (chat text parts are ignored by renderers).
+   - Assert that the rendered view tree for each surface matches `turn["expectViewTree"]` (or that the surface is absent if expected value is `null`).
+   - If `turn["uiOps"]` is provided, execute each operation in sequence (`user_input`, `user_gesture`, `programmatic_invoke`) against the specified `targetNode` on `surfaceId`.
+   - If `turn["expectDataModel"]` is provided, assert the updated surface data model state.
+   - If `turn["expectOutbound"]` is provided, capture all outbound envelopes emitted during the turn (schema-validated with wildcards handled via `{"$match": "any"}`) and assert they match `expectOutbound`.
+
+### Manifest records & harness names
+
+- Each runner records one manifest entry per scenario in its executed-case manifest (`A2UI_CONFORMANCE_MANIFEST_DIR`).
+- A scenario is recorded as `failed` if any declared format, turn, assertion, or operation fails.
+- Active harness names:
+  - Agent harnesses: `python-agent`, `web-agent`, `dart-agent`.
+  - Renderer harnesses: `lit`, `react`, `angular`, `flutter`, `swiftui`.
+
+### Renderer-visible outcome definition
+
+A transcript's renderer-visible outcome is defined by `outcome_of(scenario)` in `conformance/scripts/e2e_outcome.py`:
+- Each turn's `a2ui` messages are applied to `MessageProcessor`.
+- Each active surface's resolved node tree is walked depth-first, mapping each node to `{type, text?, label?, value?, enabled?, action?}`.
+- Model-chosen IDs (`id`, `surfaceId`, `functionCallId`) are mapped to canonical first-seen ordinals.
+- Outbound envelopes undergo identical ID normalization with `timestamp` dropped.
+- Two transcripts have identical outcomes when their normalized node trees and outbound messages match for every turn, ignoring conversational text differences.
+
 ## Reference harnesses
 
 Inspect these existing implementations for concrete code examples:

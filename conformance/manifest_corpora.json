@@ -4,5 +4,6 @@
   "extensions": {"include": ["extensions/**/*.yaml"]},
   "adapter": {
     "include": ["core/adapter_conformance.yaml", "core/accessibility.yaml"]
-  }
+  },
+  "e2e": {"include": ["e2e/*.yaml"]}
 }
