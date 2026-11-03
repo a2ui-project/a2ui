@@ -71,13 +71,24 @@ export interface SpecAnnotation {
 }
 
 const annotations = new WeakMap<object, SpecAnnotation>();
+const rawDescribeMethods = new WeakMap<object, (description: string) => z.ZodTypeAny>();
+
+function cloneSchema<T extends z.ZodTypeAny>(
+  schema: T,
+  description: string | undefined = schema.description,
+): T {
+  const describeFn =
+    rawDescribeMethods.get(schema) ?? z.ZodType?.prototype?.describe ?? schema.describe;
+  return describeFn.call(schema, description as string) as T;
+}
 
 function cloneWithDefAnnotation<T extends z.ZodTypeAny>(
   schema: T,
   nextAnnotation: SpecAnnotation,
   description: string | undefined = schema.description,
 ): T {
-  const copy = z.ZodType.prototype.describe.call(schema, description as string) as T;
+  const copy = cloneSchema(schema, description);
+  rawDescribeMethods.set(copy, z.ZodType?.prototype?.describe ?? copy.describe);
   annotations.set(copy, nextAnnotation);
   copy.describe = (nextDescription: string) =>
     cloneWithDefAnnotation(copy, annotations.get(copy) ?? nextAnnotation, nextDescription);
@@ -97,7 +108,7 @@ function cloneWithDefAnnotation<T extends z.ZodTypeAny>(
  * @returns An annotated copy of `schema`.
  */
 export function spec<T extends z.ZodTypeAny>(schema: T, annotation: SpecAnnotation): T {
-  const copy = z.ZodType.prototype.describe.call(schema, schema.description as string) as T;
+  const copy = cloneSchema(schema, schema.description);
   annotations.set(copy, {...annotations.get(schema), ...annotation});
   return copy;
 }
