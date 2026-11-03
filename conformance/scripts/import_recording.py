@@ -89,7 +89,9 @@ def _make_parser(format_name: str, catalogs: list[Catalog], version: str) -> Any
     raise RecordingError(f"Unsupported inference format: {format_name!r}")
 
 
-def _parse_chunks(parser: Any, state: RendererState, chunks: list[str]) -> list[dict]:
+def _parse_chunks(
+    parser: Any, state: RendererState, chunks: list[str]
+) -> list[dict[str, Any]]:
     """The wire parts of one reply, with adjacent text parts merged."""
     stream = parser.open_stream(state=state)
     parts: list[Any] = []
@@ -127,7 +129,7 @@ def _wildcard_renderer_values(value: Any) -> Any:
     return value
 
 
-def _split_request(text: str) -> tuple[str | None, list[dict] | None]:
+def _split_request(text: str) -> tuple[str | None, list[dict[str, Any]] | None]:
     """Splits a recorded user turn into the typed text and the outbound messages.
 
     The example app sends an action or error turn as JSON whose `a2ui` holds
@@ -202,7 +204,7 @@ def import_chunk_recording(
     turns: list[dict[str, Any]] = []
     for index, chunks in enumerate(replies):
         user_text: str | None = None
-        outbound: list[dict] | None = None
+        outbound: list[dict[str, Any]] | None = None
         if index < len(requests):
             user_text, outbound = _split_request(requests[index])
         if outbound is not None:
