@@ -237,7 +237,7 @@ describe('BASIC_FUNCTIONS', () => {
           val: '123e4567-e89b-12d3-a456-426614174000',
           expected: true,
         },
-        {pattern: '^[a-z]+(,[a-z]+)*$', val: 'apple,banana,orange', expected: true},
+        {pattern: '^[a-z]{1,20}(,[a-z]{1,20})*$', val: 'apple,banana,orange', expected: true},
         {pattern: '^(\\d{1,3}\\.){3}\\d{1,3}$', val: '192.168.1.1', expected: true},
       ];
 

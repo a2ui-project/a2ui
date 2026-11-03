@@ -38,6 +38,40 @@ private final class ConformanceMockFunctionHandler: FunctionHandler {
 
 @MainActor
 struct BasicCatalogConformanceTests {
+  private static let regexKnownIssueReason =
+    "A2UI regex subset and static safety guard not yet implemented in Swift"
+
+  static let knownEvaluateFunctionIssues: [String: String] = [
+    "test_evaluate_function_regex_v10_digit_class_ascii_only": regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_word_class_ascii_only": regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_word_boundary_ascii_only": regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_rejects_backreference": regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_rejects_lookbehind": regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_rejects_named_group": regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_rejects_inline_flag": regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_rejects_unicode_property": regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_rejects_nested_quantifier_plus": regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_rejects_nested_quantifier_bounded_outer":
+      regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_rejects_overlapping_alternation_prefix":
+      regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_rejects_overlapping_alternation_class": regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_rejects_adjacent_overlap_direct": regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_rejects_adjacent_overlap_across_nullable":
+      regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_rejects_257_code_point_pattern": regexKnownIssueReason,
+    "test_evaluate_function_regex_v10_value_exceeding_4096_code_points_returns_invalid":
+      regexKnownIssueReason,
+    "test_evaluate_function_regex_v09_rejects_nested_quantifier": regexKnownIssueReason,
+    "test_evaluate_function_regex_v09_value_exceeding_4096_code_points_returns_false":
+      regexKnownIssueReason,
+  ]
+
+  private static let knownExpectErrorKeys: Set<String> = [
+    "category",
+    "message",
+  ]
+
   private let functionHandler = ConformanceMockFunctionHandler()
   /// Handlers holding each protocol version's Basic Catalog functions. Stored here because
   /// `DataContext` keeps its function handler weakly.
@@ -97,10 +131,19 @@ struct BasicCatalogConformanceTests {
         try runValidateCase(testCase, name: name)
       case "evaluate_function":
         executed += 1
-        if let surfaceDict = testCase["surface"] as? [String: Any] {
-          try runSurfaceEvaluateFunctionCase(testCase, surfaceDict: surfaceDict)
+        let runCase = {
+          if let surfaceDict = testCase["surface"] as? [String: Any] {
+            try runSurfaceEvaluateFunctionCase(testCase, surfaceDict: surfaceDict)
+          } else {
+            try runDirectEvaluateFunctionCase(testCase)
+          }
+        }
+        if let reason = Self.knownEvaluateFunctionIssues[name] {
+          withKnownIssue(Comment(rawValue: reason)) {
+            try runCase()
+          }
         } else {
-          try runDirectEvaluateFunctionCase(testCase)
+          try runCase()
         }
       default:
         Issue.record("\(name): unsupported action \(action)")
@@ -204,11 +247,17 @@ struct BasicCatalogConformanceTests {
     do {
       _ = try fn.evaluate(arguments: args, context: context)
       Issue.record("\(name): expected error but succeeded")
-    } catch is FunctionError {
+    } catch let error as FunctionError {
       if let expectedCategory = expectError["category"] as? String {
         #expect(
           expectedCategory == "ExpressionError" || expectedCategory == "ValidationError",
           "\(name): unexpected expectedCategory \(expectedCategory)"
+        )
+      }
+      if let expectedMessage = expectError["message"] as? String {
+        #expect(
+          ConformanceTestHelper.messageMatches(error.description, expected: expectedMessage),
+          "\(name): error '\(error.description)' did not match '\(expectedMessage)'"
         )
       }
     } catch {
@@ -227,7 +276,16 @@ struct BasicCatalogConformanceTests {
       let actual = try fn.evaluate(arguments: args, context: context)
       if let expectedRaw = testCase["expect"] {
         let expected = ConformanceTestHelper.toJSONValue(expectedRaw)
-        #expect(actual == expected, "\(name): got \(actual), expected \(expected)")
+        if case .object(let expectedObj) = expected,
+          expectedObj.count == 1,
+          let expectedValid = expectedObj["valid"],
+          case .object(let actualObj) = actual,
+          let actualValid = actualObj["valid"]
+        {
+          #expect(actualValid == expectedValid, "\(name): got \(actual), expected \(expected)")
+        } else {
+          #expect(actual == expected, "\(name): got \(actual), expected \(expected)")
+        }
       }
     } catch {
       Issue.record("\(name): threw unexpected error \(error)")

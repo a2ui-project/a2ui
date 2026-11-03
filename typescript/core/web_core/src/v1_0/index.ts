@@ -39,6 +39,7 @@ export {
   type ActionDispatchOptions,
 } from '../common/metadata.js';
 export * from '../catalogs/basic/v1/index.js';
+export * from '../common/regex_subset.js';
 export * from '../universal/index.js';
 export * from '../spec_versions.js';
 

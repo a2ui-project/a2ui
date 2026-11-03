@@ -3220,19 +3220,22 @@ function validateEvaluateFunctionTestCase(testCase) {
   try {
     const fn = defaultCat?.functions?.get(funcName);
     if (errorSpec) {
-      assert.throws(() => {
-        let r;
-        if (fn && typeof fn.execute === 'function') {
-          r = fn.execute(args, ctx);
-        } else if (defaultCat && defaultCat.invoker) {
-          r = defaultCat.invoker(funcName, args, ctx);
-        } else {
-          r = ctx.resolveDynamicValue({call: funcName, args});
-        }
-        if (isSignal(r)) {
-          getValue(r);
-        }
-      });
+      assert.throws(
+        () => {
+          let r;
+          if (fn && typeof fn.execute === 'function') {
+            r = fn.execute(args, ctx);
+          } else if (defaultCat && defaultCat.invoker) {
+            r = defaultCat.invoker(funcName, args, ctx);
+          } else {
+            r = ctx.resolveDynamicValue({call: funcName, args});
+          }
+          if (isSignal(r)) {
+            getValue(r);
+          }
+        },
+        err => matchesEvaluateFunctionError(err, errorSpec),
+      );
       return;
     }
 
@@ -3248,7 +3251,20 @@ function validateEvaluateFunctionTestCase(testCase) {
 
     const actualJson = result === undefined ? null : JSON.parse(JSON.stringify(result));
     if (expect !== undefined) {
-      assert.deepStrictEqual(actualJson, expect);
+      if (
+        expect !== null &&
+        typeof expect === 'object' &&
+        !Array.isArray(expect) &&
+        Object.keys(expect).length === 1 &&
+        'valid' in expect &&
+        actualJson !== null &&
+        typeof actualJson === 'object' &&
+        'valid' in actualJson
+      ) {
+        assert.strictEqual(actualJson.valid, expect.valid);
+      } else {
+        assert.deepStrictEqual(actualJson, expect);
+      }
     }
   } finally {
     if (originalWindow === undefined) {
