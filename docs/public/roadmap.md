@@ -20,7 +20,7 @@ This roadmap outlines the current state and future plans for the A2UI project. T
 | **Web Core Lib**                                           | ✅ Stable   | Web                  | Shared core lib for all web renderers                                                             |
 | **Web Components (Lit)**                                   | ✅ Stable   | Web                  | Framework-agnostic, works anywhere                                                                |
 | **Angular**                                                | ✅ Stable   | Web                  | Full Angular integration                                                                          |
-| **Flutter (GenUI SDK)**                                    | ✅ Stable   | Multi-platform       | Works on mobile, web, desktop                                                                     |
+| **Flutter (`a2ui_flutter`)**                               | 🧪 Alpha    | Multi-platform       | Works on mobile, web, desktop; replaces the GenUI SDK                                             |
 | **React**                                                  | ✅ Stable   | Web                  | Official React renderer                                                                           |
 | [**Lynx**](https://lynxjs.org/next/react/genui/a2ui.html)  | ✅ Stable   | Mobile, Web, Desktop | ReactLynx renderer for A2UI v0.9                                                                  |
 | **SwiftUI**                                                | 🧪 Alpha    | iOS/macOS            | v0.9 or later, see [code](../../swift/swiftui)                                                    |
