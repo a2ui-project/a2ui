@@ -156,3 +156,55 @@ Two error categories carry the load: `ParseError` for text that does not parse, 
 Every catalog fixture lives in `test_data/catalogs/`, and every prompt example fixture in `test_data/examples/`. A case names an example by path, the same way it names a catalog, so an example payload is never inlined in a suite and never carries a free-text label. A generator is therefore checked on what it renders, not on a description a case made up. A catalog states only what it adds: its components, its functions, and the `anyComponent` and `anyFunction` unions over them. The types the protocol already defines are referenced, never copied, so a component writes `{"$ref": "common_types.json#/$defs/DynamicString"}` rather than spelling out what a dynamic string is. The same holds for `Child`, `ChildList`, `DataBinding`, `FunctionCall`, `Action` and `CheckRule`. A `$defs` entry is justified only when the protocol has no name for the thing. Copying a protocol type into a catalog lets the copy drift from the protocol, and a fixture that drifts silently stops testing what it claims to.
 
 The fixtures also follow the published catalogs in leaving their component schemas open. A component schema that closes itself with `additionalProperties` would reject the `id` the message envelope adds, and every expected message in these suites would then be invalid against the protocol. Rejecting a property the catalog does not declare is the envelope's job: `agent_to_renderer.json` combines the envelope's own fields with the catalog component and closes the result with `unevaluatedProperties`. Nested objects inside a catalog, such as a function's `args`, do close themselves, which is what the published catalogs do.
+
+## Feature registry
+
+[`features.yaml`](features.yaml) (validated against [`features.schema.json`](features.schema.json)) maps protocol, blueprint, and SDK audit requirements across four namespaces (`F-CORE-01..45`, `F-AGT-01..63`, `F-RND-01..21`, and `F-BP-01..16`) to the conformance suites and the harnesses that claim support for them.
+
+### Entry format
+
+Each entry in `features.yaml` contains:
+
+- `id`: Canonical identifier matching `^F-(CORE|AGT|RND|BP)-[0-9]{2}$`.
+- `title`: Summary of the feature or requirement.
+- `specAnchor`: Repository-relative path and optional `#heading-slug` or `#Lnn` anchor pointing to the authoritative specification document.
+- `blueprintAnchor`: Repository-relative path and optional `#heading-slug` or `#Lnn` anchor pointing to the module or feature blueprint.
+- `claimedBy`: List of conformance harness identifiers (`python-core`, `ts-web-core`, `dart-core`, `swift-core`, `python-agent`, `ts-agent`, `dart-agent`, `lit-renderer`, `react-renderer`, `angular-renderer`, `flutter-renderer`, `swiftui-renderer`, `markdown-it-renderer`) that claim support for the feature.
+- `uncovered` (optional): Reason explaining why a feature has no tagged conformance YAML case yet (for example, when a feature is covered only by language-specific unit tests or live E2E suites, or is tracked as a known gap).
+
+### Tagging conformance cases
+
+Any test case across `core/`, `adapter/`, `agent/`, `extensions/`, and `e2e/` can declare an optional `features` array (`$defs/FeatureTags` in [`conformance_schema.json`](conformance_schema.json)):
+
+```yaml
+- id: update_data_model_root
+  description: Replaces the root data model when path is omitted.
+  features: [F-CORE-03, F-CORE-14]
+```
+
+For map-structured suites such as `agent/builder/builder.yaml` and `agent/macros/macros.yaml` (`{macros, tests}`), place `features:` on the individual test entry inside `tests:`.
+
+### Running the coverage checker
+
+[`scripts/check_feature_coverage.py`](scripts/check_feature_coverage.py) operates in two modes:
+
+1. **Static mode (`--static`)**: Validates `features.yaml` against `features.schema.json`, verifies that every `specAnchor` and `blueprintAnchor` resolves to an existing file and heading or line number, checks that no YAML suite references an unknown `F-` tag, and checks that every feature without an `uncovered` reason has at least one tagged conformance case:
+
+   ```bash
+   uv run python conformance/scripts/check_feature_coverage.py --static
+   ```
+
+2. **Harness manifest mode (`--manifest-dir` and `--harness`)**: Reads the executed-case JSONL manifests produced when `A2UI_CONFORMANCE_MANIFEST_DIR` is set and verifies that for every feature claiming `<harness>` in `claimedBy` (and lacking `uncovered`), at least one conformance case tagged with that feature was recorded with `status: "executed"` by `<harness>`:
+
+   ```bash
+   uv run python conformance/scripts/check_feature_coverage.py \
+     --manifest-dir "$A2UI_CONFORMANCE_MANIFEST_DIR" \
+     --harness python-core
+   ```
+
+Pass `--report-only` in either mode to print findings without returning a non-zero exit code.
+
+### Recording a known gap with `uncovered`
+
+When adding a new feature to `features.yaml` before its declarative conformance YAML cases exist (or when a requirement is architectural or unit-tested outside the YAML suites), include an `uncovered` string on the entry explaining where the behavior is verified or tracked. Once a conformance YAML case is tagged with the feature ID, remove `uncovered` from that entry so static and per-harness coverage checks enforce it.
+

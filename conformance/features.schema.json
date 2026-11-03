@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/schemas/conformance/features.schema.json",
+  "title": "A2UI Conformance Feature Registry Schema",
+  "description": "Schema for conformance/features.yaml mapping protocol, blueprint, and SDK audit features to conformance test suites and claiming harnesses.",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "$ref": "#/$defs/Feature"
+  },
+  "$defs": {
+    "FeatureId": {
+      "type": "string",
+      "pattern": "^F-(CORE|AGT|RND|BP)-[0-9]{2}$",
+      "description": "Canonical feature identifier from the core, agent, renderer, or blueprint audit tables."
+    },
+    "HarnessId": {
+      "type": "string",
+      "enum": [
+        "python-core",
+        "ts-web-core",
+        "dart-core",
+        "swift-core",
+        "python-agent",
+        "python-a2a",
+        "python-adk",
+        "ts-agent",
+        "dart-agent",
+        "lit-renderer",
+        "react-renderer",
+        "angular-renderer",
+        "flutter-renderer",
+        "swiftui-renderer",
+        "markdown-it-renderer"
+      ],
+      "description": "Identifier of a conformance harness claiming support for a feature."
+    },
+    "Feature": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "specAnchor",
+        "blueprintAnchor",
+        "claimedBy"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/FeatureId"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable summary of the feature requirement."
+        },
+        "specAnchor": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Repository-relative path and optional #heading-slug or #Lnn anchor to the specification or catalog source of truth."
+        },
+        "blueprintAnchor": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Repository-relative path and optional #heading-slug or #Lnn anchor to the module or feature blueprint."
+        },
+        "claimedBy": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HarnessId"
+          },
+          "uniqueItems": true,
+          "description": "Harnesses claiming compliance with this feature."
+        },
+        "uncovered": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Explanation when a feature has no tagged conformance YAML case yet (for example, covered only by unit or E2E tests, or tracked as an implementation gap)."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
