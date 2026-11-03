@@ -64,7 +64,9 @@ def test_same_outcome_different_model_ids_and_text_wording(base_scenario):
     recorded_scenario = copy.deepcopy(base_scenario)
     # 1. Change text wording in conversational messages
     recorded_scenario["turns"][0]["userText"] = "Different user prompt entirely."
-    recorded_scenario["turns"][0]["expectWire"][0]["text"] = "Different assistant intro wording."
+    recorded_scenario["turns"][0]["expectWire"][0][
+        "text"
+    ] = "Different assistant intro wording."
     recorded_scenario["turns"][1]["expectWire"][0]["text"] = "Different thank you text."
 
     # 2. Change model-chosen IDs
@@ -79,7 +81,10 @@ def test_same_outcome_different_model_ids_and_text_wording(base_scenario):
                 elif k == "child" and isinstance(v, str):
                     res[k] = "root" if v == "root" else f"custom-{v}"
                 elif k == "children" and isinstance(v, list):
-                    res[k] = [f"custom-{x}" if isinstance(x, str) else rename_ids(x) for x in v]
+                    res[k] = [
+                        f"custom-{x}" if isinstance(x, str) else rename_ids(x)
+                        for x in v
+                    ]
                 elif k == "sourceComponentId":
                     res[k] = f"custom-{v}"
                 elif k == "targetNode":
@@ -174,9 +179,12 @@ def test_compare_cli_exit_codes_and_report(tmp_path, base_scenario):
     report_file = tmp_path / "report_match.md"
 
     code_match = compare_main([
-        "--golden", str(golden_file),
-        "--recorded", str(recorded_file),
-        "--report", str(report_file),
+        "--golden",
+        str(golden_file),
+        "--recorded",
+        str(recorded_file),
+        "--report",
+        str(report_file),
     ])
     assert code_match == 0
     assert "All scenario outcomes match." in report_file.read_text(encoding="utf-8")
@@ -196,17 +204,22 @@ def test_compare_cli_exit_codes_and_report(tmp_path, base_scenario):
     report_diff = tmp_path / "report_diff.md"
 
     code_diff = compare_main([
-        "--golden", str(golden_file),
-        "--recorded", str(recorded_diff),
-        "--report", str(report_diff),
+        "--golden",
+        str(golden_file),
+        "--recorded",
+        str(recorded_diff),
+        "--report",
+        str(report_diff),
     ])
     assert code_diff == 1
     assert "Outcome Mismatch" in report_diff.read_text(encoding="utf-8")
 
     # 3. Input error: non-existent file -> exit code 2
     code_err = compare_main([
-        "--golden", str(tmp_path / "non_existent.yaml"),
-        "--recorded", str(recorded_file),
+        "--golden",
+        str(tmp_path / "non_existent.yaml"),
+        "--recorded",
+        str(recorded_file),
     ])
     assert code_err == 2
 

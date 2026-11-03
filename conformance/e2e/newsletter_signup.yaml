@@ -25,7 +25,7 @@
     kind: hand_authored
     from: dart/a2ui_flutter/example/test/fixtures/newsletter_replies.json
   turns:
-    - userText: "Show a newsletter sign-up form with an email field and a \"Subscribe\" button."
+    - userText: 'Show a newsletter sign-up form with an email field and a "Subscribe" button.'
       modelChunks:
         direct_json:
           - "Here is a sign-up form for your newsletter.\n\n<a"

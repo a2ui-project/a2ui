@@ -81,11 +81,13 @@ End-to-end conformance scenarios in `e2e/` capture complete multi-turn conversat
 - **Renderer half**: The `a2ui` messages from each turn are dispatched into framework adapter harnesses (or `MessageProcessor`), which verify the resulting resolved view trees (`expectViewTree`), execute simulated user interactions (`uiOps`), and assert outbound event envelopes (`expectOutbound`) and data model states (`expectDataModel`).
 
 Harnesses running the agent half:
+
 - Python Agent: `python/a2ui_agent`
 - TypeScript Agent: `typescript/agents/a2ui_agent`
 - Dart Agent: `dart/a2ui_agent`
 
 Harnesses running the renderer half:
+
 - Web Renderers: `@a2ui/lit`, `@a2ui/react`, `@a2ui/angular`
 - Flutter Renderer: `dart/a2ui_flutter`
 - SwiftUI Renderer: `swift/swiftui`

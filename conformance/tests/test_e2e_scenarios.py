@@ -57,9 +57,9 @@ V10_CATALOG_STUB = {
 }
 
 V091_COMMON_TYPES = json.loads(
-    (
-        REPO_ROOT / "specification" / "v0_9_1" / "json" / "common_types.json"
-    ).read_text(encoding="utf-8")
+    (REPO_ROOT / "specification" / "v0_9_1" / "json" / "common_types.json").read_text(
+        encoding="utf-8"
+    )
 )
 V091_CATALOG_STUB = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -74,11 +74,7 @@ V091_SERVER_TO_CLIENT = {
     "$id": "https://a2ui.org/specification/v0_9/server_to_client.json",
     **json.loads(
         (
-            REPO_ROOT
-            / "specification"
-            / "v0_9_1"
-            / "json"
-            / "server_to_client.json"
+            REPO_ROOT / "specification" / "v0_9_1" / "json" / "server_to_client.json"
         ).read_text(encoding="utf-8")
     ),
 }
@@ -87,11 +83,7 @@ V091_CLIENT_TO_SERVER = {
     "$id": "https://a2ui.org/specification/v0_9/client_to_server.json",
     **json.loads(
         (
-            REPO_ROOT
-            / "specification"
-            / "v0_9_1"
-            / "json"
-            / "client_to_server.json"
+            REPO_ROOT / "specification" / "v0_9_1" / "json" / "client_to_server.json"
         ).read_text(encoding="utf-8")
     ),
 }
@@ -221,8 +213,14 @@ def test_e2e_scenario_validation(name: str, scenario: dict[str, Any]):
                             payload = msg[key]
                             surface_id = payload.get("surfaceId", "")
                             comps = payload.get("components", [])
-                            comp_ids = {c["id"] for c in comps if isinstance(c, dict) and "id" in c}
-                            surface_components.setdefault(surface_id, set()).update(comp_ids)
+                            comp_ids = {
+                                c["id"]
+                                for c in comps
+                                if isinstance(c, dict) and "id" in c
+                            }
+                            surface_components.setdefault(surface_id, set()).update(
+                                comp_ids
+                            )
 
         # 2. Validate expectOutbound envelopes
         for env in turn.get("expectOutbound", []):
@@ -242,7 +240,8 @@ def test_e2e_scenario_validation(name: str, scenario: dict[str, Any]):
             target = op["targetNode"]
             known = surface_components.get(surface_id, set())
             assert target in known, (
-                f"Turn {turn_idx}: uiOp targetNode '{target}' not found in surface '{surface_id}' components: {known}"
+                f"Turn {turn_idx}: uiOp targetNode '{target}' not found in surface"
+                f" '{surface_id}' components: {known}"
             )
 
     # 4. Validate chunk presence for every declared format and verify parsing
@@ -261,13 +260,13 @@ def test_e2e_scenario_validation(name: str, scenario: dict[str, Any]):
 
         state = parser._empty_state()
         for turn_idx, turn in enumerate(scenario["turns"]):
-            assert fmt_name in turn["modelChunks"], (
-                f"Turn {turn_idx} missing chunks for format '{fmt_name}'"
-            )
+            assert (
+                fmt_name in turn["modelChunks"]
+            ), f"Turn {turn_idx} missing chunks for format '{fmt_name}'"
             chunks = turn["modelChunks"][fmt_name]
-            assert isinstance(chunks, list) and chunks, (
-                f"Turn {turn_idx} format '{fmt_name}' chunks must be a non-empty list"
-            )
+            assert (
+                isinstance(chunks, list) and chunks
+            ), f"Turn {turn_idx} format '{fmt_name}' chunks must be a non-empty list"
 
             # Stream chunks through parser
             stream = parser.open_stream(state=state)
@@ -280,16 +279,13 @@ def test_e2e_scenario_validation(name: str, scenario: dict[str, Any]):
             actual_parts: list[dict[str, Any]] = []
             for p in parts:
                 p_dict = part_to_dict(p)
-                if (
-                    "text" in p_dict
-                    and actual_parts
-                    and "text" in actual_parts[-1]
-                ):
+                if "text" in p_dict and actual_parts and "text" in actual_parts[-1]:
                     actual_parts[-1]["text"] += p_dict["text"]
                 else:
                     actual_parts.append(p_dict)
 
             expected_parts = turn["expectWire"]
             assert actual_parts == expected_parts, (
-                f"Turn {turn_idx} format '{fmt_name}' produced:\n{actual_parts}\nExpected:\n{expected_parts}"
+                f"Turn {turn_idx} format '{fmt_name}'"
+                f" produced:\n{actual_parts}\nExpected:\n{expected_parts}"
             )

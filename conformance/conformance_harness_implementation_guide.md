@@ -353,6 +353,7 @@ The end-to-end golden-transcript harness exercises complete conversational scena
 ### Agent half algorithm
 
 The agent half tests response chunk parsing and wire fidelity:
+
 1. Initialize the inference format parser for each declared format (`direct_json`, `express`), configured with the scenario's catalogs.
 2. Initialize and maintain an empty parser `RendererState` across the turns of the scenario.
 3. For each turn in `scenario["turns"]`:
@@ -364,6 +365,7 @@ The agent half tests response chunk parsing and wire fidelity:
 ### Renderer half algorithm
 
 The renderer half tests UI tree construction, interaction, and outbound messaging:
+
 1. Initialize a `MessageProcessor` or UI framework adapter with the catalogs declared in `catalogPaths`.
 2. For each turn in `scenario["turns"]`:
    - Feed the `a2ui` messages from `turn["expectWire"]` in order (chat text parts are ignored by renderers).
@@ -383,6 +385,7 @@ The renderer half tests UI tree construction, interaction, and outbound messagin
 ### Renderer-visible outcome definition
 
 A transcript's renderer-visible outcome is defined by `outcome_of(scenario)` in `conformance/scripts/e2e_outcome.py`:
+
 - Each turn's `a2ui` messages are applied to `MessageProcessor`.
 - Each active surface's resolved node tree is walked depth-first, mapping each node to `{type, text?, label?, value?, enabled?, action?}`.
 - Model-chosen IDs (`id`, `surfaceId`, `functionCallId`) are mapped to canonical first-seen ordinals.

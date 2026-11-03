@@ -23,7 +23,9 @@ from a2ui.core.resolution.component_node import ComponentNode, is_component_node
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-_ID_KEYS = frozenset({"id", "surfaceId", "functionCallId", "sourceComponentId", "targetNode"})
+_ID_KEYS = frozenset(
+    {"id", "surfaceId", "functionCallId", "sourceComponentId", "targetNode"}
+)
 
 
 def normalize_ids(value: Any, ordinals: dict[str, dict[str, str]] | None = None) -> Any:
@@ -37,7 +39,9 @@ def normalize_ids(value: Any, ordinals: dict[str, dict[str, str]] | None = None)
             if key == "timestamp":
                 continue
             if key in _ID_KEYS and isinstance(val, str):
-                namespace = "id" if key in ("id", "sourceComponentId", "targetNode") else key
+                namespace = (
+                    "id" if key in ("id", "sourceComponentId", "targetNode") else key
+                )
                 id_map = ordinals.setdefault(namespace, {})
                 if val not in id_map:
                     id_map[val] = f"{namespace}_{len(id_map)}"
@@ -141,7 +145,9 @@ def _load_catalogs(catalog_paths: list[str]) -> list[Catalog]:
     """Loads Catalog objects from repository-relative paths."""
     catalogs: list[Catalog] = []
     for cat_path in catalog_paths:
-        full_path = REPO_ROOT / cat_path if not Path(cat_path).is_absolute() else Path(cat_path)
+        full_path = (
+            REPO_ROOT / cat_path if not Path(cat_path).is_absolute() else Path(cat_path)
+        )
         data = json.loads(full_path.read_text(encoding="utf-8"))
         catalogs.append(Catalog.from_json(data))
     return catalogs
@@ -171,7 +177,9 @@ def outcome_of(scenario: dict[str, Any]) -> list[dict[str, Any]]:
             cat = surface.default_catalog or default_catalog
             resolver = NodeResolver(surface, catalog=cat)
             root = resolver.root
-            norm_surface_id = normalize_ids({"surfaceId": surface_id}, ordinals)["surfaceId"]
+            norm_surface_id = normalize_ids({"surfaceId": surface_id}, ordinals)[
+                "surfaceId"
+            ]
             if root is not None:
                 surfaces_outcome[norm_surface_id] = _walk_tree(root, surface, ordinals)
             else:

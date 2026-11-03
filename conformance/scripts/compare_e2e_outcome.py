@@ -77,8 +77,12 @@ def _compare_scenarios(
 
         max_turns = max(len(golden_outcome), len(recorded_outcome))
         for turn_idx in range(max_turns):
-            g_turn = golden_outcome[turn_idx] if turn_idx < len(golden_outcome) else None
-            r_turn = recorded_outcome[turn_idx] if turn_idx < len(recorded_outcome) else None
+            g_turn = (
+                golden_outcome[turn_idx] if turn_idx < len(golden_outcome) else None
+            )
+            r_turn = (
+                recorded_outcome[turn_idx] if turn_idx < len(recorded_outcome) else None
+            )
 
             if g_turn == r_turn:
                 continue
@@ -87,7 +91,11 @@ def _compare_scenarios(
             g_str = json.dumps(g_turn, indent=2, sort_keys=True).splitlines()
             r_str = json.dumps(r_turn, indent=2, sort_keys=True).splitlines()
             diff = difflib.unified_diff(
-                g_str, r_str, fromfile=f"golden_turn_{turn_idx}", tofile=f"recorded_turn_{turn_idx}", lineterm=""
+                g_str,
+                r_str,
+                fromfile=f"golden_turn_{turn_idx}",
+                tofile=f"recorded_turn_{turn_idx}",
+                lineterm="",
             )
             diff_lines.append("```diff")
             diff_lines.extend(diff)
@@ -98,11 +106,23 @@ def _compare_scenarios(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Compare renderer-visible outcomes between golden and recorded e2e transcripts."
+        description=(
+            "Compare renderer-visible outcomes between golden and recorded e2e"
+            " transcripts."
+        )
     )
-    parser.add_argument("--golden", required=True, help="Path to golden scenario YAML/JSON")
-    parser.add_argument("--recorded", required=True, help="Path to recorded scenario YAML/JSON")
-    parser.add_argument("--report", required=False, default=None, help="Optional output report path (.md)")
+    parser.add_argument(
+        "--golden", required=True, help="Path to golden scenario YAML/JSON"
+    )
+    parser.add_argument(
+        "--recorded", required=True, help="Path to recorded scenario YAML/JSON"
+    )
+    parser.add_argument(
+        "--report",
+        required=False,
+        default=None,
+        help="Optional output report path (.md)",
+    )
 
     try:
         args = parser.parse_args(argv)
