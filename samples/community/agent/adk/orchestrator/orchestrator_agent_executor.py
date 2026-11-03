@@ -58,6 +58,7 @@ from a2ui.a2a import (
     AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY,
     get_a2ui_extension_uri,
     is_a2ui_part,
+    renderer_capabilities_from_message,
     try_activate_a2ui_extension,
 )
 
@@ -438,10 +439,8 @@ class OrchestratorAgentExecutor(A2aAgentExecutor):
 
         active_ui_version = try_activate_a2ui_extension(context, self._agent_card)
         if active_ui_version:
-            client_capabilities = (
-                context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
-                if context.message and context.message.metadata
-                else None
+            client_capabilities = renderer_capabilities_from_message(
+                context.message, active_ui_version
             )
 
             await runner.session_service.append_event(
