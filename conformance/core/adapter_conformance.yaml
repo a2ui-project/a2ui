@@ -455,7 +455,7 @@
             badgeText: "Operational"
 
 - name: validation_results_error_disables_warning_allows
-  description: Verifies that a failing check with severity=error marks the control invalid (isValid=false), whereas severity=warning surfaces diagnostic feedback while keeping the control valid/enabled (isValid=true).
+  description: Verifies that a failing check with severity=error marks the control invalid (isValid=false), whereas severity=warning and severity=info surface diagnostic feedback and hints while keeping the control valid/enabled (isValid=true).
   protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
@@ -475,10 +475,16 @@
                 code: "SHORT_NICKNAME"
                 message: "Nickname is short but allowed."
                 severity: "warning"
+              phone: ""
+              phoneInfo:
+                valid: false
+                code: "OPTIONAL_PHONE"
+                message: "Optional: add a phone number"
+                severity: "info"
             components:
               - id: "root"
                 component: "Column"
-                children: ["email_input", "nickname_input"]
+                children: ["email_input", "nickname_input", "phone_input"]
               - id: "email_input"
                 component: "TextField"
                 label: "Email"
@@ -499,6 +505,14 @@
                 checks:
                   - condition:
                       "@path": "/nicknameWarning"
+              - id: "phone_input"
+                component: "TextField"
+                label: "Phone"
+                value:
+                  "@path": "/phone"
+                checks:
+                  - condition:
+                      "@path": "/phoneInfo"
       expectViewTree:
         id: "root"
         type: "Column"
@@ -517,6 +531,17 @@
                 code: "SHORT_NICKNAME"
                 message: "Nickname is short but allowed."
                 severity: "warning"
+          - id: "phone_input"
+            type: "TextField"
+            isValid: true
+            validationErrors: []
+            validationResults:
+              - valid: false
+                code: "OPTIONAL_PHONE"
+                message: "Optional: add a phone number"
+                severity: "info"
+            hints:
+              - "Optional: add a phone number"
 
 - name: accessibility_attributes_and_implicit_label_override
   description: Verifies that explicit AccessibilityAttributes (label, description, live, hidden) and implicit child text label inference are applied and override correctly.
@@ -640,11 +665,13 @@
         children:
           - id: "unknown_widget"
             state: "unknown-type"
+            occupiesLayout: false
           - id: "cycle_card"
             type: "Card"
             children:
               - id: "root"
                 state: "cyclic"
+                occupiesLayout: false
       expectErrors:
         - code: "UNKNOWN_COMPONENT_TYPE"
           surfaceId: "adapter_surface"

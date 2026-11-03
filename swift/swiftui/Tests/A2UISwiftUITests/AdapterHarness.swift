@@ -121,6 +121,7 @@ struct AdapterViewNode {
   let instanceID: String
   let type: String?
   let state: String
+  let occupiesLayout: Bool
   let node: A2UICore.Node?
   let children: [AdapterViewNode]
 
@@ -129,6 +130,7 @@ struct AdapterViewNode {
     instanceID: String,
     type: String? = nil,
     state: String = "resolved",
+    occupiesLayout: Bool = true,
     node: A2UICore.Node? = nil,
     children: [AdapterViewNode] = []
   ) {
@@ -136,6 +138,7 @@ struct AdapterViewNode {
     self.instanceID = instanceID
     self.type = type
     self.state = state
+    self.occupiesLayout = occupiesLayout
     self.node = node
     self.children = children
   }
@@ -267,12 +270,14 @@ enum AdapterHarness {
     "id",
     "type",
     "state",
+    "occupiesLayout",
     "text",
     "value",
     "badgeText",
     "isValid",
     "validationErrors",
     "validationResults",
+    "hints",
     "children",
   ]
 
@@ -505,6 +510,18 @@ enum AdapterHarness {
     }
   }
 
+  private static func collectViewTreeKeys(_ node: Any?, into out: inout Set<String>) {
+    guard let dict = node as? [String: Any] else { return }
+    for key in dict.keys {
+      out.insert(key)
+    }
+    if let children = dict["children"] as? [Any] {
+      for child in children {
+        collectViewTreeKeys(child, into: &out)
+      }
+    }
+  }
+
   /// Returns a skip reason if `caseName` or any step in `steps` matches `unsupported`.
   static func findUnsupportedReason(
     _ caseName: String,
@@ -526,6 +543,15 @@ enum AdapterHarness {
         let stepKey = "\(caseName)/\(key)"
         if let reason = unsupported[stepKey] {
           matchedUnsupportedKeys.insert(stepKey)
+          return reason
+        }
+      }
+      var viewKeys: Set<String> = []
+      collectViewTreeKeys(step["expectViewTree"], into: &viewKeys)
+      for key in viewKeys.sorted() {
+        let viewKey = "\(caseName)/\(key)"
+        if let reason = unsupported[viewKey] {
+          matchedUnsupportedKeys.insert(viewKey)
           return reason
         }
       }
@@ -720,6 +746,12 @@ enum AdapterHarness {
         throw AdapterConformanceError("\(context): state mismatch")
       }
     }
+    if let expOccupies = expected["occupiesLayout"] as? Bool {
+      #expect(viewNode.occupiesLayout == expOccupies, "\(context): occupiesLayout mismatch")
+      if viewNode.occupiesLayout != expOccupies {
+        throw AdapterConformanceError("\(context): occupiesLayout mismatch")
+      }
+    }
     try assertViewNodeProperties(viewNode, expected: expected, context: context)
     if let expChildren = expected["children"] as? [[String: Any]] {
       #expect(viewNode.children.count == expChildren.count, "\(context): children count mismatch")
@@ -887,6 +919,7 @@ enum AdapterHarness {
       instanceID: node.id,
       type: node.type,
       state: "resolved",
+      occupiesLayout: rendered != nil,
       node: node,
       children: children
     )
@@ -1085,6 +1118,16 @@ enum AdapterHarness {
       #expect(textField.validationErrors == expErrors, "\(context): validationErrors mismatch")
       if textField.validationErrors != expErrors {
         throw AdapterConformanceError("\(context): validationErrors mismatch")
+      }
+    }
+    if let expHints = expected["hints"] as? [String] {
+      let actualHints = textField.validationResults.compactMap { res -> String? in
+        guard res.severity == .warning || res.severity == .info else { return nil }
+        return res.message
+      }
+      #expect(actualHints == expHints, "\(context): hints mismatch")
+      if actualHints != expHints {
+        throw AdapterConformanceError("\(context): hints mismatch")
       }
     }
     guard let expResults = expected["validationResults"] as? [[String: Any]] else { return }

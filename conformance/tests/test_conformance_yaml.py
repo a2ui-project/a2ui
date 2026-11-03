@@ -456,3 +456,71 @@ def test_render_surface_teardown_step_expectations_schema():
                 }
             ]
         )
+
+
+def test_render_surface_view_tree_node_occupies_layout_and_hints_schema():
+    valid_case = {
+        "name": "fallback_and_hints_checks",
+        "action": "render_surface",
+        "protocolVersion": "1.0",
+        "steps": [
+            {
+                "op": "process_messages",
+                "messages": [],
+                "expectViewTree": {
+                    "id": "root",
+                    "type": "Column",
+                    "children": [
+                        {
+                            "id": "unknown_widget",
+                            "state": "unknown-type",
+                            "occupiesLayout": False,
+                        },
+                        {
+                            "id": "phone_input",
+                            "type": "TextField",
+                            "isValid": True,
+                            "hints": ["Optional: add a phone number"],
+                        },
+                    ],
+                },
+            }
+        ],
+    }
+    VALIDATOR.validate([valid_case])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate(
+            [
+                {
+                    **valid_case,
+                    "steps": [
+                        {
+                            **valid_case["steps"][0],
+                            "expectViewTree": {
+                                "id": "root",
+                                "children": [{"id": "u", "occupiesLayout": "no"}],
+                            },
+                        }
+                    ],
+                }
+            ]
+        )
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate(
+            [
+                {
+                    **valid_case,
+                    "steps": [
+                        {
+                            **valid_case["steps"][0],
+                            "expectViewTree": {
+                                "id": "root",
+                                "children": [{"id": "p", "hints": [123]}],
+                            },
+                        }
+                    ],
+                }
+            ]
+        )

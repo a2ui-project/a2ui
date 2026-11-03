@@ -2112,7 +2112,7 @@
               "targetNode": {"type": "string"},
               "inputValue": {},
               "userActivation": {"type": "boolean"},
-              "expectViewTree": {"type": "object"},
+              "expectViewTree": {"$ref": "#/$defs/ViewTreeNode"},
               "expectAccessibilityTree": {"type": "object"},
               "expectDataModel": {"type": "object"},
               "expectActions": {"type": "array", "items": {"type": "object"}},
@@ -2130,6 +2130,36 @@
         }
       },
       "additionalProperties": false
+    },
+    "ViewTreeNode": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "type": {"type": "string"},
+        "state": {
+          "type": "string",
+          "enum": ["resolved", "pending", "unknown-type", "cyclic"]
+        },
+        "occupiesLayout": {"type": "boolean"},
+        "isValid": {"type": "boolean"},
+        "validationErrors": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "validationResults": {
+          "type": "array",
+          "items": {"type": "object"}
+        },
+        "hints": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "children": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/ViewTreeNode"}
+        }
+      },
+      "additionalProperties": true
     },
     "MatchAny": {
       "type": "object",

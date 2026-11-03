@@ -77,9 +77,11 @@ export interface ExpectedViewNode {
   id?: string;
   type?: string;
   state?: string;
+  occupiesLayout?: boolean;
   isValid?: boolean;
   validationErrors?: string[];
   validationResults?: Array<Record<string, unknown>>;
+  hints?: string[];
   children?: ExpectedViewNode[];
   [key: string]: unknown;
 }
@@ -174,7 +176,10 @@ export interface ManifestRecord {
  * Reasoned skip entries keyed by `"<case>"` or `"<case>/<op|expectKey>"`.
  * Every entry in this map must match at least one case during the run.
  */
-export const UNSUPPORTED: Record<string, string> = {};
+export const UNSUPPORTED: Record<string, string> = {
+  'validation_results_error_disables_warning_allows/hints':
+    'SHOULD in framework adapter specification, not implemented in Web Basic Catalog TextField',
+};
 
 const matchedUnsupportedKeys = new Set<string>();
 
@@ -222,12 +227,14 @@ export const KNOWN_KEYS = {
     'id',
     'type',
     'state',
+    'occupiesLayout',
     'text',
     'value',
     'badgeText',
     'isValid',
     'validationErrors',
     'validationResults',
+    'hints',
     'children',
   ]),
   validationResult: new Set(['valid', 'code', 'message', 'severity']),
@@ -386,6 +393,21 @@ export function assertKnownAccessibilityCase(testCase: AccessibilityTestCase): v
   }
 }
 
+function collectViewTreeKeys(node: unknown, out: Set<string>): void {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) {
+    return;
+  }
+  const rec = node as Record<string, unknown>;
+  for (const key of Object.keys(rec)) {
+    out.add(key);
+  }
+  if (Array.isArray(rec.children)) {
+    for (const child of rec.children) {
+      collectViewTreeKeys(child, out);
+    }
+  }
+}
+
 export function findUnsupportedReason(
   caseName: string,
   steps: Array<Record<string, unknown>> = [],
@@ -408,6 +430,15 @@ export function findUnsupportedReason(
       if (Object.hasOwn(UNSUPPORTED, stepKey)) {
         matchedUnsupportedKeys.add(stepKey);
         return UNSUPPORTED[stepKey];
+      }
+    }
+    const viewKeys = new Set<string>();
+    collectViewTreeKeys(step.expectViewTree, viewKeys);
+    for (const key of viewKeys) {
+      const viewKey = `${caseName}/${key}`;
+      if (Object.hasOwn(UNSUPPORTED, viewKey)) {
+        matchedUnsupportedKeys.add(viewKey);
+        return UNSUPPORTED[viewKey];
       }
     }
     const assertions = step.assertions;
@@ -605,9 +636,11 @@ const RESERVED_VIEW_KEYS = new Set([
   'id',
   'type',
   'state',
+  'occupiesLayout',
   'isValid',
   'validationErrors',
   'validationResults',
+  'hints',
   'children',
 ]);
 
@@ -672,6 +705,14 @@ export function assertViewTree(
   if (expected.state !== undefined) {
     expect(actual.state, `${nodePath}.state`).toBe(expected.state);
   }
+  if (expected.occupiesLayout !== undefined && container) {
+    const domEl = findDomElementForNode(container, actual);
+    const occupies =
+      domEl !== undefined &&
+      window.getComputedStyle(domEl).display !== 'none' &&
+      (domEl.offsetWidth > 0 || domEl.offsetHeight > 0 || actual.state === 'resolved');
+    expect(occupies, `${nodePath}.occupiesLayout`).toBe(expected.occupiesLayout);
+  }
   if (actual.state === 'resolved' && container) {
     const domEl = findDomElementForNode(container, actual);
     expect(domEl, `Expected a mounted DOM element for ${nodePath}`).toBeDefined();
@@ -679,6 +720,11 @@ export function assertViewTree(
       const expectedText = expected[key];
       if (typeof expectedText === 'string') {
         expect(domEl!.textContent, `${nodePath}.${key} rendered text`).toContain(expectedText);
+      }
+    }
+    if (expected.hints !== undefined) {
+      for (const hint of expected.hints) {
+        expect(domEl!.textContent, `${nodePath}.hints rendered text`).toContain(hint);
       }
     }
   }

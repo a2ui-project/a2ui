@@ -86,12 +86,14 @@ const Set<String> viewNodeKnownKeys = {
   'id',
   'type',
   'state',
+  'occupiesLayout',
   'text',
   'value',
   'badgeText',
   'isValid',
   'validationErrors',
   'validationResults',
+  'hints',
   'children',
 };
 
@@ -297,6 +299,16 @@ void assertKnownAccessibilityCase(Map<String, Object?> testCase) {
   }
 }
 
+void _collectViewTreeKeys(Object? node, Set<String> out) {
+  if (node is! Map<String, Object?>) return;
+  out.addAll(node.keys);
+  if (node['children'] case final List<Object?> children) {
+    for (final Object? child in children) {
+      _collectViewTreeKeys(child, out);
+    }
+  }
+}
+
 String? findUnsupportedReason(
   String caseName, [
   List<Object?> steps = const [],
@@ -320,6 +332,15 @@ String? findUnsupportedReason(
       if (unsupported.containsKey(stepKey)) {
         _matchedUnsupportedKeys.add(stepKey);
         return unsupported[stepKey];
+      }
+    }
+    final viewKeys = <String>{};
+    _collectViewTreeKeys(step['expectViewTree'], viewKeys);
+    for (final String key in viewKeys) {
+      final viewKey = '$caseName/$key';
+      if (unsupported.containsKey(viewKey)) {
+        _matchedUnsupportedKeys.add(viewKey);
+        return unsupported[viewKey];
       }
     }
     if (step['assertions'] case final Map<String, Object?> assertions) {
@@ -616,6 +637,13 @@ void assertViewTree(
   final ComponentNode<ComponentImplementation> node = actual!;
   expect(node.componentId, expected['id']);
   final Finder candidates = _findNodeView(node.instanceId, ancestor);
+  if (expected['occupiesLayout'] case final bool expectedOccupiesLayout) {
+    if (tester != null) {
+      final bool hasNonZeroSize = candidates.evaluate().isNotEmpty &&
+          !tester.getSize(candidates.first).isEmpty;
+      expect(hasNonZeroSize, expectedOccupiesLayout);
+    }
+  }
   if (expected['state'] case final String expectedState) {
     _assertNodeState(node, candidates, expectedState);
     if (expectedState != 'resolved') return;
@@ -1028,6 +1056,24 @@ void _assertNodeValidation(
         },
     ];
     expect(actual, expectedResults);
+  }
+  if (spec['hints'] case final List<Object?> expectedHints) {
+    final List<String> actualHints = [
+      for (final ValidationResult r in props.validationResults)
+        if ((r.severity == 'warning' || r.severity == 'info') &&
+            r.message != null)
+          r.message!,
+    ];
+    expect(actualHints, expectedHints);
+    if (tester != null) {
+      for (final rawHint in expectedHints) {
+        final hint = rawHint! as String;
+        expect(
+          find.descendant(of: viewFinder, matching: find.text(hint)),
+          findsOneWidget,
+        );
+      }
+    }
   }
 }
 

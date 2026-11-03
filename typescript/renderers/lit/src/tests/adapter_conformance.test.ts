@@ -96,6 +96,8 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
           if (skipReason) {
             pendingManifest.status = 'skipped';
             pendingManifest.reason = skipReason;
+            writeManifestRecord(pendingManifest);
+            pendingManifest = undefined;
             t.skip(skipReason);
             return;
           }
@@ -115,8 +117,10 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
           }
           pendingManifest.status = 'passed';
         } catch (err) {
-          pendingManifest.status = 'failed';
-          pendingManifest.reason = err instanceof Error ? err.message : String(err);
+          if (pendingManifest) {
+            pendingManifest.status = 'failed';
+            pendingManifest.reason = err instanceof Error ? err.message : String(err);
+          }
           throw err;
         }
       });
@@ -141,6 +145,8 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
           if (skipReason) {
             pendingManifest.status = 'skipped';
             pendingManifest.reason = skipReason;
+            writeManifestRecord(pendingManifest);
+            pendingManifest = undefined;
             t.skip(skipReason);
             return;
           }
@@ -151,8 +157,10 @@ describe('@a2ui/lit Adapter & Accessibility Conformance', () => {
           }
           pendingManifest.status = 'passed';
         } catch (err) {
-          pendingManifest.status = 'failed';
-          pendingManifest.reason = err instanceof Error ? err.message : String(err);
+          if (pendingManifest) {
+            pendingManifest.status = 'failed';
+            pendingManifest.reason = err instanceof Error ? err.message : String(err);
+          }
           throw err;
         }
       });
