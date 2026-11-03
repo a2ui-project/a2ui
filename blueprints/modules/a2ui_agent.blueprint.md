@@ -670,7 +670,7 @@ class A2uiGenerator:
         catalogs: Master list of CatalogConfig objects supported by the agent.
         examples: Optional list of few-shot example turns shared across sessions.
         factory: Default InferenceFormatFactory used when instantiating processors.
-        user_focused_thinking: Whether each processor's prompt snippet ends with the thinking rule.
+        user_focused_thinking: Whether the thinking rule starts and ends each processor's prompt snippet.
     """
 
     def __init__(
@@ -686,7 +686,7 @@ class A2uiGenerator:
             catalogs: List of supported CatalogConfig configurations.
             examples: Optional list of prompt example turns.
             inference_format_factory: Optional default InferenceFormatFactory (defaults to ExpressFormatFactory).
-            user_focused_thinking: Whether each processor's prompt snippet ends with the thinking rule,
+            user_focused_thinking: Whether the thinking rule starts and ends each processor's prompt snippet,
                 for an app that shows the model's thinking to the user. Passed on to every processor.
         """
         pass
@@ -730,7 +730,7 @@ class A2uiRequestProcessor:
             catalogs: List of active Catalog instances.
             examples: Optional list of prompt example turns.
             format_factory: Format factory for instantiating format strategies (defaults to ExpressFormatFactory).
-            user_focused_thinking: Whether `prompt_snippet` ends with the thinking rule.
+            user_focused_thinking: Whether the thinking rule starts and ends `prompt_snippet`.
         """
         pass
 
@@ -754,14 +754,14 @@ class A2uiRequestProcessor:
         pass
 ```
 
-With `user_focused_thinking`, `prompt_snippet` is the format's snippet, a blank line, and this thinking rule, word for word in every SDK:
+With `user_focused_thinking`, `prompt_snippet` is this thinking rule, a blank line, the format's snippet, a blank line, and the rule again, word for word in every SDK:
 
 ```text
 ## Thinking:
-In your thoughts, reason about the user's request and what they need. Write the UI without thinking aloud about the A2UI format, JSON, schemas, or component and surface IDs.
+The user reads your thoughts while they wait for your answer. Think only about their request: what they need, and which choice suits them and why. Plan the screen in plain words, such as "a card for each option with a button to pick it". Write the UI code in your answer without writing, checking or describing it in your thoughts.
 ```
 
-The rule is for an app that shows the model's thinking to the user while it waits. Without it, much of that thinking is about the format rather than the user's request. The rule does not depend on the format, so the processor adds it rather than each prompt generator. It is off by default, since an agent that does not show thinking gains nothing from it.
+The rule is for an app that shows the model's thinking to the user while it waits. Without it, much of that thinking is about the format rather than the user's request. The rule names none of the format's terms, since naming them draws the model's thoughts to them, and a model follows it far more often when it reads it both before and after the format's instructions. The rule does not depend on the format, so the processor adds it rather than each prompt generator. It is off by default, since an agent that does not show thinking gains nothing from it.
 
 ---
 

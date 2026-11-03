@@ -946,6 +946,8 @@ def run_create_processor_case(test_case, tmp_path):
         expect.get("prompt_snippet_contains", []),
         expect.get("prompt_snippet_absent", []),
     )
+    if "prompt_snippet_starts_with" in expect:
+        assert snippet.startswith(expect["prompt_snippet_starts_with"]), snippet[:500]
     if "prompt_snippet_ends_with" in expect:
         assert snippet.endswith(expect["prompt_snippet_ends_with"]), snippet[-500:]
     if expect.get("generator_catalogs_unchanged"):

@@ -422,6 +422,9 @@ function runFormatCase(testCase: LoadedCase): void {
       expected.prompt_snippet_contains as string[] | undefined,
       expected.prompt_snippet_absent as string[] | undefined,
     );
+    if (typeof expected.prompt_snippet_starts_with === 'string') {
+      expect(snippet.startsWith(expected.prompt_snippet_starts_with)).toBe(true);
+    }
     if (typeof expected.prompt_snippet_ends_with === 'string') {
       expect(snippet.endsWith(expected.prompt_snippet_ends_with)).toBe(true);
     }

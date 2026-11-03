@@ -25,9 +25,10 @@ import {RendererState} from '../utils/renderer-state.js';
 
 const USER_FOCUSED_THINKING_RULE =
   '## Thinking:\n' +
-  "In your thoughts, reason about the user's request and what they need. " +
-  'Write the UI without thinking aloud about the A2UI format, JSON, schemas, ' +
-  'or component and surface IDs.';
+  'The user reads your thoughts while they wait for your answer. Think only about their ' +
+  'request: what they need, and which choice suits them and why. Plan the screen in plain ' +
+  'words, such as "a card for each option with a button to pick it". Write the UI code in ' +
+  'your answer without writing, checking or describing it in your thoughts.';
 
 /** Options for a request processor. */
 export interface A2uiRequestProcessorOptions {
@@ -40,9 +41,9 @@ export interface A2uiRequestProcessorOptions {
   state?: RendererState;
 
   /**
-   * Whether the prompt snippet ends with a rule asking the model to think about the user's
-   * request rather than the format, for an app that shows the model's thinking. False by
-   * default.
+   * Whether the prompt snippet starts and ends with a rule asking the model to think about the
+   * user's request rather than the format, for an app that shows the model's thinking. False
+   * by default.
    */
   userFocusedThinking?: boolean;
 }
@@ -59,8 +60,8 @@ export class A2uiRequestProcessor {
    * @param catalogs The negotiated catalogs active for this request.
    * @param _examples Prompt examples, keyed by name.
    * @param formatFactory The inference format. Express by default.
-   * @param options The renderer state to bind, if any, and whether the prompt snippet ends
-   *     with the thinking rule.
+   * @param options The renderer state to bind, if any, and whether the thinking rule starts
+   *     and ends the prompt snippet.
    * @throws {A2uiCatalogError} If `options.state` holds other catalogs than `catalogs`.
    */
   constructor(
@@ -96,11 +97,14 @@ export class A2uiRequestProcessor {
    *
    * The snippet covers the format's rules, the active catalogs and any examples. The agent
    * developer writes the rest of the system prompt and places the snippet within it. With
-   * `userFocusedThinking`, the snippet ends with the thinking rule.
+   * `userFocusedThinking`, the thinking rule starts and ends the snippet. A model follows it
+   * far more often when it reads the rule both before and after the format's instructions.
    */
   get promptSnippet(): string {
     const snippet = this._format.promptGenerator.generate();
-    return this._userFocusedThinking ? `${snippet}\n\n${USER_FOCUSED_THINKING_RULE}` : snippet;
+    if (!this._userFocusedThinking) return snippet;
+    const rule = USER_FOCUSED_THINKING_RULE;
+    return `${rule}\n\n${snippet}\n\n${rule}`;
   }
 
   /**

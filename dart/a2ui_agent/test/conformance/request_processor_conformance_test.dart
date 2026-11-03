@@ -175,6 +175,9 @@ void _createProcessor(Map<String, Object?> testCase, SuiteVersion version) {
     );
   }
   expectSnippet(processor.promptSnippet, expected);
+  if (expected['prompt_snippet_starts_with'] case final String start) {
+    expect(processor.promptSnippet, startsWith(start));
+  }
   if (expected['prompt_snippet_ends_with'] case final String end) {
     expect(processor.promptSnippet, endsWith(end));
   }

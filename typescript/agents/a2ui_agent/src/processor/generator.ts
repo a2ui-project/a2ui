@@ -26,9 +26,9 @@ import {A2uiRequestProcessor, A2uiRequestProcessorOptions} from './processor.js'
 /** Options for a generator, passed on to every processor it creates. */
 export interface A2uiGeneratorOptions {
   /**
-   * Whether each processor's prompt snippet ends with a rule asking the model to think about
-   * the user's request rather than the format, for an app that shows the model's thinking to
-   * the user. False by default.
+   * Whether each processor's prompt snippet starts and ends with a rule asking the model to
+   * think about the user's request rather than the format, for an app that shows the model's
+   * thinking to the user. False by default.
    */
   userFocusedThinking?: boolean;
 }

@@ -33,9 +33,11 @@ __all__ = [
 
 _USER_FOCUSED_THINKING_RULE = (
     "## Thinking:\n"
-    "In your thoughts, reason about the user's request and what they need."
-    " Write the UI without thinking aloud about the A2UI format, JSON,"
-    " schemas, or component and surface IDs."
+    "The user reads your thoughts while they wait for your answer. Think only"
+    " about their request: what they need, and which choice suits them and"
+    ' why. Plan the screen in plain words, such as "a card for each option'
+    ' with a button to pick it". Write the UI code in your answer without'
+    " writing, checking or describing it in your thoughts."
 )
 
 
@@ -62,9 +64,10 @@ class A2uiRequestProcessor:
                 a call passes none. Without one, each call checks the response
                 against a new state, as a chat agent wants. A processor bound
                 to a state serves only that conversation.
-            user_focused_thinking: Whether the prompt snippet ends with a rule
-                asking the model to think about the user's request rather than
-                the format, for an app that shows the model's thinking.
+            user_focused_thinking: Whether the prompt snippet starts and ends
+                with a rule asking the model to think about the user's request
+                rather than the format, for an app that shows the model's
+                thinking.
 
         Raises:
             A2uiCatalogError: If no active catalogs are provided, or if `state`
@@ -118,11 +121,14 @@ class A2uiRequestProcessor:
     def prompt_snippet(self) -> str:
         """Format-specific system prompt instruction snippet.
 
-        With `user_focused_thinking`, the snippet ends with the thinking rule.
+        With `user_focused_thinking`, the thinking rule starts and ends the
+        snippet. A model follows it far more often when it reads the rule both
+        before and after the format's instructions.
         """
         snippet = self._format.prompt_generator.generate()
         if self._user_focused_thinking:
-            return f"{snippet}\n\n{_USER_FOCUSED_THINKING_RULE}"
+            rule = _USER_FOCUSED_THINKING_RULE
+            return f"{rule}\n\n{snippet}\n\n{rule}"
         return snippet
 
     @property

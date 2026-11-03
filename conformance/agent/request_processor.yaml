@@ -68,8 +68,10 @@
 # they are written once against v1.0.
 #
 # The thinking rule that `user_focused_thinking` adds is the exception. It is
-# the same for every format, so every SDK writes it word for word and ends the
-# snippet with it, which `prompt_snippet_ends_with` checks.
+# the same for every format, so every SDK writes it word for word, both before
+# and after the format's text, which `prompt_snippet_starts_with` and
+# `prompt_snippet_ends_with` check. A model follows the rule far more often when
+# it reads it in both places.
 
 # --- Creating a format ---
 
@@ -285,8 +287,8 @@
 
 # --- Steering the model's thinking ---
 
-- name: test_user_focused_thinking_ends_the_snippet_with_its_rule
-  description: With `user_focused_thinking` the snippet ends with a rule asking the model to think about the user's request rather than the format, for an app that shows the model's thinking to the user.
+- name: test_user_focused_thinking_wraps_the_snippet_in_its_rule
+  description: With `user_focused_thinking` the snippet starts and ends with a rule asking the model to think about the user's request rather than the format, for an app that shows the model's thinking to the user.
   action: create_processor
   args:
     format: direct_json
@@ -299,9 +301,12 @@
   expect:
     active_catalog_ids: ["conformance/simplified"]
     prompt_snippet_contains: ["<a2ui-json>", "Text"]
+    prompt_snippet_starts_with: |-
+      ## Thinking:
+      The user reads your thoughts while they wait for your answer. Think only about their request: what they need, and which choice suits them and why. Plan the screen in plain words, such as "a card for each option with a button to pick it". Write the UI code in your answer without writing, checking or describing it in your thoughts.
     prompt_snippet_ends_with: |-
       ## Thinking:
-      In your thoughts, reason about the user's request and what they need. Write the UI without thinking aloud about the A2UI format, JSON, schemas, or component and surface IDs.
+      The user reads your thoughts while they wait for your answer. Think only about their request: what they need, and which choice suits them and why. Plan the screen in plain words, such as "a card for each option with a button to pick it". Write the UI code in your answer without writing, checking or describing it in your thoughts.
 
 - name: test_user_focused_thinking_rule_does_not_depend_on_the_format
   description: The rule is the same for Express, since what the model thinks about does not depend on the notation it writes.
@@ -317,12 +322,15 @@
   expect:
     active_catalog_ids: ["conformance/simplified"]
     prompt_snippet_contains: ["<a2ui>", "Text("]
+    prompt_snippet_starts_with: |-
+      ## Thinking:
+      The user reads your thoughts while they wait for your answer. Think only about their request: what they need, and which choice suits them and why. Plan the screen in plain words, such as "a card for each option with a button to pick it". Write the UI code in your answer without writing, checking or describing it in your thoughts.
     prompt_snippet_ends_with: |-
       ## Thinking:
-      In your thoughts, reason about the user's request and what they need. Write the UI without thinking aloud about the A2UI format, JSON, schemas, or component and surface IDs.
+      The user reads your thoughts while they wait for your answer. Think only about their request: what they need, and which choice suits them and why. Plan the screen in plain words, such as "a card for each option with a button to pick it". Write the UI code in your answer without writing, checking or describing it in your thoughts.
 
 - name: test_user_focused_thinking_survives_a_format_override
-  description: The option belongs to the generator, so a processor created with another format still ends its snippet with the rule.
+  description: The option belongs to the generator, so a processor created with another format still starts and ends its snippet with the rule.
   action: create_processor
   args:
     format: direct_json
@@ -335,9 +343,12 @@
         supportedCatalogIds: ["conformance/simplified"]
   expect:
     prompt_snippet_contains: ["<a2ui>"]
+    prompt_snippet_starts_with: |-
+      ## Thinking:
+      The user reads your thoughts while they wait for your answer. Think only about their request: what they need, and which choice suits them and why. Plan the screen in plain words, such as "a card for each option with a button to pick it". Write the UI code in your answer without writing, checking or describing it in your thoughts.
     prompt_snippet_ends_with: |-
       ## Thinking:
-      In your thoughts, reason about the user's request and what they need. Write the UI without thinking aloud about the A2UI format, JSON, schemas, or component and surface IDs.
+      The user reads your thoughts while they wait for your answer. Think only about their request: what they need, and which choice suits them and why. Plan the screen in plain words, such as "a card for each option with a button to pick it". Write the UI code in your answer without writing, checking or describing it in your thoughts.
 
 - name: test_snippet_has_no_thinking_rule_by_default
   description: Without the option the snippet says nothing about the model's thinking, so an agent that does not show thinking pays no tokens for the rule.
@@ -351,7 +362,7 @@
         supportedCatalogIds: ["conformance/simplified"]
   expect:
     active_catalog_ids: ["conformance/simplified"]
-    prompt_snippet_absent: ["## Thinking:", "In your thoughts"]
+    prompt_snippet_absent: ["## Thinking:", "reads your thoughts"]
 
 # --- Examples against the active catalogs ---
 

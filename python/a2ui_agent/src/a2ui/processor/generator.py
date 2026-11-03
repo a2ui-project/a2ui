@@ -39,9 +39,9 @@ class A2uiGenerator:
         catalogs: Master list of CatalogConfig objects supported by the agent.
         examples: Optional list of few-shot example turns shared across sessions.
         factory: Default InferenceFormatFactory used when instantiating processors.
-        user_focused_thinking: Whether each processor's prompt snippet ends with
-            a rule asking the model to think about the user's request rather
-            than the format.
+        user_focused_thinking: Whether each processor's prompt snippet starts
+            and ends with a rule asking the model to think about the user's
+            request rather than the format.
     """
 
     def __init__(
@@ -60,10 +60,10 @@ class A2uiGenerator:
             examples: Optional list of prompt example turns.
             inference_format_factory: Optional default InferenceFormatFactory (defaults to ExpressFormatFactory).
             accepts_inline_catalogs: Whether inline catalogs sent in renderer capabilities become active.
-            user_focused_thinking: Whether each processor's prompt snippet ends
-                with a rule asking the model to think about the user's request
-                rather than the format, for an app that shows the model's
-                thinking to the user.
+            user_focused_thinking: Whether each processor's prompt snippet starts
+                and ends with a rule asking the model to think about the
+                user's request rather than the format, for an app that shows
+                the model's thinking to the user.
         """
         self.catalogs = list(catalogs)
         self.examples = (

@@ -1959,7 +1959,7 @@
             "user_focused_thinking": {
               "type": "boolean",
               "default": false,
-              "description": "The generator's `user_focused_thinking` option, which ends the prompt snippet with a rule asking the model to think about the user's request rather than about the format."
+              "description": "The generator's `user_focused_thinking` option, which starts and ends the prompt snippet with a rule asking the model to think about the user's request rather than about the format."
             }
           },
           "required": ["catalogs"],
@@ -1976,6 +1976,10 @@
             },
             "prompt_snippet_contains": {"type": "array", "items": {"type": "string"}},
             "prompt_snippet_absent": {"type": "array", "items": {"type": "string"}},
+            "prompt_snippet_starts_with": {
+              "type": "string",
+              "description": "Text the prompt snippet starts with, for a rule whose place in the snippet is part of the contract."
+            },
             "prompt_snippet_ends_with": {
               "type": "string",
               "description": "Text the prompt snippet ends with, for a rule whose place in the snippet is part of the contract."

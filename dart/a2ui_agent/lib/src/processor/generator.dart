@@ -46,9 +46,9 @@ class A2uiGenerator {
   /// another.
   final InferenceFormatFactory inferenceFormatFactory;
 
-  /// Whether each processor's prompt snippet ends with a rule asking the
-  /// model to think about the user's request rather than the format, for an
-  /// app that shows the model's thinking to the user.
+  /// Whether each processor's prompt snippet starts and ends with a rule
+  /// asking the model to think about the user's request rather than the
+  /// format, for an app that shows the model's thinking to the user.
   ///
   /// See [A2uiRequestProcessor.userFocusedThinking].
   final bool userFocusedThinking;
