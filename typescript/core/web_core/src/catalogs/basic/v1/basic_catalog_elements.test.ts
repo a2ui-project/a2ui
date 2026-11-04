@@ -468,6 +468,136 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     );
   });
 
+  it('renders failed warning and info checks as non-blocking hints on every input', async () => {
+    const warningCheck = {condition: {'@path': '/warning'}};
+    const processor = new MessageProcessor([basicCatalog]);
+    processor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {surfaceId: 's-hints', catalogId: basicCatalog.id},
+      },
+      {
+        version: '1.0',
+        updateDataModel: {
+          surfaceId: 's-hints',
+          value: {
+            warning: {valid: false, message: 'Double-check this value', severity: 'warning'},
+            info: {valid: false, message: 'You can change this later', severity: 'info'},
+          },
+        },
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 's-hints',
+          components: [
+            {
+              id: 'tf_hint',
+              component: 'TextField',
+              label: 'Name',
+              value: 'Ada',
+              checks: [warningCheck],
+            },
+            {
+              id: 'cb_hint',
+              component: 'CheckBox',
+              label: 'Subscribe',
+              value: false,
+              checks: [warningCheck],
+            },
+            {
+              id: 'sl_hint',
+              component: 'Slider',
+              label: 'Score',
+              min: 0,
+              max: 10,
+              value: 5,
+              checks: [warningCheck],
+            },
+            {
+              id: 'cp_hint',
+              component: 'ChoicePicker',
+              label: 'Pick one',
+              options: [{label: 'A', value: 'a'}],
+              value: ['a'],
+              checks: [warningCheck],
+            },
+            {
+              id: 'dt_hint',
+              component: 'DateTimeInput',
+              label: 'Date',
+              value: '2026-01-01',
+              checks: [warningCheck],
+            },
+            {
+              id: 'tf_info',
+              component: 'TextField',
+              label: 'Nickname',
+              value: 'A',
+              checks: [{condition: {'@path': '/info'}}],
+            },
+            {
+              id: 'tf_error_and_warning',
+              component: 'TextField',
+              label: 'Email',
+              value: '',
+              checks: [warningCheck, {condition: {'@call': 'required', args: {value: ''}}}],
+            },
+          ],
+        },
+      },
+    ]);
+    const surface = processor.model.getSurface('s-hints')!;
+
+    const mount = async (tagName: string, componentId: string) => {
+      const el = document.createElement(tagName) as A2uiWebComponentElement;
+      cleanupElements.push(el);
+      document.body.appendChild(el);
+      await asyncUpdate(el, e => {
+        e.context = new ComponentContext(surface, componentId);
+      });
+      return el;
+    };
+
+    const assertHint = (el: HTMLElement, message: string, severity: 'warning' | 'info') => {
+      const hints = el.querySelectorAll('.a2ui-hint-message');
+      assert.strictEqual(hints.length, 1, `${el.tagName} renders one hint`);
+      assert.strictEqual(hints[0].textContent?.trim(), message);
+      assert.ok(hints[0].classList.contains(`a2ui-hint-${severity}`));
+      assert.strictEqual(el.querySelectorAll('.a2ui-error-message').length, 0);
+
+      const control = el.querySelector('[aria-describedby]')!;
+      assert.notStrictEqual(control, null, `${el.tagName} describes its control`);
+      assert.strictEqual(control.hasAttribute('aria-invalid'), false);
+      const describedBy = document.getElementById(control.getAttribute('aria-describedby')!);
+      assert.strictEqual(describedBy?.textContent?.trim(), message);
+    };
+
+    assertHint(
+      await mount('a2ui-basic-textfield', 'tf_hint'),
+      'Double-check this value',
+      'warning',
+    );
+    assertHint(await mount('a2ui-checkbox', 'cb_hint'), 'Double-check this value', 'warning');
+    assertHint(await mount('a2ui-slider', 'sl_hint'), 'Double-check this value', 'warning');
+    assertHint(await mount('a2ui-choicepicker', 'cp_hint'), 'Double-check this value', 'warning');
+    assertHint(await mount('a2ui-datetimeinput', 'dt_hint'), 'Double-check this value', 'warning');
+    assertHint(await mount('a2ui-basic-textfield', 'tf_info'), 'You can change this later', 'info');
+
+    const errorEl = await mount('a2ui-basic-textfield', 'tf_error_and_warning');
+    assert.strictEqual(errorEl.querySelectorAll('.a2ui-hint-message').length, 0);
+    assert.strictEqual(
+      errorEl.querySelector('.a2ui-error-message')?.textContent?.trim(),
+      'This field is required.',
+    );
+    const errorInput = errorEl.querySelector('input')!;
+    assert.strictEqual(errorInput.getAttribute('aria-invalid'), 'true');
+    assert.strictEqual(
+      document.getElementById(errorInput.getAttribute('aria-describedby')!)?.textContent?.trim(),
+      'This field is required.',
+    );
+  });
+
   it('enforces requiresUserActivation on openUrl: blocks passive property binding and allows action invocation', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([

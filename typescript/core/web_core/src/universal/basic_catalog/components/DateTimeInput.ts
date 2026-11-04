@@ -18,9 +18,9 @@ import {html, nothing, css} from 'lit';
 import {
   getAccessibilityDescription,
   getAccessibilityLabel,
-  getValidationErrorId,
+  getValidationMessageId,
   hasAttributeValue,
-  renderValidationErrors,
+  renderValidationMessages,
 } from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {DateTimeInputSupportedApis} from './supported_apis.js';
@@ -85,6 +85,7 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
    * - `--a2ui-datetimeinput-padding`: Controls the padding of inputs.
    * - `--a2ui-datetimeinput-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
    * - `--a2ui-datetimeinput-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
+   * - `--a2ui-datetimeinput-color-warning`: Color of warning hints. Defaults to `light-dark(#8a5300, #f0b44c)`.
    *
    * @nocollapse
    */
@@ -128,6 +129,12 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
     .a2ui-error-message {
       color: var(--a2ui-datetimeinput-color-error, red);
       font-size: var(--a2ui-font-size-xs, 0.75rem);
+    }
+    .a2ui-hint-message {
+      font-size: var(--a2ui-font-size-xs, 0.75rem);
+    }
+    .a2ui-hint-warning {
+      color: var(--a2ui-datetimeinput-color-warning, light-dark(#8a5300, #f0b44c));
     }
   `;
 
@@ -186,7 +193,7 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
     const hasVisibleLabel = hasAttributeValue(props.label);
     const a11yLabel = getAccessibilityLabel(props.accessibility);
     const a11yDescription = getAccessibilityDescription(props.accessibility);
-    const errorId = getValidationErrorId(this.domId, props);
+    const messageId = getValidationMessageId(this.domId, props);
 
     return html`
       <div class="a2ui-date-time-container">
@@ -214,7 +221,7 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
                   aria-label=${a11yLabel}
                   aria-description=${!isCombined ? a11yDescription : nothing}
                   aria-invalid=${isInvalid ? 'true' : nothing}
-                  aria-describedby=${errorId}
+                  aria-describedby=${messageId}
                   .value=${dateValue}
                   @change=${handleDateChange}
                   class="a2ui-date-time-input"
@@ -234,7 +241,7 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
                     : nothing}
                   aria-description=${!isCombined ? a11yDescription : nothing}
                   aria-invalid=${isInvalid ? 'true' : nothing}
-                  aria-describedby=${errorId}
+                  aria-describedby=${messageId}
                   .value=${timeValue}
                   @change=${handleTimeChange}
                   class="a2ui-date-time-input"
@@ -242,7 +249,7 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
               `
             : nothing}
         </div>
-        ${renderValidationErrors(this.domId, props)}
+        ${renderValidationMessages(this.domId, props)}
       </div>
     `;
   }

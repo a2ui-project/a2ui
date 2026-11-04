@@ -38,7 +38,7 @@ describe('BasicCatalogA2uiLitElement', () => {
     setupTestDom();
 
     const {BasicCatalogA2uiLitElement} = await import('./basic-catalog-a2ui-lit-element.js');
-    const {renderValidationErrors} = await import('./accessibility.js');
+    const {renderValidationMessages} = await import('./accessibility.js');
 
     const {css, html} = await import('lit');
 
@@ -77,7 +77,7 @@ describe('BasicCatalogA2uiLitElement', () => {
       override render() {
         return html`
           <div class="inner">${this.controller?.props?.text ?? ''}</div>
-          ${renderValidationErrors(this.domId, this.controller?.props)}
+          ${renderValidationMessages(this.domId, this.controller?.props)}
         `;
       }
     }

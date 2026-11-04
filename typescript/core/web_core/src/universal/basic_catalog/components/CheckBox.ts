@@ -19,8 +19,8 @@ import {classMap} from 'lit/directives/class-map.js';
 import {
   getAccessibilityDescription,
   getAccessibilityLabel,
-  getValidationErrorId,
-  renderValidationErrors,
+  getValidationMessageId,
+  renderValidationMessages,
 } from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {CheckBoxSupportedApis} from './supported_apis.js';
@@ -37,6 +37,7 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<CheckBoxSupp
    * - `--a2ui-checkbox-gap`: Spacing between the checkbox and its label. Defaults to `8px`.
    * - `--a2ui-checkbox-margin`: Outer margin of the component. Defaults to `--a2ui-spacing-m`.
    * - `--a2ui-checkbox-color-error`: Color for invalid state. Defaults to `red`.
+   * - `--a2ui-checkbox-color-warning`: Color of warning hints. Defaults to `light-dark(#8a5300, #f0b44c)`.
    * - `--a2ui-checkbox-label-font-size`: Font size of the label. Defaults to `--a2ui-label-font-size` then `--a2ui-font-size-s`.
    * - `--a2ui-checkbox-label-font-weight`: Font weight of the label. Defaults to `--a2ui-label-font-weight` then `bold`.
    *
@@ -81,6 +82,13 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<CheckBoxSupp
       font-size: var(--a2ui-font-size-xs, 0.75rem);
       margin-top: 4px;
     }
+    .a2ui-hint-message {
+      font-size: var(--a2ui-font-size-xs, 0.75rem);
+      margin-top: 4px;
+    }
+    .a2ui-hint-warning {
+      color: var(--a2ui-checkbox-color-warning, light-dark(#8a5300, #f0b44c));
+    }
   `;
 
   override render() {
@@ -101,12 +109,12 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<CheckBoxSupp
             aria-label=${getAccessibilityLabel(props.accessibility)}
             aria-description=${getAccessibilityDescription(props.accessibility)}
             aria-invalid=${isInvalid ? 'true' : nothing}
-            aria-describedby=${getValidationErrorId(this.domId, props)}
+            aria-describedby=${getValidationMessageId(this.domId, props)}
             @change=${(e: Event) => props.setValue?.((e.target as HTMLInputElement).checked)}
           />
           <span class="a2ui-check-box-text">${props.label}</span>
         </label>
-        ${renderValidationErrors(this.domId, props)}
+        ${renderValidationMessages(this.domId, props)}
       </div>
     `;
   }
