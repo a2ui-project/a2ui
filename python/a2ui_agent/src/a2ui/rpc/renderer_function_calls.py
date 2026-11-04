@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 import logging
 from types import TracebackType
@@ -26,7 +26,7 @@ import uuid
 
 from pydantic import ValidationError
 
-from a2ui.core import A2uiRpcError, RpcErrorCode
+from a2ui.core import A2uiCatalogError, A2uiRpcError, CatalogApi, RpcErrorCode
 from a2ui.core.schema.v1_0 import (
     CallRendererFunction,
     CallRendererFunctionMessage,
@@ -77,6 +77,7 @@ class RendererFunctionCalls:
         *,
         default_timeout: float | None = DEFAULT_RENDERER_CALL_TIMEOUT,
         max_pending: int | None = None,
+        catalogs: Iterable[CatalogApi] | None = None,
     ) -> None:
         """Initializes the call table.
 
@@ -85,9 +86,15 @@ class RendererFunctionCalls:
                 `call` sets another timeout. None waits without a limit.
             max_pending: The most calls that may wait for a response at once.
                 `call` raises beyond it. None, the default, sets no limit.
+            catalogs: The agent's catalogs, such as
+                `A2uiRequestProcessor.active_catalogs`. With them, `call`
+                checks that the function exists and that the agent may call
+                it before anything is registered. None, the default, checks
+                nothing.
 
         Raises:
             ValueError: If `default_timeout` or `max_pending` is not positive.
+            A2uiCatalogError: If two catalogs have the same ID.
         """
         if default_timeout is not None and default_timeout <= 0:
             raise ValueError("default_timeout must be positive or None.")
@@ -95,6 +102,16 @@ class RendererFunctionCalls:
             raise ValueError("max_pending must be at least 1.")
         self._default_timeout = default_timeout
         self._max_pending = max_pending
+        self._catalogs: dict[str, CatalogApi] | None = None
+        if catalogs is not None:
+            self._catalogs = {}
+            for catalog in catalogs:
+                if catalog.catalog_id in self._catalogs:
+                    raise A2uiCatalogError(
+                        f"Duplicate catalog ID: '{catalog.catalog_id}'. Pass each"
+                        " catalog once."
+                    )
+                self._catalogs[catalog.catalog_id] = catalog
         self._pending: dict[str, _PendingCall] = {}
         self._loop: asyncio.AbstractEventLoop | None = None
         self._disposed = False
@@ -146,7 +163,11 @@ class RendererFunctionCalls:
                 ID is already pending (code `DUPLICATE`), `max_pending` calls
                 are pending (code `TOO_MANY_PENDING`), `name` or `catalog_id`
                 is empty, or the message fails the schema (code
-                `INVALID_FUNCTION_CALL`).
+                `INVALID_FUNCTION_CALL`). With `catalogs`, also if
+                `catalog_id` names none of them or that catalog has no
+                function `name` (code `UNKNOWN_FUNCTION`), or the function is
+                `rendererOnly` (also when `allowedCallers` is unset) or
+                requires user activation (code `INVALID_FUNCTION_CALL`).
             RuntimeError: If no event loop is running, or the instance
                 belongs to another loop.
             ValueError: If `timeout` is not positive.
@@ -184,6 +205,7 @@ class RendererFunctionCalls:
                 code=RpcErrorCode.INVALID_FUNCTION_CALL,
                 function_call_id=call_id,
             )
+        self._check_target(catalog_id, name, call_id)
         try:
             # Left unset, not None or empty, without a surface, so that
             # `model_dump(exclude_unset=True)` omits it: the schema types
@@ -321,6 +343,39 @@ class RendererFunctionCalls:
         tb: TracebackType | None,
     ) -> None:
         self.dispose("RendererFunctionCalls was closed.")
+
+    def _check_target(self, catalog_id: str, name: str, call_id: str) -> None:
+        """Checks that the agent may call the function, if catalogs were given."""
+        if self._catalogs is None:
+            return
+        catalog = self._catalogs.get(catalog_id)
+        if catalog is None:
+            raise A2uiRpcError(
+                f"The call to '{name}' names catalog '{catalog_id}', which isn't"
+                " one of the agent's catalogs.",
+                code=RpcErrorCode.UNKNOWN_FUNCTION,
+                function_call_id=call_id,
+            )
+        function = catalog.functions.get(name)
+        if function is None:
+            raise A2uiRpcError(
+                f"Catalog '{catalog_id}' has no function '{name}'.",
+                code=RpcErrorCode.UNKNOWN_FUNCTION,
+                function_call_id=call_id,
+            )
+        if function.allowed_callers in (None, "rendererOnly"):
+            raise A2uiRpcError(
+                f"Function '{name}' is rendererOnly, so the agent may not call it.",
+                code=RpcErrorCode.INVALID_FUNCTION_CALL,
+                function_call_id=call_id,
+            )
+        if function.requires_user_activation:
+            raise A2uiRpcError(
+                f"Function '{name}' requires user activation, and a call from the"
+                " agent has no user gesture.",
+                code=RpcErrorCode.INVALID_FUNCTION_CALL,
+                function_call_id=call_id,
+            )
 
     def _bind_loop(self) -> asyncio.AbstractEventLoop:
         loop = asyncio.get_running_loop()

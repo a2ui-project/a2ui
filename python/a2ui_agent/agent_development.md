@@ -894,7 +894,7 @@ message to send and a future, without waiting:
 ```python
 from a2ui.rpc import RendererFunctionCalls, RendererToAgentMessageProcessor
 
-calls = RendererFunctionCalls()
+calls = RendererFunctionCalls(catalogs=request_processor.active_catalogs)
 processor = RendererToAgentMessageProcessor(
     request_processor.active_catalogs,
     on_renderer_function_response=calls.resolve,
@@ -928,7 +928,22 @@ location = await result  # settled when the processor gets the response
    `async with RendererFunctionCalls() as calls:`.
 6. `max_pending` makes `call` raise instead of letting a looping model pile up
    calls that wait for an answer.
-7. `resolve` returns `True` when the response named a pending call and
+7. `catalogs`, such as `request_processor.active_catalogs`, makes `call` check
+   the target before anything is registered or sent:
+   - a `catalog_id` that names none of the catalogs, or a function that
+     catalog doesn't have, raises `A2uiRpcError` with code
+     `UNKNOWN_FUNCTION`;
+   - a `rendererOnly` function (including one that leaves `allowedCallers`
+     out), which the agent may not call, raises with code
+     `INVALID_FUNCTION_CALL`;
+   - a function that requires user activation raises with code
+     `INVALID_FUNCTION_CALL`, since a call from the agent has no user
+     gesture.
+
+   The arguments aren't checked against the function's schema. Two catalogs
+   with the same ID raise `A2uiCatalogError` when the instance is built.
+
+8. `resolve` returns `True` when the response named a pending call and
    `False` for an unknown, late or duplicate one. As the processor's
    callback, it therefore declines responses it doesn't own, and
    `process_message` reports them as not handled. That matters because the

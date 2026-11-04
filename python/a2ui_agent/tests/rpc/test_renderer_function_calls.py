@@ -23,7 +23,9 @@ from typing import Any
 
 import pytest
 
-from a2ui.core import A2uiRpcError
+from a2ui.core import A2uiCatalogError, A2uiRpcError, AgentFunction, Catalog
+from a2ui.core.catalog import FunctionApi
+from a2ui.core.schema import ProtocolVersion
 from a2ui.core.schema.v1_0 import FunctionResponse, RendererFunctionResponseMessage
 from a2ui.rpc import (
     DEFAULT_RENDERER_CALL_TIMEOUT,
@@ -189,6 +191,130 @@ class TestCall:
             RendererFunctionCalls(default_timeout=0)
         with pytest.raises(ValueError):
             RendererFunctionCalls(max_pending=0)
+
+
+def _device_catalog(catalog_id: str = CATALOG) -> Catalog:
+    def fn(name: str, **kwargs: Any) -> FunctionApi:
+        return FunctionApi(name, return_type="any", schema={"type": "object"}, **kwargs)
+
+    return Catalog(
+        catalog_id,
+        ProtocolVersion.V1_0,
+        functions=[
+            fn("getLocation", allowed_callers="rendererOrAgent"),
+            fn("notify", allowed_callers="agentOnly"),
+            fn("formatLocal", allowed_callers="rendererOnly"),
+            fn("unset", allowed_callers=None),
+            fn(
+                "vibrate",
+                allowed_callers="rendererOrAgent",
+                requires_user_activation=True,
+            ),
+        ],
+    )
+
+
+class TestCatalogChecks:
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("name", ["getLocation", "notify"])
+    async def test_allows_functions_the_agent_may_call(self, name: str) -> None:
+        calls = RendererFunctionCalls(catalogs=[_device_catalog()])
+
+        message, future = calls.call(catalog_id=CATALOG, name=name)
+
+        assert message.call_renderer_function.call_function.call == name
+        assert calls.pending_count == 1
+        future.cancel()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("catalog_id", "name", "code", "text"),
+        [
+            (
+                "https://example.com/other.json",
+                "getLocation",
+                "UNKNOWN_FUNCTION",
+                "isn't one",
+            ),
+            (CATALOG, "getAltitude", "UNKNOWN_FUNCTION", "no function 'getAltitude'"),
+            (CATALOG, "formatLocal", "INVALID_FUNCTION_CALL", "may not call"),
+            (CATALOG, "unset", "INVALID_FUNCTION_CALL", "may not call"),
+            (CATALOG, "vibrate", "INVALID_FUNCTION_CALL", "user gesture"),
+        ],
+        ids=[
+            "unknown-catalog",
+            "unknown-function",
+            "renderer-only",
+            "unset",
+            "activation",
+        ],
+    )
+    async def test_rejects_before_registering(
+        self, catalog_id: str, name: str, code: str, text: str
+    ) -> None:
+        calls = RendererFunctionCalls(catalogs=[_device_catalog()])
+        loop = asyncio.get_running_loop()
+        timers: list[Any] = []
+        call_later = loop.call_later
+
+        def recording_call_later(*args: Any) -> asyncio.TimerHandle:
+            timers.append(args)
+            return call_later(*args)
+
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(loop, "call_later", recording_call_later)
+            with pytest.raises(A2uiRpcError) as excinfo:
+                calls.call(catalog_id=catalog_id, name=name, function_call_id="c1")
+
+        assert excinfo.value.code == code
+        assert text in str(excinfo.value)
+        assert excinfo.value.function_call_id == "c1"
+        assert calls.pending_count == 0
+        assert not calls.is_pending("c1")
+        assert timers == []
+
+    @pytest.mark.asyncio
+    async def test_empty_name_is_checked_first(self) -> None:
+        calls = RendererFunctionCalls(catalogs=[_device_catalog()])
+
+        with pytest.raises(A2uiRpcError, match="needs a function name"):
+            calls.call(catalog_id="https://example.com/other.json", name="")
+
+    @pytest.mark.asyncio
+    async def test_agent_function_with_renderer_only_is_rejected(self) -> None:
+        catalog = _device_catalog().copy_with(
+            agent_functions=[AgentFunction("lookUp", handler=lambda args: 1)]
+        )
+        calls = RendererFunctionCalls(catalogs=[catalog])
+
+        with pytest.raises(A2uiRpcError) as excinfo:
+            calls.call(catalog_id=CATALOG, name="lookUp")
+
+        assert excinfo.value.code == "INVALID_FUNCTION_CALL"
+
+    def test_two_catalogs_with_one_id_are_a_catalog_error(self) -> None:
+        with pytest.raises(A2uiCatalogError, match="Duplicate catalog ID"):
+            RendererFunctionCalls(catalogs=[_device_catalog(), _device_catalog()])
+
+    @pytest.mark.asyncio
+    async def test_without_catalogs_nothing_is_checked(self) -> None:
+        calls = RendererFunctionCalls()
+
+        _, future = calls.call(catalog_id="https://example.com/any.json", name="any")
+
+        assert calls.pending_count == 1
+        future.cancel()
+
+    @pytest.mark.asyncio
+    async def test_reads_an_iterable_once(self) -> None:
+        calls = RendererFunctionCalls(catalogs=iter([_device_catalog()]))
+
+        _, future = calls.call(catalog_id=CATALOG, name="getLocation")
+        _, other = calls.call(catalog_id=CATALOG, name="getLocation")
+
+        future.cancel()
+        other.cancel()
 
 
 class TestResolve:
