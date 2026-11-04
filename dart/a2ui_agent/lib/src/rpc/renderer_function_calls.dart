@@ -103,6 +103,9 @@ class RendererFunctionCalls {
   /// The number of currently pending outbound renderer function calls.
   int get pendingCount => _pending.length;
 
+  /// Whether a call with [functionCallId] is currently awaiting a response.
+  bool isPending(String functionCallId) => _pending.containsKey(functionCallId);
+
   /// Constructs a v1.0 [CallRendererFunctionMessage] and registers a pending
   /// [Future] that resolves when the matching `rendererFunctionResponse`
   /// arrives via [resolve].

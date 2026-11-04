@@ -386,6 +386,43 @@ void main() {
       calls.dispose();
     });
 
+    test('isPending follows call, resolve, timeout and dispose', () {
+      fakeAsync((FakeAsync async) {
+        final calls = RendererFunctionCalls(
+          defaultTimeout: const Duration(milliseconds: 50),
+        );
+        expect(calls.isPending('a'), isFalse);
+        for (final id in ['a', 'b', 'c']) {
+          final (_, Future<Object?> future) = calls.call(
+            catalogId: _catId,
+            name: 'scrollIntoView',
+            functionCallId: id,
+          );
+          future.ignore();
+          expect(calls.isPending(id), isTrue);
+        }
+
+        calls.resolve(_response('a', {'value': 1}));
+        expect(calls.isPending('a'), isFalse);
+        expect(calls.isPending('b'), isTrue);
+
+        async.elapse(const Duration(milliseconds: 60));
+        expect(calls.isPending('b'), isFalse);
+        expect(calls.isPending('c'), isFalse);
+
+        final (_, Future<Object?> d) = calls.call(
+          catalogId: _catId,
+          name: 'scrollIntoView',
+          functionCallId: 'd',
+        );
+        d.ignore();
+        expect(calls.isPending('d'), isTrue);
+        calls.dispose();
+        expect(calls.isPending('d'), isFalse);
+        expect(calls.isPending('unknown'), isFalse);
+      });
+    });
+
     test('resolve tells whether it settled a pending call', () {
       fakeAsync((FakeAsync async) {
         final calls = RendererFunctionCalls(
