@@ -13,8 +13,7 @@
 # limitations under the License.
 
 - name: test_compile_express_minimal_root
-  description: A block that assigns root compiles to one createSurface carrying that
-    component.
+  description: A block that assigns root compiles to one createSurface carrying that component.
   action: compile
   args:
     format: express
@@ -33,8 +32,9 @@
     - F-AGT-21
     - F-AGT-24
 - name: test_compile_express_unicode_identifier
-  description: A variable name that is a UAX 31 Unicode identifier lexes and compiles
-    to a component with that id.
+  description:
+    A variable name that is a UAX 31 Unicode identifier lexes and compiles to a component with
+    that id.
   action: compile
   args:
     format: express
@@ -58,8 +58,7 @@
   features:
     - F-AGT-24
 - name: test_compile_express_nesting_by_variable_reference
-  description: A child named by variable becomes a component id in the parent and
-    a component of its own.
+  description: A child named by variable becomes a component id in the parent and a component of its own.
   action: compile
   args:
     format: express
@@ -82,8 +81,9 @@
   features:
     - F-AGT-21
 - name: test_compile_express_inline_nesting
-  description: A component written inline is hoisted out after its parent and takes
-    an id built from the parent and the property it fills.
+  description:
+    A component written inline is hoisted out after its parent and takes an id built from the
+    parent and the property it fills.
   action: compile
   args:
     format: express
@@ -124,8 +124,7 @@
     - F-AGT-21
     - F-AGT-52
 - name: test_compile_express_placeholder_skips_an_optional_argument
-  description: An underscore leaves the property it stands in for out of the compiled
-    component.
+  description: An underscore leaves the property it stands in for out of the compiled component.
   action: compile
   args:
     format: express
@@ -144,8 +143,7 @@
   features:
     - F-AGT-52
 - name: test_compile_express_raw_string_literal
-  description: A raw string keeps its backslashes, because no escape is processed
-    inside one.
+  description: A raw string keeps its backslashes, because no escape is processed inside one.
   action: compile
   args:
     format: express
@@ -163,8 +161,7 @@
   features:
     - F-AGT-24
 - name: test_compile_express_escapes_in_a_standard_string
-  description: A standard string processes its escapes, which is what tells it apart
-    from a raw one.
+  description: A standard string processes its escapes, which is what tells it apart from a raw one.
   action: compile
   args:
     format: express
@@ -181,9 +178,10 @@
             text: "Line 1
 
               Line 2"
+  features: &id001
+    - F-AGT-08
 - name: test_compile_express_array_of_children
-  description: An array maps to the child list slot and holds the ids of the components
-    it names.
+  description: An array maps to the child list slot and holds the ids of the components it names.
   action: compile
   args:
     format: express
@@ -210,9 +208,11 @@
           - id: farewell
             component: Text
             text: Goodbye
+  features: *id001
 - name: test_compile_express_template_children
-  description: The _template helper fills the child list with the catalog's template
-    shape, and the template component reads relative paths.
+  description:
+    The _template helper fills the child list with the catalog's template shape, and the template
+    component reads relative paths.
   action: compile
   args:
     format: express
@@ -235,9 +235,9 @@
             component: Text
             text:
               "@path": label
+  features: *id001
 - name: test_compile_express_absolute_data_binding_path
-  description: A path argument binds the property to the data model rather than setting
-    a literal.
+  description: A path argument binds the property to the data model rather than setting a literal.
   action: compile
   args:
     format: express
@@ -253,9 +253,11 @@
             component: Text
             text:
               "@path": /user/name
+  features: *id001
 - name: test_compile_express_nested_function_call
-  description: A catalog function called in a property slot compiles to that function
-    call, which is how text is interpolated.
+  description:
+    A catalog function called in a property slot compiles to that function call, which is how
+    text is interpolated.
   action: compile
   args:
     format: express
@@ -276,8 +278,9 @@
   features:
     - F-AGT-53
 - name: test_compile_express_validation_expression
-  description: A check expression compiles to a check rule whose condition calls the
-    named function on the component's own value, with a trailing string as its message.
+  description:
+    A check expression compiles to a check rule whose condition calls the named function on
+    the component's own value, with a trailing string as its message.
   action: compile
   args:
     format: express
@@ -301,10 +304,11 @@
                     value:
                       "@path": /email
                 message: Email is required
+  features: *id001
 - name: test_compile_express_validation_expression_with_an_argument
-  description: A check expression passes the component's own value first and the written
-    arguments after it, so a trailing string is the message rather than the last declared
-    argument.
+  description:
+    A check expression passes the component's own value first and the written arguments after
+    it, so a trailing string is the message rather than the last declared argument.
   action: compile
   args:
     format: express
@@ -329,6 +333,7 @@
                       "@path": /zip
                     pattern: ^[0-9]{5}$
                 message: Must be five digits
+  features: *id001
 - name: test_compile_express_event_action
   description: An Event compiles to the action shape the catalog declares.
   action: compile
@@ -381,9 +386,11 @@
           - id: label
             component: Text
             text: Submit
+  features: *id001
 - name: test_compile_express_event_user_message
-  description: A userMessage keyword argument on an Event compiles to the v1.0 event.userMessage
-    field beside the name.
+  description:
+    A userMessage keyword argument on an Event compiles to the v1.0 event.userMessage field
+    beside the name.
   action: compile
   args:
     format: express
@@ -407,9 +414,9 @@
           - id: label
             component: Text
             text: Reply
+  features: *id001
 - name: test_compile_express_event_user_message_binding_with_context
-  description: A userMessage given as a data binding compiles to a path beside a positional
-    context map.
+  description: A userMessage given as a data binding compiles to a path beside a positional context map.
   action: compile
   args:
     format: express
@@ -436,16 +443,17 @@
           - id: label
             component: Text
             text: Reply
+  features: *id001
 - name: test_compile_express_event_user_message_function_call
-  description: A userMessage given as a function call compiles to a function call,
-    since the v1.0 field is a DynamicString, which a string, a data binding or a function
-    call satisfies.
+  description:
+    A userMessage given as a function call compiles to a function call, since the v1.0 field
+    is a DynamicString, which a string, a data binding or a function call satisfies.
   action: compile
   args:
     format: express
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
-  input: 'root = Button(label, Event("reply", userMessage=formatString("Replying to
-    ${/thread/title}")))
+  input:
+    'root = Button(label, Event("reply", userMessage=formatString("Replying to ${/thread/title}")))
 
     label = Text("Reply")'
   expect:
@@ -467,9 +475,11 @@
           - id: label
             component: Text
             text: Reply
+  features: *id001
 - name: test_compile_express_event_user_message_that_is_not_a_dynamic_string_is_a_validation_error
-  description: A userMessage that is none of a string, a data binding or a function
-    call, such as a number or a map literal, is a validation error.
+  description:
+    A userMessage that is none of a string, a data binding or a function call, such as a number
+    or a map literal, is a validation error.
   action: compile
   args:
     format: express
@@ -479,6 +489,7 @@
     label = Text("Reply")'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_event_context_keyword
   description: The context map of an Event can be given by keyword as well as positionally.
   action: compile
@@ -505,10 +516,11 @@
           - id: label
             component: Text
             text: Submit
+  features: *id001
 - name: test_compile_express_event_context_keeps_a_function_call_a_plain_call
-  description: The entries of an Event's context are DynamicValues, not actions, so
-    a function call among them compiles to a plain function call even though the Event
-    itself sits in an action slot.
+  description:
+    The entries of an Event's context are DynamicValues, not actions, so a function call among
+    them compiles to a plain function call even though the Event itself sits in an action slot.
   action: compile
   args:
     format: express
@@ -536,9 +548,11 @@
           - id: label
             component: Text
             text: Go
+  features: *id001
 - name: test_compile_express_event_unknown_keyword_is_a_validation_error
-  description: A keyword argument that Event does not define is a validation error
-    rather than being dropped from the compiled action.
+  description:
+    A keyword argument that Event does not define is a validation error rather than being dropped
+    from the compiled action.
   action: compile
   args:
     format: express
@@ -548,9 +562,9 @@
     label = Text("Reply")'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_event_duplicate_context_is_a_validation_error
-  description: Giving the Event context both positionally and by keyword is a validation
-    error.
+  description: Giving the Event context both positionally and by keyword is a validation error.
   action: compile
   args:
     format: express
@@ -560,27 +574,31 @@
     label = Text("Submit")'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_event_user_message_before_v1_is_a_validation_error
-  description: Before v1.0 the protocol's Action has no userMessage field, so an Event
-    carrying one is a validation error instead of a silently dropped argument.
+  description:
+    Before v1.0 the protocol's Action has no userMessage field, so an Event carrying one is
+    a validation error instead of a silently dropped argument.
   action: compile
   args:
     format: express
     catalog: test_data/catalogs/list_item_action_catalog_v09.json
-  input: 'root = Links([{label: "Reply", action: Event("reply", userMessage="Replying
-    now")}])'
+  input: 'root = Links([{label: "Reply", action: Event("reply", userMessage="Replying now")}])'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_function_call_in_list_item_action_slot
-  description: A function call in an action slot nested inside a list item compiles
-    to a functionCall action, the same as in a top-level action property, rather than
-    to a bare function call the processor rejects.
+  description:
+    A function call in an action slot nested inside a list item compiles to a functionCall
+    action, the same as in a top-level action property, rather than to a bare function call the processor
+    rejects.
   action: compile
   args:
     format: express
     catalog: test_data/catalogs/list_item_action_catalog_v1_0.json
-  input: 'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}, {label:
-    "Go", action: Event("go")}], primary=openUrl("https://a2ui.org/start"))'
+  input:
+    'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}, {label: "Go", action: Event("go")}],
+    primary=openUrl("https://a2ui.org/start"))'
   expect:
     - version: "1.0"
       createSurface:
@@ -605,9 +623,11 @@
                 "@call": openUrl
                 args:
                   url: https://a2ui.org/start
+  features: *id001
 - name: test_compile_express_function_call_in_list_item_action_slot_through_variable
-  description: The nested action slot is found when the list item is reached through
-    a variable, since the variable's value is compiled against the slot's schema.
+  description:
+    The nested action slot is found when the list item is reached through a variable, since
+    the variable's value is compiled against the slot's schema.
   action: compile
   args:
     format: express
@@ -630,9 +650,9 @@
                     "@call": openUrl
                     args:
                       url: https://a2ui.org
+  features: *id001
 - name: test_compile_express_data_model_assignment
-  description: A data path assignment beside a root fills the surface's initial data
-    model.
+  description: A data path assignment beside a root fills the surface's initial data model.
   action: compile
   args:
     format: express
@@ -655,9 +675,9 @@
   features:
     - F-AGT-23
 - name: test_compile_express_data_model_only_block
-  description: A block of nothing but data path assignments updates each assigned
-    path in the data model rather than creating a surface or replacing the root data
-    model.
+  description:
+    A block of nothing but data path assignments updates each assigned path in the data model
+    rather than creating a surface or replacing the root data model.
   action: compile
   args:
     format: express
@@ -679,8 +699,9 @@
   features:
     - F-AGT-23
 - name: test_compile_express_root_data_model_replacement
-  description: Assigning a map literal directly to $/ in a non-create block emits
-    an updateDataModel targeting path "/" to replace the entire root data model.
+  description:
+    Assigning a map literal directly to $/ in a non-create block emits an updateDataModel targeting
+    path "/" to replace the entire root data model.
   action: compile
   args:
     format: express
@@ -697,9 +718,9 @@
   features:
     - F-AGT-23
 - name: test_compile_express_data_model_update_array_element_paths
-  description: A non-create scope with multiple data path assignments, including an
-    array element sub-path, emits one updateDataModel per assigned path in statement
-    order.
+  description:
+    A non-create scope with multiple data path assignments, including an array element sub-path,
+    emits one updateDataModel per assigned path in statement order.
   action: compile
   args:
     format: express
@@ -723,9 +744,9 @@
   features:
     - F-AGT-23
 - name: test_compile_express_create_surface_array_override_in_scope
-  description: In a createSurface scope, assigning a sub-path under an already-assigned
-    array mutates that array element in place rather than overwriting the array with
-    a map.
+  description:
+    In a createSurface scope, assigning a sub-path under an already-assigned array mutates
+    that array element in place rather than overwriting the array with a map.
   action: compile
   args:
     format: express
@@ -754,8 +775,9 @@
   features:
     - F-AGT-51
 - name: test_compile_express_create_surface_numeric_path_autovivifies_list
-  description: In a createSurface scope, a numeric segment in a data path assignment
-    auto-vivifies a list when the parent key is not yet defined.
+  description:
+    In a createSurface scope, a numeric segment in a data path assignment auto-vivifies a list
+    when the parent key is not yet defined.
   action: compile
   args:
     format: express
@@ -779,8 +801,7 @@
   features:
     - F-AGT-51
 - name: test_compile_express_surface_targeting
-  description: A surface line names the surface the block is for, in place of the
-    default id.
+  description: A surface line names the surface the block is for, in place of the default id.
   action: compile
   args:
     format: express
@@ -800,8 +821,9 @@
   features:
     - F-AGT-51
 - name: test_compile_express_surface_targeting_names_a_catalog
-  description: With multiple active catalogs, a component resolves against the catalog
-    that defines it and carries its catalogId while createSurface omits catalogId.
+  description:
+    With multiple active catalogs, a component resolves against the catalog that defines it
+    and carries its catalogId while createSurface omits catalogId.
   action: compile
   args:
     format: express
@@ -833,9 +855,11 @@
     - version: "1.0"
       deleteSurface:
         surfaceId: dashboard
+  features: *id001
 - name: test_compile_express_delete_surface_with_a_keyword_argument
-  description: The lifecycle commands take keyword arguments like any other call,
-    since the grammar admits a named argument anywhere a positional one is admitted.
+  description:
+    The lifecycle commands take keyword arguments like any other call, since the grammar admits
+    a named argument anywhere a positional one is admitted.
   action: compile
   args:
     format: express
@@ -845,10 +869,12 @@
     - version: "1.0"
       deleteSurface:
         surfaceId: dashboard
+  features: *id001
 - name: test_compile_express_two_surfaces_in_one_block
-  description: A second surface line starts a second surface rather than retargeting
-    the first, so one block can open two. Each surface has its own root, which is
-    why the same variable name appears twice without collision.
+  description:
+    A second surface line starts a second surface rather than retargeting the first, so one
+    block can open two. Each surface has its own root, which is why the same variable name appears twice
+    without collision.
   action: compile
   args:
     format: express
@@ -877,12 +903,13 @@
           - id: root
             component: Text
             text: Two
+  features: *id001
 - name: test_compile_express_standalone_function_call
-  description: A call written as a statement of its own asks the renderer to run a
-    function, and compiles to callRendererFunction with the surface's catalog on the
-    call. The function must be one the agent may call, which agent_functions_catalog_v1_0.json
-    declares. The Express proposal shows this message with functionCallId and callFunction
-    at the top level, which the v1.0 envelope rejects.
+  description:
+    A call written as a statement of its own asks the renderer to run a function, and compiles
+    to callRendererFunction with the surface's catalog on the call. The function must be one the agent
+    may call, which agent_functions_catalog_v1_0.json declares. The Express proposal shows this message
+    with functionCallId and callFunction at the top level, which the v1.0 envelope rejects.
   action: compile
   args:
     format: express
@@ -900,9 +927,9 @@
   features:
     - F-AGT-53
 - name: test_compile_express_function_call_action
-  description: A function call in an action slot is the local branch of Action, which
-    is how a control does something in the renderer rather than send the agent an
-    event.
+  description:
+    A function call in an action slot is the local branch of Action, which is how a control
+    does something in the renderer rather than send the agent an event.
   action: compile
   args:
     format: express
@@ -930,10 +957,10 @@
   features:
     - F-AGT-53
 - name: test_compile_express_map_variable_is_inlined_where_it_is_used
-  description: A variable holding a map is substituted where it is named and emits
-    no component of its own, which is what tells it apart from a variable holding
-    a component. A compiler that treated every assignment as a component would emit
-    a component named ctx.
+  description:
+    A variable holding a map is substituted where it is named and emits no component of its
+    own, which is what tells it apart from a variable holding a component. A compiler that treated every
+    assignment as a component would emit a component named ctx.
   action: compile
   args:
     format: express
@@ -960,10 +987,11 @@
           - id: label
             component: Text
             text: Submit
+  features: *id001
 - name: test_compile_express_event_variable_is_inlined_at_each_use
-  description: An Event held in a variable is substituted at every use, so two controls
-    can share one action without either of them referring to a component that does
-    not exist.
+  description:
+    An Event held in a variable is substituted at every use, so two controls can share one
+    action without either of them referring to a component that does not exist.
   action: compile
   args:
     format: express
@@ -1008,9 +1036,11 @@
           - id: sendLabel
             component: Text
             text: Send
+  features: *id001
 - name: test_compile_express_trailing_optional_arguments_may_be_omitted
-  description: An argument list may simply stop once the required properties are filled,
-    without an underscore for each property left behind.
+  description:
+    An argument list may simply stop once the required properties are filled, without an underscore
+    for each property left behind.
   action: compile
   args:
     format: express
@@ -1025,10 +1055,11 @@
           - id: root
             component: TextField
             label: Email
+  features: *id001
 - name: test_compile_express_string_containing_an_equals_sign
-  description: An equals sign inside a string is content rather than an assignment
-    or a keyword argument, which a compiler splitting the line on the character before
-    tokenizing would get wrong.
+  description:
+    An equals sign inside a string is content rather than an assignment or a keyword argument,
+    which a compiler splitting the line on the character before tokenizing would get wrong.
   action: compile
   args:
     format: express
@@ -1043,16 +1074,19 @@
           - id: root
             component: Text
             text: width=100
+  features: *id001
 - name: test_compile_express_comments_are_ignored
-  description: The grammar skips all three comment forms, so a model that annotates
-    what it is building compiles to the same messages as one that does not.
+  description:
+    The grammar skips all three comment forms, so a model that annotates what it is building
+    compiles to the same messages as one that does not.
   action: compile
   args:
     format: express
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
-  input: "# The greeting the user asked for.\n-- SQL-style single-line comment.\n\
-    root = Text(\"Hello\")  // the only component\n/* Nothing follows, but a block\n\
-    \   comment spanning lines still ends the block cleanly. */"
+  input:
+    "# The greeting the user asked for.\n-- SQL-style single-line comment.\nroot = Text(\"Hello\"\
+    )  // the only component\n/* Nothing follows, but a block\n   comment spanning lines still ends the\
+    \ block cleanly. */"
   expect:
     - version: "1.0"
       createSurface:
@@ -1065,8 +1099,9 @@
   features:
     - F-AGT-24
 - name: test_compile_express_semicolons_and_trailing_commas
-  description: Semicolons are skipped like whitespace, so several statements may share
-    a line, and a trailing comma closes an array without adding an element to it.
+  description:
+    Semicolons are skipped like whitespace, so several statements may share a line, and a trailing
+    comma closes an array without adding an element to it.
   action: compile
   args:
     format: express
@@ -1092,9 +1127,10 @@
   features:
     - F-AGT-24
 - name: test_compile_express_statement_spans_several_lines
-  description: A newline is whitespace rather than a statement terminator, so an argument
-    list may be broken across lines. A model emitting a long component list will wrap
-    it, and a line-based compiler would see each fragment as a statement of its own.
+  description:
+    A newline is whitespace rather than a statement terminator, so an argument list may be
+    broken across lines. A model emitting a long component list will wrap it, and a line-based compiler
+    would see each fragment as a statement of its own.
   action: compile
   args:
     format: express
@@ -1112,10 +1148,12 @@
           - id: body
             component: Text
             text: Hello
+  features: *id001
 - name: test_compile_express_bare_path_is_the_whole_bound_value
-  description: A path of no characters is the value the component is bound to rather
-    than a missing path, which inside a template child is the item being rendered.
-    This is the only way to template over a list of plain strings.
+  description:
+    A path of no characters is the value the component is bound to rather than a missing path,
+    which inside a template child is the item being rendered. This is the only way to template over a
+    list of plain strings.
   action: compile
   args:
     format: express
@@ -1138,16 +1176,18 @@
             component: Text
             text:
               "@path": ""
+  features: *id001
 - name: test_compile_express_several_checks_in_one_list
-  description: A check list holds more than one rule, each compiled against the component's
-    own bound value. The single-rule cases above would also pass an implementation
-    that kept only the first.
+  description:
+    A check list holds more than one rule, each compiled against the component's own bound
+    value. The single-rule cases above would also pass an implementation that kept only the first.
   action: compile
   args:
     format: express
     catalog: test_data/catalogs/forms_catalog_v1_0.json
-  input: root = TextField("Zip", $/zip, _, [?required("Zip is required"), ?regex(r"^[0-9]{5}$",
-    "Must be five digits")])
+  input:
+    root = TextField("Zip", $/zip, _, [?required("Zip is required"), ?regex(r"^[0-9]{5}$", "Must
+    be five digits")])
   expect:
     - version: "1.0"
       createSurface:
@@ -1173,11 +1213,12 @@
                       "@path": /zip
                     pattern: ^[0-9]{5}$
                 message: Must be five digits
+  features: *id001
 - name: test_compile_express_check_without_a_message_still_carries_one
-  description: A check may be written bare, without parentheses. The protocol leaves
-    CheckRule.message optional, but a renderer given no message has nothing to show,
-    so the format supplies one; what it says is the implementation's business and
-    is not compared.
+  description:
+    A check may be written bare, without parentheses. The protocol leaves CheckRule.message
+    optional, but a renderer given no message has nothing to show, so the format supplies one; what it
+    says is the implementation's business and is not compared.
   action: compile
   args:
     format: express
@@ -1202,9 +1243,9 @@
                       "@path": /email
   expect_present:
     - /0/createSurface/components/0/checks/0/message
+  features: *id001
 - name: test_compile_express_empty_block_is_a_parse_error
-  description: A block with no statements is a parse error rather than an empty message
-    list.
+  description: A block with no statements is a parse error rather than an empty message list.
   action: compile
   args:
     format: express
@@ -1212,6 +1253,7 @@
   input: ""
   expect_error:
     category: ParseError
+  features: *id001
 - name: test_compile_express_syntax_error_is_a_parse_error
   description: A statement the grammar cannot read is a parse error.
   action: compile
@@ -1224,8 +1266,9 @@
   features:
     - F-AGT-24
 - name: test_compile_express_unknown_component_is_a_validation_error
-  description: A block that parses but names a component the catalog does not declare
-    is a validation error.
+  description:
+    A block that parses but names a component the catalog does not declare is a validation
+    error.
   action: compile
   args:
     format: express
@@ -1236,8 +1279,7 @@
   features:
     - F-AGT-63
 - name: test_compile_express_undeclared_property_is_a_validation_error
-  description: A keyword argument naming a property the component does not declare
-    is a validation error.
+  description: A keyword argument naming a property the component does not declare is a validation error.
   action: compile
   args:
     format: express
@@ -1248,10 +1290,10 @@
   features:
     - F-AGT-63
 - name: test_compile_express_missing_required_property_is_a_validation_error
-  description: A component left without a property its catalog requires is a validation
-    error. Nothing in the notation marks an argument list as short, so an implementation
-    that only checked the arguments it was given would emit the invalid component
-    instead.
+  description:
+    A component left without a property its catalog requires is a validation error. Nothing
+    in the notation marks an argument list as short, so an implementation that only checked the arguments
+    it was given would emit the invalid component instead.
   action: compile
   args:
     format: express
@@ -1264,9 +1306,10 @@
   features:
     - F-AGT-63
 - name: test_compile_express_value_outside_an_enum_is_a_validation_error
-  description: A value the property's enum does not list is a validation error rather
-    than a string passed through, which is the case that tells whether an implementation
-    validates against the property schema or only against the property name.
+  description:
+    A value the property's enum does not list is a validation error rather than a string passed
+    through, which is the case that tells whether an implementation validates against the property schema
+    or only against the property name.
   action: compile
   args:
     format: express
@@ -1274,10 +1317,12 @@
   input: root = Text("Hello", variant="headline")
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_binding_a_static_property_is_a_validation_error
-  description: A path given to a property with a static type, such as a plain number,
-    is a validation error, because a renderer reading that property will not resolve
-    it. Only a dynamic type, such as DynamicString or DynamicNumber, admits a binding.
+  description:
+    A path given to a property with a static type, such as a plain number, is a validation
+    error, because a renderer reading that property will not resolve it. Only a dynamic type, such as
+    DynamicString or DynamicNumber, admits a binding.
   action: compile
   args:
     format: express
@@ -1285,10 +1330,12 @@
   input: root = Gauge($/value)
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_unknown_function_is_a_validation_error
-  description: A call the catalog does not declare is a validation error, on the same
-    footing as a component it does not declare. A compiler that fell back to emitting
-    the call verbatim would hand the renderer something it cannot run.
+  description:
+    A call the catalog does not declare is a validation error, on the same footing as a component
+    it does not declare. A compiler that fell back to emitting the call verbatim would hand the renderer
+    something it cannot run.
   action: compile
   args:
     format: express
@@ -1299,8 +1346,9 @@
   features:
     - F-AGT-63
 - name: test_compile_express_empty_argument_is_a_parse_error
-  description: A comma with no expression before it is a parse error. The grammar
-    admits a trailing comma only after an argument, so the two cannot be confused.
+  description:
+    A comma with no expression before it is a parse error. The grammar admits a trailing comma
+    only after an argument, so the two cannot be confused.
   action: compile
   args:
     format: express
@@ -1308,9 +1356,11 @@
   input: root = TextField(,)
   expect_error:
     category: ParseError
+  features: *id001
 - name: test_compile_express_unexpected_character_is_a_parse_error
-  description: A character no lexer rule admits is a parse error, and is reported
-    as one rather than escaping as an internal failure from the tokenizer.
+  description:
+    A character no lexer rule admits is a parse error, and is reported as one rather than escaping
+    as an internal failure from the tokenizer.
   action: compile
   args:
     format: express
@@ -1318,11 +1368,12 @@
   input: root = @Text("Hello")
   expect_error:
     category: ParseError
+  features: *id001
 - name: test_compile_express_template_without_a_component_is_a_parse_error
-  description: The template helper takes a path and a component, and a call missing
-    the second is a parse error. It reads as a well-formed call, so an implementation
-    checking only the grammar would accept it and emit a child list with no component
-    to render.
+  description:
+    The template helper takes a path and a component, and a call missing the second is a parse
+    error. It reads as a well-formed call, so an implementation checking only the grammar would accept
+    it and emit a child list with no component to render.
   action: compile
   args:
     format: express
@@ -1330,10 +1381,11 @@
   input: root = Column(_template($/items))
   expect_error:
     category: ParseError
+  features: *id001
 - name: test_compile_express_list_of_numbers
-  description: An array of plain numbers passed to a numeric list property compiles
-    to a JSON array of numbers, whereas every other array case in this suite holds
-    child component references or inline components.
+  description:
+    An array of plain numbers passed to a numeric list property compiles to a JSON array of
+    numbers, whereas every other array case in this suite holds child component references or inline components.
   action: compile
   args:
     format: express
@@ -1352,10 +1404,12 @@
               - 20
               - 30
             caption: Sales
+  features: *id001
 - name: test_compile_express_number_with_exponent
-  description: A number written with an exponent compiles to the double it names.
-    The grammar admits the exponent, so a compiler that read only digits and a dot
-    would reject text a model copies straight out of JSON.
+  description:
+    A number written with an exponent compiles to the double it names. The grammar admits the
+    exponent, so a compiler that read only digits and a dot would reject text a model copies straight
+    out of JSON.
   action: compile
   args:
     format: express
@@ -1370,12 +1424,13 @@
           - id: root
             component: Gauge
             value: 2.5e-07
+  features: *id001
 - name: test_compile_express_number_forms_match_json
-  description: Every spelling the number grammar admits compiles to the same value
-    JSON would give it, including a leading dot, a trailing dot, an explicit plus
-    sign and an upper-case exponent. An implementation that converted the token with
-    a narrower reader than its JSON parser would disagree with the other SDKs on one
-    of these.
+  description:
+    Every spelling the number grammar admits compiles to the same value JSON would give it,
+    including a leading dot, a trailing dot, an explicit plus sign and an upper-case exponent. An implementation
+    that converted the token with a narrower reader than its JSON parser would disagree with the other
+    SDKs on one of these.
   action: compile
   args:
     format: express
@@ -1397,10 +1452,11 @@
               - 3
               - 1
             caption: Mixed
+  features: *id001
 - name: test_compile_express_integers_exact_to_2_pow_53
-  description: Integers up to ±(2^53−1) compile exactly in every SDK, since that is
-    the largest magnitude a double represents without loss. Larger integers are not
-    portable and are left unpinned.
+  description:
+    Integers up to ±(2^53−1) compile exactly in every SDK, since that is the largest magnitude
+    a double represents without loss. Larger integers are not portable and are left unpinned.
   action: compile
   args:
     format: express
@@ -1418,11 +1474,12 @@
               - 9007199254740991
               - -9007199254740991
             caption: Limits
+  features: *id001
 - name: test_compile_express_number_out_of_range_is_a_parse_error
-  description: A literal the grammar admits but no double can hold is a parse error.
-    Every SDK's number reader turns it into infinity, which no message can carry,
-    so the compiler rejects the text rather than emit a value the renderer cannot
-    read.
+  description:
+    A literal the grammar admits but no double can hold is a parse error. Every SDK's number
+    reader turns it into infinity, which no message can carry, so the compiler rejects the text rather
+    than emit a value the renderer cannot read.
   action: compile
   args:
     format: express
@@ -1430,10 +1487,11 @@
   input: root = Gauge(1e999)
   expect_error:
     category: ParseError
+  features: *id001
 - name: test_compile_express_exponent_without_digits_is_a_parse_error
-  description: An exponent marker with no digits after it is a parse error. The lexer
-    reads `1e` as the number `1` followed by the identifier `e`, and the parser rejects
-    the leftover inside a call argument.
+  description:
+    An exponent marker with no digits after it is a parse error. The lexer reads `1e` as the
+    number `1` followed by the identifier `e`, and the parser rejects the leftover inside a call argument.
   action: compile
   args:
     format: express
@@ -1441,10 +1499,12 @@
   input: root = Gauge(1e)
   expect_error:
     category: ParseError
+  features: *id001
 - name: test_compile_express_inline_id_collision_is_a_validation_error
-  description: An inline child component takes the synthesized id <parent>_<property>,
-    so a block that also assigns a variable of that name collides on the component
-    id and fails validation rather than silently overwriting one of the two.
+  description:
+    An inline child component takes the synthesized id <parent>_<property>, so a block that
+    also assigns a variable of that name collides on the component id and fails validation rather than
+    silently overwriting one of the two.
   action: compile
   args:
     format: express
@@ -1454,10 +1514,11 @@
     root = Card(Text("c1"))'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_inline_array_id_collision_is_a_validation_error
-  description: An inline child inside an array takes the synthesized id <parent>_<property>_<index>
-    (1-based), so a block that also assigns a variable of that name collides on the
-    component id and fails validation.
+  description:
+    An inline child inside an array takes the synthesized id <parent>_<property>_<index> (1-based),
+    so a block that also assigns a variable of that name collides on the component id and fails validation.
   action: compile
   args:
     format: express
@@ -1467,9 +1528,11 @@
     root = Column([Text("a"), Text("b")])'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_checks_on_uncheckable_component_is_a_validation_error
-  description: Passing a check list ([?...]) to a component whose catalog schema does
-    not declare a checks property is a validation error.
+  description:
+    Passing a check list ([?...]) to a component whose catalog schema does not declare a checks
+    property is a validation error.
   action: compile
   args:
     format: express
@@ -1477,10 +1540,12 @@
   input: root = Text("hi", [?required])
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_check_with_value_on_uncheckable_component_is_a_validation_error
-  description: A check that names the value it checks, passed to a component whose
-    catalog schema does not declare a checks property, is a validation error. The
-    check is complete, so the missing checks property is the only error.
+  description:
+    A check that names the value it checks, passed to a component whose catalog schema does
+    not declare a checks property, is a validation error. The check is complete, so the missing checks
+    property is the only error.
   action: compile
   args:
     format: express
@@ -1488,9 +1553,11 @@
   input: root = Text("hi", [?required($/name)])
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_components_without_root_is_update_components
-  description: A block that assigns components without defining root compiles to an
-    updateComponents message for an existing surface rather than createSurface.
+  description:
+    A block that assigns components without defining root compiles to an updateComponents message
+    for an existing surface rather than createSurface.
   action: compile
   args:
     format: express
@@ -1504,9 +1571,11 @@
           - id: some_var
             component: Text
             text: Hi
+  features: *id001
 - name: test_compile_express_duplicate_property_is_a_validation_error
-  description: Supplying a component property both positionally and by keyword argument
-    in the same call is a validation error rather than letting one overwrite the other.
+  description:
+    Supplying a component property both positionally and by keyword argument in the same call
+    is a validation error rather than letting one overwrite the other.
   action: compile
   args:
     format: express
@@ -1514,9 +1583,11 @@
   input: root = Text("hi", text="duplicate")
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_undeclared_function_parameter_is_a_validation_error
-  description: A keyword argument on a function call naming a parameter the catalog
-    function does not declare is a validation error.
+  description:
+    A keyword argument on a function call naming a parameter the catalog function does not
+    declare is a validation error.
   action: compile
   args:
     format: express
@@ -1524,9 +1595,11 @@
   input: root = Button(Text("hi"), action=openUrl("https://example.com", badArg=1))
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_duplicate_function_parameter_is_a_validation_error
-  description: Supplying a function parameter both positionally and by keyword argument
-    in the same call is a validation error.
+  description:
+    Supplying a function parameter both positionally and by keyword argument in the same call
+    is a validation error.
   action: compile
   args:
     format: express
@@ -1534,9 +1607,11 @@
   input: root = Button(Text("hi"), action=openUrl("https://example.com", url="https://other.com"))
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_component_outside_pinned_surface_catalog_is_a_validation_error
-  description: When surface(...) explicitly pins a catalogId, referencing a component
-    that belongs to a different active catalog is a validation error.
+  description:
+    When surface(...) explicitly pins a catalogId, referencing a component that belongs to
+    a different active catalog is a validation error.
   action: compile
   args:
     format: express
@@ -1548,9 +1623,11 @@
     root = Gauge(30)'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_surface_targeting_unknown_catalog_is_a_validation_error
-  description: A surface(...) declaration naming a catalogId that is not among the
-    active catalogs is a validation error.
+  description:
+    A surface(...) declaration naming a catalogId that is not among the active catalogs is
+    a validation error.
   action: compile
   args:
     format: express
@@ -1560,10 +1637,11 @@
     root = Text("hi")'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_non_identifier_id_from_v1_0_is_a_validation_error
-  description: From v1.0, component IDs must be valid UAX 31 identifiers, so setting
-    id="..." to a non-identifier string is rejected with a validation error at compile
-    time.
+  description:
+    From v1.0, component IDs must be valid UAX 31 identifiers, so setting id="..." to a non-identifier
+    string is rejected with a validation error at compile time.
   action: compile
   args:
     format: express
@@ -1571,9 +1649,11 @@
   input: root = Column([t]); t = Text("x", id="main-title")
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_sql_style_comment_and_edge_newlines_repaired
-  description: A SQL-style -- comment outside strings is ignored and raw line breaks
-    at the edges of a standard string literal are stripped.
+  description:
+    A SQL-style -- comment outside strings is ignored and raw line breaks at the edges of a
+    standard string literal are stripped.
   action: compile
   args:
     format: express
@@ -1594,15 +1674,16 @@
           - id: root
             component: Text
             text: Hello -- world
+  features: *id001
 - name: test_compile_express_split_identifier_and_split_path_repaired
-  description: An identifier or data binding path broken across a line outside string
-    literals is joined when the joined identifier resolves to a declared variable.
+  description:
+    An identifier or data binding path broken across a line outside string literals is joined
+    when the joined identifier resolves to a declared variable.
   action: compile
   args:
     format: express
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
-  input: "greeting_\nlabel = Text($/user/\nname)\nroot = Card(\n  greeting_\n  label\n\
-    )"
+  input: "greeting_\nlabel = Text($/user/\nname)\nroot = Card(\n  greeting_\n  label\n)"
   expect:
     - version: "1.0"
       createSurface:
@@ -1616,9 +1697,11 @@
           - id: root
             component: Card
             child: greeting_label
+  features: *id001
 - name: test_compile_express_triple_quoted_strings_not_corrupted_by_line_joins
-  description: Triple-quoted strings containing newlines, commas, parentheses, assignments,
-    and $/ paths are kept verbatim without line-join rewrites.
+  description:
+    Triple-quoted strings containing newlines, commas, parentheses, assignments, and $/ paths
+    are kept verbatim without line-join rewrites.
   action: compile
   args:
     format: express
@@ -1667,9 +1750,11 @@
               - c1
               - c2
               - c3
+  features: *id001
 - name: test_compile_express_missing_comma_between_defined_variables_is_a_parse_error
-  description: Two defined variable names separated by a newline without a comma inside
-    a list fail to parse even when their concatenation is also a defined variable.
+  description:
+    Two defined variable names separated by a newline without a comma inside a list fail to
+    parse even when their concatenation is also a defined variable.
   action: compile
   args:
     format: express
@@ -1685,9 +1770,11 @@
     body])'
   expect_error:
     category: ParseError
+  features: *id001
 - name: test_compile_express_positional_number_skips_optional_enums_to_weight
-  description: A trailing numeric positional argument skips optional enum properties
-    when exactly one later property accepts numbers.
+  description:
+    A trailing numeric positional argument skips optional enum properties when exactly one
+    later property accepts numbers.
   action: compile
   args:
     format: express
@@ -1713,8 +1800,9 @@
   features:
     - F-AGT-52
 - name: test_compile_express_positional_number_does_not_skip_non_enum_optional_property
-  description: A numeric positional argument at an optional string property that is
-    not an enum does not skip ahead to weight and fails validation.
+  description:
+    A numeric positional argument at an optional string property that is not an enum does not
+    skip ahead to weight and fails validation.
   action: compile
   args:
     format: express
@@ -1725,8 +1813,9 @@
   features:
     - F-AGT-52
 - name: test_compile_express_positional_number_followed_by_more_args_is_a_validation_error
-  description: A numeric positional argument that is not the last positional argument
-    does not skip ahead to weight, and extra positional arguments are rejected.
+  description:
+    A numeric positional argument that is not the last positional argument does not skip ahead
+    to weight, and extra positional arguments are rejected.
   action: compile
   args:
     format: express
@@ -1736,9 +1825,11 @@
     root = Column([t], 2, "center")'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_split_data_path_not_joined_across_assignment
-  description: A path ending in slash at the end of a line is not joined when the
-    next line begins an identifier assignment.
+  description:
+    A path ending in slash at the end of a line is not joined when the next line begins an
+    identifier assignment.
   action: compile
   args:
     format: express
@@ -1755,9 +1846,11 @@
           - id: root
             component: Text
             text: hi
+  features: *id001
 - name: test_compile_express_multiline_kwargs_not_treated_as_declared_lhs
-  description: Keyword arguments in multiline component calls are at depth greater
-    than 0 and are not collected as top-level declared identifiers.
+  description:
+    Keyword arguments in multiline component calls are at depth greater than 0 and are not
+    collected as top-level declared identifiers.
   action: compile
   args:
     format: express
@@ -1775,9 +1868,11 @@
           - id: root_child
             component: Text
             text: Hello
+  features: *id001
 - name: test_compile_express_positional_number_skips_optional_enum_to_ref_resolved_dynamic_number
-  description: A trailing numeric positional argument skips optional enum properties
-    to a property whose type is a $ref to DynamicNumber.
+  description:
+    A trailing numeric positional argument skips optional enum properties to a property whose
+    type is a $ref to DynamicNumber.
   action: compile
   args:
     format: express
@@ -1792,9 +1887,9 @@
           - id: root
             component: Slider
             value: 50
+  features: *id001
 - name: test_compile_express_positional_number_does_not_skip_required_enum
-  description: A numeric positional argument does not skip a required enum property
-    and fails validation.
+  description: A numeric positional argument does not skip a required enum property and fails validation.
   action: compile
   args:
     format: express
@@ -1802,9 +1897,11 @@
   input: root = Status(1, state = "active")
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_positional_number_ambiguous_two_numeric_targets_is_validation_error
-  description: A numeric positional argument does not skip when two later properties
-    accept numbers, making the target ambiguous.
+  description:
+    A numeric positional argument does not skip when two later properties accept numbers, making
+    the target ambiguous.
   action: compile
   args:
     format: express
@@ -1812,9 +1909,11 @@
   input: root = DualMetric(10)
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_positional_number_target_in_kwargs_is_validation_error
-  description: A numeric positional argument does not skip to a numeric property that
-    is already provided in keyword arguments.
+  description:
+    A numeric positional argument does not skip to a numeric property that is already provided
+    in keyword arguments.
   action: compile
   args:
     format: express
@@ -1822,9 +1921,11 @@
   input: root = Text("Hello", 2, weight = 1)
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_sql_comment_inside_comment_or_triple_string_preserved
-  description: Double dashes inside single-line comments or triple-quoted strings
-    are preserved as string or comment content.
+  description:
+    Double dashes inside single-line comments or triple-quoted strings are preserved as string
+    or comment content.
   action: compile
   args:
     format: express
@@ -1841,9 +1942,11 @@
           - id: root
             component: Text
             text: Value -- with dashes
+  features: *id001
 - name: test_compile_express_split_identifier_one_half_resolves_not_joined
-  description: A split identifier is not joined when only one half resolves to a declared
-    variable and the joined name does not.
+  description:
+    A split identifier is not joined when only one half resolves to a declared variable and
+    the joined name does not.
   action: compile
   args:
     format: express
@@ -1855,9 +1958,11 @@
     suffix])'
   expect_error:
     category: ParseError
+  features: *id001
 - name: test_compile_express_positional_number_skips_optional_enum_to_level_when_last_arg
-  description: A numeric positional argument skips an optional enum property when
-    it is the last positional argument and a single later property accepts numbers.
+  description:
+    A numeric positional argument skips an optional enum property when it is the last positional
+    argument and a single later property accepts numbers.
   action: compile
   args:
     format: express
@@ -1873,9 +1978,11 @@
             component: Meter
             label: CPU
             level: 75
+  features: *id001
 - name: test_compile_express_positional_number_followed_by_more_args_pins_exact_assignment
-  description: A numeric positional argument followed by more arguments does not skip
-    ahead to level, rejecting the invalid enum assignment instead of succeeding.
+  description:
+    A numeric positional argument followed by more arguments does not skip ahead to level,
+    rejecting the invalid enum assignment instead of succeeding.
   action: compile
   args:
     format: express
@@ -1883,9 +1990,9 @@
   input: root = Meter("CPU", 75, "High priority")
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_raw_newline_in_plain_string_preserved
-  description: A raw newline inside a plain string literal is preserved and not altered
-    by source normalization.
+  description: A raw newline inside a plain string literal is preserved and not altered by source normalization.
   action: compile
   args:
     format: express
@@ -1904,15 +2011,18 @@
             text: "Hello
 
               World"
+  features: *id001
 - name: test_compile_express_map_literal_keeps_keys_named_like_express_constructs
-  description: A map literal whose keys share a name with an Express construct compiles
-    to the same map, not to a reference, binding, call or check.
+  description:
+    A map literal whose keys share a name with an Express construct compiles to the same map,
+    not to a reference, binding, call or check.
   action: compile
   args:
     format: express
     catalog: test_data/catalogs/literal_map_catalog_v1_0.json
-  input: 'root = Probe({variable: "m", path: "p", call: "c", check: "k", skipped:
-    true, kind: "map", count: 6})'
+  input:
+    'root = Probe({variable: "m", path: "p", call: "c", check: "k", skipped: true, kind: "map", count:
+    6})'
   expect:
     - version: "1.0"
       createSurface:
@@ -1929,9 +2039,9 @@
               skipped: true
               kind: map
               count: 6
+  features: *id001
 - name: test_compile_express_map_literal_with_one_key_named_like_a_construct
-  description: A map literal with only a variable key is still a map, not a variable
-    reference.
+  description: A map literal with only a variable key is still a map, not a variable reference.
   action: compile
   args:
     format: express
@@ -1947,6 +2057,7 @@
             component: Probe
             payload:
               variable: m
+  features: *id001
 - name: test_compile_express_map_literal_keeps_quoted_keys_named_like_constructs
   description: Quoted keys are kept as written, like unquoted ones.
   action: compile
@@ -1966,9 +2077,9 @@
               variable: m
               path: p
               count: 6
+  features: *id001
 - name: test_compile_express_map_literal_string_value_ignores_a_variable_of_the_same_name
-  description: A string value in a map literal stays a string even when a variable
-    of that name is assigned.
+  description: A string value in a map literal stays a string even when a variable of that name is assigned.
   action: compile
   args:
     format: express
@@ -1987,9 +2098,9 @@
             payload:
               variable: m
               count: 6
+  features: *id001
 - name: test_compile_express_map_literal_value_still_resolves_a_variable_reference
-  description: A bare identifier as a map value is still a variable reference, whatever
-    the key is named.
+  description: A bare identifier as a map value is still a variable reference, whatever the key is named.
   action: compile
   args:
     format: express
@@ -2008,15 +2119,18 @@
             payload:
               variable: hi
               title: hi
+  features: *id001
 - name: test_compile_express_map_literals_in_function_arguments_keep_their_keys
-  description: Map literals passed to a function, nested or not, keep keys named like
-    Express constructs, and a string argument for such a parameter stays a string.
+  description:
+    Map literals passed to a function, nested or not, keep keys named like Express constructs,
+    and a string argument for such a parameter stays a string.
   action: compile
   args:
     format: express
     catalog: test_data/catalogs/literal_map_catalog_v1_0.json
-  input: 'root = Probe(series(count=6, variable="m", item={variable: "inner", nested:
-    {path: "deep", call: "c"}}))'
+  input:
+    'root = Probe(series(count=6, variable="m", item={variable: "inner", nested: {path: "deep", call:
+    "c"}}))'
   expect:
     - version: "1.0"
       createSurface:
@@ -2035,10 +2149,12 @@
                   nested:
                     path: deep
                     call: c
+  features: *id001
 - name: test_compile_express_map_with_call_like_keys_still_rejects_bindings
-  description: A path inside a map literal given to a property that admits no binding
-    is a validation error, even when the map has keys named like an event or a function
-    call, since a map literal is data and is searched like any other.
+  description:
+    A path inside a map literal given to a property that admits no binding is a validation
+    error, even when the map has keys named like an event or a function call, since a map literal is data
+    and is searched like any other.
   action: compile
   args:
     format: express
@@ -2046,9 +2162,11 @@
   input: 'root = Probe({event: "e", functionCall: "f", "@call": "c", inner: $/y})'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_skipped_outside_an_argument_is_a_validation_error
-  description: The `_` placeholder only stands in for an argument. Inside an array
-    or a map literal it is a validation error rather than a value.
+  description:
+    The `_` placeholder only stands in for an argument. Inside an array or a map literal it
+    is a validation error rather than a value.
   action: compile
   args:
     format: express
@@ -2056,21 +2174,25 @@
   input: "root = Probe({items: [_]})"
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_check_options_with_other_keys_is_a_validation_error
-  description: A map literal with a catalogId key in a check's arguments holds the
-    check's options, and catalogId is the only option, so any other key is a validation
-    error.
+  description:
+    A map literal with a catalogId key in a check's arguments holds the check's options, and
+    catalogId is the only option, so any other key is a validation error.
   action: compile
   args:
     format: express
     catalog: test_data/catalogs/forms_catalog_v1_0.json
-  input: 'root = TextField("Email", $/email, _, [?required("Email is required", {catalogId:
-    "conformance/forms", extra: 1})])'
+  input:
+    'root = TextField("Email", $/email, _, [?required("Email is required", {catalogId: "conformance/forms",
+    extra: 1})])'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_variable_cycle_is_a_validation_error
-  description: A variable whose value refers back to it, directly or through other
-    variables, has no value to compile.
+  description:
+    A variable whose value refers back to it, directly or through other variables, has no value
+    to compile.
   action: compile
   args:
     format: express
@@ -2082,9 +2204,11 @@
     root = Probe(a)"
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_check_options_with_null_catalog_id_is_a_validation_error
-  description: A check's options map must name its catalog with a string; a null catalogId
-    is rejected rather than read as no catalogId.
+  description:
+    A check's options map must name its catalog with a string; a null catalogId is rejected
+    rather than read as no catalogId.
   action: compile
   args:
     format: express
@@ -2092,9 +2216,11 @@
   input: 'root = TextField("Email", $/email, _, [?required({catalogId: null})])'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_update_scope_root_non_map_is_validation_error
-  description: Assigning a non-map value to the root data path ($/) in an update scope
-    is a validation error, just as in a surface-creating scope.
+  description:
+    Assigning a non-map value to the root data path ($/) in an update scope is a validation
+    error, just as in a surface-creating scope.
   action: compile
   args:
     format: express
@@ -2104,10 +2230,11 @@
     $/ = 5'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_unassigned_variable_in_value_slot_is_validation_error
-  description: Referencing an unassigned variable in a non-child value slot (such
-    as Text's text property) is a validation error rather than compiling the identifier
-    name as a string literal.
+  description:
+    Referencing an unassigned variable in a non-child value slot (such as Text's text property)
+    is a validation error rather than compiling the identifier name as a string literal.
   action: compile
   args:
     format: express
@@ -2115,10 +2242,11 @@
   input: root = Text(missing_var)
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_sentinel_tags_inside_strings_and_comments_preserved
-  description: Sentinel tags (<a2ui> and </a2ui>) inside string literals and comments
-    are preserved rather than truncating the block when compile strips outer sentinel
-    tags.
+  description:
+    Sentinel tags (<a2ui> and </a2ui>) inside string literals and comments are preserved rather
+    than truncating the block when compile strips outer sentinel tags.
   action: compile
   args:
     format: express
@@ -2139,9 +2267,11 @@
           - id: root
             component: Text
             text: Literal </a2ui> and <a2ui> tags
+  features: *id001
 - name: test_compile_express_surface_extensions_variable_reference
-  description: A variable reference passed to surface(extensions=...) resolves to
-    its map literal and populates createSurface.metadata.extensions.
+  description:
+    A variable reference passed to surface(extensions=...) resolves to its map literal and
+    populates createSurface.metadata.extensions.
   action: compile
   args:
     format: express
@@ -2163,9 +2293,11 @@
           - id: root
             component: Text
             text: Hello
+  features: *id001
 - name: test_compile_express_surface_extensions_on_update_scope_is_validation_error
-  description: Supplying extensions= on an update surface scope (update=true or without
-    a root component) is rejected as a validation error rather than silently dropped.
+  description:
+    Supplying extensions= on an update surface scope (update=true or without a root component)
+    is rejected as a validation error rather than silently dropped.
   action: compile
   args:
     format: express
@@ -2175,9 +2307,11 @@
     c1 = Text("Hello")'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_empty_extensions_preserved
-  description: Supplying an empty map literal to extensions={} on surface() or a component
-    preserves metadata.extensions as an empty object.
+  description:
+    Supplying an empty map literal to extensions={} on surface() or a component preserves metadata.extensions
+    as an empty object.
   action: compile
   args:
     format: express
@@ -2198,9 +2332,11 @@
             text: Hello
             metadata:
               extensions: {}
+  features: *id001
 - name: test_compile_express_extensions_top_level_call_is_validation_error
-  description: Passing a function call at the top level of extensions= is rejected
-    as a validation error rather than compiled into an @call object.
+  description:
+    Passing a function call at the top level of extensions= is rejected as a validation error
+    rather than compiled into an @call object.
   action: compile
   args:
     format: express
@@ -2208,9 +2344,11 @@
   input: root = Text("Hello", extensions=openUrl("https://example.com"))
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_extensions_nested_component_call_is_validation_error
-  description: Passing an inline component call inside extensions= is rejected as
-    a validation error rather than hoisting a synthetic component.
+  description:
+    Passing an inline component call inside extensions= is rejected as a validation error rather
+    than hoisting a synthetic component.
   action: compile
   args:
     format: express
@@ -2218,9 +2356,11 @@
   input: 'root = Text("Hello", extensions={nested: Text("World")})'
   expect_error:
     category: ValidationError
+  features: *id001
 - name: test_compile_express_extensions_nested_event_is_validation_error
-  description: Passing an Event(...) inside extensions= is rejected as a validation
-    error rather than compiling an action event object into metadata.extensions.
+  description:
+    Passing an Event(...) inside extensions= is rejected as a validation error rather than
+    compiling an action event object into metadata.extensions.
   action: compile
   args:
     format: express
@@ -2228,3 +2368,100 @@
   input: 'root = Text("Hello", extensions={onTap: Event("tap")})'
   expect_error:
     category: ValidationError
+  features: *id001
+- name: test_compile_express_standalone_call_renderer_or_agent_function
+  description:
+    A standalone call to a function with allowedCallers set to rendererOrAgent compiles to
+    callRendererFunction.
+  action: compile
+  args:
+    format: express
+    catalog: test_data/catalogs/allowed_callers_catalog_v1_0.json
+  input: showToast("Saved")
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: call_1
+        callFunction:
+          catalogId: conformance/allowed_callers
+          "@call": showToast
+          args:
+            message: Saved
+  features: *id001
+- name: test_compile_express_standalone_call_agent_only_function
+  description: A standalone call to a function with allowedCallers set to agentOnly compiles to callRendererFunction.
+  action: compile
+  args:
+    format: express
+    catalog: test_data/catalogs/allowed_callers_catalog_v1_0.json
+  input: notifyAgent("Ping")
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: call_1
+        callFunction:
+          catalogId: conformance/allowed_callers
+          "@call": notifyAgent
+          args:
+            message: Ping
+  features: *id001
+- name: test_compile_express_standalone_call_renderer_only_function_is_validation_error
+  description:
+    A standalone call to a function whose allowedCallers defaults to rendererOnly is rejected
+    with a ValidationError naming the function.
+  action: compile
+  args:
+    format: express
+    catalog: test_data/catalogs/allowed_callers_catalog_v1_0.json
+  input: formatValue("abc")
+  expect_error:
+    category: ValidationError
+    message: formatValue
+  features: *id001
+- name: test_compile_express_standalone_call_user_activation_function_is_validation_error
+  description:
+    A standalone call to a function that requires user activation is rejected with a ValidationError
+    naming the function.
+  action: compile
+  args:
+    format: express
+    catalog: test_data/catalogs/allowed_callers_catalog_v1_0.json
+  input: launch("https://example.com")
+  expect_error:
+    category: ValidationError
+    message: launch
+  features: *id001
+- name: test_compile_express_renderer_only_function_in_component_check_is_allowed
+  description:
+    A rendererOnly function remains allowed inside a component validation check evaluated on
+    the renderer.
+  action: compile
+  args:
+    format: express
+    catalog: test_data/catalogs/allowed_callers_catalog_v1_0.json
+  input: 'root = Button(label, Event("submit"), [?formatValue($/name, "Invalid value")])
+
+    label = Text("Submit")'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: default_surface
+        catalogId: conformance/allowed_callers
+        components:
+          - id: root
+            component: Button
+            child: label
+            action:
+              event:
+                name: submit
+            checks:
+              - condition:
+                  "@call": formatValue
+                  args:
+                    value:
+                      "@path": /name
+                message: Invalid value
+          - id: label
+            component: Text
+            text: Submit
+  features: *id001

@@ -12,9 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:a2ui_core/a2ui_core.dart';
+
+import '../inbound/inbound_message.dart';
+import '../rpc/agent_function_registry.dart';
+import '../rpc/renderer_function_calls.dart';
+import '../rpc/router.dart';
 
 import 'catalogs.dart';
 
@@ -63,22 +69,22 @@ typedef _BaselineEntry = ({
 /// - In a canvas, turns update the same surfaces, so one state lives for the
 ///   whole conversation and every turn is checked against it.
 ///
-/// A message is applied when it is sent. [apply] is atomic: if a message is
-/// rejected, the state is left as it was before the call. [transaction]
-/// extends that to several calls, which is how a response parsed whole is
-/// applied all or nothing. A streamed response cannot be rolled back, since
-/// the renderer has already received what was emitted.
+/// A message is applied when it is sent. [RendererState.apply] is atomic: if a
+/// message is rejected, the state is left as it was before the call.
+/// [RendererState.transaction] extends that to several calls, which is how a
+/// response parsed whole is applied all or nothing. A streamed response cannot
+/// be rolled back, since the renderer has already received what was emitted.
 ///
 /// Being atomic costs what the messages change, not the size of the surfaces
-/// they touch. While an [apply] or a transaction is open, the state keeps an
-/// undo log: each message records what it replaced, and a failure reverts
-/// those records, latest first. A deleted surface is kept aside rather than
-/// disposed of, and a rollback puts the same object back; it is disposed of
-/// once the outermost [apply] or transaction ends. A component an update
-/// recreated, by changing its type or catalog, is put back at its place, so
-/// a rollback keeps the order of the components, and a deleted data model
-/// key goes back to its place in its map. No surface is copied when a
-/// message is applied or a transaction opens.
+/// they touch. While an [RendererState.apply] or a transaction is open, the
+/// state keeps an undo log: each message records what it replaced, and a
+/// failure reverts those records, latest first. A deleted surface is kept aside
+/// rather than disposed of, and a rollback puts the same object back; it is
+/// disposed of once the outermost [RendererState.apply] or transaction ends. A
+/// component an update recreated, by changing its type or catalog, is put back
+/// at its place, so a rollback keeps the order of the components, and a deleted
+/// data model key goes back to its place in its map. No surface is copied when
+/// a message is applied or a transaction opens.
 ///
 /// The state holds the surfaces as they now stand, not the messages that
 /// built them. An update to a surface the state never saw created is
@@ -91,15 +97,39 @@ typedef _BaselineEntry = ({
 /// An app that is both the agent and the renderer makes the state with
 /// [RendererState.of], on the processor it renders from, so each message is
 /// checked and applied once.
+/// The result of receiving an inbound renderer message.
+class InboundResult {
+  final String kind;
+  final RendererToAgentMessage message;
+  final String? formatted;
+
+  InboundResult({required this.kind, required this.message, this.formatted});
+}
+
 class RendererState {
+  final AgentFunctionRegistry? _agentFunctions;
+  final RendererFunctionCalls? _rendererCalls;
+  final List<Map<String, Object?>> _outbound = [];
+
+  AgentFunctionRegistry? get agentFunctions => _agentFunctions;
+  RendererFunctionCalls? get rendererCalls => _rendererCalls;
+
   /// Creates the empty state of a renderer that holds [catalogs].
   ///
   /// Each surface is checked against the catalog its `catalogId` names.
   ///
   /// Throws [A2uiCatalogError] if [catalogs] is empty, or if they target
   /// protocol versions whose messages differ, such as v0.9 and v1.0.
-  RendererState(List<CatalogApi> catalogs)
-    : this._(catalogs, assumesUnknownSurfaces: false);
+  RendererState(
+    List<CatalogApi> catalogs, {
+    AgentFunctionRegistry? agentFunctions,
+    RendererFunctionCalls? rendererCalls,
+  }) : this._(
+         catalogs,
+         assumesUnknownSurfaces: false,
+         agentFunctions: agentFunctions,
+         rendererCalls: rendererCalls,
+       );
 
   /// Creates the state of a renderer that renders from [processor].
   ///
@@ -120,21 +150,30 @@ class RendererState {
   ///
   /// Throws [A2uiCatalogError] if the processor's catalogs could not make a
   /// state, as for the default constructor.
-  RendererState.of(MessageProcessor<ComponentApi> processor)
-    : this._(
-        processor.catalogs,
-        assumesUnknownSurfaces: false,
-        processor: processor,
-      );
+  RendererState.of(
+    MessageProcessor<ComponentApi> processor, {
+    AgentFunctionRegistry? agentFunctions,
+    RendererFunctionCalls? rendererCalls,
+  }) : this._(
+         processor.catalogs,
+         assumesUnknownSurfaces: false,
+         processor: processor,
+         agentFunctions: agentFunctions,
+         rendererCalls: rendererCalls,
+       );
 
   RendererState._(
     List<CatalogApi> catalogs, {
     required bool assumesUnknownSurfaces,
     MessageProcessor<ComponentApi>? processor,
+    AgentFunctionRegistry? agentFunctions,
+    RendererFunctionCalls? rendererCalls,
   }) : catalogs = List.unmodifiable(catalogs),
        _protocolVersion = _checkCatalogs(catalogs),
        _assumesUnknownSurfaces = assumesUnknownSurfaces,
-       _sharesProcessor = processor != null {
+       _sharesProcessor = processor != null,
+       _agentFunctions = agentFunctions,
+       _rendererCalls = rendererCalls {
     _processor =
         processor ??
         MessageProcessor<ComponentApi>.forAgent(
@@ -146,6 +185,66 @@ class RendererState {
 
   /// The active catalogs, in priority order.
   final List<CatalogApi> catalogs;
+
+  /// The router for inbound renderer RPC messages, if configured.
+  RendererMessageRouter? get router =>
+      (_agentFunctions == null && _rendererCalls == null)
+      ? null
+      : RendererMessageRouter(
+          agentFunctions: _agentFunctions,
+          rendererCalls: _rendererCalls,
+        );
+
+  /// Drains queued outbound messages to be sent to the renderer.
+  List<Map<String, Object?>> drainOutbound() {
+    final list = List<Map<String, Object?>>.from(_outbound);
+    _outbound.clear();
+    return list;
+  }
+
+  /// Receives and processes an inbound message from the renderer.
+  Future<InboundResult> receive(Object? message) async {
+    final Map<String, Object?> raw;
+    if (message is RendererToAgentMessage) {
+      raw = message.toJson();
+    } else if (message is Map<String, Object?>) {
+      raw = message;
+    } else if (message is Map) {
+      raw = message.cast<String, Object?>();
+    } else {
+      throw A2uiValidationError('Inbound message must be a JSON map.');
+    }
+    if (raw.containsKey('callAgentFunction') ||
+        raw.containsKey('rendererFunctionResponse')) {
+      final RendererMessageRouter? r = router;
+      if (r == null) {
+        throw A2uiValidationError(
+          'No agentFunctions or rendererCalls configured on RendererState.',
+        );
+      }
+      final List<AgentToRendererMessage> replies = await r.dispatch(raw);
+      for (final reply in replies) {
+        _outbound.add(reply.toJson());
+      }
+      final kind = raw.containsKey('callAgentFunction')
+          ? 'callAgentFunction'
+          : 'rendererFunctionResponse';
+      return InboundResult(
+        kind: kind,
+        message: parseInboundMessage(raw, _protocolVersion),
+      );
+    }
+    final RendererToAgentMessage parsed = parseInboundMessage(
+      raw,
+      _protocolVersion,
+    );
+    final String? formatted = formatInboundForModel(parsed);
+    return InboundResult(
+      kind: getInboundMessageKind(parsed),
+      message: parsed,
+      formatted: formatted,
+    );
+  }
 
   final A2uiProtocolVersion _protocolVersion;
 
@@ -409,6 +508,11 @@ class RendererState {
     final List<CallRendererFunctionMessage> calls = [..._calls];
     _calls.clear();
     _processUnlogged(calls);
+    if (_rendererCalls case final RendererFunctionCalls rendererCalls) {
+      for (final call in calls) {
+        rendererCalls.track(call);
+      }
+    }
   }
 
   /// Checks [message] and holds it back until the outermost [apply] or
@@ -821,7 +925,8 @@ class RendererState {
     final AgentToRendererMessage message = payload[index];
     final String? surfaceId = _target(message);
     if (surfaceId == null) {
-      if (_sharesProcessor && message is CallRendererFunctionMessage) {
+      if ((_sharesProcessor || _rendererCalls != null) &&
+          message is CallRendererFunctionMessage) {
         _holdCall(message);
       } else {
         _process(message);

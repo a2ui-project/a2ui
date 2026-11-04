@@ -14,9 +14,11 @@
 
 """A2UI extension for the Agent Development Kit (ADK).
 
-`SendA2uiToClientToolset`, `A2uiInstruction` and `A2uiProcessorStore` only
-need ADK. The ADK-to-A2A converters (`A2uiPartConverter`, `A2uiEventConverter`,
-the `a2a` subpackage) and the A2A subagent orchestration helpers
+`SendA2uiToClientToolset`, `A2uiInstruction`, `A2uiProcessorStore` and
+`A2uiRendererCallsStore` only need ADK. The ADK-to-A2A converters
+(`A2uiPartConverter`, `A2uiEventConverter`), the A2UI RPC helpers
+(`a2ui_rpc_callback`, `a2ui_rpc_interceptor`, `exclude_a2ui_rpc_from_prompt`),
+the `a2a` subpackage they live in, and the A2A subagent orchestration helpers
 (`A2uiSubagentMap`, `SurfaceIdAlreadyExistsError`, the `orchestration`
 subpackage) need the `a2a` extra:
 
@@ -32,6 +34,7 @@ from typing import TYPE_CHECKING, Any
 
 from .instruction import A2uiInstruction
 from .processor_store import A2uiProcessorStore
+from .renderer_calls_store import A2uiRendererCallsStore
 from .send_a2ui_to_client_toolset import (
     A2uiEnabledProvider,
     A2uiProcessorProvider,
@@ -45,6 +48,13 @@ if TYPE_CHECKING:
         A2uiEventConverter,
         A2uiInboundPartConverter,
         A2uiPartConverter,
+        A2uiPartConverter,
+        A2uiRpcCallback,
+        AgentFunctionRegistryProvider,
+        RendererFunctionCallsProvider,
+        a2ui_rpc_callback,
+        a2ui_rpc_interceptor,
+        exclude_a2ui_rpc_from_prompt,
     )
     from .orchestration import A2uiSubagentMap, SurfaceIdAlreadyExistsError
 
@@ -57,6 +67,12 @@ _A2A_EXPORTS: dict[str, tuple[str, str | None]] = {
     "A2uiEventConverter": (".a2a", "A2uiEventConverter"),
     "A2uiInboundPartConverter": (".a2a", "A2uiInboundPartConverter"),
     "A2uiPartConverter": (".a2a", "A2uiPartConverter"),
+    "A2uiRpcCallback": (".a2a", "A2uiRpcCallback"),
+    "AgentFunctionRegistryProvider": (".a2a", "AgentFunctionRegistryProvider"),
+    "RendererFunctionCallsProvider": (".a2a", "RendererFunctionCallsProvider"),
+    "a2ui_rpc_callback": (".a2a", "a2ui_rpc_callback"),
+    "a2ui_rpc_interceptor": (".a2a", "a2ui_rpc_interceptor"),
+    "exclude_a2ui_rpc_from_prompt": (".a2a", "exclude_a2ui_rpc_from_prompt"),
     "A2uiSubagentMap": (".orchestration", "A2uiSubagentMap"),
     "SurfaceIdAlreadyExistsError": (
         ".orchestration",
@@ -108,9 +124,16 @@ __all__ = [
     "A2uiPartConverter",
     "A2uiProcessorProvider",
     "A2uiProcessorStore",
+    "A2uiRendererCallsStore",
+    "A2uiRpcCallback",
     "A2uiSubagentMap",
+    "AgentFunctionRegistryProvider",
+    "RendererFunctionCallsProvider",
     "SendA2uiToClientToolset",
     "SurfaceIdAlreadyExistsError",
     "a2a",
+    "a2ui_rpc_callback",
+    "a2ui_rpc_interceptor",
+    "exclude_a2ui_rpc_from_prompt",
     "orchestration",
 ]

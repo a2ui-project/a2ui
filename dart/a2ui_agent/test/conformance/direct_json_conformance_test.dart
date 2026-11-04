@@ -137,11 +137,18 @@ void main() {
 /// data model, which only lowering a whole payload can split.
 const Set<String> _v1OnlyCases = {
   'test_compile_json_newline_in_create_surface_data_model_preserved',
+  'test_parse_response_call_renderer_function_renderer_or_agent_succeeds',
+  'test_parse_response_call_renderer_function_agent_only_succeeds',
+  'test_parse_response_call_renderer_function_renderer_only_'
+      'is_validation_error',
+  'test_parse_response_call_renderer_function_user_activation_'
+      'is_validation_error',
   'test_stream_create_surface_inline_components_v10',
   'test_stream_create_surface_inline_components_in_small_chunks_v10',
   'test_stream_multi_catalog_resolution_v10',
   'test_stream_component_catalog_id_arrives_late_v10',
   'test_stream_catalog_id_split_across_chunks_v10',
+  'test_stream_second_block_calling_renderer_only_function_fails_v10',
 };
 
 /// Whether the catalogs of [testCase] target v1.0, as most cases' do.

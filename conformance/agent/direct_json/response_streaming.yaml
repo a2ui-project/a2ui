@@ -13,8 +13,7 @@
 # limitations under the License.
 
 - name: test_chunk_text_emitted_as_it_arrives
-  description: Text outside a block is handed on per chunk rather than held until
-    the response ends.
+  description: Text outside a block is handed on per chunk rather than held until the response ends.
   action: parse_chunk
   args:
     format: direct_json
@@ -30,15 +29,13 @@
     - F-AGT-08
     - F-AGT-20
 - name: test_chunk_text_then_block_at_part_boundaries
-  description: Chunks that fall between parts yield exactly the parts a single call
-    would.
+  description: Chunks that fall between parts yield exactly the parts a single call would.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
@@ -50,8 +47,9 @@
         "
       expect:
         - text: Here is the surface.
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
@@ -113,8 +111,7 @@
     - F-AGT-08
     - F-AGT-20
 - name: test_chunk_close_tag_split_across_chunks_does_not_re_emit
-  description: A payload that already read cleanly is not emitted again when the close
-    tag lands.
+  description: A payload that already read cleanly is not emitted again when the close tag lands.
   action: parse_chunk
   args:
     format: direct_json
@@ -130,6 +127,8 @@
     - input: -json>
       expect: []
   expect_matches_single_shot: true
+  features: &id001
+    - F-AGT-06
 - name: test_chunk_close_tag_and_trailing_text_in_one_chunk
   description: The chunk that closes a block also carries the text that follows it.
   action: parse_chunk
@@ -150,17 +149,18 @@
       expect:
         - text: That is your surface.
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_inline_code_tags_stripped
-  description: Sentinel tags wrapped in inline-code backticks strip the edge backticks
-    while streaming, matching single-shot parsing.
+  description:
+    Sentinel tags wrapped in inline-code backticks strip the edge backticks while streaming,
+    matching single-shot parsing.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
     progressive_keys: []
   steps:
-    - input: '`<a2ui-json>`[{"version": "1.0", "createSurface": {"surfaceId": "s1",
-        "catalogId": "conformance/simplified"}}]`</a2ui-json>`'
+    - input: '`<a2ui-json>`[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]`</a2ui-json>`'
       expect:
         - a2ui:
             - version: "1.0"
@@ -168,9 +168,11 @@
                 surfaceId: s1
                 catalogId: conformance/simplified
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_inline_code_tags_split_across_chunks
-  description: Sentinel tags wrapped in inline-code backticks strip the edge backticks
-    when backticks and tags arrive in separate chunks.
+  description:
+    Sentinel tags wrapped in inline-code backticks strip the edge backticks when backticks
+    and tags arrive in separate chunks.
   action: parse_chunk
   args:
     format: direct_json
@@ -179,8 +181,7 @@
   steps:
     - input: "`"
       expect: []
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]'
       expect:
         - a2ui:
             - version: "1.0"
@@ -192,9 +193,9 @@
     - input: "`"
       expect: []
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_inline_code_in_prose_with_trailing_space
-  description: Inline code followed by whitespace in a chunk is not held as an edge
-    backtick.
+  description: Inline code followed by whitespace in a chunk is not held as an edge backtick.
   action: parse_chunk
   args:
     format: direct_json
@@ -208,9 +209,9 @@
       expect:
         - text: " for labels."
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_inline_code_in_prose_with_trailing_newline
-  description: Inline code followed by a newline in a chunk is not held as an edge
-    backtick.
+  description: Inline code followed by a newline in a chunk is not held as an edge backtick.
   action: parse_chunk
   args:
     format: direct_json
@@ -228,9 +229,11 @@
 
             More"
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_inline_code_at_end_of_stream
-  description: Inline code whose closing backtick is at the very end of the stream
-    is flushed when the stream ends.
+  description:
+    Inline code whose closing backtick is at the very end of the stream is flushed when the
+    stream ends.
   action: parse_chunk
   args:
     format: direct_json
@@ -241,9 +244,11 @@
       expect:
         - text: Run `ls
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_inline_code_in_prose_followed_by_block
-  description: Inline code at the end of a chunk followed by conversational text and
-    a block emits the backtick as prose rather than stripping it.
+  description:
+    Inline code at the end of a chunk followed by conversational text and a block emits the
+    backtick as prose rather than stripping it.
   action: parse_chunk
   args:
     format: direct_json
@@ -253,8 +258,7 @@
     - input: Use `Text`
       expect:
         - text: Use `Text
-    - input: ' here. <a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1",
-        "catalogId": "conformance/simplified"}}]</a2ui-json>'
+    - input: ' here. <a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - text: "` here."
         - a2ui:
@@ -263,9 +267,11 @@
                 surfaceId: s1
                 catalogId: conformance/simplified
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_inline_code_at_end_of_stream_empty_trailing_chunk
-  description: Inline code whose closing backtick is at the end of a chunk followed
-    by an empty chunk flushes the backtick at end of stream.
+  description:
+    Inline code whose closing backtick is at the end of a chunk followed by an empty chunk
+    flushes the backtick at end of stream.
   action: parse_chunk
   args:
     format: direct_json
@@ -278,9 +284,11 @@
     - input: ""
       expect: []
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_inline_code_followed_by_newline_chunk
-  description: Inline code followed by a newline chunk emits the backtick as text
-    rather than dropping it.
+  description:
+    Inline code followed by a newline chunk emits the backtick as text rather than dropping
+    it.
   action: parse_chunk
   args:
     format: direct_json
@@ -301,9 +309,11 @@
 
             More"
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_inline_code_before_newline_and_open_tag
-  description: Inline code followed by a newline chunk and an open tag preserves the
-    inline backtick rather than stripping it.
+  description:
+    Inline code followed by a newline chunk and an open tag preserves the inline backtick rather
+    than stripping it.
   action: parse_chunk
   args:
     format: direct_json
@@ -315,8 +325,7 @@
         - text: Use `x
     - input: '
 
-        <a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+        <a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - text: "`"
         - a2ui:
@@ -325,9 +334,11 @@
                 surfaceId: s1
                 catalogId: conformance/simplified
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_non_tag_angle_bracket_in_code_span
-  description: A code span containing a non-tag angle bracket split across chunks
-    retains the leading backtick.
+  description:
+    A code span containing a non-tag angle bracket split across chunks retains the leading
+    backtick.
   action: parse_chunk
   args:
     format: direct_json
@@ -341,9 +352,11 @@
       expect:
         - text: " `<a>` tags"
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_missing_open_tag_is_emitted_as_text
-  description: Missing-open-tag recovery is one-shot only; a stream with no opening
-    <a2ui-json> tag emits its chunks as text rather than holding the whole turn back.
+  description:
+    Missing-open-tag recovery is one-shot only; a stream with no opening <a2ui-json> tag emits
+    its chunks as text rather than holding the whole turn back.
   action: parse_chunk
   args:
     format: direct_json
@@ -353,17 +366,16 @@
     - input: '[{"deleteSurface": {"surfaceId": "s1"}}]</a2ui-json>'
       expect:
         - text: '[{"deleteSurface": {"surfaceId": "s1"}}]</a2ui-json>'
+  features: *id001
 - name: test_chunk_payload_withheld_until_it_parses
-  description: A payload that is still half a message yields nothing until the rest
-    of it lands.
+  description: A payload that is still half a message yields nothing until the rest of it lands.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
@@ -383,10 +395,11 @@
                     component: Text
                     text: Hello
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_progressive_key_heals_a_partial_string
-  description: A string still arriving under a progressive key is closed where it
-    stands, so the payload is emitted and emitted again when the rest of the value
-    lands.
+  description:
+    A string still arriving under a progressive key is closed where it stands, so the payload
+    is emitted and emitted again when the rest of the value lands.
   action: parse_chunk
   args:
     format: direct_json
@@ -394,16 +407,16 @@
     progressive_keys:
       - greeting
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '<a2ui-json>[{"version": "1.0", "updateDataModel": {"surfaceId": "s1",
-        "value": {"greeting": "Hel'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateDataModel": {"surfaceId": "s1", "value": {"greeting":
+        "Hel'
       expect:
         - a2ui:
             - version: "1.0"
@@ -422,8 +435,9 @@
   features:
     - F-AGT-20
 - name: test_chunk_key_outside_the_progressive_set_withholds
-  description: A value arriving under a key that may not be closed early holds the
-    whole payload back, incomplete pair and all.
+  description:
+    A value arriving under a key that may not be closed early holds the whole payload back,
+    incomplete pair and all.
   action: parse_chunk
   args:
     format: direct_json
@@ -431,17 +445,16 @@
     progressive_keys:
       - text
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Text", "text": "Hello", "variant":
-        "cap'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Text", "text": "Hello", "variant": "cap'
       expect: []
     - input: tion"}]}}]</a2ui-json>
       expect:
@@ -455,9 +468,11 @@
                     text: Hello
                     variant: caption
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_progressive_keys_name_the_healable_properties
-  description: The healable set is the one the case names rather than a fixed list,
-    so the value of an `updateDataModel` heals when the case names `value`.
+  description:
+    The healable set is the one the case names rather than a fixed list, so the value of an
+    `updateDataModel` heals when the case names `value`.
   action: parse_chunk
   args:
     format: direct_json
@@ -465,16 +480,16 @@
     progressive_keys:
       - value
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '<a2ui-json>[{"version": "1.0", "updateDataModel": {"surfaceId": "s1",
-        "path": "/greeting", "value": "Hel'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateDataModel": {"surfaceId": "s1", "path": "/greeting",
+        "value": "Hel'
       expect:
         - a2ui:
             - version: "1.0"
@@ -490,9 +505,11 @@
                 surfaceId: s1
                 path: /greeting
                 value: Hello
+  features: *id001
 - name: test_chunk_progressive_key_inside_a_component_waits
-  description: A progressive key does not open a component early. The component still
-    arriving is held back, healable text and all, and emitted once its object closes.
+  description:
+    A progressive key does not open a component early. The component still arriving is held
+    back, healable text and all, and emitted once its object closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -500,16 +517,16 @@
     progressive_keys:
       - text
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Text", "text": "Hel'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Text", "text": "Hel'
       expect: []
     - input: lo"
       expect: []
@@ -526,9 +543,11 @@
     - input: "]}}]</a2ui-json>"
       expect: []
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_closed_components_emit_while_the_next_arrives
-  description: The components that have closed are emitted while the next one is still
-    arriving, and the message is emitted again once that one closes.
+  description:
+    The components that have closed are emitted while the next one is still arriving, and the
+    message is emitted again once that one closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -536,17 +555,16 @@
     progressive_keys:
       - text
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Card", "child": "body"}, {"id":
-        "body", "component": "Text", "text": "Hel'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Card", "child": "body"}, {"id": "body", "component": "Text", "text": "Hel'
       expect:
         - a2ui:
             - version: "1.0"
@@ -572,18 +590,19 @@
   features:
     - F-AGT-20
 - name: test_chunk_component_on_the_surface_catalog_waits
-  description: A component that names no catalog, and so uses its surface's, waits
-    for its object to close like any other, even when every property it needs has
-    arrived.
+  description:
+    A component that names no catalog, and so uses its surface's, waits for its object to close
+    like any other, even when every property it needs has arrived.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId":
-        "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+        {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component":
+        "Text", "text": "Hello"'
       expect:
         - a2ui:
             - version: "1.0"
@@ -600,25 +619,27 @@
                   - id: root
                     component: Text
                     text: Hello
+  features: *id001
 - name: test_chunk_boundary_inside_a_string_literal
-  description: A boundary inside a string value holds the payload back when healing
-    is off, and changes nothing about what is finally emitted.
+  description:
+    A boundary inside a string value holds the payload back when healing is off, and changes
+    nothing about what is finally emitted.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Text", "text": "Hel'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Text", "text": "Hel'
       expect: []
     - input: lo"}]}}]</a2ui-json>
       expect:
@@ -631,25 +652,27 @@
                     component: Text
                     text: Hello
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_string_holding_a_close_tag_split_across_chunks
-  description: A close tag that is being written inside a payload string does not
-    end the block, even when the boundary falls inside it.
+  description:
+    A close tag that is being written inside a payload string does not end the block, even
+    when the boundary falls inside it.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Text", "text": "</a2ui'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Text", "text": "</a2ui'
       expect: []
     - input: -json>"}]}}]</a2ui-json>
       expect:
@@ -662,6 +685,7 @@
                     component: Text
                     text: </a2ui-json>
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_two_blocks_in_one_stream
   description: A stream with two blocks keeps the text between them in its place.
   action: parse_chunk
@@ -669,8 +693,7 @@
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
@@ -682,8 +705,9 @@
         "
       expect:
         - text: First the greeting.
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
@@ -707,9 +731,11 @@
               deleteSurface:
                 surfaceId: s1
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_unwrapped_stream_compiles_the_body
-  description: A stream the case declares unwrapped is read as payload from the first
-    chunk, with no tags to look for.
+  description:
+    A stream the case declares unwrapped is read as payload from the first chunk, with no tags
+    to look for.
   action: parse_chunk
   args:
     format: direct_json
@@ -726,9 +752,11 @@
               deleteSurface:
                 surfaceId: s1
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_unreadable_payload_fails_when_the_block_closes
-  description: Payload text that never becomes readable raises at the close tag rather
-    than being handed on as text.
+  description:
+    Payload text that never becomes readable raises at the close tag rather than being handed
+    on as text.
   action: parse_chunk
   args:
     format: direct_json
@@ -742,8 +770,9 @@
   features:
     - F-AGT-45
 - name: test_chunk_partial_id_withholds_while_earlier_messages_emit
-  description: An id cut in half holds its own message back, and the message that
-    closed in the same chunk is emitted all the same.
+  description:
+    An id cut in half holds its own message back, and the message that closed in the same chunk
+    is emitted all the same.
   action: parse_chunk
   args:
     format: direct_json
@@ -754,8 +783,8 @@
     - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "contact'
       expect: []
     - input:
-        '-card", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents":
-        {"surfaceId": "contact-card", "components": [{"id": "ro'
+        '-card", "catalogId": "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId":
+        "contact-card", "components": [{"id": "ro'
       expect:
         - a2ui:
             - version: "1.0"
@@ -772,9 +801,11 @@
                   - id: root
                     component: Text
                     text: hi
+  features: *id001
 - name: test_chunk_partial_data_binding_path_withholds
-  description: A data binding path cut in half is held, since a path that is closed
-    early reads a different place in the data model.
+  description:
+    A data binding path cut in half is held, since a path that is closed early reads a different
+    place in the data model.
   action: parse_chunk
   args:
     format: direct_json
@@ -782,16 +813,16 @@
     progressive_keys:
       - text
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Text", "text": {"@path": "/user'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Text", "text": {"@path": "/user'
       expect: []
     - input: /name"}}]}}]</a2ui-json>
       expect:
@@ -805,9 +836,11 @@
                     text:
                       "@path": /user/name
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_partial_component_name_withholds
-  description: A component name cut in half is held, since closing it early names
-    a component the catalog does not have.
+  description:
+    A component name cut in half is held, since closing it early names a component the catalog
+    does not have.
   action: parse_chunk
   args:
     format: direct_json
@@ -815,16 +848,16 @@
     progressive_keys:
       - text
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Te'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Te'
       expect: []
     - input: 'xt", "text": "Hello"}]}}]</a2ui-json>'
       expect:
@@ -837,9 +870,11 @@
                     component: Text
                     text: Hello
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_partial_child_reference_withholds
-  description: A child reference cut in half is held, since closing it early points
-    the parent at a component that does not exist.
+  description:
+    A child reference cut in half is held, since closing it early points the parent at a component
+    that does not exist.
   action: parse_chunk
   args:
     format: direct_json
@@ -847,16 +882,16 @@
     progressive_keys:
       - text
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Card", "child": "bo'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Card", "child": "bo'
       expect: []
     - input: 'dy"}, {"id": "body", "component": "Text", "text": "Hello"}]}}]</a2ui-json>'
       expect:
@@ -872,9 +907,11 @@
                     component: Text
                     text: Hello
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_partial_children_list_withholds
-  description: An entry in a list of child ids is not the value of a property, so
-    there is no key to make it healable and the list is held until it closes.
+  description:
+    An entry in a list of child ids is not the value of a property, so there is no key to make
+    it healable and the list is held until it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -882,19 +919,20 @@
     progressive_keys:
       - text
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Column", "children": ["one", "tw'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Column", "children": ["one", "tw'
       expect: []
-    - input: 'o"]}, {"id": "one", "component": "Text", "text": "One"}, {"id": "two",
-        "component": "Text", "text": "Two"}]}}]</a2ui-json>'
+    - input:
+        'o"]}, {"id": "one", "component": "Text", "text": "One"}, {"id": "two", "component": "Text",
+        "text": "Two"}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
@@ -913,10 +951,11 @@
                     component: Text
                     text: Two
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_partial_child_list_template_withholds
-  description: A template that has its component id and not yet its path reads as
-    JSON and is still not a child list the catalog describes, so it is held rather
-    than emitted.
+  description:
+    A template that has its component id and not yet its path reads as JSON and is still not
+    a child list the catalog describes, so it is held rather than emitted.
   action: parse_chunk
   args:
     format: direct_json
@@ -924,17 +963,16 @@
     progressive_keys:
       - text
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Column", "children": {"componentId":
-        "row"'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Column", "children": {"componentId": "row"'
       expect: []
     - input: ', "path": "/items"}}, {"id": "row", "component": "Text", "text": "Item"}]}}]</a2ui-json>'
       expect:
@@ -952,9 +990,11 @@
                     component: Text
                     text: Item
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_payload_reassembled_from_small_deltas
-  description: A payload arriving a few characters at a time is assembled across chunks,
-    emitting each message as it becomes readable and each component once it closes.
+  description:
+    A payload arriving a few characters at a time is assembled across chunks, emitting each
+    message as it becomes readable and each component once it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -973,8 +1013,7 @@
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: ', {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components":
-        ['
+    - input: ', {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": ['
       expect: []
     - input: '{"id": "root", "compon'
       expect: []
@@ -993,8 +1032,9 @@
   features:
     - F-AGT-20
 - name: test_chunk_each_message_emits_as_it_completes
-  description: A payload holding several messages emits each one once, as it closes,
-    rather than holding them all for the end of the block.
+  description:
+    A payload holding several messages emits each one once, as it closes, rather than holding
+    them all for the end of the block.
   action: parse_chunk
   args:
     format: direct_json
@@ -1007,8 +1047,7 @@
             - version: "1.0"
               createSurface:
                 surfaceId: s1
-    - input: ', {"version": "1.0", "updateDataModel": {"surfaceId": "s1", "value": {"count":
-        1}}}'
+    - input: ', {"version": "1.0", "updateDataModel": {"surfaceId": "s1", "value": {"count": 1}}}'
       expect:
         - a2ui:
             - version: "1.0"
@@ -1016,8 +1055,7 @@
                 surfaceId: s1
                 value:
                   count: 1
-    - input: ', {"version": "1.0", "updateDataModel": {"surfaceId": "s1", "path": "/count",
-        "value": 2}}]</a2ui-json>'
+    - input: ', {"version": "1.0", "updateDataModel": {"surfaceId": "s1", "path": "/count", "value": 2}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
@@ -1028,24 +1066,23 @@
   features:
     - F-AGT-20
 - name: test_chunk_data_model_grows_across_chunks
-  description: A data model that arrives an entry at a time is emitted as it stands
-    on each chunk, starting from the empty object that encloses it.
+  description:
+    A data model that arrives an entry at a time is emitted as it stands on each chunk, starting
+    from the empty object that encloses it.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '<a2ui-json>[{"version": "1.0", "updateDataModel": {"surfaceId": "s1",
-        "value": {"items": {'
+    - input: '<a2ui-json>[{"version": "1.0", "updateDataModel": {"surfaceId": "s1", "value": {"items": {'
       expect:
         - a2ui:
             - version: "1.0"
@@ -1075,26 +1112,27 @@
                       name: Item 1
                     item2:
                       name: Item 2
+  features: *id001
 - name: test_chunk_data_model_key_without_a_value_withholds
-  description: A key that has arrived with nothing after it holds its message back,
-    the same as a value that is half written, rather than being dropped to emit the
-    rest.
+  description:
+    A key that has arrived with nothing after it holds its message back, the same as a value
+    that is half written, rather than being dropped to emit the rest.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '<a2ui-json>[{"version": "1.0", "updateDataModel": {"surfaceId": "s1",
-        "value": {"title": "Top", "items": {"item1"'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateDataModel": {"surfaceId": "s1", "value": {"title": "Top",
+        "items": {"item1"'
       expect: []
     - input: ': {"name": "Item 1"}}}}}]</a2ui-json>'
       expect:
@@ -1108,33 +1146,34 @@
                     item1:
                       name: Item 1
   expect_matches_single_shot: true
+  features: *id001
 - name: test_chunk_two_surfaces_interleaved
-  description: A block that builds two surfaces emits only the message that closed,
-    so a renderer applying each delta in turn keeps the two apart.
+  description:
+    A block that builds two surfaces emits only the message that closed, so a renderer applying
+    each delta in turn keeps the two apart.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "left",
-        "catalogId": "conformance/simplified"}}'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "left", "catalogId": "conformance/simplified"}}'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: left
                 catalogId: conformance/simplified
-    - input: ', {"version": "1.0", "createSurface": {"surfaceId": "right", "catalogId":
-        "conformance/simplified"}}'
+    - input: ', {"version": "1.0", "createSurface": {"surfaceId": "right", "catalogId": "conformance/simplified"}}'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: right
                 catalogId: conformance/simplified
-    - input: ', {"version": "1.0", "updateComponents": {"surfaceId": "left", "components":
-        [{"id": "root", "component": "Text", "text": "Left"}]}}'
+    - input:
+        ', {"version": "1.0", "updateComponents": {"surfaceId": "left", "components": [{"id": "root",
+        "component": "Text", "text": "Left"}]}}'
       expect:
         - a2ui:
             - version: "1.0"
@@ -1144,8 +1183,9 @@
                   - id: root
                     component: Text
                     text: Left
-    - input: ', {"version": "1.0", "updateComponents": {"surfaceId": "right", "components":
-        [{"id": "root", "component": "Text", "text": "Right"}]}}]</a2ui-json>'
+    - input:
+        ', {"version": "1.0", "updateComponents": {"surfaceId": "right", "components": [{"id": "root",
+        "component": "Text", "text": "Right"}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
@@ -1155,9 +1195,11 @@
                   - id: root
                     component: Text
                     text: Right
+  features: *id001
 - name: test_chunk_error_carries_the_text_before_the_failing_block
-  description: A chunk that fails on a block returns the text before the block in
-    the error's partial results.
+  description:
+    A chunk that fails on a block returns the text before the block in the error's partial
+    results.
   action: parse_chunk
   args:
     format: direct_json
@@ -1169,16 +1211,19 @@
       expect_partial_results:
         - text: Before
       expect_in_block: false
+  features: *id001
 - name: test_chunk_error_carries_a_block_finished_in_the_same_chunk
-  description: A block that closed earlier in the failing chunk is in the error's
-    partial results, with the text after it.
+  description:
+    A block that closed earlier in the failing chunk is in the error's partial results, with
+    the text after it.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json> Then <a2ui-json>not json</a2ui-json>'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>
+        Then <a2ui-json>not json</a2ui-json>'
       expect_error:
         category: ParseError
       expect_partial_results:
@@ -1188,9 +1233,11 @@
                 surfaceId: s1
                 catalogId: conformance/simplified
         - text: Then
+  features: *id001
 - name: test_chunk_continue_returns_an_error_part_for_an_unreadable_block
-  description: Reading past rejected blocks, a block that cannot be read becomes an
-    error part, and the text after it is read as usual.
+  description:
+    Reading past rejected blocks, a block that cannot be read becomes an error part, and the
+    text after it is read as usual.
   action: parse_chunk
   args:
     format: direct_json
@@ -1207,53 +1254,57 @@
   features:
     - F-AGT-45
 - name: test_chunk_continue_takes_back_a_block_rejected_whole
-  description: A block that arrives whole and is rejected emits none of its messages,
-    so a later block can create the same surface.
+  description:
+    A block that arrives whole and is rejected emits none of its messages, so a later block
+    can create the same surface.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
     after_rejected_block: continue
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId":
-        "s1", "components": [{"id": "root", "component": "Bogus"}]}}]</a2ui-json>'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+        {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component":
+        "Bogus"}]}}]</a2ui-json>'
       expect:
         - error:
             category: ValidationError
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
+  features: *id001
 - name: test_chunk_continue_keeps_the_messages_emitted_before_the_rejection
-  description: Messages a block emitted before it was rejected stay applied, so a
-    later block can update the surface they created.
+  description:
+    Messages a block emitted before it was rejected stay applied, so a later block can update
+    the surface they created.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
     after_rejected_block: continue
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}, '
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, '
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: s1
                 catalogId: conformance/simplified
-    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Bogus"}]}}]</a2ui-json> after'
+    - input:
+        '{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component":
+        "Bogus"}]}}]</a2ui-json> after'
       expect:
         - error:
             category: ValidationError
         - text: after
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json>'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
@@ -1266,17 +1317,19 @@
   features:
     - F-AGT-45
 - name: test_chunk_continue_skips_the_rest_of_a_rejected_block
-  description: A block rejected before its close tag is skipped up to the close tag,
-    and the text after it is read as usual.
+  description:
+    A block rejected before its close tag is skipped up to the close tag, and the text after
+    it is read as usual.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
     after_rejected_block: continue
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}, {"version": "1.0", "updateComponents": {"surfaceId":
-        "s1", "components": [{"id": "root", "component": "Bogus"}, '
+    - input:
+        '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}},
+        {"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component":
+        "Bogus"}, '
       expect:
         - a2ui:
             - version: "1.0"
@@ -1286,16 +1339,16 @@
         - error:
             category: ValidationError
       expect_in_block: true
-    - input: '{"id": "other", "component": "Text", "text": "Never read"}]}}]</a2ui-json>
-        after'
+    - input: '{"id": "other", "component": "Text", "text": "Never read"}]}}]</a2ui-json> after'
       expect:
         - text: after
       expect_in_block: false
   features:
     - F-AGT-45
 - name: test_chunk_continue_returns_an_error_part_for_a_block_still_open_at_the_end
-  description: Reading past rejected blocks, a block still open when the response
-    ends becomes an error part.
+  description:
+    Reading past rejected blocks, a block still open when the response ends becomes an error
+    part.
   action: parse_chunk
   args:
     format: direct_json
@@ -1309,9 +1362,11 @@
   expect_close:
     - error:
         category: ParseError
+  features: *id001
 - name: test_chunk_in_block_from_the_open_tag_to_the_close_tag
-  description: The response ends inside a block from its opening tag to its closing
-    tag, and not while an opening tag is still arriving.
+  description:
+    The response ends inside a block from its opening tag to its closing tag, and not while
+    an opening tag is still arriving.
   action: parse_chunk
   args:
     format: direct_json
@@ -1324,8 +1379,7 @@
     - input: on>
       expect: []
       expect_in_block: true
-    - input: '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]'
+    - input: '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]'
       expect:
         - a2ui:
             - version: "1.0"
@@ -1337,17 +1391,16 @@
       expect:
         - text: after
       expect_in_block: false
+  features: *id001
 - name: test_chunk_in_block_for_an_unwrapped_response
-  description: An unwrapped response is one block, so it ends inside a block until
-    the stream ends.
+  description: An unwrapped response is one block, so it ends inside a block until the stream ends.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
     wrapped: false
   steps:
-    - input: '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified"}}]'
+    - input: '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]'
       expect:
         - a2ui:
             - version: "1.0"
@@ -1355,9 +1408,11 @@
                 surfaceId: s1
                 catalogId: conformance/simplified
       expect_in_block: true
+  features: *id001
 - name: test_stream_interleaved_text_v08
-  description: Text before and after a block is emitted around the block's messages,
-    with the whitespace at each edge trimmed.
+  description:
+    Text before and after a block is emitted around the block's messages, with the whitespace
+    at each edge trimmed.
   action: parse_chunk
   args:
     format: direct_json
@@ -1379,9 +1434,11 @@
     - input: </a2ui-json> That's all!
       expect:
         - text: That's all!
+  features: *id001
 - name: test_stream_interleaved_text_v09
-  description: Text before and after a block is emitted around the block's messages,
-    with the whitespace at each edge trimmed.
+  description:
+    Text before and after a block is emitted around the block's messages, with the whitespace
+    at each edge trimmed.
   action: parse_chunk
   args:
     format: direct_json
@@ -1394,8 +1451,7 @@
     - input: "Here is your UI: <a2ui-json>"
       expect:
         - text: " Here is your UI:"
-    - input: '[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "s1"}}]'
+    - input: '[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}]'
       expect:
         - a2ui:
             - version: v0.9
@@ -1405,9 +1461,11 @@
     - input: </a2ui-json> That's all!
       expect:
         - text: That's all!
+  features: *id001
 - name: test_stream_open_tag_split_v08
-  description: An open tag split across chunks is held back, so none of it reaches
-    a text part, and the block it opens is read as usual.
+  description:
+    An open tag split across chunks is held back, so none of it reaches a text part, and the
+    block it opens is read as usual.
   action: parse_chunk
   args:
     format: direct_json
@@ -1427,9 +1485,11 @@
                 root: r
         - text: End.
   expect_matches_single_shot: true
+  features: *id001
 - name: test_stream_open_tag_split_v09
-  description: An open tag split across chunks is held back, so none of it reaches
-    a text part, and the block it opens is read as usual.
+  description:
+    An open tag split across chunks is held back, so none of it reaches a text part, and the
+    block it opens is read as usual.
   action: parse_chunk
   args:
     format: direct_json
@@ -1441,8 +1501,9 @@
         - text: Talking
     - input: i-json>
       expect: []
-    - input: '[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "s"}}] </a2ui-json> End.'
+    - input:
+        '[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s"}}] </a2ui-json>
+        End.'
       expect:
         - a2ui:
             - version: v0.9
@@ -1451,17 +1512,20 @@
                 catalogId: test_catalog
         - text: End.
   expect_matches_single_shot: true
+  features: *id001
 - name: test_stream_multiple_blocks_v08
-  description: Two blocks arriving in two chunks are read separately, with the text
-    around each emitted in order.
+  description:
+    Two blocks arriving in two chunks are read separately, with the text around each emitted
+    in order.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_8.json
     progressive_keys: []
   steps:
-    - input: 'Some text here <a2ui-json>[{"beginRendering": {"root": "root", "surfaceId":
-        "s1"}}] </a2ui-json> mid text'
+    - input:
+        'Some text here <a2ui-json>[{"beginRendering": {"root": "root", "surfaceId": "s1"}}] </a2ui-json>
+        mid text'
       expect:
         - text: Some text here
         - a2ui:
@@ -1469,9 +1533,9 @@
                 surfaceId: s1
                 root: root
         - text: mid text
-    - input: ' more text <a2ui-json>[{"surfaceUpdate": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": {"Text": {"text": "block2"}}}]}}] </a2ui-json>
-        trailing text'
+    - input:
+        ' more text <a2ui-json>[{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": {"Text": {"text": "block2"}}}]}}] </a2ui-json> trailing text'
       expect:
         - text: " more text"
         - a2ui:
@@ -1483,17 +1547,20 @@
                       Text:
                         text: block2
         - text: trailing text
+  features: *id001
 - name: test_stream_multiple_blocks_v09
-  description: Two blocks arriving in two chunks are read separately, with the text
-    around each emitted in order.
+  description:
+    Two blocks arriving in two chunks are read separately, with the text around each emitted
+    in order.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: 'Some text here <a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId":
-        "test_catalog", "surfaceId": "s1"}}] </a2ui-json> mid text'
+    - input:
+        'Some text here <a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
+        "surfaceId": "s1"}}] </a2ui-json> mid text'
       expect:
         - text: Some text here
         - a2ui:
@@ -1502,9 +1569,9 @@
                 surfaceId: s1
                 catalogId: test_catalog
         - text: mid text
-    - input: ' more text <a2ui-json>[{"version": "v0.9", "updateComponents": {"surfaceId":
-        "s1", "components": [{"id": "root", "component": "Text", "text": "block2"}]}}]
-        </a2ui-json> trailing text'
+    - input:
+        ' more text <a2ui-json>[{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
+        [{"id": "root", "component": "Text", "text": "block2"}]}}] </a2ui-json> trailing text'
       expect:
         - text: " more text"
         - a2ui:
@@ -1516,6 +1583,7 @@
                     component: Text
                     text: block2
         - text: trailing text
+  features: *id001
 - name: test_stream_invalid_json_fails_at_close_v08
   description: A block whose text is not JSON raises a parse error when it closes.
   action: parse_chunk
@@ -1527,9 +1595,11 @@
     - input: <a2ui-json>invalid json</a2ui-json>
       expect_error:
         category: ParseError
+  features: *id001
 - name: test_stream_incremental_yielding_v08
-  description: Text is emitted per chunk, and a message is emitted as soon as it closes,
-    before the block does.
+  description:
+    Text is emitted per chunk, and a message is emitted as soon as it closes, before the block
+    does.
   action: parse_chunk
   args:
     format: direct_json
@@ -1550,10 +1620,11 @@
                 root: root-column
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_incremental_yielding_v09
-  description: A createSurface is emitted once it closes, an updateComponents is emitted
-    again each time its list grows, and a parent may arrive before the children it
-    names, which come in later messages.
+  description:
+    A createSurface is emitted once it closes, an updateComponents is emitted again each time
+    its list grows, and a parent may arrive before the children it names, which come in later messages.
   action: parse_chunk
   args:
     format: direct_json
@@ -1579,8 +1650,7 @@
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        ['
+    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": ['
       expect: []
     - input: '{"id": "root", "component": "Column", "children": ['
       expect:
@@ -1615,8 +1685,9 @@
                     children:
                       - c1
                       - c2
-    - input: ', {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "c1", "component": "Text", "text": "hello"}]}}'
+    - input:
+        ', {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "c1",
+        "component": "Text", "text": "hello"}]}}'
       expect:
         - a2ui:
             - version: v0.9
@@ -1626,8 +1697,9 @@
                   - id: c1
                     component: Text
                     text: hello
-    - input: ', {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "c2", "component": "Text", "text": "world"}]}}'
+    - input:
+        ', {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "c2",
+        "component": "Text", "text": "world"}]}}'
       expect:
         - a2ui:
             - version: v0.9
@@ -1639,9 +1711,9 @@
                     text: world
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_begin_rendering_held_until_closed_v08
-  description: A beginRendering is held back until its object closes, so a renderer
-    sees it once, whole.
+  description: A beginRendering is held back until its object closes, so a renderer sees it once, whole.
   action: parse_chunk
   args:
     format: direct_json
@@ -1652,8 +1724,7 @@
       expect: []
     - input: "["
       expect: []
-    - input: '{"beginRendering": {"root": "root", "surfaceId": "s1", "styles": {"primaryColor":
-        "#FF0000",'
+    - input: '{"beginRendering": {"root": "root", "surfaceId": "s1", "styles": {"primaryColor": "#FF0000",'
       expect: []
     - input: '"font": "Roboto"}'
       expect: []
@@ -1671,9 +1742,11 @@
     - input: "]</a2ui-json>"
       expect: []
   expect_matches_single_shot: true
+  features: *id001
 - name: test_stream_create_surface_held_until_closed_v09
-  description: A createSurface is held back until its object closes, so a renderer
-    sees it once, theme included.
+  description:
+    A createSurface is held back until its object closes, so a renderer sees it once, theme
+    included.
   action: parse_chunk
   args:
     format: direct_json
@@ -1684,8 +1757,9 @@
       expect: []
     - input: "["
       expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "s1", "theme": {"primaryColor": "#FF0000",'
+    - input:
+        '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1", "theme":
+        {"primaryColor": "#FF0000",'
       expect: []
     - input: '"font": "Roboto"}'
       expect: []
@@ -1704,9 +1778,11 @@
     - input: "]</a2ui-json>"
       expect: []
   expect_matches_single_shot: true
+  features: *id001
 - name: test_stream_create_surface_missing_catalog_id_v09
-  description: A createSurface without a catalogId is never emitted, and the block
-    raises a validation error when it closes.
+  description:
+    A createSurface without a catalogId is never emitted, and the block raises a validation
+    error when it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -1720,18 +1796,19 @@
     - input: </a2ui-json>
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_create_surface_inline_components_v10
-  description: A v1.0 createSurface carrying components and a data model is emitted
-    once, whole.
+  description: A v1.0 createSurface carrying components and a data model is emitted once, whole.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main",
-        "catalogId": "conformance/simplified", "components": [{"id": "root", "component":
-        "Text", "text": "Streaming v1.0"}], "dataModel": {"count": 10}}}]</a2ui-json>'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "conformance/simplified",
+        "components": [{"id": "root", "component": "Text", "text": "Streaming v1.0"}], "dataModel": {"count":
+        10}}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
@@ -1748,9 +1825,10 @@
   features:
     - F-AGT-20
 - name: test_stream_create_surface_inline_components_in_small_chunks_v10
-  description: A v1.0 createSurface whose components and data model arrive over several
-    chunks is emitted once, after its object closes, with the strings in it whole,
-    and the message after it is emitted as it closes.
+  description:
+    A v1.0 createSurface whose components and data model arrive over several chunks is emitted
+    once, after its object closes, with the strings in it whole, and the message after it is emitted as
+    it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -1759,9 +1837,9 @@
       - greeting
       - text
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId":
-        "conformance/simplified", "components": [{"id": "root", "component": "Card",
-        "child": "body"}'
+    - input:
+        '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified",
+        "components": [{"id": "root", "component": "Card", "child": "body"}'
       expect: []
     - input: ', {"id": "body", "component": "Text", "text": "Hel'
       expect: []
@@ -1783,8 +1861,9 @@
                     text: Hello
                 dataModel:
                   greeting: Hi
-    - input: ', {"version": "1.0", "updateDataModel": {"surfaceId": "s1", "path": "/greeting",
-        "value": "Bye"}}]</a2ui-json>'
+    - input:
+        ', {"version": "1.0", "updateDataModel": {"surfaceId": "s1", "path": "/greeting", "value":
+        "Bye"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
@@ -1792,9 +1871,11 @@
                 surfaceId: s1
                 path: /greeting
                 value: Bye
+  features: *id001
 - name: test_stream_surface_update_before_begin_rendering_v08
-  description: A v0.8 surfaceUpdate may come before the beginRendering it belongs
-    to, and each is emitted as it closes.
+  description:
+    A v0.8 surfaceUpdate may come before the beginRendering it belongs to, and each is emitted
+    as it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -1803,8 +1884,9 @@
   steps:
     - input: <a2ui-json>[
       expect: []
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"Text": {"text": "hi"}}}]}}, '
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text":
+        {"text": "hi"}}}]}}, '
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -1820,10 +1902,11 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
+  features: *id001
 - name: test_stream_update_before_create_surface_fails_v09
-  description: An updateComponents for a surface that does not exist yet is held back,
-    since a renderer would reject it, and the block raises a validation error when
-    it closes.
+  description:
+    An updateComponents for a surface that does not exist yet is held back, since a renderer
+    would reject it, and the block raises a validation error when it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -1832,16 +1915,16 @@
   steps:
     - input: <a2ui-json>[
       expect: []
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Text", "text": "hi"}]}}, '
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Text", "text": "hi"}]}}, '
       expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "s1"}}]</a2ui-json>'
+    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}]</a2ui-json>'
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_delete_surface_before_begin_rendering_v08
-  description: A deleteSurface before the surface is created is emitted as it closes
-    rather than dropped.
+  description: A deleteSurface before the surface is created is emitted as it closes rather than dropped.
   action: parse_chunk
   args:
     format: direct_json
@@ -1863,9 +1946,9 @@
                 root: root
     - input: </a2ui-json>
       expect: []
+  features: *id001
 - name: test_stream_delete_surface_before_create_surface_v09
-  description: A deleteSurface before the surface is created is emitted as it closes
-    rather than dropped.
+  description: A deleteSurface before the surface is created is emitted as it closes rather than dropped.
   action: parse_chunk
   args:
     format: direct_json
@@ -1880,17 +1963,18 @@
             - version: v0.9
               deleteSurface:
                 surfaceId: s1
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "s1"}}]</a2ui-json>'
+    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
+  features: *id001
 - name: test_stream_concurrent_surfaces_v08
-  description: Messages for two surfaces in one block are emitted as each closes,
-    each against its own surface.
+  description:
+    Messages for two surfaces in one block are emitted as each closes, each against its own
+    surface.
   action: parse_chunk
   args:
     format: direct_json
@@ -1911,8 +1995,9 @@
             - beginRendering:
                 surfaceId: surface2
                 root: root2
-    - input: '{"surfaceUpdate": {"surfaceId": "surface1", "components": [{"id": "root1",
-        "component": {"Card": {"child": "c1"}}}, '
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "surface1", "components": [{"id": "root1", "component": {"Card":
+        {"child": "c1"}}}, '
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -1936,9 +2021,9 @@
                     component:
                       Text:
                         text: hello s1
-    - input: '{"surfaceUpdate": {"surfaceId": "surface2", "components": [{"id": "root2",
-        "component": {"Card": {"child": "c2"}}}, {"id": "c2", "component": {"Text":
-        {"text": "hello s2"}}}]}}'
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "surface2", "components": [{"id": "root2", "component": {"Card":
+        {"child": "c2"}}}, {"id": "c2", "component": {"Text": {"text": "hello s2"}}}]}}'
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -1954,9 +2039,11 @@
                         text: hello s2
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_concurrent_surfaces_v09
-  description: Messages for two surfaces in one block are emitted as each closes,
-    each against its own surface.
+  description:
+    Messages for two surfaces in one block are emitted as each closes, each against its own
+    surface.
   action: parse_chunk
   args:
     format: direct_json
@@ -1965,24 +2052,23 @@
   steps:
     - input: <a2ui-json>[
       expect: []
-    - input: '{"version": "v0.9", "createSurface": {"surfaceId": "surface1", "catalogId":
-        "test_catalog"}},'
+    - input: '{"version": "v0.9", "createSurface": {"surfaceId": "surface1", "catalogId": "test_catalog"}},'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: surface1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "createSurface": {"surfaceId": "surface2", "catalogId":
-        "test_catalog"}},'
+    - input: '{"version": "v0.9", "createSurface": {"surfaceId": "surface2", "catalogId": "test_catalog"}},'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: surface2
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "surface1", "components":
-        [{"id": "root", "component": "Card", "child": "c1"}, '
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "surface1", "components": [{"id": "root",
+        "component": "Card", "child": "c1"}, '
       expect:
         - a2ui:
             - version: v0.9
@@ -2005,9 +2091,9 @@
                   - id: c1
                     component: Text
                     text: hello s1
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "surface2", "components":
-        [{"id": "root", "component": "Card", "child": "c2"}, {"id": "c2", "component":
-        "Text", "text": "hello s2"}]}}'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "surface2", "components": [{"id": "root",
+        "component": "Card", "child": "c2"}, {"id": "c2", "component": "Text", "text": "hello s2"}]}}'
       expect:
         - a2ui:
             - version: v0.9
@@ -2022,9 +2108,11 @@
                     text: hello s2
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_text_grows_in_place_v08
-  description: A component's text healed while it arrives is emitted again as it grows,
-    ending with the full value.
+  description:
+    A component's text healed while it arrives is emitted again as it grows, ending with the
+    full value.
   action: parse_chunk
   args:
     format: direct_json
@@ -2038,8 +2126,9 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"Text": {"text": "hello'
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text":
+        {"text": "hello'
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -2061,9 +2150,11 @@
                         text: hello world
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_text_grows_in_place_v09
-  description: A component's text healed while it arrives is emitted again as it grows,
-    ending with the full value.
+  description:
+    A component's text healed while it arrives is emitted again as it grows, ending with the
+    full value.
   action: parse_chunk
   args:
     format: direct_json
@@ -2071,16 +2162,18 @@
     progressive_keys:
       - text
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "s1"}},'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "s1"}},'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Text", "text": "hello'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Text", "text": "hello'
       expect:
         - a2ui:
             - version: v0.9
@@ -2102,9 +2195,11 @@
                     text: hello world
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_child_before_root_v08
-  description: A child may arrive before the root that names it, and the message is
-    emitted as each component is added.
+  description:
+    A child may arrive before the root that names it, and the message is emitted as each component
+    is added.
   action: parse_chunk
   args:
     format: direct_json
@@ -2117,8 +2212,9 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "c1", "component":
-        {"Text": {"text": {"literalString": "hello"}}}}'
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "c1", "component": {"Text": {"text":
+        {"literalString": "hello"}}}}'
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -2144,25 +2240,29 @@
                     component:
                       Card:
                         child: c1
+  features: *id001
 - name: test_stream_child_before_root_v09
-  description: A child may arrive before the root that names it, and the message is
-    emitted as each component is added.
+  description:
+    A child may arrive before the root that names it, and the message is emitted as each component
+    is added.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "s1"}},'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "s1"}},'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "c1", "component": "Text", "text": "hello"}'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "c1", "component":
+        "Text", "text": "hello"}'
       expect:
         - a2ui:
             - version: v0.9
@@ -2185,9 +2285,11 @@
                   - id: root
                     component: Card
                     child: c1
+  features: *id001
 - name: test_stream_single_child_reference_v08
-  description: A parent naming a single child is emitted before the child arrives,
-    with no placeholder in its place.
+  description:
+    A parent naming a single child is emitted before the child arrives, with no placeholder
+    in its place.
   action: parse_chunk
   args:
     format: direct_json
@@ -2200,8 +2302,9 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"Card": {"child": "c1"}}}, '
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Card":
+        {"child": "c1"}}}, '
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -2227,25 +2330,29 @@
                         text: child 1
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_single_child_reference_v09
-  description: A parent naming a single child is emitted before the child arrives,
-    with no placeholder in its place.
+  description:
+    A parent naming a single child is emitted before the child arrives, with no placeholder
+    in its place.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "s1"}},'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "s1"}},'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Card", "child": "c1"}'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Card", "child": "c1"}'
       expect:
         - a2ui:
             - version: v0.9
@@ -2270,9 +2377,11 @@
                     text: child 1
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_template_child_v08
-  description: A list whose template names a child is emitted before the child arrives,
-    with no placeholder in its place.
+  description:
+    A list whose template names a child is emitted before the child arrives, with no placeholder
+    in its place.
   action: parse_chunk
   args:
     format: direct_json
@@ -2285,8 +2394,9 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"List": {"children": {"template": {"componentId": "c1", "dataBinding": "/items"}}}}}, '
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"List":
+        {"children": {"template": {"componentId": "c1", "dataBinding": "/items"}}}}}, '
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -2318,25 +2428,29 @@
                         text: child 1
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_template_child_v09
-  description: A list whose template is still arriving is held back, then emitted
-    before the child it names arrives, with no placeholder in its place.
+  description:
+    A list whose template is still arriving is held back, then emitted before the child it
+    names arrives, with no placeholder in its place.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "s1"}},'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "s1"}},'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "List", "children": {"componentId": "c1"'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "List", "children": {"componentId": "c1"'
       expect: []
     - input: ', "path": "/items"'
       expect:
@@ -2365,9 +2479,11 @@
                   - id: c1
                     component: Text
                     text: child 1
+  features: *id001
 - name: test_stream_children_list_v08
-  description: A parent naming several children is emitted before they arrive, then
-    again as each child is added.
+  description:
+    A parent naming several children is emitted before they arrive, then again as each child
+    is added.
   action: parse_chunk
   args:
     format: direct_json
@@ -2380,8 +2496,9 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"Container": {"children": ["c1", "c2", "c3"]}}}, '
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Container":
+        {"children": ["c1", "c2", "c3"]}}}, '
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -2459,25 +2576,29 @@
                         text: child 3
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_children_list_v09
-  description: A parent naming several children is emitted before they arrive, then
-    again as each child is added.
+  description:
+    A parent naming several children is emitted before they arrive, then again as each child
+    is added.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "s1"}},'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "s1"}},'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Container", "children": ["c1", "c2", "c3"]}'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Container", "children": ["c1", "c2", "c3"]}'
       expect:
         - a2ui:
             - version: v0.9
@@ -2549,25 +2670,29 @@
                     text: child 3
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_no_placeholder_components_v09
-  description: "A parent is emitted with child references that do not resolve yet:
-    the parser adds no placeholder components of its own."
+  description:
+    "A parent is emitted with child references that do not resolve yet: the parser adds no
+    placeholder components of its own."
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "s1"}},'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "s1"}},'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Column", "children": ["c1", "c2"]}'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Column", "children": ["c1", "c2"]}'
       expect:
         - a2ui:
             - version: v0.9
@@ -2614,9 +2739,11 @@
                     text: child 2
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_bindings_in_one_chunk_v08
-  description: Components bound to data paths are emitted as they are, with no placeholder
-    values filled in.
+  description:
+    Components bound to data paths are emitted as they are, with no placeholder values filled
+    in.
   action: parse_chunk
   args:
     format: direct_json
@@ -2631,10 +2758,10 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"Container": {"children": ["img-comp", "link-comp"]}}},{"id": "img-comp", "component":
-        {"Container": {"imageUrl": {"path": "/heroImage"}}}},{"id": "link-comp", "component":
-        {"Card": {"href": {"path": "/docs"}}}}]}}, '
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Container":
+        {"children": ["img-comp", "link-comp"]}}},{"id": "img-comp", "component": {"Container": {"imageUrl":
+        {"path": "/heroImage"}}}},{"id": "link-comp", "component": {"Card": {"href": {"path": "/docs"}}}}]}}, '
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -2658,9 +2785,11 @@
                           path: /docs
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_open_children_object_withholds_v08
-  description: A message whose children object has opened but holds nothing yet is
-    held back until the object is complete.
+  description:
+    A message whose children object has opened but holds nothing yet is held back until the
+    object is complete.
   action: parse_chunk
   args:
     format: direct_json
@@ -2673,12 +2802,12 @@
             - beginRendering:
                 surfaceId: default
                 root: root-column
-    - input: '{"surfaceUpdate": {"surfaceId": "default", "components": [{"id": "root-column",
-        "component": {"Column": {"children": {"explicitList": ["item-list"]}}}},{"id":
-        "item-list", "component": {"List": {"direction": "vertical", "children": {'
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "default", "components": [{"id": "root-column", "component":
+        {"Column": {"children": {"explicitList": ["item-list"]}}}},{"id": "item-list", "component": {"List":
+        {"direction": "vertical", "children": {'
       expect: []
-    - input: '"explicitList": ["t1"]}}}}, {"id": "t1", "component": {"Text": {"text":
-        "Item"}}}]}}'
+    - input: '"explicitList": ["t1"]}}}}, {"id": "t1", "component": {"Text": {"text": "Item"}}}]}}'
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -2703,28 +2832,31 @@
                         text: Item
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_open_children_object_withholds_v09
-  description: A message whose children object has opened but holds nothing yet is
-    held back until the object is complete.
+  description:
+    A message whose children object has opened but holds nothing yet is held back until the
+    object is complete.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "default"}},{"version": "v0.9", "updateComponents": {"surfaceId":
-        "default", "components": [{"id": "root", "component": "Column", "children":
-        ["item-list"]},{"id": "item-list", "component": "List", "direction": "vertical",
-        "children": {'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "default"}},{"version": "v0.9", "updateComponents": {"surfaceId": "default", "components": [{"id":
+        "root", "component": "Column", "children": ["item-list"]},{"id": "item-list", "component": "List",
+        "direction": "vertical", "children": {'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: default
                 catalogId: test_catalog
-    - input: '"componentId": "t1", "path": "/items"}}, {"id": "t1", "component": "Text",
-        "text": {"path": "name"}}]}}'
+    - input:
+        '"componentId": "t1", "path": "/items"}}, {"id": "t1", "component": "Text", "text": {"path":
+        "name"}}]}}'
       expect:
         - a2ui:
             - version: v0.9
@@ -2747,9 +2879,11 @@
                       path: name
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_open_nested_object_withholds_v08
-  description: A message with an object still opening under a key outside the progressive
-    set is held back rather than emitted with an empty object.
+  description:
+    A message with an object still opening under a key outside the progressive set is held
+    back rather than emitted with an empty object.
   action: parse_chunk
   args:
     format: direct_json
@@ -2762,8 +2896,9 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"Card": {"action": {"context": [{"key": "address", "value": {'
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Card":
+        {"action": {"context": [{"key": "address", "value": {'
       expect: []
     - input: '"literalString": "123 Main St"}}]}}}}]}}'
       expect:
@@ -2781,28 +2916,33 @@
                                 literalString: 123 Main St
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_open_nested_object_withholds_v09
-  description: A message with an object still opening under a key outside the progressive
-    set is held back rather than emitted with an empty object.
+  description:
+    A message with an object still opening under a key outside the progressive set is held
+    back rather than emitted with an empty object.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "s1"}},'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "s1"}},'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Column", "children": {'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Column", "children": {'
       expect: []
-    - input: '"componentId": "c1", "path": "/items"}}, {"id": "c1", "component": "Text",
-        "text": "Child 1"}]}}'
+    - input:
+        '"componentId": "c1", "path": "/items"}}, {"id": "c1", "component": "Text", "text": "Child
+        1"}]}}'
       expect:
         - a2ui:
             - version: v0.9
@@ -2819,9 +2959,11 @@
                     text: Child 1
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_component_missing_required_property_withholds_v08
-  description: A component that parses but still lacks a property its catalog requires
-    is held back until the property arrives.
+  description:
+    A component that parses but still lacks a property its catalog requires is held back until
+    the property arrives.
   action: parse_chunk
   args:
     format: direct_json
@@ -2834,8 +2976,9 @@
             - beginRendering:
                 surfaceId: s1
                 root: c1
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "c1", "component":
-        {"AudioPlayer": {"description": "almost ready"'
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "c1", "component": {"AudioPlayer":
+        {"description": "almost ready"'
       expect: []
     - input: ', "url": {"literalString": "http://audio.mp3"}}}}'
       expect:
@@ -2851,25 +2994,29 @@
                           literalString: http://audio.mp3
     - input: "]}}]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_component_missing_required_property_withholds_v09
-  description: A component that parses but still lacks a property its catalog requires
-    is held back until the property arrives.
+  description:
+    A component that parses but still lacks a property its catalog requires is held back until
+    the property arrives.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "s1"}},'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "s1"}},'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "AudioPlayer", "description": "almost ready"'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "AudioPlayer", "description": "almost ready"'
       expect: []
     - input: ', "url": "http://audio.mp3"}]}}'
       expect:
@@ -2884,9 +3031,11 @@
                     url: http://audio.mp3
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_orphan_component_fails_v08
-  description: A component the root does not reach makes the block raise a validation
-    error, rather than being dropped.
+  description:
+    A component the root does not reach makes the block raise a validation error, rather than
+    being dropped.
   action: parse_chunk
   args:
     format: direct_json
@@ -2899,36 +3048,39 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"Text": {"text": "root"}}}, {"id": "orphan", "component": {"Text": {"text":
-        "orphan"}}}]}}] </a2ui-json>'
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text":
+        {"text": "root"}}}, {"id": "orphan", "component": {"Text": {"text": "orphan"}}}]}}] </a2ui-json>'
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_orphan_component_fails_v09
-  description: A component the root does not reach makes the block raise a validation
-    error, rather than being dropped.
+  description:
+    A component the root does not reach makes the block raise a validation error, rather than
+    being dropped.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "s1"}}, '
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "s1"}}, '
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Text", "text": "root"}, {"id": "orphan", "component":
-        "Text", "text": "orphan"}]}}]</a2ui-json>'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Text", "text": "root"}, {"id": "orphan", "component": "Text", "text": "orphan"}]}}]</a2ui-json>'
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_circular_reference_fails_v08
-  description: Components that reference each other in a cycle make the block raise
-    a validation error.
+  description: Components that reference each other in a cycle make the block raise a validation error.
   action: parse_chunk
   args:
     format: direct_json
@@ -2941,38 +3093,41 @@
             - beginRendering:
                 surfaceId: s1
                 root: c1
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "c1", "component":
-        {"Card": {"child": "c2"}}}, {"id": "c2", "component": {"Card": {"child": "c1"}}}]}}]
-        </a2ui-json>'
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "c1", "component": {"Card": {"child":
+        "c2"}}}, {"id": "c2", "component": {"Card": {"child": "c1"}}}]}}] </a2ui-json>'
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_circular_reference_fails_v09
-  description: Components that reference each other in a cycle are never emitted,
-    and the block raises a validation error when it closes.
+  description:
+    Components that reference each other in a cycle are never emitted, and the block raises
+    a validation error when it closes.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "s1"}},'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "s1"}},'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Card", "child": "child"}, {"id": "child", "component":
-        "Card", "child": "root"}]}}'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Card", "child": "child"}, {"id": "child", "component": "Card", "child": "root"}]}}'
       expect: []
     - input: "]</a2ui-json>"
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_self_reference_fails_v08
-  description: A component that names itself as its child makes the block raise a
-    validation error.
+  description: A component that names itself as its child makes the block raise a validation error.
   action: parse_chunk
   args:
     format: direct_json
@@ -2985,36 +3140,43 @@
             - beginRendering:
                 surfaceId: s1
                 root: c1
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "c1", "component":
-        {"Card": {"child": "c1"}}}]}}] </a2ui-json>'
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "c1", "component": {"Card": {"child":
+        "c1"}}}]}}] </a2ui-json>'
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_self_reference_fails_v09
-  description: A component that names itself as its child is never emitted, and the
-    block raises a validation error when it closes.
+  description:
+    A component that names itself as its child is never emitted, and the block raises a validation
+    error when it closes.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "s1"}},'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "s1"}},'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Card", "child": "root"}]}}'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Card", "child": "root"}]}}'
       expect: []
     - input: "]</a2ui-json>"
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_small_deltas_v08
-  description: A payload arriving a few characters at a time is emitted once each
-    message reads, and again only when a chunk changes it.
+  description:
+    A payload arriving a few characters at a time is emitted once each message reads, and again
+    only when a chunk changes it.
   action: parse_chunk
   args:
     format: direct_json
@@ -3068,9 +3230,11 @@
       expect: []
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_small_deltas_v09
-  description: A payload arriving a few characters at a time is emitted once each
-    message reads, and again only when a chunk changes it.
+  description:
+    A payload arriving a few characters at a time is emitted once each message reads, and again
+    only when a chunk changes it.
   action: parse_chunk
   args:
     format: direct_json
@@ -3082,16 +3246,14 @@
       expect: []
     - input: "["
       expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "s1"}}'
+    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: ', {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        ['
+    - input: ', {"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": ['
       expect: []
     - input: '{"id": "root", "compon'
       expect: []
@@ -3119,9 +3281,11 @@
       expect: []
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_cut_id_withholds_v08
-  description: An id cut across chunks holds its message back until the id is complete,
-    since ids are outside the progressive set.
+  description:
+    An id cut across chunks holds its message back until the id is complete, since ids are
+    outside the progressive set.
   action: parse_chunk
   args:
     format: direct_json
@@ -3132,8 +3296,7 @@
       expect: []
     - input: '{"beginRendering": {"root": "root", "surfaceId": "contact'
       expect: []
-    - input: '-card"}}, {"surfaceUpdate": {"surfaceId": "contact-card", "components":
-        [{"id": "button'
+    - input: '-card"}}, {"surfaceUpdate": {"surfaceId": "contact-card", "components": [{"id": "button'
       expect:
         - a2ui:
             - beginRendering:
@@ -3141,8 +3304,7 @@
                 root: root
     - input: -text"
       expect: []
-    - input: ', "component": {"Text": {"text": "hi"}}}, {"id": "root", "component":
-        {"Card": {"child": "button-text"}}}]}}]</a2ui-json>'
+    - input: ', "component": {"Text": {"text": "hi"}}}, {"id": "root", "component": {"Card": {"child": "button-text"}}}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -3156,9 +3318,11 @@
                     component:
                       Card:
                         child: button-text
+  features: *id001
 - name: test_stream_cut_id_withholds_v09
-  description: An id cut across chunks holds its message back until the id is complete,
-    since ids are outside the progressive set.
+  description:
+    An id cut across chunks holds its message back until the id is complete, since ids are
+    outside the progressive set.
   action: parse_chunk
   args:
     format: direct_json
@@ -3167,11 +3331,11 @@
   steps:
     - input: <a2ui-json>[
       expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "contact'
+    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "contact'
       expect: []
-    - input: '-card"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "contact-card",
-        "components": [{"id": "button'
+    - input:
+        '-card"}}, {"version": "v0.9", "updateComponents": {"surfaceId": "contact-card", "components":
+        [{"id": "button'
       expect:
         - a2ui:
             - version: v0.9
@@ -3180,8 +3344,7 @@
                 catalogId: test_catalog
     - input: -text"
       expect: []
-    - input: ', "component": "Text", "text": "hi"}, {"id": "root", "component": "Card",
-        "child": "button-text"}]}}]</a2ui-json>'
+    - input: ', "component": "Text", "text": "hi"}, {"id": "root", "component": "Card", "child": "button-text"}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: v0.9
@@ -3194,9 +3357,11 @@
                   - id: root
                     component: Card
                     child: button-text
+  features: *id001
 - name: test_stream_cut_text_heals_v08
-  description: Text cut across chunks under a progressive key is emitted healed, then
-    again once it is complete.
+  description:
+    Text cut across chunks under a progressive key is emitted healed, then again once it is
+    complete.
   action: parse_chunk
   args:
     format: direct_json
@@ -3212,8 +3377,9 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"Text": {"text": {"literalString": "Em'
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text":
+        {"text": {"literalString": "Em'
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -3235,9 +3401,11 @@
                       Text:
                         text:
                           literalString: Email
+  features: *id001
 - name: test_stream_cut_text_heals_v09
-  description: Text cut across chunks under a progressive key is emitted healed, then
-    again once it is complete.
+  description:
+    Text cut across chunks under a progressive key is emitted healed, then again once it is
+    complete.
   action: parse_chunk
   args:
     format: direct_json
@@ -3247,16 +3415,16 @@
   steps:
     - input: <a2ui-json>[
       expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "s1"}}, '
+    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Text", "text": "Em'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Text", "text": "Em'
       expect:
         - a2ui:
             - version: v0.9
@@ -3276,6 +3444,7 @@
                   - id: root
                     component: Text
                     text: Email
+  features: *id001
 - name: test_stream_custom_progressive_keys_v09
   description: A property named in a custom progressive set is healed while it arrives.
   action: parse_chunk
@@ -3285,17 +3454,16 @@
     progressive_keys:
       - description
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId":
-        "test_catalog"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "test_catalog"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '<a2ui-json>[{"version": "v0.9", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "AudioPlayer", "url": "/track.mp3",
-        "description": "partial'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "AudioPlayer", "url": "/track.mp3", "description": "partial'
       expect:
         - a2ui:
             - version: v0.9
@@ -3317,9 +3485,9 @@
                     component: AudioPlayer
                     url: /track.mp3
                     description: partial description
+  features: *id001
 - name: test_stream_cut_path_withholds_v08
-  description: A data binding path cut across chunks holds its message back until
-    the path is complete.
+  description: A data binding path cut across chunks holds its message back until the path is complete.
   action: parse_chunk
   args:
     format: direct_json
@@ -3334,8 +3502,9 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"Text": {"text": {"path": "/loca'
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text":
+        {"text": {"path": "/loca'
       expect: []
     - input: tion"}}}}
       expect:
@@ -3350,9 +3519,9 @@
                           path: /location
     - input: "]}}]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_cut_path_withholds_v09
-  description: A data binding path cut across chunks holds its message back until
-    the path is complete.
+  description: A data binding path cut across chunks holds its message back until the path is complete.
   action: parse_chunk
   args:
     format: direct_json
@@ -3361,16 +3530,16 @@
   steps:
     - input: <a2ui-json>[
       expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "s1"}}, '
+    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Text", "text": {"path": "/loca'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Text", "text": {"path": "/loca'
       expect: []
     - input: tion"}}]}}]</a2ui-json>
       expect:
@@ -3383,9 +3552,9 @@
                     component: Text
                     text:
                       path: /location
+  features: *id001
 - name: test_stream_cut_nested_path_withholds_v08
-  description: A path cut between its segments holds its message back, so no shorter
-    path is emitted.
+  description: A path cut between its segments holds its message back, so no shorter path is emitted.
   action: parse_chunk
   args:
     format: direct_json
@@ -3400,8 +3569,9 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"Text": {"text": {"path": "/user'
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text":
+        {"text": {"path": "/user'
       expect: []
     - input: /profile"}}}}]}}]</a2ui-json>
       expect:
@@ -3414,9 +3584,9 @@
                       Text:
                         text:
                           path: /user/profile
+  features: *id001
 - name: test_stream_cut_nested_path_withholds_v09
-  description: A path cut between its segments holds its message back, so no shorter
-    path is emitted.
+  description: A path cut between its segments holds its message back, so no shorter path is emitted.
   action: parse_chunk
   args:
     format: direct_json
@@ -3425,16 +3595,16 @@
   steps:
     - input: <a2ui-json>[
       expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "s1"}}, '
+    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Text", "text": {"path": "/user'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Text", "text": {"path": "/user'
       expect: []
     - input: /profile"}}]}}]</a2ui-json>
       expect:
@@ -3447,9 +3617,11 @@
                     component: Text
                     text:
                       path: /user/profile
+  features: *id001
 - name: test_stream_cut_surrogate_pair_v09
-  description: Text cut between the two halves of an escaped surrogate pair is emitted
-    healed up to the cut, then whole once the pair completes.
+  description:
+    Text cut between the two halves of an escaped surrogate pair is emitted healed up to the
+    cut, then whole once the pair completes.
   action: parse_chunk
   args:
     format: direct_json
@@ -3457,16 +3629,18 @@
     progressive_keys:
       - text
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "s1"}}, '
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "s1"}}, '
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Text", "text": "Rocket \ud83d'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Text", "text": "Rocket \ud83d'
       expect:
         - a2ui:
             - version: v0.9
@@ -3486,9 +3660,11 @@
                   - id: root
                     component: Text
                     text: Rocket 🚀 Launch!
+  features: *id001
 - name: test_stream_cut_escape_sequence_v09
-  description: Text cut inside an escape sequence is emitted healed up to the cut,
-    then whole once the sequence completes.
+  description:
+    Text cut inside an escape sequence is emitted healed up to the cut, then whole once the
+    sequence completes.
   action: parse_chunk
   args:
     format: direct_json
@@ -3496,16 +3672,18 @@
     progressive_keys:
       - text
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "s1"}}]</a2ui-json>'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "s1"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '<a2ui-json>[{"version": "v0.9", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Text", "text": "Line 1\'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Text", "text": "Line 1\'
       expect:
         - a2ui:
             - version: v0.9
@@ -3527,25 +3705,27 @@
                     text: 'Line 1
 
                       Line 2 "quoted"'
+  features: *id001
 - name: test_stream_cut_number_withholds_v09
-  description: A number cut across chunks holds its message back, so a shorter number
-    is never emitted.
+  description: A number cut across chunks holds its message back, so a shorter number is never emitted.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "s1"}}, '
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "s1"}}, '
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Metric", "value": -42'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Metric", "value": -42'
       expect: []
     - input: .5}]}}]</a2ui-json>
       expect:
@@ -3557,9 +3737,9 @@
                   - id: root
                     component: Metric
                     value: -42.5
+  features: *id001
 - name: test_stream_relative_path_kept_v08
-  description: "A relative path is emitted as written: the parser does not rewrite
-    paths."
+  description: "A relative path is emitted as written: the parser does not rewrite paths."
   action: parse_chunk
   args:
     format: direct_json
@@ -3572,8 +3752,9 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '<a2ui-json>[{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id":
-        "root", "component": {"Text": {"text": {"path": "some/relative/path"}}}}]}}]</a2ui-json>'
+    - input:
+        '<a2ui-json>[{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
+        {"Text": {"text": {"path": "some/relative/path"}}}}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -3585,25 +3766,25 @@
                         text:
                           path: some/relative/path
   expect_matches_single_shot: true
+  features: *id001
 - name: test_stream_relative_path_kept_v09
-  description: "A relative path is emitted as written: the parser does not rewrite
-    paths."
+  description: "A relative path is emitted as written: the parser does not rewrite paths."
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId":
-        "test_catalog"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "test_catalog"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '<a2ui-json>[{"version": "v0.9", "updateComponents": {"surfaceId": "s1",
-        "components": [{"id": "root", "component": "Text", "text": {"path": "some/relative/path"}}]}}]</a2ui-json>'
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id":
+        "root", "component": "Text", "text": {"path": "some/relative/path"}}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: v0.9
@@ -3615,9 +3796,11 @@
                     text:
                       path: some/relative/path
   expect_matches_single_shot: true
+  features: *id001
 - name: test_stream_partial_url_withholds_v08
-  description: A URL still arriving under a progressive key holds its message back
-    rather than being healed, so a renderer never loads a truncated URL.
+  description:
+    A URL still arriving under a progressive key holds its message back rather than being healed,
+    so a renderer never loads a truncated URL.
   action: parse_chunk
   args:
     format: direct_json
@@ -3631,8 +3814,7 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "imageUrl",
-        "valueString": "https://example.com/images/'
+    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "imageUrl", "valueString": "https://example.com/images/'
       expect: []
     - input: banner.png"}]}}]</a2ui-json>
       expect:
@@ -3642,9 +3824,11 @@
                 contents:
                   - key: imageUrl
                     valueString: https://example.com/images/banner.png
+  features: *id001
 - name: test_stream_data_model_before_components_v08
-  description: A v0.8 dataModelUpdate may come before the surface is created, and
-    each message is emitted as it closes.
+  description:
+    A v0.8 dataModelUpdate may come before the surface is created, and each message is emitted
+    as it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -3653,8 +3837,7 @@
   steps:
     - input: <a2ui-json>[
       expect: []
-    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "name", "valueString":
-        "Alice"}]}}, '
+    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "name", "valueString": "Alice"}]}}, '
       expect:
         - a2ui:
             - dataModelUpdate:
@@ -3668,8 +3851,9 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"Text": {"text": {"path": "/name"}}}}]}}]</a2ui-json>'
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text":
+        {"text": {"path": "/name"}}}}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -3680,10 +3864,12 @@
                       Text:
                         text:
                           path: /name
+  features: *id001
 - name: test_stream_data_model_before_create_surface_fails_v09
-  description: An updateDataModel for a surface that does not exist yet is held back,
-    since a renderer would reject it, the messages after it wait with it, and the
-    block raises a validation error when it closes.
+  description:
+    An updateDataModel for a surface that does not exist yet is held back, since a renderer
+    would reject it, the messages after it wait with it, and the block raises a validation error when
+    it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -3692,16 +3878,16 @@
   steps:
     - input: <a2ui-json>[
       expect: []
-    - input: '{"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "value": {"name":
-        "Alice"}}}, '
+    - input: '{"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "value": {"name": "Alice"}}}, '
       expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "s1"}}, '
+    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
       expect: []
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Text", "text": {"path": "/name"}}]}}]</a2ui-json>'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Text", "text": {"path": "/name"}}]}}]</a2ui-json>'
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_data_model_after_components_v08
   description: A data model update after the components is emitted as it closes.
   action: parse_chunk
@@ -3718,8 +3904,9 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"Text": {"text": {"path": "/name"}}}}]}}, '
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text":
+        {"text": {"path": "/name"}}}}]}}, '
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -3730,8 +3917,7 @@
                       Text:
                         text:
                           path: /name
-    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "name", "valueString":
-        "Alice"}]}}]</a2ui-json>'
+    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "name", "valueString": "Alice"}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - dataModelUpdate:
@@ -3739,6 +3925,7 @@
                 contents:
                   - key: name
                     valueString: Alice
+  features: *id001
 - name: test_stream_data_model_after_components_v09
   description: A data model update after the components is emitted as it closes.
   action: parse_chunk
@@ -3749,16 +3936,16 @@
   steps:
     - input: <a2ui-json>[
       expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "s1"}}, '
+    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Text", "text": {"path": "/name"}}]}}, '
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Text", "text": {"path": "/name"}}]}}, '
       expect:
         - a2ui:
             - version: v0.9
@@ -3769,8 +3956,7 @@
                     component: Text
                     text:
                       path: /name
-    - input: '{"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "value": {"name":
-        "Alice"}}}]</a2ui-json>'
+    - input: '{"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "value": {"name": "Alice"}}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: v0.9
@@ -3778,9 +3964,9 @@
                 surfaceId: s1
                 value:
                   name: Alice
+  features: *id001
 - name: test_stream_data_model_updates_after_components_v08
-  description: Several data model updates after the components are each emitted once,
-    as each closes.
+  description: Several data model updates after the components are each emitted once, as each closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -3795,10 +3981,10 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"Container": {"children": ["c1", "c2"]}}}, {"id": "c1", "component": {"Text":
-        {"text": {"path": "/p1"}}}}, {"id": "c2", "component": {"Text": {"text": {"path":
-        "/p2"}}}}]}}, '
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Container":
+        {"children": ["c1", "c2"]}}}, {"id": "c1", "component": {"Text": {"text": {"path": "/p1"}}}}, {"id":
+        "c2", "component": {"Text": {"text": {"path": "/p2"}}}}]}}, '
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -3820,8 +4006,7 @@
                       Text:
                         text:
                           path: /p2
-    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "p1", "valueString":
-        "v1"}]}}, '
+    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "p1", "valueString": "v1"}]}}, '
       expect:
         - a2ui:
             - dataModelUpdate:
@@ -3829,8 +4014,7 @@
                 contents:
                   - key: p1
                     valueString: v1
-    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "p2", "valueString":
-        "v2"}]}}'
+    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "p2", "valueString": "v2"}]}}'
       expect:
         - a2ui:
             - dataModelUpdate:
@@ -3840,9 +4024,9 @@
                     valueString: v2
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_data_model_updates_after_components_v09
-  description: Several data model updates after the components are each emitted once,
-    as each closes.
+  description: Several data model updates after the components are each emitted once, as each closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -3851,18 +4035,17 @@
   steps:
     - input: <a2ui-json>[
       expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "s1"}}, '
+    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: s1
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":
-        [{"id": "root", "component": "Container", "children": ["c1", "c2"]}, {"id":
-        "c1", "component": "Text", "text": {"path": "/p1"}}, {"id": "c2", "component":
-        "Text", "text": {"path": "/p2"}}]}}, '
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root",
+        "component": "Container", "children": ["c1", "c2"]}, {"id": "c1", "component": "Text", "text": {"path":
+        "/p1"}}, {"id": "c2", "component": "Text", "text": {"path": "/p2"}}]}}, '
       expect:
         - a2ui:
             - version: v0.9
@@ -3882,8 +4065,7 @@
                     component: Text
                     text:
                       path: /p2
-    - input: '{"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "value": {"p1":
-        "v1"}}}, '
+    - input: '{"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "value": {"p1": "v1"}}}, '
       expect:
         - a2ui:
             - version: v0.9
@@ -3891,8 +4073,7 @@
                 surfaceId: s1
                 value:
                   p1: v1
-    - input: '{"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "value": {"p2":
-        "v2"}}}'
+    - input: '{"version": "v0.9", "updateDataModel": {"surfaceId": "s1", "value": {"p2": "v2"}}}'
       expect:
         - a2ui:
             - version: v0.9
@@ -3902,6 +4083,7 @@
                   p2: v2
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_data_model_grows_v08
   description: A data model update is emitted again each time an entry is added.
   action: parse_chunk
@@ -3918,10 +4100,10 @@
             - beginRendering:
                 surfaceId: default
                 root: item-list
-    - input: '{"surfaceUpdate": {"surfaceId": "default", "components": [{"id": "item-list",
-        "component": {"List": {"children": {"template": {"componentId": "template-name",
-        "dataBinding": "/items"}}}}}, {"id": "template-name", "component": {"Text":
-        {"text": {"path": "/name"}}}}]}}, '
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "default", "components": [{"id": "item-list", "component":
+        {"List": {"children": {"template": {"componentId": "template-name", "dataBinding": "/items"}}}}},
+        {"id": "template-name", "component": {"Text": {"text": {"path": "/name"}}}}]}}, '
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -3939,8 +4121,7 @@
                       Text:
                         text:
                           path: /name
-    - input: '{"dataModelUpdate": {"surfaceId": "default", "contents": [{"key": "items",
-        "valueMap": ['
+    - input: '{"dataModelUpdate": {"surfaceId": "default", "contents": [{"key": "items", "valueMap": ['
       expect:
         - a2ui:
             - dataModelUpdate:
@@ -3972,6 +4153,7 @@
                         valueString: Item 2
     - input: "]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_data_model_grows_v09
   description: A data model update is emitted again each time an entry is added.
   action: parse_chunk
@@ -3982,18 +4164,17 @@
   steps:
     - input: <a2ui-json>[
       expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "default"}}, '
+    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "default"}}, '
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: default
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "default", "components":
-        [{"id": "root", "component": "List", "children": {"componentId": "template-name",
-        "path": "/items"}}, {"id": "template-name", "component": "Text", "text": {"path":
-        "/name"}}]}}, '
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "default", "components": [{"id": "root",
+        "component": "List", "children": {"componentId": "template-name", "path": "/items"}}, {"id": "template-name",
+        "component": "Text", "text": {"path": "/name"}}]}}, '
       expect:
         - a2ui:
             - version: v0.9
@@ -4009,8 +4190,7 @@
                     component: Text
                     text:
                       path: /name
-    - input: '{"version": "v0.9", "updateDataModel": {"surfaceId": "default", "value":
-        {"items": {'
+    - input: '{"version": "v0.9", "updateDataModel": {"surfaceId": "default", "value": {"items": {'
       expect:
         - a2ui:
             - version: v0.9
@@ -4040,40 +4220,43 @@
                       name: Item 1
                     item2:
                       name: Item 2
+  features: *id001
 - name: test_stream_data_model_entry_without_key_fails_v08
-  description: A data model entry that never gets a key is never emitted, and the
-    block raises a validation error when it closes.
+  description:
+    A data model entry that never gets a key is never emitted, and the block raises a validation
+    error when it closes.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_8.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[ {"dataModelUpdate": {"surfaceId": "default", "contents":
-        [{"key": "name", "valueString": "John"}, {"valueString": "incomplete"'
+    - input:
+        '<a2ui-json>[ {"dataModelUpdate": {"surfaceId": "default", "contents": [{"key": "name", "valueString":
+        "John"}, {"valueString": "incomplete"'
       expect: []
     - input: "}]}}]</a2ui-json>"
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_data_model_value_cut_at_key_withholds_v09
-  description: A data model value cut right after its key holds the message back until
-    the value arrives.
+  description: A data model value cut right after its key holds the message back until the value arrives.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "default",
-        "catalogId": "test_catalog"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "default", "catalogId": "test_catalog"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: default
                 catalogId: test_catalog
-    - input: '<a2ui-json>[ {"version": "v0.9", "updateDataModel": {"surfaceId": "default",
-        "value": {"name": "John", "incomplete": '
+    - input:
+        '<a2ui-json>[ {"version": "v0.9", "updateDataModel": {"surfaceId": "default", "value": {"name":
+        "John", "incomplete": '
       expect: []
     - input: '"done"}}}]</a2ui-json>'
       expect:
@@ -4085,9 +4268,11 @@
                   name: John
                   incomplete: done
   expect_matches_single_shot: true
+  features: *id001
 - name: test_stream_data_model_cut_key_and_value_v08
-  description: A key cut across chunks holds the message back, a value under a progressive
-    key is healed, and a URL value waits until it is complete.
+  description:
+    A key cut across chunks holds the message back, a value under a progressive key is healed,
+    and a URL value waits until it is complete.
   action: parse_chunk
   args:
     format: direct_json
@@ -4101,8 +4286,9 @@
             - beginRendering:
                 surfaceId: default
                 root: root
-    - input: '<a2ui-json>[ {"dataModelUpdate": {"surfaceId": "default", "contents":
-        [{"key": "infoLink", "valueString": "[More Info](x)"}, {"key'
+    - input:
+        '<a2ui-json>[ {"dataModelUpdate": {"surfaceId": "default", "contents": [{"key": "infoLink",
+        "valueString": "[More Info](x)"}, {"key'
       expect: []
     - input: '": "rating", "valueString": "5 star'
       expect:
@@ -4128,25 +4314,27 @@
                     valueString: 5 stars
                   - key: imageUrl
                     valueString: http://localhost:10002/static/maps.png
+  features: *id001
 - name: test_stream_data_model_cut_key_and_value_v09
-  description: A key cut across chunks holds the message back, and so does a value
-    under a key outside the progressive set.
+  description:
+    A key cut across chunks holds the message back, and so does a value under a key outside
+    the progressive set.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "default",
-        "catalogId": "test_catalog"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "default", "catalogId": "test_catalog"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: default
                 catalogId: test_catalog
-    - input: '<a2ui-json>[ {"version": "v0.9", "updateDataModel": {"surfaceId": "default",
-        "value": {"infoLink": "[More Info](x)", "rat'
+    - input:
+        '<a2ui-json>[ {"version": "v0.9", "updateDataModel": {"surfaceId": "default", "value": {"infoLink":
+        "[More Info](x)", "rat'
       expect: []
     - input: 'ing": "5 star"'
       expect:
@@ -4169,9 +4357,11 @@
                   infoLink: "[More Info](x)"
                   rating: 5 star
                   imageUrl: http://localhost:10002/static/maps.png
+  features: *id001
 - name: test_stream_data_model_keeps_earlier_entries_v08
-  description: Each emission of a growing data model update carries the entries that
-    arrived before, not only the new ones.
+  description:
+    Each emission of a growing data model update carries the entries that arrived before, not
+    only the new ones.
   action: parse_chunk
   args:
     format: direct_json
@@ -4184,9 +4374,9 @@
             - beginRendering:
                 surfaceId: default
                 root: root
-    - input: '<a2ui-json>[ {"dataModelUpdate": {"surfaceId": "default", "contents":
-        [{"key": "title", "valueString": "Top Restaurants"}, {"key": "items", "valueMap":
-        ['
+    - input:
+        '<a2ui-json>[ {"dataModelUpdate": {"surfaceId": "default", "contents": [{"key": "title", "valueString":
+        "Top Restaurants"}, {"key": "items", "valueMap": ['
       expect:
         - a2ui:
             - dataModelUpdate:
@@ -4210,17 +4400,18 @@
                         valueString: Restaurant A
     - input: "}]}]}}]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_data_model_keeps_earlier_entries_v09
-  description: Each emission of a growing data model update carries the entries that
-    arrived before, not only the new ones.
+  description:
+    Each emission of a growing data model update carries the entries that arrived before, not
+    only the new ones.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "default",
-        "catalogId": "test_catalog"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "default", "catalogId": "test_catalog"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: v0.9
@@ -4229,8 +4420,9 @@
                 catalogId: test_catalog
     - input: <a2ui-json>[
       expect: []
-    - input: '{"version": "v0.9", "updateDataModel": {"surfaceId": "default", "value":
-        {"title": "Top Restaurants", "items": {'
+    - input:
+        '{"version": "v0.9", "updateDataModel": {"surfaceId": "default", "value": {"title": "Top Restaurants",
+        "items": {'
       expect:
         - a2ui:
             - version: v0.9
@@ -4252,43 +4444,46 @@
                       name: Restaurant A
     - input: "}}}}]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_data_model_empty_entry_fails_v08
-  description: "An empty entry in a data model update is not pruned: the block raises
-    a validation error when it closes."
+  description:
+    "An empty entry in a data model update is not pruned: the block raises a validation error
+    when it closes."
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_8.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[ {"dataModelUpdate": {"surfaceId": "default", "contents":
-        [{"key": "title", "valueString": "Top Restaurants"},{"key": "item1", "valueMap":
-        [{"key": "name", "valueString": "Food"}, {"key": "detail", "valueString": "Spicy"},
-        {}, {"key": "imageUrl'
+    - input:
+        '<a2ui-json>[ {"dataModelUpdate": {"surfaceId": "default", "contents": [{"key": "title", "valueString":
+        "Top Restaurants"},{"key": "item1", "valueMap": [{"key": "name", "valueString": "Food"}, {"key":
+        "detail", "valueString": "Spicy"}, {}, {"key": "imageUrl'
       expect: []
     - input: '", "valueString": "https://example.com/food.png"}]}]}}]</a2ui-json>'
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_data_model_key_without_value_withholds_v09
-  description: A data model key that has arrived without its value holds the message
-    back rather than being pruned to emit the rest.
+  description:
+    A data model key that has arrived without its value holds the message back rather than
+    being pruned to emit the rest.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "default",
-        "catalogId": "test_catalog"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "default", "catalogId": "test_catalog"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: default
                 catalogId: test_catalog
-    - input: '<a2ui-json>[ {"version": "v0.9", "updateDataModel": {"surfaceId": "default",
-        "value": {"title": "Top Restaurants","items": {"item1": {"name": "Food", "detail":
-        "Spicy", "imageUrl":'
+    - input:
+        '<a2ui-json>[ {"version": "v0.9", "updateDataModel": {"surfaceId": "default", "value": {"title":
+        "Top Restaurants","items": {"item1": {"name": "Food", "detail": "Spicy", "imageUrl":'
       expect: []
     - input: ' "https://example.com/food.png"}}}}}]</a2ui-json>'
       expect:
@@ -4304,41 +4499,45 @@
                       detail: Spicy
                       imageUrl: https://example.com/food.png
   expect_matches_single_shot: true
+  features: *id001
 - name: test_stream_data_model_empty_trailing_entry_fails_v08
-  description: "An empty trailing entry in a data model update is not pruned: the
-    block raises a validation error when it closes."
+  description:
+    "An empty trailing entry in a data model update is not pruned: the block raises a validation
+    error when it closes."
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_8.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[ {"dataModelUpdate": {"surfaceId": "default", "contents":
-        [{"key": "title", "valueString": "Top Restaurants"},{"key": "item2", "valueMap":
-        [{"key": "name", "valueString": "Han Dynasty"}, {"key": "imageUrl", "valueString":
-        "http://localhost:10002/static/mapotofu.jpeg"}, {}]}]}}] </a2ui-json>'
+    - input:
+        '<a2ui-json>[ {"dataModelUpdate": {"surfaceId": "default", "contents": [{"key": "title", "valueString":
+        "Top Restaurants"},{"key": "item2", "valueMap": [{"key": "name", "valueString": "Han Dynasty"},
+        {"key": "imageUrl", "valueString": "http://localhost:10002/static/mapotofu.jpeg"}, {}]}]}}] </a2ui-json>'
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_data_model_trailing_key_without_value_withholds_v09
-  description: A trailing data model key that has arrived without its value holds
-    the message back rather than being pruned to emit the rest.
+  description:
+    A trailing data model key that has arrived without its value holds the message back rather
+    than being pruned to emit the rest.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/streaming_catalog_v0_9.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "default",
-        "catalogId": "test_catalog"}}]</a2ui-json>'
+    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "default", "catalogId": "test_catalog"}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: default
                 catalogId: test_catalog
-    - input: '<a2ui-json>[ {"version": "v0.9", "updateDataModel": {"surfaceId": "default",
-        "value": {"title": "Top Restaurants","items": {"item2": {"name": "Han Dynasty",
-        "imageUrl": "http://localhost:10002/static/mapotofu.jpeg", "broken":'
+    - input:
+        '<a2ui-json>[ {"version": "v0.9", "updateDataModel": {"surfaceId": "default", "value": {"title":
+        "Top Restaurants","items": {"item2": {"name": "Han Dynasty", "imageUrl": "http://localhost:10002/static/mapotofu.jpeg",
+        "broken":'
       expect: []
     - input: '"x"}}}}}]</a2ui-json>'
       expect:
@@ -4354,9 +4553,11 @@
                       imageUrl: http://localhost:10002/static/mapotofu.jpeg
                       broken: x
   expect_matches_single_shot: true
+  features: *id001
 - name: test_stream_unknown_message_fails_v08
-  description: A message of no known type is never emitted, and the block raises a
-    validation error when it closes.
+  description:
+    A message of no known type is never emitted, and the block raises a validation error when
+    it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -4370,9 +4571,11 @@
     - input: </a2ui-json>
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_unknown_message_fails_v09
-  description: A message of no known type is never emitted, and the block raises a
-    validation error when it closes.
+  description:
+    A message of no known type is never emitted, and the block raises a validation error when
+    it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -4386,9 +4589,11 @@
     - input: </a2ui-json>
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_missing_required_property_fails_v08
-  description: A component that never gets a property its catalog requires is never
-    emitted, and the block raises a validation error when it closes.
+  description:
+    A component that never gets a property its catalog requires is never emitted, and the block
+    raises a validation error when it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -4401,15 +4606,18 @@
             - beginRendering:
                 surfaceId: s1
                 root: root
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component":
-        {"Text": {}}}]}}]'
+    - input:
+        '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text":
+        {}}}]}}]'
       expect: []
     - input: </a2ui-json>
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_message_without_version_fails_v09
-  description: A v0.9 message without a version is never emitted, and the block raises
-    a validation error when it closes.
+  description:
+    A v0.9 message without a version is never emitted, and the block raises a validation error
+    when it closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -4418,8 +4626,7 @@
   steps:
     - input: <a2ui-json>[
       expect: []
-    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
-        "s1"}}, '
+    - input: '{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}}, '
       expect:
         - a2ui:
             - version: v0.9
@@ -4431,10 +4638,11 @@
     - input: "]</a2ui-json>"
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_multi_catalog_resolution_v10
-  description: With several catalogs, a component that names no catalog is checked
-    against its surface's catalog, and a component that names one is checked against
-    that catalog.
+  description:
+    With several catalogs, a component that names no catalog is checked against its surface's
+    catalog, and a component that names one is checked against that catalog.
   action: parse_chunk
   args:
     format: direct_json
@@ -4443,18 +4651,17 @@
       - test_data/catalogs/custom_catalog_v1_0.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main",
-        "catalogId": "conformance/simplified"}}, '
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "conformance/simplified"}}, '
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: main
                 catalogId: conformance/simplified
-    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components":
-        [{"id": "root", "component": "Column", "children": ["t1", "m1"]}, {"id": "t1",
-        "component": "Text", "text": "Users"}, {"id": "m1", "catalogId": "conformance/custom",
-        "component": "Gauge"'
+    - input:
+        '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root",
+        "component": "Column", "children": ["t1", "m1"]}, {"id": "t1", "component": "Text", "text": "Users"},
+        {"id": "m1", "catalogId": "conformance/custom", "component": "Gauge"'
       expect:
         - a2ui:
             - version: "1.0"
@@ -4490,12 +4697,13 @@
                     value: 42
     - input: "]}}]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_component_without_catalog_uses_surface_catalog_v10
-  description: Verifies that a v1.0 component that names no catalog is checked against
-    its surface's catalog only, so a component that only another catalog defines is
-    rejected, as a renderer would reject it. The component is closed when it is checked
-    and can't become valid later, so the error is raised on the chunk that closes
-    it rather than at the end of the block.
+  description:
+    Verifies that a v1.0 component that names no catalog is checked against its surface's catalog
+    only, so a component that only another catalog defines is rejected, as a renderer would reject it.
+    The component is closed when it is checked and can't become valid later, so the error is raised on
+    the chunk that closes it rather than at the end of the block.
   action: parse_chunk
   args:
     format: direct_json
@@ -4504,23 +4712,23 @@
       - test_data/catalogs/custom_catalog_v1_0.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main",
-        "catalogId": "conformance/simplified"}}, '
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "conformance/simplified"}}, '
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: main
                 catalogId: conformance/simplified
-    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components":
-        ['
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": ['
       expect: []
     - input: '{"id": "root", "component": "Gauge", "value": 42}'
       expect_error:
         category: ValidationError
+  features: *id001
 - name: test_stream_component_catalog_id_arrives_late_v10
-  description: A component is held back until its object closes, so a catalogId that
-    arrives after the type and properties picks the catalog it is checked against.
+  description:
+    A component is held back until its object closes, so a catalogId that arrives after the
+    type and properties picks the catalog it is checked against.
   action: parse_chunk
   args:
     format: direct_json
@@ -4529,17 +4737,16 @@
       - test_data/catalogs/custom_catalog_v1_0.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main",
-        "catalogId": "conformance/simplified"}}, '
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "conformance/simplified"}}, '
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: main
                 catalogId: conformance/simplified
-    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components":
-        [{"id": "root", "component": "Column", "children": ["m1"]}, {"id": "m1", "component":
-        "Gauge", "value": 42'
+    - input:
+        '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root",
+        "component": "Column", "children": ["m1"]}, {"id": "m1", "component": "Gauge", "value": 42'
       expect:
         - a2ui:
             - version: "1.0"
@@ -4567,9 +4774,11 @@
                     catalogId: conformance/custom
     - input: "]}}]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_catalog_id_split_across_chunks_v10
-  description: A component whose catalogId is split at the key, between the key and
-    its value, and inside the value is emitted once, after its object closes.
+  description:
+    A component whose catalogId is split at the key, between the key and its value, and inside
+    the value is emitted once, after its object closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -4578,16 +4787,16 @@
       - test_data/catalogs/custom_catalog_v1_0.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main",
-        "catalogId": "conformance/simplified"}}, '
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "conformance/simplified"}}, '
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: main
                 catalogId: conformance/simplified
-    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components":
-        [{"id": "root", "component": "Gauge", "value": 42, "catal'
+    - input:
+        '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root",
+        "component": "Gauge", "value": 42, "catal'
       expect: []
     - input: ogId"
       expect: []
@@ -4610,25 +4819,27 @@
                     catalogId: conformance/custom
     - input: "]}}]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_component_on_surface_catalog_waits_until_closed_v10
-  description: A component on its surface's catalog is still held back until its object
-    closes rather than emitted with a healed string.
+  description:
+    A component on its surface's catalog is still held back until its object closes rather
+    than emitted with a healed string.
   action: parse_chunk
   args:
     format: direct_json
     catalog: test_data/catalogs/simplified_catalog_v1_0.json
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main",
-        "catalogId": "conformance/simplified"}}, '
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "conformance/simplified"}}, '
       expect:
         - a2ui:
             - version: "1.0"
               createSurface:
                 surfaceId: main
                 catalogId: conformance/simplified
-    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components":
-        [{"id": "root", "component": "Text", "text": "Hel'
+    - input:
+        '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root",
+        "component": "Text", "text": "Hel'
       expect: []
     - input: lo"
       expect: []
@@ -4644,9 +4855,11 @@
                     text: Hello
     - input: "]}}]</a2ui-json>"
       expect: []
+  features: *id001
 - name: test_stream_component_heals_before_v1_0_v09
-  description: Before v1.0, a component is emitted while its text arrives, healed,
-    then again once it closes.
+  description:
+    Before v1.0, a component is emitted while its text arrives, healed, then again once it
+    closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -4654,16 +4867,18 @@
     progressive_keys:
       - text
   steps:
-    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog",
-        "surfaceId": "main"}}, '
+    - input:
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId":
+        "main"}}, '
       expect:
         - a2ui:
             - version: v0.9
               createSurface:
                 surfaceId: main
                 catalogId: test_catalog
-    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "main", "components":
-        [{"id": "root", "component": "Text", "text": "Hel'
+    - input:
+        '{"version": "v0.9", "updateComponents": {"surfaceId": "main", "components": [{"id": "root",
+        "component": "Text", "text": "Hel'
       expect:
         - a2ui:
             - version: v0.9
@@ -4683,3 +4898,33 @@
                   - id: root
                     component: Text
                     text: Hello
+  features: *id001
+- name: test_stream_second_block_calling_renderer_only_function_fails_v10
+  description:
+    A stream whose second block calls a rendererOnly function yields the first block's parts
+    and then raises ValidationError on the second block.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: test_data/catalogs/allowed_callers_catalog_v1_0.json
+  steps:
+    - input:
+        '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "conformance/allowed_callers",
+        "components": [{"id": "root", "component": "Text", "text": "Hello"}]}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: main
+                catalogId: conformance/allowed_callers
+                components:
+                  - id: root
+                    component: Text
+                    text: Hello
+    - input:
+        '<a2ui-json>[{"version": "1.0", "callRendererFunction": {"functionCallId": "call_1", "callFunction":
+        {"catalogId": "conformance/allowed_callers", "@call": "formatValue", "args": {"value": "abc"}}}}]</a2ui-json>'
+      expect_error:
+        category: ValidationError
+        message: formatValue
+  features: *id001

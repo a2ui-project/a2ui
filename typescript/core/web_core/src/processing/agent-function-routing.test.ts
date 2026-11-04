@@ -123,7 +123,7 @@ const strictEcho = createFunctionImplementation(
 
 describe('Fallback routing of unimplemented functions to the agent (v1.0)', () => {
   let outbound: any[];
-  let errors: Array<{code: string; message: string; expression?: string}>;
+  let errors: Array<{code: string; message: string; expression?: string; functionCallId?: string}>;
   let proc: MessageProcessor;
   let ctx: DataContext;
 
@@ -426,6 +426,29 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     );
     assert.strictEqual((errors[0] as {surfaceId?: string}).surfaceId, undefined);
     assert.match(errors[0].message, /No such function: fetchFxRate/);
+  });
+
+  it('names the failed call in the EXPRESSION_ERROR an agent error produces', async () => {
+    ctx.resolveSignal({'@call': 'fetchFxRate', 'args': {'base': 'EUR'}});
+    await flush();
+    const {functionCallId} = outbound[0].callAgentFunction;
+
+    respond(0, {error: {code: 'EXECUTION_ERROR', message: 'rates are down'}});
+    await flush();
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'EXPRESSION_ERROR');
+    assert.strictEqual(
+      errors[0].functionCallId,
+      functionCallId,
+      'the error carries the id of the call the agent failed',
+    );
+  });
+
+  it('does not name a call in the error a local function failure produces', async () => {
+    ctx.resolveDynamicValue({'@call': 'quote', 'args': {'symbol': 42}});
+    await flush();
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].functionCallId, undefined);
   });
 
   it('reports a timeout as an EXPRESSION_ERROR', async () => {

@@ -118,6 +118,9 @@
       },
       {
         "$ref": "#/$defs/RendererStateTurnsTest"
+      },
+      {
+        "$ref": "#/$defs/RendererStateTrackingTest"
       }
     ]
   },
@@ -192,7 +195,9 @@
             "validate_common_type",
             "validation_schema",
             "verify_cuttable_keys",
-            "wrap"
+            "wrap",
+            "handle_rpc",
+            "renderer_state_turns"
           ],
           "description": "The conformance test action to perform."
         },
@@ -457,6 +462,45 @@
           },
           "then": {
             "$ref": "#/$defs/HandleRpcTest"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "read_renderer_capabilities"
+              }
+            },
+            "required": ["action"]
+          },
+          "then": {
+            "$ref": "#/$defs/ReadRendererCapabilitiesTest"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "parse_inbound_message"
+              }
+            },
+            "required": ["action"]
+          },
+          "then": {
+            "$ref": "#/$defs/ParseInboundMessageTest"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "renderer_state_turns"
+              }
+            },
+            "required": ["action"]
+          },
+          "then": {
+            "$ref": "#/$defs/RendererStateTurnsTest"
           }
         }
       ],
@@ -2126,7 +2170,7 @@
     },
     "ReadRendererCapabilitiesTest": {
       "type": "object",
-      "description": "Reading and validating renderer capabilities for a protocol version from transport message metadata.",
+      "description": "Reading and validating a renderer capabilities entry from request or message metadata for a target protocol version.",
       "properties": {
         "action": {
           "const": "read_renderer_capabilities"
@@ -2140,15 +2184,15 @@
             },
             "metadata": {
               "type": ["object", "null"],
-              "description": "The transport message metadata mapping, or null when absent."
+              "description": "Message or transport metadata mapping, or null when absent."
             }
           },
-          "required": ["version"],
+          "required": ["version", "metadata"],
           "additionalProperties": false
         },
         "expect": {
           "type": ["object", "null"],
-          "description": "The validated renderer capabilities keyed by protocol version, or null when the version's metadata key is absent."
+          "description": "Normalized capabilities map for `resolve_catalogs`, or null when no matching entry is present."
         },
         "expect_error": {
           "$ref": "#/$defs/ExpectError"
@@ -2166,7 +2210,7 @@
           "$ref": "#/$defs/FeatureTags"
         }
       },
-      "required": ["action", "args"],
+      "required": ["action", "args", "name"],
       "oneOf": [
         {
           "required": ["expect"]
@@ -2182,7 +2226,7 @@
     },
     "ParseInboundMessageTest": {
       "type": "object",
-      "description": "Parsing and validating an inbound renderer-to-agent message for a protocol version and formatting it for the model when applicable.",
+      "description": "Validating an inbound renderer-to-agent message and formatting user actions and errors for model input.",
       "properties": {
         "action": {
           "const": "parse_inbound_message"
@@ -2195,7 +2239,7 @@
             },
             "message": {
               "type": ["object", "array", "string", "number", "boolean", "null"],
-              "description": "Raw decoded JSON message received from the renderer."
+              "description": "Inbound renderer-to-agent message object or raw decoded JSON value."
             }
           },
           "required": ["version", "message"],
@@ -2243,7 +2287,7 @@
           "$ref": "#/$defs/FeatureTags"
         }
       },
-      "required": ["action", "args"],
+      "required": ["action", "args", "name"],
       "oneOf": [
         {
           "required": ["expect"]
@@ -3387,7 +3431,8 @@
                     {
                       "$ref": "#/$defs/LastCallIdRef"
                     }
-                  ]
+                  ],
+                  "type": "object"
                 }
               },
               "targetNode": {
@@ -3398,7 +3443,8 @@
                 "type": "boolean"
               },
               "expectViewTree": {
-                "$ref": "#/$defs/ViewTreeNode"
+                "$ref": "#/$defs/ViewTreeNode",
+                "type": "object"
               },
               "expectAccessibilityTree": {
                 "type": "object"
@@ -3813,7 +3859,9 @@
         "description": {
           "type": "string"
         },
-        "features": {"$ref": "#/$defs/FeatureTags"},
+        "features": {
+          "$ref": "#/$defs/FeatureTags"
+        },
         "action": {
           "const": "handle_rpc"
         },
@@ -4356,6 +4404,12 @@
               "type": "integer",
               "minimum": 1,
               "description": "The most calls that may wait for a response at once."
+            },
+            "catalogs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AgentFunctionCatalog"
+              }
             }
           },
           "additionalProperties": false
@@ -4617,6 +4671,75 @@
         }
       },
       "required": ["name", "action", "catalogs", "turns"],
+      "additionalProperties": false
+    },
+    "RendererStateTrackingTest": {
+      "type": "object",
+      "description": "Tracking outbound callRendererFunction messages on RendererState commit vs rollback.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "action": {
+          "const": "renderer_state_tracking"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "catalogs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AgentFunctionCatalog"
+              },
+              "minItems": 1
+            }
+          },
+          "required": ["catalogs"],
+          "additionalProperties": false
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "apply": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "apply_fail": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "expect_tracked_count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": ["expect_tracked_count"],
+            "oneOf": [
+              {
+                "required": ["apply"]
+              },
+              {
+                "required": ["apply_fail"]
+              }
+            ],
+            "additionalProperties": false
+          }
+        },
+        "features": {
+          "$ref": "#/$defs/FeatureTags"
+        }
+      },
+      "required": ["name", "action", "args", "steps"],
       "additionalProperties": false
     }
   }

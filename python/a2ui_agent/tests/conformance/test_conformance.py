@@ -46,7 +46,12 @@ from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
 from a2ui.processor import CatalogConfig
 from a2ui.processor import InMemoryCatalogProvider
-from a2ui.utils import load_examples, resolve_catalogs, validate_payload
+from a2ui.utils import (
+    agent_callable_functions,
+    load_examples,
+    resolve_catalogs,
+    validate_payload,
+)
 
 from .conformance_helpers import assert_known_keys
 from .conformance_helpers import case_params
@@ -148,6 +153,7 @@ _GENERATE_PROMPT_SNIPPET_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
     "action",
     "args",
     "expect_file",
+    "expect_callable_functions",
     "expect_contains",
     "expect_absent",
     "expect_deterministic",
@@ -929,6 +935,11 @@ def run_format_case(test_case, tmp_path):
             test_case.get("expect_contains", []),
             test_case.get("expect_absent", []),
         )
+        if "expect_callable_functions" in test_case:
+            expected_callable = test_case["expect_callable_functions"]
+            assert agent_callable_functions(_catalogs_for(args)) == expected_callable
+            for fn_name in expected_callable:
+                assert fn_name in snippet, f"{fn_name!r} not in {snippet!r}"
         if test_case.get("expect_deterministic"):
             assert snippet == generate(fmt)
 

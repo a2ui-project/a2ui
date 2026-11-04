@@ -44,8 +44,10 @@ function validateCapabilitiesEntry(
     }
   }
 
-  const hasSupportedIds = 'supportedCatalogIds' in entry && entry.supportedCatalogIds !== undefined;
-  const hasInlineCatalogs = 'inlineCatalogs' in entry && entry.inlineCatalogs !== undefined;
+  const hasSupportedIds =
+    Object.hasOwn(entry, 'supportedCatalogIds') && entry.supportedCatalogIds !== undefined;
+  const hasInlineCatalogs =
+    Object.hasOwn(entry, 'inlineCatalogs') && entry.inlineCatalogs !== undefined;
   if (!hasSupportedIds && !hasInlineCatalogs) {
     throw new A2uiCatalogError(
       `The '${entryKey}' renderer capabilities under '${metadataKey}' must declare 'supportedCatalogIds'.`,
@@ -125,7 +127,7 @@ export function readRendererCapabilities(
   if (
     (entry === undefined || entry === null) &&
     entryKey === 'v0.8' &&
-    ('supportedCatalogIds' in raw || 'inlineCatalogs' in raw)
+    (Object.hasOwn(raw, 'supportedCatalogIds') || Object.hasOwn(raw, 'inlineCatalogs'))
   ) {
     entry = raw;
   }

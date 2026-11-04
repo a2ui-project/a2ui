@@ -1,0 +1,85 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Live-pair end-to-end tests: the Lit and React shells talk over A2A to the
+# Python and TypeScript test agents, which replay the conformance/e2e
+# scenarios, and Playwright drives the pages.
+
+name: E2E live pairs
+
+on:
+  pull_request:
+    paths:
+      - "python/**"
+      - "typescript/**"
+      - "e2e/**"
+      - "conformance/e2e/**"
+      - "specification/v0_9_1/**"
+      - "specification/v1_0/**"
+      - "catalogs/**"
+      - ".github/workflows/e2e_live_pairs.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "python/**"
+      - "typescript/**"
+      - "e2e/**"
+      - "conformance/e2e/**"
+      - "specification/v0_9_1/**"
+      - "specification/v1_0/**"
+      - "catalogs/**"
+      - ".github/workflows/e2e_live_pairs.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  live-pairs:
+    runs-on: ubuntu-24.04 # Playwright has no Chromium build for Ubuntu 26.04 yet
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+      - run: corepack enable
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+          cache: "yarn"
+          cache-dependency-path: yarn.lock
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: yarn install --immutable
+      - name: Build the shells and the TypeScript agent, with what they depend on
+        run: |
+          yarn workspaces foreach -R --topological-dev \
+            --from '{@a2ui/e2e-web,@a2ui/e2e-agent-ts}' run build
+      - name: Sync the Python agent
+        run: uv sync --all-packages
+      - name: Install Playwright Chromium
+        run: yarn workspace @a2ui/e2e-web exec playwright install --with-deps chromium
+      - name: Run the live-pair tests
+        run: yarn workspace @a2ui/e2e-web run test:e2e
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: live-pairs-playwright-report
+          path: e2e/web/playwright-report
+          retention-days: 7

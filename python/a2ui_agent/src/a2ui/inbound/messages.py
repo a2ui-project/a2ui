@@ -273,11 +273,12 @@ def format_inbound_for_model(message: InboundMessage) -> str | None:
         )
 
     if isinstance(unwrapped, V08ClientActionMessage):
-        v08_action = unwrapped.user_action
+        user_action = unwrapped.user_action
         return (
-            f"User triggered action '{v08_action.name}' on surface "
-            f"'{v08_action.surface_id}' (component '{v08_action.source_component_id}') "
-            f"with context: {json.dumps(v08_action.context)}"
+            f"User triggered action '{user_action.name}' on surface"
+            f" '{user_action.surface_id}' (component"
+            f" '{user_action.source_component_id}') with context:"
+            f" {json.dumps(user_action.context)}"
         )
 
     if isinstance(unwrapped, (A2uiRendererErrorMessage, V09ClientErrorMessage)):

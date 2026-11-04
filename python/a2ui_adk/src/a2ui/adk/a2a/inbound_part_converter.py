@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 from typing import Any
 
@@ -64,6 +65,7 @@ class A2uiInboundPartConverter:
         version: ProtocolVersion | str | None = None,
         *,
         fallback_converter: A2APartToGenAIPartConverter = convert_a2a_part_to_genai_part,
+        renderer_state: Any = None,
     ) -> None:
         """Initializes the inbound part converter.
 
@@ -75,6 +77,7 @@ class A2uiInboundPartConverter:
         """
         self._version = version
         self._fallback_converter = fallback_converter
+        self._renderer_state = renderer_state
 
     def convert(
         self, a2a_part: a2a_types.Part
@@ -92,6 +95,17 @@ class A2uiInboundPartConverter:
             else (self._version or ProtocolVersion.V1_0)
         )
         parsed = parse_inbound_message(data, target_version)
+        if (
+            self._renderer_state is not None
+            and isinstance(data, Mapping)
+            and ("callAgentFunction" in data or "rendererFunctionResponse" in data)
+        ):
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._renderer_state.receive(data))
+            except RuntimeError:
+                asyncio.run(self._renderer_state.receive(data))
+            return None
         formatted = format_inbound_for_model(parsed)
         if formatted is None:
             return None

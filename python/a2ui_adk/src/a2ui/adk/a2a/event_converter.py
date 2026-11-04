@@ -50,7 +50,7 @@ from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.utils.feature_decorator import experimental
 from google.genai import types as genai_types
 
-from a2ui.a2a import to_a2a_parts
+from a2ui.a2a import create_a2ui_parts, to_a2a_parts
 from a2ui.parser import ResponsePart
 from a2ui.parser import ResponseStream
 from a2ui.processor import A2uiRequestProcessor
@@ -224,6 +224,35 @@ class A2uiEventConverter:
         a2a_events = adk_event_converter.convert_event_to_a2a_events(
             event, invocation_context, task_id, context_id, convert_part
         )
+        state = getattr(processor, "state", None) if processor is not None else None
+        if state is not None:
+            outbound = state.drain_outbound()
+            if outbound:
+                outbound_parts = create_a2ui_parts(outbound)
+                appended = False
+                for ev in a2a_events:
+                    status = getattr(ev, "status", None)
+                    msg = getattr(status, "message", None)
+                    if msg is not None and hasattr(msg, "parts"):
+                        msg.parts.extend(outbound_parts)
+                        appended = True
+                        break
+                if not appended:
+                    msg = a2a_types.Message(
+                        role=a2a_types.Role.agent,
+                        parts=outbound_parts,
+                        message_id=f"msg-{invocation_context.invocation_id}",
+                    )
+                    status_event = a2a_types.TaskStatusUpdateEvent(
+                        status=a2a_types.TaskStatus(
+                            state=a2a_types.TaskState.working,
+                            message=msg,
+                        ),
+                        task_id=task_id or invocation_context.invocation_id,
+                        context_id=context_id or invocation_context.session.id,
+                        final=False,
+                    )
+                    a2a_events.append(status_event)
         if getattr(event, "partial", None) is not True and key in self._streams:
             # A final event with no parts, such as an error, never reaches
             # convert_part, so the stream would stay open. Its trailing parts
