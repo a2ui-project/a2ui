@@ -108,6 +108,8 @@ def _handler(behavior: Mapping[str, Any]) -> AgentFunctionHandler:
         async def raises(args: dict[str, Any], context: AgentFunctionContext) -> Any:
             if "code" in failure:
                 raise A2uiRpcError(failure["message"], code=failure["code"])
+            if failure.get("validation"):
+                raise A2uiValidationError(failure["message"])
             raise RuntimeError(failure["message"])
 
         return raises
