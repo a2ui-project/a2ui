@@ -402,14 +402,14 @@ final jsonProcessor = generator.createProcessor(
 
 ## Token and latency benchmarks
 
-The A2UI evaluation suite (`eval/`) benchmarks each inference format on the 51-sample `core_v1_0` suite with `gemini-2.5-flash` (see [Fast, reliable A2UI, with swappable inference formats](https://developers.googleblog.com/fast-reliable-a2ui/)). Replacing Direct JSON with Express cuts both prompt size and generated code tokens while maintaining the same schema pass rate:
+The A2UI evaluation suite (`eval/`) benchmarks each format on the 54-sample `core_v1_0` suite and 4-flow `multi_turn_conversation_dataset` using `gemini-3.8-flash` (`thinking_budget=0`, `temperature=0.0`). For earlier benchmark background, see [Fast, reliable A2UI, with swappable inference formats](https://developers.googleblog.com/fast-reliable-a2ui/). Express cuts both prompt tokens and output code tokens while matching Direct JSON on `Pass@1`, `Pass@2`, and judge quality:
 
-| Format                                    | Median Input Prompt Tokens (`core_v1_0`) | Median Output Code Tokens (`core_v1_0`) | Pass@1 Validity (Budget 0) | Generation Latency vs. Direct JSON |
-| :---------------------------------------- | :--------------------------------------- | :-------------------------------------- | :------------------------- | :--------------------------------- |
-| Direct JSON (`DirectJsonFormatFactory`)   | 12,522                                   | 958                                     | 96.1%                      | 1.0x baseline                      |
-| Express (`ExpressFormatFactory`, default) | 5,940 (~2.1x smaller)                    | 307 (~3.1x smaller)                     | 96.1%                      | Up to 3x faster                    |
+| Format                                    | Median Input Tokens (`core_v1_0`) | Median Output Code Tokens (`core_v1_0`) | Pass@1 / Pass@2 (`core_v1_0`) | Judge Quality (`core_v1_0`) | Latency vs. Direct JSON |
+| :---------------------------------------- | :-------------------------------- | :-------------------------------------- | :---------------------------- | :-------------------------- | :---------------------- |
+| Direct JSON (`DirectJsonFormatFactory`)   | 10,973                            | 807                                     | 98.1% / 98.1% (53/54)         | 97.2%                       | 1.0x baseline           |
+| Express (`ExpressFormatFactory`, default) | 6,001 (~1.8x smaller, -45.3%)     | 297 (~2.7x smaller, -63.3%)             | 98.1% / 98.1% (53/54)         | 97.2%                       | ~1.3x to 2.6x faster    |
 
-Across a 3-turn chat session, Express cuts the system prompt from `5,899` to `2,720` tokens and reduces output tokens by 17% to 59%.
+On the 4 workflows in `multi_turn_conversation_dataset`, both Express and Direct JSON reach 100.0% (4/4) on `Pass@1`, `Pass@2`, and judge quality. Express cuts the median input tokens by 42.2% (`6,818` vs. `11,797`) and the median output tokens by 66.5% (`350` vs. `1,044`, ~3.0x smaller).
 
 ## Creating a custom inference format
 
