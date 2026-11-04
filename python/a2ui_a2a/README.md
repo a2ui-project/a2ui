@@ -52,7 +52,7 @@ from a2ui.rpc import RendererToAgentMessageProcessor
 processor = RendererToAgentMessageProcessor(request_processor.active_catalogs)
 
 messages = get_a2ui_messages(context.message)
-results = await processor.process_messages(messages)
+results = [await processor.process_message(message) for message in messages]
 parts = create_a2ui_parts(reply for result in results for reply in result.replies)
 ...  # send `parts` to the client
 if len(messages) < len(context.message.parts) or not all(

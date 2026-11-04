@@ -96,8 +96,9 @@ def a2ui_rpc_callback(
     For any other content it returns None and the agent runs as usual. That
     includes text, the renderer's `action`, `error` and
     `rendererFunctionResponse` messages, and a mix of calls and other parts.
-    A `callAgentFunction` without a `functionCallId` can't be answered, so it
-    is logged and dropped.
+    A `callAgentFunction` that the processor can't answer, such as one
+    without a `functionCallId` or with a `version` other than `"1.0"`, is
+    logged and dropped.
 
     To combine it with a callback of your own, pass both as a list:
     `before_agent_callback=[a2ui_rpc_callback(...), my_callback]`. ADK runs
