@@ -1,7 +1,7 @@
 ---
 codebase_path: typescript/core/web_core
 associated_module: a2ui_core
-module_blueprint_commit: efe474544fcac8ba197938976d4d69456fdea34d
+module_blueprint_commit: ec16baa95d3aabc2a8997607ba03e4fdcdcb9efa
 implemented_features:
   agent_renderer_app: 21e8df7f8e67619c30682ede25f17f0a9cfa96f8
   node_resolution: b161f9bdc9395732b305b0adddfd182a36382f09

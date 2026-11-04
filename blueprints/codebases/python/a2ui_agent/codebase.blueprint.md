@@ -3,7 +3,7 @@ codebase_path: python/a2ui_agent
 associated_module: a2ui_agent
 module_blueprint_commit: ccf5dc20d0b0ed041b03e3913d807420ff45e178
 implemented_features:
-  agent_functions: 7b9fee4a3b2a482d8565806c722ee83aca4c4934
+  agent_functions: 84d3b509cde10a74d7cb87dffcf4988eb816aac0
   skill_generator: c177173ca12a9d4739e16e56d6eb87b1e0608d85
   typesafe_builder_api: ae0a5253b4e4d8aad06e1b97c236d426b8a401f0
 local_development:
