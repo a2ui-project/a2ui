@@ -1,5 +1,9 @@
 # [a2ui_cli](https://pub.dev/packages/a2ui_cli) Changelog
 
+## Unreleased
+
+- Add standalone curl and PowerShell installer scripts (`scripts/public/install_cli.sh`, `scripts/public/install_cli.ps1`) for pre-built CLI binary releases ([#3738](https://github.com/a2ui-project/a2ui/pull/3738)).
+
 ## 0.1.0
 
 - Initial release of the A2UI CLI developer tool and typesafe component generator.

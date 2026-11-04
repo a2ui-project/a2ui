@@ -141,6 +141,7 @@ jobs:
           persist-credentials: false
       - name: Run timing tests
         env:
+          A2UI_PERFORMANCE: "1"
           A2UI_RUN_TIMING: "1"
         run: >-
           swift test -c release -Xswiftc -enable-testing --enable-swift-testing

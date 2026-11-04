@@ -1991,7 +1991,8 @@ public final class NodeResolver: Sendable {
   /// The `context` entries are resolved one at a time, in the order the `context` object holds
   /// them, then `userMessage`. That is the payload's order unless the JSON decoder reordered the
   /// keys, as Foundation's `JSONDecoder` may. An entry that waits on the agent is awaited before
-  /// the next entry is resolved, so no later entry sends a call before it settles. The first entry that fails stops the action: no later entry is
+  /// the next entry is resolved, so no later entry sends a call before it settles. The first entry
+  /// that fails stops the action: no later entry is
   /// resolved, and the event isn't dispatched. Each run resolves the entries again, reading the
   /// answers already received from `actionCache`.
   ///
@@ -2448,15 +2449,27 @@ extension NodeResolver: FunctionHandler {
       } else {
         message = String(describing: error)
       }
-      rendererError = .generic(
-        GenericError(
-          code: code,
-          surfaceID: surfaceID,
-          message: message,
-          expression: functionName,
-          version: version
+      if let functionCallID = (error as? FunctionError)?.functionCallID {
+        rendererError = .generic(
+          GenericError(
+            code: code,
+            functionCallID: functionCallID,
+            message: message,
+            expression: functionName,
+            version: version
+          )
         )
-      )
+      } else {
+        rendererError = .generic(
+          GenericError(
+            code: code,
+            surfaceID: surfaceID,
+            message: message,
+            expression: functionName,
+            version: version
+          )
+        )
+      }
     }
     report(
       rendererError,
