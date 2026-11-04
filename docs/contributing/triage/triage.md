@@ -18,7 +18,7 @@ See [list of labels used in triage](labels.md).
 
 For each issue that is [not first-line-handled][not-first-line-handled]:
 
-- If it is P0, add the label `P0`.
+- If it is P0, add the label `P0` and notify the team.
 - Add the label `status: first-line-handled`.
 
 ## Second line triage (weekly, by triager)

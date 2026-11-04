@@ -2,6 +2,19 @@
 
 For PRs, see [Triage a PR](triage.md#triage-a-pr).
 
+## Requesting information
+
+**Case**: A bug report has no reproduction steps or logs, so the team cannot diagnose it.
+
+**Triage**: add `status: waiting-for-author-response`.
+
+To help us diagnose this, please provide:
+
+1. Browser console logs or exact protocol payload
+2. Minimal reproduction schema or code snippet
+
+Marked as `status: waiting-for-author-response` for now.
+
 ## Weekly A2UI Compliance Report
 
 **Case**: AI-generated compliance report issues, such as
