@@ -296,7 +296,6 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['declare_agent_functions', 'agent functions are agent-side only'],
   ['handle_agent_function', 'agent functions are agent-side only'],
   ['validate_payload', 'validating model output is agent-side only'],
-  ['call_renderer_function', "the agent's calls to renderer functions are agent-side only"],
   ['process_renderer_message', 'processing renderer messages is agent-side only'],
   [
     'agent_to_renderer_schema',
