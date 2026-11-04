@@ -802,3 +802,210 @@
           root/children/0/child: 1
           root/children/1: 1
           root/children/1/child: 1
+
+- name: inline_create_applies_data_before_components
+  description: >-
+    createSurface with inline dataModel and components resolves bound
+    components against that data on creation without a post-creation emission.
+  action: resolve_nodes
+  fixture: test_data/node/inline_create.yaml
+  expect: {nodes: {}}
+  steps:
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+            dataModel: {greeting: Hi}
+            components:
+              - {id: root, component: Text, text: {"@path": /greeting}}
+      expect:
+        nodes:
+          root:
+            component_id: root
+            type: Text
+            state: resolved
+            props:
+              text: {value: Hi, writable: true}
+        data: {/greeting: Hi}
+        emissions: {}
+        created_emissions: {root: 0}
+
+- name: separate_data_message_keeps_arrival_order
+  description: >-
+    Separate updateComponents followed by updateDataModel in one batch creates
+    nodes before data arrives and then emits once when data is written.
+  action: resolve_nodes
+  fixture: test_data/node/inline_create.yaml
+  expect: {nodes: {}}
+  steps:
+    - op: process_messages
+      messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s
+            components:
+              - {id: root, component: Text, text: {"@path": /greeting}}
+        - version: "1.0"
+          updateDataModel:
+            surfaceId: s
+            path: /greeting
+            value: Hi
+      expect:
+        nodes:
+          root:
+            component_id: root
+            type: Text
+            state: resolved
+            props:
+              text: {value: Hi, writable: true}
+        data: {/greeting: Hi}
+        emissions: {}
+        created_emissions: {root: 1}
+
+- name: dynamic_boolean_coercion_string_true_any_case
+  description: >-
+    Given a CheckBox whose value is bound to /flag, when /flag is set to "True",
+    the resolved value coerces to true.
+  action: resolve_nodes
+  fixture: test_data/node/checkbox_flag.yaml
+  expect:
+    nodes:
+      root: {props: {value: {value: true, writable: true}}}
+  steps:
+    - op: set_data
+      path: /flag
+      value: "True"
+      expect:
+        nodes:
+          root: {props: {value: {value: true, writable: true}}}
+
+- name: dynamic_boolean_coercion_string_false
+  description: >-
+    Given a CheckBox whose value is bound to /flag, when /flag is set to "FALSE",
+    the resolved value coerces to false.
+  action: resolve_nodes
+  fixture: test_data/node/checkbox_flag.yaml
+  expect:
+    nodes:
+      root: {props: {value: {value: true, writable: true}}}
+  steps:
+    - op: set_data
+      path: /flag
+      value: "FALSE"
+      expect:
+        nodes:
+          root: {props: {value: {value: false, writable: true}}}
+        emissions: {root: 1}
+
+- name: dynamic_boolean_coercion_other_string
+  description: >-
+    Given a CheckBox whose value is bound to /flag, when /flag is set to a
+    non-"true" string, the resolved value coerces to false.
+  action: resolve_nodes
+  fixture: test_data/node/checkbox_flag.yaml
+  expect:
+    nodes:
+      root: {props: {value: {value: true, writable: true}}}
+  steps:
+    - op: set_data
+      path: /flag
+      value: "hello"
+      expect:
+        nodes:
+          root: {props: {value: {value: false, writable: true}}}
+        emissions: {root: 1}
+
+- name: dynamic_boolean_coercion_nonzero_number
+  description: >-
+    Given a CheckBox whose value is bound to /flag, when /flag is set to a
+    non-zero number, the resolved value coerces to true.
+  action: resolve_nodes
+  fixture: test_data/node/checkbox_flag.yaml
+  expect:
+    nodes:
+      root: {props: {value: {value: true, writable: true}}}
+  steps:
+    - op: set_data
+      path: /flag
+      value: -3
+      expect:
+        nodes:
+          root: {props: {value: {value: true, writable: true}}}
+
+- name: dynamic_boolean_coercion_zero
+  description: >-
+    Given a CheckBox whose value is bound to /flag, when /flag is set to 0,
+    the resolved value coerces to false.
+  action: resolve_nodes
+  fixture: test_data/node/checkbox_flag.yaml
+  expect:
+    nodes:
+      root: {props: {value: {value: true, writable: true}}}
+  steps:
+    - op: set_data
+      path: /flag
+      value: 0
+      expect:
+        nodes:
+          root: {props: {value: {value: false, writable: true}}}
+        emissions: {root: 1}
+
+- name: dynamic_boolean_coercion_null
+  description: >-
+    Given a CheckBox whose value is bound to /flag, when /flag is set to null,
+    the resolved value coerces to false.
+  action: resolve_nodes
+  fixture: test_data/node/checkbox_flag.yaml
+  expect:
+    nodes:
+      root: {props: {value: {value: true, writable: true}}}
+  steps:
+    - op: set_data
+      path: /flag
+      value: null
+      expect:
+        nodes:
+          root: {props: {value: {value: false, writable: true}}}
+        emissions: {root: 1}
+
+- name: dynamic_boolean_coercion_validation_result
+  description: >-
+    Given a CheckBox whose value is bound to /flag, when /flag is set to a
+    ValidationResult object, the resolved value coerces to its valid boolean.
+  action: resolve_nodes
+  fixture: test_data/node/checkbox_flag.yaml
+  expect:
+    nodes:
+      root: {props: {value: {value: true, writable: true}}}
+  steps:
+    - op: set_data
+      path: /flag
+      value: {valid: false, message: "Bad"}
+      expect:
+        nodes:
+          root: {props: {value: {value: false, writable: true}}}
+        emissions: {root: 1}
+
+- name: dynamic_boolean_coercion_other_object
+  description: >-
+    Given a CheckBox whose value is bound to /flag, when /flag is set to an
+    object without a boolean valid field, the resolved value coerces to false.
+  action: resolve_nodes
+  fixture: test_data/node/checkbox_flag.yaml
+  expect:
+    nodes:
+      root: {props: {value: {value: true, writable: true}}}
+  steps:
+    - op: set_data
+      path: /flag
+      value: {other: 1}
+      expect:
+        nodes:
+          root: {props: {value: {value: false, writable: true}}}
+        emissions: {root: 1}
