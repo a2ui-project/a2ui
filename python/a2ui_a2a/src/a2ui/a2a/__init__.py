@@ -14,6 +14,7 @@
 
 """A2UI A2A (Agent-to-Agent) protocol extension and part utilities."""
 
+from .capabilities import renderer_capabilities_from_message
 from .extension import (
     A2UI_EXTENSION_BASE_URI,
     AGENT_EXTENSION_ACCEPTS_INLINE_CATALOGS_KEY,
@@ -27,7 +28,9 @@ from .parts import (
     A2UI_MIME_TYPE,
     DEPRECATED_A2UI_MIME_TYPE,
     create_a2ui_part,
+    create_a2ui_parts,
     get_a2ui_datapart,
+    get_a2ui_messages,
     is_a2ui_part,
     parse_content_to_parts,
     stream_response_to_parts,
@@ -41,12 +44,15 @@ __all__ = [
     "AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY",
     "DEPRECATED_A2UI_MIME_TYPE",
     "create_a2ui_part",
+    "create_a2ui_parts",
     "get_a2ui_agent_extension",
     "get_a2ui_datapart",
+    "get_a2ui_messages",
     "get_a2ui_extension_uri",
     "get_a2ui_extension_uri_version",
     "is_a2ui_part",
     "parse_content_to_parts",
+    "renderer_capabilities_from_message",
     "stream_response_to_parts",
     "to_a2a_parts",
     "try_activate_a2ui_extension",

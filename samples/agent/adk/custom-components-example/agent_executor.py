@@ -33,7 +33,10 @@ from a2a.utils import (
 )
 from a2a.utils.errors import ServerError
 from agent import ContactAgent
-from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.a2a import (
+    renderer_capabilities_from_message,
+    try_activate_a2ui_extension,
+)
 from a2ui.utils import to_version_number
 
 logger = logging.getLogger(__name__)
@@ -60,6 +63,10 @@ class ContactAgentExecutor(AgentExecutor):
         )
         active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
         processor = self._agent.get_processor(active_ui_version)
+        if processor and self._agent.accepts_inline_catalogs and active_ui_version:
+            client_ui_capabilities = renderer_capabilities_from_message(
+                context.message, active_ui_version
+            )
 
         if active_ui_version:
             logger.info(
@@ -79,20 +86,6 @@ class ContactAgentExecutor(AgentExecutor):
             )
             for i, part in enumerate(context.message.parts):
                 if isinstance(part.root, DataPart):
-                    # Extract client UI capabilities from any DataPart that has them
-                    if (
-                        processor
-                        and self._agent.accepts_inline_catalogs
-                        and "metadata" in part.root.data
-                        and "a2uiClientCapabilities" in part.root.data["metadata"]
-                    ):
-                        logger.info(
-                            f"  Part {i}: Found 'a2uiClientCapabilities' in DataPart."
-                        )
-                        client_ui_capabilities = part.root.data["metadata"][
-                            "a2uiClientCapabilities"
-                        ]
-
                     if "userAction" in part.root.data:
                         logger.info(f"  Part {i}: Found a2ui UI ClientEvent payload.")
                         ui_event_part = part.root.data["userAction"]

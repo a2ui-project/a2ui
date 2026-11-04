@@ -32,7 +32,9 @@ from a2a.utils import (
 )
 from a2a.utils.errors import ServerError
 from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.core import A2uiValidationError
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inbound import format_inbound_for_model, parse_inbound_message
 from agent import RestaurantAgent
 
 logger = logging.getLogger(__name__)
@@ -50,7 +52,7 @@ class RestaurantAgentExecutor(AgentExecutor):
         event_queue: EventQueue,
     ) -> None:
         query = ""
-        ui_event_part = None
+        inbound_message = None
         action = None
 
         logger.info(
@@ -80,53 +82,67 @@ class RestaurantAgentExecutor(AgentExecutor):
                     if "useStreaming" in part.root.data:
                         use_streaming = part.root.data["useStreaming"]
                         logger.info(f"  Part {i}: Found useStreaming={use_streaming}")
-
-                    if (
-                        part.root.data.get("version") == ProtocolVersion.V0_9
-                        and "action" in part.root.data
-                    ):
-                        logger.info(f"  Part {i}: Found a2ui v0.9 action payload.")
-                        ui_event_part = part.root.data["action"]
-                    elif "userAction" in part.root.data:
-                        logger.info(
-                            f"  Part {i}: Found a2ui v0.8 UI ClientEvent payload."
-                        )
-                        ui_event_part = part.root.data["userAction"]
                     else:
-                        logger.info(f"  Part {i}: DataPart (data: {part.root.data})")
+                        target_version = (
+                            active_ui_version
+                            or part.root.data.get("version")
+                            or (
+                                ProtocolVersion.V0_8
+                                if "userAction" in part.root.data
+                                else ProtocolVersion.V1_0
+                            )
+                        )
+                        try:
+                            inbound_message = parse_inbound_message(
+                                part.root.data, target_version
+                            )
+                            logger.info(
+                                f"  Part {i}: Found valid A2UI inbound payload"
+                                f" ({target_version})."
+                            )
+                        except A2uiValidationError:
+                            logger.info(
+                                f"  Part {i}: DataPart (data: {part.root.data})"
+                            )
                 elif isinstance(part.root, TextPart):
                     logger.info(f"  Part {i}: TextPart (text: {part.root.text})")
                 else:
                     logger.info(f"  Part {i}: Unknown part type ({type(part.root)})")
 
-        if ui_event_part:
-            logger.info(f"Received a2ui ClientEvent: {ui_event_part}")
-            action = ui_event_part.get("name")
-            ctx = ui_event_part.get("context", {})
+        if inbound_message is not None:
+            logger.info(f"Received a2ui ClientEvent: {inbound_message}")
+            action_payload = getattr(inbound_message, "action", None) or getattr(
+                inbound_message, "user_action", None
+            )
+            if action_payload is not None:
+                action = action_payload.name
+                ctx = action_payload.context
 
-            if action == "book_restaurant":
-                restaurant_name = ctx.get("restaurantName", "Unknown Restaurant")
-                address = ctx.get("address", "Address not provided")
-                image_url = ctx.get("imageUrl", "")
-                query = (
-                    f"USER_WANTS_TO_BOOK: {restaurant_name}, Address: {address},"
-                    f" ImageURL: {image_url}"
-                )
+                if action == "book_restaurant":
+                    restaurant_name = ctx.get("restaurantName", "Unknown Restaurant")
+                    address = ctx.get("address", "Address not provided")
+                    image_url = ctx.get("imageUrl", "")
+                    query = (
+                        f"USER_WANTS_TO_BOOK: {restaurant_name}, Address: {address},"
+                        f" ImageURL: {image_url}"
+                    )
 
-            elif action == "submit_booking":
-                restaurant_name = ctx.get("restaurantName", "Unknown Restaurant")
-                party_size = ctx.get("partySize", "Unknown Size")
-                reservation_time = ctx.get("reservationTime", "Unknown Time")
-                dietary_reqs = ctx.get("dietary", "None")
-                image_url = ctx.get("imageUrl", "")
-                query = (
-                    f"User submitted a booking for {restaurant_name} for {party_size}"
-                    f" people at {reservation_time} with dietary requirements:"
-                    f" {dietary_reqs}. The image URL is {image_url}"
-                )
+                elif action == "submit_booking":
+                    restaurant_name = ctx.get("restaurantName", "Unknown Restaurant")
+                    party_size = ctx.get("partySize", "Unknown Size")
+                    reservation_time = ctx.get("reservationTime", "Unknown Time")
+                    dietary_reqs = ctx.get("dietary", "None")
+                    image_url = ctx.get("imageUrl", "")
+                    query = (
+                        f"User submitted a booking for {restaurant_name} for"
+                        f" {party_size} people at {reservation_time} with dietary"
+                        f" requirements: {dietary_reqs}. The image URL is {image_url}"
+                    )
 
+                else:
+                    query = format_inbound_for_model(inbound_message) or ""
             else:
-                query = f"User submitted an event: {action} with data: {ctx}"
+                query = format_inbound_for_model(inbound_message) or ""
         else:
             logger.info("No a2ui UI event part found. Falling back to text input.")
             query = context.get_user_input()

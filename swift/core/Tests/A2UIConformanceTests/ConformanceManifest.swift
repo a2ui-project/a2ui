@@ -15,51 +15,6 @@
 import Foundation
 import Testing
 
-private final class IssueTracker: @unchecked Sendable {
-  private let lock = NSLock()
-  private var _hasRecordedIssue = false
-  private var _firstFailureReason: String?
-  private var _unknownKeyError: UnknownConformanceKeyError?
-
-  var hasRecordedIssue: Bool {
-    lock.lock()
-    defer { lock.unlock() }
-    return _hasRecordedIssue
-  }
-
-  var firstFailureReason: String? {
-    lock.lock()
-    defer { lock.unlock() }
-    return _firstFailureReason
-  }
-
-  var unknownKeyError: UnknownConformanceKeyError? {
-    lock.lock()
-    defer { lock.unlock() }
-    return _unknownKeyError
-  }
-
-  func recordIssue(_ issue: Issue) {
-    lock.lock()
-    defer { lock.unlock() }
-    _hasRecordedIssue = true
-    if _firstFailureReason == nil {
-      _firstFailureReason = String(describing: issue)
-    }
-  }
-
-  func recordUnknownKey(_ error: UnknownConformanceKeyError) {
-    lock.lock()
-    defer { lock.unlock() }
-    if _unknownKeyError == nil {
-      _unknownKeyError = error
-    }
-    if _firstFailureReason == nil {
-      _firstFailureReason = error.description
-    }
-  }
-}
-
 /// Appends executed conformance test case records to a JSON Lines manifest file when
 /// `A2UI_CONFORMANCE_MANIFEST_DIR` is set in the process environment.
 public enum ConformanceManifest {
@@ -144,54 +99,31 @@ public enum ConformanceManifest {
       record(testCase, status: .skipped, reason: skippedReason)
       return
     }
-    let tracker = IssueTracker()
     if let knownIssueReason {
-      withKnownIssue(Comment(rawValue: knownIssueReason), isIntermittent: true) {
+      var unknownKeyError: UnknownConformanceKeyError?
+      withKnownIssue(Comment(rawValue: knownIssueReason)) {
         do {
           try body()
+        } catch let error as UnknownConformanceKeyError {
+          unknownKeyError = error
         } catch {
           Issue.record(error)
         }
-      } matching: { issue in
-        if let unknownKeyError = issue.error as? UnknownConformanceKeyError {
-          tracker.recordUnknownKey(unknownKeyError)
-          return false
-        }
-        tracker.recordIssue(issue)
-        return true
       }
-      if let unknownKeyError = tracker.unknownKeyError {
+      if let unknownKeyError {
         record(testCase, status: .failed, reason: unknownKeyError.description)
-        return
+        throw unknownKeyError
       }
-      if tracker.hasRecordedIssue {
-        record(testCase, status: .xfailed, reason: knownIssueReason)
-      } else {
-        let message = "Known issue was not recorded: \(knownIssueReason)"
-        Issue.record(Comment(rawValue: message))
-        record(testCase, status: .failed, reason: message)
-      }
+      record(testCase, status: .xfailed, reason: knownIssueReason)
       return
     }
-    withKnownIssue(isIntermittent: true) {
-      do {
-        try body()
-      } catch {
-        Issue.record(error)
-      }
-    } matching: { issue in
-      if let unknownKeyError = issue.error as? UnknownConformanceKeyError {
-        tracker.recordUnknownKey(unknownKeyError)
-      } else {
-        tracker.recordIssue(issue)
-      }
-      return false
+    do {
+      try body()
+      record(testCase, status: .passed)
+    } catch {
+      record(testCase, status: .failed, reason: String(describing: error))
+      throw error
     }
-    if let failureReason = tracker.firstFailureReason {
-      record(testCase, status: .failed, reason: failureReason)
-      return
-    }
-    record(testCase, status: .passed)
   }
 
   /// Executes an asynchronous `body` for `testCase` and records the outcome in the manifest.
@@ -206,53 +138,30 @@ public enum ConformanceManifest {
       record(testCase, status: .skipped, reason: skippedReason)
       return
     }
-    let tracker = IssueTracker()
     if let knownIssueReason {
-      await withKnownIssue(Comment(rawValue: knownIssueReason), isIntermittent: true) {
+      var unknownKeyError: UnknownConformanceKeyError?
+      await withKnownIssue(Comment(rawValue: knownIssueReason)) {
         do {
           try await body()
+        } catch let error as UnknownConformanceKeyError {
+          unknownKeyError = error
         } catch {
           Issue.record(error)
         }
-      } matching: { issue in
-        if let unknownKeyError = issue.error as? UnknownConformanceKeyError {
-          tracker.recordUnknownKey(unknownKeyError)
-          return false
-        }
-        tracker.recordIssue(issue)
-        return true
       }
-      if let unknownKeyError = tracker.unknownKeyError {
+      if let unknownKeyError {
         record(testCase, status: .failed, reason: unknownKeyError.description)
-        return
+        throw unknownKeyError
       }
-      if tracker.hasRecordedIssue {
-        record(testCase, status: .xfailed, reason: knownIssueReason)
-      } else {
-        let message = "Known issue was not recorded: \(knownIssueReason)"
-        Issue.record(Comment(rawValue: message))
-        record(testCase, status: .failed, reason: message)
-      }
+      record(testCase, status: .xfailed, reason: knownIssueReason)
       return
     }
-    await withKnownIssue(isIntermittent: true) {
-      do {
-        try await body()
-      } catch {
-        Issue.record(error)
-      }
-    } matching: { issue in
-      if let unknownKeyError = issue.error as? UnknownConformanceKeyError {
-        tracker.recordUnknownKey(unknownKeyError)
-      } else {
-        tracker.recordIssue(issue)
-      }
-      return false
+    do {
+      try await body()
+      record(testCase, status: .passed)
+    } catch {
+      record(testCase, status: .failed, reason: String(describing: error))
+      throw error
     }
-    if let failureReason = tracker.firstFailureReason {
-      record(testCase, status: .failed, reason: failureReason)
-      return
-    }
-    record(testCase, status: .passed)
   }
 }

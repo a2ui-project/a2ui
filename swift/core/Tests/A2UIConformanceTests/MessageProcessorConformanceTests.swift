@@ -475,11 +475,9 @@ struct MessageProcessorConformanceTests {
     }
     let steps = explicitSteps ?? [testCase]
 
-    for (index, step) in steps.enumerated() {
+    for step in steps {
       try executeProcessMessagesStep(
         step,
-        testCase: testCase,
-        isFinalStep: index == steps.count - 1,
         processor: processor,
         handler: handler,
         expectedRuntimeError: expectedRuntimeError,
@@ -490,8 +488,6 @@ struct MessageProcessorConformanceTests {
 
   private func executeProcessMessagesStep(
     _ step: [String: Any],
-    testCase: [String: Any],
-    isFinalStep: Bool,
     processor: MessageProcessor,
     handler: ConformanceActionCaptureHandler,
     expectedRuntimeError: ExpectedRuntimeError?,
@@ -500,10 +496,7 @@ struct MessageProcessorConformanceTests {
     let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
     handler.capturedErrors.removeAll()
 
-    let rawExpectError =
-      (step["expectError"] as? [String: Any])
-      ?? (isFinalStep ? (testCase["expectError"] as? [String: Any]) : nil)
-    if let expectError = rawExpectError {
+    if let expectError = step["expectError"] as? [String: Any] {
       try ConformanceTestHelper.assertKnownKeys(
         expectError,
         Self.knownExpectErrorKeys,
@@ -527,10 +520,7 @@ struct MessageProcessorConformanceTests {
       name: name
     )
 
-    let rawExpect =
-      (step["expect"] as? [String: Any])
-      ?? (isFinalStep ? (testCase["expect"] as? [String: Any]) : nil)
-    if let expectedDict = rawExpect {
+    if let expectedDict = step["expect"] as? [String: Any] {
       try ConformanceTestHelper.assertKnownKeys(
         expectedDict,
         ["surfaces"],
@@ -538,11 +528,10 @@ struct MessageProcessorConformanceTests {
         allowMetadata: false
       )
     }
-    let expectedDict = rawExpect ?? [:]
+    let expectedDict = (step["expect"] as? [String: Any]) ?? [:]
     let expectedSurfaces =
       (expectedDict["surfaces"] as? [String: Any])
       ?? (step["expectedSurfaces"] as? [String: Any])
-      ?? (isFinalStep ? (testCase["expectedSurfaces"] as? [String: Any]) : nil)
     try verifyExpectedSurfaces(expectedSurfaces, on: processor, name: name)
   }
 
@@ -594,7 +583,7 @@ struct MessageProcessorConformanceTests {
     case "ValidationError":
       #expect(error is A2UIValidationError, "[\(name)] Expected ValidationError, got \(error)")
     default:
-      throw UnknownConformanceKeyError("[\(name)] Unknown error category '\(category)'")
+      Issue.record("[\(name)] Unknown error category '\(category)'")
     }
   }
 

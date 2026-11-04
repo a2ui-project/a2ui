@@ -374,9 +374,8 @@ struct ValidatorConformanceTests {
           targetVersion: "1.0"
         )
       else {
-        throw UnknownConformanceKeyError(
-          "[\(testCase.name)] Missing or unknown validationConfig flags \(flags.keys.sorted())"
-        )
+        Issue.record("[\(testCase.name)] Missing or unknown validationConfig flags")
+        return
       }
       validationConfig = config
     } else {

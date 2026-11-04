@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- Export `agentCallableFunctions` from `package:a2ui_agent/a2ui_agent.dart` to return the names of functions across active catalogs that the agent may invoke via `callRendererFunction` ([#3864](https://github.com/a2ui-project/a2ui/pull/3864)).
+- Add outbound `allowedCallers` and `requiresUserActivation` permission checks in `RendererFunctionCalls.call` ([#3881](https://github.com/a2ui-project/a2ui/pull/3881)).
+- Integrate `RendererState` and `A2uiRequestProcessor` with RPC message handling: support `receive` and `drainOutbound`, and track committed `callRendererFunction` messages in `RendererFunctionCalls` ([#3881](https://github.com/a2ui-project/a2ui/pull/3881)).
+- Add `parseInboundMessage`, `getInboundMessageKind`, and
+  `formatInboundForModel` to validate inbound renderer-to-agent messages
+  (`action`, `error`, `callAgentFunction`, and `rendererFunctionResponse`) and
+  format user actions and renderer errors for model input
+  ([#3881](https://github.com/a2ui-project/a2ui/pull/3881)).
+- Add `readRendererCapabilities` (along with `a2uiClientCapabilitiesKey` and
+  `a2uiRendererCapabilitiesKey`) to read and validate protocol-versioned
+  renderer capabilities from transport message metadata
+  ([#3881](https://github.com/a2ui-project/a2ui/pull/3881)).
+- Added v1.0 bidirectional function RPC helpers (`AgentFunctionRegistry`,
+  `RendererFunctionCalls`, `defaultRendererCallTimeout`, and
+  `RendererMessageRouter`) and re-exported `AgentFunction`,
+  `AgentFunctionContext`, `AgentFunctionHandler`, `A2uiRpcError`,
+  `RpcErrorCode`, and the v1.0 function RPC message types from
+  `package:a2ui_agent/a2ui_agent.dart`
+  ([#3881](https://github.com/a2ui-project/a2ui/pull/3881)).
 - Remove `(Agent to UI)` from the embedded v0.9 `server_to_client.json` and v1.0
   `agent_to_renderer.json` schema descriptions in `DirectJsonPromptGenerator`
   ([#1605](https://github.com/a2ui-project/a2ui/pull/1605)).

@@ -65,3 +65,19 @@ void checkDistinctIds(List<CatalogApi> catalogs) {
     }
   }
 }
+
+/// The functions of [catalogs] the agent may ask the renderer to run with
+/// `callRendererFunction`: those whose `allowedCallers` admits the agent, and
+/// which need no user activation, which a call from the agent never has.
+List<String> agentCallableFunctions(List<CatalogApi> catalogs) {
+  final seen = <String>{};
+  return [
+    for (final CatalogApi catalog in catalogs)
+      for (final FunctionApi function in catalog.functions.values)
+        if ((function.allowedCallers == AllowedCallers.agentOnly ||
+                function.allowedCallers == AllowedCallers.rendererOrAgent) &&
+            !function.requiresUserActivation &&
+            seen.add(function.name))
+          function.name,
+  ];
+}

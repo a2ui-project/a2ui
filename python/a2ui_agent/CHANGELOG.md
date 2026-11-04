@@ -6,6 +6,27 @@
   `value=DataBinding(path="/form/email")`. The path does not have to exist yet
   ([#3830](https://github.com/a2ui-project/a2ui/issues/3830),
   [#3868](https://github.com/a2ui-project/a2ui/pull/3868)).
+- **BREAKING CHANGE**: `RendererState`, `validate_payload`, and response parsers (`DirectJsonParser`, `ExpressParser`, and their streaming counterparts) now reject `callRendererFunction` messages that target a `rendererOnly` function or a function with `requiresUserActivation: True` with `A2uiValidationError`. Added `agent_callable_functions` and `check_agent_callable` to `a2ui.utils` ([#3864](https://github.com/a2ui-project/a2ui/pull/3864)).
+- `ExpressPromptGenerator.generate_base_rules()` now includes the standalone renderer function call rule in v1.0 when `callRendererFunction` is allowed and the active catalogs define at least one agent-callable function, listing only `agent_callable_functions(catalogs)` ([#3864](https://github.com/a2ui-project/a2ui/pull/3864)).
+- Add outbound `allowedCallers` and `requiresUserActivation` permission checks in `RendererFunctionCalls.call` ([#3881](https://github.com/a2ui-project/a2ui/pull/3881)).
+- Integrate `RendererState` and `A2uiRequestProcessor` with RPC message handling: support `receive` and `drain_outbound`, and track committed `callRendererFunction` messages in `RendererFunctionCalls` ([#3881](https://github.com/a2ui-project/a2ui/pull/3881)).
+- Add `a2ui.inbound` (`InboundMessage`, `InboundMessageKind`, `parse_inbound_message`, `get_inbound_message_kind`, and `format_inbound_for_model`) to validate inbound renderer-to-agent messages (`action`, `userAction`, `error`, `callAgentFunction`, and `rendererFunctionResponse`) across protocol versions v0.8, v0.9, and v1.0 and format user actions and renderer errors for model input ([#3881](https://github.com/a2ui-project/a2ui/pull/3881)).
+- Add `read_renderer_capabilities` in `a2ui.utils` to read and validate protocol-versioned renderer capabilities (`a2uiRendererCapabilities` in v1.0, `a2uiClientCapabilities` in v0.8 and v0.9) from transport message metadata ([#3881](https://github.com/a2ui-project/a2ui/pull/3881)).
+- Add `a2ui.rpc` for v1.0 function calls between the agent and the renderer.
+  `AgentFunctionRegistry` answers `callAgentFunction` by running the handlers
+  of the catalogs' agent functions (`Catalog(agent_functions=...)` in
+  `a2ui-core`): it validates the arguments against the function's schema and
+  replies `UNKNOWN_FUNCTION`, `INVALID_FUNCTION_CALL` or `EXECUTION_ERROR`
+  when the call can't be answered. Sync handlers run on a worker thread, and
+  `max_concurrency`, `timeout` and `dispose()` bound the work.
+  `RendererFunctionCalls` sends `callRendererFunction` and settles each call's
+  future from the `rendererFunctionResponse`, with timeouts (30 seconds by
+  default), `max_pending` and `dispose()`. `RendererMessageRouter` passes each
+  renderer RPC message to the right one. `agent_development.md` describes them
+  and what strict renderers need.
+  [#3536](https://github.com/a2ui-project/a2ui/issues/3536),
+  [#3535](https://github.com/a2ui-project/a2ui/issues/3535),
+  [#3881](https://github.com/a2ui-project/a2ui/pull/3881)
 - Add incremental streaming support for the Express inference format via `ExpressResponseStream` (`ExpressFormat.supports_streaming` and `ExpressParser.supports_streaming` now return `True`). `ExpressFormatFactory`, `ExpressFormat`, and `ExpressParser` accept `progressive_keys` (defaulting to `DEFAULT_EXPRESS_PROGRESSIVE_KEYS = frozenset({"text"})`) to heal unclosed string literals in matching component properties and data path assignments as chunks arrive, while gating initial `createSurface` emission on `root = ...` for new surfaces, emitting delta `updateComponents` and per-path `updateDataModel` messages on subsequent chunks, and holding statements with unresolved value variables until defined ([#2896](https://github.com/a2ui-project/a2ui/issues/2896)).
 - **BREAKING CHANGE**: Use `'1.0'` (without a `'v'` prefix) as the `version`
   field on v1.0 protocol messages and capabilities in inference format

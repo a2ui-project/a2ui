@@ -15,6 +15,7 @@
  */
 
 import type {Message} from '@a2a-js/sdk';
+import {readRendererCapabilities} from '@a2ui/agent';
 
 import {DEFAULT_VERSION, VERSIONS, type VersionProfile} from './versions.js';
 
@@ -42,12 +43,9 @@ export function pickA2ui(message: Message): {profile: VersionProfile; catalogIds
   const metadata = asRecord(message.metadata) ?? {};
 
   for (const profile of [...VERSIONS].reverse()) {
-    const caps = asRecord(asRecord(metadata[profile.capabilitiesKey])?.[profile.version]);
-    if (caps) {
-      const ids = caps.supportedCatalogIds;
-      const catalogIds = Array.isArray(ids)
-        ? ids.filter((id): id is string => typeof id === 'string')
-        : [];
+    const capabilities = readRendererCapabilities(metadata, profile.version);
+    if (capabilities) {
+      const catalogIds = capabilities[profile.version]?.supportedCatalogIds ?? [];
       return {profile, catalogIds};
     }
   }

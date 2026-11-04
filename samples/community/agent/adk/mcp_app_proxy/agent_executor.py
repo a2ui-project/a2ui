@@ -16,9 +16,11 @@ import logging
 from typing import override
 
 from a2a.server.agent_execution import RequestContext
-from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.a2a import (
+    renderer_capabilities_from_message,
+    try_activate_a2ui_extension,
+)
 from a2ui.adk import A2uiEventConverter, A2uiProcessorStore
-from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from google.adk.a2a.converters.request_converter import AgentRunRequest
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutorConfig
@@ -87,10 +89,8 @@ class McpAppProxyAgentExecutor(A2aAgentExecutor):
 
         processor = None
         if active_ui_version:
-            client_capabilities = (
-                context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
-                if context.message and context.message.metadata
-                else None
+            client_capabilities = renderer_capabilities_from_message(
+                context.message, active_ui_version
             )
             processor = self._agent.create_processor(
                 active_ui_version, client_capabilities

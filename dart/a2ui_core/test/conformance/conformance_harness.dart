@@ -244,7 +244,7 @@ Future<void> runConformanceCase(
 
   final String? reason = expectedFailures[name];
   if (reason == null) {
-    await _runStandardCase(body, suite, name, onSkip, manifestDir);
+    await _runStandardCase(body, suite, name, manifestDir);
     return;
   }
 
@@ -274,15 +274,10 @@ Future<void> _runStandardCase(
   FutureOr<void> Function() body,
   String? suite,
   String name,
-  void Function(String message) onSkip,
   String? manifestDir,
 ) async {
   try {
     await body();
-  } on SkipConformanceCaseException catch (error) {
-    _recordIfSuite(suite, name, 'skipped', error.reason, manifestDir);
-    onSkip(error.reason);
-    return;
   } catch (error) {
     _recordIfSuite(suite, name, 'failed', '$error', manifestDir);
     rethrow;

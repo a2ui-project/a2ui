@@ -159,6 +159,7 @@ Implement the suites in stages so each layer is tested before higher-level compo
 | A4. Multi-catalog and session pipeline    | `agent/multi_catalog_formats.yaml`, `agent/request_processor.yaml`, `agent/streamed_answer.yaml`                                                                                       | Cross-catalog lookup, `InferenceFormatFactory`, `A2uiGenerator`, `A2uiRequestProcessor`, and `StreamedAnswer`                                |
 | A5. Specification round-trips             | `catalogs/basic/v1/examples/*.json` (and v0.9 examples if supported)                                                                                                                   | End-to-end `decompile` followed by `compile` across every published basic catalog example                                                    |
 | A6. Skills, macros, and scaling           | `agent/skill.yaml`, `agent/builder/builder.yaml`, `agent/macros/macros.yaml`, `agent/*/scaling.yaml`                                                                                   | Skill generation, typesafe fluent builders, macros, and linear-time parsing                                                                  |
+| A7. Agent functions                       | `agent/agent_functions.yaml`                                                                                                                                                           | Agent functions on a catalog, answering `callAgentFunction`, and calling renderer functions on a fake clock                                  |
 | F1. Framework adapter                     | `core/adapter_conformance.yaml`, `core/accessibility.yaml`                                                                                                                             | Rendered view trees, repeaters, two-way bindings, action and user-activation gating, validation state, accessibility, and unmount cleanup    |
 
 Notice that `agent/express/` has no `response_streaming.yaml` file. Express parses whole buffered blocks and does not implement `openStream`.
@@ -247,6 +248,7 @@ Implement a shared `compileChecked(parser, content)` helper for all `compile` ca
 1. `provide_catalog` (`agent/catalog_provider.yaml`): Construct `FileSystemCatalogProvider` pointing to `conformancePath(args.path)`, passing optional `args.catalog_id` and `args.protocol_version`. Call `load()`. Compare `expect.catalog_id` and `expect.protocol_version` for equality, and compare `expect.components` and `expect.functions` as unordered sets of names.
 2. `transform_catalog` (`agent/catalog_transformer.yaml`): Wrap `args.catalog` and `args.transformers` in a `CatalogConfig` and inspect `transformedCatalog` using the same catalog expectation helper.
 3. `resolve_catalogs` (`agent/catalog_resolution.yaml`): Build the list of `CatalogConfig` registrations from `args.catalogs`. Pass them to `resolveCatalogs` along with `args.renderer_capabilities` (preserving `null` or `undefined` when omitted from `args`) and `args.accepts_inline_catalogs` (default `false`). Compare `expect.active_catalog_ids` as an unordered set, and match each item in `expect.catalogs` to the resolved catalog with the same `catalog_id` rather than by list index.
+4. `read_renderer_capabilities` (`agent/renderer_capabilities.yaml`): Call `readRendererCapabilities(args.metadata, args.version)` to extract and validate the target version's capability entry (`a2uiRendererCapabilities` in v1.0, `a2uiClientCapabilities` in v0.8 and v0.9). Check `expect` (`object` or `null`) or `expectError` / `expect_error` (`CatalogError` on malformed entries).
 
 ### Response framing and whole-response parsing
 
@@ -265,11 +267,12 @@ All four actions in `response_parser.yaml` run against `format.createParser()`:
 
 ### Prompt generation
 
-`generate_prompt_snippet` (`prompt_generator.yaml`) builds the target format from `args.catalogs`, optional `args.examples` (loaded from `CONFORMANCE_ROOT`), and optional `args.allowed_messages`. Call `format.promptGenerator.generate()` and check three optional expectations:
+`generate_prompt_snippet` (`prompt_generator.yaml`) builds the target format from `args.catalogs`, optional `args.examples` (loaded from `CONFORMANCE_ROOT`), and optional `args.allowed_messages`. Call `format.promptGenerator.generate()` and check four optional expectations:
 
 1. `expect_file`: Exact string equality against the golden text file at `conformancePath(expect_file)` (used by `direct_json`, which embeds deterministic JSON schemas formatted with 2-space indentation).
 2. `expect_contains` and `expect_absent`: Substring presence and absence checks. Express and catalog-pruning cases use these checks so implementations can word prose naturally while still checking every component signature and pruned symbol.
 3. `expect_deterministic`: Calling `generate()` a second time on a newly created format with identical inputs returns the exact same string.
+4. `expect_callable_functions`: Call `agentCallableFunctions(transformedCatalogs)` and assert the returned ordered list equals `expect_callable_functions`, and that each function name in the list appears in the generated prompt snippet.
 
 ### Chunked response streaming
 
@@ -288,6 +291,12 @@ All four actions in `response_parser.yaml` run against `format.createParser()`:
 1. `create_format` (`agent/request_processor.yaml` and `agent/multi_catalog_formats.yaml`): Build an `InferenceFormat` through `DirectJsonFormatFactory` or `ExpressFormatFactory` with `args.catalogs` and `args.examples`, then check `expect.prompt_snippet_contains` and `expect.prompt_snippet_absent`. When `expect.parsers_are_distinct` is `true`, check that two `format.createParser()` calls return distinct object instances. When `expect.parser_state_isolated` is `true`, stream `args.probe_chunks` through one parser, check for non-empty output, and check that a second parser produces identical parts.
 2. `create_processor` (`agent/request_processor.yaml`): Build `A2uiGenerator` with `args.catalogs`, `args.examples`, `args.accepts_inline_catalogs`, and optional `args.format` (omit the factory argument when `args.format` is absent to test the default Express factory). Snapshot the generator's catalogs before calling `generator.createProcessor(args.renderer_capabilities, formatOverride: args.format_override)`, then check `expect.active_catalog_ids`, positional `expect.catalogs`, prompt snippet checks, and `expect.generator_catalogs_unchanged`. If a sibling `then_parse` block is present, run `processor.parseResponse(then_parse.input, wrapped: then_parse.wrapped ?? true)` and check `then_parse.expect` or `then_parse.expect_error`.
 3. `stream_answer` (`agent/streamed_answer.yaml`): Build an `A2uiRequestProcessor` (`DirectJsonFormatFactory` with `args.catalog`) and a Core `MessageProcessor` (`args.renderer_catalogs ?? [args.catalog]`), then open `StreamedAnswer(processor, renderer)`. Unlike `parse_chunk` deltas, each step's `expect_parts` checks the full `answer.parts` list accumulated so far (`{"text": ...}`, `{"surface": surface.id}`, or `{"error": {"category": ...}}`). Assert reference identity (`same` / `===` / `is`) between each `AnswerSurfacePart.surface` and `renderer.model.getSurface(surface.id)`, and check `step.expect_in_block` plus `expect_close` after `answer.close()`.
+4. `parse_inbound_message` (`agent/inbound_messages.yaml`): Call `parseInboundMessage(args.message, args.version)`. On `expectError` / `expect_error`, assert a `ValidationError` is raised. On `expect`, verify the parsed message kind (`action`, `error`, `callAgentFunction`, or `rendererFunctionResponse`), call `formatInboundForModel(parsed)`, and check either `expect.model_input_contains` (all substrings present in the returned string) or `expect.model_input: null` (formatter returns `null` / `None` / `undefined` for RPC envelopes).
+5. `renderer_state_turns` (`agent/renderer_state.yaml`): Construct a stateful `RendererState` with the case's `catalogs`, then execute `turns` in order. Each turn applies either `turn.payload` (via `state.applyPayload`) or `turn.response` parsed with `turn.format` (`express` or `direct_json`). Check `turn.expectError` / `turn.expect_error` when a turn is expected to fail and roll back, and compare `turn.expect_surfaces` against the state's active surfaces after each turn.
+
+### Agent functions and renderer calls
+
+`agent/agent_functions.yaml` (`declare_agent_functions`, `handle_agent_function`, `validate_payload` and `call_renderer_function`) is described in [Writing cases for the agent function suite](README.md#writing-cases-for-the-agent-function-suite). Turn each declared `behavior` into a handler in the harness, and run `call_renderer_function` cases on a fake clock: in Python, an event loop whose `time()` returns a counter that `advance_ms` steps add to; in JavaScript, fake timers. An SDK that does not implement agent functions yet registers every case as skipped with that reason.
 
 ### Skills, builders, macros, round-trips, and timing suites
 
@@ -341,6 +350,31 @@ Each case in `core/accessibility.yaml` (`action: accessibility_check`) provides 
 
 Where a browser-based test runner cannot read YAML from disk at test time, parse the suite files in the runner configuration and inject them as JSON. For example, [typescript/renderers/angular/karma.conf.js](../typescript/renderers/angular/karma.conf.js) parses `accessibility.yaml`, `adapter_conformance.yaml`, and `catalogs/basic/v1/catalog.json` in Node and exposes them to Jasmine browser specs via `client.conformanceSuites`.
 
+## Extension harnesses (`conformance/extensions/`)
+
+Protocol and agent-framework integrations (such as A2A and ADK) live outside the Core and Inference SDK packages and run the suites under `conformance/extensions/`. Each extension harness dispatches cases through an explicit `RUNNERS` map, rejects unknown actions and unknown `args`, `expect`, or `expectError` keys with `_assert_known_keys` against a per-handler `_KNOWN_KEYS` allowlist, and writes its executed-case manifest to `$A2UI_CONFORMANCE_MANIFEST_DIR`.
+
+### A2A extension (`conformance/extensions/a2a/a2a_integration.yaml`)
+
+1. `create_a2ui_part`: Call `create_a2ui_part(args.data, version=args.version)`, verify `is_a2ui_part(part)` is `true`, extract the data part with `get_a2ui_datapart(part)`, and compare its `metadata.mimeType` with `expect.mimeType`.
+2. `is_a2ui_part`: Build a `DataPart` with `metadata: {"mimeType": args.mimeType}`, call `is_a2ui_part`, and compare the boolean result with `expect`.
+3. `try_activate_extension`: Build a request context with `requested_extensions = args.uris` and an agent card advertising every URI `get_a2ui_extension_uri` produces for `v0.8`, `v0.9`, and `1.0`. Call `try_activate_a2ui_extension(context, card)` and assert `(result is not None) == expect`.
+4. `get_extension`: Call `get_a2ui_agent_extension(args.version)` with optional `accepts_inline_catalogs` (`args.acceptsInlineCatalogs`) and `supported_catalog_ids` (`args.supportedCatalogIds`). Compare `uri` with `expect.uri` and `params` with `expect.params`.
+5. `try_activate`: Build a request context requesting `args.requested` and an agent card advertising `args.advertised`. Call `try_activate_a2ui_extension(context, card)` and verify `expect.activated` (`null` when no extension is activated, or the activated URI together with `expect.version`).
+6. `select_newest`: Call the version selector with `args.requested` and `args.advertised` and compare the selected URI with `expect.newest`.
+
+### ADK extension (`conformance/extensions/adk/adk_extensions.yaml`)
+
+1. `convert_event`: Dispatches to one of two runners based on `args` keys, failing the case if neither key set matches:
+   1. Subagent surface ownership (`subagent` and `message` in `args`, with optional `surfaceId` and `state`): Wrap `args.message` with `create_a2ui_part`, call `A2uiSubagentMap.update_from_server_event(part, subagent, session_service, session)`, and either verify `SurfaceIdAlreadyExistsError` (`expectError.category == "IntegrityError"` and `expectError.message`) or verify that the appended session event's `actions.state_delta` equals `expect.stateDelta`.
+   2. Event converter (`errorCode`, `errorMessage`, `contentText`, or `hasCatalog` in `args`): Construct an ADK `Event` with `error_code` and `error_message` or text `content`, invoke `A2uiEventConverter` with a provider that returns a Direct JSON `A2uiRequestProcessor` when `hasCatalog` is `true` and `None` otherwise, and check `expectEmpty: true` (empty event list) or `expect` (`type`, `state`, and `message`).
+2. `execute_tool`: Construct `SendA2uiToClientToolset`'s tool with a Direct JSON `A2uiRequestProcessor`. Pass `args.a2uiJson` under the tool's payload argument name (or raw `args` when testing missing arguments). Check `expect.success`: when `true`, verify no error key is returned and check `expect.containsValidatedJson`; when `false`, verify the error key is present and check `expect.errorContains`.
+3. `data_model`: Copy `args.clientDataModel`, run `A2uiSubagentMap.strip_unowned_surfaces_from_data_model(args.subagent, client_data_model, args.state)`, and compare the stripped dictionary with `expect.clientDataModel`.
+
+### `UNSUPPORTED` and manifest checking for extensions
+
+If an extension harness does not implement an action or a nested key path, list `"<action>"` or `"<action>.<key path>"` (or `"<suite>#<case>"`) in its `UNSUPPORTED` map with a non-empty reason so matching cases are recorded as `skipped` in the manifest. Any `UNSUPPORTED` or `EXPECTED_FAILURES` entry that matches no case fails the test run. Because `conformance/extensions/` groups suites for separate extension packages, pass `--only 'extensions/a2a/**'` or `--only 'extensions/adk/**'` to `check_executed_cases.py --corpus extensions` so each harness checks its own extension suite.
+
 ## Reference harnesses
 
 Inspect these existing implementations for concrete code examples:
@@ -356,8 +390,9 @@ Inspect these existing implementations for concrete code examples:
    3. [python/a2ui_agent/tests/conformance/test_catalog_conformance.py](../python/a2ui_agent/tests/conformance/test_catalog_conformance.py)
    4. [python/a2ui_agent/tests/conformance/test_skill_conformance.py](../python/a2ui_agent/tests/conformance/test_skill_conformance.py)
    5. [python/a2ui_agent/tests/conformance/test_scaling_conformance.py](../python/a2ui_agent/tests/conformance/test_scaling_conformance.py)
-   6. [python/a2ui_agent/tests/conformance/builder_suite.py](../python/a2ui_agent/tests/conformance/builder_suite.py) and [python/a2ui_agent/tests/conformance/macro_suite.py](../python/a2ui_agent/tests/conformance/macro_suite.py)
-   7. [python/a2ui_agent/tests/test_specification_roundtrip.py](../python/a2ui_agent/tests/test_specification_roundtrip.py)
+   6. [python/a2ui_agent/tests/conformance/test_agent_function_conformance.py](../python/a2ui_agent/tests/conformance/test_agent_function_conformance.py)
+   7. [python/a2ui_agent/tests/conformance/builder_suite.py](../python/a2ui_agent/tests/conformance/builder_suite.py) and [python/a2ui_agent/tests/conformance/macro_suite.py](../python/a2ui_agent/tests/conformance/macro_suite.py)
+   8. [python/a2ui_agent/tests/test_specification_roundtrip.py](../python/a2ui_agent/tests/test_specification_roundtrip.py)
 3. Inference SDK, TypeScript (`vitest` suites with strict `KNOWN_FAILURES` vs `UNSUPPORTED` classification):
    1. [typescript/agents/a2ui_agent/tests/conformance/loader.ts](../typescript/agents/a2ui_agent/tests/conformance/loader.ts), [typescript/agents/a2ui_agent/tests/conformance/fixtures.ts](../typescript/agents/a2ui_agent/tests/conformance/fixtures.ts), and [typescript/agents/a2ui_agent/tests/conformance/suite-helpers.ts](../typescript/agents/a2ui_agent/tests/conformance/suite-helpers.ts)
    2. [typescript/agents/a2ui_agent/tests/conformance/direct-json-conformance.test.ts](../typescript/agents/a2ui_agent/tests/conformance/direct-json-conformance.test.ts) and [typescript/agents/a2ui_agent/tests/conformance/direct-json-response-streaming.test.ts](../typescript/agents/a2ui_agent/tests/conformance/direct-json-response-streaming.test.ts)
@@ -377,3 +412,6 @@ Inspect these existing implementations for concrete code examples:
    3. Angular (Karma and Jasmine browser runner): [typescript/renderers/angular/src/adapter_conformance.spec.ts](../typescript/renderers/angular/src/adapter_conformance.spec.ts) and [typescript/renderers/angular/karma.conf.js](../typescript/renderers/angular/karma.conf.js)
    4. Flutter (`flutter_test` widget and `SemanticsNode` tree checks): [dart/a2ui_flutter/test/adapter_conformance_test.dart](../dart/a2ui_flutter/test/adapter_conformance_test.dart)
    5. SwiftUI (`Testing` on `Surface`, `SurfaceViewModel`, and `A2UIAccessibilityModifier`): [swift/swiftui/Tests/A2UISwiftUITests/AdapterConformanceTests.swift](../swift/swiftui/Tests/A2UISwiftUITests/AdapterConformanceTests.swift)
+6. Extension harnesses (`conformance/extensions/`):
+   1. Python A2A (`a2a_integration.yaml`): [python/a2ui_a2a/tests/conformance/test_a2a_integration.py](../python/a2ui_a2a/tests/conformance/test_a2a_integration.py) and [python/a2ui_a2a/tests/conftest.py](../python/a2ui_a2a/tests/conftest.py)
+   2. Python ADK (`adk_extensions.yaml`): [python/a2ui_adk/tests/conformance/test_adk_extensions.py](../python/a2ui_adk/tests/conformance/test_adk_extensions.py) and [python/a2ui_adk/tests/conftest.py](../python/a2ui_adk/tests/conftest.py)
