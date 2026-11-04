@@ -26,6 +26,7 @@ import {
   Catalog,
   type CatalogApi,
   RendererFunctionCalls,
+  RendererToAgentMessageProcessor,
 } from '../../src/index.js';
 import {classify, loadCases, type LoadedCase} from './loader.js';
 import {conformancePath, errorClassFor, registerCase} from './suite-helpers.js';
@@ -123,6 +124,10 @@ async function runCallRendererFunction(testCase: LoadedCase): Promise<void> {
   }
 
   const calls = build();
+  const processor = new RendererToAgentMessageProcessor({
+    catalogs: [],
+    onRendererFunctionResponse: calls.resolve,
+  });
   const byLabel = new Map<string, TrackedCall>();
   const steps = (testCase.steps ?? []) as CallStepSpec[];
 
@@ -193,10 +198,12 @@ async function runCallRendererFunction(testCase: LoadedCase): Promise<void> {
       if (Object.hasOwn(r, 'error') && r.error !== undefined) {
         respBody['error'] = r.error;
       }
-      calls.resolve({
+      const owned = calls.isPending(callId);
+      const result = await processor.processMessage({
         version: '1.0',
-        rendererFunctionResponse: respBody as never,
+        rendererFunctionResponse: respBody,
       });
+      expect(result).toEqual({handled: owned, replies: []});
     } else if (step.advance_ms !== undefined) {
       vi.advanceTimersByTime(step.advance_ms);
     } else if (step.dispose !== undefined) {
@@ -232,6 +239,8 @@ async function runCallRendererFunction(testCase: LoadedCase): Promise<void> {
           expect(tracked!.state.status).toBe('rejected');
           if (tracked!.state.status === 'rejected') {
             expect(tracked!.state.error).toBeInstanceOf(A2uiRpcError);
+            expect(typeof tracked!.state.error.message).toBe('string');
+            expect(tracked!.state.error.message.length).toBeGreaterThan(0);
             expect(tracked!.state.error.code).toBe(expectedState.error.code);
             expect(tracked!.state.error.functionCallId).toBe(
               tracked!.message.callRendererFunction.functionCallId,
