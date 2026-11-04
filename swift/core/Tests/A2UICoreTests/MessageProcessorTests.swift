@@ -558,6 +558,46 @@ struct MessageProcessorTests {
     #expect(emptyCatalog["$defs"] == expectedEmptyDefs)
   }
 
+  @Test func getRendererCapabilitiesEscapesUnionReferencesForV10() throws {
+    let schema = try Schema(instance: "{\"type\": \"object\"}")
+    let catalog = Catalog(
+      id: "cat-escaped",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "a/b", schema: schema)],
+      functions: [TestNamedFunction(name: "x~y", schema: schema)]
+    )
+    let processor = MessageProcessor(catalogs: [catalog])
+    let capabilities = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        protocolVersion: .v10,
+        includeInlineCatalogs: true
+      )
+    )
+
+    let inlineCatalog = try #require(capabilities["1.0"]?["inlineCatalogs"]?.arrayValue?.first)
+    let componentRef = try #require(
+      inlineCatalog["$defs"]?["anyComponent"]?["oneOf"]?.arrayValue?.first?["$ref"]?.stringValue
+    )
+    let functionRef = try #require(
+      inlineCatalog["$defs"]?["anyFunction"]?["oneOf"]?.arrayValue?.first?["$ref"]?.stringValue
+    )
+    #expect(componentRef == "#/components/a~1b")
+    #expect(functionRef == "#/functions/x~0y")
+
+    // Each reference, read as a JSON pointer into the inline catalog, reaches its entry.
+    func resolve(_ ref: String) -> JSONValue? {
+      ref.dropFirst(2).split(separator: "/").reduce(inlineCatalog as JSONValue?) { node, token in
+        let key = token.replacingOccurrences(of: "~1", with: "/")
+          .replacingOccurrences(of: "~0", with: "~")
+        return node?.objectValue?[key]
+      }
+    }
+    #expect(resolve(componentRef) == inlineCatalog["components"]?.objectValue?["a/b"])
+    #expect(resolve(componentRef) != nil)
+    #expect(resolve(functionRef) == inlineCatalog["functions"]?.objectValue?["x~y"])
+    #expect(resolve(functionRef) != nil)
+  }
+
   @Test func getRendererCapabilitiesV10InlineCatalogsMatchCatalogDefinition() throws {
     let buttonSchema = try Schema(
       instance: """
@@ -1119,6 +1159,18 @@ private struct TestAddFunction: FunctionImplementation {
 
   init(schema: Schema) {
     self.api = FunctionAPI(name: "add", returnType: .number, schema: schema)
+  }
+
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    .null
+  }
+}
+
+private struct TestNamedFunction: FunctionImplementation {
+  let api: FunctionAPI
+
+  init(name: String, schema: Schema) {
+    self.api = FunctionAPI(name: name, returnType: .any, schema: schema)
   }
 
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
