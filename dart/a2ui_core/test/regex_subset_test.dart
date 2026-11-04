@@ -245,6 +245,7 @@ void main() {
       expect(re.isUnicode, isTrue);
       expect(re.hasMatch('😀'), isTrue);
       expect(re.hasMatch('a\n'), isFalse);
+      expect(compileGuarded(r'^\u{00000041}$').hasMatch('A'), isTrue);
     });
 
     test('returns cached RegExp on repeated compilation', () {

@@ -151,6 +151,8 @@ def test_unsupported_syntax_rejections(pattern: str) -> None:
         r"\u123G",
         r"\u{}",
         r"\u{110000}",
+        "a{65536}",
+        "a{0,65536}",
     ],
 )
 def test_syntax_rejections(pattern: str) -> None:

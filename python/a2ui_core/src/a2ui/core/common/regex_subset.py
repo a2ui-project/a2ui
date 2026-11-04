@@ -26,6 +26,7 @@ from ..exceptions import A2uiExpressionError
 
 MAX_REGEX_PATTERN_CODE_POINTS = 256
 MAX_REGEX_VALUE_CODE_POINTS = 4096
+_MAX_QUANTIFIER_BOUND = 65535
 
 AnchorKind = Literal["start", "end", "wordBoundary", "notWordBoundary"]
 RegexRejection = Literal[
@@ -509,6 +510,10 @@ def _parse_braced_bounds(s: _Scanner) -> tuple[int, int | None]:
     min_val = _parse_decimal_int(s)
     if min_val is None:
         raise RegexSyntaxError("Malformed brace quantifier", True)
+    if min_val > _MAX_QUANTIFIER_BOUND:
+        raise RegexSyntaxError(
+            f"Quantifier lower bound {min_val} exceeds {_MAX_QUANTIFIER_BOUND}", False
+        )
     if s.eat(0x7D):
         return min_val, min_val
     if not s.eat(0x2C):
@@ -518,6 +523,10 @@ def _parse_braced_bounds(s: _Scanner) -> tuple[int, int | None]:
     max_val = _parse_decimal_int(s)
     if max_val is None or not s.eat(0x7D):
         raise RegexSyntaxError("Malformed brace quantifier", True)
+    if max_val > _MAX_QUANTIFIER_BOUND:
+        raise RegexSyntaxError(
+            f"Quantifier upper bound {max_val} exceeds {_MAX_QUANTIFIER_BOUND}", False
+        )
     if max_val < min_val:
         raise RegexSyntaxError("Quantifier minimum exceeds maximum", False)
     return min_val, max_val

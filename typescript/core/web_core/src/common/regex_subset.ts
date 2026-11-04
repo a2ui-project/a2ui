@@ -76,6 +76,7 @@ export class RegexSyntaxError extends Error {
 
 const SURROGATE_RANGE: CodePointRange = {start: 0xd800, end: 0xdfff};
 const MAX_CODE_POINT = 0x10ffff;
+const MAX_QUANTIFIER_BOUND = 65535;
 
 const DIGIT_RANGES: readonly CodePointRange[] = [{start: 0x30, end: 0x39}];
 const WORD_RANGES: readonly CodePointRange[] = [
@@ -446,6 +447,12 @@ function parseBracedBounds(s: Scanner): {min: number; max: number | null} {
   if (min === null) {
     throw new RegexSyntaxError('Malformed brace quantifier', true);
   }
+  if (min > MAX_QUANTIFIER_BOUND) {
+    throw new RegexSyntaxError(
+      `Quantifier lower bound ${min} exceeds ${MAX_QUANTIFIER_BOUND}`,
+      false,
+    );
+  }
   if (s.eat(0x7d)) {
     return {min, max: min};
   }
@@ -458,6 +465,12 @@ function parseBracedBounds(s: Scanner): {min: number; max: number | null} {
   const max = parseDecimalInt(s);
   if (max === null || !s.eat(0x7d)) {
     throw new RegexSyntaxError('Malformed brace quantifier', true);
+  }
+  if (max > MAX_QUANTIFIER_BOUND) {
+    throw new RegexSyntaxError(
+      `Quantifier upper bound ${max} exceeds ${MAX_QUANTIFIER_BOUND}`,
+      false,
+    );
   }
   if (max < min) {
     throw new RegexSyntaxError('Quantifier minimum exceeds maximum', false);

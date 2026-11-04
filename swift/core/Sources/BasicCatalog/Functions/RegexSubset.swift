@@ -487,15 +487,15 @@ public enum RegexSubset {
         }
         _ = try next()
         count += 1
-        if count > 6 {
-          throw RegexSyntaxError("Too many hex digits in \\u{...} escape", offset: escOffset)
-        }
         val = (val << 4) | d
+        if val > RegexSubset.maxCodePoint {
+          throw RegexSyntaxError("Unicode escape out of scalar range", offset: escOffset)
+        }
       }
       guard count > 0, eat(0x7D) else {
         throw RegexSyntaxError("Malformed \\u{...} escape", offset: escOffset)
       }
-      if val > RegexSubset.maxCodePoint || (val >= 0xD800 && val <= 0xDFFF) {
+      if val >= 0xD800 && val <= 0xDFFF {
         throw RegexSyntaxError("Unicode escape out of scalar range", offset: escOffset)
       }
       return val
@@ -901,7 +901,7 @@ public enum RegexSubset {
       }
     }
     guard !scalarRanges.isEmpty else {
-      return "(?!)"
+      return "[^\\x{0}-\\x{10FFFF}]"
     }
     var parts: [String] = ["["]
     for r in scalarRanges {

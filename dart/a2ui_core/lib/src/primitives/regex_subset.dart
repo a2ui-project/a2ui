@@ -699,7 +699,8 @@ class _Parser {
     if (ch == 'u') {
       if (peek() == '{') {
         next(); // consume '{'
-        var hex = '';
+        var count = 0;
+        var cp = 0;
         while (!atEnd && peek() != '}') {
           final String hc = next();
           if (!_isHexDigit(hc)) {
@@ -708,23 +709,23 @@ class _Parser {
               escStart,
             );
           }
-          hex += hc;
-          if (hex.length > 6) {
+          count++;
+          cp = (cp << 4) | int.parse(hc, radix: 16);
+          if (cp > _maxCodePoint) {
             throw RegexSyntaxError(
-              r"Too many hex digits in '\u{...}' escape",
+              'Unicode escape out of scalar range: 0x${cp.toRadixString(16)}',
               escStart,
             );
           }
         }
-        if (peek() != '}' || hex.isEmpty) {
+        if (peek() != '}' || count == 0) {
           throw RegexSyntaxError(
             r"Malformed '\u{...}' Unicode escape",
             escStart,
           );
         }
         next(); // consume '}'
-        final int cp = int.parse(hex, radix: 16);
-        if (cp > _maxCodePoint || (cp >= 0xD800 && cp <= 0xDFFF)) {
+        if (cp >= 0xD800 && cp <= 0xDFFF) {
           throw RegexSyntaxError(
             'Unicode escape out of scalar range: 0x${cp.toRadixString(16)}',
             escStart,

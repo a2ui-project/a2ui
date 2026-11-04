@@ -183,6 +183,16 @@ void main() {
   });
 }
 
+Object? _comparable(Object? value) {
+  if (value is ValidationResult) {
+    return <String, Object?>{
+      'valid': value.valid,
+      if (value.message != null) 'message': value.message,
+    };
+  }
+  return value;
+}
+
 void _runFunctionCase(Map<String, Object?> testCase) {
   final action = testCase['action']! as String;
   switch (action) {
@@ -206,7 +216,7 @@ void _runFunctionCase(Map<String, Object?> testCase) {
         _assertFunctionError(testCase, expectError);
         return;
       }
-      expect(_evaluate(testCase), equals(testCase['expect']));
+      expect(_comparable(_evaluate(testCase)), equals(testCase['expect']));
     default:
       fail('Unhandled action $action in functions.yaml.');
   }

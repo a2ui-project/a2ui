@@ -228,6 +228,8 @@ struct RegexSubsetTests {
     #expect(try RegexSubset.test(pattern: "\\bcat\\b", value: "a cat!") == true)
     #expect(try RegexSubset.test(pattern: "\\bcat\\b", value: "écat") == true)
     #expect(try RegexSubset.test(pattern: "^.$", value: "😀") == true)
+    #expect(try RegexSubset.test(pattern: "^\\u{00000041}$", value: "A") == true)
+    #expect(try RegexSubset.test(pattern: "[^\\s\\S]+", value: "abc") == false)
 
     let ok4096 = String(repeating: "a", count: 4096)
     #expect(try RegexSubset.test(pattern: "^a+$", value: ok4096) == true)

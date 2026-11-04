@@ -142,6 +142,8 @@ describe('regex_subset', () => {
       '\\u123G',
       '\\u{}',
       '\\u{110000}',
+      'a{65536}',
+      'a{0,65536}',
     ];
 
     for (const pattern of syntaxErrorPatterns) {
