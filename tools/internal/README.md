@@ -1,0 +1,1 @@
+This folder contains tools that do not relate to A2UI protocol, but relate to maintanance of this repository and camn be easily reused by other similar repositories, when needed.

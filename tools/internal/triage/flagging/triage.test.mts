@@ -33,7 +33,7 @@ import issueTriage, {
   STALE_DAYS,
   TRIAGE_ASSIGNMENT_DAYS,
   WAITING_LABEL,
-} from './triage.mjs';
+} from './triage.mts';
 
 const NOW = new Date('2026-06-30T00:00:00Z').getTime();
 const DAY = 24 * 60 * 60 * 1000;
