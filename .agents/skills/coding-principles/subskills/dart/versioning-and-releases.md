@@ -20,11 +20,13 @@ The Dart packages under `dart/`, such as `a2ui_core` and `a2ui_agent`, are publi
 - Leave `version:` in `pubspec.yaml` untouched.
 - Read the whole `## Unreleased` section first. An earlier pull request may describe something your change replaces, such as "Declared X as a stub" when you implement X. Rewrite those notes so the section describes the release as it will ship, rather than adding a second entry that contradicts the first.
 - Describe what a user of the package sees: new APIs, changed behavior, and breaking changes marked `Breaking:`. Internal refactoring needs no entry.
-- Another workspace package that depends on this one needs its constraint raised only if it uses the API that the next release adds.
+- Leave the constraint that other workspace packages have on this one untouched. The workspace resolves them against this package's `version:`, which only a release changes. If a dependent needs API that the next release adds, say so in the dependent's `## Unreleased` notes, and the release raises its constraint.
 
 ## Releasing
 
-A release is a pull request of its own. It moves the notes from `## Unreleased` under a heading with the new version and sets `version:` in `pubspec.yaml` to the same value. After it merges, the maintainer runs `flutter pub publish` from the commit of that pull request.
+A release is a pull request of its own. It moves the notes from `## Unreleased` under a heading with the new version, adding that heading above the newest version if there are no notes, and sets `version:` in `pubspec.yaml` to the same value. After it merges, the maintainer runs `flutter pub publish` from the commit of that pull request.
+
+A release sets a package's `a2ui_core` constraint to `^<new a2ui_core version>` when `a2ui_core` has a breaking change, or when the package's notes say it needs the new `a2ui_core`. A package on `pub.dev` whose constraint is raised is released in the same pull request, with a `CHANGELOG.md` note giving the new constraint, even if it had no other notes. Otherwise its version on `pub.dev` requires the old `a2ui_core`. A package that is not on `pub.dev`, such as `a2ui_cli`, gets the raised constraint but is not released. The maintainer publishes `a2ui_core` first.
 
 The new version follows [`docs/contributing/release/pub-dev.md`](../../../../../docs/contributing/release/pub-dev.md):
 
