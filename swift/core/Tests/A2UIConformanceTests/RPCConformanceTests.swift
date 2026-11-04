@@ -726,10 +726,12 @@ struct RPCConformanceTests {
         )
         Issue.record("[\(testCase.name)] Expected a call after dispose to fail")
       } catch let error as FunctionError {
+        let message =
+          "[\(testCase.name)] call after dispose: expected "
+          + "\(testCase.expectError?.code ?? "nil"), got \(error)"
         #expect(
           error.rpcCode == testCase.expectError?.code,
-          "[\(testCase.name)] call after dispose: expected "
-            + "\(testCase.expectError?.code ?? "nil"), got \(error)"
+          Comment(rawValue: message)
         )
       }
       try assertLateResponseIgnored(testCase: testCase, rpcHandler: rpcHandler)
