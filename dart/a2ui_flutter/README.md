@@ -122,6 +122,10 @@ class _HelloA2uiState extends State<HelloA2ui> {
 }
 ```
 
+[`updateComponents`](../../specification/v1_0/docs/a2ui_protocol.md#updatecomponents)
+gives the components as a flat list. The one with id `root` is the top of the
+tree, and each component names its children by id.
+
 Pressing the button prints its action. The basic components are Material
 widgets, so render surfaces under a `MaterialApp` and inside a `Material`,
 such as a `Scaffold` body.
