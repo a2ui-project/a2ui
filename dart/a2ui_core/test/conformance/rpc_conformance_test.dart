@@ -52,6 +52,40 @@ class _CannedFunction extends FunctionImplementation {
   }
 }
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:handle_rpc': {
+    ...caseMetadataKeys,
+    'args',
+    'catalog',
+    'expect',
+    'expectError',
+    'protocolVersion',
+  },
+  'args:handle_rpc': {
+    'catalogId',
+    'catalogVersion',
+    'dataModel',
+    'functionMetadata',
+    'inboundResponse',
+    'message',
+    'outboundCall',
+    'secondOutboundCall',
+    'surfaceId',
+    'uiActionFallbackScenario',
+    'uiBindingScenario',
+    'userActivationPresent',
+  },
+  'expect:handle_rpc': {
+    'correlatedCallId',
+    'error',
+    'initialValue',
+    'outboundCall',
+    'resolvedValue',
+    'response',
+    'result',
+  },
+};
+
 /// Runs the shared `conformance/core/rpc_functions.yaml` suite against
 /// [MessageProcessor] and its [RpcHandler].
 void main() {
@@ -62,10 +96,11 @@ void main() {
   group('conformance core/rpc_functions.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
-    for (final testCase in cases) {
-      final name = testCase['name']! as String;
-      test(name, () => _runCase(testCase));
-    }
+    runConformanceSuite(
+      cases,
+      _runCase,
+      suite: 'core/rpc_functions.yaml',
+    );
   });
 }
 
@@ -77,6 +112,7 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   final args = testCase['args']! as Map<String, Object?>;
   final expected = testCase['expect'] as Map<String, Object?>?;
   final expectError = testCase['expectError'] as Map<String, Object?>?;
+  _assertRpcKeys(testCase, args, expected, expectError);
   if (expected == null && expectError == null) {
     throw StateError('handle_rpc test requires "expect" or "expectError".');
   }
@@ -198,6 +234,26 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   if (args['uiActionFallbackScenario']
       case final Map<String, Object?> scenario) {
     await _runUiActionFallbackScenario(scenario, expected!, processor, sent);
+  }
+}
+
+void _assertRpcKeys(
+  Map<String, Object?> testCase,
+  Map<String, Object?> args,
+  Map<String, Object?>? expected,
+  Map<String, Object?>? expectError,
+) {
+  assertKnownKeys(testCase, _knownKeys['case:handle_rpc']!, 'case:handle_rpc');
+  assertKnownKeys(args, _knownKeys['args:handle_rpc']!, 'args:handle_rpc');
+  if (expected != null) {
+    assertKnownKeys(
+      expected,
+      _knownKeys['expect:handle_rpc']!,
+      'expect:handle_rpc',
+    );
+  }
+  if (expectError != null) {
+    assertKnownKeys(expectError, knownExpectErrorKeys, 'expectError');
   }
 }
 

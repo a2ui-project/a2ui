@@ -284,6 +284,65 @@ describe('reference-map schema introspection', () => {
     assert.deepStrictEqual(Array.from(refMap.TreeNode.singleRefs), ['childSlot']);
   });
 
+  it('handles recursive z.lazy() union schemas with arrays without cycle overflow', () => {
+    type JsonValue = string | number | boolean | null | JsonValue[] | {[key: string]: JsonValue};
+    const jsonSchema: z.ZodType<JsonValue> = z.lazy(() =>
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(jsonSchema),
+        z.record(jsonSchema),
+      ]),
+    );
+
+    const customApi: ComponentApi = {
+      name: 'JsonViewer',
+      schema: z.object({
+        data: jsonSchema,
+        childSlot: z.string().describe('REF:common_types.json#/$defs/ComponentId').optional(),
+      }),
+    };
+
+    const catalog = new Catalog('json-cat', '1.0', [customApi]);
+    const refMap = catalog.componentRefMap;
+    assert.ok(refMap.JsonViewer);
+    assert.deepStrictEqual(Array.from(refMap.JsonViewer.singleRefs), ['childSlot']);
+    assert.strictEqual(refMap.JsonViewer.listRefs.size, 0);
+  });
+
+  it('correctly identifies multiple sibling references sharing the same schema reference', () => {
+    const childId = z.string().describe('REF:common_types.json#/$defs/ComponentId');
+    const customApi: ComponentApi = {
+      name: 'DualSlotContainer',
+      schema: z.object({
+        items: z.array(
+          z.object({
+            left: childId,
+            right: childId,
+          }),
+        ),
+      }),
+    };
+
+    const catalog = new Catalog('dual-cat', '1.0', [customApi]);
+    const refMap = catalog.componentRefMap;
+    assert.ok(refMap.DualSlotContainer);
+    assert.ok(refMap.DualSlotContainer.listRefs.has('items'));
+    const nested = refMap.DualSlotContainer.nestedRefs?.items;
+    assert.ok(nested);
+    assert.ok(nested.has('left'));
+    assert.ok(nested.has('right'));
+  });
+
+  it('classifies a union reusing one child schema directly and in an array as a child list', () => {
+    const childId = z.string().describe('REF:common_types.json#/$defs/ComponentId');
+    const res = analyzeChildRefSchema(z.union([childId, z.array(childId)]), V10_CHILD_REF_OPTIONS);
+    assert.strictEqual(res.isChildList, true);
+    assert.strictEqual(res.isChild, false);
+  });
+
   it('does not falsely classify non-ID properties whose descriptions mention child components', () => {
     const customApi: ComponentApi = {
       name: 'CardCounter',

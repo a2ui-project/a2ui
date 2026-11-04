@@ -1,0 +1,583 @@
+---
+title: 'Authoring Universal Web Components'
+description: 'Write a custom A2UI Web Component once with A2uiLitElement and register it across Lit, React, and Angular catalogs.'
+---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components';
+
+Universal components let you write a custom A2UI Web Component once with `A2uiLitElement` and register it directly in Lit, React, and Angular catalogs without per-framework wrappers. You declare the component's property contract with a Zod schema, and `@a2ui/web_core` resolves data bindings, function calls, child references, and actions before passing values to your element.
+
+Install `@a2ui/web_core`, `lit`, and `zod` alongside the renderer package for your host framework (`@a2ui/lit`, `@a2ui/react`, or `@a2ui/angular`):
+
+```bash
+npm install @a2ui/web_core lit zod
+```
+
+## Step 1: Define the component schema
+
+Create a `ComponentApi` object with the component `name` used in A2UI JSON payloads and a Zod `schema` describing its properties. Use `DynamicStringSchema` so each field accepts either a literal string or a data-model binding (see [Catalogs, Components, and Functions](../../concepts/catalogs/) and [How to Define a Catalog](../../guides/defining-a-catalog/)).
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```typescript
+// stat-card.api.ts
+import {z} from 'zod';
+import {type ComponentApi} from '@a2ui/web_core';
+import {DynamicStringSchema} from '@a2ui/web_core/v1_0';
+
+export const StatCardApi = {
+  name: 'StatCard',
+  schema: z.object({
+    label: DynamicStringSchema,
+    value: DynamicStringSchema,
+  }),
+} satisfies ComponentApi;
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Active)">
+
+```typescript
+// stat-card.api.ts
+import {z} from 'zod';
+import {type ComponentApi, DynamicStringSchema} from '@a2ui/web_core/v0_9';
+
+export const StatCardApi = {
+  name: 'StatCard',
+  schema: z.object({
+    label: DynamicStringSchema,
+    value: DynamicStringSchema,
+  }),
+} satisfies ComponentApi;
+```
+
+  </TabItem>
+</Tabs>
+
+## Step 2: Build the custom element
+
+Extend `A2uiLitElement` parameterized with `typeof StatCardApi`, read resolved values from `this.controller.props`, and export a `WebComponentImplementation` pairing the API with `tagName` and `element`.
+
+HTML custom element `tagName` values such as `'a2ui-stat-card'` require a hyphen under the W3C Custom Elements specification. By contrast, A2UI v1.0 surface component `id` values in JSON payloads must be valid Unicode identifiers ([UAX #31](https://www.unicode.org/reports/tr31/)) such as `'revenue_card'` or `'revenueCard'`, without hyphens.
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```typescript
+// stat-card.ts
+import {css, html} from 'lit';
+import {A2uiLitElement, type WebComponentImplementation} from '@a2ui/web_core/universal';
+import {StatCardApi} from './stat-card.api.js';
+
+export class StatCardElement extends A2uiLitElement<typeof StatCardApi> {
+  static override styles = css`
+    :host {
+      display: block;
+      padding: 16px;
+      border: 1px solid var(--border-color, #e2e8f0);
+      border-radius: 8px;
+    }
+    .label {
+      font-size: 0.875rem;
+      color: #64748b;
+    }
+    .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+  `;
+
+  protected override readonly api = StatCardApi;
+
+  override render() {
+    const {label, value} = this.controller.props;
+    return html`
+      <div class="label">${typeof label === 'string' ? label : ''}</div>
+      <div class="value">${typeof value === 'string' ? value : ''}</div>
+    `;
+  }
+}
+
+export const statCardComponent: WebComponentImplementation<typeof StatCardApi.schema> = {
+  ...StatCardApi,
+  tagName: 'a2ui-stat-card',
+  element: StatCardElement,
+};
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Active)">
+
+```typescript
+// stat-card.ts
+import {css, html} from 'lit';
+import {A2uiLitElement, type WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
+import {StatCardApi} from './stat-card.api.js';
+
+export class StatCardElement extends A2uiLitElement<typeof StatCardApi> {
+  static override styles = css`
+    :host {
+      display: block;
+      padding: 16px;
+      border: 1px solid var(--border-color, #e2e8f0);
+      border-radius: 8px;
+    }
+    .label {
+      font-size: 0.875rem;
+      color: #64748b;
+    }
+    .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+  `;
+
+  protected override readonly api = StatCardApi;
+
+  override render() {
+    const {label, value} = this.controller.props;
+    return html`
+      <div class="label">${label}</div>
+      <div class="value">${value}</div>
+    `;
+  }
+}
+
+export const statCardComponent: WebComponentImplementation<typeof StatCardApi.schema> = {
+  ...StatCardApi,
+  tagName: 'a2ui-stat-card',
+  element: StatCardElement,
+};
+```
+
+  </TabItem>
+</Tabs>
+
+## Step 3: Register the component in your app
+
+Add `statCardComponent` to a catalog alongside the optional Basic Catalog components (or your own custom component set) and pass that catalog to your framework's renderer. Host renderers register `a2ui-stat-card` in `customElements` automatically when mounting the surface.
+
+<Tabs syncKey="web-framework">
+  <TabItem label="Lit">
+
+```typescript
+import {html, render} from 'lit';
+import '@a2ui/lit';
+import {Catalog, MessageProcessor} from '@a2ui/web_core';
+import {BASIC_FUNCTIONS, basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {statCardComponent} from './stat-card.js';
+
+const analyticsCatalog = new Catalog(
+  'https://example.com/catalogs/analytics/v1/catalog.json',
+  '1.0',
+  [...basicCatalog.components.values(), statCardComponent],
+  BASIC_FUNCTIONS,
+);
+
+export const processor = new MessageProcessor([analyticsCatalog], action => {
+  console.log('Action:', action);
+});
+
+processor.onSurfaceCreated(surface => {
+  render(html`<a2ui-surface .surface=${surface}></a2ui-surface>`, document.body);
+});
+```
+
+  </TabItem>
+  <TabItem label="React">
+
+```tsx
+import {useEffect, useMemo, useState} from 'react';
+import {A2uiSurface, type ReactCatalogComponent} from '@a2ui/react';
+import {Catalog, MessageProcessor, type SurfaceModel} from '@a2ui/web_core';
+import {BASIC_FUNCTIONS, basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {statCardComponent} from './stat-card.js';
+
+const analyticsCatalog = new Catalog<ReactCatalogComponent>(
+  'https://example.com/catalogs/analytics/v1/catalog.json',
+  '1.0',
+  [...basicCatalog.components.values(), statCardComponent],
+  BASIC_FUNCTIONS,
+);
+
+export function App() {
+  const [surface, setSurface] = useState<SurfaceModel<ReactCatalogComponent>>();
+  const processor = useMemo(
+    () => new MessageProcessor([analyticsCatalog], action => console.log('Action:', action)),
+    [],
+  );
+
+  useEffect(() => {
+    const sub = processor.onSurfaceCreated(setSurface);
+    return () => sub.unsubscribe();
+  }, [processor]);
+
+  return surface ? <A2uiSurface surface={surface} /> : null;
+}
+```
+
+  </TabItem>
+  <TabItem label="Angular">
+
+```typescript
+import {ApplicationConfig, Component} from '@angular/core';
+import {
+  AngularCatalog,
+  BASIC_COMPONENTS,
+  BASIC_FUNCTIONS,
+  SurfaceComponent,
+  provideA2UI,
+} from '@a2ui/angular';
+import {statCardComponent} from './stat-card.js';
+
+const analyticsCatalog = new AngularCatalog(
+  'https://example.com/catalogs/analytics/v1/catalog.json',
+  '1.0',
+  [...BASIC_COMPONENTS, statCardComponent],
+  BASIC_FUNCTIONS,
+);
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideA2UI({
+      catalogs: [analyticsCatalog],
+      actionHandler: action => console.log('Action:', action),
+    }),
+  ],
+};
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [SurfaceComponent],
+  // SurfaceComponent from @a2ui/angular uses 'a2ui-v09-surface' in both v1.0 and v0.9.1.
+  template: `<a2ui-v09-surface surfaceId="main" />`,
+})
+export class AppComponent {}
+```
+
+  </TabItem>
+</Tabs>
+
+If your app targets v0.9.1, pass `'0.9'` as the catalog version and import from `'@a2ui/lit/v0_9'`, `'@a2ui/react/v0_9'`, `'@a2ui/web_core/v0_9'`, `'@a2ui/web_core/v0_9/basic_catalog'`, or `provideA2Ui({useUniversalComponents: true, ...})` from `'@a2ui/angular/v0_9'`. For agent transport setup, see [How to Integrate with My Client](../../guides/client-integration/).
+
+When your agent streams a `createSurface` and `updateComponents` message pair, the host renderer mounts `<a2ui-stat-card>` with the resolved properties:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```json
+[
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "main",
+      "catalogId": "https://example.com/catalogs/analytics/v1/catalog.json"
+    }
+  },
+  {
+    "version": "1.0",
+    "updateComponents": {
+      "surfaceId": "main",
+      "components": [
+        {"id": "root", "component": "StatCard", "label": "Monthly revenue", "value": "$12,400"}
+      ]
+    }
+  }
+]
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Active)">
+
+```json
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "main",
+      "catalogId": "https://example.com/catalogs/analytics/v1/catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "main",
+      "components": [
+        {"id": "root", "component": "StatCard", "label": "Monthly revenue", "value": "$12,400"}
+      ]
+    }
+  }
+]
+```
+
+  </TabItem>
+</Tabs>
+
+## Resolved property types
+
+`@a2ui/lit` re-exports `A2uiLitElement` from `@a2ui/web_core/universal`, so universal components and [`@a2ui/lit` custom components](https://github.com/a2ui-project/a2ui/blob/main/typescript/renderers/lit/README.md) access resolved schema properties on `this.controller.props` in the same way:
+
+- **Actions** (`ActionSchema` / [`Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action)): resolves to an async `() => Promise<void>` callback (`props.action?.()`) that dispatches an agent `event` or executes a catalog `functionCall` (see [Actions and Functions](../../concepts/actions-and-functions/)).
+- **Child components** (`ChildSchema` / [`ComponentId`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentId) and `ChildListSchema` / [`ChildList`](../../specification/v1.0/schemas/#common_types.json/$defs/ChildList)): resolves to a child reference or array of references. Pass each entry to `this.renderNode(ref)` inside `render()` to mount Basic Catalog, universal, or native React and Angular children.
+- **Two-way data binding** (`DynamicStringSchema`, `DynamicNumberSchema`, `DynamicBooleanSchema`, `DynamicStringListSchema`, `DynamicValueSchema` / [`DynamicValue`](../../specification/v1.0/schemas/#common_types.json/$defs/DynamicValue)): generates a `props.set<CapitalizedProp>(nextValue)` setter (such as `props.setValue(e.target.value)`) that writes to the bound JSON Pointer (`@path` in v1.0, `path` in v0.9.1) in the surface `DataModel` (see [Data Model and Data Binding](../../concepts/data-binding/)).
+- **Validation checks** (`z.object({...}).merge(CheckableSchema)` / [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable)): evaluates `checks` rules reactively and populates `props.isValid` (`boolean`) and `props.validationErrors` (`string[]`). Bind `aria-invalid` and `aria-describedby` on the inner input control rather than `role="alert"` so initial validation checks do not trigger unsolicited screen-reader announcements on mount.
+
+## Advanced topics
+
+### Light DOM, Shadow DOM, and host CSS theming
+
+Unlike a standard `LitElement`, `A2uiLitElement` renders into the Light DOM by default (`createRenderRoot()` returns `this`) so the host application's global stylesheet, design system, and utility classes (such as Tailwind CSS) apply directly inside your component. `A2uiLitElement.adoptLightDomStyles()` still applies `static override styles` on connection: it rewrites `:host` selectors to the custom element's tag name, prefixes descendant rules with that tag name to prevent style leaks, and adopts the scoped `CSSStyleSheet` once into the enclosing `Document` or `ShadowRoot`.
+
+You can theme the component from the host application using CSS custom properties:
+
+<Tabs syncKey="web-framework">
+  <TabItem label="Lit">
+
+Set custom properties in the enclosing Lit component's `static override styles` (or on `:root` in a global stylesheet):
+
+```typescript
+static override styles = css`
+  a2ui-stat-card {
+    --border-color: #3b82f6;
+  }
+`;
+```
+
+  </TabItem>
+  <TabItem label="React">
+
+Set custom properties in your application stylesheet (such as `App.css`):
+
+```css
+a2ui-stat-card {
+  --border-color: #3b82f6;
+}
+```
+
+  </TabItem>
+  <TabItem label="Angular">
+
+Set custom properties in global `styles.css` (Angular's default emulated view encapsulation scopes component rules away from dynamically created elements):
+
+```css
+a2ui-stat-card {
+  --border-color: #3b82f6;
+}
+```
+
+  </TabItem>
+</Tabs>
+
+If your component requires style encapsulation or native `<slot>` projection, opt into Shadow DOM by overriding `createRenderRoot()`:
+
+```typescript
+override createRenderRoot() {
+  return this.attachShadow({mode: 'open'});
+}
+```
+
+### Writing a universal component without Lit (`HTMLElement` + `GenericBinder`)
+
+Lit simplifies templates, but the renderer contract has no Lit dependency. Any class extending `HTMLElement` and implementing `A2uiWebComponentElement` works across Lit, React, and Angular:
+
+1. Extend `HTMLElement` and implement `A2uiWebComponentElement` with a `context` setter accepting `ComponentContext` from the host renderer.
+2. Instantiate `new GenericBinder(context, schema)` when connected and subscribe to property updates to mutate the DOM.
+3. Unsubscribe and call `binder.dispose()` in `disconnectedCallback()` and before rebinding to a new context.
+4. Export a `WebComponentImplementation` with your API, `tagName`, and element constructor.
+
+The example below implements a `StatBadgeElement` for a `StatBadgeApi` schema with `label`, `value`, and optional `children` properties, keying cached child DOM elements by `${childId}:${childPath}` so repeating template items preserve focus and internal state across data updates:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```typescript
+// stat-badge.ts
+import {z} from 'zod';
+import {ComponentContext, GenericBinder, type ResolveA2uiProps} from '@a2ui/web_core';
+import {
+  type A2uiWebComponentElement,
+  type ResolvedChildList,
+  type WebComponentImplementation,
+  isWebComponentImplementation,
+  registerUniversalElement,
+} from '@a2ui/web_core/universal';
+import {StatBadgeApi} from './stat-badge.api.js';
+
+type StatBadgeProps = ResolveA2uiProps<z.infer<typeof StatBadgeApi.schema>>;
+
+export class StatBadgeElement extends HTMLElement implements A2uiWebComponentElement {
+  private binder?: GenericBinder<StatBadgeProps>;
+  private subscription?: {unsubscribe(): void};
+  private currentContext?: ComponentContext;
+  private readonly labelEl = document.createElement('span');
+  private readonly childElements = new Map<string, A2uiWebComponentElement>();
+
+  get context() {
+    return this.currentContext;
+  }
+
+  set context(context: ComponentContext | undefined) {
+    this.currentContext = context;
+    this.bind();
+  }
+
+  connectedCallback() {
+    this.bind();
+  }
+
+  disconnectedCallback() {
+    this.unbind();
+  }
+
+  private bind() {
+    this.unbind();
+    if (!this.currentContext || !this.isConnected) return;
+    this.binder = new GenericBinder(this.currentContext, StatBadgeApi.schema);
+    this.subscription = this.binder.subscribe(props => this.render(props));
+    this.render(this.binder.snapshot);
+  }
+
+  private unbind() {
+    this.subscription?.unsubscribe();
+    this.binder?.dispose();
+    this.subscription = undefined;
+    this.binder = undefined;
+  }
+
+  private render(props: StatBadgeProps) {
+    const label = typeof props.label === 'string' ? props.label : '';
+    const value = typeof props.value === 'string' ? props.value : '';
+    this.labelEl.textContent = `${label}: ${value}`;
+    this.replaceChildren(this.labelEl, ...this.renderChildren(props.children ?? []));
+  }
+
+  private renderChildren(children: ResolvedChildList): A2uiWebComponentElement[] {
+    const {surface, path} = this.currentContext!.dataContext;
+    if (!surface) return [];
+    const elements: A2uiWebComponentElement[] = [];
+    for (const childRef of children) {
+      const childId = typeof childRef === 'string' ? childRef : childRef.id;
+      const childPath = typeof childRef === 'string' ? path : childRef.basePath;
+      const childKey = `${childId}:${childPath}`;
+      const childContext = new ComponentContext(surface, childId, childPath);
+      const catalog = childContext.componentModel.catalog ?? surface.defaultCatalog;
+      const impl = catalog?.components.get(childContext.componentModel.type);
+      if (!impl?.tagName) continue;
+      if (isWebComponentImplementation(impl)) registerUniversalElement(impl);
+      let el = this.childElements.get(childKey);
+      if (!el || el.localName !== impl.tagName) {
+        el = document.createElement(impl.tagName) as A2uiWebComponentElement;
+        this.childElements.set(childKey, el);
+      }
+      el.context = childContext;
+      elements.push(el);
+    }
+    return elements;
+  }
+}
+
+export const statBadgeComponent: WebComponentImplementation<typeof StatBadgeApi.schema> = {
+  ...StatBadgeApi,
+  tagName: 'a2ui-stat-badge',
+  element: StatBadgeElement,
+};
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Active)">
+
+```typescript
+// stat-badge.ts
+import {z} from 'zod';
+import {ComponentContext, GenericBinder, type ResolveA2uiProps} from '@a2ui/web_core/v0_9';
+import {
+  type A2uiWebComponentElement,
+  type ResolvedChildList,
+  type WebComponentImplementation,
+  isWebComponentImplementation,
+  registerUniversalElement,
+} from '@a2ui/web_core/v0_9/universal';
+import {StatBadgeApi} from './stat-badge.api.js';
+
+type StatBadgeProps = ResolveA2uiProps<z.infer<typeof StatBadgeApi.schema>>;
+
+export class StatBadgeElement extends HTMLElement implements A2uiWebComponentElement {
+  private binder?: GenericBinder<StatBadgeProps>;
+  private subscription?: {unsubscribe(): void};
+  private currentContext?: ComponentContext;
+  private readonly labelEl = document.createElement('span');
+  private readonly childElements = new Map<string, A2uiWebComponentElement>();
+
+  get context() {
+    return this.currentContext;
+  }
+
+  set context(context: ComponentContext | undefined) {
+    this.currentContext = context;
+    this.bind();
+  }
+
+  connectedCallback() {
+    this.bind();
+  }
+
+  disconnectedCallback() {
+    this.unbind();
+  }
+
+  private bind() {
+    this.unbind();
+    if (!this.currentContext || !this.isConnected) return;
+    this.binder = new GenericBinder(this.currentContext, StatBadgeApi.schema);
+    this.subscription = this.binder.subscribe(props => this.render(props));
+    this.render(this.binder.snapshot);
+  }
+
+  private unbind() {
+    this.subscription?.unsubscribe();
+    this.binder?.dispose();
+    this.subscription = undefined;
+    this.binder = undefined;
+  }
+
+  private render(props: StatBadgeProps) {
+    this.labelEl.textContent = `${props.label ?? ''}: ${props.value ?? ''}`;
+    this.replaceChildren(this.labelEl, ...this.renderChildren(props.children ?? []));
+  }
+
+  private renderChildren(children: ResolvedChildList): A2uiWebComponentElement[] {
+    const {surface, path} = this.currentContext!.dataContext;
+    if (!surface) return [];
+    const elements: A2uiWebComponentElement[] = [];
+    for (const childRef of children) {
+      const childId = typeof childRef === 'string' ? childRef : childRef.id;
+      const childPath = typeof childRef === 'string' ? path : childRef.basePath;
+      const childKey = `${childId}:${childPath}`;
+      const childContext = new ComponentContext(surface, childId, childPath);
+      const catalog = childContext.componentModel.catalog ?? surface.defaultCatalog;
+      const impl = catalog?.components.get(childContext.componentModel.type);
+      if (!impl?.tagName) continue;
+      if (isWebComponentImplementation(impl)) registerUniversalElement(impl);
+      let el = this.childElements.get(childKey);
+      if (!el || el.localName !== impl.tagName) {
+        el = document.createElement(impl.tagName) as A2uiWebComponentElement;
+        this.childElements.set(childKey, el);
+      }
+      el.context = childContext;
+      elements.push(el);
+    }
+    return elements;
+  }
+}
+
+export const statBadgeComponent: WebComponentImplementation<typeof StatBadgeApi.schema> = {
+  ...StatBadgeApi,
+  tagName: 'a2ui-stat-badge',
+  element: StatBadgeElement,
+};
+```
+
+  </TabItem>
+</Tabs>
