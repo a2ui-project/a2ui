@@ -199,6 +199,10 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
       btn.setAttribute('aria-label', label);
     };
     syncLabel();
+    new MutationObserver(syncLabel).observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
     btn.addEventListener('click', () => {
       const current = document.documentElement.getAttribute('data-theme') || 'dark';
       const next = current === 'dark' ? 'light' : 'dark';
@@ -207,7 +211,12 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
         localStorage.setItem('starlight-theme', next);
         localStorage.setItem('a2ui-theme', next);
       } catch (e) {}
-      syncLabel();
+      if (
+        typeof StarlightThemeProvider !== 'undefined' &&
+        typeof StarlightThemeProvider.updatePickers === 'function'
+      ) {
+        StarlightThemeProvider.updatePickers(next);
+      }
       window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: next } }));
     });
   })();
@@ -264,7 +273,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
       };
 
       const onClick = (event: MouseEvent) => {
-        const isLink = event.target instanceof Element && Boolean(event.target.closest('a'));
+        const isLink = event.target instanceof Element && Boolean(event.target.closest('a[href]'));
         if (
           isLink ||
           (document.body.contains(event.target as Node) && !dialogFrame.contains(event.target as Node))
@@ -502,6 +511,10 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
       padding-inline-end: 44px;
     }
 
+    :global(header.header) .a2-sl-header__controls {
+      display: none;
+    }
+
     .a2-sl-header__slash {
       margin: 0 2px;
     }
@@ -533,6 +546,10 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     .a2-sl-search-btn {
       padding: 0 8px;
       gap: 0;
+    }
+    :global(header.header) .a2-sl-header__controls,
+    .a2-sl-header__controls a.a2-sl-icon-btn {
+      display: none;
     }
   }
 
@@ -724,6 +741,10 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     --pagefind-ui-background: #ffffff;
     --pagefind-ui-border: #cbd5e1;
     --pagefind-ui-tag: #e2e8f0;
+    --sl-color-accent-low: #ccfbf1;
+    --sl-color-accent: #0d9488;
+    --sl-color-accent-high: #0f766e;
+    --sl-color-text-accent: #0d9488;
   }
 
   @media (min-width: 50rem) {
