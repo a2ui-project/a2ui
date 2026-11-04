@@ -215,8 +215,8 @@ ERROR = {
 }
 
 
-@pytest.mark.parametrize("timeout", [0, -1])
-def test_rejects_a_timeout_that_is_not_positive(timeout: float) -> None:
+@pytest.mark.parametrize("timeout", [0, -1, float("nan"), float("inf"), True, "1"])
+def test_rejects_a_timeout_that_is_not_a_finite_positive_number(timeout: Any) -> None:
     with pytest.raises(ValueError):
         a2ui_rpc_callback(catalogs=[CATALOG], agent_function_timeout=timeout)
 

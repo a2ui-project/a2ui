@@ -50,6 +50,7 @@ import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 import inspect
 import logging
+import math
 from typing import Any, TypeAlias
 
 from google.adk.a2a.converters import part_converter
@@ -118,10 +119,16 @@ def a2ui_rpc_callback(
         The callback, for `before_agent_callback` of an ADK agent.
 
     Raises:
-        ValueError: If `agent_function_timeout` is not positive.
+        ValueError: If `agent_function_timeout` is not a finite positive
+            number.
     """
-    if agent_function_timeout is not None and agent_function_timeout <= 0:
-        raise ValueError("agent_function_timeout must be positive.")
+    if agent_function_timeout is not None and (
+        isinstance(agent_function_timeout, bool)
+        or not isinstance(agent_function_timeout, (int, float))
+        or not math.isfinite(agent_function_timeout)
+        or agent_function_timeout <= 0
+    ):
+        raise ValueError("agent_function_timeout must be a finite positive number.")
     provider: CatalogsProvider | None = None
     fixed: list[CatalogApi] | None = None
     if callable(catalogs):
