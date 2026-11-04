@@ -43,7 +43,7 @@ different message names. Your training data is likely outdated.
 
 1. Read the installed package's README and docs (e.g. `node_modules/@a2ui/react/README.md`).
 2. Otherwise read `https://a2ui.org/llms.txt` and the linked page for your framework.
-3. Use versioned import paths (e.g. `@a2ui/react/v0_9`, `@a2ui/web_core/v0_9`).
+3. Import renderers and `MessageProcessor` from the package root (`@a2ui/react`, `@a2ui/web_core`). Only the basic catalog depends on the protocol version: `@a2ui/web_core/v0_9/basic_catalog` for v0.9, `@a2ui/web_core/catalogs/basic/v1` for v1.0. `v0_8` paths are for legacy v0.8 only.
 4. If something isn't in the docs, say so. Don't guess message or field names.
 
 ## Install (current package names)
@@ -64,9 +64,9 @@ Do **not** use `flutter_genui` or `genui_a2ui`: both are discontinued.
 ## Minimal React render (v0.9)
 
 ```tsx
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
+import {MessageProcessor} from '@a2ui/web_core';
 import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
-import {A2uiSurface} from '@a2ui/react/v0_9';
+import {A2uiSurface} from '@a2ui/react';
 
 const processor = new MessageProcessor([basicCatalog]);
 // Feed agent messages as they arrive (SSE, WebSocket, A2A, AG-UI...):
