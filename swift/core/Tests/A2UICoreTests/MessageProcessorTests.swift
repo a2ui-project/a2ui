@@ -493,6 +493,130 @@ struct MessageProcessorTests {
       functionsV10?["openUrl"]?["required"] == .array([.string("@call"), .string("args")]))
     #expect(functionsV10?["@index"] == nil)
     #expect(functionsV10?.count == 2)
+
+    #expect(inlineCatalogV091?["$defs"] == nil)
+    let expectedDefsV10: JSONValue = .object([
+      "anyComponent": .object([
+        "oneOf": .array([.object(["$ref": .string("#/components/Button")])]),
+        "discriminator": .object(["propertyName": .string("component")]),
+      ]),
+      "anyFunction": .object([
+        "oneOf": .array([
+          .object(["$ref": .string("#/functions/add")]),
+          .object(["$ref": .string("#/functions/openUrl")]),
+        ])
+      ]),
+    ])
+    #expect(inlineCatalogV10?["$defs"] == expectedDefsV10)
+  }
+
+  @Test func getRendererCapabilitiesAlwaysWritesBothUnionsForV10() throws {
+    let buttonSchema = try Schema(instance: "{\"type\": \"object\"}")
+    let componentsOnly = Catalog(
+      id: "cat-components-only",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
+    )
+    let empty = Catalog(
+      id: "cat-empty",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI]()
+    )
+    let processor = MessageProcessor(catalogs: [componentsOnly, empty])
+    let capabilities = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        protocolVersion: .v10,
+        includeInlineCatalogs: true
+      )
+    )
+
+    let inlineCatalogs = try #require(capabilities["1.0"]?["inlineCatalogs"]?.arrayValue)
+    #expect(inlineCatalogs.count == 2)
+    let emptyUnion: JSONValue = .object(["not": .object([:])])
+
+    let componentsOnlyCatalog = try #require(
+      inlineCatalogs.first { $0["catalogId"]?.stringValue == "cat-components-only" }
+    )
+    let expectedComponentsOnlyDefs: JSONValue = .object([
+      "anyComponent": .object([
+        "oneOf": .array([.object(["$ref": .string("#/components/Button")])]),
+        "discriminator": .object(["propertyName": .string("component")]),
+      ]),
+      "anyFunction": emptyUnion,
+    ])
+    #expect(componentsOnlyCatalog["functions"] == nil)
+    #expect(componentsOnlyCatalog["$defs"] == expectedComponentsOnlyDefs)
+
+    let emptyCatalog = try #require(
+      inlineCatalogs.first { $0["catalogId"]?.stringValue == "cat-empty" }
+    )
+    let expectedEmptyDefs: JSONValue = .object([
+      "anyComponent": emptyUnion,
+      "anyFunction": emptyUnion,
+    ])
+    #expect(emptyCatalog["components"] == nil)
+    #expect(emptyCatalog["$defs"] == expectedEmptyDefs)
+  }
+
+  @Test func getRendererCapabilitiesV10InlineCatalogsMatchCatalogDefinition() throws {
+    let buttonSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "label": { "type": "string" }
+          },
+          "required": ["label"]
+        }
+        """
+    )
+    let addSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "a": { "type": "number" },
+            "b": { "type": "number" }
+          }
+        }
+        """
+    )
+    let withFunctions = Catalog(
+      id: "cat-with-functions",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)],
+      functions: [TestAddFunction(schema: addSchema)]
+    )
+    let withoutFunctions = Catalog(
+      id: "cat-without-functions",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
+    )
+    let processor = MessageProcessor(catalogs: [withFunctions, withoutFunctions])
+    let capabilities = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        protocolVersion: .v10,
+        includeInlineCatalogs: true
+      )
+    )
+
+    let catalogDefinition = try Schema(
+      rawSchema: A2UICommonSchema.v10CatalogDefinitionDocument,
+      context: A2UISchemaRegistry.makeContext()
+    )
+    let inlineCatalogs = try #require(capabilities["1.0"]?["inlineCatalogs"]?.arrayValue)
+    #expect(inlineCatalogs.count == 2)
+    for inlineCatalog in inlineCatalogs {
+      let result = catalogDefinition.validate(inlineCatalog)
+      #expect(result.isValid, "\(inlineCatalog["catalogId"] ?? .null): \(result)")
+    }
+
+    // The schema rejects `$defs` that leave out either union.
+    var withoutFunctionUnion = try #require(inlineCatalogs.first?.objectValue)
+    var defs = try #require(withoutFunctionUnion["$defs"]?.objectValue)
+    defs.removeValue(forKey: "anyFunction")
+    withoutFunctionUnion["$defs"] = .object(defs)
+    #expect(!catalogDefinition.validate(.object(withoutFunctionUnion)).isValid)
   }
 
   @Test func getRendererCapabilitiesWrapsComponentEnvelopeOnlyBeforeV10() throws {

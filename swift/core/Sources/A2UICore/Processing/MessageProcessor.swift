@@ -319,7 +319,41 @@ public final class MessageProcessor: ObservableObject {
       catalogDictionary["theme"] = processedTheme["properties"] ?? processedTheme
     }
 
+    if version.isAtLeastV10 {
+      // `catalog_definition.json` requires both unions, even for a catalog with no components
+      // or no functions.
+      let functionNames = catalogDictionary["functions"]?.objectValue?.keys.map { $0 } ?? []
+      catalogDictionary["$defs"] = .object([
+        "anyComponent": inlineCatalogUnion(
+          of: componentsDictionary.keys,
+          in: "components",
+          discriminator: "component"
+        ),
+        "anyFunction": inlineCatalogUnion(of: functionNames, in: "functions"),
+      ])
+    }
+
     return .object(catalogDictionary)
+  }
+
+  /// A `oneOf` of references to `#/<section>/<name>` for each name, or `{"not": {}}` when there
+  /// are none, since JSON Schema requires `oneOf` to be non-empty.
+  private func inlineCatalogUnion(
+    of names: some Collection<String>,
+    in section: String,
+    discriminator: String? = nil
+  ) -> JSONValue {
+    guard !names.isEmpty else { return .object(["not": .object([:])]) }
+    let refs: [JSONValue] = names.map { name in
+      let token = name.replacingOccurrences(of: "~", with: "~0")
+        .replacingOccurrences(of: "/", with: "~1")
+      return .object(["$ref": .string("#/\(section)/\(token)")])
+    }
+    var union: OrderedDictionary<String, JSONValue> = ["oneOf": .array(refs)]
+    if let discriminator {
+      union["discriminator"] = .object(["propertyName": .string(discriminator)])
+    }
+    return .object(union)
   }
 
   private func generateInlineComponents(
