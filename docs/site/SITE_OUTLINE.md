@@ -58,7 +58,7 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Concepts**      | Macros                                           | **P2**   | `content/docs/concepts/macros.mdx`                                                               | `/concepts/macros/`                                                                             |
 | **Concepts**      | Security and Trust Boundaries                    | **P2**   | `content/docs/concepts/security.mdx`                                                             | `/concepts/security/`                                                                           |
 | **Concepts**      | Accessibility (A11y)                             | **P2**   | `content/docs/concepts/accessibility.mdx`                                                        | `/concepts/accessibility/`                                                                      |
-| **Concepts**      | Glossary                                         | **P2**   | `content/docs/concepts/glossary.md`                                                              | `/concepts/glossary/`                                                                           |
+| **Concepts**      | Glossary                                         | **P2**   | `content/docs/concepts/glossary.mdx`                                                             | `/concepts/glossary/`                                                                           |
 | **Guides**        | How to Integrate with My Client                  | **P1**   | `content/docs/guides/client-integration.mdx`                                                     | `/guides/client-integration/`                                                                   |
 | **Guides**        | How to Integrate with My Agent Server            | **P1**   | `content/docs/guides/agent-integration.mdx`                                                      | `/guides/agent-integration/`                                                                    |
 | **Guides**        | How to Define a Catalog                          | **P1**   | `content/docs/guides/defining-a-catalog.mdx`                                                     | `/guides/defining-a-catalog/`                                                                   |
@@ -94,7 +94,7 @@ _(Where `<ver>` is `v1.0`, `v0.9.1`, or `v0.8`.)_
 
 1. **Hero: Give your agents UI on every surface**
     - Headline & value proposition: Chat is a great input, but walls of prose are a poor output. Give your agents stateful, interactive UI across mobile, desktop, and web.
-    - Interactive visual aid contrasting raw LLM prose against a stateful A2UI surface bound to `dataModel`.
+    - Interactive visual aid (`HeroChatGeneration.astro`) showing an agent incrementally streaming declarative UI (A2UI Express) into a mobile chat thread over ~4.2 seconds, mounting a stateful native surface bound two-way to `dataModel`.
 2. **The Generative UI Spectrum**
     - Interactive spectrum explorer showing how one A2UI environment spans:
         1. **Fully Controlled**: Deterministic server-driven UI & fixed schemas.

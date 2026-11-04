@@ -14,6 +14,7 @@
 
 import A2UICore
 import A2UIJSON
+import Combine
 import Foundation
 import JSONSchema
 import OrderedJSON
@@ -856,10 +857,39 @@ struct MessageProcessorTests {
       id: "cat-v10",
       protocolVersion: .v10,
       components: [
-        AnyComponentAPI(name: "Text", schema: try Schema(instance: "{\"type\": \"object\"}"))
+        AnyComponentAPI(
+          name: "Counter",
+          schema: try Schema(
+            instance: """
+              {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicNumber"
+                  }
+                }
+              }
+              """,
+            remoteSchemas: A2UICommonSchema.allSchemas
+          )
+        )
       ]
     )
-    let processor = MessageProcessor(catalogs: [catalog])
+    let handler = TestProcessorActionHandler()
+    let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
+    var rootNotifications = 0
+    var watchCancellable: AnyCancellable?
+    let surfaceCancellable = processor.surfaceGroupModel.$surfacesMap.sink { map in
+      guard let surface = map["s1"], watchCancellable == nil else { return }
+      watchCancellable = try? surface.dataModel.watch("/") { _ in
+        rootNotifications += 1
+      }
+    }
+    defer {
+      surfaceCancellable.cancel()
+      watchCancellable?.cancel()
+    }
+
     let payload = try JSONValue.parse(
       """
       {
@@ -873,8 +903,16 @@ struct MessageProcessorTests {
             }
           },
           "dataModel": {
-            "a/b~c": "escapedValue"
-          }
+            "a": 1,
+            "x/y~z": { "c": 2 }
+          },
+          "components": [
+            {
+              "id": "root",
+              "component": "Counter",
+              "count": { "@path": "/x~1y~0z/c" }
+            }
+          ]
         }
       }
       """
@@ -882,7 +920,12 @@ struct MessageProcessorTests {
     try processor.processMessages(payload)
     let surface = try #require(processor.surfaceGroupModel["s1"])
     #expect(surface.metadata?["extensions"]?["custom_ext"]?["enabled"]?.boolValue == true)
-    #expect(surface.dataModel.get("/a~1b~0c")?.stringValue == "escapedValue")
+    #expect(watchCancellable != nil)
+    #expect(rootNotifications == 2)
+    #expect(surface.dataModel.get("/x~1y~0z/c")?.intValue == 2)
+    #expect(handler.capturedErrors.isEmpty)
+    #expect(surface.rootNode?.double(for: "count") == 2)
+    #expect(surface.rootNode?.box.propsRevision == 0)
   }
 
   @Test func processPayloadResolvesLenientV10VersionOnError() throws {
