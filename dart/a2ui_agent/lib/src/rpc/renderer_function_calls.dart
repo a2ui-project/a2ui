@@ -20,9 +20,6 @@ import 'package:a2ui_core/a2ui_core.dart';
 /// Default timeout for outbound `callRendererFunction` invocations (30s).
 const Duration defaultRendererCallTimeout = Duration(seconds: 30);
 
-const int _maxFunctionCallArgs = 1000;
-const int _maxFunctionCallDepth = 50;
-
 /// Builds outbound `callRendererFunction` messages, correlates them with
 /// incoming `rendererFunctionResponse` messages by `functionCallId`, and
 /// manages per-call timeouts and disposal.
@@ -110,21 +107,32 @@ class RendererFunctionCalls {
   /// [Future] that resolves when the matching `rendererFunctionResponse`
   /// arrives via [resolve].
   ///
-  /// An empty [surfaceId] counts as omitted.
+  /// An empty [surfaceId] counts as omitted. Without a [timeout], the call
+  /// uses [defaultTimeout], and never times out when that is null.
   ///
-  /// Throws [ArgumentError] if [timeout] is not positive.
-  /// Throws [A2uiRpcError] synchronously, before anything is sent or
-  /// registered, if:
-  /// - this tracker is disposed ([RpcErrorCode.disposed]),
-  /// - [functionCallId] is already pending ([RpcErrorCode.duplicate]),
-  /// - [maxPending] would be exceeded ([RpcErrorCode.tooManyPending]), or
-  /// - the call parameters are invalid ([RpcErrorCode.invalidFunctionCall]),
-  /// - given catalogs, [catalogId] names none of them or its catalog declares
-  ///   no renderer function [name], such as when [name] is an agent function
-  ///   ([RpcErrorCode.unknownFunction]), or
-  /// - given catalogs, the function is `rendererOnly`, which is also what an
-  ///   omitted `allowedCallers` means, or requires a user activation
-  ///   ([RpcErrorCode.invalidFunctionCall]).
+  /// Checks the call in this order, throwing synchronously, before anything
+  /// is built, registered or timed:
+  ///
+  /// 1. [timeout], when given, must be positive: [ArgumentError].
+  /// 2. The tracker isn't disposed: [RpcErrorCode.disposed].
+  /// 3. A given [functionCallId] isn't empty:
+  ///    [RpcErrorCode.invalidFunctionCall]. An omitted one is generated.
+  /// 4. The id isn't already pending: [RpcErrorCode.duplicate].
+  /// 5. [maxPending] isn't reached: [RpcErrorCode.tooManyPending].
+  /// 6. [name] isn't empty, then [catalogId] isn't empty, then [name] is a
+  ///    UAX #31 identifier that doesn't start with `@`:
+  ///    [RpcErrorCode.invalidFunctionCall].
+  /// 7. [args], when given, has UAX #31 identifiers as keys and JSON values
+  ///    (null, booleans, strings, finite numbers, and lists and string-keyed
+  ///    maps of them): [RpcErrorCode.invalidFunctionCall]. The values aren't
+  ///    otherwise interpreted; a nested `@call` or `@path` object is left for
+  ///    the renderer to check.
+  /// 8. Given catalogs, [catalogId] names one of them and [name] is one of
+  ///    its renderer functions (an agent function isn't):
+  ///    [RpcErrorCode.unknownFunction]. The function's `allowedCallers` lets
+  ///    the agent call it (an omitted one means `rendererOnly`, which
+  ///    doesn't), and it doesn't require a user activation:
+  ///    [RpcErrorCode.invalidFunctionCall].
   (CallRendererFunctionMessage, Future<Object?>) call({
     required String catalogId,
     required String name,
@@ -404,32 +412,20 @@ class RendererFunctionCalls {
       );
     }
     if (args != null) {
-      _validateCallArgs(
-        name,
-        args,
-        callId: callId,
-        surfaceId: surfaceId,
-        depth: 0,
-      );
+      _validateCallArgs(name, args, callId: callId, surfaceId: surfaceId);
     }
   }
 
+  /// Checks that [args] is a JSON object whose keys are UAX #31 identifiers.
+  ///
+  /// The values are not interpreted: a nested `@call` or `@path` object is
+  /// just an object here, which the renderer checks.
   static void _validateCallArgs(
     String fnName,
     Map<Object?, Object?> args, {
     required String callId,
     required String? surfaceId,
-    required int depth,
   }) {
-    if (args.length > _maxFunctionCallArgs) {
-      throw A2uiRpcError(
-        "Function call '$fnName' exceeds maximum allowed arguments count "
-        '($_maxFunctionCallArgs).',
-        RpcErrorCode.invalidFunctionCall,
-        functionCallId: callId,
-        surfaceId: surfaceId,
-      );
-    }
     for (final MapEntry<Object?, Object?> entry in args.entries) {
       final Object? key = entry.key;
       if (key is! String || !isValidUax31Identifier(key)) {
@@ -441,177 +437,53 @@ class RendererFunctionCalls {
           surfaceId: surfaceId,
         );
       }
-      _validateArgValue(
-        entry.value,
-        callId: callId,
-        surfaceId: surfaceId,
-        depth: depth,
-      );
+      _validateJsonValue(entry.value, callId: callId, surfaceId: surfaceId);
     }
   }
 
-  static void _validateArgValue(
+  /// Checks that [value] is a JSON value: null, a boolean, a string, a finite
+  /// number, or a list or string-keyed map of JSON values.
+  static void _validateJsonValue(
     Object? value, {
     required String callId,
     required String? surfaceId,
-    required int depth,
   }) {
-    if (value == null || value is bool || value is int || value is String) {
-      return;
-    }
-    if (value is double) {
-      if (!value.isFinite) {
+    switch (value) {
+      case null || bool() || int() || String():
+        return;
+      case double() when value.isFinite:
+        return;
+      case double():
         throw A2uiRpcError(
           'Non-finite number $value in function arguments.',
           RpcErrorCode.invalidFunctionCall,
           functionCallId: callId,
           surfaceId: surfaceId,
         );
-      }
-      return;
-    }
-    if (value is List) {
-      for (final Object? item in value) {
-        _validateArgValue(
-          item,
-          callId: callId,
-          surfaceId: surfaceId,
-          depth: depth,
-        );
-      }
-      return;
-    }
-    if (value is! Map) {
-      throw A2uiRpcError(
-        'Non-JSON value of type ${value.runtimeType} in function arguments.',
-        RpcErrorCode.invalidFunctionCall,
-        functionCallId: callId,
-        surfaceId: surfaceId,
-      );
-    }
-
-    for (final Object? rawKey in value.keys) {
-      if (rawKey is! String) {
-        throw A2uiRpcError(
-          'Object keys in function arguments must be strings.',
-          RpcErrorCode.invalidFunctionCall,
-          functionCallId: callId,
-          surfaceId: surfaceId,
-        );
-      }
-      if (rawKey.startsWith('@') &&
-          !rawKey.startsWith('@@') &&
-          rawKey != '@path' &&
-          rawKey != '@call') {
-        throw A2uiRpcError(
-          "Unrecognized reserved directive '$rawKey' in function arguments.",
-          RpcErrorCode.invalidFunctionCall,
-          functionCallId: callId,
-          surfaceId: surfaceId,
-        );
-      }
-    }
-
-    if (value.containsKey('@path')) {
-      if (value.length != 1 ||
-          value['@path'] is! String ||
-          (value['@path']! as String).isEmpty) {
-        throw A2uiRpcError(
-          'Invalid @path data binding in function arguments.',
-          RpcErrorCode.invalidFunctionCall,
-          functionCallId: callId,
-          surfaceId: surfaceId,
-        );
-      }
-      return;
-    }
-
-    if (value.containsKey('@call')) {
-      final int nextDepth = depth + 1;
-      if (nextDepth > _maxFunctionCallDepth) {
-        throw A2uiRpcError(
-          'Nested function call exceeds maximum depth '
-          '($_maxFunctionCallDepth).',
-          RpcErrorCode.invalidFunctionCall,
-          functionCallId: callId,
-          surfaceId: surfaceId,
-        );
-      }
-      for (final Object? k in value.keys) {
-        if (k != '@call' && k != 'catalogId' && k != 'args') {
-          throw A2uiRpcError(
-            "Unknown field '$k' on nested function call.",
-            RpcErrorCode.invalidFunctionCall,
-            functionCallId: callId,
-            surfaceId: surfaceId,
-          );
+      case List<Object?>():
+        for (final Object? item in value) {
+          _validateJsonValue(item, callId: callId, surfaceId: surfaceId);
         }
-      }
-      final Object? nestedName = value['@call'];
-      if (nestedName is! String || nestedName.isEmpty) {
-        throw A2uiRpcError(
-          "Nested function call '@call' must be a non-empty string.",
-          RpcErrorCode.invalidFunctionCall,
-          functionCallId: callId,
-          surfaceId: surfaceId,
-        );
-      }
-      if (nestedName.startsWith('@')) {
-        if (nestedName != '@index' || value.containsKey('catalogId')) {
-          throw A2uiRpcError(
-            "Invalid system function call '$nestedName'.",
-            RpcErrorCode.invalidFunctionCall,
-            functionCallId: callId,
-            surfaceId: surfaceId,
-          );
+      case Map<Object?, Object?>():
+        for (final MapEntry<Object?, Object?> entry in value.entries) {
+          if (entry.key is! String) {
+            throw A2uiRpcError(
+              'Object keys in function arguments must be strings, got '
+              '${entry.key.runtimeType}.',
+              RpcErrorCode.invalidFunctionCall,
+              functionCallId: callId,
+              surfaceId: surfaceId,
+            );
+          }
+          _validateJsonValue(entry.value, callId: callId, surfaceId: surfaceId);
         }
-      } else if (!isValidUax31Identifier(nestedName)) {
+      default:
         throw A2uiRpcError(
-          "Nested function name '$nestedName' is not a valid UAX #31 "
-          'identifier.',
+          'Non-JSON value of type ${value.runtimeType} in function arguments.',
           RpcErrorCode.invalidFunctionCall,
           functionCallId: callId,
           surfaceId: surfaceId,
         );
-      }
-      final Object? nestedCatalogId = value['catalogId'];
-      if (nestedCatalogId != null &&
-          (nestedCatalogId is! String || nestedCatalogId.isEmpty)) {
-        throw A2uiRpcError(
-          "Nested function call 'catalogId' must be a non-empty string.",
-          RpcErrorCode.invalidFunctionCall,
-          functionCallId: callId,
-          surfaceId: surfaceId,
-        );
-      }
-      final Object? nestedArgs = value['args'];
-      if (nestedArgs != null) {
-        if (nestedArgs is! Map) {
-          throw A2uiRpcError(
-            "Nested function call 'args' must be an object.",
-            RpcErrorCode.invalidFunctionCall,
-            functionCallId: callId,
-            surfaceId: surfaceId,
-          );
-        }
-        _validateCallArgs(
-          nestedName,
-          nestedArgs,
-          callId: callId,
-          surfaceId: surfaceId,
-          depth: nextDepth,
-        );
-      }
-      return;
-    }
-
-    for (final Object? entryValue in value.values) {
-      _validateArgValue(
-        entryValue,
-        callId: callId,
-        surfaceId: surfaceId,
-        depth: depth,
-      );
     }
   }
 

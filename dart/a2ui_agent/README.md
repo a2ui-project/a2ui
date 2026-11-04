@@ -279,8 +279,16 @@ sendToRenderer([message]);
 final Object? value = await result; // or throws A2uiRpcError
 ```
 
-A call times out after 30 seconds unless given another timeout. `dispose`
+A call times out after 30 seconds unless given another timeout; give the
+tracker `defaultTimeout: null` for calls that never time out. `dispose`
 cancels the calls still pending, for example when the connection closes.
+
+`call` checks the call before sending anything and throws `A2uiRpcError`
+with `INVALID_FUNCTION_CALL` for an empty `functionCallId`, an empty name or
+catalog id, a name that isn't a UAX #31 identifier, or `args` whose keys
+aren't identifiers or whose values aren't JSON values (`NaN` and infinity
+included). Nested `@call` and `@path` objects in `args` are passed on as they
+are, for the renderer to check.
 
 Give `RendererFunctionCalls` the renderer's catalogs, as in
 `RendererFunctionCalls(catalogs: catalogs)`, and `call` refuses a call the

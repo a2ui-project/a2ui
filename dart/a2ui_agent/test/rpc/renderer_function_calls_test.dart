@@ -447,6 +447,272 @@ void main() {
       expect(result.replies, isEmpty);
     });
 
+    group('call() checks', () {
+      Matcher rpcError(RpcErrorCode code, [String? messagePart]) {
+        TypeMatcher<A2uiRpcError> matcher = isA<A2uiRpcError>().having(
+          (e) => e.rpcCode,
+          'rpcCode',
+          code,
+        );
+        if (messagePart != null) {
+          matcher = matcher.having(
+            (e) => e.message,
+            'message',
+            contains(messagePart),
+          );
+        }
+        return throwsA(matcher);
+      }
+
+      void expectRefusedWithNothingPending(
+        void Function(RendererFunctionCalls calls) call,
+        Matcher matcher, {
+        RendererFunctionCalls? calls,
+      }) {
+        fakeAsync((FakeAsync async) {
+          final RendererFunctionCalls tracker =
+              calls ?? RendererFunctionCalls();
+          final int before = tracker.pendingCount;
+          expect(() => call(tracker), matcher);
+          expect(tracker.pendingCount, before);
+          if (before == 0) expect(async.pendingTimers, isEmpty);
+        });
+      }
+
+      test('a timeout that is not positive is an ArgumentError', () {
+        final calls = RendererFunctionCalls();
+        for (final Duration timeout in [
+          Duration.zero,
+          const Duration(milliseconds: -1),
+        ]) {
+          expect(
+            () => calls.call(
+              catalogId: _catId,
+              name: 'scrollIntoView',
+              timeout: timeout,
+            ),
+            throwsArgumentError,
+          );
+        }
+        // The timeout is checked first, even on a disposed tracker.
+        calls.dispose();
+        expect(
+          () => calls.call(catalogId: '', name: '', timeout: Duration.zero),
+          throwsArgumentError,
+        );
+        expect(calls.pendingCount, 0);
+      });
+
+      test('a given empty functionCallId is INVALID_FUNCTION_CALL', () {
+        expectRefusedWithNothingPending(
+          (calls) => calls.call(
+            catalogId: _catId,
+            name: 'scrollIntoView',
+            functionCallId: '',
+          ),
+          rpcError(RpcErrorCode.invalidFunctionCall, 'functionCallId'),
+        );
+      });
+
+      test('names that are not identifiers or start with @ are invalid', () {
+        for (final name in ['get-location', '@index', '1st']) {
+          expectRefusedWithNothingPending(
+            (calls) => calls.call(catalogId: _catId, name: name),
+            rpcError(RpcErrorCode.invalidFunctionCall, name),
+          );
+        }
+      });
+
+      test('an empty name is reported before an empty catalogId', () {
+        expectRefusedWithNothingPending(
+          (calls) => calls.call(catalogId: '', name: ''),
+          rpcError(RpcErrorCode.invalidFunctionCall, 'function name'),
+        );
+      });
+
+      test('the tracker checks run before the call checks', () {
+        // DISPOSED before an empty functionCallId.
+        final disposed = RendererFunctionCalls()..dispose();
+        expect(
+          () => disposed.call(catalogId: '', name: '', functionCallId: ''),
+          rpcError(RpcErrorCode.disposed),
+        );
+        // An empty functionCallId before an empty name.
+        expectRefusedWithNothingPending(
+          (calls) => calls.call(catalogId: '', name: '', functionCallId: ''),
+          rpcError(RpcErrorCode.invalidFunctionCall, 'functionCallId'),
+        );
+        // DUPLICATE and TOO_MANY_PENDING before an empty name.
+        fakeAsync((FakeAsync async) {
+          final calls = RendererFunctionCalls(maxPending: 1);
+          final (_, Future<Object?> first) = calls.call(
+            catalogId: _catId,
+            name: 'scrollIntoView',
+            functionCallId: 'c1',
+          );
+          first.ignore();
+          expect(
+            () => calls.call(catalogId: '', name: '', functionCallId: 'c1'),
+            rpcError(RpcErrorCode.duplicate),
+          );
+          expect(
+            () => calls.call(catalogId: '', name: '', functionCallId: 'c2'),
+            rpcError(RpcErrorCode.tooManyPending),
+          );
+          expect(calls.pendingCount, 1);
+          calls.dispose();
+        });
+      });
+
+      test('argument keys must be identifiers', () {
+        for (final key in ['target-currency', '', '@path']) {
+          expectRefusedWithNothingPending(
+            (calls) => calls.call(
+              catalogId: _catId,
+              name: 'scrollIntoView',
+              args: {key: 1},
+            ),
+            rpcError(RpcErrorCode.invalidFunctionCall, 'argument'),
+          );
+        }
+      });
+
+      test('argument values must be JSON values', () {
+        for (final Object? value in [
+          double.nan,
+          double.infinity,
+          double.negativeInfinity,
+          [1, double.nan],
+          {'nested': double.infinity},
+          {1: 'non-string key'},
+          Object(),
+          DateTime(2026),
+          <Object?>{1, 2},
+        ]) {
+          expectRefusedWithNothingPending(
+            (calls) => calls.call(
+              catalogId: _catId,
+              name: 'scrollIntoView',
+              args: {'value': value},
+            ),
+            rpcError(RpcErrorCode.invalidFunctionCall),
+          );
+        }
+      });
+
+      test('nested @call and @path objects are just objects', () {
+        final calls = RendererFunctionCalls();
+        final args = <String, Object?>{
+          'binding': {'@path': ''},
+          'call': {
+            '@call': 'not-checked',
+            'extra': true,
+            'args': [1, 2],
+          },
+          'deep': {
+            'list': [
+              null,
+              true,
+              'x',
+              1,
+              2.5,
+              {'@anything': 'goes'},
+            ],
+          },
+          'many': {for (var i = 0; i < 1500; i++) 'k$i': i},
+        };
+        final (
+          CallRendererFunctionMessage message,
+          Future<Object?> result,
+        ) = calls.call(
+          catalogId: _catId,
+          name: 'scrollIntoView',
+          args: args,
+          functionCallId: 'c1',
+        );
+        result.ignore();
+        final callFunction =
+            (message.toJson()['callRendererFunction']!
+                    as Map<String, Object?>)['callFunction']!
+                as Map<String, Object?>;
+        expect(callFunction['args'], args);
+        calls.dispose();
+      });
+
+      test('the argument checks run before the catalog checks', () {
+        final calls = RendererFunctionCalls(
+          catalogs: [
+            Catalog(
+              id: _catId,
+              protocolVersion: A2uiProtocolVersion.v1_0,
+              components: const <ComponentApi>[],
+              functions: [_fn('formatDate', AllowedCallers.rendererOnly)],
+            ),
+          ],
+        );
+        expectRefusedWithNothingPending(
+          (calls) => calls.call(
+            catalogId: _catId,
+            name: 'formatDate',
+            args: {'bad-key': 1},
+          ),
+          rpcError(RpcErrorCode.invalidFunctionCall, 'bad-key'),
+          calls: calls,
+        );
+      });
+
+      test('a call without a timeout uses the default', () {
+        fakeAsync((FakeAsync async) {
+          final calls = RendererFunctionCalls(
+            defaultTimeout: const Duration(milliseconds: 50),
+          );
+          Object? error;
+          final (_, Future<Object?> result) = calls.call(
+            catalogId: _catId,
+            name: 'scrollIntoView',
+            timeout: null,
+          );
+          result.then<void>((_) {}, onError: (Object e) => error = e);
+          async.elapse(const Duration(milliseconds: 60));
+          expect(
+            error,
+            isA<A2uiRpcError>().having(
+              (e) => e.rpcCode,
+              'rpcCode',
+              RpcErrorCode.timeout,
+            ),
+          );
+        });
+      });
+
+      test('with no default timeout, a call never times out', () {
+        fakeAsync((FakeAsync async) {
+          final calls = RendererFunctionCalls(defaultTimeout: null);
+          var settled = false;
+          final (_, Future<Object?> result) = calls.call(
+            catalogId: _catId,
+            name: 'scrollIntoView',
+            functionCallId: 'c1',
+          );
+          result.whenComplete(() => settled = true).ignore();
+          expect(async.pendingTimers, isEmpty);
+          async.elapse(const Duration(days: 1));
+          expect(settled, isFalse);
+          expect(calls.pendingCount, 1);
+          // A per-call timeout still applies.
+          final (_, Future<Object?> limited) = calls.call(
+            catalogId: _catId,
+            name: 'scrollIntoView',
+            timeout: const Duration(seconds: 1),
+          );
+          limited.ignore();
+          async.elapse(const Duration(seconds: 2));
+          expect(calls.pendingCount, 1);
+          calls.dispose();
+        });
+      });
+    });
+
     group('with catalogs', () {
       CatalogApi catalog({String id = _catId}) => Catalog(
         id: id,

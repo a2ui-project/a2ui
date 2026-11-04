@@ -41,6 +41,9 @@
   Given the renderer's `catalogs`, `call` refuses a call to a function that
   isn't one of their renderer functions (`UNKNOWN_FUNCTION`), or to one that is
   `rendererOnly` or requires a user activation (`INVALID_FUNCTION_CALL`).
+  `call` checks its arguments in the same order as the Python and TypeScript
+  SDKs; `args` must have identifier keys and JSON values, and nested function
+  calls in it are left for the renderer to check.
 
 ## 0.1.0
 
