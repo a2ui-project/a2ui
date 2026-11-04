@@ -185,21 +185,12 @@ def guess_triage_heuristics(title, body):
         reply = "Thanks. We will update the documentation."
     elif "feature" in text or "enhancement" in text or "request" in text:
         labels.append("type: feature/enhancement")
-        if "out of scope" in text or "not planned" in text:
-            priority = "None"
-            action = "close_invalid"
-            reply = (
-                "Thanks for the suggestion. This falls outside the current scope"
-                " of the A2UI protocol roadmap.\n\nWe do not plan to invest in"
-                " it, so we are closing this issue. Comment here if you have new"
-                " arguments to share."
-            )
-        else:
-            priority = "P3"
-            action = "backlog"
-            reply = (
-                "Thanks for the suggestion. We will evaluate this against our roadmap."
-            )
+        # Whether a request is out of scope takes reading the issue, not
+        # matching keywords, so it is left to the agent that reviews the
+        # suggestion.
+        priority = "P3"
+        action = "backlog"
+        reply = "Thanks for the suggestion. We will evaluate this against our roadmap."
     else:
         # Default to bug if not documentation/feature and contains words like error, fail, crash, bug
         if any(

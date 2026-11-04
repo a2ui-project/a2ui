@@ -215,7 +215,7 @@ jobs:
       - name: Test Scripts
         run: node --test scripts/*.test.mjs tools/internal/triage/flagging/*.test.mts
       - name: Type-check the triage bot
-        working-directory: tools/internal/triage/flagging
+        working-directory: tools/internal/triage
         run: |
           npm ci
           npm run typecheck

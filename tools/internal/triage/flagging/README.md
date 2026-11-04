@@ -6,7 +6,7 @@ The bot adds `status: needs-triage` to open issues and PRs that need attention f
 - [triage.mts](triage.mts): the script that applies the rules.
 - [triage.test.mts](triage.test.mts): the tests.
 
-Node runs the TypeScript files directly, so the bot and its tests need no build or install. To check the types, run this in this folder:
+Node runs the TypeScript files directly, so the bot and its tests need no build or install. To check the types, run this in the parent folder, [`tools/internal/triage`](..), which holds `package.json` and `tsconfig.json`:
 
 ```sh
 npm ci
