@@ -35,7 +35,6 @@ Check the [Roadmap](../roadmap.md) for more.
 
 The community is building A2UI renderers for additional platforms:
 
-- **[Flutter (GenUI SDK)](https://github.com/flutter/genui)**: Flutter's GenUI SDK for rendering A2UI surfaces on mobile, desktop, and web ([Docs](https://docs.flutter.dev/ai/genui), v0.8, v0.9.1)
 - **[json-render](https://json-render.dev/docs/a2ui)** — Vercel's React library for rendering A2UI catalogs via Zod schemas ([comparison](https://dipjyotimetia.medium.com/vercels-json-render-vs-google-s-a2ui-the-head-to-head-6f213cf1a23b))
 - **[A2UI-Android](https://github.com/lmee/A2UI-Android)** — Community Jetpack Compose renderer, 20+ components (~15 ⭐, v0.8)
 - **[a2ui-react-native](https://github.com/sivamrudram-eng/a2ui-react-native)** — React Native renderer for iOS/Android (~9 ⭐, v0.8)
@@ -60,7 +59,7 @@ Get started integrating A2UI into your application by following the setup guide 
 - **[React](../guides/client-setup.md#react)**
 - **[Lit (Web Components)](../guides/client-setup.md#web-components-lit)**
 - **[Angular](../guides/client-setup.md#angular)**
-- **[Flutter (`a2ui_flutter`)](../../../dart/a2ui_flutter)**
+- **[Flutter (`a2ui_flutter`)](../guides/client-setup.md#flutter)**
 
 ## Building a Renderer
 
