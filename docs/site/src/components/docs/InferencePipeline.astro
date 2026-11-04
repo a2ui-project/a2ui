@@ -77,7 +77,9 @@
           <div>
             &bull; <span class="ip-fn">Button</span>(<span class="ip-p"
               >child</span
-            >, <span class="ip-p">action</span>)
+            >, <span class="ip-k">variant?</span>, <span class="ip-p"
+              >action</span
+            >)
           </div>
         </div>
       </div>
@@ -159,7 +161,7 @@
 
       <div class="ip-code-card">
         <div class="ip-code-card__header">
-          <span class="ip-tag ip-tag--amber">Client MessageProcessor</span>
+          <span class="ip-tag ip-tag--amber">AgentToRendererMessage[]</span>
         </div>
         <div class="ip-code">
           <div>
@@ -168,17 +170,9 @@
             >,
           </div>
           <div class="ip-indent">
-            <span class="ip-k">"createSurface"</span>: &#123; ... &#125; &#125;
+            <span class="ip-k">"createSurface"</span>: &#123; <span class="ip-k">"surfaceId"</span>: <span class="ip-s">"main"</span>, <span class="ip-k">"components"</span>: [...], <span class="ip-k">"dataModel"</span>: &#123;...&#125; &#125;
           </div>
-          <div>
-            &#123; <span class="ip-k">"version"</span>: <span class="ip-s"
-              >"1.0"</span
-            >,
-          </div>
-          <div class="ip-indent">
-            <span class="ip-k">"updateComponents"</span>: &#123; ... &#125;
-            &#125;
-          </div>
+          <div>&#125;</div>
         </div>
       </div>
     </div>
@@ -576,7 +570,11 @@
   }
 
   .ip-c {
-    color: #64748b;
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .ip-c {
+    color: #475569;
   }
 
   .ip-fn {
