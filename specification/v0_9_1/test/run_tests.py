@@ -72,15 +72,15 @@ def setup_catalog_alias():
             print(f"Error parsing catalog.json: {e}")
             sys.exit(1)
 
-    # Modify the $id to be the generic catalog reference
+    # Give each alias the generic catalog reference as its $id
     # This allows each schema to refer to "catalog.json"
     # and have it resolve to this schema content.
     for schema_name, alias_path in CATALOG_ALIASES.items():
         with open(SCHEMAS[schema_name], "r") as f:
             schema_id = json.load(f)["$id"]
-        catalog["$id"] = schema_id.rsplit("/", 1)[0] + "/catalog.json"
+        alias = {**catalog, "$id": schema_id.rsplit("/", 1)[0] + "/catalog.json"}
         with open(alias_path, "w") as f:
-            json.dump(catalog, f, indent=2)
+            json.dump(alias, f, indent=2)
 
 
 def cleanup_catalog_alias():
