@@ -101,15 +101,34 @@ export function renderA2uiNode(
   return a2uiElement(implementation.tagName, source);
 }
 
+/** A node `renderA2uiNode` renders as an element: resolved, with a context and a tag name. */
+type RenderableNode = ComponentNode & {
+  context: ComponentContext;
+  impl: Partial<WebComponentImplementation> & {tagName: string};
+};
+
+/**
+ * Whether `renderA2uiNode(node)` renders an element for `node`: it has resolved, is not
+ * disposed, has a context, and its implementation is a custom element with a tag name.
+ * Containers use this (through `A2uiLitElement.isChildResolved`) to agree with it exactly.
+ */
+export function canRenderA2uiNode(node: ComponentNode): node is RenderableNode {
+  return (
+    !node.isPlaceholder &&
+    !node.disposed &&
+    !!node.context &&
+    !!(node.impl as Partial<WebComponentImplementation> | undefined)?.tagName
+  );
+}
+
 function renderNode(node: ComponentNode) {
-  if (node.isPlaceholder || node.disposed || !node.context) {
+  if (!canRenderA2uiNode(node)) {
+    if (!node.isPlaceholder && !node.disposed && node.context) {
+      console.warn(`Component implementation not found or missing tagName for type: ${node.type}`);
+    }
     return nothing;
   }
-  const implementation = node.impl as Partial<WebComponentImplementation> | undefined;
-  if (!implementation?.tagName) {
-    console.warn(`Component implementation not found or missing tagName for type: ${node.type}`);
-    return nothing;
-  }
+  const implementation = node.impl;
   if (isWebComponentImplementation(implementation)) {
     registerUniversalElement(implementation);
   }
