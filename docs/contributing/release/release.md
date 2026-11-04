@@ -37,7 +37,8 @@ In one pull request, for each package to release:
   a breaking `a2ui_core` change takes a breaking version change too, because
   its API exposes `a2ui_core` types.
 - Rename `## Unreleased` in `CHANGELOG.md` to `## <version>`. If there is no
-  `## Unreleased`, add `## <version>` above the newest version.
+  `## Unreleased`, add `## <version>` above the newest version. Then add an
+  empty `## Unreleased` above it for the next changes.
 - Set `version:` in `pubspec.yaml` to the same version.
 - If the release raises the package's `a2ui_core` constraint, set it to
   `^<new a2ui_core version>`, and note the new constraint under `## <version>`.
