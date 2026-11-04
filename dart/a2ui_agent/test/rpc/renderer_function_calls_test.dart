@@ -17,6 +17,7 @@ import 'dart:async';
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:fake_async/fake_async.dart';
+import 'package:json_schema_builder/json_schema_builder.dart' show Schema;
 import 'package:test/test.dart';
 
 const String _catId = 'https://example.com/finance.json';
@@ -446,6 +447,202 @@ void main() {
       expect(result.replies, isEmpty);
     });
 
+    group('with catalogs', () {
+      CatalogApi catalog({String id = _catId}) => Catalog(
+        id: id,
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: const <ComponentApi>[],
+        functions: [
+          _fn('scrollIntoView', AllowedCallers.rendererOrAgent),
+          _fn('resetLedger', AllowedCallers.agentOnly),
+          _fn('formatDate', AllowedCallers.rendererOnly),
+          _fn('formatNumber', null),
+          _fn(
+            'confirmPayment',
+            AllowedCallers.rendererOrAgent,
+            requiresUserActivation: true,
+          ),
+        ],
+      );
+
+      void expectRefused(
+        RendererFunctionCalls calls,
+        String catalogId,
+        String name,
+        RpcErrorCode code,
+        String messagePart,
+      ) {
+        fakeAsync((FakeAsync async) {
+          expect(
+            () => calls.call(
+              catalogId: catalogId,
+              name: name,
+              surfaceId: 'main',
+              functionCallId: 'c-$name',
+            ),
+            throwsA(
+              isA<A2uiRpcError>()
+                  .having((e) => e.rpcCode, 'rpcCode', code)
+                  .having((e) => e.functionCallId, 'functionCallId', 'c-$name')
+                  .having((e) => e.message, 'message', contains(messagePart)),
+            ),
+            reason: '$catalogId $name',
+          );
+          expect(calls.pendingCount, 0);
+          expect(async.pendingTimers, isEmpty);
+        });
+      }
+
+      test('refuses calls the renderer would refuse', () {
+        final calls = RendererFunctionCalls(catalogs: [catalog()]);
+        expectRefused(
+          calls,
+          'https://example.com/unknown.json',
+          'scrollIntoView',
+          RpcErrorCode.unknownFunction,
+          'Unknown catalog',
+        );
+        expectRefused(
+          calls,
+          _catId,
+          'missing',
+          RpcErrorCode.unknownFunction,
+          'declares no function',
+        );
+        expectRefused(
+          calls,
+          _catId,
+          'formatDate',
+          RpcErrorCode.invalidFunctionCall,
+          'may not call',
+        );
+        expectRefused(
+          calls,
+          _catId,
+          'formatNumber',
+          RpcErrorCode.invalidFunctionCall,
+          'may not call',
+        );
+        expectRefused(
+          calls,
+          _catId,
+          'confirmPayment',
+          RpcErrorCode.invalidFunctionCall,
+          'user activation',
+        );
+        calls.dispose();
+      });
+
+      test('a rendererOnly function that requires activation is refused as '
+          'rendererOnly', () {
+        final calls = RendererFunctionCalls(
+          catalogs: [
+            Catalog(
+              id: _catId,
+              protocolVersion: A2uiProtocolVersion.v1_0,
+              components: const <ComponentApi>[],
+              functions: [
+                _fn(
+                  'approve',
+                  AllowedCallers.rendererOnly,
+                  requiresUserActivation: true,
+                ),
+              ],
+            ),
+          ],
+        );
+        expectRefused(
+          calls,
+          _catId,
+          'approve',
+          RpcErrorCode.invalidFunctionCall,
+          'may not call',
+        );
+      });
+
+      test('the earlier checks come first', () {
+        final calls = RendererFunctionCalls(catalogs: [catalog()]);
+        expect(
+          () => calls.call(catalogId: _catId, name: ''),
+          throwsA(
+            isA<A2uiRpcError>().having(
+              (e) => e.message,
+              'message',
+              contains('function name'),
+            ),
+          ),
+        );
+        expect(
+          () => calls.call(catalogId: '', name: 'missing'),
+          throwsA(
+            isA<A2uiRpcError>().having(
+              (e) => e.rpcCode,
+              'rpcCode',
+              RpcErrorCode.invalidFunctionCall,
+            ),
+          ),
+        );
+        final (_, Future<Object?> pending) = calls.call(
+          catalogId: _catId,
+          name: 'scrollIntoView',
+          functionCallId: 'dup',
+        );
+        pending.ignore();
+        expect(
+          () => calls.call(
+            catalogId: _catId,
+            name: 'missing',
+            functionCallId: 'dup',
+          ),
+          throwsA(
+            isA<A2uiRpcError>().having(
+              (e) => e.rpcCode,
+              'rpcCode',
+              RpcErrorCode.duplicate,
+            ),
+          ),
+        );
+        calls.dispose();
+      });
+
+      test('a call the agent may make is sent and settles', () async {
+        final calls = RendererFunctionCalls(catalogs: [catalog()]);
+        for (final name in ['scrollIntoView', 'resetLedger']) {
+          final (CallRendererFunctionMessage message, Future<Object?> result) =
+              calls.call(catalogId: _catId, name: name, functionCallId: name);
+          expect(
+            (message.toJson()['callRendererFunction']!
+                as Map<String, Object?>)['functionCallId'],
+            name,
+          );
+          expect(calls.resolve(_response(name, {'value': name})), isTrue);
+          expect(await result, name);
+        }
+      });
+
+      test('two catalogs with the same id are a catalog error', () {
+        expect(
+          () => RendererFunctionCalls(catalogs: [catalog(), catalog()]),
+          throwsA(
+            isA<A2uiCatalogError>()
+                .having((e) => e.catalogId, 'catalogId', _catId)
+                .having((e) => e.message, 'message', contains(_catId)),
+          ),
+        );
+      });
+
+      test('without catalogs, nothing is checked', () async {
+        final calls = RendererFunctionCalls();
+        final (_, Future<Object?> result) = calls.call(
+          catalogId: 'https://example.com/unknown.json',
+          name: 'anything',
+          functionCallId: 'c1',
+        );
+        expect(calls.resolve(_response('c1', {'value': 1})), isTrue);
+        expect(await result, 1);
+      });
+    });
+
     test('resolve plugs into RendererToAgentMessageProcessor', () async {
       final calls = RendererFunctionCalls();
       final processor = RendererToAgentMessageProcessor(
@@ -471,3 +668,14 @@ Map<String, Object?> _response(String callId, Map<String, Object?> body) => {
   'version': '1.0',
   'rendererFunctionResponse': {'functionCallId': callId, ...body},
 };
+
+FunctionApi _fn(
+  String name,
+  AllowedCallers? allowedCallers, {
+  bool? requiresUserActivation,
+}) => FunctionApi(
+  name: name,
+  argumentSchema: Schema.fromMap({'type': 'object'}),
+  allowedCallers: allowedCallers,
+  requiresUserActivation: requiresUserActivation,
+);

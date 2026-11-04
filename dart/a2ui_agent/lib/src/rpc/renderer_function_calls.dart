@@ -41,11 +41,19 @@ const int _maxFunctionCallDepth = 50;
 ///
 /// A tracker holds the calls of one conversation in memory, so it suits a
 /// connection that stays open, such as a WebSocket.
+///
+/// Given the renderer's catalogs, [call] refuses a call the renderer would
+/// refuse: to a function the catalogs don't declare, to one whose
+/// `allowedCallers` doesn't let the agent call it, or to one that requires a
+/// user activation, which an agent's call doesn't carry.
 class RendererFunctionCalls {
   final Duration? _defaultTimeout;
 
   /// The maximum number of concurrent pending calls, or null for no cap.
   final int? maxPending;
+
+  /// The catalogs [call] checks calls against, by id, or null to check none.
+  final Map<String, CatalogApi>? _catalogs;
 
   final Map<String, _PendingRendererCall> _pending =
       <String, _PendingRendererCall>{};
@@ -55,13 +63,19 @@ class RendererFunctionCalls {
 
   /// Creates a [RendererFunctionCalls] tracker.
   ///
-  /// Pass `defaultTimeout: null` to disable the default timeout.
+  /// Pass `defaultTimeout: null` to disable the default timeout. With
+  /// [catalogs], [call] checks each call against the function the catalogs
+  /// declare; without them it checks none.
+  ///
   /// Throws [ArgumentError] if [defaultTimeout] is not positive or [maxPending]
-  /// is less than 1.
+  /// is less than 1, and [A2uiCatalogError] if two of [catalogs] have the same
+  /// id.
   RendererFunctionCalls({
     Duration? defaultTimeout = defaultRendererCallTimeout,
     this.maxPending,
-  }) : _defaultTimeout = defaultTimeout {
+    Iterable<CatalogApi>? catalogs,
+  }) : _defaultTimeout = defaultTimeout,
+       _catalogs = catalogs == null ? null : _indexCatalogs(catalogs) {
     if (defaultTimeout != null && defaultTimeout <= Duration.zero) {
       throw ArgumentError.value(
         defaultTimeout,
@@ -98,11 +112,17 @@ class RendererFunctionCalls {
   /// An empty [surfaceId] counts as omitted.
   ///
   /// Throws [ArgumentError] if [timeout] is not positive.
-  /// Throws [A2uiRpcError] synchronously if:
+  /// Throws [A2uiRpcError] synchronously, before anything is sent or
+  /// registered, if:
   /// - this tracker is disposed ([RpcErrorCode.disposed]),
   /// - [functionCallId] is already pending ([RpcErrorCode.duplicate]),
   /// - [maxPending] would be exceeded ([RpcErrorCode.tooManyPending]), or
-  /// - the call parameters are invalid ([RpcErrorCode.invalidFunctionCall]).
+  /// - the call parameters are invalid ([RpcErrorCode.invalidFunctionCall]),
+  /// - given catalogs, [catalogId] names none of them or its catalog declares
+  ///   no function [name] ([RpcErrorCode.unknownFunction]), or
+  /// - given catalogs, the function is `rendererOnly`, which is also what an
+  ///   omitted `allowedCallers` means, or requires a user activation
+  ///   ([RpcErrorCode.invalidFunctionCall]).
   (CallRendererFunctionMessage, Future<Object?>) call({
     required String catalogId,
     required String name,
@@ -158,6 +178,12 @@ class RendererFunctionCalls {
       catalogId: catalogId,
       name: name,
       args: args,
+      surfaceId: surfaceId,
+    );
+    _checkAgainstCatalogs(
+      callId: callId,
+      catalogId: catalogId,
+      name: name,
       surfaceId: surfaceId,
     );
 
@@ -281,6 +307,63 @@ class RendererFunctionCalls {
           functionCallId: pending.functionCallId,
           surfaceId: pending.surfaceId,
         ),
+      );
+    }
+  }
+
+  static Map<String, CatalogApi> _indexCatalogs(Iterable<CatalogApi> catalogs) {
+    final byId = <String, CatalogApi>{};
+    for (final catalog in catalogs) {
+      if (byId.containsKey(catalog.id)) {
+        throw A2uiCatalogError(
+          "Two catalogs have the id '${catalog.id}'; give "
+          'RendererFunctionCalls each catalog once.',
+          catalogId: catalog.id,
+        );
+      }
+      byId[catalog.id] = catalog;
+    }
+    return byId;
+  }
+
+  /// Checks that the renderer would accept a call to [name] in [catalogId],
+  /// when this tracker has catalogs.
+  void _checkAgainstCatalogs({
+    required String callId,
+    required String catalogId,
+    required String name,
+    required String? surfaceId,
+  }) {
+    final Map<String, CatalogApi>? catalogs = _catalogs;
+    if (catalogs == null) return;
+    final CatalogApi? catalog = catalogs[catalogId];
+    final FunctionApi? function = catalog?.functions[name];
+    if (function == null) {
+      throw A2uiRpcError(
+        catalog == null
+            ? "Unknown catalog '$catalogId' for renderer function '$name'."
+            : "Catalog '$catalogId' declares no function '$name'.",
+        RpcErrorCode.unknownFunction,
+        functionCallId: callId,
+        surfaceId: surfaceId,
+      );
+    }
+    if (function.allowedCallers == AllowedCallers.rendererOnly) {
+      throw A2uiRpcError(
+        "The agent may not call renderer function '$name': its "
+        "allowedCallers is 'rendererOnly'.",
+        RpcErrorCode.invalidFunctionCall,
+        functionCallId: callId,
+        surfaceId: surfaceId,
+      );
+    }
+    if (function.requiresUserActivation) {
+      throw A2uiRpcError(
+        "Renderer function '$name' requires a user activation, which an "
+        "agent's call doesn't have: there is no user gesture behind it.",
+        RpcErrorCode.invalidFunctionCall,
+        functionCallId: callId,
+        surfaceId: surfaceId,
       );
     }
   }

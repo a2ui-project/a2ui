@@ -38,6 +38,9 @@
   calls it doesn't track. The library also re-exports
   `CallRendererFunctionMessage`
   ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
+  Given the renderer's `catalogs`, `call` refuses a call to a function the
+  catalogs don't declare (`UNKNOWN_FUNCTION`), or to one that is
+  `rendererOnly` or requires a user activation (`INVALID_FUNCTION_CALL`).
 
 ## 0.1.0
 
