@@ -183,6 +183,10 @@ export function lastHumanContribution(item: Item, contributions: Contribution[])
  * once at or after `waitingSince`, the moment the label was added. Used to clear
  * the label.
  *
+ * Anyone outside the team counts, not only the author: an author sometimes
+ * opens an issue and goes quiet while others continue the discussion, and their
+ * replies need the team's attention too.
+ *
  * Maintainer contributions never count: the team asked the question, so its own
  * follow-ups do not answer it. Bot contributions do not count either, although
  * bots are external: a bot cannot answer the question. Neither do contributions

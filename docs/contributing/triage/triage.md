@@ -47,7 +47,6 @@ If you are assigned to a PR or an issue with the label `status: assigned-for-tri
 
 - Add [status: waiting-for-author-response][waiting-for-author-response] when a PR or an issue needs a response or clarification from its author or another contributor. The bot removes the label once someone outside the team replies, and the item goes back to the triage queue.
 - Add [size: small][size-small] to a small issue.
-- Add [type: contributions-welcome][contributions-welcome] in the rare case when an issue is meant for external contributors.
 
 ### Triage an issue
 
@@ -104,5 +103,4 @@ What may help:
 [assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20assigned-for-triage%22
 [waiting-for-author-response]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20waiting-for-author-response%22
 [size-small]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22size%3A%20small%22
-[contributions-welcome]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22type%3A%20contributions-welcome%22
 [team-chat]: https://chat.google.com/room/AAQAvhq57Zo

@@ -6,7 +6,7 @@ Added and removed by the [triage bot](../../../tools/internal/triage/flagging/bl
 
 Added manually, removed by the bot:
 
-- [status: waiting-for-author-response][waiting-for-author-response]: the team is waiting for a reply from the author or another contributor. The bot removes the label once someone outside the team replies.
+- [status: waiting-for-author-response][waiting-for-author-response]: the team is waiting for a reply from the author or another contributor. The bot removes the label once anyone outside the team replies, not only the author: an author sometimes opens an issue and goes quiet while others continue the discussion, and their replies need the team's attention too.
 
 Added and removed manually:
 
@@ -15,7 +15,6 @@ Added and removed manually:
 - [status: needs-team-input][needs-team-input]: the triager needs input from the team to triage the item.
 - [status: assigned-for-triage][assigned-for-triage]: an expert in the area finishes the triage. The bot flags the item again if nobody is assigned or the label stays for more than 14 days.
 - [size: small][size-small]: the issue is small.
-- [type: contributions-welcome][contributions-welcome]: the issue is meant for external contributors.
 
 See [all GitHub labels](https://github.com/a2ui-project/a2ui/labels).
 
@@ -28,6 +27,5 @@ See [all GitHub labels](https://github.com/a2ui-project/a2ui/labels).
 [needs-triage-all]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22
 [first-line-handled]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20first-line-handled%22
 [size-small]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22size%3A%20small%22
-[contributions-welcome]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22type%3A%20contributions-welcome%22
 [waiting-for-author-response]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20waiting-for-author-response%22
 [assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20assigned-for-triage%22
