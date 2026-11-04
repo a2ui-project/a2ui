@@ -136,7 +136,13 @@ jobs:
             --harness web_core_universal \
             --only core/accessibility.yaml
       - name: Check TS agent executed cases
-        run: uv run --project conformance python conformance/scripts/check_executed_cases.py --manifest-dir "${{ runner.temp }}/a2ui-manifest" --corpus agent --harness ts-agent
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus agent \
+            --harness ts-agent \
+            --exclude "agent/direct_json/scaling.yaml=performance: runs in ci-timing via test:timing" \
+            --exclude "agent/express/scaling.yaml=performance: runs in ci-timing via test:timing"
       - name: Test React 18 Compatibility
         run: yarn workspace @a2ui/react run test:react18
       - name: Verify NPM Publish Script

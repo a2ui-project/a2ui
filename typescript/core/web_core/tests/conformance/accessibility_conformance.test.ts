@@ -180,7 +180,16 @@ function findUnsupportedReason(
   return undefined;
 }
 
-function assertAllUnsupportedMatched(): void {
+function assertAllUnsupportedMatched(cases: AccessibilityTestCase[] = []): void {
+  for (const testCase of cases) {
+    const steps: AccessibilityStep[] = testCase.steps ?? [
+      {
+        messages: testCase.messages ?? [],
+        assertions: testCase.assertions ?? {},
+      },
+    ];
+    findUnsupportedReason(testCase.name, steps);
+  }
   const unused = Object.keys(UNSUPPORTED).filter(key => !matchedUnsupportedKeys.has(key));
   assert.deepEqual(
     unused,
@@ -478,7 +487,7 @@ describe('Web Universal Custom Elements Accessibility Conformance', () => {
   });
 
   after(() => {
-    assertAllUnsupportedMatched();
+    assertAllUnsupportedMatched(testCases);
     teardownTestDom();
   });
 
@@ -491,7 +500,6 @@ describe('Web Universal Custom Elements Accessibility Conformance', () => {
         status: 'failed',
       };
       try {
-        assertKnownAccessibilityCase(testCase);
         const steps: AccessibilityStep[] = testCase.steps ?? [
           {
             messages: testCase.messages ?? [],
@@ -502,9 +510,12 @@ describe('Web Universal Custom Elements Accessibility Conformance', () => {
         if (skipReason) {
           pendingManifest.status = 'skipped';
           pendingManifest.reason = skipReason;
+          writeManifestRecord(pendingManifest);
+          pendingManifest = undefined;
           t.skip(skipReason);
           return;
         }
+        assertKnownAccessibilityCase(testCase);
 
         const processor = new MessageProcessor<WebComponentImplementation>([basicCatalog]);
 
@@ -519,8 +530,10 @@ describe('Web Universal Custom Elements Accessibility Conformance', () => {
         }
         pendingManifest.status = 'passed';
       } catch (err) {
-        pendingManifest.status = 'failed';
-        pendingManifest.reason = err instanceof Error ? err.message : String(err);
+        if (pendingManifest) {
+          pendingManifest.status = 'failed';
+          pendingManifest.reason = err instanceof Error ? err.message : String(err);
+        }
         throw err;
       }
     });

@@ -24,7 +24,9 @@ void main() {
     '../../conformance/core/adapter_conformance.yaml',
   );
 
-  tearDownAll(assertAllUnsupportedMatched);
+  tearDownAll(
+    () => assertAllUnsupportedMatched(accessibilityTests, adapterTests),
+  );
 
   group('Accessibility Conformance (accessibility.yaml)', () {
     for (final entry in accessibilityTests) {
@@ -43,7 +45,6 @@ void main() {
           });
         });
         try {
-          assertKnownAccessibilityCase(testCase);
           final List<Object?> steps =
               (testCase['steps'] as List<Object?>?) ??
               <Object?>[
@@ -56,6 +57,7 @@ void main() {
             markTestSkipped(skipReason);
             return;
           }
+          assertKnownAccessibilityCase(testCase);
           await runAccessibilityCase(tester, testCase);
           status = 'passed';
         } catch (error) {
@@ -84,7 +86,6 @@ void main() {
           });
         });
         try {
-          assertKnownAdapterCase(testCase);
           final String? skipReason = findUnsupportedReason(
             name,
             (testCase['steps'] as List<Object?>?) ?? const [],
@@ -95,6 +96,7 @@ void main() {
             markTestSkipped(skipReason);
             return;
           }
+          assertKnownAdapterCase(testCase);
           await runAdapterCase(tester, testCase);
           status = 'passed';
         } catch (error) {

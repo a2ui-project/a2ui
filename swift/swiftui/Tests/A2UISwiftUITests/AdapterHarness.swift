@@ -512,7 +512,19 @@ enum AdapterHarness {
   }
 
   /// Marks `suite` complete and checks `assertAllUnsupportedMatched()` once all suites finish.
-  static func finishSuite(_ suite: String) {
+  static func finishSuite(_ suite: String, cases: [[String: Any]] = []) {
+    for testCase in cases {
+      let name = testCase["name"] as? String ?? "<unnamed>"
+      let steps: [[String: Any]]
+      if let rawSteps = testCase["steps"] as? [[String: Any]] {
+        steps = rawSteps
+      } else if let assertions = testCase["assertions"] as? [String: Any] {
+        steps = [["assertions": assertions]]
+      } else {
+        steps = []
+      }
+      _ = findUnsupportedReason(name, steps: steps)
+    }
     completedSuites.insert(suite)
     if completedSuites.isSuperset(of: allAdapterSuites) {
       assertAllUnsupportedMatched()
@@ -583,9 +595,9 @@ enum AdapterHarness {
   }
 
   /// Extracts the current resolved view tree from `session`.
-  static func extractViewTree(_ session: AdapterSession) -> AdapterViewNode? {
+  static func extractViewTree(_ session: AdapterSession) throws -> AdapterViewNode? {
     guard let surface = session.mountedHarness?.surface else { return nil }
-    return resolveViewTree(for: surface)
+    return try resolveViewTree(for: surface)
   }
 
   /// Executes a single adapter conformance `step` against `session` and verifies expectations.
@@ -602,18 +614,24 @@ enum AdapterHarness {
     case "process_messages":
       let messages = (step["messages"] as? [[String: Any]]) ?? []
       try processAdapterMessages(messages, session: session)
-      session.currentTree = extractViewTree(session)
+      session.currentTree = try extractViewTree(session)
     case "user_input":
       applyUserInput(step, surface: session.mountedHarness?.surface)
-      session.currentTree = extractViewTree(session)
+      session.currentTree = try extractViewTree(session)
     case "user_gesture", "programmatic_invoke":
-      invokeStepAction(step, surface: session.mountedHarness?.surface)
-      session.currentTree = extractViewTree(session)
-    case "unmount_surface":
-      #expect(
-        (session.mountedHarness?.activeSubscriptionCount ?? 0) > 0,
-        "Expected active subscriptions"
+      let userActivation = (step["userActivation"] as? Bool) ?? (op == "user_gesture")
+      invokeStepAction(
+        step,
+        surface: session.mountedHarness?.surface,
+        userActivation: userActivation
       )
+      session.currentTree = try extractViewTree(session)
+    case "unmount_surface":
+      let activeCount = session.mountedHarness?.activeSubscriptionCount ?? 0
+      #expect(activeCount > 0, "Expected active subscriptions")
+      if activeCount <= 0 {
+        throw AdapterConformanceError("\(stepCtx): expected active subscriptions")
+      }
       session.mountedHarness?.unmount()
       session.currentTree = nil
     default:
@@ -769,7 +787,11 @@ enum AdapterHarness {
     textField.valueBinding.wrappedValue = inputValue
   }
 
-  private static func invokeStepAction(_ step: [String: Any], surface: Surface?) {
+  private static func invokeStepAction(
+    _ step: [String: Any],
+    surface: Surface?,
+    userActivation: Bool = true
+  ) {
     guard let surface,
       let targetID = step["targetNode"] as? String,
       let rootNode = surface.viewModel.rootNode
@@ -779,12 +801,13 @@ enum AdapterHarness {
     var nodes: [String: A2UICore.Node] = [:]
     collectNodes(from: rootNode, into: &nodes)
     guard let targetNode = nodes[targetID] else { return }
-    invokeAction(on: targetNode)
+    invokeAction(on: targetNode, userActivation: userActivation)
   }
 
   private static func invokeAction(
     on node: A2UICore.Node,
-    property: String = "action"
+    property: String = "action",
+    userActivation: Bool = true
   ) {
     if node.type == "Button" {
       let button = A2UIButton(node: node)
@@ -792,25 +815,28 @@ enum AdapterHarness {
     } else {
       guard node.isValid else { return }
     }
-    node.action(for: property)?()
+    node.action(for: property, userActivation: userActivation)?()
   }
 
-  static func resolveViewTree(for surface: Surface) -> AdapterViewNode? {
+  static func resolveViewTree(for surface: Surface) throws -> AdapterViewNode? {
     guard let rootNode = surface.viewModel.rootNode else { return nil }
-    return buildViewNode(in: surface, node: rootNode)
+    return try buildViewNode(in: surface, node: rootNode)
   }
 
   private static func buildViewNode(
     in surface: Surface,
     node: A2UICore.Node
-  ) -> AdapterViewNode {
+  ) throws -> AdapterViewNode {
     let rendered = Surface.render(
       node: node,
       using: surface.catalogs,
       defaultCatalogID: surface.defaultCatalogID
     )
     #expect(rendered != nil, "Expected Surface.render builder for '\(node.type)'")
-    let children = resolveChildViewNodes(in: surface, node: node)
+    if rendered == nil {
+      throw AdapterConformanceError("Expected Surface.render builder for '\(node.type)'")
+    }
+    let children = try resolveChildViewNodes(in: surface, node: node)
     let baseID = baseComponentID(for: node, in: surface)
     return AdapterViewNode(
       id: baseID,
@@ -846,12 +872,12 @@ enum AdapterHarness {
   private static func resolveChildViewNodes(
     in surface: Surface,
     node: A2UICore.Node
-  ) -> [AdapterViewNode] {
+  ) throws -> [AdapterViewNode] {
     if let singleChild = node.child(for: "child") {
-      return [buildViewNode(in: surface, node: singleChild)]
+      return [try buildViewNode(in: surface, node: singleChild)]
     }
-    return node.children(for: "children").map { childNode in
-      buildViewNode(in: surface, node: childNode)
+    return try node.children(for: "children").map { childNode in
+      try buildViewNode(in: surface, node: childNode)
     }
   }
 
@@ -863,7 +889,12 @@ enum AdapterHarness {
     if let expTree = step["expectViewTree"] as? [String: Any] {
       try assertViewTree(session.currentTree, expTree, context: context)
     }
-    if let expData = step["expectDataModel"], let surface = session.mountedHarness?.surface {
+    if let expData = step["expectDataModel"] {
+      guard let surface = session.mountedHarness?.surface else {
+        let msg = "\(context): expected mounted surface for expectDataModel"
+        Issue.record(Comment(rawValue: msg))
+        throw AdapterConformanceError(msg)
+      }
       let expectedJSON = toJSONValue(expData)
       #expect(surface.viewModel.dataModel.data == expectedJSON, "\(context): dataModel mismatch")
       if surface.viewModel.dataModel.data != expectedJSON {
@@ -884,14 +915,20 @@ enum AdapterHarness {
     if let expErrors = step["expectErrors"] as? [[String: Any]] {
       try assertErrorsMatch(session.handler.errors, expected: expErrors, context: context)
     }
-    if let expA11y = step["expectAccessibilityTree"] as? [String: [String: Any]],
-      let currentTree = session.currentTree
-    {
+    if let expA11y = step["expectAccessibilityTree"] as? [String: [String: Any]] {
+      guard let currentTree = session.currentTree else {
+        let msg = "\(context): expected resolved view tree for expectAccessibilityTree"
+        Issue.record(Comment(rawValue: msg))
+        throw AdapterConformanceError(msg)
+      }
       try assertAccessibilityTreeMatches(currentTree, expected: expA11y, context: context)
     }
-    if let expSubs = step["expectActiveSubscriptions"] as? Int,
-      let harness = session.mountedHarness
-    {
+    if let expSubs = step["expectActiveSubscriptions"] as? Int {
+      guard let harness = session.mountedHarness else {
+        let msg = "\(context): expected mounted harness for expectActiveSubscriptions"
+        Issue.record(Comment(rawValue: msg))
+        throw AdapterConformanceError(msg)
+      }
       try assertActiveSubscriptions(harness: harness, expected: expSubs, context: context)
     }
   }
@@ -981,6 +1018,12 @@ enum AdapterHarness {
     }
     for (idx, expRes) in expResults.enumerated() where idx < textField.validationResults.count {
       let actual = textField.validationResults[idx]
+      if let expItemValid = expRes["valid"] as? Bool {
+        #expect(actual.valid == expItemValid, "\(context): result valid mismatch")
+        if actual.valid != expItemValid {
+          throw AdapterConformanceError("\(context): result valid mismatch")
+        }
+      }
       if let expCode = expRes["code"] as? String {
         #expect(actual.code == expCode, "\(context): result code mismatch")
         if actual.code != expCode {
@@ -1074,11 +1117,11 @@ enum AdapterHarness {
         }
       }
       if let expCtx = exp["context"] as? [String: Any] {
-        for (k, v) in expCtx {
-          #expect(actCtx?[k] == toJSONValue(v), "\(context): action context[\(k)] mismatch")
-          if actCtx?[k] != toJSONValue(v) {
-            throw AdapterConformanceError("\(context): action context[\(k)] mismatch")
-          }
+        let expectedContext = expCtx.mapValues { toJSONValue($0) }
+        let actualContext = actCtx ?? [:]
+        #expect(actualContext == expectedContext, "\(context): action context mismatch")
+        if actualContext != expectedContext {
+          throw AdapterConformanceError("\(context): action context mismatch")
         }
       }
     }
@@ -1089,9 +1132,14 @@ enum AdapterHarness {
     expected: [[String: Any]],
     context: String
   ) throws {
-    #expect(actual.count >= expected.count, "\(context): expected \(expected.count) errors")
-    if actual.count < expected.count {
-      throw AdapterConformanceError("\(context): expected \(expected.count) errors")
+    #expect(
+      actual.count == expected.count,
+      "\(context): expected \(expected.count) errors, got \(actual.count)"
+    )
+    if actual.count != expected.count {
+      throw AdapterConformanceError(
+        "\(context): expected \(expected.count) errors, got \(actual.count)"
+      )
     }
     for exp in expected {
       let expCode = exp["code"] as? String

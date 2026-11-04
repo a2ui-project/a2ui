@@ -19,6 +19,33 @@ import Foundation
 import Testing
 import Yams
 
+private final class AdapterIssueTracker: @unchecked Sendable {
+  private let lock = NSLock()
+  private var _hasRecordedIssue = false
+  private var _firstFailureReason: String?
+
+  var hasRecordedIssue: Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return _hasRecordedIssue
+  }
+
+  var firstFailureReason: String? {
+    lock.lock()
+    defer { lock.unlock() }
+    return _firstFailureReason
+  }
+
+  func recordIssue(_ issue: Issue) {
+    lock.lock()
+    defer { lock.unlock() }
+    _hasRecordedIssue = true
+    if _firstFailureReason == nil {
+      _firstFailureReason = String(describing: issue)
+    }
+  }
+}
+
 /// Runs `conformance/core/accessibility.yaml` and `conformance/core/adapter_conformance.yaml`
 /// against `A2UISwiftUI.Surface`, `SurfaceViewModel`, and `A2UIAccessibilityModifier`.
 @MainActor
@@ -32,9 +59,6 @@ struct AdapterConformanceTests {
     "fallback_states_unknown_type_and_cyclic_diagnostics":
       "A2UICore.NodeResolver reports UNKNOWN_COMPONENT_TYPE / CYCLIC_REFERENCE but does not "
       + "expose unknown-type or cyclic placeholder nodes on SurfaceViewModel.",
-    "user_activation_gated_function_gesture_vs_programmatic":
-      "A2UICore.DataContext does not gate local functionCall action evaluation on "
-      + "FunctionAPI.requiresUserActivation.",
   ]
 
   private static var conformanceDirectory: URL {
@@ -66,45 +90,54 @@ struct AdapterConformanceTests {
     var checkedCount = 0
     for testCase in cases {
       let name = testCase["name"] as? String ?? "<unnamed>"
-      do {
-        try AdapterHarness.assertKnownAccessibilityCase(testCase)
-        let steps: [[String: Any]]
-        if let rawSteps = testCase["steps"] as? [[String: Any]] {
-          steps = rawSteps
-        } else if let assertions = testCase["assertions"] as? [String: Any] {
-          steps = [["assertions": assertions]]
-        } else {
-          steps = []
-        }
-        if let skipReason = AdapterHarness.findUnsupportedReason(name, steps: steps) {
-          writeManifestRecord(
-            AdapterManifestRecord(
-              suite: suite,
-              caseName: name,
-              status: "skipped",
-              reason: skipReason
-            )
-          )
-          continue
-        }
-        checkedCount += try runAccessibilityCase(testCase, name: name)
+      let steps: [[String: Any]]
+      if let rawSteps = testCase["steps"] as? [[String: Any]] {
+        steps = rawSteps
+      } else if let assertions = testCase["assertions"] as? [String: Any] {
+        steps = [["assertions": assertions]]
+      } else {
+        steps = []
+      }
+      if let skipReason = AdapterHarness.findUnsupportedReason(name, steps: steps) {
         writeManifestRecord(
-          AdapterManifestRecord(suite: suite, caseName: name, status: "passed")
+          AdapterManifestRecord(
+            suite: suite,
+            caseName: name,
+            status: "skipped",
+            reason: skipReason
+          )
         )
-      } catch {
-        Issue.record(Comment(rawValue: "\(name): \(error)"))
+        continue
+      }
+      let tracker = AdapterIssueTracker()
+      withKnownIssue(isIntermittent: true) {
+        do {
+          try AdapterHarness.assertKnownAccessibilityCase(testCase)
+          checkedCount += try runAccessibilityCase(testCase, name: name)
+        } catch {
+          Issue.record(Comment(rawValue: "\(name): \(error)"))
+        }
+      } matching: { issue in
+        tracker.recordIssue(issue)
+        return false
+      }
+      if let failureReason = tracker.firstFailureReason {
         writeManifestRecord(
           AdapterManifestRecord(
             suite: suite,
             caseName: name,
             status: "failed",
-            reason: String(describing: error)
+            reason: failureReason
           )
+        )
+      } else {
+        writeManifestRecord(
+          AdapterManifestRecord(suite: suite, caseName: name, status: "passed")
         )
       }
     }
     #expect(checkedCount > 0, "accessibility.yaml should verify at least one component")
-    AdapterHarness.finishSuite(suite)
+    AdapterHarness.finishSuite(suite, cases: cases)
   }
 
   @Test func adapterConformanceSuite() throws {
@@ -115,6 +148,19 @@ struct AdapterConformanceTests {
     var matchedExpectedFailures: Set<String> = []
     for testCase in cases {
       let name = testCase["name"] as? String ?? "<unnamed>"
+      let steps = (testCase["steps"] as? [[String: Any]]) ?? []
+      if let skipReason = AdapterHarness.findUnsupportedReason(name, steps: steps) {
+        writeManifestRecord(
+          AdapterManifestRecord(
+            suite: suite,
+            caseName: name,
+            status: "skipped",
+            reason: skipReason
+          )
+        )
+        continue
+      }
+
       do {
         try AdapterHarness.assertKnownAdapterCase(testCase)
       } catch {
@@ -130,47 +176,64 @@ struct AdapterConformanceTests {
         continue
       }
 
-      let steps = (testCase["steps"] as? [[String: Any]]) ?? []
-      if let skipReason = AdapterHarness.findUnsupportedReason(name, steps: steps) {
-        writeManifestRecord(
-          AdapterManifestRecord(
-            suite: suite,
-            caseName: name,
-            status: "skipped",
-            reason: skipReason
-          )
-        )
-        continue
-      }
-
       if let reason = Self.expectedAdapterFailures[name] {
         matchedExpectedFailures.insert(name)
-        withKnownIssue("\(name): \(reason)") {
-          try runAdapterCase(testCase, name: name)
+        let tracker = AdapterIssueTracker()
+        withKnownIssue("\(name): \(reason)", isIntermittent: true) {
+          do {
+            try runAdapterCase(testCase, name: name)
+          } catch {
+            Issue.record(error)
+          }
+        } matching: { issue in
+          tracker.recordIssue(issue)
+          return true
         }
-        writeManifestRecord(
-          AdapterManifestRecord(
-            suite: suite,
-            caseName: name,
-            status: "xfailed",
-            reason: reason
-          )
-        )
-      } else {
-        do {
-          try runAdapterCase(testCase, name: name)
+        if tracker.hasRecordedIssue {
           writeManifestRecord(
-            AdapterManifestRecord(suite: suite, caseName: name, status: "passed")
+            AdapterManifestRecord(
+              suite: suite,
+              caseName: name,
+              status: "xfailed",
+              reason: reason
+            )
           )
-        } catch {
-          Issue.record(Comment(rawValue: "\(name): \(error)"))
+        } else {
+          let message = "Known issue was not recorded: \(reason)"
+          Issue.record(Comment(rawValue: message))
           writeManifestRecord(
             AdapterManifestRecord(
               suite: suite,
               caseName: name,
               status: "failed",
-              reason: String(describing: error)
+              reason: message
             )
+          )
+        }
+      } else {
+        let tracker = AdapterIssueTracker()
+        withKnownIssue(isIntermittent: true) {
+          do {
+            try runAdapterCase(testCase, name: name)
+          } catch {
+            Issue.record(Comment(rawValue: "\(name): \(error)"))
+          }
+        } matching: { issue in
+          tracker.recordIssue(issue)
+          return false
+        }
+        if let failureReason = tracker.firstFailureReason {
+          writeManifestRecord(
+            AdapterManifestRecord(
+              suite: suite,
+              caseName: name,
+              status: "failed",
+              reason: failureReason
+            )
+          )
+        } else {
+          writeManifestRecord(
+            AdapterManifestRecord(suite: suite, caseName: name, status: "passed")
           )
         }
       }
@@ -183,7 +246,7 @@ struct AdapterConformanceTests {
       unusedExpectedFailures.isEmpty,
       "Unused expectedAdapterFailures entries: \(unusedExpectedFailures)"
     )
-    AdapterHarness.finishSuite(suite)
+    AdapterHarness.finishSuite(suite, cases: cases)
   }
 
   // MARK: - Accessibility Suite Runner

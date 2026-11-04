@@ -54,34 +54,39 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.9', '1.0']);
 export const KNOWN_FAILURES = new Map<string, string>([]);
 
 /**
+ * Cases this SDK does not support, keyed by `<suite>::<case>`.
+ */
+export const UNSUPPORTED = new Map<string, string>([]);
+
+/**
  * Legacy cases whose rules the newer suites replaced, with the suite that now covers each.
  *
  * The legacy suites describe the earlier agent interface, and a few of their rules were
  * changed on purpose when the blueprint interface was written. This SDK follows the newer
  * suites, so these cases are skipped rather than listed as failures.
  */
-const SUPERSEDED = new Map<string, string>([
+export const SUPERSEDED = new Map<string, string>([
   ...[
-    'test_select_catalog_default',
-    'test_select_catalog_no_match',
-    'test_select_catalog_inline',
-    'test_select_catalog_multiple_inline',
-    'test_select_catalog_no_match_with_inline',
-    'test_select_catalog_inline_not_accepted',
+    'agent/legacy/inference_format.yaml::test_select_catalog_default',
+    'agent/legacy/inference_format.yaml::test_select_catalog_no_match',
+    'agent/legacy/inference_format.yaml::test_select_catalog_inline',
+    'agent/legacy/inference_format.yaml::test_select_catalog_multiple_inline',
+    'agent/legacy/inference_format.yaml::test_select_catalog_no_match_with_inline',
+    'agent/legacy/inference_format.yaml::test_select_catalog_inline_not_accepted',
   ].map((name): [string, string] => [
     name,
     'superseded by catalog_resolution.yaml, which activates every catalog in common and adds inline catalogs alongside them',
   ]),
   ...[
-    'test_parse_empty_response',
-    'test_parse_response_only_text_no_tags',
-    'test_parse_response_empty_tags',
+    'agent/legacy/parser.yaml::test_parse_empty_response',
+    'agent/legacy/parser.yaml::test_parse_response_only_text_no_tags',
+    'agent/legacy/parser.yaml::test_parse_response_empty_tags',
   ].map((name): [string, string] => [
     name,
     'superseded by direct_json/response_parser.yaml, where a response without tags is a text part, an empty response has no parts, and an empty block fails when it compiles',
   ]),
   [
-    'test_parse_response_invalid_json',
+    'agent/legacy/parser.yaml::test_parse_response_invalid_json',
     'superseded by direct_json/compiler.yaml, which checks the ParseError without the removed payload fixer\'s "Failed to parse" message',
   ],
 ]);
@@ -124,7 +129,14 @@ function skipVerdict(reason: string) {
 }
 
 export function classify(testCase: TestCase) {
-  const superseded = SUPERSEDED.get(testCase.name) ?? SUPERSEDED_ACTIONS.get(testCase.action);
+  const compositeKey =
+    typeof testCase.sourceFile === 'string'
+      ? `${testCase.sourceFile}::${testCase.name}`
+      : testCase.name;
+  const superseded =
+    SUPERSEDED.get(compositeKey) ??
+    SUPERSEDED.get(testCase.name) ??
+    SUPERSEDED_ACTIONS.get(testCase.action);
   if (superseded) {
     return skipVerdict(superseded);
   }
@@ -175,7 +187,7 @@ export function loadCases(files: string[]): LoadedCase[] {
         }
       } else if (doc && Array.isArray(doc.tests)) {
         for (const item of doc.tests as Record<string, unknown>[]) {
-          const name = (item.name ?? item.id) as string;
+          const name = (item.id ?? item.name) as string;
           const action = (item.action ?? 'build') as string;
           allCases.push({...(item as TestCase), name, action, sourceFile});
         }

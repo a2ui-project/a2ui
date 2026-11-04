@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {ComponentFixture, TestBed} from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import {
   assertAllUnsupportedMatched,
   assertAxeRules,
@@ -31,9 +31,9 @@ import {
   type AccessibilityStep,
   type ManifestRecord,
 } from './adapter_harness';
-import {A2uiRendererService, SurfaceComponent, provideA2UI} from './public-api';
+import { A2uiRendererService, SurfaceComponent, provideA2UI } from './public-api';
 
-const specMetadataByFullName = new Map<string, {suite: string; caseName: string}>();
+const specMetadataByFullName = new Map<string, { suite: string; caseName: string }>();
 let reporterInstalled = false;
 
 function ensureJasmineManifestReporter(): void {
@@ -44,18 +44,14 @@ function ensureJasmineManifestReporter(): void {
   jasmine.getEnv().addReporter({
     specDone(result) {
       const meta = specMetadataByFullName.get(result.fullName);
-      if (!meta) {
+      if (!meta || result.status === 'excluded') {
         return;
       }
       const status: ManifestRecord['status'] =
-        result.status === 'pending' || result.status === 'excluded'
-          ? 'skipped'
-          : result.status === 'passed'
-            ? 'passed'
-            : 'failed';
+        result.status === 'pending' ? 'skipped' : result.status === 'passed' ? 'passed' : 'failed';
       const reason =
         status === 'skipped'
-          ? result.pendingReason || 'skipped'
+          ? result.pendingReason || undefined
           : status === 'failed'
             ? result.failedExpectations[0]?.message || 'failed'
             : undefined;
@@ -71,14 +67,15 @@ function ensureJasmineManifestReporter(): void {
 }
 
 afterAll(() => {
-  assertAllUnsupportedMatched();
+  const { accessibility, adapterConformance } = getConformanceSuites();
+  assertAllUnsupportedMatched(accessibility, adapterConformance);
 });
 
 describe('@a2ui/angular Accessibility Conformance (conformance/core/accessibility.yaml)', () => {
   ensureJasmineManifestReporter();
   const suiteTitle =
     '@a2ui/angular Accessibility Conformance (conformance/core/accessibility.yaml)';
-  const {accessibility} = getConformanceSuites();
+  const { accessibility } = getConformanceSuites();
 
   for (const testCase of accessibility) {
     const specTitle = `${testCase.name}: ${testCase.description ?? ''}`;
@@ -88,7 +85,6 @@ describe('@a2ui/angular Accessibility Conformance (conformance/core/accessibilit
     });
 
     it(specTitle, async () => {
-      assertKnownAccessibilityCase(testCase);
       const steps: AccessibilityStep[] = testCase.steps ?? [
         {
           messages: testCase.messages ?? [],
@@ -103,10 +99,11 @@ describe('@a2ui/angular Accessibility Conformance (conformance/core/accessibilit
         pending(skipReason);
         return;
       }
+      assertKnownAccessibilityCase(testCase);
 
       TestBed.configureTestingModule({
         imports: [SurfaceComponent],
-        providers: [provideA2UI({catalogs: [createDefaultAdapterCatalog()]})],
+        providers: [provideA2UI({ catalogs: [createDefaultAdapterCatalog()] })],
       });
       const rendererService = TestBed.inject(A2uiRendererService);
       let fixture: ComponentFixture<SurfaceComponent> | undefined;
@@ -142,10 +139,23 @@ describe('@a2ui/angular Adapter Conformance (conformance/core/adapter_conformanc
   ensureJasmineManifestReporter();
   const suiteTitle =
     '@a2ui/angular Adapter Conformance (conformance/core/adapter_conformance.yaml)';
-  const {adapterConformance} = getConformanceSuites();
+  const { adapterConformance, basicCatalogJson } = getConformanceSuites();
 
   beforeEach(() => {
     spyOn(window, 'open').and.returnValue(null);
+  });
+
+  it('preserves String.prototype.replace special sequences in injected basicCatalogJson', () => {
+    const functions = basicCatalogJson['functions'] as
+      | Record<
+          string,
+          { properties?: { args?: { properties?: { pattern?: { description?: string } } } } }
+        >
+      | undefined;
+    const regexPatternDescription =
+      functions?.['regex']?.properties?.args?.properties?.pattern?.description;
+    expect(regexPatternDescription).toContain("'^' and '$'");
+    expect(regexPatternDescription).toContain("'\\p{...}'");
   });
 
   for (const testCase of adapterConformance) {
@@ -156,7 +166,6 @@ describe('@a2ui/angular Adapter Conformance (conformance/core/adapter_conformanc
     });
 
     it(specTitle, async () => {
-      assertKnownAdapterCase(testCase);
       const skipReason = findUnsupportedReason(
         testCase.name,
         testCase.steps as unknown as Array<Record<string, unknown>>,
@@ -165,6 +174,7 @@ describe('@a2ui/angular Adapter Conformance (conformance/core/adapter_conformanc
         pending(skipReason);
         return;
       }
+      assertKnownAdapterCase(testCase);
 
       const state = mountSurface(testCase);
       try {

@@ -168,7 +168,9 @@ jobs:
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --corpus agent \
-            --harness dart-agent
+            --harness dart-agent \
+            --exclude "agent/direct_json/scaling.yaml=performance: runs with -P performance" \
+            --exclude "agent/express/scaling.yaml=performance: runs with -P performance"
 
   # The e2e_test packages are excluded from the matrix above because their
   # tests call a live Gemini model, which needs credentials and quota that are
