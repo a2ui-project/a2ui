@@ -1,9 +1,9 @@
 ---
 codebase_path: python/a2ui_core
 associated_module: a2ui_core
-module_blueprint_commit: 9d79b143fd57165b6203c59e346feaee2fb7c674
+module_blueprint_commit: abc4d2eae659f5187da795275496eddb4c787d1c
 implemented_features:
-  agent_functions: 9d79b143fd57165b6203c59e346feaee2fb7c674
+  agent_functions: abc4d2eae659f5187da795275496eddb4c787d1c
 local_development:
   test_command: 'uv run pytest'
   lint_command: 'uv run pyink --check .'
