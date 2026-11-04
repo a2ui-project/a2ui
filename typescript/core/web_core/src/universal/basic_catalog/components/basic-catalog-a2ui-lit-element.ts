@@ -16,13 +16,13 @@
 
 import {ComponentApi, type InferredComponentApiSchemaType} from '../../../catalog/types.js';
 import type {ResolveA2uiProps} from '../../../resolution/generic-binder.js';
-import {nextNodeId} from '../../../resolution/node-id.js';
 import {A2uiLitElement} from '../../index.js';
-import {injectBasicCatalogStyles, computeColorVariant} from '../styles/default.js';
+import {computeColorVariant, injectBasicCatalogStyles} from '../styles/default.js';
 import {isValidCssColor} from '../theme.js';
 import {
-  setHostAccessibilityAttributes,
+  type CheckableResolvedProps,
   type ResolvedAccessibilityAttributes,
+  setHostAccessibilityAttributes,
 } from './accessibility.js';
 
 /**
@@ -48,18 +48,6 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
   Api,
   ResolveA2uiProps<InferredComponentApiSchemaType<Api>>
 > {
-  private fallbackDomId?: string;
-
-  /**
-   * Document-unique ID prefix for associating internal labels, controls, and error messages.
-   *
-   * Reads `ComponentNode.id` when rendered through a `NodeResolver`; an element mounted
-   * with only a `ComponentContext` draws one lazily from the same id sequence.
-   */
-  protected get domId(): string {
-    return this.node?.id ?? (this.fallbackDomId ??= nextNodeId());
-  }
-
   /**
    * Lifecycle hook invoked when the element is connected to the DOM.
    * Injects global basic catalog CSS.
@@ -109,6 +97,23 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
       this.style.removeProperty('--a2ui-color-primary-dark');
       this.style.removeProperty('--a2ui-color-primary-hover');
     }
-    setHostAccessibilityAttributes(this, props?.accessibility);
+  }
+
+  /**
+   * Built-in Basic Catalog components bind `accessibility.label`,
+   * `accessibility.description`, and validation attributes directly in their
+   * `render()` templates (or via `setContainerAccessibilityAttributes` on
+   * `Column` and `Row`), so only host-level `aria-live` and `aria-hidden`
+   * are applied on the host when `accessibilityTarget()` is not overridden.
+   */
+  protected override applyAccessibilityAttributes(
+    accessibility?: ResolvedAccessibilityAttributes,
+    checkable?: CheckableResolvedProps,
+  ): void {
+    if (this.accessibilityTarget() !== null) {
+      super.applyAccessibilityAttributes(accessibility, checkable);
+      return;
+    }
+    setHostAccessibilityAttributes(this, accessibility);
   }
 }

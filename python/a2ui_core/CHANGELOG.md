@@ -20,6 +20,11 @@
 - (v1_0) The basic catalog `regex` function's `pattern` description now names
   the A2UI regex dialect and its safety limits
   ([#3820](https://github.com/a2ui-project/a2ui/pull/3820)).
+- (v1_0) `Catalog.from_json()` now rejects function definitions that set
+  `requiresUserActivation: true` when `allowedCallers` is not `'rendererOnly'`
+  (such as `'agentOnly'` or `'rendererOrAgent'`) by raising `A2uiCatalogError`,
+  matching the v1.0 catalog definition schema
+  ([#3840](https://github.com/a2ui-project/a2ui/pull/3840)).
 - `MessageProcessor` writes an inline `createSurface.dataModel` as one
   `DataModel.set` per top-level key (`/<escaped_key>`, escaping `~` as `~0` and
   `/` as `~1` per RFC 6901) before applying inline `createSurface.components`
