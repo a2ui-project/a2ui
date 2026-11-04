@@ -37,7 +37,7 @@ private final class ConformanceActionCaptureHandler: ActionHandling,
 @MainActor
 struct MessageProcessorConformanceTests {
   /// `process_messages` cases whose payload is accepted but reports an error when it renders.
-  private static let expectedRuntimeErrors: [String: ExpectedRuntimeError] = [
+  static let expectedRuntimeErrors: [String: ExpectedRuntimeError] = [
     "test_v10_call_to_undeclared_function_without_strict_mode_accepted": ExpectedRuntimeError(
       code: "EXPRESSION_ERROR",
       surfaceID: "s",
@@ -48,83 +48,146 @@ struct MessageProcessorConformanceTests {
   /// Cases of the optional agent_renderer_app feature
   /// (blueprints/features/agent_renderer_app.blueprint.md), which passes a validation config to
   /// one call. This SDK has no agent, so it does not implement the feature.
-  private static let skippedCases: Set<String> = [
-    "test_v10_call_validation_config_relaxes_strict_processor",
-    "test_v10_call_validation_config_tightens_permissive_processor",
-    "test_v10_call_validation_config_leaves_out_rules_as_strict",
+  static let skippedCases: [String: String] = [
+    "test_v10_call_validation_config_relaxes_strict_processor":
+      "per-call validationConfig is part of the optional agent_renderer_app feature",
+    "test_v10_call_validation_config_tightens_permissive_processor":
+      "per-call validationConfig is part of the optional agent_renderer_app feature",
+    "test_v10_call_validation_config_leaves_out_rules_as_strict":
+      "per-call validationConfig is part of the optional agent_renderer_app feature",
+  ]
+
+  private static let knownCaseKeys: Set<String> = [
+    "action",
+    "args",
+    "catalogPath",
+    "catalogPaths",
+    "catalogs",
+    "expect",
+    "expectError",
+    "messages",
+    "protocolVersion",
+    "steps",
+    "strictMode",
+    "validationConfig",
+  ]
+
+  private static let knownStepKeys: Set<String> = [
+    "expect",
+    "expectError",
+    "messages",
+    "validationConfig",
+  ]
+
+  private static let knownExpectErrorKeys: Set<String> = [
+    "category",
+    "message",
+    "rendererError",
+    "surfaceId",
+  ]
+
+  private static let knownSurfaceExpectKeys: Set<String> = [
+    "components",
+    "dataModel",
+    "defaultCatalogId",
+    "exists",
+    "metadata",
+    "sendDataModel",
+    "theme",
+  ]
+
+  private static let knownDataModelArgsKeys: Set<String> = [
+    "version"
+  ]
+
+  private static let knownCapabilitiesArgsKeys: Set<String> = [
+    "componentEnvelopeRef",
+    "includeInlineCatalogs",
+    "version",
+    "versions",
+  ]
+
+  private static let knownResolvePathArgsKeys: Set<String> = [
+    "contextPath",
+    "path",
   ]
 
   /// A runtime error a case expects rendering to report through the action handler.
-  private struct ExpectedRuntimeError {
+  struct ExpectedRuntimeError {
     let code: String
     let surfaceID: String
     let messageContains: String
   }
 
-  @Test func messageProcessorV09Conformance() throws {
-    try runMessageProcessorSuite(
-      filename: "core/message_processor_v0_9.yaml",
-      defaultVersion: "v0.9"
-    )
+  @Test(arguments: ConformanceTestHelper.cases("core/message_processor_v0_9.yaml"))
+  func messageProcessorV09Conformance(_ conformanceCase: ConformanceCase) throws {
+    try runSingleMessageProcessorCase(conformanceCase, defaultVersion: "v0.9")
   }
 
-  @Test func messageProcessorV10Conformance() throws {
-    try runMessageProcessorSuite(
-      filename: "core/message_processor_v1_0.yaml",
-      defaultVersion: "1.0"
-    )
+  @Test(arguments: ConformanceTestHelper.cases("core/message_processor_v1_0.yaml"))
+  func messageProcessorV10Conformance(_ conformanceCase: ConformanceCase) throws {
+    try runSingleMessageProcessorCase(conformanceCase, defaultVersion: "1.0")
   }
 
-  private func runMessageProcessorSuite(
-    filename: String,
+  private func runSingleMessageProcessorCase(
+    _ conformanceCase: ConformanceCase,
     defaultVersion: String
   ) throws {
-    let rawYAML = try ConformanceTestHelper.loadYAML(filename: filename)
-    let cases = (rawYAML as? [[String: Any]]) ?? []
-    #expect(!cases.isEmpty, "\(filename) should hold test cases")
-
-    var executed = 0
-
-    for testCase in cases {
-      let name = testCase["name"] as? String ?? "<unnamed>"
-      if Self.skippedCases.contains(name) { continue }
-      let action = testCase["action"] as? String ?? "process_messages"
-
-      switch action {
-      case "process_messages", "validate":
-        try runProcessMessagesCase(
-          testCase,
-          name: name,
-          defaultVersion: defaultVersion
-        )
-        executed += 1
-      case "get_renderer_data_model":
-        try runGetRendererDataModelCase(
-          testCase,
-          name: name,
-          defaultVersion: defaultVersion
-        )
-        executed += 1
-      case "get_renderer_capabilities":
-        try runGetRendererCapabilitiesCase(
-          testCase,
-          name: name,
-          defaultVersion: defaultVersion
-        )
-        executed += 1
-      case "resolve_path":
-        runResolvePathCase(testCase, name: name)
-        executed += 1
-      default:
-        continue
-      }
+    let skippedReason = Self.skippedCases[conformanceCase.name]
+    try ConformanceManifest.run(conformanceCase, skippedReason: skippedReason) {
+      try dispatchMessageProcessorCase(
+        conformanceCase.rawDictionary,
+        name: conformanceCase.name,
+        defaultVersion: defaultVersion
+      )
     }
-
-    #expect(executed > 0, "no case of \(filename) was executed")
   }
 
-  private func runResolvePathCase(_ testCase: [String: Any], name: String) {
+  private func dispatchMessageProcessorCase(
+    _ testCase: [String: Any],
+    name: String,
+    defaultVersion: String
+  ) throws {
+    try ConformanceTestHelper.assertKnownKeys(
+      testCase,
+      Self.knownCaseKeys,
+      "message_processor case '\(name)'"
+    )
+    let action = testCase["action"] as? String ?? ""
+    switch action {
+    case "process_messages", "validate":
+      try runProcessMessagesCase(
+        testCase,
+        name: name,
+        defaultVersion: defaultVersion
+      )
+    case "get_renderer_data_model":
+      try runGetRendererDataModelCase(
+        testCase,
+        name: name,
+        defaultVersion: defaultVersion
+      )
+    case "get_renderer_capabilities":
+      try runGetRendererCapabilitiesCase(
+        testCase,
+        name: name,
+        defaultVersion: defaultVersion
+      )
+    case "resolve_path":
+      try runResolvePathCase(testCase, name: name)
+    default:
+      throw UnknownConformanceKeyError("[\(name)] Unknown message_processor action '\(action)'")
+    }
+  }
+
+  private func runResolvePathCase(_ testCase: [String: Any], name: String) throws {
     let args = testCase["args"] as? [String: Any] ?? [:]
+    try ConformanceTestHelper.assertKnownKeys(
+      args,
+      Self.knownResolvePathArgsKeys,
+      "message_processor resolve_path args in '\(name)'",
+      allowMetadata: false
+    )
     let path = args["path"] as? String ?? ""
     let contextPath = args["contextPath"] as? String ?? ""
     let actual = JSONValue.absolutePath(for: path, in: contextPath)
@@ -383,10 +446,12 @@ struct MessageProcessorConformanceTests {
     let strictMode = testCase["strictMode"] as? Bool ?? false
     let validationConfig: ValidationConfig
     if let flags = testCase["validationConfig"] as? [String: Bool] {
-      validationConfig = try #require(
-        ConformanceTestHelper.validationConfig(from: flags),
-        "[\(name)] Unknown validationConfig flags \(flags.keys.sorted())"
-      )
+      guard let config = ConformanceTestHelper.validationConfig(from: flags) else {
+        throw UnknownConformanceKeyError(
+          "[\(name)] Unknown validationConfig flags \(flags.keys.sorted())"
+        )
+      }
+      validationConfig = config
     } else {
       validationConfig = strictMode ? .strict : .relaxed
     }
@@ -397,36 +462,88 @@ struct MessageProcessorConformanceTests {
       validationConfig: validationConfig
     )
     let expectedRuntimeError = Self.expectedRuntimeErrors[name]
-    let steps = (testCase["steps"] as? [[String: Any]]) ?? [testCase]
-
-    for step in steps {
-      let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
-      handler.capturedErrors.removeAll()
-
-      if let expectError = step["expectError"] as? [String: Any] {
-        assertStepError(
-          payload: payload,
-          expectError: expectError,
-          processor: processor,
-          handler: handler,
-          name: name
+    let explicitSteps = testCase["steps"] as? [[String: Any]]
+    if let explicitSteps {
+      for step in explicitSteps {
+        try ConformanceTestHelper.assertKnownKeys(
+          step,
+          Self.knownStepKeys,
+          "message_processor step in '\(name)'",
+          allowMetadata: false
         )
-        continue
       }
+    }
+    let steps = explicitSteps ?? [testCase]
 
-      try processor.processMessages(payload)
-      assertStepRuntimeErrors(
-        capturedErrors: handler.capturedErrors,
-        expected: expectedRuntimeError,
+    for (index, step) in steps.enumerated() {
+      try executeProcessMessagesStep(
+        step,
+        testCase: testCase,
+        isFinalStep: index == steps.count - 1,
+        processor: processor,
+        handler: handler,
+        expectedRuntimeError: expectedRuntimeError,
         name: name
       )
-
-      let expectedDict = (step["expect"] as? [String: Any]) ?? [:]
-      let expectedSurfaces =
-        (expectedDict["surfaces"] as? [String: Any])
-        ?? (step["expectedSurfaces"] as? [String: Any])
-      try verifyExpectedSurfaces(expectedSurfaces, on: processor, name: name)
     }
+  }
+
+  private func executeProcessMessagesStep(
+    _ step: [String: Any],
+    testCase: [String: Any],
+    isFinalStep: Bool,
+    processor: MessageProcessor,
+    handler: ConformanceActionCaptureHandler,
+    expectedRuntimeError: ExpectedRuntimeError?,
+    name: String
+  ) throws {
+    let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
+    handler.capturedErrors.removeAll()
+
+    let rawExpectError =
+      (step["expectError"] as? [String: Any])
+      ?? (isFinalStep ? (testCase["expectError"] as? [String: Any]) : nil)
+    if let expectError = rawExpectError {
+      try ConformanceTestHelper.assertKnownKeys(
+        expectError,
+        Self.knownExpectErrorKeys,
+        "message_processor expectError in '\(name)'",
+        allowMetadata: false
+      )
+      try assertStepError(
+        payload: payload,
+        expectError: expectError,
+        processor: processor,
+        handler: handler,
+        name: name
+      )
+      return
+    }
+
+    try processor.processMessages(payload)
+    assertStepRuntimeErrors(
+      capturedErrors: handler.capturedErrors,
+      expected: expectedRuntimeError,
+      name: name
+    )
+
+    let rawExpect =
+      (step["expect"] as? [String: Any])
+      ?? (isFinalStep ? (testCase["expect"] as? [String: Any]) : nil)
+    if let expectedDict = rawExpect {
+      try ConformanceTestHelper.assertKnownKeys(
+        expectedDict,
+        ["surfaces"],
+        "message_processor expect in '\(name)'",
+        allowMetadata: false
+      )
+    }
+    let expectedDict = rawExpect ?? [:]
+    let expectedSurfaces =
+      (expectedDict["surfaces"] as? [String: Any])
+      ?? (step["expectedSurfaces"] as? [String: Any])
+      ?? (isFinalStep ? (testCase["expectedSurfaces"] as? [String: Any]) : nil)
+    try verifyExpectedSurfaces(expectedSurfaces, on: processor, name: name)
   }
 
   private func assertStepError(
@@ -435,12 +552,12 @@ struct MessageProcessorConformanceTests {
     processor: MessageProcessor,
     handler: ConformanceActionCaptureHandler,
     name: String
-  ) {
+  ) throws {
     do {
       try processor.processMessages(payload)
       Issue.record("[\(name)] Expected error to be thrown for invalid message")
     } catch {
-      assertProcessErrorCategory(error: error, expectError: expectError, name: name)
+      try assertProcessErrorCategory(error: error, expectError: expectError, name: name)
       if let expectedMessage = expectError["message"] as? String, !expectedMessage.isEmpty {
         let description = (error as? (any A2UIError))?.message ?? error.localizedDescription
         #expect(
@@ -462,7 +579,7 @@ struct MessageProcessorConformanceTests {
     error: Error,
     expectError: [String: Any],
     name: String
-  ) {
+  ) throws {
     guard let category = expectError["category"] as? String else { return }
     switch category {
     case "RecursionError":
@@ -477,7 +594,7 @@ struct MessageProcessorConformanceTests {
     case "ValidationError":
       #expect(error is A2UIValidationError, "[\(name)] Expected ValidationError, got \(error)")
     default:
-      break
+      throw UnknownConformanceKeyError("[\(name)] Unknown error category '\(category)'")
     }
   }
 
@@ -538,6 +655,12 @@ struct MessageProcessorConformanceTests {
       return
     }
     guard let expectedSurfaceDict = rawExpected as? [String: Any] else { return }
+    try ConformanceTestHelper.assertKnownKeys(
+      expectedSurfaceDict,
+      Self.knownSurfaceExpectKeys,
+      "message_processor expect.surfaces.\(surfaceID) in '\(name)'",
+      allowMetadata: false
+    )
     if expectedSurfaceDict["exists"] as? Bool == false {
       #expect(
         processor.surfaceGroupModel.surfacesMap[surfaceID] == nil,
@@ -567,6 +690,36 @@ struct MessageProcessorConformanceTests {
         "[\(name)] DataModel mismatch on surface '\(surfaceID)'"
       )
     }
+    verifySurfaceMetadataAndTheme(
+      expectedSurfaceDict,
+      on: surface,
+      surfaceID: surfaceID,
+      name: name
+    )
+    if let expectedSendDataModel = expectedSurfaceDict["sendDataModel"] as? Bool {
+      #expect(
+        surface.sendDataModel == expectedSendDataModel,
+        "[\(name)] sendDataModel mismatch on surface '\(surfaceID)'"
+      )
+    }
+    if let rawDefaultCatalogID = expectedSurfaceDict["defaultCatalogId"] {
+      if rawDefaultCatalogID is NSNull {
+        #expect(surface.defaultCatalogID == nil, "[\(name)] Expected nil defaultCatalogId")
+      } else if let expectedDefaultCatalogID = rawDefaultCatalogID as? String {
+        #expect(
+          surface.defaultCatalogID == expectedDefaultCatalogID,
+          "[\(name)] defaultCatalogId mismatch on surface '\(surfaceID)'"
+        )
+      }
+    }
+  }
+
+  private func verifySurfaceMetadataAndTheme(
+    _ expectedSurfaceDict: [String: Any],
+    on surface: SurfaceViewModel,
+    surfaceID: String,
+    name: String
+  ) {
     if expectedSurfaceDict.keys.contains("metadata") {
       let expectedSurfaceMeta =
         expectedSurfaceDict["metadata"].map { ConformanceTestHelper.toJSONValue($0) } ?? .null
@@ -596,22 +749,6 @@ struct MessageProcessorConformanceTests {
         actualThemeValue == ConformanceTestHelper.toJSONValue(expectedTheme),
         "[\(name)] Theme mismatch on surface '\(surfaceID)'"
       )
-    }
-    if let expectedSendDataModel = expectedSurfaceDict["sendDataModel"] as? Bool {
-      #expect(
-        surface.sendDataModel == expectedSendDataModel,
-        "[\(name)] sendDataModel mismatch on surface '\(surfaceID)'"
-      )
-    }
-    if let rawDefaultCatalogID = expectedSurfaceDict["defaultCatalogId"] {
-      if rawDefaultCatalogID is NSNull {
-        #expect(surface.defaultCatalogID == nil, "[\(name)] Expected nil defaultCatalogId")
-      } else if let expectedDefaultCatalogID = rawDefaultCatalogID as? String {
-        #expect(
-          surface.defaultCatalogID == expectedDefaultCatalogID,
-          "[\(name)] defaultCatalogId mismatch on surface '\(surfaceID)'"
-        )
-      }
     }
   }
 
@@ -658,7 +795,10 @@ struct MessageProcessorConformanceTests {
     if let expectedType = compObj["component"] as? String {
       #expect(
         actualComp.type == expectedType,
-        "[\(name)] Component '\(id)' type mismatch: expected '\(expectedType)', got '\(actualComp.type)'"
+        """
+        [\(name)] Component '\(id)' type mismatch: \
+        expected '\(expectedType)', got '\(actualComp.type)'
+        """
       )
     }
     if let expectedCatalogID = compObj["catalogId"] as? String {
@@ -683,7 +823,9 @@ struct MessageProcessorConformanceTests {
       }
     }
     for (propKey, propVal) in compObj
-    where propKey != "id" && propKey != "component" && propKey != "catalogId" && propKey != "metadata" {
+    where propKey != "id" && propKey != "component" && propKey != "catalogId"
+      && propKey != "metadata"
+    {
       #expect(
         actualComp.properties[propKey] == ConformanceTestHelper.toJSONValue(propVal),
         "[\(name)] Component '\(id)' property '\(propKey)' mismatch"
@@ -698,6 +840,16 @@ struct MessageProcessorConformanceTests {
   ) throws {
     let catalogs = try buildProcessorCatalogs(from: testCase, defaultVersion: defaultVersion)
     let processor = MessageProcessor(catalogs: catalogs)
+    if let explicitSteps = testCase["steps"] as? [[String: Any]] {
+      for step in explicitSteps {
+        try ConformanceTestHelper.assertKnownKeys(
+          step,
+          Self.knownStepKeys,
+          "message_processor get_renderer_data_model step in '\(name)'",
+          allowMetadata: false
+        )
+      }
+    }
     let steps = (testCase["steps"] as? [[String: Any]]) ?? [testCase]
     for step in steps {
       let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
@@ -705,16 +857,33 @@ struct MessageProcessorConformanceTests {
     }
 
     let args = testCase["args"] as? [String: Any] ?? [:]
+    try ConformanceTestHelper.assertKnownKeys(
+      args,
+      Self.knownDataModelArgsKeys,
+      "message_processor get_renderer_data_model args in '\(name)'",
+      allowMetadata: false
+    )
     let versionStr = args["version"] as? String
     let protocolVersion = versionStr.flatMap { A2UIProtocolVersion(lenientRawValue: $0) }
     let actual = try processor.getRendererDataModel(version: protocolVersion)
     let expectedDict =
       (testCase["expect"] as? [String: Any])
       ?? (testCase["expectedDataModel"] as? [String: Any])
+    if let expectedDict {
+      try ConformanceTestHelper.assertKnownKeys(
+        expectedDict,
+        ["surfaces", "version"],
+        "message_processor get_renderer_data_model expect in '\(name)'",
+        allowMetadata: false
+      )
+    }
     if let expectedSurfaces = expectedDict?["surfaces"] {
       #expect(
         actual?["surfaces"] == ConformanceTestHelper.toJSONValue(expectedSurfaces),
-        "[\(name)] Expected renderer data model \(expectedSurfaces), got \(String(describing: actual))"
+        """
+        [\(name)] Expected renderer data model \(expectedSurfaces), \
+        got \(String(describing: actual))
+        """
       )
     } else {
       #expect(
@@ -732,14 +901,26 @@ struct MessageProcessorConformanceTests {
     let catalogs = try buildProcessorCatalogs(from: testCase, defaultVersion: defaultVersion)
     let processor = MessageProcessor(catalogs: catalogs)
     let args = testCase["args"] as? [String: Any] ?? [:]
+    try ConformanceTestHelper.assertKnownKeys(
+      args,
+      Self.knownCapabilitiesArgsKeys,
+      "message_processor get_renderer_capabilities args in '\(name)'",
+      allowMetadata: false
+    )
     let options = buildCapabilitiesOptions(from: args)
 
     if let expectError = testCase["expectError"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        expectError,
+        Self.knownExpectErrorKeys,
+        "message_processor get_renderer_capabilities expectError in '\(name)'",
+        allowMetadata: false
+      )
       do {
         _ = try processor.getRendererCapabilities(options: options)
         Issue.record("[\(name)] Expected getRendererCapabilities to throw")
       } catch {
-        assertProcessErrorCategory(error: error, expectError: expectError, name: name)
+        try assertProcessErrorCategory(error: error, expectError: expectError, name: name)
       }
       return
     }

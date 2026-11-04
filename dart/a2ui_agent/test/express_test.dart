@@ -688,6 +688,19 @@ surface("s1")
       expect(snippet, contains('## Catalog `${custom.id}`'));
       expect(snippet, contains('• Gauge(value (static))'));
     });
+
+    test('omits Event userMessage= before v1.0', () {
+      final String snippet = processor().promptSnippet;
+      expect(
+        snippet,
+        contains(
+          '8. Action events: represent server-side actions using the Event '
+          'helper:\n'
+          r'   Event("save_deal", {rep: $/form/rep})',
+        ),
+      );
+      expect(snippet, isNot(contains('userMessage=')));
+    });
   });
 
   group('parser', () {
