@@ -266,6 +266,16 @@ Rules that differ from genui:
   `Semantics` for them.
 - `A2uiSurface.of(context)` gives the surface for `theme`, `id`,
   `dataModel` and `dispatchError`.
+- A library with many custom `CatalogItem`s may keep a thin compatibility
+  layer (its own `CatalogItem` implementing `ComponentApi`, and a
+  `SurfaceController` wrapping `MessageProcessor`) to migrate in stages. If
+  you do, don't reimplement the SDK inside it: delegate basic components to
+  `v0_9.BasicComponents`, schemas to `CommonSchemas`, basic functions to
+  `BasicCatalog.v0_9(openUrl: ...).functions`, and path resolution to
+  `DataContext.resolvePath`, and bind values with
+  `DataContext.resolveSignal`. Hand-copied versions drift from the SDK
+  (missing widgets, double-evaluated function arguments, wrong `.` /
+  trailing-slash handling).
 
 ### 5. Client functions
 
