@@ -127,13 +127,13 @@ interface AgentFunction extends FunctionApi {
 | The function's `allowedCallers` is `agentOnly`                                                    | `INVALID_FUNCTION_CALL`                                                 |
 | Arguments fail the function's schema                                                              | `INVALID_FUNCTION_CALL`, with the validation message.                   |
 | The handler raises the SDK's RPC error type with a code                                           | That code and message, such as a domain code like `PROVIDER_NOT_FOUND`. |
-| The handler raises anything else, including the language's own timeout error                      | `EXECUTION_ERROR` with the error message. The stack trace is logged.    |
+| The handler raises anything else, including a validation or timeout error                         | `EXECUTION_ERROR` with the error message. The stack trace is logged.    |
 | The handler exceeds the processor's agent function timeout                                        | `EXECUTION_ERROR` saying that the function timed out.                   |
 | The handler returns                                                                               | `value`, which may be `null`.                                           |
 
 The version check is the processor's first check for every kind of message (see [§4](#4-agent-sdk-renderer-to-agent-message-processor)), so a `callAgentFunction` with a missing or other version raises even when it has a `functionCallId`. Once the version is right and the `functionCallId` can be read, every other problem with the message, such as a missing `callFunction`, an unknown field or an empty `surfaceId`, becomes an `INVALID_FUNCTION_CALL` reply.
 
-One difference remains between the SDKs: a validation error that a handler raises is an `EXECUTION_ERROR` in Python and TypeScript, like any other handler error, but an `INVALID_FUNCTION_CALL` in Dart.
+A validation error that the handler raises is a handler error like any other: only the processor's own argument check produces `INVALID_FUNCTION_CALL`.
 
 Renderers set `catalogId` on every routed call, so the missing-`catalogId` rules only matter for other senders. Every SDK applies them the same way.
 
@@ -225,18 +225,22 @@ class RendererFunctionCalls {
 
 The timeouts follow each SDK's units: `default_timeout` and `timeout` in seconds in Python, `defaultTimeoutMs` and `timeoutMs` in milliseconds in TypeScript, and `Duration defaultTimeout` and `timeout` in Dart. The pending result is an `asyncio.Future` in Python, a cancellable `Promise` in TypeScript (the returned tuple also has `message`, `result`, `functionCallId` and `cancel`), and a `Future` in a record in Dart.
 
-**Making a call.** `call` never blocks: the caller sends the message, then awaits the result. It checks the call and raises synchronously, before any message is built, any call is registered or any timer starts:
+**Making a call.** `call` never blocks: the caller sends the message, then awaits the result. It runs these checks in this order, and each failure is raised synchronously, before any message is built, any call is registered or any timer starts. Every failure after the first is an `A2uiRpcError` with the code shown.
 
+0. A per-call timeout that isn't a finite positive number (NaN, infinity, zero, a negative value, or a `bool` in Python) raises the language's argument error: `ValueError` in Python, `RangeError` in TypeScript, `ArgumentError` in Dart.
 1. A disposed instance raises with code `DISPOSED`.
-2. The `functionCallId` is generated unless one is given; each SDK generates a unique string in its own format. A given ID that is already pending raises with code `DUPLICATE`. TypeScript and Dart refuse an empty given ID with `INVALID_FUNCTION_CALL`; Python treats it as not given and generates one.
-3. With `maxPending` set, a call beyond that many pending calls raises with code `TOO_MANY_PENDING`, so a looping model can't build up calls without limit.
-4. An empty function name or an empty `catalogId` (which `callRendererFunction` requires) raises with code `INVALID_FUNCTION_CALL`.
-5. With `catalogs`, the target is checked against them (see Checking calls against the catalogs, below).
-6. The message is built through the protocol schema; a message that fails it raises with code `INVALID_FUNCTION_CALL`. TypeScript and Dart also check that the function name and argument keys are identifiers and the arguments a JSON object (Dart before the catalog check, TypeScript after it). The arguments are never validated against the function's argument schema.
+2. A given `functionCallId` that is an empty string raises with code `INVALID_FUNCTION_CALL`. An omitted one is generated; each SDK generates a unique string in its own format.
+3. An ID that is already pending raises with code `DUPLICATE`.
+4. With `maxPending` set, a call beyond that many pending calls raises with code `TOO_MANY_PENDING`, so a looping model can't build up calls without limit.
+5. An empty function name raises with code `INVALID_FUNCTION_CALL` ("The call needs a function name.").
+6. An empty `catalogId`, which `callRendererFunction` requires, raises with code `INVALID_FUNCTION_CALL`.
+7. A function name that isn't a UAX #31 identifier, or starts with `@`, raises with code `INVALID_FUNCTION_CALL`.
+8. When `args` is given, it must be a JSON object (a mapping with string keys) whose keys are all UAX #31 identifiers, and its values must be JSON values: null, booleans, strings, finite numbers, and arrays and objects (with string keys) of these, recursively. NaN and infinity aren't JSON values. A violation raises with code `INVALID_FUNCTION_CALL`, and the message names a bad key. Values aren't otherwise interpreted: a nested `@call` or `@path` object is just an object here, which the renderer validates. The arguments are never checked against the function's argument schema. A statically typed SDK whose `call` can't take a non-object `args` (Dart) meets that rule with a type error.
+9. With `catalogs`, the target is checked against them (see Checking calls against the catalogs, below). Steps 5 to 8 always run before this one.
 
-An empty `surfaceId` counts as no surface: the message leaves `surfaceId` out, and the renderer runs the function against an empty data model.
+An empty `surfaceId` counts as no surface: the message leaves `surfaceId` out, and the renderer runs the function against an empty data model. Other language-level type errors, such as a non-string `surfaceId` in TypeScript, are whatever the language does.
 
-**Timeouts.** Each call waits 30 seconds by default, as the renderer side does. The default is configurable per instance (or turned off with null), and a call can set its own timeout; in TypeScript a call can also pass null to wait without a limit, while in Python and Dart a call without its own timeout uses the default. A timeout fails the result with code `TIMEOUT` and removes the call. Settling a call cancels its timer.
+**Timeouts.** Each call waits 30 seconds by default, as the renderer side does. The default timeout follows the same rule as a per-call one (a finite positive value, checked when the instance is built), and a null default means calls never time out: "no limit" can only be set on the instance. A call can override the default with its own finite positive timeout; omitting it (or passing null, in Python and Dart, which can't tell the two apart, and at runtime in TypeScript) uses the default. A timeout fails the result with code `TIMEOUT` and removes the call. Settling a call cancels its timer.
 
 **Settling calls with `resolve`.**
 
@@ -286,14 +290,17 @@ An `agentFunctionResponse` must carry `value` even when it is `null`. Serialize 
 
 ## **Test Cases & Conformance**
 
-- `conformance/agent/agent_functions.yaml`:
+- `conformance/agent/agent_functions.yaml` (48 cases):
   - `declare_agent_functions`: agent functions are listed with the catalog's functions; the name collisions (the same name twice, a name the catalog declares, `from_api` with an entry the catalog doesn't declare), `from_api` with an `agentOnly` entry or with `requiresUserActivation` on a `rendererOrAgent` entry, and a parameter name that isn't a UAX #31 identifier on a v1.0 catalog are catalog errors.
-  - `handle_agent_function`: every row of the error mapping table, including an empty function name, defaults and the handler context, driven through `RendererToAgentMessageProcessor.processMessage`, which must report `handled` with exactly one reply.
+  - `handle_agent_function`: every row of the error mapping table, including an empty function name and a handler that raises a validation error (`raises` with `validation: true`), defaults and the handler context, driven through `RendererToAgentMessageProcessor.processMessage`, which must report `handled` with exactly one reply.
   - `process_renderer_message`: each of `action`, `error` and `rendererFunctionResponse` with and without its callback (the callback receives the validated message), a callback that declines, a malformed `action` with its callback set, an unknown message key, a raw message without `version` or with `version: "v1.0"` (validation errors), two catalogs with the same ID (a catalog error), and `callAgentFunction` with an empty `functionCallId` (a validation error) or an empty `surfaceId` (an `INVALID_FUNCTION_CALL` reply).
   - `validate_payload`: validating model output that calls a declared or an undeclared function.
-- `conformance/agent/renderer_function_calls.yaml` (23 `call_renderer_function` cases, added by [#3939](https://github.com/a2ui-project/a2ui/pull/3939)): the message a call builds (with an empty `surfaceId` left out and an empty name refused), settling calls with values, `null` and error responses, ignoring unknown, duplicate and late responses, the 30-second default, per-instance and per-call timeouts, disposal, the limit on pending calls, and the catalog checks. The cases run on a fake clock that only an `advance_ms` step moves. Two forms are specific to this suite:
+- `conformance/agent/renderer_function_calls.yaml` (30 `call_renderer_function` cases, added by [#3939](https://github.com/a2ui-project/a2ui/pull/3939)): the message a call builds (with an empty `surfaceId` left out), the order and rules of the checks in `call` (an empty given `functionCallId`, an empty name, a name that isn't an identifier or starts with `@`, `args` that aren't an object or have a key that isn't an identifier, the name checked before the `catalogId` and the `args` before the catalogs), settling calls with values, `null` and error responses, ignoring unknown, duplicate and late responses, the 30-second default, per-instance and per-call timeouts, disposal, the limit on pending calls, and the catalog checks. The cases run on a fake clock that only an `advance_ms` step moves. Two forms are specific to this suite:
   - `args.catalogs` lists catalogs that the harness builds in code as v1.0 catalogs, not from a catalog document, so the schema's rules don't apply: `[{catalogId, functions: {<name>: {allowedCallers?, requiresUserActivation?}}}]`, where each function takes any object and returns `any`, and an entry that leaves `allowedCallers` out is `rendererOnly`.
   - A case may have a top-level `expect_error` (such as `{category: CatalogError}` for two catalogs with one ID) instead of `steps`, when building `RendererFunctionCalls` must fail.
+  - A `call` step may set `functionCallId`, and its `args` may be any JSON value, so a case can pass a list.
+
+  Non-finite numbers can't be written portably in YAML or JSON, so the JSON-value rule for `args` and the timeout argument errors are covered by each SDK's unit tests instead.
 
   A harness that hands responses over through the processor, with `resolve` as `onRendererFunctionResponse`, also checks that a response is handled exactly when its call is pending.
 
@@ -312,5 +319,5 @@ Every agent conformance runner that implements this feature runs every case of b
    1. Read renderer-to-agent messages out of the transport's A2UI parts, and wrap replies as A2UI parts.
    2. When a request holds only `callAgentFunction` messages, build a processor from the active catalogs, answer them through it, and return the replies without running a model turn. Any other content, including `action`, `error` and `rendererFunctionResponse`, goes to the agent as before.
    3. Keep `callAgentFunction` and `agentFunctionResponse` out of the contents sent to the model, while keeping them in the session history.
-4. **Calling renderer functions.** Add `RendererFunctionCalls`, with `resolve` returning whether it owned the response and the optional `catalogs` checks, and run `renderer_function_calls.yaml`. In each framework integration, settle the session's pending calls through `onRendererFunctionResponse`, answer a request without a model turn only when every message in it is handled, and end a task whose request held only responses as completed.
+4. **Calling renderer functions.** Add `RendererFunctionCalls`, with the checks in `call` in the order of §5, `resolve` returning whether it owned the response, and the optional `catalogs` checks, and run `renderer_function_calls.yaml`. In each framework integration, settle the session's pending calls through `onRendererFunctionResponse`, answer a request without a model turn only when every message in it is handled, and end a task whose request held only responses as completed.
 5. Add `agent_functions` to `implemented_features` in the codebase blueprints of the core and the agent SDK, pinned to the latest commit of this blueprint.
