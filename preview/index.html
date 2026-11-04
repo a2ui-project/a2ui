@@ -1,21 +1,430 @@
-<!DOCTYPE html><html lang="en" data-theme="dark"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>A2UI — Give your agents UI on every surface</title><meta name="description" content="A2UI (Agent to User Interface) is the open protocol and SDK suite that lets AI agents respond with stateful, native user interfaces across the entire Generative UI Spectrum."><link rel="icon" type="image/svg+xml" href="/preview/assets/favicon.svg"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"><script>
+<!DOCTYPE html><html lang="en" data-theme="dark"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>A2UI — Give your agents UI on every surface</title><meta name="description" content="A2UI (Agent to User Interface) is the open protocol and SDK suite that lets AI agents respond with stateful, native user interfaces across the entire Generative UI Spectrum."><link rel="icon" type="image/svg+xml" href="/preview/assets/favicon.svg"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"><script>
       // Sync theme with Starlight's localStorage key ('starlight-theme')
       (function () {
         const stored = typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
         const theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
         document.documentElement.setAttribute('data-theme', theme);
       })();
-    </script><link rel="stylesheet" href="/preview/_astro/index.BucNWTNK.css"><script type="module" src="/preview/_astro/page.B1D-nYk3.js"></script></head> <body> <!-- Unified Header Navigation (Matches StarlightHeader.astro) --> <header class="a2-nav"> <div class="a2-nav__inner"> <div class="a2-nav__left"> <a href="/preview/" class="a2-brand"> <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"> <rect x="2.5" y="3.5" width="19" height="17" rx="4" stroke="currentColor" stroke-width="2"></rect> <circle cx="8.5" cy="11" r="1.6" fill="#14b8a6"></circle> <circle cx="15.5" cy="11" r="1.6" fill="#14b8a6"></circle> <path d="M8.5 15.5h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path> </svg> <span>A2UI</span> </a> <span class="a2-nav__slash" aria-hidden="true">/</span> <nav class="a2-nav__links" aria-label="Primary section navigation"> <a class="a2-nav__link is-active" href="/preview/" aria-current="page">Overview</a> <a class="a2-nav__link" href="/preview/quickstart/">Docs</a> <a class="a2-nav__link" href="/preview/specification/v1.0-a2ui/">Specification</a> </nav> </div> <div class="a2-nav__actions"> <a class="a2-search-pill" id="a2-search-shortcut" href="/preview/quickstart/" title="Jump to Documentation & Search (⌘K / Ctrl+K)"> <span>🔍 Search docs...</span> <kbd>⌘K</kbd> </a> <a class="a2-icon-link" href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener" aria-label="GitHub Repository" title="GitHub"> <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"></path></svg> </a> <a class="a2-icon-link" href="https://discord.gg/6fS2326966" target="_blank" rel="noopener" aria-label="Discord Community" title="Discord"> <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.32 4.37a19.8 19.8 0 0 0-4.89-1.52.07.07 0 0 0-.08.04c-.2.38-.44.87-.61 1.25a18.27 18.27 0 0 0-5.48 0 12.64 12.64 0 0 0-.62-1.25.08.08 0 0 0-.08-.04 19.74 19.74 0 0 0-4.89 1.52.07.07 0 0 0-.03.03C.53 9.05-.32 13.58.09 18.06a.08.08 0 0 0 .03.05 19.9 19.9 0 0 0 5.99 3.03.08.08 0 0 0 .08-.03c.46-.63.87-1.3 1.22-2a.08.08 0 0 0-.04-.11 13.1 13.1 0 0 1-1.87-.9.08.08 0 0 1-.01-.12c.13-.09.25-.19.37-.29a.08.08 0 0 1 .08-.01c3.93 1.8 8.18 1.8 12.07 0a.08.08 0 0 1 .08.01c.12.1.24.2.37.29a.08.08 0 0 1 0 .12c-.6.35-1.22.65-1.87.9a.08.08 0 0 0-.04.11c.36.7.77 1.37 1.22 2a.08.08 0 0 0 .08.03 19.83 19.83 0 0 0 6-3.03.08.08 0 0 0 .03-.05c.5-5.18-.84-9.68-3.55-13.66a.06.06 0 0 0-.03-.03ZM8.02 15.33c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.96 2.42-2.16 2.42Zm7.97 0c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.95 2.42-2.16 2.42Z"></path></svg> </a> <button type="button" class="a2-theme-btn" id="a2-theme-toggle" aria-label="Toggle color theme"> <span id="a2-theme-label">☀️ / 🌙</span> </button> </div> </div> </header> <main> <!-- =====================================================================
+    </script><link rel="stylesheet" href="/preview/_astro/index.Dy2CI6z4.css"><script type="module" src="/preview/_astro/page.B1D-nYk3.js"></script></head> <body> <!-- Unified Header Navigation (Matches StarlightHeader.astro) --> <header class="a2-nav"> <div class="a2-nav__inner"> <div class="a2-nav__left"> <a href="/preview/" class="a2-brand"> <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"> <rect x="2.5" y="3.5" width="19" height="17" rx="4" stroke="currentColor" stroke-width="2"></rect> <circle cx="8.5" cy="11" r="1.6" fill="#14b8a6"></circle> <circle cx="15.5" cy="11" r="1.6" fill="#14b8a6"></circle> <path d="M8.5 15.5h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path> </svg> <span>A2UI</span> </a> <span class="a2-nav__slash" aria-hidden="true">/</span> <nav class="a2-nav__links" aria-label="Primary section navigation"> <a class="a2-nav__link is-active" href="/preview/" aria-current="page">Overview</a> <a class="a2-nav__link" href="/preview/quickstart/">Docs</a> <a class="a2-nav__link" href="/preview/specification/v1.0-a2ui/">Specification</a> </nav> </div> <div class="a2-nav__actions"> <a class="a2-search-pill" id="a2-search-shortcut" href="/preview/quickstart/" title="Jump to Documentation & Search (⌘K / Ctrl+K)"> <span>🔍 Search docs...</span> <kbd>⌘K</kbd> </a> <a class="a2-icon-link" href="https://github.com/a2ui-project/a2ui" target="_blank" rel="noopener" aria-label="GitHub Repository" title="GitHub"> <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"></path></svg> </a> <a class="a2-icon-link" href="https://discord.gg/6fS2326966" target="_blank" rel="noopener" aria-label="Discord Community" title="Discord"> <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.32 4.37a19.8 19.8 0 0 0-4.89-1.52.07.07 0 0 0-.08.04c-.2.38-.44.87-.61 1.25a18.27 18.27 0 0 0-5.48 0 12.64 12.64 0 0 0-.62-1.25.08.08 0 0 0-.08-.04 19.74 19.74 0 0 0-4.89 1.52.07.07 0 0 0-.03.03C.53 9.05-.32 13.58.09 18.06a.08.08 0 0 0 .03.05 19.9 19.9 0 0 0 5.99 3.03.08.08 0 0 0 .08-.03c.46-.63.87-1.3 1.22-2a.08.08 0 0 0-.04-.11 13.1 13.1 0 0 1-1.87-.9.08.08 0 0 1-.01-.12c.13-.09.25-.19.37-.29a.08.08 0 0 1 .08-.01c3.93 1.8 8.18 1.8 12.07 0a.08.08 0 0 1 .08.01c.12.1.24.2.37.29a.08.08 0 0 1 0 .12c-.6.35-1.22.65-1.87.9a.08.08 0 0 0-.04.11c.36.7.77 1.37 1.22 2a.08.08 0 0 0 .08.03 19.83 19.83 0 0 0 6-3.03.08.08 0 0 0 .03-.05c.5-5.18-.84-9.68-3.55-13.66a.06.06 0 0 0-.03-.03ZM8.02 15.33c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.96 2.42-2.16 2.42Zm7.97 0c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.95 2.42-2.16 2.42Z"></path></svg> </a> <button type="button" class="a2-theme-btn" id="a2-theme-toggle" aria-label="Toggle color theme"> <span id="a2-theme-label">☀️ / 🌙</span> </button> </div> </div> </header> <main> <!-- =====================================================================
            1. HERO: GIVE YOUR AGENTS UI ON EVERY SURFACE
            ===================================================================== --> <section class="a2-hero" id="hero"> <div class="a2-container"> <div class="a2-hero__header"> <span class="a2-eyebrow">OPEN AGENT-TO-USER INTERFACE PROTOCOL · APACHE 2.0 · CREATED BY GOOGLE</span> <h1 class="a2-h1">Give your agents UI on every surface.</h1> <p class="a2-lead">
 Chat is a great input, but walls of prose are a terrible output. <strong>A2UI</strong> is the open protocol and SDK suite that lets AI agents respond with stateful, interactive user interfaces—spanning the entire Generative UI Spectrum and rendering natively on Web, Flutter, SwiftUI, and Jetpack Compose.
-</p> <div class="a2-cta-row"> <a class="a2-btn a2-btn--primary" href="/preview/quickstart/">Run 5-Minute Quickstart →</a> <a class="a2-btn a2-btn--secondary" href="/preview/specification/v1.0-a2ui/">Read v1.0 Protocol Spec</a> <a class="a2-btn a2-btn--secondary" href="https://a2ui-project.github.io/composer/" target="_blank" rel="noopener">Open A2UI Composer ↗</a> <button type="button" class="a2-btn a2-btn--code" id="a2-copy-prompt">📋 Copy Agent Prompt</button> </div> </div> <!-- Interactive Wall of Prose vs. Stateful A2UI Surface --> <div class="a2-workbench" id="hero-workbench"> <div class="a2-workbench__promptbar"> <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;"> <span class="a2-prompt-tag">User Prompt</span> <span style="font-size: 14px;">“Book a flight from Berlin to San Francisco on Oct 12, and two tickets back on Oct 19.”</span> </div> <span class="a2-code-window__badge">Click the steppers &amp; options on the right →</span> </div> <div class="a2-workbench__split"> <!-- Left: Wall of Text --> <div class="a2-pane a2-pane--prose"> <div> <div class="a2-pane__header"> <span class="a2-pane__title">Standard Agent · Text Output</span> <span class="a2-status-tag a2-status-tag--bad">WALL OF TEXT · HIGH COGNITIVE LOAD</span> </div> <div class="a2-prose-bubble"> <p>I found the following flight options for your trip from Berlin (BER) to San Francisco (SFO):</p> <p> <strong>1. Outbound (Mon, Oct 12):</strong> Lufthansa LH 454 departing BER at 09:15 and arriving SFO at 12:05 (11h 50m nonstop). The fare is €455 per adult in Economy.
-<span class="a2-prose-highlight">Please clarify if you want 1 or 2 outbound tickets.</span> </p> <p> <strong>2. Return (Mon, Oct 19):</strong> United UA 901 departing SFO at 13:05 and arriving BER at 09:10+1 for 2 adults at €498 each (€996 subtotal).
-</p> <p>
-Would you like to upgrade to Premium Economy (+€280/ticket) or add checked bags (+€65)?
-<span class="a2-prose-highlight">Type your selection and passenger counts to continue.</span> </p> </div> </div> <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 14px;">
-⚠️ Forces users to read 4 paragraphs and type another prompt just to adjust passenger count or cabin.
-</div> </div> <!-- Right: Interactive A2UI Surface --> <div class="a2-pane"> <div class="a2-pane__header"> <span class="a2-pane__title">A2UI Agent · Stateful Native Surface</span> <span class="a2-status-tag a2-status-tag--good">60FPS DATAMODEL · CLICK TO INTERACT</span> </div> <div class="a2-travel-card"> <div class="a2-flight-leg"> <div class="a2-flight-leg__top"> <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px;"> <span class="a2-flight-badge">OUTBOUND · OCT 12</span> <span>Berlin (BER) → San Francisco (SFO)</span> </div> <span style="font-size: 12px; color: var(--text-muted);">LH 454 · 09:15 – 12:05</span> </div> <div class="a2-flight-leg__controls"> <div class="a2-stepper"> <button type="button" class="a2-stepper__btn" data-action="out-dec" aria-label="Decrease outbound passengers">−</button> <span class="a2-stepper__label" id="out-pax-label">1 Passenger</span> <button type="button" class="a2-stepper__btn" data-action="out-inc" aria-label="Increase outbound passengers">+</button> </div> <strong style="font-family: var(--font-mono); font-size: 14px;" id="out-price">€455</strong> </div> </div> <div class="a2-flight-leg"> <div class="a2-flight-leg__top"> <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px;"> <span class="a2-flight-badge">RETURN · OCT 19</span> <span>San Francisco (SFO) → Berlin (BER)</span> </div> <span style="font-size: 12px; color: var(--text-muted);">UA 901 · 13:05 – 09:10+1</span> </div> <div class="a2-flight-leg__controls"> <div class="a2-stepper"> <button type="button" class="a2-stepper__btn" data-action="ret-dec" aria-label="Decrease return passengers">−</button> <span class="a2-stepper__label" id="ret-pax-label">2 Passengers</span> <button type="button" class="a2-stepper__btn" data-action="ret-inc" aria-label="Increase return passengers">+</button> </div> <strong style="font-family: var(--font-mono); font-size: 14px;" id="ret-price">€996 (€498 × 2)</strong> </div> </div> <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0;"> <div style="display: flex; gap: 8px;"> <button type="button" class="a2-chip-toggle" id="toggle-premium" data-action="toggle-premium">Upgrade Premium (+€280/pax)</button> <button type="button" class="a2-chip-toggle is-active" id="toggle-bags" data-action="toggle-bags">✓ Checked Bag (+€65)</button> </div> <span style="font-size: 12px; color: var(--text-muted);">Bound to <code>dataModel</code></span> </div> <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border);"> <div> <span style="font-size: 12px; color: var(--text-muted); display: block;">Total Trip Price</span> <strong style="font-size: 20px; font-family: var(--font-mono);" id="travel-total">€1,516</strong> </div> <button type="button" class="a2-btn a2-btn--primary" id="book-btn" data-action="book-trip">Confirm &amp; Book Trip →</button> </div> <div class="a2-datamodel-bar"> <span>LIVE DATA MODEL:</span> <code id="datamodel-code">$/outbound/pax = 1  ·  $/return/pax = 2  ·  $/cabin = "economy"  ·  $/totalEur = 1516</code> </div> </div> </div> </div> </div> </div> </section> <!-- =====================================================================
+</p> <div class="a2-cta-row"> <a class="a2-btn a2-btn--primary" href="/preview/quickstart/">Run 5-Minute Quickstart →</a> <button type="button" class="a2-btn a2-btn--code" id="a2-copy-prompt">📋 Copy Agent Prompt</button> </div> </div> <!-- First Visual Aid: Incremental UI Generation in Mobile Chat --> <div class="hc-shell astro-awthgajc" id="hero-chat-visual" role="region" aria-label="How A2UI streams interactive mobile chat interfaces"> <div class="hc-stage astro-awthgajc"> <!-- LEFT: Quiet, Soft-Toned A2UI Express Stream + Single-Line Local dataModel Strip --> <div class="hc-left-col astro-awthgajc"> <div class="hc-agent astro-awthgajc"> <div class="hc-agent__head astro-awthgajc"> <div class="hc-agent__title-group astro-awthgajc"> <span class="hc-live-dot astro-awthgajc" data-hc-el="agent-dot" aria-hidden="true"></span> <span class="hc-agent__title astro-awthgajc">A2UI Express stream</span> <code class="hc-surface-id astro-awthgajc">kyoto_trip</code> </div> <button type="button" class="hc-restart-btn astro-awthgajc" id="hc-restart-btn" title="Restart stream" aria-label="Restart UI generation stream"> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="astro-awthgajc"> <path d="M3 12a9 9 0 1 0 3-6.7L3 8" class="astro-awthgajc"></path> <path d="M3 3v5h5" class="astro-awthgajc"></path> </svg> </button> </div> <!-- Streaming Express Viewport --> <div class="hc-stream-viewport astro-awthgajc" data-hc-el="stream-viewport"> <pre class="hc-code astro-awthgajc" id="hc-code-express" tabindex="0" aria-label="A2UI Express stream"><span class="hc-chunk astro-awthgajc" data-chunk="0"><span class="hc-kw astro-awthgajc">&lt;a2ui&gt;</span>
+<span class="hc-fn astro-awthgajc">surface</span>(<span class="hc-str astro-awthgajc">"kyoto_trip"</span>)
+<span class="hc-comp astro-awthgajc">root</span> = <span class="hc-fn astro-awthgajc">Column</span>([<span class="hc-comp astro-awthgajc">hero</span>, <span class="hc-comp astro-awthgajc">options</span>, <span class="hc-comp astro-awthgajc">summary</span>])
+
+<span class="hc-comp astro-awthgajc">hero</span> = <span class="hc-fn astro-awthgajc">Card</span>(<span class="hc-fn astro-awthgajc">Column</span>([
+  <span class="hc-fn astro-awthgajc">Image</span>(<span class="hc-str astro-awthgajc">"https://example.com/kyoto.jpg"</span>, variant=<span class="hc-str astro-awthgajc">"header"</span>),
+  <span class="hc-fn astro-awthgajc">Text</span>(<span class="hc-str astro-awthgajc">"Kyoto Weekend Escape · Oct 16–18"</span>)
+]))
+</span><span class="hc-chunk astro-awthgajc" data-chunk="1"><span class="hc-path astro-awthgajc">$/cabin</span> = [<span class="hc-str astro-awthgajc">"reserved"</span>]
+<span class="hc-path astro-awthgajc">$/guests</span> = <span class="hc-num astro-awthgajc">2</span>
+<span class="hc-path astro-awthgajc">$/onsen</span> = <span class="hc-num astro-awthgajc">true</span>
+<span class="hc-comp astro-awthgajc">options</span> = <span class="hc-fn astro-awthgajc">Card</span>(<span class="hc-fn astro-awthgajc">Column</span>([
+  <span class="hc-fn astro-awthgajc">Row</span>([<span class="hc-fn astro-awthgajc">Icon</span>(<span class="hc-str astro-awthgajc">"arrowForward"</span>), <span class="hc-fn astro-awthgajc">Text</span>(<span class="hc-str astro-awthgajc">"Shinkansen · Tokyo → Kyoto"</span>)]),
+  <span class="hc-fn astro-awthgajc">ChoicePicker</span>(
+    options=[
+      &#123;label: <span class="hc-str astro-awthgajc">"Reserved"</span>, value: <span class="hc-str astro-awthgajc">"reserved"</span>&#125;,
+      &#123;label: <span class="hc-str astro-awthgajc">"Green Car"</span>, value: <span class="hc-str astro-awthgajc">"green"</span>&#125;
+    ],
+    value=<span class="hc-path astro-awthgajc">$/cabin</span>, displayStyle=<span class="hc-str astro-awthgajc">"chips"</span>
+  ),
+  <span class="hc-fn astro-awthgajc">Slider</span>(<span class="hc-str astro-awthgajc">"Guests"</span>, <span class="hc-num astro-awthgajc">1</span>, <span class="hc-num astro-awthgajc">4</span>, <span class="hc-path astro-awthgajc">$/guests</span>, <span class="hc-num astro-awthgajc">3</span>),
+  <span class="hc-fn astro-awthgajc">CheckBox</span>(<span class="hc-str astro-awthgajc">"Private Onsen (+$95)"</span>, <span class="hc-path astro-awthgajc">$/onsen</span>)
+]))
+</span><span class="hc-chunk astro-awthgajc" data-chunk="2"><span class="hc-path astro-awthgajc">$/total</span> = <span class="hc-num astro-awthgajc">1090</span>
+<span class="hc-comp astro-awthgajc">summary</span> = <span class="hc-fn astro-awthgajc">Card</span>(<span class="hc-fn astro-awthgajc">Column</span>([
+  <span class="hc-fn astro-awthgajc">Row</span>(
+    [<span class="hc-fn astro-awthgajc">Text</span>(<span class="hc-str astro-awthgajc">"Estimated Total"</span>), <span class="hc-fn astro-awthgajc">Text</span>(<span class="hc-fn astro-awthgajc">formatCurrency</span>(<span class="hc-path astro-awthgajc">$/total</span>, <span class="hc-str astro-awthgajc">"USD"</span>, <span class="hc-num astro-awthgajc">0</span>))],
+    <span class="hc-str astro-awthgajc">"spaceBetween"</span>
+  ),
+  <span class="hc-fn astro-awthgajc">Button</span>(
+    <span class="hc-fn astro-awthgajc">Text</span>(<span class="hc-str astro-awthgajc">"Hold Itinerary"</span>), <span class="hc-str astro-awthgajc">"primary"</span>,
+    <span class="hc-kw astro-awthgajc">Event</span>(<span class="hc-str astro-awthgajc">"confirm_trip"</span>, &#123;guests: <span class="hc-path astro-awthgajc">$/guests</span>, cabin: <span class="hc-path astro-awthgajc">$/cabin</span>, onsen: <span class="hc-path astro-awthgajc">$/onsen</span>&#125;)
+  )
+]))
+<span class="hc-kw astro-awthgajc">&lt;/a2ui&gt;</span></span><span class="hc-caret astro-awthgajc" data-hc-el="caret-express" aria-hidden="true"></span></pre> </div> <!-- Subtle Single-Line Local dataModel Footer --> <div class="hc-datamodel astro-awthgajc" id="hc-datamodel-box" aria-label="Local client dataModel"> <span class="hc-datamodel__label astro-awthgajc">dataModel</span> <div class="hc-datamodel__pills astro-awthgajc"> <span class="hc-dm-kv astro-awthgajc" data-dm-stage="1" id="hc-dm-cabin"> <code class="astro-awthgajc">/cabin</code>: <strong id="hc-dm-cabin-val" class="astro-awthgajc">["reserved"]</strong> </span> <span class="hc-dm-kv astro-awthgajc" data-dm-stage="1" id="hc-dm-guests"> <code class="astro-awthgajc">/guests</code>: <strong id="hc-dm-guests-val" class="astro-awthgajc">2</strong> </span> <span class="hc-dm-kv astro-awthgajc" data-dm-stage="1" id="hc-dm-onsen"> <code class="astro-awthgajc">/onsen</code>: <strong id="hc-dm-onsen-val" class="astro-awthgajc">true</strong> </span> <span class="hc-dm-kv hc-dm-kv--accent astro-awthgajc" data-dm-stage="2" id="hc-dm-total"> <code class="astro-awthgajc">/total</code>: <strong id="hc-dm-total-val" class="astro-awthgajc">1090</strong> </span> </div> </div> </div> </div> <!-- CENTER: Slim, Minimal Stream Connector --> <div class="hc-bridge astro-awthgajc" aria-hidden="true"> <div class="hc-bridge__pills astro-awthgajc"> <div class="hc-wire-pill astro-awthgajc" data-hc-el="wire-stream"> <span class="hc-wire-pill__name astro-awthgajc">stream</span> <span class="hc-wire-pill__dir hc-dir-desk astro-awthgajc">→</span> <span class="hc-wire-pill__dir hc-dir-stack astro-awthgajc">↑</span> </div> <div class="hc-wire-pill hc-wire-pill--return astro-awthgajc" data-hc-el="wire-action"> <span class="hc-wire-pill__dir hc-dir-desk astro-awthgajc">←</span> <span class="hc-wire-pill__dir hc-dir-stack astro-awthgajc">↓</span> <span class="hc-wire-pill__name astro-awthgajc">action</span> </div> </div> </div> <!-- RIGHT: Spacious, Prominent Mobile Chat UI (100% 1-to-1 with Express) --> <div class="hc-device-col astro-awthgajc"> <div class="hc-phone astro-awthgajc"> <div class="hc-phone__screen astro-awthgajc"> <!-- Minimal Chat Header --> <div class="hc-appbar astro-awthgajc"> <div class="hc-appbar__avatar astro-awthgajc" aria-hidden="true"> <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="astro-awthgajc"> <path d="M12 3l2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2L12 3z" class="astro-awthgajc"></path> </svg> </div> <div class="hc-appbar__name astro-awthgajc">Travel Concierge</div> </div> <!-- Chat Conversation (Fixed-Height Container: No Expansion Jumps) --> <div class="hc-chat astro-awthgajc"> <!-- User Prompt Bubble --> <div class="hc-msg-user astro-awthgajc"> <div class="hc-msg-user__bubble astro-awthgajc">
+Plan a weekend in Kyoto for 2 with bullet train and a ryokan stay.
+</div> </div> <!-- Agent Response + 1-to-1 Streamed A2UI Surface --> <div class="hc-msg-agent astro-awthgajc" id="hc-agent-reply"> <div class="hc-msg-agent__lead astro-awthgajc" data-hc-el="agent-lead">
+Here's a customizable weekend itinerary:
+</div> <!-- Root Column([hero, options, summary]) with Fixed Height --> <div class="hc-surface astro-awthgajc" data-hc-el="surface-card"> <!-- CARD 1: hero = Card(Column([Image(..., variant="header"), Text("Kyoto Weekend Escape · Oct 16–18")])) --> <div class="hc-ui-stage hc-card hc-card--hero astro-awthgajc" data-ui-stage="0"> <div class="hc-hero-img astro-awthgajc" aria-hidden="true"> <svg class="hc-hero-art astro-awthgajc" viewBox="0 0 400 94" preserveAspectRatio="xMaxYMid slice"> <defs class="astro-awthgajc"> <linearGradient id="hc-kyoto-sky" x1="0" y1="0" x2="1" y2="1" class="astro-awthgajc"> <stop offset="0%" stop-color="#1e1714" class="astro-awthgajc"></stop> <stop offset="52%" stop-color="#4e2d23" class="astro-awthgajc"></stop> <stop offset="100%" stop-color="#c86d51" class="astro-awthgajc"></stop> </linearGradient> <linearGradient id="hc-sun-glow" x1="0" y1="0" x2="0" y2="1" class="astro-awthgajc"> <stop offset="0%" stop-color="#fed7aa" stop-opacity="0.78" class="astro-awthgajc"></stop> <stop offset="100%" stop-color="#ea580c" stop-opacity="0" class="astro-awthgajc"></stop> </linearGradient> </defs> <rect width="400" height="94" fill="url(#hc-kyoto-sky)" class="astro-awthgajc"></rect> <circle cx="318" cy="36" r="24" fill="url(#hc-sun-glow)" class="astro-awthgajc"></circle> <circle cx="318" cy="32" r="10" fill="#fef3c7" opacity="0.92" class="astro-awthgajc"></circle> <path d="M0 70 Q65 42 135 58 T275 52 T400 60 L400 94 L0 94 Z" fill="#2d1f1a" opacity="0.88" class="astro-awthgajc"></path> <path d="M0 78 Q100 58 195 72 T400 66 L400 94 L0 94 Z" fill="#1b1310" class="astro-awthgajc"></path> <!-- Pagoda silhouette --> <g fill="#120c0a" transform="translate(268, 22)" class="astro-awthgajc"> <rect x="11" y="0" width="2" height="9" class="astro-awthgajc"></rect> <path d="M3 12 L12 7 L21 12 Z" class="astro-awthgajc"></path> <path d="M1 20 L12 14 L23 20 Z" class="astro-awthgajc"></path> <path d="M-1 29 L12 22 L25 29 Z" class="astro-awthgajc"></path> <rect x="7" y="29" width="10" height="24" class="astro-awthgajc"></rect> </g> <!-- Torii gate --> <g transform="translate(326, 38)" class="astro-awthgajc"> <path d="M2 8 Q18 4 34 8 L33 12 Q18 9 3 12 Z" fill="#d45b3e" class="astro-awthgajc"></path> <rect x="6" y="15" width="24" height="3" rx="1" fill="#e06d4f" class="astro-awthgajc"></rect> <rect x="9" y="11" width="3.2" height="34" fill="#d45b3e" class="astro-awthgajc"></rect> <rect x="23.8" y="11" width="3.2" height="34" fill="#d45b3e" class="astro-awthgajc"></rect> </g> </svg> </div> <div class="hc-hero-title astro-awthgajc">Kyoto Weekend Escape · Oct 16–18</div> </div> <!-- CARD 2: options = Card(Column([Row([Icon("arrowForward"), Text(...)]), ChoicePicker(...), Slider(...), CheckBox(...)])) --> <div class="hc-ui-stage hc-card astro-awthgajc" data-ui-stage="1"> <!-- Row([Icon("arrowForward"), Text("Shinkansen · Tokyo → Kyoto")]) --> <div class="hc-row-inline astro-awthgajc"> <span class="hc-icon-arrow astro-awthgajc" aria-hidden="true">→</span> <span class="hc-card__title astro-awthgajc">Shinkansen · Tokyo → Kyoto</span> </div> <!-- ChoicePicker(options=[...], value=$/cabin, displayStyle="chips") --> <div class="hc-chips astro-awthgajc" role="radiogroup" aria-label="Shinkansen cabin class"> <button type="button" role="radio" aria-checked="true" tabindex="0" class="hc-chip is-selected astro-awthgajc" data-cabin="reserved">
+Reserved
+</button> <button type="button" role="radio" aria-checked="false" tabindex="-1" class="hc-chip astro-awthgajc" data-cabin="green" id="hc-green-chip">
+Green Car
+</button> </div> <!-- Slider("Guests", 1, 4, $/guests, 3) --> <div class="hc-slider-row astro-awthgajc"> <label class="hc-slider-row__lbl astro-awthgajc" for="hc-guest-slider"> <span class="astro-awthgajc">Guests</span> <strong id="hc-guests-label" class="astro-awthgajc">2</strong> </label> <input type="range" id="hc-guest-slider" class="hc-guest-slider astro-awthgajc" min="1" max="4" step="1" value="2" aria-valuetext="2"> </div> <!-- CheckBox("Private Onsen (+$95)", $/onsen) --> <button type="button" role="checkbox" aria-checked="true" class="hc-checkbox is-checked astro-awthgajc" id="hc-onsen-btn"> <span class="hc-checkbox__box astro-awthgajc" aria-hidden="true">✓</span> <span class="hc-checkbox__label astro-awthgajc">Private Onsen (+$95)</span> </button> </div> <!-- CARD 3: summary = Card(Column([Row([Text("Estimated Total"), Text(formatCurrency(...))], "spaceBetween"), Button(...)])) --> <div class="hc-ui-stage hc-card hc-card--summary astro-awthgajc" data-ui-stage="2"> <div class="hc-total-row astro-awthgajc"> <span class="hc-total-row__label astro-awthgajc">Estimated Total</span> <strong class="hc-total-row__val astro-awthgajc" id="hc-total-price">$1,090</strong> </div> <button type="button" class="hc-cta-btn astro-awthgajc" id="hc-hold-btn"> <span id="hc-hold-btn-label" class="astro-awthgajc">Hold Itinerary</span> </button> </div> <!-- Streaming Skeleton Placeholder (Fills remaining height while surface is building) --> <div class="hc-skeleton astro-awthgajc" data-hc-el="skeleton" hidden aria-hidden="true"> <div class="hc-skeleton__bar hc-skeleton__bar--w60 astro-awthgajc"></div> <div class="hc-skeleton__bar hc-skeleton__bar--w90 astro-awthgajc"></div> </div> </div> <!-- Subtle Action Sent Pill (Appears below surface when Hold Itinerary is clicked) --> <div class="hc-chat-confirm astro-awthgajc" id="hc-chat-confirm" hidden>
+✓ Sent <code class="astro-awthgajc">confirm_trip</code> (<span data-hc-el="confirm-total" class="astro-awthgajc">$1,090</span>)
+</div> </div> </div> </div> </div> </div> </div> <!-- Hidden Machine-Readable Diagram Spec --> <script type="text/vnd.mermaid" data-agent-diagram="spec" style="display: none;">sequenceDiagram
+  actor User as Mobile Chat User
+  participant App as Mobile Renderer SDK
+  participant Agent as Agent + A2UI Agent SDK
+  User->>Agent: "Plan a weekend in Kyoto for 2 with bullet train and a ryokan stay."
+  Agent-->>App: Stream <a2ui> Express (surface "kyoto_trip": hero, options, summary)
+  App-->>User: Progressively mounts native UI cards bound to local dataModel
+  User->>App: Adjusts cabin chips, Guests slider, Private Onsen checkbox (0ms local dataModel sync)
+  User->>App: Taps Hold Itinerary
+  App->>Agent: Event("confirm_trip", {guests, cabin, onsen})</script> </div>  <script>
+  (function () {
+    const root = document.getElementById('hero-chat-visual');
+    if (!root) return;
+
+    const DURATION_MS = 4200;
+
+    // 3 synchronized stages matching the 3 Express cards (hero, options, summary)
+    const STAGES = [
+      { idx: 0, codeStart: 80, codeEnd: 1250, uiAppear: 1250 },
+      { idx: 1, codeStart: 1350, codeEnd: 2850, uiAppear: 2850 },
+      { idx: 2, codeStart: 2950, codeEnd: 4120, uiAppear: 4120 },
+    ];
+
+    function q(sel) {
+      return root.querySelector(sel);
+    }
+
+    function qa(sel) {
+      return Array.from(root.querySelectorAll(sel));
+    }
+
+    function indexCodeContainer(preEl) {
+      return Array.from(preEl.querySelectorAll('.hc-chunk')).map((chunkEl) => {
+        const nodes = [];
+        let total = 0;
+        const walker = document.createTreeWalker(chunkEl, NodeFilter.SHOW_TEXT);
+        let current = walker.nextNode();
+        while (current) {
+          const full = current.nodeValue || '';
+          nodes.push({ node: current, full, start: total, end: total + full.length });
+          total += full.length;
+          current = walker.nextNode();
+        }
+        return { el: chunkEl, nodes, total };
+      });
+    }
+
+    const expressPre = q('#hc-code-express');
+    const expressChunks = indexCodeContainer(expressPre);
+
+    const caretExpress = q('[data-hc-el="caret-express"]');
+    const agentDot = q('[data-hc-el="agent-dot"]');
+    const agentLead = q('[data-hc-el="agent-lead"]');
+    const surfaceCard = q('[data-hc-el="surface-card"]');
+    const skeleton = q('[data-hc-el="skeleton"]');
+    const restartBtn = q('#hc-restart-btn');
+    const chatConfirm = q('#hc-chat-confirm');
+
+    const wireStream = q('[data-hc-el="wire-stream"]');
+    const wireAction = q('[data-hc-el="wire-action"]');
+
+    const uiStageEls = qa('[data-ui-stage]');
+    const dmEls = qa('[data-dm-stage]');
+
+    const INITIAL_EST_USD = 1090;
+    const model = {
+      guests: 2,
+      cabin: 'reserved',
+      onsen: true,
+      estUsd: INITIAL_EST_USD,
+      held: false,
+    };
+
+    const flashTimers = new Map();
+    let actionPulseTimer = 0;
+
+    const visibleUiSet = new Set([0, 1, 2]);
+
+    let elapsedMs = DURATION_MS;
+    let isPlaying = false;
+    let hasUserOrAutoStarted = false;
+    let rafId = 0;
+    let lastTs = 0;
+
+    function computeTotalUsd() {
+      const railPerGuest = model.cabin === 'green' ? 167 : 135;
+      const railCost = railPerGuest * model.guests;
+      const extraGuestStay = Math.max(0, model.guests - 2) * 140;
+      const stayCost = 725 + extraGuestStay + (model.onsen ? 95 : 0);
+      return railCost + stayCost;
+    }
+
+    function applyCodeProgress(chunks, caretEl, ms) {
+      let activeChunkEl = null;
+      chunks.forEach((chunk, i) => {
+        const cfg = STAGES[i];
+        if (ms < cfg.codeStart) {
+          chunk.el.hidden = true;
+          chunk.el.classList.remove('is-streaming', 'is-done');
+          return;
+        }
+        chunk.el.hidden = false;
+        const ratio = Math.min(1, (ms - cfg.codeStart) / (cfg.codeEnd - cfg.codeStart));
+        const charBudget = ratio >= 1 ? chunk.total : Math.floor(ratio * chunk.total);
+
+        for (let k = 0; k < chunk.nodes.length; k++) {
+          const item = chunk.nodes[k];
+          if (charBudget >= item.end) {
+            if (item.node.nodeValue !== item.full) item.node.nodeValue = item.full;
+          } else if (charBudget <= item.start) {
+            if (item.node.nodeValue !== '') item.node.nodeValue = '';
+          } else {
+            item.node.nodeValue = item.full.slice(0, charBudget - item.start);
+          }
+        }
+
+        const streamingThis = ratio < 1 && ms < DURATION_MS;
+        chunk.el.classList.toggle('is-streaming', streamingThis);
+        chunk.el.classList.toggle('is-done', ratio >= 1);
+        if (streamingThis) activeChunkEl = chunk.el;
+      });
+
+      if (activeChunkEl && isPlaying) {
+        activeChunkEl.appendChild(caretEl);
+        caretEl.classList.add('is-visible');
+      } else {
+        caretEl.classList.remove('is-visible');
+      }
+    }
+
+    function syncActionFeedback(clamped) {
+      const showHeld = model.held && clamped >= STAGES[2].uiAppear;
+      chatConfirm.hidden = !showHeld;
+      wireAction.classList.toggle('is-sent', showHeld);
+      if (!showHeld) {
+        wireAction.classList.remove('is-pulsing');
+      }
+    }
+
+    function renderTimeline(ms) {
+      const clamped = Math.max(0, Math.min(DURATION_MS, ms));
+      const streaming = clamped < DURATION_MS;
+
+      agentDot.classList.toggle('is-streaming', streaming && isPlaying);
+
+      applyCodeProgress(expressChunks, caretExpress, clamped);
+
+      agentLead.classList.toggle('is-hidden-stage', clamped < 120);
+      surfaceCard.classList.toggle('is-hidden-stage', clamped < 240);
+      surfaceCard.classList.toggle('is-streaming', streaming && clamped >= 240);
+
+      uiStageEls.forEach((el) => {
+        const idx = Number(el.getAttribute('data-ui-stage'));
+        const cfg = STAGES[idx];
+        const show = clamped >= cfg.uiAppear;
+        if (show) {
+          el.classList.remove('is-hidden-stage');
+          if (!visibleUiSet.has(idx)) {
+            visibleUiSet.add(idx);
+            el.classList.remove('is-entering');
+            void el.offsetWidth;
+            el.classList.add('is-entering');
+          }
+        } else {
+          visibleUiSet.delete(idx);
+          el.classList.remove('is-entering');
+          el.classList.add('is-hidden-stage');
+        }
+      });
+
+      skeleton.hidden = !(clamped >= 240 && clamped < STAGES[2].uiAppear);
+
+      dmEls.forEach((el) => {
+        const reqStage = Number(el.getAttribute('data-dm-stage'));
+        const ready = clamped >= STAGES[reqStage].codeEnd;
+        el.classList.toggle('is-pending', !ready);
+      });
+
+      wireStream.classList.toggle('is-pulsing', streaming && clamped >= 80);
+      wireStream.classList.toggle('is-sent', clamped >= 80);
+
+      syncActionFeedback(clamped);
+    }
+
+    function tick(now) {
+      if (!isPlaying) return;
+      if (!lastTs) lastTs = now;
+      const dt = Math.min(now - lastTs, 100);
+      lastTs = now;
+      elapsedMs = Math.min(DURATION_MS, elapsedMs + dt);
+      renderTimeline(elapsedMs);
+      if (elapsedMs >= DURATION_MS) {
+        isPlaying = false;
+        renderTimeline(DURATION_MS);
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+    }
+
+    function resetModelState() {
+      model.guests = 2;
+      model.cabin = 'reserved';
+      model.onsen = true;
+      model.estUsd = INITIAL_EST_USD;
+      model.held = false;
+      if (actionPulseTimer) {
+        clearTimeout(actionPulseTimer);
+        actionPulseTimer = 0;
+      }
+      flashTimers.forEach((tid) => clearTimeout(tid));
+      flashTimers.clear();
+      dmEls.forEach((el) => el.classList.remove('is-flash'));
+      wireAction.classList.remove('is-pulsing', 'is-sent');
+      renderMobileDataModel();
+    }
+
+    function startPlayback() {
+      hasUserOrAutoStarted = true;
+      cancelAnimationFrame(rafId);
+      resetModelState();
+      elapsedMs = 0;
+      visibleUiSet.clear();
+      isPlaying = true;
+      lastTs = 0;
+      renderTimeline(elapsedMs);
+      rafId = requestAnimationFrame(tick);
+    }
+
+    restartBtn.addEventListener('click', () => {
+      startPlayback();
+    });
+
+    function flashDataModelPill(id) {
+      const el = q(`#${id}`);
+      if (!el) return;
+      if (flashTimers.has(id)) {
+        clearTimeout(flashTimers.get(id));
+      }
+      el.classList.remove('is-flash');
+      void el.offsetWidth;
+      el.classList.add('is-flash');
+      const tid = setTimeout(() => {
+        el.classList.remove('is-flash');
+        flashTimers.delete(id);
+      }, 450);
+      flashTimers.set(id, tid);
+    }
+
+    function renderMobileDataModel() {
+      const guestSlider = q('#hc-guest-slider');
+      guestSlider.value = String(model.guests);
+      guestSlider.setAttribute('aria-valuetext', String(model.guests));
+      q('#hc-guests-label').textContent = String(model.guests);
+
+      const onsenBtn = q('#hc-onsen-btn');
+      onsenBtn.classList.toggle('is-checked', model.onsen);
+      onsenBtn.setAttribute('aria-checked', String(model.onsen));
+
+      qa('[data-cabin]').forEach((btn) => {
+        const sel = btn.getAttribute('data-cabin') === model.cabin;
+        btn.classList.toggle('is-selected', sel);
+        btn.setAttribute('aria-checked', String(sel));
+        btn.tabIndex = sel ? 0 : -1;
+      });
+
+      model.estUsd = computeTotalUsd();
+      q('#hc-total-price').textContent = `$${model.estUsd.toLocaleString('en-US')}`;
+
+      const holdBtn = q('#hc-hold-btn');
+      const holdLbl = q('#hc-hold-btn-label');
+      holdBtn.classList.toggle('is-confirmed', model.held);
+      holdLbl.textContent = model.held ? '✓ Itinerary Held' : 'Hold Itinerary';
+
+      syncActionFeedback(elapsedMs);
+
+      q('#hc-dm-guests-val').textContent = String(model.guests);
+      q('#hc-dm-cabin-val').textContent = `["${model.cabin}"]`;
+      q('#hc-dm-onsen-val').textContent = String(model.onsen);
+      q('#hc-dm-total-val').textContent = String(model.estUsd);
+    }
+
+    function markLocalEdit(pillId) {
+      model.held = false;
+      if (actionPulseTimer) {
+        clearTimeout(actionPulseTimer);
+        actionPulseTimer = 0;
+      }
+      wireAction.classList.remove('is-pulsing', 'is-sent');
+      renderMobileDataModel();
+      flashDataModelPill(pillId);
+      flashDataModelPill('hc-dm-total');
+    }
+
+    qa('[role="radiogroup"]').forEach((group) => {
+      group.addEventListener('keydown', (e) => {
+        if (
+          e.key !== 'ArrowRight' &&
+          e.key !== 'ArrowDown' &&
+          e.key !== 'ArrowLeft' &&
+          e.key !== 'ArrowUp'
+        ) {
+          return;
+        }
+        const radios = Array.from(group.querySelectorAll('[role="radio"]'));
+        const idx = radios.indexOf(document.activeElement);
+        if (idx === -1) return;
+        e.preventDefault();
+        const dir = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1;
+        const next = radios[(idx + dir + radios.length) % radios.length];
+        next.focus();
+        next.click();
+      });
+    });
+
+    qa('[data-cabin]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        model.cabin = btn.getAttribute('data-cabin');
+        markLocalEdit('hc-dm-cabin');
+      });
+    });
+
+    q('#hc-guest-slider').addEventListener('input', (e) => {
+      model.guests = Math.max(1, Math.min(4, Number(e.target.value)));
+      markLocalEdit('hc-dm-guests');
+    });
+
+    q('#hc-onsen-btn').addEventListener('click', () => {
+      model.onsen = !model.onsen;
+      markLocalEdit('hc-dm-onsen');
+    });
+
+    q('#hc-hold-btn').addEventListener('click', () => {
+      model.held = true;
+      renderMobileDataModel();
+      flashDataModelPill('hc-dm-total');
+      q('[data-hc-el="confirm-total"]').textContent = `$${model.estUsd.toLocaleString('en-US')}`;
+      if (actionPulseTimer) clearTimeout(actionPulseTimer);
+      wireAction.classList.add('is-pulsing', 'is-sent');
+      actionPulseTimer = setTimeout(() => {
+        wireAction.classList.remove('is-pulsing');
+        actionPulseTimer = 0;
+      }, 900);
+    });
+
+    renderMobileDataModel();
+
+    const prefersReducedMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReducedMotion) {
+      renderTimeline(DURATION_MS);
+    } else if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              observer.disconnect();
+              if (!hasUserOrAutoStarted) {
+                startPlayback();
+              }
+            }
+          });
+        },
+        { threshold: 0.25 },
+      );
+      observer.observe(root);
+    } else {
+      startPlayback();
+    }
+  })();
+</script> </div> </section> <!-- =====================================================================
            2. THE GENERATIVE UI SPECTRUM
            ===================================================================== --> <section class="a2-section a2-section--alt" id="spectrum"> <div class="a2-container"> <div class="a2-section-intro"> <span class="a2-eyebrow">01 · THE GENERATIVE UI SPECTRUM</span> <h2 class="a2-h2">No single Generative UI pattern fits every screen. A2UI gives you the entire spectrum.</h2> <p class="a2-lead">
 Across production agentic apps, UI needs live along a spectrum—from <strong>full developer control over every pixel</strong> to <strong>full agent autonomy over the rendered surface</strong>. Picking a single band for your entire product is the most common architectural mistake. With A2UI, one protocol and one renderer investment covers every band.
@@ -161,6 +570,7 @@ Run a working Gemini + A2UI agent in 5 minutes or inspect the full v1.0 protocol
 
         document.querySelectorAll('[role="tablist"]').forEach((tablist) => {
           tablist.addEventListener('keydown', (e) => {
+            if (e.defaultPrevented) return;
             if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
             const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
             const idx = tabs.indexOf(document.activeElement);
@@ -172,47 +582,7 @@ Run a working Gemini + A2UI agent in 5 minutes or inspect the full v1.0 protocol
           });
         });
 
-        // 2. Travel Booking Interactive Surface
-        const state = { outPax: 1, retPax: 2, premium: false, bags: true, booked: false };
-        function renderTravel() {
-          const outUnit = state.premium ? 455 + 280 : 455;
-          const retUnit = state.premium ? 498 + 280 : 498;
-          const outSub = outUnit * state.outPax;
-          const retSub = retUnit * state.retPax;
-          const total = outSub + retSub + (state.bags ? 65 : 0);
-
-          document.getElementById('out-pax-label').textContent = state.outPax + (state.outPax === 1 ? ' Passenger' : ' Passengers');
-          document.getElementById('ret-pax-label').textContent = state.retPax + (state.retPax === 1 ? ' Passenger' : ' Passengers');
-          document.getElementById('out-price').textContent = '€' + outSub.toLocaleString();
-          document.getElementById('ret-price').textContent = '€' + retSub.toLocaleString() + ' (€' + retUnit + ' × ' + state.retPax + ')';
-          document.getElementById('travel-total').textContent = '€' + total.toLocaleString();
-          document.getElementById('datamodel-code').textContent =
-            `$/outbound/pax = ${state.outPax}  ·  $/return/pax = ${state.retPax}  ·  $/cabin = "${state.premium ? 'premium' : 'economy'}"  ·  $/totalEur = ${total}`;
-        }
-
-        document.addEventListener('click', (e) => {
-          const btn = e.target.closest('[data-action]');
-          if (!btn) return;
-          const act = btn.getAttribute('data-action');
-          if (act === 'out-inc') state.outPax = Math.min(6, state.outPax + 1);
-          if (act === 'out-dec') state.outPax = Math.max(1, state.outPax - 1);
-          if (act === 'ret-inc') state.retPax = Math.min(6, state.retPax + 1);
-          if (act === 'ret-dec') state.retPax = Math.max(1, state.retPax - 1);
-          if (act === 'toggle-premium') {
-            state.premium = !state.premium;
-            btn.classList.toggle('is-active', state.premium);
-          }
-          if (act === 'toggle-bags') {
-            state.bags = !state.bags;
-            btn.classList.toggle('is-active', state.bags);
-          }
-          if (act === 'book-trip') {
-            btn.textContent = '✓ Confirmed (actionResponse #A2UI-849)';
-          }
-          renderTravel();
-        });
-
-        // 3. Generative UI Spectrum Switcher
+        // 2. Generative UI Spectrum Switcher
         const bands = {
           prebuilt: {
             title: 'Band 1: Prebuilt UIs & Fixed Schema (Deterministic SDUI)',
@@ -302,7 +672,7 @@ root = Card(Column([
           });
         });
 
-        // 4. Placeholder App Examples Tabs (Scrubbed Names + Placeholder UIs)
+        // 3. Placeholder App Examples Tabs (Scrubbed Names + Placeholder UIs)
         function buildPlaceholderHtml(label, assetFile) {
           return `<div class="a2-ui-placeholder-frame">
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -421,7 +791,7 @@ root = Card(Column([
           });
         });
 
-        // 5. Consolidated "Why A2UI?" 3-Pillar Switcher
+        // 4. Consolidated "Why A2UI?" 3-Pillar Switcher
         document.querySelectorAll('[data-why-tab]').forEach((card) => {
           card.addEventListener('click', () => {
             const target = card.getAttribute('data-why-tab');
@@ -436,7 +806,7 @@ root = Card(Column([
           });
         });
 
-        // 6. Native Platform Renderer Switcher
+        // 5. Native Platform Renderer Switcher
         const platforms = {
           swiftui: {
             chrome: 'iOS 18 / macOS Sequoia · Native SwiftUI Views',
