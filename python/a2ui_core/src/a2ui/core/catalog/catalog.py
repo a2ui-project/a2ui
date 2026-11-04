@@ -708,6 +708,14 @@ def _with_agent_functions(
             merged.append(agent_function)
         elif agent_function.declaration is merged[position]:
             merged[position] = agent_function
+        elif agent_function.declaration is not None:
+            raise A2uiCatalogError(
+                f"Agent function '{name}' was built with"
+                " `AgentFunction.from_api` from a different declaration than"
+                f" the one in catalog '{catalog_id}' (for example, from a"
+                " reloaded or copied catalog); build it from this catalog's"
+                " entry."
+            )
         else:
             raise _agent_function_name_taken(catalog_id, name)
     return merged
@@ -1143,6 +1151,24 @@ class _ResolvedSchemas:
     theme: dict[str, Any]
 
 
+def _agent_function_args_schema(fn: AgentFunction) -> Any:
+    """The JSON Schema of an agent function's `args`, as far as it has one."""
+    schema = fn.schema
+    if isinstance(schema, type) and issubclass(schema, BaseModel):
+        return schema.model_json_schema()
+    if not isinstance(schema, dict):
+        return None
+    props = schema.get("properties")
+    if isinstance(props, dict) and isinstance(props.get("args"), dict):
+        return props["args"]
+    for key in ("args", "parameters"):
+        if isinstance(schema.get(key), dict):
+            return schema[key]
+    if isinstance(props, dict) and ("@call" in props or "call" in props):
+        return None
+    return schema
+
+
 def _parameter_names(schema: Any) -> list[str]:
     """Extracts declared parameter names from a function argument schema."""
     if not isinstance(schema, dict):
@@ -1364,6 +1390,13 @@ class Catalog(Generic[TComponent, TFunction]):
                 raise A2uiCatalogError(
                     f"Invalid UAX #31 function identifier: '{fn.name}'"
                 )
+            if validate_identifiers and isinstance(fn, AgentFunction):
+                for arg_name in _parameter_names(_agent_function_args_schema(fn)):
+                    if not is_valid_uax31_identifier(arg_name):
+                        raise A2uiCatalogError(
+                            f"Invalid UAX #31 argument identifier: '{arg_name}'"
+                            f" in agent function '{fn.name}'"
+                        )
             existing = self.functions.get(fn.name)
             if isinstance(fn, AgentFunction) and isinstance(existing, AgentFunction):
                 raise _duplicate_agent_function(catalog_id, fn.name)
@@ -1411,7 +1444,8 @@ class Catalog(Generic[TComponent, TFunction]):
     def agent_functions(self) -> dict[str, AgentFunction]:
         """The catalog's functions that run on the agent, by name.
 
-        Each is also in `functions`.
+        Each is also in `functions`. A copy: changing it leaves the catalog
+        as it is.
         """
         return {
             name: fn
@@ -1420,7 +1454,7 @@ class Catalog(Generic[TComponent, TFunction]):
         }
 
     @property
-    def renderer_functions(self) -> dict[str, FunctionApi]:
+    def renderer_functions(self) -> dict[str, TFunction]:
         """The catalog's functions that are not agent functions, by name.
 
         Each is also in `functions`. A copy: changing it leaves the catalog
@@ -1451,14 +1485,16 @@ class Catalog(Generic[TComponent, TFunction]):
         Args:
             components: The copy's components. None keeps this catalog's.
             functions: The copy's functions. None keeps this catalog's. Agent
-                functions among them stay agent functions.
+                functions among them stay agent functions, even with
+                `agent_functions`.
             defs: The copy's own `$defs`. None keeps this catalog's, except
                 those that only the dropped entries referenced. Defs given
                 here are treated as defined in code.
-            agent_functions: The copy's agent functions, in place of the ones
-                in `functions`. An agent function built with
-                `AgentFunction.from_api` goes back to the entry it was built
-                from. None keeps the agent functions in `functions`.
+            agent_functions: Agent functions to add. With `functions` omitted,
+                they replace this catalog's agent functions: an agent function
+                built with `AgentFunction.from_api` goes back to the entry it
+                was built from, and any other is dropped. With `functions`
+                given, they are added to those functions. None adds none.
 
         Returns:
             A schema-only catalog.
@@ -1468,22 +1504,24 @@ class Catalog(Generic[TComponent, TFunction]):
                 two agent functions share a name, or an agent function built
                 with `AgentFunction.from_api` has no entry to replace.
         """
-        new_functions = list(
-            self.functions.values() if functions is None else functions
-        )
+        new_functions: list[Any]
+        if functions is not None:
+            new_functions = list(functions)
+        elif agent_functions is not None:
+            new_functions = [
+                (
+                    cast(FunctionApi, fn.declaration)
+                    if isinstance(fn, AgentFunction)
+                    else fn
+                )
+                for fn in self.functions.values()
+                if not isinstance(fn, AgentFunction) or fn.declaration is not None
+            ]
+        else:
+            new_functions = list(self.functions.values())
         if agent_functions is not None:
             new_functions = _with_agent_functions(
-                self.catalog_id,
-                [
-                    (
-                        cast(FunctionApi, fn.declaration)
-                        if isinstance(fn, AgentFunction)
-                        else fn
-                    )
-                    for fn in new_functions
-                    if not isinstance(fn, AgentFunction) or fn.declaration is not None
-                ],
-                agent_functions,
+                self.catalog_id, new_functions, agent_functions
             )
         return cast(
             "CatalogApi",

@@ -174,22 +174,12 @@
   it is standalone.
   [#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)
-- (v1_0) Add `AgentFunction`, a catalog function that runs on the agent: a
-  `FunctionApi` with a `handler` that receives the validated arguments and,
-  if it takes a second parameter, an `AgentFunctionContext` (catalog, surface
-  and function call IDs). Add agent functions to a loaded catalog with
-  `Catalog.copy_with(agent_functions=...)`, or to a catalog built in code in
-  its `functions`; validation and `to_json` treat them like any other declared
-  function. `Catalog.agent_functions` lists them, and
-  `Catalog.renderer_functions` lists the other functions. The catalog document
-  never includes the handler. An agent function built directly is
-  `rendererOnly` and needs a name of its own; `AgentFunction.from_api` builds
-  one from a function the catalog declares, which it then replaces, keeps its
-  `allowedCallers`, and rejects an `agentOnly` declaration. A catalog rejects
-  an agent function built from a function it doesn't declare, two agent
-  functions with one name, and agent functions before v1.0. `AgentFunction`,
-  `AgentFunctionContext` and `AgentFunctionHandler` are exported from
-  `a2ui.core`
+- (v1_0) Add `AgentFunction`, `AgentFunctionContext` and `AgentFunctionHandler`
+  (exported from `a2ui.core`) for catalog functions that run on the agent:
+  `AgentFunction(...)` for a `rendererOnly` function defined in code,
+  `AgentFunction.from_api(...)` to bind a catalog declaration, and
+  `with_handler`. `Catalog.copy_with(agent_functions=...)` adds them, and
+  `Catalog.agent_functions` and `Catalog.renderer_functions` list them
   ([#3536](https://github.com/a2ui-project/a2ui/issues/3536),
   [#3792](https://github.com/a2ui-project/a2ui/pull/3792)).
 - Add `Catalog.derive`, which builds a catalog with a new `catalog_id` from

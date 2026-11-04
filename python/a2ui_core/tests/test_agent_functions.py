@@ -19,11 +19,12 @@ from __future__ import annotations
 from typing import Any
 import warnings
 
+from pydantic import BaseModel, Field
 import pytest
 
 from a2ui.core import AgentFunction, AgentFunctionContext, Catalog, CatalogApi
 from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV1_0
-from a2ui.core.catalog import FunctionApi
+from a2ui.core.catalog import FunctionApi, FunctionImplementation
 from a2ui.core.exceptions import A2uiCatalogError, A2uiValidationError
 from a2ui.core.validation import STRICT_VALIDATION, PayloadValidator
 
@@ -171,6 +172,124 @@ class TestAgentFunction:
 
         assert fn.invoke({"a": 1}, CONTEXT) == ({"a": 1}, CONTEXT)
 
+    def test_a_defaulted_second_parameter_is_not_given_the_context(self):
+        sentinel = object()
+
+        def handler(args: dict[str, Any], client: Any = sentinel) -> Any:
+            return client
+
+        fn = AgentFunction("f", handler=handler)
+
+        assert fn.invoke({}, CONTEXT) is sentinel
+
+    @pytest.mark.parametrize("param", ["context", "ctx"])
+    def test_a_defaulted_context_parameter_is_given_the_context(self, param: str):
+        namespace: dict[str, Any] = {}
+        exec(f"def handler(args, {param}=None):\n    return {param}", namespace)
+
+        fn = AgentFunction("f", handler=namespace["handler"])
+
+        assert fn.invoke({}, CONTEXT) is CONTEXT
+
+    def test_a_bound_method_handler(self):
+        class Service:
+
+            def run(self, args: dict[str, Any], context: AgentFunctionContext) -> Any:
+                return context.function_call_id
+
+        fn = AgentFunction("f", handler=Service().run)
+
+        assert fn.invoke({}, CONTEXT) == "call-1"
+
+    @pytest.mark.parametrize(
+        "handler",
+        [lambda: 1, lambda a, b, c: 1, lambda *, args: 1],
+        ids=["no parameters", "three required", "keyword-only"],
+    )
+    def test_rejects_a_handler_of_the_wrong_arity(self, handler: Any):
+        with pytest.raises(TypeError, match=r"\(args\) or \(args, context\)"):
+            AgentFunction("f", handler=handler)
+
+    def test_handler_is_read_only(self):
+        fn = _fetch_fx_rate()
+
+        with pytest.raises(AttributeError):
+            fn.handler = _handler  # type: ignore[misc]
+
+    def test_with_handler_rebinds_a_direct_agent_function(self):
+        fn = _fetch_fx_rate()
+
+        rebound = fn.with_handler(lambda args: 2.0)
+
+        assert rebound is not fn
+        assert fn.handler is _handler
+        assert rebound.invoke({}, CONTEXT) == 2.0
+        assert rebound.name == fn.name
+        assert rebound.schema is fn.schema
+        assert rebound.description == fn.description
+        assert rebound.return_type == fn.return_type
+        assert rebound.allowed_callers == "rendererOnly"
+        assert rebound.declaration is None
+
+    def test_with_handler_keeps_the_declaration(self):
+        declaration = FunctionApi(
+            "consultOracle",
+            schema=FX_RATE_SCHEMA,
+            allowed_callers="rendererOrAgent",
+            description="Asks the oracle.",
+        )
+        fn = AgentFunction.from_api(declaration, _handler)
+
+        rebound = fn.with_handler(lambda args: "yes")
+
+        assert rebound.declaration is declaration
+        assert rebound.allowed_callers == "rendererOrAgent"
+        assert rebound.description == "Asks the oracle."
+        assert rebound.invoke({}, CONTEXT) == "yes"
+
+    def test_with_handler_checks_the_handler(self):
+        with pytest.raises(TypeError):
+            _fetch_fx_rate().with_handler(lambda: 1)
+
+    def test_constructor_has_no_document_parameters(self):
+        for param in ("is_definition", "from_document"):
+            with pytest.raises(TypeError):
+                AgentFunction("f", handler=_handler, **{param: True})
+
+    def test_from_api_copies_the_document_fields(self):
+        declaration = _declaring_catalog().functions["verifyProvider"]
+
+        fn = AgentFunction.from_api(declaration, _handler)
+
+        assert fn.is_definition is declaration.is_definition is True
+        assert fn.from_document is declaration.from_document is True
+
+    def test_from_api_rejects_user_activation_without_renderer_only(self):
+        declaration = FunctionApi(
+            "verifyProvider",
+            schema=VERIFY_PROVIDER_SCHEMA,
+            allowed_callers="rendererOrAgent",
+            requires_user_activation=True,
+        )
+
+        with pytest.raises(A2uiCatalogError, match="user activation"):
+            AgentFunction.from_api(declaration, _handler)
+
+    def test_from_api_accepts_user_activation_on_renderer_only(self):
+        declaration = FunctionApi(
+            "verifyProvider",
+            schema=VERIFY_PROVIDER_SCHEMA,
+            requires_user_activation=True,
+        )
+
+        fn = AgentFunction.from_api(declaration, _handler)
+
+        assert fn.requires_user_activation is True
+
+    def test_context_is_keyword_only(self):
+        with pytest.raises(TypeError):
+            AgentFunctionContext("c", "s", "call-1")  # type: ignore[misc]
+
     def test_invoke_returns_a_coroutine_of_an_async_handler(self):
         async def handler(args: dict[str, Any]) -> Any:
             return args["a"]
@@ -191,7 +310,6 @@ class TestAgentFunction:
             return_type="string",
             schema=FX_RATE_SCHEMA,
             allowed_callers="rendererOrAgent",
-            requires_user_activation=True,
             description="Asks the oracle.",
         )
 
@@ -202,7 +320,7 @@ class TestAgentFunction:
         assert fn.return_type == "string"
         assert fn.schema is declaration.schema
         assert fn.allowed_callers == "rendererOrAgent"
-        assert fn.requires_user_activation is True
+        assert fn.requires_user_activation is False
         assert fn.description == "Asks the oracle."
         assert fn.is_definition == declaration.is_definition
         assert fn.from_document == declaration.from_document
@@ -289,6 +407,55 @@ class TestCatalogAgentFunctions:
         with pytest.raises(A2uiCatalogError, match="Invalid UAX #31"):
             Catalog("c", "1.0", functions=[_fetch_fx_rate("fetch-fx-rate")])
 
+    @pytest.mark.parametrize(
+        "schema",
+        [
+            {"type": "object", "properties": {"target-currency": {"type": "string"}}},
+            {"allOf": [{"properties": {"target-currency": {"type": "string"}}}]},
+            {
+                "type": "object",
+                "properties": {
+                    "@call": {"const": "fetchRate"},
+                    "args": {"properties": {"target-currency": {"type": "string"}}},
+                },
+            },
+        ],
+        ids=["properties", "allOf", "definition"],
+    )
+    def test_rejects_an_agent_function_with_an_invalid_parameter_name(
+        self, schema: dict[str, Any]
+    ):
+        fn = AgentFunction("fetchRate", handler=_handler, schema=schema)
+
+        with pytest.raises(A2uiCatalogError, match="target-currency"):
+            Catalog("c", "1.0", functions=[fn])
+
+    def test_rejects_an_invalid_parameter_name_of_a_pydantic_schema(self):
+        class Args(BaseModel):
+            target: str = Field(alias="target-currency")
+
+        fn = AgentFunction("fetchRate", handler=_handler, schema=Args)
+
+        with pytest.raises(A2uiCatalogError, match="target-currency"):
+            Catalog("c", "1.0", functions=[fn])
+
+    def test_parameter_names_are_not_checked_before_v1_0(self):
+        fn = FunctionApi(
+            "fetchRate",
+            schema={"type": "object", "properties": {"target-currency": {}}},
+        )
+
+        assert list(Catalog("c", "0.9", functions=[fn]).functions) == ["fetchRate"]
+
+    def test_renderer_functions_keeps_the_function_type(self):
+        impl = FunctionImplementation("double", execute=lambda args: args["n"] * 2)
+
+        catalog: Catalog[Any, FunctionImplementation[Any]] = Catalog(
+            "c", "1.0", functions=[impl]
+        )
+
+        assert catalog.renderer_functions["double"].execute({"n": 2}) == 4
+
 
 class TestCatalogDocument:
 
@@ -368,12 +535,57 @@ class TestCopyWith:
         with pytest.raises(A2uiCatalogError, match="has no function named"):
             _basic_catalog().copy_with(agent_functions=[foreign])
 
-    def test_rejects_a_from_api_entry_of_another_entry_with_its_name(self):
+    def test_rejects_a_from_api_entry_of_another_declaration_with_its_name(self):
         catalog = _declaring_catalog()
         other = AgentFunction.from_api(_verify_provider(), _handler)
 
-        with pytest.raises(A2uiCatalogError, match="already declares a function"):
+        with pytest.raises(A2uiCatalogError, match="different declaration"):
             catalog.copy_with(agent_functions=[other])
+
+    def test_rejects_a_from_api_entry_of_a_reloaded_catalog(self):
+        catalog = _declaring_catalog()
+        reloaded = Catalog.from_json(catalog.to_json(), protocol_version="1.0")
+        fn = AgentFunction.from_api(reloaded.functions["verifyProvider"], _handler)
+
+        with pytest.raises(A2uiCatalogError, match="different declaration") as e:
+            catalog.copy_with(agent_functions=[fn])
+        assert "already declares" not in str(e.value)
+
+    def test_keeps_agent_functions_given_in_functions(self):
+        catalog = _basic_catalog()
+        standalone = _fetch_fx_rate()
+        extra = _fetch_fx_rate("quote")
+
+        copy = catalog.copy_with(
+            functions=[*catalog.functions.values(), standalone],
+            agent_functions=[extra],
+        )
+
+        assert copy.agent_functions == {"fetchFxRate": standalone, "quote": extra}
+
+    def test_given_functions_are_not_reverted_to_declarations(self):
+        catalog = _declaring_catalog()
+        fn = AgentFunction.from_api(catalog.functions["verifyProvider"], _handler)
+        with_agent = catalog.copy_with(agent_functions=[fn])
+
+        copy = with_agent.copy_with(
+            functions=list(with_agent.functions.values()), agent_functions=[]
+        )
+
+        assert copy.functions["verifyProvider"] is fn
+
+    def test_rejects_an_invalid_parameter_name(self):
+        fn = AgentFunction(
+            "fetchRate",
+            handler=_handler,
+            schema={
+                "type": "object",
+                "properties": {"target-currency": {"type": "string"}},
+            },
+        )
+
+        with pytest.raises(A2uiCatalogError, match="target-currency"):
+            _basic_catalog().copy_with(agent_functions=[fn])
 
     def test_rejects_two_agent_functions_with_one_name(self):
         with pytest.raises(A2uiCatalogError, match="more than one agent function"):
