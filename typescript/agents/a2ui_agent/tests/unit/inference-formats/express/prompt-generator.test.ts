@@ -31,6 +31,7 @@ import {ExpressPromptGenerator} from '../../../../src/inference-formats/express/
 
 const basicCatalogV10 = loadBasicCatalog('1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
+const basicCatalogV091 = loadBasicCatalog('v0.9.1');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,6 +61,23 @@ describe('ExpressPromptGenerator', () => {
       const rules = new ExpressPromptGenerator([textOnly]).generateBaseRules();
       expect(rules).toContain('root = Text(...)');
       expect(rules).not.toContain('Card(');
+    });
+
+    it('teaches Event userMessage= in rule 8 for v1.0+ catalogs and omits it for v0.9 and v0.9.1', () => {
+      const v10Rules = new ExpressPromptGenerator([basicCatalogV10]).generateBaseRules();
+      expect(v10Rules).toContain('`Event(name, context?, userMessage=...)`');
+      expect(v10Rules).toContain('Event("reply", userMessage="Replying now")');
+      expect(v10Rules).toContain(
+        'Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)',
+      );
+
+      for (const preV10Catalog of [basicCatalogV09, basicCatalogV091]) {
+        const preRules = new ExpressPromptGenerator([preV10Catalog]).generateBaseRules();
+        expect(preRules).toContain(
+          '8. Action events: represent server-side actions using the Event helper:\n   Event("save_deal", {rep: $/form/rep})',
+        );
+        expect(preRules).not.toContain('userMessage=');
+      }
     });
 
     it('generateCatalogInstructions() for the v1.0 basic catalog matches express_catalog_instructions.txt BYTE FOR BYTE', () => {

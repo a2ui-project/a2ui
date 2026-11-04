@@ -87,13 +87,6 @@ public struct A2UITextField: View {
     node.validationResults
   }
 
-  private var validationWarnings: [String] {
-    validationResults.compactMap { result in
-      guard result.severity == .warning || result.severity == .info else { return nil }
-      return result.message
-    }
-  }
-
   private var hasError: Bool {
     !validationErrors.isEmpty
   }
@@ -119,17 +112,7 @@ public struct A2UITextField: View {
         .accessibilityIdentifier("A2UITextField_\(node.id)")
         .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
 
-      if let firstError = validationErrors.first {
-        Text(firstError)
-          .font(.caption)
-          .foregroundStyle(Color.red)
-          .accessibilityIdentifier("A2UITextField_Error_\(node.id)")
-      } else if let firstWarning = validationWarnings.first {
-        Text(firstWarning)
-          .font(.caption)
-          .foregroundStyle(Color.orange)
-          .accessibilityIdentifier("A2UITextField_Warning_\(node.id)")
-      }
+      A2UICheckMessage(node: node, identifierPrefix: "A2UITextField")
     }
   }
 

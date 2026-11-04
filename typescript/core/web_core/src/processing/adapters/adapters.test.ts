@@ -21,6 +21,7 @@ import {A2uiValidationError} from '../../errors.js';
 import {VersionAdapterFactory} from './factory.js';
 import {
   InternalCreateSurfaceOp,
+  InternalOperation,
   InternalUpdateComponentsOp,
   InternalUpdateDataModelOp,
   InternalDeleteSurfaceOp,
@@ -62,6 +63,34 @@ describe('VersionAdapterFactory', () => {
     assert.strictEqual(op.sendDataModel, true);
     assert.deepStrictEqual(op.components, [{id: 'root', component: 'Column'}]);
     assert.deepStrictEqual(op.dataModel, {key: 'value'});
+  });
+
+  it('drops theme on v1.0 createSurface operation extraction and rejects it in strict envelope validation', () => {
+    const adapter = new V1Point0Adapter();
+    const payloadWithTheme = {
+      version: '1.0',
+      createSurface: {
+        surfaceId: 's1',
+        catalogId: 'basic',
+        theme: {primaryColor: '#FF0000'},
+      },
+    };
+
+    assert.throws(
+      () => adapter.extractOperations(payloadWithTheme),
+      (err: unknown) => err instanceof A2uiValidationError && /theme/.test(err.message),
+    );
+
+    const rawOps = (
+      adapter as unknown as {
+        extractOperationsFromObject(msgObj: Record<string, unknown>): InternalOperation[];
+      }
+    ).extractOperationsFromObject(payloadWithTheme);
+    assert.strictEqual(rawOps.length, 1);
+    const op = rawOps[0] as InternalCreateSurfaceOp;
+    assert.strictEqual(op.type, 'createSurface');
+    assert.strictEqual(op.surfaceId, 's1');
+    assert.strictEqual(op.theme, undefined);
   });
 
   it('resolves v0.9 adapter and extracts createSurface operations', () => {

@@ -1956,11 +1956,10 @@ extension CatalogInvokerExtension
         expression: name,
       );
     }
-    final bool atLeastV10 =
-        protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
-    final Map<String, dynamic> callArgs = atLeastV10
-        ? coerceValidationResultArgs(fn.argumentSchema.value, args)
-        : args;
+    final Map<String, dynamic> callArgs = coerceValidationResultArgs(
+      fn.argumentSchema.value,
+      args,
+    );
     final List<ValidationError> errors = argumentErrors(fn, callArgs);
     if (errors.isNotEmpty) {
       throw A2uiExpressionError(
