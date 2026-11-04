@@ -98,21 +98,19 @@ AgentFunction _agentFunction(
 ) {
   final String name = (declaration['name'] as String?) ?? key;
   final behavior = declaration['behavior']! as Map<String, Object?>;
-  final A2uiReturnType returnType = A2uiReturnType.fromJson(
-    (declaration['returnType'] as String?) ?? 'any',
-  );
-  final argumentSchema = Schema.fromMap(
-    (declaration['args'] as Map<String, Object?>?) ??
-        const <String, Object?>{'type': 'object'},
-  );
   final description = declaration['description'] as String?;
   if (declaration['from_api'] == true) {
     final FunctionApi api =
         base.functions[name] ??
         FunctionApi(
           name: name,
-          argumentSchema: argumentSchema,
-          returnType: returnType,
+          argumentSchema: Schema.fromMap(
+            (declaration['args'] as Map<String, Object?>?) ??
+                const <String, Object?>{'type': 'object'},
+          ),
+          returnType: A2uiReturnType.fromJson(
+            (declaration['returnType'] as String?) ?? 'any',
+          ),
           description: description,
         );
     return AgentFunction.fromApi(api, _handler(behavior));
@@ -120,8 +118,10 @@ AgentFunction _agentFunction(
   return AgentFunction(
     name: name,
     handler: _handler(behavior),
-    returnType: returnType,
-    argumentSchema: argumentSchema,
+    returnType: A2uiReturnType.fromJson(declaration['returnType']! as String),
+    argumentSchema: Schema.fromMap(
+      declaration['args']! as Map<String, Object?>,
+    ),
     description: description,
   );
 }
@@ -241,20 +241,22 @@ Future<void> _runHandle(Map<String, Object?> testCase) async {
   expect(result.handled, isTrue);
   expect(result.replies, hasLength(1));
   final Map<String, dynamic> dumped = result.replies.single.toJson();
+  expect(dumped.keys.toSet(), {'version', 'agentFunctionResponse'});
   expect(dumped['version'], '1.0');
   final response = dumped['agentFunctionResponse']! as Map<String, Object?>;
   final expected = testCase['expect']! as Map<String, Object?>;
   expect(response['functionCallId'], expected['functionCallId']);
   if (expected['error'] case final Map<String, Object?> expectedErr) {
-    expect(response, isNot(contains('value')));
+    expect(response.keys.toSet(), {'functionCallId', 'error'});
     final error = response['error']! as Map<String, Object?>;
+    expect(error.keys.toSet(), {'code', 'message'});
+    expect(error['message'], allOf(isA<String>(), isNotEmpty));
     expect(error['code'], expectedErr['code']);
     if (expectedErr['message'] case final String substr) {
       expect(error['message']! as String, contains(substr));
     }
   } else {
-    expect(response, isNot(contains('error')));
-    expect(response, contains('value'));
+    expect(response.keys.toSet(), {'functionCallId', 'value'});
     expect(response['value'], equals(expected['value']));
   }
 }
@@ -378,13 +380,13 @@ Future<void> _runProcess(Map<String, Object?> testCase) async {
 /// out.
 void _expectReply(Map<String, dynamic> actual, Map<String, Object?> expected) {
   final copy = _deepCopy(actual)! as Map<String, Object?>;
-  for (final MapEntry<String, Object?> entry in copy.entries) {
-    final Object? body = entry.value;
-    final Object? expectedBody = expected[entry.key];
-    if (body is! Map<String, Object?> || expectedBody is! Map) continue;
-    final Object? error = body['error'];
-    final Object? expectedError = expectedBody['error'];
-    if (error is! Map<String, Object?> || expectedError is! Map) continue;
+  if (expected['agentFunctionResponse'] case {
+    'error': final Map<Object?, Object?> expectedError,
+  }) {
+    final body = copy['agentFunctionResponse']! as Map<String, Object?>;
+    final error = body['error']! as Map<String, Object?>;
+    expect(error.keys.toSet(), {'code', 'message'});
+    expect(error['message'], allOf(isA<String>(), isNotEmpty));
     if (expectedError['message'] case final String substring) {
       expect(error['message']! as String, contains(substring));
       error['message'] = substring;
