@@ -16,6 +16,7 @@ skills_lint:
   rules:
     check-absolute-paths: error
     check-trailing-whitespace: error
+  # Add new skill roots here; the workflow runs on any SKILL.md change.
   directories:
     - path: ".agents/skills"
     - path: "blueprints/skills"
