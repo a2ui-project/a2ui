@@ -807,66 +807,6 @@ function buildScenarioLocalFunctions(localFunctions, getSurface) {
   return fns;
 }
 
-const EXPECT_ERROR_KNOWN_KEYS = {
-  error: new Set([
-    'category',
-    'code',
-    'details',
-    'functionCallId',
-    'message',
-    'path',
-    'rendererError',
-    'surfaceId',
-  ]),
-  detail: new Set(['code', 'message', 'path', 'surfaceId']),
-  rendererError: new Set(['error', 'version']),
-  rendererErrorPayload: new Set(['code', 'functionCallId', 'message', 'path', 'surfaceId']),
-};
-
-const RPC_KNOWN_KEYS = {
-  case: new Set([
-    'action',
-    'args',
-    'catalog',
-    'description',
-    'expect',
-    'expectError',
-    'features',
-    'name',
-    'protocolVersion',
-  ]),
-  args: new Set([
-    'catalogId',
-    'catalogVersion',
-    'dataModel',
-    'functionMetadata',
-    'inboundResponse',
-    'message',
-    'outboundCall',
-    'secondOutboundCall',
-    'surfaceId',
-    'uiActionFallbackScenario',
-    'uiBindingScenario',
-    'userActivationPresent',
-  ]),
-  uiBindingScenario: new Set(['catalogId', 'component', 'inboundResponseValue', 'surfaceId']),
-  uiActionFallbackScenario: new Set([
-    'actionPayload',
-    'catalogId',
-    'inboundResponseValue',
-    'surfaceId',
-  ]),
-  expect: new Set([
-    'correlatedCallId',
-    'error',
-    'initialValue',
-    'outboundCall',
-    'resolvedValue',
-    'response',
-    'result',
-  ]),
-};
-
 async function validateRpcTestCase(testCase) {
   assertKnownKeys(testCase, RPC_KNOWN_KEYS.case, 'handle_rpc');
   const {args, expect, expectError} = testCase;
