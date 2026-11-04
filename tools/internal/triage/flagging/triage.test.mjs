@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Tests for scripts/triage.mjs. Run with `node --test scripts/`.
+// Tests for triage.mjs. Run with `node --test tools/internal/triage/flagging/`.
 
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -92,7 +92,7 @@ const event = (overrides = {}) => {
 describe('triage workflow', () => {
   it('runs the script from main, whatever the triggering event', () => {
     const workflow = readFileSync(
-      new URL('../.github/workflows/triage.yml', import.meta.url),
+      new URL('../../../../.github/workflows/triage.yml', import.meta.url),
       'utf8',
     );
     const checkout = workflow.match(
