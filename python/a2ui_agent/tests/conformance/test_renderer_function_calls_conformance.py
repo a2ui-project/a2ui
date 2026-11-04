@@ -96,10 +96,15 @@ def _assert_call_state(label: str, actual: Any, expected: Any) -> None:
     if "value" in expected:
         assert actual == expected, f"call {label}: {actual}"
         return
-    assert "error" in actual, f"call {label}: {actual}"
-    assert actual["error"]["code"] == expected["error"]["code"], f"call {label}"
+    assert set(actual) == {"error"}, f"call {label}: {actual}"
+    error = actual["error"]
+    assert set(error) == {"code", "message"}, f"call {label}: {error}"
+    assert (
+        isinstance(error["message"], str) and error["message"]
+    ), f"call {label}: {error}"
+    assert error["code"] == expected["error"]["code"], f"call {label}"
     if "message" in expected["error"]:
-        assert expected["error"]["message"] in actual["error"]["message"]
+        assert expected["error"]["message"] in error["message"]
 
 
 def _catalog(entry: Mapping[str, Any]) -> CatalogApi:
