@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {describe, expect, test, vi} from 'vitest';
+import {afterEach, describe, expect, test, vi} from 'vitest';
 
 import {
   A2uiRpcError,
@@ -27,6 +27,10 @@ import {
 } from '../../src/index.js';
 
 describe('RendererFunctionCalls', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test('exports DEFAULT_RENDERER_CALL_TIMEOUT_MS (30000) and DEFAULT_RENDERER_CALL_TIMEOUT (30.0)', () => {
     expect(DEFAULT_RENDERER_CALL_TIMEOUT_MS).toBe(30_000);
     expect(DEFAULT_RENDERER_CALL_TIMEOUT).toBe(30.0);
@@ -240,88 +244,76 @@ describe('RendererFunctionCalls', () => {
     ];
 
     vi.useFakeTimers();
-    try {
-      for (const bad of malformed) {
-        const calls = new RendererFunctionCalls();
-        const [, result] = calls.call({catalogId: 'cat', name: 'getLocale', functionCallId: 'c1'});
+    for (const bad of malformed) {
+      const calls = new RendererFunctionCalls();
+      const [, result] = calls.call({catalogId: 'cat', name: 'getLocale', functionCallId: 'c1'});
 
-        calls.resolve(bad as never);
+      calls.resolve(bad as never);
 
-        expect(calls.pendingCount).toBe(0);
-        expect(vi.getTimerCount()).toBe(0);
-        await expect(result).rejects.toMatchObject({
-          code: RpcErrorCode.UNKNOWN_ERROR,
-          functionCallId: 'c1',
-        });
-      }
-    } finally {
-      vi.useRealTimers();
+      expect(calls.pendingCount).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+      await expect(result).rejects.toMatchObject({
+        code: RpcErrorCode.UNKNOWN_ERROR,
+        functionCallId: 'c1',
+      });
     }
   });
 
   test('settling a call clears its timeout', async () => {
     vi.useFakeTimers();
-    try {
-      const calls = new RendererFunctionCalls({defaultTimeoutMs: 1000});
-      const [, result] = calls.call({catalogId: 'cat', name: 'getLocale', functionCallId: 'c1'});
-      expect(vi.getTimerCount()).toBe(1);
+    const calls = new RendererFunctionCalls({defaultTimeoutMs: 1000});
+    const [, result] = calls.call({catalogId: 'cat', name: 'getLocale', functionCallId: 'c1'});
+    expect(vi.getTimerCount()).toBe(1);
 
-      calls.resolve({
-        version: '1.0',
-        rendererFunctionResponse: {functionCallId: 'c1', value: 'en'},
-      });
+    calls.resolve({
+      version: '1.0',
+      rendererFunctionResponse: {functionCallId: 'c1', value: 'en'},
+    });
 
-      expect(vi.getTimerCount()).toBe(0);
-      await expect(result).resolves.toBe('en');
+    expect(vi.getTimerCount()).toBe(0);
+    await expect(result).resolves.toBe('en');
 
-      const [, failed] = calls.call({catalogId: 'cat', name: 'getLocale', functionCallId: 'c2'});
-      calls.resolve({
-        version: '1.0',
-        rendererFunctionResponse: {functionCallId: 'c2', error: {code: 'E', message: 'm'}},
-      });
-      expect(vi.getTimerCount()).toBe(0);
-      await expect(failed).rejects.toMatchObject({code: 'E', functionCallId: 'c2'});
+    const [, failed] = calls.call({catalogId: 'cat', name: 'getLocale', functionCallId: 'c2'});
+    calls.resolve({
+      version: '1.0',
+      rendererFunctionResponse: {functionCallId: 'c2', error: {code: 'E', message: 'm'}},
+    });
+    expect(vi.getTimerCount()).toBe(0);
+    await expect(failed).rejects.toMatchObject({code: 'E', functionCallId: 'c2'});
 
-      const [, cancelled] = calls.call({catalogId: 'cat', name: 'getLocale'});
-      cancelled.cancel();
-      expect(vi.getTimerCount()).toBe(0);
-      await expect(cancelled).rejects.toMatchObject({code: RpcErrorCode.CANCELLED});
-    } finally {
-      vi.useRealTimers();
-    }
+    const [, cancelled] = calls.call({catalogId: 'cat', name: 'getLocale'});
+    cancelled.cancel();
+    expect(vi.getTimerCount()).toBe(0);
+    await expect(cancelled).rejects.toMatchObject({code: RpcErrorCode.CANCELLED});
   });
 
   test('times out with TIMEOUT and disposes pending calls with CANCELLED', async () => {
     vi.useFakeTimers();
-    try {
-      const calls = new RendererFunctionCalls({defaultTimeoutMs: 50});
-      const [, timedOut] = calls.call({catalogId: 'cat', name: 'slow', functionCallId: 't1'});
-      const [, perCall] = calls.call({
-        catalogId: 'cat',
-        name: 'slow',
-        functionCallId: 't2',
-        timeoutMs: null,
-      });
+    const calls = new RendererFunctionCalls({defaultTimeoutMs: 50});
+    const [, timedOut] = calls.call({catalogId: 'cat', name: 'slow', functionCallId: 't1'});
+    const [, perCall] = calls.call({
+      catalogId: 'cat',
+      name: 'slow',
+      functionCallId: 't2',
+      timeoutMs: null,
+    });
 
-      vi.advanceTimersByTime(50);
-      await expect(timedOut).rejects.toMatchObject({
-        code: RpcErrorCode.TIMEOUT,
-        functionCallId: 't1',
-      });
-      expect(calls.pendingCount).toBe(1);
+    vi.advanceTimersByTime(50);
+    await expect(timedOut).rejects.toMatchObject({
+      code: RpcErrorCode.TIMEOUT,
+      functionCallId: 't1',
+    });
+    expect(calls.pendingCount).toBe(1);
 
-      calls.dispose('shutting down');
-      expect(calls.disposed).toBe(true);
-      await expect(perCall).rejects.toMatchObject({
-        code: RpcErrorCode.CANCELLED,
-        message: expect.stringContaining('shutting down'),
-      });
-      expect(() => calls.call({catalogId: 'cat', name: 'fn'})).toThrowError(
-        expect.objectContaining({code: RpcErrorCode.DISPOSED}),
-      );
-    } finally {
-      vi.useRealTimers();
-    }
+    calls.dispose('shutting down');
+    expect(calls.disposed).toBe(true);
+    await expect(perCall).rejects.toMatchObject({
+      code: RpcErrorCode.CANCELLED,
+      message: expect.stringContaining('shutting down'),
+    });
+    expect(() => calls.call({catalogId: 'cat', name: 'fn'})).toThrowError(
+      expect.objectContaining({code: RpcErrorCode.DISPOSED}),
+    );
   });
 
   test('plugs into RendererToAgentMessageProcessor as onRendererFunctionResponse', async () => {
@@ -347,24 +339,20 @@ describe('RendererFunctionCalls', () => {
 
   test('supports disabling defaultTimeoutMs with null', async () => {
     vi.useFakeTimers();
-    try {
-      const calls = new RendererFunctionCalls({defaultTimeoutMs: null});
-      const [, result] = calls.call({
-        catalogId: 'cat',
-        name: 'getLocale',
-        functionCallId: 'c-no-timeout',
-      });
+    const calls = new RendererFunctionCalls({defaultTimeoutMs: null});
+    const [, result] = calls.call({
+      catalogId: 'cat',
+      name: 'getLocale',
+      functionCallId: 'c-no-timeout',
+    });
 
-      vi.advanceTimersByTime(120_000);
-      expect(calls.pendingCount).toBe(1);
+    vi.advanceTimersByTime(120_000);
+    expect(calls.pendingCount).toBe(1);
 
-      calls.resolve({
-        version: '1.0',
-        rendererFunctionResponse: {functionCallId: 'c-no-timeout', value: 'ja'},
-      });
-      await expect(result).resolves.toBe('ja');
-    } finally {
-      vi.useRealTimers();
-    }
+    calls.resolve({
+      version: '1.0',
+      rendererFunctionResponse: {functionCallId: 'c-no-timeout', value: 'ja'},
+    });
+    await expect(result).resolves.toBe('ja');
   });
 });
