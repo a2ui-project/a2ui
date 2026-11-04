@@ -215,7 +215,7 @@ describe('AgentFunction', () => {
       name: 'consultOracle',
       returnType: 'string',
       schema: FX_RATE_SCHEMA,
-      allowedCallers: 'rendererOrAgent',
+      allowedCallers: 'rendererOnly',
       requiresUserActivation: true,
       description: 'Asks the oracle.',
     };
@@ -226,9 +226,89 @@ describe('AgentFunction', () => {
     assert.strictEqual(fn.name, 'consultOracle');
     assert.strictEqual(fn.returnType, 'string');
     assert.strictEqual(fn.schema, declaration.schema);
-    assert.strictEqual(fn.allowedCallers, 'rendererOrAgent');
+    assert.strictEqual(fn.allowedCallers, 'rendererOnly');
     assert.strictEqual(fn.requiresUserActivation, true);
     assert.strictEqual(fn.description, 'Asks the oracle.');
+  });
+
+  it('fromApi accepts requiresUserActivation only on a rendererOnly declaration', () => {
+    const declaration = (allowedCallers?: 'rendererOnly' | 'rendererOrAgent'): FunctionApi => ({
+      name: 'confirmTransfer',
+      returnType: 'boolean',
+      schema: FX_RATE_SCHEMA,
+      requiresUserActivation: true,
+      ...(allowedCallers ? {allowedCallers} : {}),
+    });
+
+    assert.strictEqual(AgentFunction.fromApi(declaration(), handler).requiresUserActivation, true);
+    assert.strictEqual(
+      AgentFunction.fromApi(declaration('rendererOnly'), handler).requiresUserActivation,
+      true,
+    );
+    assert.throws(
+      () => AgentFunction.fromApi(declaration('rendererOrAgent'), handler),
+      (err: unknown) =>
+        err instanceof A2uiCatalogError &&
+        err.message.includes('confirmTransfer') &&
+        err.message.includes('rendererOnly'),
+    );
+    assert.strictEqual(
+      AgentFunction.fromApi(
+        {...declaration('rendererOrAgent'), requiresUserActivation: false},
+        handler,
+      ).allowedCallers,
+      'rendererOrAgent',
+    );
+  });
+
+  it('withHandler binds a new handler and keeps the rest of a direct agent function', () => {
+    const fx = new AgentFunction({
+      name: 'fetchFxRate',
+      returnType: 'number',
+      schema: FX_RATE_SCHEMA,
+      requiresUserActivation: true,
+      description: 'Current exchange rate.',
+      handler,
+    });
+    const other = () => 2;
+
+    const rebound = fx.withHandler(other);
+
+    assert.notStrictEqual(rebound, fx);
+    assert.strictEqual(rebound.handler, other);
+    assert.strictEqual(fx.handler, handler);
+    assert.strictEqual(rebound.name, 'fetchFxRate');
+    assert.strictEqual(rebound.returnType, 'number');
+    assert.strictEqual(rebound.schema, fx.schema);
+    assert.strictEqual(rebound.allowedCallers, 'rendererOnly');
+    assert.strictEqual(rebound.requiresUserActivation, true);
+    assert.strictEqual(rebound.description, 'Current exchange rate.');
+    assert.strictEqual(rebound.declaration, undefined);
+    const json = (fn: AgentFunction) => new Catalog('c', '1.0', [], [fn]).toJson();
+    assert.deepStrictEqual(json(rebound), json(fx));
+  });
+
+  it('withHandler rebuilds a fromApi agent function from its declaration', () => {
+    const catalog = loadOracleCatalog();
+    const declaration = catalog.functions.get('consultOracle')!;
+    const oracle = AgentFunction.fromApi(declaration, handler);
+    const other = () => 'yes';
+
+    const rebound = oracle.withHandler(other);
+
+    assert.strictEqual(rebound.handler, other);
+    assert.strictEqual(rebound.declaration, declaration);
+    assert.strictEqual(rebound.allowedCallers, 'rendererOrAgent');
+    const copy = catalog.copyWith({agentFunctions: [rebound]});
+    assert.strictEqual(copy.agentFunctions.get('consultOracle'), rebound);
+    assert.deepStrictEqual(copy.toJson(), ORACLE_DOC);
+  });
+
+  it('withHandler rejects a handler that is not callable', () => {
+    assert.throws(
+      () => fetchFxRate().withHandler('nope' as unknown as typeof handler),
+      (err: unknown) => err instanceof TypeError,
+    );
   });
 
   it('fromApi keeps rendererOnly and rendererOrAgent', () => {
@@ -409,6 +489,42 @@ describe('Catalog.agentFunctions', () => {
     );
   });
 
+  it('rejects an agent function parameter name that is not a UAX #31 identifier', () => {
+    const empty = new Catalog('c', '1.0', [], []);
+    const zodParam = new AgentFunction({
+      name: 'fetchRate',
+      schema: z.object({'target-currency': z.string()}),
+      handler,
+    });
+    const isUaxError = (err: unknown) =>
+      err instanceof A2uiCatalogError && err.message.includes("'target-currency'");
+
+    assert.throws(() => empty.copyWith({agentFunctions: [zodParam]}), isUaxError);
+    assert.throws(() => new Catalog('c', '1.0', [], [zodParam]), isUaxError);
+    assert.throws(
+      () =>
+        new AgentFunction({
+          name: 'fetchRate',
+          schema: {type: 'object', properties: {'target-currency': {type: 'string'}}},
+          handler,
+        }),
+      isUaxError,
+    );
+  });
+
+  it('keeps the agent functions in functions when copyWith also gets agentFunctions', () => {
+    const local: FunctionApi = {name: 'formatRate', returnType: 'string', schema: FX_RATE_SCHEMA};
+    const kept = fetchFxRate();
+    const extra = fetchFxRate('quote');
+    const catalog = new Catalog('c', '1.0', [], [local]).copyWith({agentFunctions: [kept]});
+
+    const copy = catalog.copyWith({functions: [local, kept], agentFunctions: [extra]});
+
+    assert.deepStrictEqual([...copy.functions.keys()], ['formatRate', 'fetchFxRate', 'quote']);
+    assert.deepStrictEqual([...copy.agentFunctions.keys()], ['fetchFxRate', 'quote']);
+    assert.strictEqual(copy.agentFunctions.get('fetchFxRate'), kept);
+  });
+
   it('replaces a declaration in place when bound via AgentFunction.fromApi', () => {
     const catalog = loadOracleCatalog();
     const declaration = catalog.functions.get('consultOracle')!;
@@ -430,7 +546,10 @@ describe('Catalog.agentFunctions', () => {
     assert.throws(
       () => catalog.copyWith({agentFunctions: [AgentFunction.fromApi(sameName, handler)]}),
       (err: unknown) =>
-        err instanceof A2uiCatalogError && err.message.includes("isn't catalog 'test/oracle'"),
+        err instanceof A2uiCatalogError &&
+        err.message.includes('built with AgentFunction.fromApi from a different declaration') &&
+        err.message.includes("catalog 'test/oracle'") &&
+        err.message.includes("build it from this catalog's entry"),
     );
   });
 

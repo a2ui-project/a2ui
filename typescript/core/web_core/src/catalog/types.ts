@@ -277,7 +277,7 @@ export class AgentFunction implements FunctionApi {
   readonly returnType: A2uiReturnType;
   /** Zod schema validating the function's input arguments. */
   readonly schema: z.ZodTypeAny;
-  /** Agent-side handler callback. */
+  /** Agent-side handler callback. Use `withHandler` to bind another one. */
   readonly handler: AgentFunctionHandler<any, any>;
   /**
    * Allowed caller contexts for the function: `rendererOnly`, or the
@@ -333,7 +333,7 @@ export class AgentFunction implements FunctionApi {
    * @returns A new `AgentFunction` wrapping `api`.
    * @throws {TypeError} If `api` is already an `AgentFunction` or `handler` is not callable.
    * @throws {A2uiCatalogError} If `api` is `agentOnly`, which a renderer
-   *   never calls.
+   *   never calls, or requires user activation without being `rendererOnly`.
    */
   static fromApi<TArgs = Record<string, unknown>, TReturn = unknown>(
     api: FunctionApi,
@@ -345,6 +345,15 @@ export class AgentFunction implements FunctionApi {
     if (api.allowedCallers === 'agentOnly') {
       throw new A2uiCatalogError(
         `Function '${api.name}' is agentOnly, so a renderer never calls it and it can't be an agent function.`,
+      );
+    }
+    if (
+      api.requiresUserActivation === true &&
+      api.allowedCallers !== undefined &&
+      api.allowedCallers !== 'rendererOnly'
+    ) {
+      throw new A2uiCatalogError(
+        `Function '${api.name}' requires user activation, so its allowedCallers must be rendererOnly, not ${api.allowedCallers}.`,
       );
     }
     const init: FromApiInit = {
@@ -359,6 +368,33 @@ export class AgentFunction implements FunctionApi {
     const fn = new AgentFunction(init);
     copyLoadedDefinition(api, fn);
     return fn;
+  }
+
+  /**
+   * Returns a copy of this agent function bound to a different handler, with
+   * the same name, signature, `allowedCallers` and description: for example,
+   * to swap in a test double, or a handler for one session. One built with
+   * `fromApi` is rebuilt from the same declaration, so it still replaces that
+   * declaration in its catalog.
+   *
+   * @param handler The new agent-side execution callback.
+   * @returns A new `AgentFunction`.
+   * @throws {TypeError} If `handler` is not callable.
+   */
+  withHandler<TArgs = Record<string, unknown>, TReturn = unknown>(
+    handler: AgentFunctionHandler<TArgs, TReturn>,
+  ): AgentFunction {
+    if (this.declaration !== undefined) {
+      return AgentFunction.fromApi(this.declaration, handler);
+    }
+    return new AgentFunction({
+      name: this.name,
+      returnType: this.returnType,
+      schema: this.schema,
+      handler: handler as AgentFunctionHandler<any, any>,
+      requiresUserActivation: this.explicitRequiresUserActivation,
+      description: this.description,
+    });
   }
 }
 
@@ -1359,7 +1395,7 @@ function mergeAgentFunctions<F extends FunctionApi>(
       }
       if (merged[existingIndex] !== agentFn.declaration) {
         throw new A2uiCatalogError(
-          `AgentFunction.fromApi bound '${agentFn.name}' to a declaration that isn't catalog '${catalogId}'s; pass AgentFunction.fromApi(catalog.functions.get('${agentFn.name}')!, handler).`,
+          `Agent function '${agentFn.name}' was built with AgentFunction.fromApi from a different declaration than the one in catalog '${catalogId}' (for example, from a reloaded or copied catalog); build it from this catalog's entry: AgentFunction.fromApi(catalog.functions.get('${agentFn.name}')!, handler).`,
         );
       }
       merged[existingIndex] = agentFn as unknown as F;
