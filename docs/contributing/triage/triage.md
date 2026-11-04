@@ -23,19 +23,15 @@ For each issue that is [not first-line-handled][not-first-line-handled]:
 
 ## Second line triage (weekly, by triager)
 
-1. In go/a2ui-triage-log, copy the triage card template and start filling it in.
-
-2. Go through [Needs triage, without team input][needs-triage-minus-waiting]. For each item:
+1. Go through [Needs triage, without team input][needs-triage-minus-waiting]. For each item:
 
     - If you can triage it in a couple of minutes, [triage it](#triage-an-item).
     - Otherwise, add [status: needs-team-input][needs-team-input]. Optionally, add a comment with your thoughts.
 
-3. Go through [status: needs-team-input][needs-team-input] with other team members. For each item:
+2. Go through [status: needs-team-input][needs-team-input] with other team members. For each item:
 
     - If you can triage it in a couple of minutes, [triage it](#triage-an-item) and remove `status: needs-team-input`.
     - Otherwise, assign it to an expert in the area, add [status: assigned-for-triage][assigned-for-triage], and remove `status: needs-team-input`. The expert [finishes the triage](#by-owners-of-status-assigned-for-triage).
-
-4. Complete the triage card in go/a2ui-triage-log and send it to [the team chat][team-chat].
 
 ## By owners of `status: assigned-for-triage`
 
