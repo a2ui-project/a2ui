@@ -39,6 +39,7 @@ import {
   ResolvedBinding,
   SurfaceModel,
   Subscription,
+  effect as webCoreEffect,
   getValue,
   isComponentNode,
 } from '@a2ui/web_core/v0_9';
@@ -59,7 +60,8 @@ import {CatalogComponentInstance} from './catalog_component_instance';
 
 interface UniversalComponentHostElement extends HTMLElement {
   node?: ComponentNode;
-  context: ComponentContext;
+  /** @deprecated Assign `node` instead. */
+  context?: ComponentContext;
   injector?: Injector;
 }
 
@@ -131,6 +133,9 @@ function findNodeInList(
   providers: [provideAccessibilityTargets()],
   host: {
     style: 'display: contents;',
+    // Marks a host that renders nothing (its component has not resolved), so a container that
+    // wraps each child in an item element can drop that item too (see ListComponent).
+    '[attr.data-a2ui-empty]': 'componentType() ? null : ""',
   },
   // The quotes around the input keys passed to *ngComponentOutlet are critical to survive Closure
   // minification. Prettier keeps them (`quoteProps: "preserve"` in the root `.prettierrc`).
@@ -170,6 +175,7 @@ export class ComponentHostComponent {
   });
   protected readonly componentInputs = computed<Record<string, unknown>>(() => {
     const inputs: Record<string, unknown> = {
+      // Quoted to prevent property renaming under Closure Compiler.
       'props': this.props(),
       'surfaceId': this.surfaceId(),
       'componentId': this.resolvedComponentId,
@@ -190,8 +196,8 @@ export class ComponentHostComponent {
   protected resolvedComponentId: string = '';
   protected resolvedDataContextPath: string = '/';
 
-  private propsSub?: Subscription;
-  private metadataSub?: Subscription;
+  private stopProps?: () => void;
+  private stopMetadata?: () => void;
   private surfaceSub?: Subscription;
   private stopAccessibility?: () => void;
 
@@ -336,10 +342,24 @@ export class ComponentHostComponent {
       this.accessibilityTargets,
     );
 
-    this.propsSub = node.context!.componentModel.onUpdated.subscribe(() => {
-      this.ngZone.run(() => this.updateProps());
+    let lastProps = getValue(node.props);
+    this.stopProps = webCoreEffect(() => {
+      const nextProps = getValue(node.props);
+      if (nextProps === lastProps) return;
+      lastProps = nextProps;
+      this.ngZone.run(() => {
+        if (this.hasSameBoundKeys(nextProps, node.context?.componentModel.properties)) {
+          this.cdr.markForCheck();
+        } else {
+          this.updateProps();
+        }
+      });
     });
-    this.metadataSub = node.context!.componentModel.onMetadataChanged.subscribe(nextMeta => {
+    let lastMeta = getValue(node.metadata);
+    this.stopMetadata = webCoreEffect(() => {
+      const nextMeta = getValue(node.metadata);
+      if (nextMeta === lastMeta) return;
+      lastMeta = nextMeta;
       this.ngZone.run(() => {
         this.metadata.set(nextMeta);
         this.cdr.markForCheck();
@@ -359,6 +379,21 @@ export class ComponentHostComponent {
     this.cdr.markForCheck();
   }
 
+  private hasSameBoundKeys(
+    nextProps: Record<string, unknown>,
+    rawProps?: Record<string, unknown>,
+  ): boolean {
+    if (!this.currentBoundProps) return false;
+    const boundKeys = Object.keys(this.currentBoundProps);
+    const nextKeys = Object.keys(nextProps);
+    if (boundKeys.length !== nextKeys.length) return false;
+    return nextKeys.every(
+      key =>
+        Object.prototype.hasOwnProperty.call(this.currentBoundProps, key) &&
+        (!rawProps || this.currentBoundProps![key].raw === rawProps[key]),
+    );
+  }
+
   private setupWebComponent(implementation: WebComponentImplementation, node: AngularNode): void {
     this.componentType.set(null);
     this.props.set({});
@@ -369,17 +404,8 @@ export class ComponentHostComponent {
     const el = document.createElement(tagName) as UniversalComponentHostElement;
     el.injector = this.injector;
     el.node = node;
-    el.context = node.context!;
     this.mountedWcEl = el;
     this.elementRef.nativeElement.appendChild(el);
-
-    this.propsSub = node.context!.componentModel.onUpdated.subscribe(() => {
-      this.ngZone.run(() => {
-        if (this.mountedWcEl) {
-          this.mountedWcEl.node = node;
-        }
-      });
-    });
   }
 
   /**
@@ -388,10 +414,10 @@ export class ComponentHostComponent {
    * a new component is being loaded.
    */
   private resetState(): void {
-    this.propsSub?.unsubscribe();
-    this.propsSub = undefined;
-    this.metadataSub?.unsubscribe();
-    this.metadataSub = undefined;
+    this.stopProps?.();
+    this.stopProps = undefined;
+    this.stopMetadata?.();
+    this.stopMetadata = undefined;
     this.surfaceSub?.unsubscribe();
     this.surfaceSub = undefined;
     this.stopAccessibility?.();

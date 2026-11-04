@@ -18,6 +18,8 @@
 
 ## Unreleased
 
+- Requires `a2ui_core` `^0.5.0`.
+
 - **Breaking:** a component that has not arrived, has an unknown type, or
   repeats one of its ancestors now renders nothing, as does the surface until
   its root arrives. Previously these showed a progress indicator or a red
@@ -27,6 +29,11 @@
   old indicator should render their own loading state until the fallback API
   from [#2013](https://github.com/a2ui-project/a2ui/issues/2013) lands
   ([#3714](https://github.com/a2ui-project/a2ui/pull/3714)).
+- `TextField` (v0.9) compiles `validationRegexp` through `compileGuarded` from
+  `package:a2ui_core/a2ui_core.dart`; when the portable regex subset guard
+  rejects a pattern, the regex constraint is disabled and an `EXPRESSION_ERROR`
+  is reported once on the surface error channel
+  ([#3854](https://github.com/a2ui-project/a2ui/pull/3854)).
 - Dynamic bindings in `accessibility` attributes (`label`, `description`,
   `live`, and `hidden`) now update `NodeView` semantics reactively
   ([#3583](https://github.com/a2ui-project/a2ui/pull/3583)).
