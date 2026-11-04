@@ -41,7 +41,7 @@ import {
   HostAccessibility,
   type ResolvedAccessibilityAttributes,
 } from './host_accessibility.js';
-import {renderA2uiNode} from './render-a2ui-node.js';
+import {canRenderA2uiNode, renderA2uiNode} from './render-a2ui-node.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 
 export type {CheckableResolvedProps, ResolvedAccessibilityAttributes};
@@ -419,7 +419,7 @@ export abstract class A2uiLitElement<
   protected isChildResolved(childRef?: ComponentNode | A2uiChildRef, customPath?: string): boolean {
     const child = this.resolveChild(childRef, customPath);
     if (!child) return false;
-    if ('node' in child) return !child.node.isPlaceholder;
+    if ('node' in child) return canRenderA2uiNode(child.node);
     const model = child.surface.componentsModel.get(child.componentId);
     const catalog = model?.catalog as Catalog<WebComponentImplementation> | undefined;
     return !!model && !!catalog?.components.get(model.type)?.tagName;
