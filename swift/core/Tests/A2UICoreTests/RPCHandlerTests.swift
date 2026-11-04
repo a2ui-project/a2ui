@@ -74,6 +74,69 @@ struct RPCHandlerTests {
     #expect(response.error == nil)
   }
 
+  private struct MockThrowingFunction: FunctionImplementation {
+    let api: FunctionAPI
+    let error: any Error
+
+    init(error: any Error) {
+      let schema = try! Schema(
+        rawSchema: .object(["type": .string("object")]),
+        context: Context(dialect: .draft2020_12)
+      )
+      self.api = FunctionAPI(
+        name: "fail",
+        returnType: .any,
+        schema: schema,
+        allowedCallers: .rendererOrAgent
+      )
+      self.error = error
+    }
+
+    func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+      throw error
+    }
+  }
+
+  private func respondToThrowingFunction(
+    _ error: any Error
+  ) async -> RendererFunctionResponseMessage {
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [MockThrowingFunction(error: error)]
+    ).eraseToAnyCatalog()
+    let callMsg = CallRendererFunctionMessage(
+      functionCallID: "call_fail",
+      callFunction: CallFunctionPayload(call: "fail", catalogID: "test", args: [:]),
+      version: .v10
+    )
+    return await RPCHandler().handleIncomingCall(callMsg, catalogs: [catalog.id: catalog])
+  }
+
+  @Test func incomingCallThrowingFunctionAnswersWithErrorMessage() async {
+    let response = await respondToThrowingFunction(A2UIValidationError("Disk is full"))
+
+    #expect(response.functionCallID == "call_fail")
+    #expect(response.value == nil)
+    #expect(
+      response.error
+        == FunctionErrorPayload(code: .executionError, message: "Disk is full")
+    )
+  }
+
+  @Test func incomingCallThrowingFunctionWithoutMessageAnswersWithFallback() async {
+    let response = await respondToThrowingFunction(A2UIValidationError(""))
+
+    #expect(
+      response.error
+        == FunctionErrorPayload(
+          code: .executionError,
+          message: "An error occurred during function execution."
+        )
+    )
+  }
+
   @Test func incomingCallAfterDisposeAnswersDisposed() async {
     let handler = RPCHandler()
     let catalog = Catalog(
