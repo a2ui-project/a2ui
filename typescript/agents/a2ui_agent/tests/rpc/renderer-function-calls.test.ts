@@ -304,7 +304,7 @@ describe('RendererFunctionCalls', () => {
       catalogId: 'cat',
       name: 'slow',
       functionCallId: 't2',
-      timeoutMs: null,
+      timeoutMs: 1000,
     });
 
     vi.advanceTimersByTime(50);
@@ -549,6 +549,225 @@ describe('RendererFunctionCalls', () => {
           }),
       ).toThrow(A2uiCatalogError);
       expect(() => new RendererFunctionCalls({catalogs: []})).not.toThrow();
+    });
+  });
+
+  describe('call checks', () => {
+    function expectInvalid(
+      calls: RendererFunctionCalls,
+      options: Parameters<RendererFunctionCalls['call']>[0],
+      code: string,
+      message: string,
+    ): void {
+      vi.useFakeTimers();
+      const pending = calls.pendingCount;
+      const timers = vi.getTimerCount();
+      expect(() => calls.call(options)).toThrowError(
+        expect.objectContaining({code, message: expect.stringContaining(message)}),
+      );
+      expect(calls.pendingCount).toBe(pending);
+      expect(vi.getTimerCount()).toBe(timers);
+    }
+
+    test('rejects a timeout that is not a finite number greater than 0', () => {
+      const calls = new RendererFunctionCalls();
+      for (const timeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, '10' as never]) {
+        expect(() => calls.call({catalogId: 'cat', name: 'fn', timeoutMs})).toThrow(RangeError);
+      }
+      for (const defaultTimeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+        expect(() => new RendererFunctionCalls({defaultTimeoutMs})).toThrow(RangeError);
+      }
+      expect(calls.pendingCount).toBe(0);
+    });
+
+    test('checks the timeout before disposal', () => {
+      const calls = new RendererFunctionCalls();
+      calls.dispose();
+      expect(() => calls.call({catalogId: 'cat', name: 'fn', timeoutMs: 0})).toThrow(RangeError);
+      expect(() => calls.call({catalogId: 'cat', name: 'fn'})).toThrowError(
+        expect.objectContaining({code: RpcErrorCode.DISPOSED}),
+      );
+    });
+
+    test('a runtime null timeout uses the default, and only a null default means no limit', async () => {
+      vi.useFakeTimers();
+      const calls = new RendererFunctionCalls({defaultTimeoutMs: 50});
+      const [, nullTimeout] = calls.call({
+        catalogId: 'cat',
+        name: 'fn',
+        timeoutMs: null as unknown as number,
+      });
+      vi.advanceTimersByTime(50);
+      await expect(nullTimeout).rejects.toMatchObject({code: RpcErrorCode.TIMEOUT});
+
+      const unlimited = new RendererFunctionCalls({defaultTimeoutMs: null});
+      unlimited.call({catalogId: 'cat', name: 'fn'});
+      expect(vi.getTimerCount()).toBe(0);
+      const [, overridden] = unlimited.call({catalogId: 'cat', name: 'fn', timeoutMs: 10});
+      vi.advanceTimersByTime(10);
+      await expect(overridden).rejects.toMatchObject({code: RpcErrorCode.TIMEOUT});
+      unlimited.dispose();
+    });
+
+    test('checks a given empty functionCallId before a duplicate id', () => {
+      const calls = new RendererFunctionCalls();
+      expectInvalid(
+        calls,
+        {catalogId: 'cat', name: 'fn', functionCallId: ''},
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        'functionCallId',
+      );
+      const [message] = calls.call({catalogId: 'cat', name: 'fn'});
+      expect(message.callRendererFunction.functionCallId.length).toBeGreaterThan(0);
+      calls.dispose();
+    });
+
+    test('checks duplicate ids and maxPending before the name and catalogId', () => {
+      const calls = new RendererFunctionCalls({maxPending: 1});
+      calls.call({catalogId: 'cat', name: 'fn', functionCallId: 'id-1'});
+      expectInvalid(
+        calls,
+        {catalogId: '', name: '', functionCallId: 'id-1'},
+        RpcErrorCode.DUPLICATE,
+        'id-1',
+      );
+      expectInvalid(
+        calls,
+        {catalogId: '', name: '', functionCallId: 'id-2'},
+        RpcErrorCode.TOO_MANY_PENDING,
+        'limit is 1',
+      );
+      calls.dispose();
+    });
+
+    test('checks an empty name before an empty catalogId', () => {
+      const calls = new RendererFunctionCalls();
+      expectInvalid(
+        calls,
+        {catalogId: '', name: ''},
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        'needs a function name',
+      );
+      expectInvalid(
+        calls,
+        {catalogId: '', name: 'bad-name'},
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        'catalogId',
+      );
+    });
+
+    test('rejects a name that is not an identifier or starts with @', () => {
+      const calls = new RendererFunctionCalls();
+      for (const name of ['get-location', '@index', '1st']) {
+        expectInvalid(
+          calls,
+          {catalogId: 'cat', name},
+          RpcErrorCode.INVALID_FUNCTION_CALL,
+          `'${name}'`,
+        );
+      }
+    });
+
+    test('rejects args that are not a JSON object', () => {
+      const calls = new RendererFunctionCalls();
+      for (const args of [[1, 2], 'x', 1, null, new Map(), new Date(0)]) {
+        expectInvalid(
+          calls,
+          {catalogId: 'cat', name: 'fn', args: args as never},
+          RpcErrorCode.INVALID_FUNCTION_CALL,
+          'must be a JSON object',
+        );
+      }
+    });
+
+    test('rejects an argument key that is not an identifier', () => {
+      const calls = new RendererFunctionCalls();
+      expectInvalid(
+        calls,
+        {catalogId: 'cat', name: 'fn', args: {'bad-arg': 1}},
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        "'bad-arg'",
+      );
+    });
+
+    test('rejects argument values that are not JSON values, recursively', () => {
+      const calls = new RendererFunctionCalls();
+      const cyclic: Record<string, unknown> = {};
+      cyclic['self'] = cyclic;
+      const bad: unknown[] = [
+        Number.NaN,
+        Number.POSITIVE_INFINITY,
+        Number.NEGATIVE_INFINITY,
+        undefined,
+        () => 1,
+        10n,
+        Symbol('s'),
+        new Date(0),
+        new Map(),
+        [1, Number.NaN],
+        {nested: {deeper: [Number.POSITIVE_INFINITY]}},
+        new Array(2),
+        cyclic,
+      ];
+      for (const value of bad) {
+        expectInvalid(
+          calls,
+          {catalogId: 'cat', name: 'fn', args: {value}},
+          RpcErrorCode.INVALID_FUNCTION_CALL,
+          "Argument 'value'",
+        );
+      }
+    });
+
+    test('accepts JSON argument values, and leaves nested @call and @path objects alone', () => {
+      const calls = new RendererFunctionCalls();
+      const shared = {a: 1};
+      const args = {
+        n: null,
+        b: true,
+        s: 'x',
+        i: -1.5e3,
+        list: [1, 'two', [false, {x: null}]],
+        obj: {inner: {deep: [0]}},
+        dataRef: {'@path': '/user/name'},
+        nested: {'@call': 'formatDate', args: {value: 0}},
+        sharedTwice: [shared, shared],
+        bare: Object.assign(Object.create(null), {k: 1}),
+      };
+
+      const [message] = calls.call({catalogId: 'cat', name: 'fn', args});
+
+      expect(message.callRendererFunction.callFunction.args).toEqual(args);
+      calls.dispose();
+    });
+
+    test('checks the args before the catalogs', () => {
+      const catalog = new Catalog<never, FunctionApi>(
+        'cat',
+        '1.0',
+        [],
+        [{name: 'formatLocal', returnType: 'string', schema: z.object({})}],
+      );
+      const calls = new RendererFunctionCalls({catalogs: [catalog]});
+
+      expectInvalid(
+        calls,
+        {catalogId: 'cat', name: 'formatLocal', args: {'bad-arg': 1}},
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        "'bad-arg'",
+      );
+      expectInvalid(
+        calls,
+        {catalogId: 'cat', name: 'formatLocal', args: {value: Number.NaN}},
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        "Argument 'value'",
+      );
+      expectInvalid(
+        calls,
+        {catalogId: 'cat', name: 'formatLocal'},
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        'the agent may not call it',
+      );
     });
   });
 });

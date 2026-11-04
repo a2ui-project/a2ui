@@ -103,7 +103,10 @@ export interface CallRendererFunctionOptions {
   readonly catalogId: string;
   /** Name of the renderer function to invoke (must be a valid UAX #31 identifier). */
   readonly name: string;
-  /** Optional arguments object (keys must be valid UAX #31 identifiers). */
+  /**
+   * Optional arguments: a JSON object whose keys are valid UAX #31
+   * identifiers and whose values are JSON values (no NaN or infinity).
+   */
   readonly args?: Record<string, unknown>;
   /**
    * Optional target surface ID whose data model provides evaluation context.
@@ -111,10 +114,11 @@ export interface CallRendererFunctionOptions {
    */
   readonly surfaceId?: string;
   /**
-   * Optional per-call timeout in milliseconds, overriding `defaultTimeoutMs`.
-   * Pass `null` to disable the timeout for this call.
+   * Optional per-call timeout in milliseconds, a finite number greater than
+   * 0, overriding `defaultTimeoutMs`. When omitted, `defaultTimeoutMs`
+   * applies; only `defaultTimeoutMs: null` disables timeouts.
    */
-  readonly timeoutMs?: number | null;
+  readonly timeoutMs?: number;
   /** Optional custom `functionCallId`. When omitted, a UUID is generated. */
   readonly functionCallId?: string;
 }
@@ -213,17 +217,24 @@ export class RendererFunctionCalls {
    * @template T Expected return value type from the renderer function.
    * @param options Call parameters (`catalogId`, `name`, `args`, `surfaceId`, `timeoutMs`, `functionCallId`).
    * @returns A {@link PendingRendererCall} containing `[message, result]`.
-   * @throws {RangeError} If `options.timeoutMs <= 0`.
-   * @throws {A2uiRpcError} With `DISPOSED`, `DUPLICATE`, `TOO_MANY_PENDING`, or `INVALID_FUNCTION_CALL`.
+   * The checks run in this order, each before anything is built, registered
+   * or timed: the timeout; disposal (`DISPOSED`); an empty given
+   * `functionCallId`; a pending id (`DUPLICATE`); `maxPending`
+   * (`TOO_MANY_PENDING`); an empty `name`, then an empty `catalogId`; a `name`
+   * that isn't a UAX #31 identifier or starts with `@`; the `args`; and, with
+   * `catalogs`, the target (`UNKNOWN_FUNCTION` or `INVALID_FUNCTION_CALL`). An
+   * empty `surfaceId` counts as omitted.
+   *
+   * @throws {RangeError} If `options.timeoutMs` isn't a finite number greater than 0.
+   * @throws {A2uiRpcError} With `DISPOSED`, `DUPLICATE`, `TOO_MANY_PENDING`,
+   *   `UNKNOWN_FUNCTION` or `INVALID_FUNCTION_CALL`.
    */
   call<T = unknown>(options: CallRendererFunctionOptions): PendingRendererCall<T> {
-    if (options.timeoutMs !== undefined && options.timeoutMs !== null) {
-      if (
-        typeof options.timeoutMs !== 'number' ||
-        !Number.isFinite(options.timeoutMs) ||
-        options.timeoutMs <= 0
-      ) {
-        throw new RangeError('timeoutMs must be greater than 0.');
+    // A runtime null counts as omitted: the instance default applies.
+    const timeoutMs = options.timeoutMs ?? undefined;
+    if (timeoutMs !== undefined) {
+      if (typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+        throw new RangeError('timeoutMs must be a finite number greater than 0.');
       }
     }
 
@@ -260,14 +271,6 @@ export class RendererFunctionCalls {
       );
     }
 
-    if (typeof options.catalogId !== 'string' || options.catalogId.length === 0) {
-      throw new A2uiRpcError(
-        'catalogId must not be empty.',
-        RpcErrorCode.INVALID_FUNCTION_CALL,
-        callId,
-      );
-    }
-
     if (typeof options.name !== 'string' || options.name.length === 0) {
       throw new A2uiRpcError(
         'The call needs a function name.',
@@ -276,12 +279,46 @@ export class RendererFunctionCalls {
       );
     }
 
-    if (!isValidUax31Identifier(options.name)) {
+    if (typeof options.catalogId !== 'string' || options.catalogId.length === 0) {
       throw new A2uiRpcError(
-        `Function name '${String(options.name)}' must be a valid UAX #31 identifier.`,
+        'catalogId must not be empty.',
         RpcErrorCode.INVALID_FUNCTION_CALL,
         callId,
       );
+    }
+
+    if (options.name.startsWith('@') || !isValidUax31Identifier(options.name)) {
+      throw new A2uiRpcError(
+        `Function name '${options.name}' must be a valid UAX #31 identifier that doesn't start with '@'.`,
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        callId,
+      );
+    }
+
+    if (options.args !== undefined) {
+      if (!isJsonObject(options.args)) {
+        throw new A2uiRpcError(
+          `The args of the call to '${options.name}' must be a JSON object.`,
+          RpcErrorCode.INVALID_FUNCTION_CALL,
+          callId,
+        );
+      }
+      for (const [argName, value] of Object.entries(options.args)) {
+        if (!isValidUax31Identifier(argName)) {
+          throw new A2uiRpcError(
+            `Argument name '${argName}' in call to '${options.name}' must be a valid UAX #31 identifier.`,
+            RpcErrorCode.INVALID_FUNCTION_CALL,
+            callId,
+          );
+        }
+        if (!isJsonValue(value, new Set())) {
+          throw new A2uiRpcError(
+            `Argument '${argName}' in call to '${options.name}' must be a JSON value: null, a boolean, a string, a finite number, or an array or object of these.`,
+            RpcErrorCode.INVALID_FUNCTION_CALL,
+            callId,
+          );
+        }
+      }
     }
 
     if (this._catalogs !== undefined) {
@@ -298,25 +335,6 @@ export class RendererFunctionCalls {
       );
     }
 
-    if (options.args !== undefined) {
-      if (!isPlainObject(options.args)) {
-        throw new A2uiRpcError(
-          'args must be a plain object.',
-          RpcErrorCode.INVALID_FUNCTION_CALL,
-          callId,
-        );
-      }
-      for (const argName of Object.keys(options.args)) {
-        if (!isValidUax31Identifier(argName)) {
-          throw new A2uiRpcError(
-            `Argument name '${argName}' in call to '${options.name}' must be a valid UAX #31 identifier.`,
-            RpcErrorCode.INVALID_FUNCTION_CALL,
-            callId,
-          );
-        }
-      }
-    }
-
     const message: CallRendererFunctionMessage = {
       version: '1.0',
       callRendererFunction: {
@@ -330,8 +348,7 @@ export class RendererFunctionCalls {
       },
     };
 
-    const effectiveTimeoutMs =
-      options.timeoutMs === undefined ? this._defaultTimeoutMs : options.timeoutMs;
+    const effectiveTimeoutMs = timeoutMs ?? this._defaultTimeoutMs;
 
     let resolveFn!: (value: unknown) => void;
     let rejectFn!: (error: A2uiRpcError) => void;
@@ -523,6 +540,36 @@ export class RendererFunctionCalls {
       entry.reject(new A2uiRpcError(reason, RpcErrorCode.CANCELLED, entry.functionCallId));
     }
   }
+}
+
+/** Whether `value` is a plain object, as JSON parses an object. */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+/**
+ * Whether `value` is a JSON value: null, a boolean, a string, a finite number,
+ * or an array or plain object of these, recursively. A cycle isn't one.
+ */
+function isJsonValue(value: unknown, ancestors: Set<object>): boolean {
+  if (value === null || typeof value === 'boolean' || typeof value === 'string') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (typeof value !== 'object') return false;
+  if (ancestors.has(value)) return false;
+  let items: unknown[];
+  if (Array.isArray(value)) {
+    items = Array.from(value);
+  } else if (isJsonObject(value)) {
+    items = Object.values(value);
+  } else {
+    return false;
+  }
+  ancestors.add(value);
+  const ok = items.every(item => isJsonValue(item, ancestors));
+  ancestors.delete(value);
+  return ok;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

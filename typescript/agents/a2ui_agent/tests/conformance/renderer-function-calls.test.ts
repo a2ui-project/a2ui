@@ -134,7 +134,7 @@ async function runCallRendererFunction(testCase: LoadedCase): Promise<void> {
           name: c.name,
           args: c.args,
           surfaceId: c.surfaceId,
-          timeoutMs: c.timeout_ms,
+          timeoutMs: c.timeout_ms ?? undefined,
           functionCallId: c.functionCallId,
         });
 

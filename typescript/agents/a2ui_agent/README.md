@@ -187,7 +187,11 @@ Pass the catalogs the renderer was sent as `catalogs`, and `call` checks each ca
 const calls = new RendererFunctionCalls({catalogs: [catalog]});
 ```
 
-Each instance keeps its pending calls in memory, so a response must reach the same instance that made the call, over a connection that stays open such as a WebSocket. A call fails with `TIMEOUT` when no response arrives in time, with `CANCELLED` when it is cancelled or the instance disposed, and with the renderer's error code when the renderer reports one.
+Each instance keeps its pending calls in memory, so a response must reach the same instance that made the call, over a connection that stays open such as a WebSocket. A call fails with `TIMEOUT` when no response arrives in time: after `defaultTimeoutMs` (30 seconds unless set), or the call's own `timeoutMs`, a finite number greater than 0. With `defaultTimeoutMs: null`, calls without their own `timeoutMs` never time out.
+
+`call` throws before anything is sent or becomes pending when the call can't be made: a `RangeError` for a bad `timeoutMs`, and otherwise an `A2uiRpcError` with `INVALID_FUNCTION_CALL` (or `DISPOSED`, `DUPLICATE`, `TOO_MANY_PENDING`). The `name` must be a UAX #31 identifier that doesn't start with `@`, and `args` a plain object whose keys are UAX #31 identifiers and whose values are JSON values (no `NaN`, `Infinity`, `undefined`, functions or class instances). Nested `@call` and `@path` objects are sent as they are, for the renderer to check. The arguments are checked before the catalogs.
+
+A call fails with `CANCELLED` when it is cancelled or the instance disposed, and with the renderer's error code when the renderer reports one.
 
 ## Development
 
