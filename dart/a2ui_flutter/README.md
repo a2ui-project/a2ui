@@ -13,12 +13,11 @@ To learn about A2UI, see [a2ui.org](https://a2ui.org/):
   one in an agent and a renderer
 - [The v1.0 specification](https://a2ui.org/specification/v1.0-a2ui/)
 
-## Replacing genui
+## Packages
 
-`a2ui_flutter`, [`a2ui_core`](https://pub.dev/packages/a2ui_core) and
-[`a2ui_agent`](https://pub.dev/packages/a2ui_agent) replace the
-[`genui`](https://pub.dev/packages/genui) package. Their API is different
-from that of `genui`.
+`a2ui_flutter` works with [`a2ui_core`](https://pub.dev/packages/a2ui_core)
+and [`a2ui_agent`](https://pub.dev/packages/a2ui_agent). Together they
+replace the [`genui`](https://pub.dev/packages/genui) package.
 
 | Package        | What it does                                                                                        |
 | -------------- | --------------------------------------------------------------------------------------------------- |
