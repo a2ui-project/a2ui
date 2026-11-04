@@ -218,9 +218,19 @@ def core_constraint(pubspec: str) -> str | None:
 
 
 def changelog_top_heading(changelog: str) -> str | None:
-    """Returns the first `## ` heading of a CHANGELOG, such as `Unreleased`."""
-    match = re.search(r"^## +(.+?)\s*$", changelog, re.MULTILINE)
-    return match.group(1) if match else None
+    """Returns the first `## ` heading of a CHANGELOG, such as `Unreleased`.
+
+    An empty `## Unreleased` section, which a release leaves above the new
+    version, is skipped.
+    """
+    sections = re.split(r"^## +", changelog, flags=re.MULTILINE)[1:]
+    for section in sections:
+        heading, _, body = section.partition("\n")
+        heading = heading.strip()
+        if heading == "Unreleased" and not body.strip():
+            continue
+        return heading
+    return None
 
 
 @dataclass(frozen=True)

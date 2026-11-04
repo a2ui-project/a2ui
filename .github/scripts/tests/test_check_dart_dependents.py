@@ -153,11 +153,19 @@ class ChangelogTest(unittest.TestCase):
 
     def test_reads_first_version_heading(self):
         changelog = (
-            "# [a2ui_agent](https://pub.dev) Changelog\n\n## Unreleased\n\n##"
-            " 0.0.1-wip005\n"
+            "# [a2ui_agent](https://pub.dev) Changelog\n\n## Unreleased\n\n- x\n\n"
+            "## 0.0.1-wip005\n"
         )
         self.assertEqual(cdd.changelog_top_heading(changelog), "Unreleased")
         self.assertIsNone(cdd.changelog_top_heading("# Changelog\n"))
+
+    def test_skips_empty_unreleased_above_new_version(self):
+        changelog = "# Changelog\n\n## Unreleased\n\n## 0.1.0\n\n- x\n"
+        self.assertEqual(cdd.changelog_top_heading(changelog), "0.1.0")
+        self.assertEqual(
+            cdd.changelog_top_heading("## Unreleased\n\n- y\n\n## 0.1.0\n"),
+            "Unreleased",
+        )
 
 
 def published(latest, constraint, *older):
