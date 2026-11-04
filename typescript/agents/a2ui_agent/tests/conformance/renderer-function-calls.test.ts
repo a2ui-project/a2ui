@@ -17,15 +17,18 @@
 import fs from 'node:fs';
 
 import {afterEach, describe, expect, test, vi} from 'vitest';
+import {z} from 'zod';
 
 import {
   A2uiRpcError,
   type CallRendererFunctionMessage,
   type CancellablePromise,
+  Catalog,
+  type CatalogApi,
   RendererFunctionCalls,
 } from '../../src/index.js';
 import {classify, loadCases, type LoadedCase} from './loader.js';
-import {conformancePath, registerCase} from './suite-helpers.js';
+import {conformancePath, errorClassFor, registerCase} from './suite-helpers.js';
 
 const KNOWN_FAILURES = new Map<string, string>();
 
@@ -70,16 +73,55 @@ interface CallStepSpec {
   >;
 }
 
+interface CatalogSpec {
+  catalogId: string;
+  functions?: Record<
+    string,
+    {
+      allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
+      requiresUserActivation?: boolean;
+    }
+  >;
+}
+
+/**
+ * Builds a v1.0 catalog in code (not from a document), whose functions take
+ * any object and set allowedCallers and requiresUserActivation only when the
+ * case does.
+ */
+function buildCatalog(spec: CatalogSpec): CatalogApi {
+  const functions = Object.entries(spec.functions ?? {}).map(([name, fn]) => ({
+    name,
+    returnType: 'any' as const,
+    schema: z.object({}).passthrough(),
+    ...(fn.allowedCallers !== undefined ? {allowedCallers: fn.allowedCallers} : {}),
+    ...(fn.requiresUserActivation !== undefined
+      ? {requiresUserActivation: fn.requiresUserActivation}
+      : {}),
+  }));
+  return new Catalog(spec.catalogId, '1.0', [], functions);
+}
+
 async function runCallRendererFunction(testCase: LoadedCase): Promise<void> {
   vi.useFakeTimers();
   const args = (testCase.args ?? {}) as {
     default_timeout_ms?: number | null;
     max_pending?: number | null;
+    catalogs?: CatalogSpec[];
   };
-  const calls = new RendererFunctionCalls({
-    defaultTimeoutMs: args.default_timeout_ms,
-    maxPending: args.max_pending,
-  });
+  const build = () =>
+    new RendererFunctionCalls({
+      defaultTimeoutMs: args.default_timeout_ms,
+      maxPending: args.max_pending,
+      catalogs: args.catalogs?.map(buildCatalog),
+    });
+
+  if (testCase.expect_error) {
+    expect(build).toThrow(errorClassFor(testCase));
+    return;
+  }
+
+  const calls = build();
   const byLabel = new Map<string, TrackedCall>();
   const steps = (testCase.steps ?? []) as CallStepSpec[];
 
