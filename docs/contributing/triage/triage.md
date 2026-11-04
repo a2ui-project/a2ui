@@ -1,6 +1,6 @@
 # Triage for PRs and issues
 
-The goals of triage is to continuously make sure that:
+The goals of triage are to continuously make sure that:
 
 1. Every PR gets a decision: the team decides to review it, or closes it with an explanation.
 2. Every issue has a priority, and every `P0` and `P1` issue has an assignee who is making progress on it.
@@ -9,8 +9,8 @@ The goals of triage is to continuously make sure that:
 Queues used in triage:
 
 - [Not first line handled][not-first-line-handled]: new issues for [first line triage](#first-line-triage-daily-by-gardener).
-- [Needs triage][needs-triage-all]: everything the bot flagged.
-- [Needs triage, without team input][needs-triage-minus-waiting]: everything the bot flagged, except items that need team input.
+- [Needs triage][needs-triage-all]: everything the bot labeled `status: needs-triage`.
+- [Needs triage, without team input][needs-triage-minus-waiting]: the same, except items that need team input.
 
 See [list of labels used in triage](labels.md).
 

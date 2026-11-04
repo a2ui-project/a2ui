@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This automation adds/removes the 'triage: flag' label to issues and PRs so
-# that items needing attention are easy to find. The label is fully owned by
-# this automation and reconciled on every run.
+# This automation adds/removes the 'status: needs-triage' label to issues and
+# PRs so that items needing attention are easy to find. The label is fully
+# owned by this automation and reconciled on every run.
 #
-# The flagging rules live in ./tools/internal/triage/flagging/triage.mts. See
-# the header comment there for the full specification:
-# https://github.com/a2ui-project/a2ui/blob/main/tools/internal/triage/flagging/triage.mts
+# The flagging rules are implemented in
+# ./tools/internal/triage/flagging/triage.mts and described in
+# https://github.com/a2ui-project/a2ui/blob/main/tools/internal/triage/flagging/blueprint.md
 
 name: Flag/Unflag issues and PRs
 
