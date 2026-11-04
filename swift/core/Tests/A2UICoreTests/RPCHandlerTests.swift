@@ -43,6 +43,37 @@ struct RPCHandlerTests {
     }
   }
 
+  private struct MockThrowingFunction: FunctionImplementation {
+    let api: FunctionAPI
+    let error: any Error
+
+    init(error: any Error) {
+      let schema = try! Schema(
+        rawSchema: .object(["type": .string("object")]),
+        context: Context(dialect: .draft2020_12)
+      )
+      self.api = FunctionAPI(
+        name: "fail",
+        returnType: .any,
+        schema: schema,
+        allowedCallers: .rendererOrAgent
+      )
+      self.error = error
+    }
+
+    func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+      throw error
+    }
+  }
+
+  private struct QuotaError: LocalizedError {
+    var errorDescription: String? { "Quota exceeded" }
+  }
+
+  private enum StorageError: Error {
+    case diskFull
+  }
+
   @Test func incomingCallSuccess() async {
     let handler = RPCHandler()
     let echoFn = MockEchoFunction()
@@ -74,29 +105,6 @@ struct RPCHandlerTests {
     #expect(response.error == nil)
   }
 
-  private struct MockThrowingFunction: FunctionImplementation {
-    let api: FunctionAPI
-    let error: any Error
-
-    init(error: any Error) {
-      let schema = try! Schema(
-        rawSchema: .object(["type": .string("object")]),
-        context: Context(dialect: .draft2020_12)
-      )
-      self.api = FunctionAPI(
-        name: "fail",
-        returnType: .any,
-        schema: schema,
-        allowedCallers: .rendererOrAgent
-      )
-      self.error = error
-    }
-
-    func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
-      throw error
-    }
-  }
-
   private func respondToThrowingFunction(
     _ error: any Error
   ) async -> RendererFunctionResponseMessage {
@@ -122,6 +130,24 @@ struct RPCHandlerTests {
     #expect(
       response.error
         == FunctionErrorPayload(code: .executionError, message: "Disk is full")
+    )
+  }
+
+  @Test func incomingCallThrowingLocalizedErrorAnswersWithErrorDescription() async {
+    let response = await respondToThrowingFunction(QuotaError())
+
+    #expect(
+      response.error
+        == FunctionErrorPayload(code: .executionError, message: "Quota exceeded")
+    )
+  }
+
+  @Test func incomingCallThrowingPlainErrorAnswersWithItsDescription() async {
+    let response = await respondToThrowingFunction(StorageError.diskFull)
+
+    #expect(
+      response.error
+        == FunctionErrorPayload(code: .executionError, message: "diskFull")
     )
   }
 
