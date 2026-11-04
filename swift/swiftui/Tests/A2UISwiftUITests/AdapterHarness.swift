@@ -1320,8 +1320,8 @@ func runStep(_ session: AdapterSession, _ step: [String: Any]) throws {
 
 /// Top-level helper extracting the current view tree from an `AdapterSession`.
 @MainActor
-func extractViewTree(_ session: AdapterSession) -> AdapterViewNode? {
-  AdapterHarness.extractViewTree(session)
+func extractViewTree(_ session: AdapterSession) throws -> AdapterViewNode? {
+  try AdapterHarness.extractViewTree(session)
 }
 
 /// Top-level helper asserting an `AdapterViewNode` matches an expected view tree dictionary.
