@@ -225,8 +225,6 @@ Button's child text, a CheckBox's label or a TextField's value.
 
 Not supported yet:
 
-- A literal `min` or `max` on DateTimeInput, which the `a2ui_core` validator
-  rejects.
 - Measuring a surface's intrinsic size, as `IntrinsicWidth` and an
   `AlertDialog`'s content do. Give the surface a fixed width there, or use a
   `Dialog`.
@@ -290,6 +288,22 @@ as `a2uiClientCapabilities`. Each version's capabilities list every
 registered catalog, whatever its protocol version. Once surfaces of both
 versions send their data model, `getRendererDataModel()` needs a version,
 so a v1.0 agent reads it with `version: A2uiProtocolVersion.v1_0`.
+
+## Example
+
+[example](example) is a chat app in which a Gemini model, prompted through
+`a2ui_agent`, answers with v1.0 surfaces, and each event action and error on
+them goes back to the model. [e2e_test](e2e_test) runs it against the live
+model.
+
+[example_v0_9](example_v0_9) is the same app on v0.9, and
+[e2e_test_v0_9](e2e_test_v0_9) runs it against the live model.
+
+## Gallery
+
+[a2ui_explorer](a2ui_explorer) is the gallery app. It renders the v0.9 and
+v1.0 basic catalog examples and steps through their messages, next to each
+surface's data model and a log of actions and errors.
 
 ## Tests
 

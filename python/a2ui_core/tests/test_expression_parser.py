@@ -87,6 +87,31 @@ def test_rejects_expression_parts_exceeding_max_limit(parser):
         parser.parse(too_many_parts)
 
 
+def test_parses_system_function_calls_and_rejects_bare_or_mid_path_at(parser):
+    assert parser.parse("${@index()}: ${name}") == [
+        {"call": "@index", "args": {}, "returnType": "any"},
+        ": ",
+        {"path": "name"},
+    ]
+    assert parser.parse_expression("@index(offset: 1)") == {
+        "call": "@index",
+        "args": {"offset": 1},
+        "returnType": "any",
+    }
+    with pytest.raises(A2uiExpressionError, match=r"Expected '\(' after function name"):
+        parser.parse("${@index}")
+    with pytest.raises(
+        A2uiExpressionError, match="Invalid identifier starting with '@'"
+    ):
+        parser.parse("${@}")
+    with pytest.raises(
+        A2uiExpressionError, match="Invalid identifier starting with '@'"
+    ):
+        parser.parse("${@índex()}")
+    with pytest.raises(A2uiExpressionError, match="Unexpected characters at end"):
+        parser.parse("${a@b}")
+
+
 def test_parses_non_ascii_identifiers_and_paths(parser):
     assert parser.parse("${señor}") == [{"path": "señor"}]
     assert parser.parse("${café/precio}") == [{"path": "café/precio"}]

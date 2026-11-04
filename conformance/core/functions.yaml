@@ -332,6 +332,26 @@
     min: 2
   expect: false
 
+- name: test_evaluate_function_length_null_value
+  description: Verifies length counts a null value, such as an unset field, as length 0.
+  protocolVersion: "v0.9"
+  action: evaluate_function
+  function: length
+  args:
+    value: null
+    max: 10
+  expect: true
+
+- name: test_evaluate_function_length_null_value_too_short
+  description: Verifies length rejects a null value when min is greater than 0.
+  protocolVersion: "v0.9"
+  action: evaluate_function
+  function: length
+  args:
+    value: null
+    min: 1
+  expect: false
+
 # --- NumericFunction (D23) ---
 - name: test_evaluate_function_numeric_valid_float
   description: Verifies numeric returns true for float within bounds.
@@ -397,15 +417,23 @@
   expect: false
 
 - name: test_evaluate_function_and_truthiness_coercion_true
-  description: Verifies and truthiness coercion on non-boolean values (D26).
+  description: Verifies and coerces non-"true" strings to false under DynamicBoolean rules.
   action: evaluate_function
   function: and
   args:
     values: [1, "non-empty"]
+  expect: false
+
+- name: test_evaluate_function_and_coercion_string_true
+  description: Verifies and coerces case-insensitive "true" strings and non-zero numbers to true.
+  action: evaluate_function
+  function: and
+  args:
+    values: ["TRUE", 2]
   expect: true
 
 - name: test_evaluate_function_and_truthiness_coercion_false
-  description: Verifies and truthiness coercion with a falsy value (D26).
+  description: Verifies and coerces an empty string to false under DynamicBoolean rules.
   action: evaluate_function
   function: and
   args:
@@ -413,7 +441,7 @@
   expect: false
 
 - name: test_evaluate_function_and_fewer_than_two_values_error
-  description: Verifies and requires at least 2 values per schema (D25).
+  description: Verifies and requires at least 2 values per schema.
   action: evaluate_function
   function: and
   args:
@@ -421,7 +449,7 @@
   expectError:
     category: ExpressionError
 
-# --- OrFunction (D25, D26) ---
+# --- OrFunction ---
 - name: test_evaluate_function_or_all_false
   description: Verifies or returns false when all values are false.
   action: evaluate_function
@@ -439,15 +467,23 @@
   expect: true
 
 - name: test_evaluate_function_or_truthiness_coercion_true
-  description: Verifies or truthiness coercion on non-boolean values (D26).
+  description: Verifies or coerces 0 and non-"true" strings to false under DynamicBoolean rules.
   action: evaluate_function
   function: or
   args:
     values: [0, "yes"]
-  expect: true
+  expect: false
+
+- name: test_evaluate_function_or_coercion_null_and_object
+  description: Verifies or coerces null and non-ValidationResult objects to false.
+  action: evaluate_function
+  function: or
+  args:
+    values: [null, {}]
+  expect: false
 
 - name: test_evaluate_function_or_fewer_than_two_values_error
-  description: Verifies or requires at least 2 values per schema (D25).
+  description: Verifies or requires at least 2 values per schema.
   action: evaluate_function
   function: or
   args:
@@ -455,7 +491,7 @@
   expectError:
     category: ExpressionError
 
-# --- NotFunction (D26) ---
+# --- NotFunction ---
 - name: test_evaluate_function_not_true
   description: Verifies not returns false for true.
   action: evaluate_function
@@ -473,7 +509,7 @@
   expect: true
 
 - name: test_evaluate_function_not_truthiness_falsy
-  description: Verifies not truthiness coercion for falsy value (D26).
+  description: Verifies not returns true when an empty string coerces to false.
   action: evaluate_function
   function: not
   args:
@@ -481,12 +517,12 @@
   expect: true
 
 - name: test_evaluate_function_not_truthiness_truthy
-  description: Verifies not truthiness coercion for truthy value (D26).
+  description: Verifies not returns true when a non-"true" string coerces to false.
   action: evaluate_function
   function: not
   args:
     value: "hello"
-  expect: false
+  expect: true
 
 # --- Logical functions over ValidationResult operands (v1.0) ---
 # In v1.0 the validators return a ValidationResult object, so a nested
@@ -527,14 +563,14 @@
   expect: true
 
 - name: test_evaluate_function_not_validation_result_operand_v0_9
-  description: Verifies v0.9, whose validators return booleans, treats a {valid} object as a plain truthy object.
+  description: Verifies v0.9 also coerces a ValidationResult object by its boolean valid member.
   protocolVersion: "v0.9"
   action: evaluate_function
   function: not
   args:
     value:
       valid: false
-  expect: false
+  expect: true
 
 # --- PluralizeFunction (D27) ---
 - name: test_evaluate_function_pluralize_explicit_zero
@@ -659,6 +695,36 @@
     value: "2026-13-01"
     format: "yyyy-MM-dd"
   expect: ""
+
+- name: test_evaluate_function_format_date_utc_time
+  description: Verifies formatDate renders the time fields of a UTC timestamp as written, whatever the host time zone.
+  action: evaluate_function
+  function: formatDate
+  args:
+    value: "2026-09-04T23:30:00Z"
+    format: "yyyy-MM-dd HH:mm"
+  expect: "2026-09-04 23:30"
+
+- name: test_evaluate_function_format_date_without_offset
+  description: Verifies formatDate reads a timestamp without an offset as written (as UTC), never as host-local time.
+  action: evaluate_function
+  function: formatDate
+  args:
+    value: "2026-09-04T23:30:00"
+    format: "yyyy-MM-dd HH:mm"
+  expect: "2026-09-04 23:30"
+
+# Pinned to v1.0 because the Python v0.9 catalog converts a timestamp with an offset to UTC
+# before it expands the tokens; web_core, Dart and Python v1.0 keep the written offset.
+- name: test_evaluate_function_format_date_keeps_written_offset
+  description: Verifies formatDate renders a timestamp with an offset in that offset, so the written wall-clock date and time are kept.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: formatDate
+  args:
+    value: "2026-09-04T23:30:00-05:00"
+    format: "yyyy-MM-dd HH:mm"
+  expect: "2026-09-04 23:30"
 
 # --- FormatStringFunction (D18, D28) ---
 - name: test_evaluate_function_format_string_basic
@@ -933,3 +999,26 @@
           value:
             "@path": "/phone"
   expect: false
+
+# ==============================================================================
+# allowedCallers (evaluate_function with a surface)
+# ==============================================================================
+# A call on a surface is a renderer call, the same as a binding, a check or a
+# functionCall action. A function whose allowedCallers is agentOnly runs only
+# for an agent-initiated callRendererFunction (see rpc_functions.yaml), so the
+# renderer refuses it before running it.
+
+- name: test_evaluate_function_v10_agent_only_function_errors
+  description: >-
+    Verifies a v1.0 call on a surface to a function whose allowedCallers is agentOnly fails with an ExpressionError and does not run.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "conformance/test_data/catalogs/allowed_callers_catalog_v1_0.json"
+  surface:
+    catalogId: "https://a2ui.org/catalogs/v10/allowed_callers"
+  function: readSessionToken
+  args: {}
+  expectError:
+    category: ExpressionError
+    message: "cannot be called by renderer"

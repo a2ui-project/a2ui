@@ -1,0 +1,406 @@
+---
+title: 'Data Model and Data Binding'
+description: 'Learn how A2UI separates surface UI structure from reactive JSON state, enabling dynamic display bindings, two-way input bindings, dynamic list templates, and state synchronization back to the agent.'
+---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components';
+import DataBindingAnatomy from '@components/docs/DataBindingAnatomy.astro';
+import CollectionScopeDiagram from '@components/docs/CollectionScopeDiagram.astro';
+
+A2UI separates UI component structure from runtime data by giving every surface an isolated JSON data model and binding components to paths within that model.
+
+Components reference locations inside the data model using [RFC 6901 JSON Pointers](https://datatracker.ietf.org/doc/html/rfc6901) (such as `/reservation/destination` or `/reservation/guestEmail`). When either the agent or the user updates a path in the data model, only the components bound to that path update.
+
+The following diagram shows how a surface data model and component bindings produce a rendered UI. On the left, the surface data model stores reservation state in JSON, and component definitions bind to paths such as `/reservation/destination` and `/reservation/guestEmail`. On the right, an application window renders the resulting interface: a heading displaying the destination, an editable text field bound two-way to the guest email, and a confirmation button.
+
+<DataBindingAnatomy />
+
+---
+
+## Populating the data model
+
+Each surface maintains its own JSON data model. In v1.0, you can provide an initial `dataModel` object inline when sending [`createSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage), or populate and update the data model at any time by sending [`updateDataModel`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage) messages (in v0.9.1, data is always sent via [`updateDataModel`](/specification/v0.9.1/schemas/#server_to_client.json/$defs/UpdateDataModelMessage) after creating the surface).
+
+When the renderer receives an `updateDataModel` message, it applies upsert semantics at the target JSON Pointer `path`. If the path does not exist yet, the renderer creates any missing intermediate objects and inserts the value; if the path already exists, the renderer replaces the value at that path. Omitting `path` (or setting it to `"/"`) replaces the entire root data model for the surface. To delete a key at `path`, set `"value": null` in v1.0, or omit the `value` property in v0.9.1.
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```json
+{
+  "version": "1.0",
+  "updateDataModel": {
+    "surfaceId": "booking",
+    "path": "/reservation/destination",
+    "value": "Kyoto, Japan"
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Current)">
+
+```json
+{
+  "version": "v0.9",
+  "updateDataModel": {
+    "surfaceId": "booking",
+    "path": "/reservation/destination",
+    "value": "Kyoto, Japan"
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Because `updateDataModel` is separate from component layout messages ([`updateComponents`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateComponentsMessage)), the data model can be updated directly by the language model during generation, or from deterministic code on the agent side (such as a tool handler or backend service injecting database records or API responses directly into the surface without passing them through the model).
+
+---
+
+## Binding to the data model
+
+UI components can be bound to paths in the surface data model so they can display and update data. Component properties typed as dynamic values (such as [`DynamicString`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicString), [`DynamicNumber`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicNumber), [`DynamicBoolean`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicBoolean), [`DynamicStringList`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicStringList), or [`DynamicValue`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicValue)) accept either a static literal value or a [`DataBinding`](/specification/v1.0/schemas/#common_types.json/$defs/DataBinding) object (`{"@path": "/path"}` in v1.0, or `{"path": "/path"}` in v0.9.1). Dynamic properties can also evaluate functions, which are covered in [Actions and Functions](/concepts/actions-and-functions/).
+
+### Reading data as dynamic values
+
+To display a value from the data model, bind a component's dynamic property to a JSON Pointer path. Whenever the value at that path is populated or updated, the component updates automatically:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```json
+{
+  "id": "destinationText",
+  "component": "Text",
+  "text": {"@path": "/reservation/destination"}
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Current)">
+
+```json
+{
+  "id": "destinationText",
+  "component": "Text",
+  "text": {"path": "/reservation/destination"}
+}
+```
+
+  </TabItem>
+</Tabs>
+
+### Two-way binding to dynamic values
+
+Interactive input components (such as `TextField`, `CheckBox`, or `Slider`) bind their `value` property to a path in the data model. This creates a two-way binding: the input displays the current value at that path, and as the user types or toggles the control, the renderer updates that path in the local data model immediately:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```json
+{
+  "id": "emailInput",
+  "component": "TextField",
+  "label": "Guest Email",
+  "value": {"@path": "/reservation/guestEmail"}
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Current)">
+
+```json
+{
+  "id": "emailInput",
+  "component": "TextField",
+  "label": "Guest Email",
+  "value": {"path": "/reservation/guestEmail"}
+}
+```
+
+  </TabItem>
+</Tabs>
+
+### Referencing the data model in events
+
+Component events ([`action.event`](/specification/v1.0/schemas/#common_types.json/$defs/Action)) can include data model references inside their `context` object. When the user triggers the event (for example, by clicking a button to submit a form), the renderer resolves each path against the local data model and sends the current values in the outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```json
+{
+  "id": "submitButton",
+  "component": "Button",
+  "child": "submitLabel",
+  "action": {
+    "event": {
+      "name": "submit_reservation",
+      "context": {
+        "email": {"@path": "/reservation/guestEmail"}
+      }
+    }
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Current)">
+
+```json
+{
+  "id": "submitButton",
+  "component": "Button",
+  "child": "submitLabel",
+  "action": {
+    "event": {
+      "name": "submit_reservation",
+      "context": {
+        "email": {"path": "/reservation/guestEmail"}
+      }
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+### Displaying dynamic lists of data
+
+Container components whose `children` property uses [`ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList) (such as `Column`, `Row`, or `List`) can either take a static array of child component IDs (`["item1", "item2"]`) or generate children dynamically from a list in the data model using a template object with `path` and `componentId` (`ChildList` uses the property name `"path"` in both v1.0 and v0.9.1).
+
+When a container binds to a list path (such as `"/guests"`), the renderer repeats the template component once for each item in the array and creates a local data scope for that item:
+
+1. A **local data model path** omits the leading slash (such as `{"@path": "name"}` in v1.0, or `{"path": "name"}` in v0.9.1) and resolves relative to the current list item. For the first item in `"/guests"`, `"name"` resolves to `"/guests/0/name"`, and for the second item, it resolves to `"/guests/1/name"`.
+2. A **root data model path** starts with a leading slash (such as `{"@path": "/reservation/destination"}`) and always resolves from the root of the surface data model, even inside a list template.
+3. In v1.0, the **`@index` system function** (`{"@call": "@index"}`, with an optional `"args": {"offset": 1}`) returns the current item's 0-based index inside a list template.
+
+The following example populates a `/guests` list in the data model and renders each guest's `name` using a `Column` template:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```json
+[
+  {
+    "version": "1.0",
+    "updateDataModel": {
+      "surfaceId": "booking",
+      "path": "/guests",
+      "value": [{"name": "Alex Rivera"}, {"name": "Sam Taylor"}]
+    }
+  },
+  {
+    "version": "1.0",
+    "updateComponents": {
+      "surfaceId": "booking",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": {
+            "path": "/guests",
+            "componentId": "guestRow"
+          }
+        },
+        {
+          "id": "guestRow",
+          "component": "Text",
+          "text": {"@path": "name"}
+        }
+      ]
+    }
+  }
+]
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Current)">
+
+```json
+[
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "booking",
+      "path": "/guests",
+      "value": [{"name": "Alex Rivera"}, {"name": "Sam Taylor"}]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "booking",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": {
+            "path": "/guests",
+            "componentId": "guestRow"
+          }
+        },
+        {
+          "id": "guestRow",
+          "component": "Text",
+          "text": {"path": "name"}
+        }
+      ]
+    }
+  }
+]
+```
+
+  </TabItem>
+</Tabs>
+
+The following diagram shows how the `/guests` array and the `guestRow` template expand into a rendered list UI. On the left, the `/guests` array holds two objects and `guestRow` binds its text to the local path `"name"`. On the right, an application window renders two list items resolved from `/guests/0/name` and `/guests/1/name`.
+
+<CollectionScopeDiagram />
+
+---
+
+## Synchronizing state back to the agent
+
+When a user edits an input component, two-way bindings update the surface data model locally on the client without streaming every keystroke over the network. To synchronize data model state back to the agent, especially values updated by input components, you can use three mechanisms depending on how the data will be processed.
+
+### Events
+
+Include data model references in `action.event.context` to send specific values (such as form fields) when the user triggers an [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) event. When the user clicks the `submitButton` component shown earlier, the renderer resolves each bound path against the local data model and sends the resolved `action` message to the agent. This is best when you want to send data model state to an agent to reason over and process:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```json
+{
+  "version": "1.0",
+  "action": {
+    "name": "submit_reservation",
+    "surfaceId": "booking",
+    "sourceComponentId": "submitButton",
+    "timestamp": "2026-03-15T14:30:00Z",
+    "context": {
+      "email": "alex@example.com"
+    }
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Current)">
+
+```json
+{
+  "version": "v0.9",
+  "action": {
+    "name": "submit_reservation",
+    "surfaceId": "booking",
+    "sourceComponentId": "submitButton",
+    "timestamp": "2026-03-15T14:30:00Z",
+    "context": {
+      "email": "alex@example.com"
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+### Agent functions
+
+In v1.0, an interactive component such as a submit button can use `action.functionCall` to trigger an agent-side function (`callAgentFunction`) with arguments bound to paths in the data model. This is best when you want to send data model state directly to programmatic code on the agent side:
+
+```json
+{
+  "id": "saveButton",
+  "component": "Button",
+  "child": "saveLabel",
+  "action": {
+    "functionCall": {
+      "@call": "saveReservation",
+      "args": {
+        "email": {"@path": "/reservation/guestEmail"}
+      }
+    }
+  }
+}
+```
+
+### `sendDataModel: true`
+
+Set `"sendDataModel": true` in the [`createSurface`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) message to instruct the renderer to attach the full surface data model to the transport metadata of every outbound message (`a2uiRendererDataModel` in v1.0, or `a2uiClientDataModel` in v0.9.1, shaped as `{"version": "1.0", "surfaces": {"booking": {...}}}`). This is best when you want to synchronize complete surface state as context for the agent:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```json
+{
+  "version": "1.0",
+  "createSurface": {
+    "surfaceId": "booking",
+    "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+    "sendDataModel": true
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Current)">
+
+```json
+{
+  "version": "v0.9",
+  "createSurface": {
+    "surfaceId": "booking",
+    "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+    "sendDataModel": true
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## Accessing the data model across SDKs
+
+Each Core SDK provides a `dataModel` interface on the surface model for reading values by JSON Pointer path:
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="TypeScript">
+
+```typescript
+const surface = processor.model.getSurface('booking');
+const email = surface?.dataModel.get('/reservation/guestEmail');
+```
+
+  </TabItem>
+  <TabItem label="Python">
+
+```python
+surface = processor.model.get_surface("booking")
+email = surface.data_model.get("/reservation/guestEmail") if surface else None
+```
+
+  </TabItem>
+  <TabItem label="Dart">
+
+```dart
+final surface = processor.model.getSurface('booking');
+final email = surface?.dataModel.get('/reservation/guestEmail');
+```
+
+  </TabItem>
+  <TabItem label="Swift">
+
+```swift
+let surface = processor.surfaceGroupModel["booking"]
+let email = surface?.dataModel.get("/reservation/guestEmail")
+```
+
+  </TabItem>
+</Tabs>

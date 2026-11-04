@@ -247,6 +247,11 @@ _Envelope _readEnvelope(
         "'${A2uiProtocolVersion.v1_0.jsonValue}'; this message declares "
         "'${version.jsonValue}'.",
       );
+    } else if (key == 'beginRendering') {
+      throw A2uiValidationError(
+        "Unknown A2UI message type: action 'beginRendering' is not supported "
+        'in protocol version ${version.jsonValue}.',
+      );
     } else {
       throw A2uiValidationError(
         "Unknown A2UI message type or envelope key '$key'. Expected "
@@ -261,6 +266,7 @@ _Envelope _readEnvelope(
   }
   if (present.length > 1) {
     throw A2uiValidationError(
+      'Message contains multiple conflicting update actions: '
       'A2UI message must contain exactly one of '
       '${allowed.join(', ')}; got ${present.join(', ')}.',
     );
@@ -388,9 +394,10 @@ T _required<T extends Object>(
     );
   }
   if (value is! T) {
+    final typeHint = T == String ? ' ($field must be a string)' : '';
     throw A2uiValidationError(
       "Field '$messageType.$field' must be a $T, got "
-      '${value.runtimeType}.',
+      '${value.runtimeType}$typeHint.',
     );
   }
   return value;
@@ -405,9 +412,10 @@ T? _optional<T extends Object>(
   final Object? value = body[field];
   if (value == null) return null;
   if (value is! T) {
+    final typeHint = T == String ? ' ($field must be a string)' : '';
     throw A2uiValidationError(
       "Field '$messageType.$field' must be a $T, got "
-      '${value.runtimeType}.',
+      '${value.runtimeType}$typeHint.',
     );
   }
   return value;

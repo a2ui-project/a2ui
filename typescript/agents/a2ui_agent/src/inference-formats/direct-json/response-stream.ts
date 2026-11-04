@@ -28,6 +28,7 @@ import {
 } from '../../internal/web-core.js';
 import {ResponsePart, StreamPart} from '../../parser/response-part.js';
 import {ResponseStream} from '../../parser/response-stream.js';
+import {TextRun} from '../../parser/text-run.js';
 import {RendererState} from '../../utils/renderer-state.js';
 import {
   BlockScanner,
@@ -138,8 +139,7 @@ export class DirectJsonResponseStream<
   private closed = false;
   // Text outside blocks.
   private held = '';
-  private runStarted = false;
-  private heldSpace = '';
+  private readonly text = new TextRun();
   private heldBackticks = '';
   private stripCloseBackticks = false;
   // The open block.
@@ -223,10 +223,10 @@ export class DirectJsonResponseStream<
       throw withPartialResults(e, parts.filter(isResponsePart));
     }
     if (this.heldBackticks) {
-      this.emitText(parts, this.heldBackticks);
+      this.text.emit(parts, this.heldBackticks);
       this.heldBackticks = '';
     } else if (this.held) {
-      this.emitText(parts, this.held);
+      this.text.emit(parts, this.held);
       this.held = '';
     }
     return parts;
@@ -318,9 +318,8 @@ export class DirectJsonResponseStream<
         if (textBefore.endsWith('`')) {
           textBefore = textBefore.replace(/`+$/, '');
         }
-        this.emitText(parts, textBefore);
-        this.runStarted = false;
-        this.heldSpace = '';
+        this.text.emit(parts, textBefore);
+        this.text.reset();
         this.heldBackticks = '';
         this.inBlock = true;
         input = input.slice(open.end);
@@ -343,20 +342,8 @@ export class DirectJsonResponseStream<
           textToEmit = textToEmit.slice(0, textToEmit.length - this.heldBackticks.length);
         }
       }
-      this.emitText(parts, textToEmit);
+      this.text.emit(parts, textToEmit);
     }
-  }
-
-  private emitText(parts: StreamPart[], text: string): void {
-    const body = (this.runStarted ? text : text.trimStart()).trimEnd();
-    if (!body) {
-      if (this.runStarted && !body) this.heldSpace += text;
-      return;
-    }
-    const start = this.runStarted ? 0 : text.indexOf(body);
-    parts.push({type: 'text', text: `${this.heldSpace}${body}`});
-    this.heldSpace = text.slice(start + body.length);
-    this.runStarted = true;
   }
 
   /**

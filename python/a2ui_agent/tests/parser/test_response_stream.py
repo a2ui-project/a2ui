@@ -173,13 +173,13 @@ def _v09_block(catalog, surface_id, root):
 
 def _v10_create(catalog, surface_id):
     return json.dumps({
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {"surfaceId": surface_id, "catalogId": catalog.catalog_id},
     })
 
 
 _V10_BOGUS_ROOT = json.dumps({
-    "version": "v1.0",
+    "version": "1.0",
     "updateComponents": {
         "surfaceId": "main",
         "components": [{"id": "root", "component": "Bogus"}],

@@ -32,6 +32,14 @@ export * from './errors.js';
 export * from './common/events.js';
 export * from './common/markdown.js';
 export * from './common/sanitize_media_url.js';
+export {
+  validateMetadata,
+  cloneMetadata,
+  metadataEquals,
+  type A2uiMetadata,
+  type Extensions,
+  type ActionDispatchOptions,
+} from './common/metadata.js';
 export * from './common/semver.js';
 export * from './common/uax31.js';
 export * from './spec_versions.js';

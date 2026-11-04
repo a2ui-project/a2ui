@@ -321,6 +321,54 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         with self.assertRaises(SyntaxError):
             compiler.compile('root = Column([t], weight=.)\nt = Text("Hi")')
 
+    def test_v10_surface_and_component_extensions(self):
+        """Verifies reserved `extensions=` keyword argument on surface(...) and component calls in v1.0."""
+        compiler = ExpressCompiler([self.catalog], version="1.0")
+        dsl = (
+            'surface("main", extensions={surfaceTheme: "dark"})\n'
+            'root = Text("Hello", extensions={badge: 1, tag: "info"})'
+        )
+        messages = to_message_dicts(compiler.compile(dsl))
+        self.assertEqual(len(messages), 1)
+        cs = messages[0]["createSurface"]
+        self.assertEqual(cs["metadata"], {"extensions": {"surfaceTheme": "dark"}})
+        self.assertEqual(
+            cs["components"][0]["metadata"],
+            {"extensions": {"badge": 1, "tag": "info"}},
+        )
+
+        with self.assertRaises(ExpressValidationError):
+            compiler.compile('root = Text("Hi", extensions={"bad-key": 1})')
+
+        with self.assertRaises(ExpressValidationError):
+            compiler.compile(
+                'surface("main", extensions={"bad-key": 1})\nroot = Text("Hi")'
+            )
+
+        with self.assertRaises(ExpressValidationError):
+            compiler.compile('root = Text("Hi", extensions={a: 1})', version="v0.9")
+
+        # Variable reference in surface(extensions=ext) resolves cleanly
+        dsl_var = (
+            'surface("main", extensions=ext)\n'
+            'ext = {surfaceTheme: "dark"}\n'
+            'root = Text("Hello")'
+        )
+        msg_var = to_message_dicts(compiler.compile(dsl_var))
+        self.assertEqual(
+            msg_var[0]["createSurface"]["metadata"],
+            {"extensions": {"surfaceTheme": "dark"}},
+        )
+
+        # extensions= on update scopes raises ExpressValidationError instead of silently dropping
+        with self.assertRaises(ExpressValidationError):
+            compiler.compile(
+                'surface("main", update=true, extensions={a: 1})\nc1 = Text("Hi")'
+            )
+
+        with self.assertRaises(ExpressValidationError):
+            compiler.compile('surface("main", extensions={a: 1})\nc1 = Text("Hi")')
+
 
 def _links_catalog(protocol_version: str) -> Catalog:
     """Builds a catalog whose `Links` component nests an action inside each list item.

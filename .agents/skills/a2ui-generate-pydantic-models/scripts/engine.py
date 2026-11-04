@@ -371,7 +371,13 @@ class PydanticCodegen:
             if self.allow_inline and "properties" in prop:
                 if len(prop["properties"]) == 1:
                     single_prop = list(prop["properties"].keys())[0]
-                    class_name = to_pascal_case(single_prop)
+                    if prop_name == "metadata" and self.name_context:
+                        class_name = (
+                            f"{to_pascal_case(self.name_context)}"
+                            f"{to_pascal_case(prop_name)}"
+                        )
+                    else:
+                        class_name = to_pascal_case(single_prop)
                 elif prop_name.endswith("ies"):
                     base_name = prop_name[:-3] + "y"
                     class_name = f"{to_pascal_case(base_name)}Item"

@@ -14,11 +14,11 @@
 
 """A2UI extension for the Agent Development Kit (ADK).
 
-`SendA2uiToClientToolset` and `A2uiProcessorStore` only need ADK. The ADK-to-A2A
-converters (`A2uiPartConverter`, `A2uiEventConverter`, the `a2a` subpackage) and
-the A2A subagent orchestration helpers (`A2uiSubagentMap`,
-`SurfaceIdAlreadyExistsError`, the `orchestration` subpackage) need the `a2a`
-extra:
+`SendA2uiToClientToolset`, `A2uiInstruction` and `A2uiProcessorStore` only
+need ADK. The ADK-to-A2A converters (`A2uiPartConverter`, `A2uiEventConverter`,
+the `a2a` subpackage) and the A2A subagent orchestration helpers
+(`A2uiSubagentMap`, `SurfaceIdAlreadyExistsError`, the `orchestration`
+subpackage) need the `a2a` extra:
 
   pip install "a2ui-adk[a2a]"
 
@@ -30,6 +30,7 @@ from __future__ import annotations
 import importlib
 from typing import TYPE_CHECKING, Any
 
+from .instruction import A2uiInstruction
 from .processor_store import A2uiProcessorStore
 from .send_a2ui_to_client_toolset import (
     A2uiEnabledProvider,
@@ -97,6 +98,7 @@ def __getattr__(name: str) -> Any:
 __all__ = [
     "A2uiEnabledProvider",
     "A2uiEventConverter",
+    "A2uiInstruction",
     "A2uiPartConverter",
     "A2uiProcessorProvider",
     "A2uiProcessorStore",

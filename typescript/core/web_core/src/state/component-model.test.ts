@@ -102,12 +102,12 @@ describe('ComponentModel', () => {
       'Chart',
       {metadata: 'prop', title: 'Sales'},
       defaultCatalog,
-      {owner: 'agent'},
+      {extensions: {owner: 'agent'}},
     );
     assert.deepStrictEqual(chart.componentTree, {
       id: 'chart1',
       component: 'Chart',
-      metadata: {owner: 'agent'},
+      metadata: {extensions: {owner: 'agent'}},
       title: 'Sales',
     });
   });
@@ -120,5 +120,73 @@ describe('ComponentModel', () => {
     const customComp = new ComponentModel('c2', 'Card', {title: 'Hello'}, testCatalog);
     assert.strictEqual(customComp.catalog, testCatalog);
     assert.strictEqual(customComp.catalog.id, 'custom-cat');
+  });
+
+  it('manages metadata, extensions, reactivity, and disposal', async () => {
+    const emissions: Array<Record<string, unknown> | undefined> = [];
+    let updatedCalls = 0;
+    component.onMetadataChanged.subscribe(meta => {
+      emissions.push(meta);
+    });
+    component.onUpdated.subscribe(() => {
+      updatedCalls++;
+    });
+
+    component.setExtension('annot', {priority: 1});
+    assert.deepStrictEqual(component.metadata, {extensions: {annot: {priority: 1}}});
+    assert.deepStrictEqual(component.extensions, {annot: {priority: 1}});
+
+    // setExtension with null stores explicit null
+    component.setExtension('empty_ext', null);
+    assert.deepStrictEqual(component.extensions, {annot: {priority: 1}, empty_ext: null});
+
+    // removeExtension removes keys and clears metadata when empty
+    component.removeExtension('empty_ext');
+    component.removeExtension('annot');
+    assert.strictEqual(component.metadata, undefined);
+    assert.strictEqual(component.extensions, undefined);
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(emissions.length, 4);
+    assert.strictEqual(updatedCalls, 0);
+
+    assert.throws(
+      () => component.setExtension('bad-key', true),
+      /Invalid UAX #31 extension identifier: "bad-key"/,
+    );
+    assert.throws(() => {
+      component.metadata = {unknownKey: 1} as any;
+    }, /Unexpected property "unknownKey" in metadata/);
+
+    // __proto__ extension key is defined as an own property without mutating prototype
+    const protoMeta = JSON.parse('{"extensions": {"__proto__": {"tag": "safe"}}}');
+    component.metadata = protoMeta;
+    assert.strictEqual(Object.getPrototypeOf(component.extensions), Object.prototype);
+    assert.deepStrictEqual(Object.keys(component.extensions!), ['__proto__']);
+
+    // Empty envelopes normalize to undefined
+    component.metadata = {};
+    assert.strictEqual(component.metadata, undefined);
+    component.metadata = {extensions: {}};
+    assert.strictEqual(component.metadata, undefined);
+
+    // applyUpdate updates both properties and metadata before emitting
+    const observedDuringUpdate: Array<{props: Record<string, any>; meta: unknown}> = [];
+    component.onUpdated.subscribe(c => {
+      observedDuringUpdate.push({props: c.properties, meta: c.metadata});
+    });
+    component.applyUpdate({text: 'Atomic'}, {extensions: {step: 2}});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(observedDuringUpdate.length, 1);
+    assert.deepStrictEqual(observedDuringUpdate[0], {
+      props: {text: 'Atomic'},
+      meta: {extensions: {step: 2}},
+    });
+
+    component.dispose();
+    const countBefore = emissions.length;
+    component.metadata = {extensions: {after_dispose: true}};
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(emissions.length, countBefore);
   });
 });

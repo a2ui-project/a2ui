@@ -25,6 +25,7 @@
  */
 
 import React, {
+  createContext,
   useCallback,
   useContext,
   useLayoutEffect,
@@ -34,10 +35,22 @@ import React, {
 import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core/v0_9';
 import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
 import {prepareCatalogs} from './catalog/prepare_catalogs';
-import {ChildElement, HostedChildren, LoadingPlaceholder} from './node-view';
+import {ChildElement, HostedChildren} from './node-view';
 import type {ReactCatalogComponent} from './react_component_implementation';
 import {MarkdownComponentContext, useMarkdownRenderer} from './markdown-context';
 import {registerMarkdownHostRenderer} from './markdown_hosts';
+
+const A2uiSurfaceContext = createContext<SurfaceModel<ReactCatalogComponent> | undefined>(
+  undefined,
+);
+
+/**
+ * Returns the enclosing {@link SurfaceModel} when called inside an
+ * {@link A2uiSurface} tree, or `undefined` outside one.
+ */
+export function useA2uiSurface(): SurfaceModel<ReactCatalogComponent> | undefined {
+  return useContext(A2uiSurfaceContext);
+}
 
 export const A2uiSurface: React.FC<{
   surface: SurfaceModel<ReactCatalogComponent>;
@@ -76,6 +89,9 @@ export const A2uiSurface: React.FC<{
   const subscribe = useCallback(
     (onChange: () => void) => {
       prepareCatalogs(surface);
+      const onCreatedSub = surface.componentsModel.onCreated.subscribe(() => {
+        prepareCatalogs(surface);
+      });
       const resolver = new NodeResolver(surface, surface.defaultCatalog);
       box.resolver = resolver;
       const stopEffect = effect(() => {
@@ -84,6 +100,7 @@ export const A2uiSurface: React.FC<{
       });
       return () => {
         stopEffect();
+        onCreatedSub.unsubscribe();
         resolver.dispose();
         if (box.resolver === resolver) {
           box.resolver = undefined;
@@ -98,15 +115,16 @@ export const A2uiSurface: React.FC<{
   );
   const root = useSyncExternalStore(subscribe, getSnapshot);
 
+  // Nothing to show until the root component arrives.
   if (!root) {
-    return <LoadingPlaceholder componentId="root" />;
+    return null;
   }
   // A React host of this surface with no React-rendered element above it
   // (one created outside the surface's tree) gets its content from here.
   return (
-    <>
+    <A2uiSurfaceContext.Provider value={surface}>
       <ChildElement node={root} />
       <HostedChildren surface={surface} owner={null} />
-    </>
+    </A2uiSurfaceContext.Provider>
   );
 };

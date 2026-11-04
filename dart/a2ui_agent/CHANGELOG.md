@@ -2,11 +2,28 @@
 
 ## Unreleased
 
+- Remove `(Agent to UI)` from the embedded v0.9 `server_to_client.json` and v1.0
+  `agent_to_renderer.json` schema descriptions in `DirectJsonPromptGenerator`
+  ([#1605](https://github.com/a2ui-project/a2ui/pull/1605)).
+- Add incremental streaming support for the Express inference format via
+  `ExpressResponseStream` (`ExpressFormat.supportsStreaming` and
+  `ExpressParser.supportsStreaming` now return `true`). `ExpressFormatFactory`,
+  `ExpressFormat`, and `ExpressParser` accept `progressiveKeys` (defaulting to
+  `defaultExpressProgressiveKeys = {'text'}`) to heal unclosed string literals
+  in matching component properties and data path assignments as chunks arrive,
+  while gating initial `createSurface` emission on `root = ...` for new
+  surfaces, emitting delta `updateComponents` and per-path `updateDataModel`
+  messages on subsequent chunks, and holding statements with unresolved value
+  variables until defined ([#2896](https://github.com/a2ui-project/a2ui/issues/2896)).
+  `surface(...)` also accepts `update=` and `sendDataModel=` keyword arguments
+  to update an existing surface without emitting `createSurface` or to request
+  client data model echoing on surface creation.
 - Breaking: Use `'1.0'` (without a `'v'` prefix) as the `version` field on
   v1.0 protocol messages and capabilities in `ExpressCompiler`,
   `ExpressDecompiler`, `DirectJsonParser`, `RendererState`, `resolveCatalogs`,
   and prompt examples ([#3097](https://github.com/a2ui-project/a2ui/issues/3097),
   [#3726](https://github.com/a2ui-project/a2ui/pull/3726)).
+- Support the reserved `extensions=` keyword argument on `surface(...)` and component calls in v1.0 A2UI Express (`ExpressCompiler` and `ExpressDecompiler`), compiling to and decompiling from `metadata.extensions` with UAX 31 extension key validation ([#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)).
 
 - Bumped `a2ui_core` constraint to `^0.4.0`.
 
@@ -40,7 +57,8 @@
 - Added `Parser.openContinuingStream` and
   `A2uiRequestProcessor.openContinuingStream`, which open a
   `ContinuingResponseStream` (`ResponseReader<StreamPart>`;
-  `DirectJsonContinuingResponseStream` for direct JSON) that reads past a
+  `DirectJsonContinuingResponseStream` for direct JSON and
+  `ExpressContinuingResponseStream` for Express) that reads past a
   rejected block. It returns an `ErrorPart` in place of the block, skips the
   rest of it, and reads the text and blocks after it; the messages the block
   emitted before it was rejected stay in the state. A block still open when
@@ -75,8 +93,12 @@
   keyword `Event` does not define, where it used to drop them. A function call
   in an action slot nested inside a list item or object property (such as
   `items: [{label, action: openUrl(...)}]`) is now compiled as a
-  `functionCall` action. `ExpressDecompiler` writes `userMessage=` back
-  ([#3598](https://github.com/a2ui-project/a2ui/issues/3598)).
+  `functionCall` action. `ExpressDecompiler` writes `userMessage=` back, and
+  `ExpressPromptGenerator` teaches `Event(name, context?, userMessage=...)` in
+  rule 8 for v1.0+ catalogs
+  ([#3598](https://github.com/a2ui-project/a2ui/issues/3598),
+  [#3690](https://github.com/a2ui-project/a2ui/issues/3690),
+  [#3867](https://github.com/a2ui-project/a2ui/pull/3867)).
 - `DirectJsonParser.unwrap`, `DirectJsonResponseStream`, and
   `ExpressParser.unwrap` remove the backticks left at the edges of a block when
   a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` `` or
@@ -201,6 +223,10 @@
   longer checks components, function calls, themes or catalog ids against the
   catalogs; `parseResponse(block, wrapped: false)` compiles and checks one
   block. A `Parser` subclass implements the new `catalogs` getter.
+- The v1.0 schema in the direct JSON prompt no longer says that `createSurface`
+  needs later messages for its components and data. They can be sent inline in
+  `createSurface` or in later `updateComponents` and `updateDataModel` messages.
+  [#3678](https://github.com/a2ui-project/a2ui/pull/3678)
 - `A2uiRequestProcessor` reuses one parser, which its `parser` getter
   returns. `createState` creates an empty `RendererState` for the active
   catalogs. A processor can be bound to a state, through its `state`
@@ -344,6 +370,10 @@
   as part of a string or comment.
 - An Express integer too large for `int` compiles to a double instead of
   throwing `FormatException`.
+- The Direct JSON prompt rule says the JSON part is a JSON array of A2UI
+  messages, each following the schema, instead of "a single, raw JSON object
+  (usually a list of A2UI messages)" that "MUST validate" against it
+  ([#3721](https://github.com/a2ui-project/a2ui/pull/3721)).
 
 ## 0.0.1-wip005
 

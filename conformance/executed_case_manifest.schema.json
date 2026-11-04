@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/executed_case_manifest.schema.json",
+  "$comment": "Copyright 2024 Google LLC. Licensed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0).",
+  "title": "A2UI Conformance Executed-Case Manifest Record",
+  "description": "JSON Schema validating a single JSON Lines record in an A2UI conformance executed-case manifest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["harness", "suite", "case", "status"],
+  "properties": {
+    "harness": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier of the conformance harness that executed the test case."
+    },
+    "suite": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Suite file path relative to conformance/, using forward slashes."
+    },
+    "case": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Test case name, or test id for map-form suites."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["passed", "failed", "skipped", "xfailed"],
+      "description": "Execution status of the test case."
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S",
+      "description": "Non-empty explanation required when status is skipped or xfailed."
+    }
+  },
+  "if": {
+    "properties": {
+      "status": {
+        "enum": ["skipped", "xfailed"]
+      }
+    },
+    "required": ["status"]
+  },
+  "then": {
+    "required": ["reason"]
+  }
+}

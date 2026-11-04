@@ -16,6 +16,7 @@
 
 import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {DataContext} from '../resolution/data-context.js';
+import {resolveArgumentValue} from '../resolution/data-context-internal.js';
 import {isSignal, getValue} from '../reactivity/signals.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {FunctionCall} from '../v1_0/schema/common-types.js';
@@ -28,7 +29,7 @@ import {
   CallAgentFunctionMessage,
 } from '../v1_0/schema/renderer-to-agent.js';
 import {isCatalogVersionCompatible} from '../processing/adapters/base.js';
-import {settleDeep} from '../common/settle_deep.js';
+import {findFailedArgument, settleDeep} from '../common/settle_deep.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
 import {A2uiRpcError, RpcErrorCode} from '../errors.js';
 
@@ -69,6 +70,7 @@ export interface CallOptions {
  * Pending agent function callback record.
  */
 interface PendingAgentCall {
+  surfaceId: string;
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
 }
@@ -221,6 +223,18 @@ export class RpcHandler {
       await this.emitOutboundResponse(errorResponse);
       return errorResponse;
     }
+    const failedArg = findFailedArgument(settledArgs);
+    if (failedArg) {
+      const errorResponse = this.createResponseError(
+        functionCallId,
+        RpcErrorCode.EXECUTION_ERROR,
+        (failedArg.error === undefined ? '' : this.extractErrorMessage(failedArg.error)) ||
+          'An argument of the function call could not be resolved.',
+        version,
+      );
+      await this.emitOutboundResponse(errorResponse);
+      return errorResponse;
+    }
 
     const parsedArgsResult = this.parseArguments(
       resolved.catalog,
@@ -335,12 +349,35 @@ export class RpcHandler {
   }
 
   /**
+   * Cancels all pending agent function calls originating from the given surface.
+   *
+   * Each pending call is rejected with an `A2uiRpcError` whose code is
+   * `CANCELLED`. `DataContext` does not report such a rejection, so a
+   * renderer may call this to reset a surface that it keeps.
+   *
+   * @param surfaceId Identifier of the surface whose pending calls should be cancelled.
+   */
+  cancelSurfaceCalls(surfaceId: string): void {
+    for (const [id, pending] of Array.from(this.pendingAgentCalls.entries())) {
+      if (pending.surfaceId === surfaceId) {
+        pending.reject(
+          new A2uiRpcError(
+            `Pending calls for surface '${surfaceId}' were cancelled.`,
+            RpcErrorCode.CANCELLED,
+            id,
+          ),
+        );
+      }
+    }
+  }
+
+  /**
    * Disposes the RPC handler and cancels all pending agent function calls with a `CANCELLED` error.
    */
   dispose(): void {
     if (this.isDisposed) return;
     this.isDisposed = true;
-    for (const [id, pending] of this.pendingAgentCalls.entries()) {
+    for (const [id, pending] of Array.from(this.pendingAgentCalls.entries())) {
       pending.reject(
         new A2uiRpcError(
           `RpcHandler disposed while call '${id}' was pending.`,
@@ -511,7 +548,17 @@ export class RpcHandler {
     });
     try {
       for (const [key, val] of Object.entries(args)) {
-        resolvedArgs[key] = context.resolveDynamicValue(val, 1, isUserActivated);
+        // The agent is waiting for this response, so a nested call the
+        // renderer does not implement fails here instead of being sent back
+        // to the agent. Keys stay own properties, `"__proto__"` included.
+        Object.defineProperty(resolvedArgs, key, {
+          value: resolveArgumentValue(context, val, 1, isUserActivated, {
+            allowAgentRouting: false,
+          }),
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
       }
     } catch (err: unknown) {
       expressionError =
@@ -669,6 +716,7 @@ export class RpcHandler {
       );
 
       this.pendingAgentCalls.set(functionCallId, {
+        surfaceId,
         resolve: val => {
           cleanup();
           resolve(val as T);

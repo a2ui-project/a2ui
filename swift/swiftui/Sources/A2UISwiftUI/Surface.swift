@@ -62,10 +62,12 @@ public struct Surface: View {
     if let rootNode = viewModel.rootNode {
       ComponentNodeView(node: rootNode)
         .environment(\.a2uiTheme, viewModel.theme)
+        .environment(\.a2uiSurfaceMetadata, viewModel.metadata)
         .environment(\.a2uiCatalogs, catalogs)
         .environment(\.a2uiDefaultCatalogID, defaultCatalogID)
     } else {
-      ProgressView()
+      // Nothing to show until the root component arrives.
+      EmptyView()
     }
   }
 }

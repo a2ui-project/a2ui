@@ -433,4 +433,69 @@ describe('A2uiController', () => {
 
     resolver.dispose();
   });
+
+  it('subscribes to node.metadata lazily only when controller.metadata is read', async () => {
+    const {NodeResolver, getValue} = await import('../index.js');
+    const {basicCatalog: v1Basic} = await import('../catalogs/basic/v1/catalog.js');
+    const nodeProcessor = new MessageProcessorClass([v1Basic]);
+    nodeProcessor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'lazy-meta-surface',
+          catalogId: v1Basic.id,
+        },
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'lazy-meta-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Text',
+              text: 'Hello',
+              metadata: {extensions: {badge: 'v1'}},
+            },
+          ],
+        },
+      },
+    ]);
+
+    const nodeSurface = nodeProcessor.model.getSurface('lazy-meta-surface')!;
+    const resolver = new NodeResolver(nodeSurface, v1Basic);
+    const rootNode = getValue(resolver.rootNode)!;
+
+    ensureCustomElement();
+    const mockHost = document.createElement('test-mock-host') as unknown as TestMockHostElement & {
+      node?: unknown;
+    };
+    document.body.appendChild(mockHost);
+    await asyncUpdate(mockHost, host => {
+      (host as any).node = rootNode;
+    });
+
+    const controller = mockHost.testController;
+    let updateCalls = 0;
+    const origRequestUpdate = mockHost.requestUpdate.bind(mockHost);
+    mockHost.requestUpdate = () => {
+      updateCalls++;
+      origRequestUpdate();
+    };
+
+    // Before reading controller.metadata, metadata updates do not trigger requestUpdate()
+    nodeSurface.componentsModel.get('root')!.metadata = {extensions: {badge: 'v2'}};
+    assert.strictEqual(updateCalls, 0);
+
+    // Reading controller.metadata returns the current metadata and activates the lazy subscription
+    assert.deepStrictEqual(controller.metadata, {extensions: {badge: 'v2'}});
+    nodeSurface.componentsModel.get('root')!.metadata = {extensions: {badge: 'v3'}};
+    assert.strictEqual(updateCalls, 1);
+    assert.deepStrictEqual(controller.metadata, {extensions: {badge: 'v3'}});
+
+    nodeSurface.metadata = {extensions: {theme_ext: 'dark'}};
+    assert.deepStrictEqual(controller.surfaceExtensions, {theme_ext: 'dark'});
+
+    resolver.dispose();
+  });
 });

@@ -40,6 +40,17 @@
   expect:
     surfaces:
       form_surface:
+        isValid:
+          root: false
+        validationErrors:
+          root:
+            - "Please enter a valid email address (e.g. user@example.com)."
+        validationResults:
+          root:
+            - valid: false
+              code: "INVALID_EMAIL"
+              message: "Please enter a valid email address (e.g. user@example.com)."
+              severity: "error"
         validationResult:
           root:
             valid: false
@@ -77,7 +88,275 @@
   expect:
     surfaces:
       form_surface:
+        isValid:
+          root: false
+        validationErrors:
+          root:
+            - "Must be 18 or older."
+        validationResults:
+          root:
+            - valid: false
+              message: "Must be 18 or older."
+              severity: "error"
         validationResult:
           root:
             valid: false
             message: "Must be 18 or older."
+
+- name: test_validation_result_warning_and_info_non_blocking
+  description: Verifies that CheckRules returning severity warning or info populate validationResults while keeping isValid true and validationErrors empty.
+  catalog:
+    protocolVersion: "1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "form_surface"
+            catalogId: "basic"
+            dataModel:
+              password: "secret"
+              warningCheck:
+                valid: false
+                code: "WEAK_PASSWORD"
+                message: "Password could be stronger."
+                severity: "warning"
+              infoCheck:
+                valid: false
+                code: "PASSWORD_HINT"
+                message: "Consider adding symbols."
+                severity: "info"
+            components:
+              - id: root
+                component: TextField
+                label: "Password"
+                value:
+                  "@path": "/password"
+                checks:
+                  - condition:
+                      "@path": "/warningCheck"
+                  - condition:
+                      "@path": "/infoCheck"
+  expect:
+    surfaces:
+      form_surface:
+        isValid:
+          root: true
+        validationErrors:
+          root: []
+        validationResults:
+          root:
+            - valid: false
+              code: "WEAK_PASSWORD"
+              message: "Password could be stronger."
+              severity: "warning"
+            - valid: false
+              code: "PASSWORD_HINT"
+              message: "Consider adding symbols."
+              severity: "info"
+
+- name: test_validation_result_multiple_rules_preserve_order
+  description: Verifies that a component with two failing error rules and one failing warning rule preserves declaration order in validationErrors and validationResults.
+  catalog:
+    protocolVersion: "1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "form_surface"
+            catalogId: "basic"
+            dataModel:
+              email: "bad"
+              warningCheck:
+                valid: false
+                code: "DOMAIN_WARNING"
+                message: "External domain requires approval."
+                severity: "warning"
+            components:
+              - id: root
+                component: TextField
+                label: "Corporate Email"
+                value:
+                  "@path": "/email"
+                checks:
+                  - condition:
+                      "@call": "email"
+                      args:
+                        value:
+                          "@path": "/email"
+                    message: "Must be a valid email address."
+                  - condition:
+                      "@path": "/warningCheck"
+                  - condition:
+                      "@call": "length"
+                      args:
+                        value:
+                          "@path": "/email"
+                        min: 10
+                    message: "Email must be at least 10 characters."
+  expect:
+    surfaces:
+      form_surface:
+        isValid:
+          root: false
+        validationErrors:
+          root:
+            - "Must be a valid email address."
+            - "Email must be at least 10 characters."
+        validationResults:
+          root:
+            - valid: false
+              code: "INVALID_EMAIL"
+              message: "Must be a valid email address."
+              severity: "error"
+            - valid: false
+              code: "DOMAIN_WARNING"
+              message: "External domain requires approval."
+              severity: "warning"
+            - valid: false
+              message: "Email must be at least 10 characters."
+              severity: "error"
+
+- name: test_validation_result_reactive_recovery_on_data_update
+  description: Verifies that failing validation recovers reactively when updateDataModel provides a valid value in a subsequent step.
+  catalog:
+    protocolVersion: "1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "form_surface"
+            catalogId: "basic"
+            dataModel:
+              email: "not-an-email"
+            components:
+              - id: root
+                component: TextField
+                label: "Email"
+                value:
+                  "@path": "/email"
+                checks:
+                  - condition:
+                      "@call": "email"
+                      args:
+                        value:
+                          "@path": "/email"
+      expect:
+        surfaces:
+          form_surface:
+            isValid:
+              root: false
+            validationErrors:
+              root:
+                - "Please enter a valid email address (e.g. user@example.com)."
+            validationResults:
+              root:
+                - valid: false
+                  code: "INVALID_EMAIL"
+                  message: "Please enter a valid email address (e.g. user@example.com)."
+                  severity: "error"
+    - payload:
+        - version: "1.0"
+          updateDataModel:
+            surfaceId: "form_surface"
+            path: "/email"
+            value: "user@example.com"
+      expect:
+        surfaces:
+          form_surface:
+            isValid:
+              root: true
+            validationErrors:
+              root: []
+            validationResults:
+              root: []
+
+- name: test_validation_result_coercion_in_logical_and_or_not
+  description: Verifies that ValidationResult objects returned by functions inside logical and, or, and not expressions are coerced via their .valid boolean property.
+  catalog:
+    protocolVersion: "1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "form_surface"
+            catalogId: "basic"
+            dataModel:
+              email: "invalid-email"
+              allowOverride: true
+            components:
+              - id: root
+                component: Column
+                children:
+                  - "and_field"
+                  - "or_field"
+                  - "not_field"
+              - id: and_field
+                component: TextField
+                label: "And Field"
+                value:
+                  "@path": "/email"
+                checks:
+                  - condition:
+                      "@call": "and"
+                      args:
+                        values:
+                          - "@call": "email"
+                            args:
+                              value:
+                                "@path": "/email"
+                          - "@path": "/allowOverride"
+                    message: "And check failed."
+              - id: or_field
+                component: TextField
+                label: "Or Field"
+                value:
+                  "@path": "/email"
+                checks:
+                  - condition:
+                      "@call": "or"
+                      args:
+                        values:
+                          - "@call": "email"
+                            args:
+                              value:
+                                "@path": "/email"
+                          - "@path": "/allowOverride"
+                    message: "Or check failed."
+              - id: not_field
+                component: TextField
+                label: "Not Field"
+                value:
+                  "@path": "/email"
+                checks:
+                  - condition:
+                      "@call": "not"
+                      args:
+                        value:
+                          "@call": "email"
+                          args:
+                            value:
+                              "@path": "/email"
+                    message: "Not check failed."
+  expect:
+    surfaces:
+      form_surface:
+        isValid:
+          and_field: false
+          or_field: true
+          not_field: true
+        validationErrors:
+          and_field:
+            - "And check failed."
+          or_field: []
+          not_field: []
+        validationResults:
+          and_field:
+            - valid: false
+              message: "And check failed."
+              severity: "error"
+          or_field: []
+          not_field: []

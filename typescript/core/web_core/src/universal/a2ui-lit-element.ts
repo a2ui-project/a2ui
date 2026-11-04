@@ -16,6 +16,7 @@
 
 import {LitElement, css, nothing, type CSSResult, type PropertyValues} from 'lit';
 import {property} from 'lit/decorators.js';
+import {type A2uiMetadata, type Extensions} from '../common/metadata.js';
 import {ComponentContext} from '../resolution/component-context.js';
 import {isComponentNode, type ComponentNode} from '../resolution/component-node.js';
 import {ResolvedBinding} from '../resolution/resolved-binding.js';
@@ -45,10 +46,10 @@ export type ResolvedChildList = A2uiChildRef[];
  * A base class for A2UI Lit elements that manages the A2uiController lifecycle
  * and provides Light DOM style adoption and scoping.
  *
- * By default, elements render into the Light DOM (direct children) to enable
- * universal CSS cascade, styling, and cross-framework composition. To opt into
- * Shadow DOM encapsulation, subclasses can override `createRenderRoot()` to return
- * `super.createRenderRoot()`.
+ * Elements render into Light DOM by default (`createRenderRoot()` returns `this`), and
+ * `adoptLightDomStyles()` scopes `static styles` to the element's tag name and adopts
+ * them into the enclosing `Document` or `ShadowRoot`. Subclasses that require Shadow DOM
+ * can override `createRenderRoot()` (for example `return this.attachShadow({mode: 'open'})`).
  *
  * @template Api The specific A2UI component API defining the schema for this element.
  * @experimental This class is experimental and subject to change as A2UI transitions
@@ -84,14 +85,56 @@ export abstract class A2uiLitElement<
   }
 
   /**
+   * The component's current metadata envelope, lazily subscribing on first read.
+   */
+  public get metadata(): A2uiMetadata | undefined {
+    return this._controller?.metadata;
+  }
+
+  /**
+   * The component's current `extensions` map, lazily subscribing on first read.
+   */
+  public get extensions(): Extensions | undefined {
+    return this._controller?.extensions;
+  }
+
+  /**
+   * The containing surface's metadata envelope, lazily subscribing on first read.
+   */
+  public get surfaceMetadata(): A2uiMetadata | undefined {
+    return this._controller?.surfaceMetadata;
+  }
+
+  /**
+   * The containing surface's `extensions` map, lazily subscribing on first read.
+   */
+  public get surfaceExtensions(): Extensions | undefined {
+    return this._controller?.surfaceExtensions;
+  }
+
+  /**
+   * Renders into Light DOM by default. Subclasses that require Shadow DOM can override
+   * this method (for example `return this.attachShadow({mode: 'open'})`).
+   */
+  protected override createRenderRoot(): HTMLElement | DocumentFragment {
+    return this;
+  }
+
+  /**
    * Adopts and scopes component CSS rules into the containing document or host shadow root.
    *
-   * In Light DOM (the default for A2uiLitElement), the element has no shadow root of its own,
-   * so this method locates the nearest enclosing Document or ShadowRoot and adopts the
-   * stylesheet once per root, scoping `:host` and descendant selectors to the element's tagName.
+   * Because `A2uiLitElement` renders into Light DOM by default (`createRenderRoot()`
+   * returning `this`), it has no shadow root of its own, so this method locates the nearest
+   * enclosing `Document` or `ShadowRoot` and adopts the stylesheet once per root, scoping
+   * `:host` and descendant selectors to the element's `tagName`.
+   *
+   * Does nothing when a subclass opts into Shadow DOM (for example by overriding
+   * `createRenderRoot()` to return `this.attachShadow({mode: 'open'})`), because Lit already
+   * adopts `static styles` into that `ShadowRoot`.
    */
   protected adoptLightDomStyles() {
     if (typeof document === 'undefined') return;
+    if (this.renderRoot !== this) return;
     const root = this.getRootNode() as Document | ShadowRoot;
 
     const constructor = this.constructor as typeof A2uiLitElement & {

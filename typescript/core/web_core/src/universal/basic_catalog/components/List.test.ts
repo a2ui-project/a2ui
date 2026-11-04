@@ -19,6 +19,7 @@ import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../../../test/dom-setup.js';
 import {
   ComponentContext,
+  ComponentModel,
   MessageProcessor,
   Catalog,
   SurfaceModel,
@@ -219,5 +220,90 @@ describe('List Component', () => {
     const listDiv = el.querySelector('.a2ui-list') as HTMLElement;
     assert.notStrictEqual(listDiv, null);
     assert.strictEqual(listDiv.style.alignItems, 'center');
+  });
+
+  it('applies list semantics and accessibility attributes across default, ordered, and unordered lists', async () => {
+    const v1Catalog = (await import('../../../catalogs/basic/v1/index.js')).basicCatalog;
+    const v1Processor = new MessageProcessor([v1Catalog]);
+    v1Processor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {surfaceId: 's-list-a11y', catalogId: v1Catalog.id},
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 's-list-a11y',
+          components: [
+            {id: 't1', component: 'Text', text: 'First'},
+            {id: 't2', component: 'Text', text: 'Second'},
+            {
+              id: 'list_none',
+              component: 'List',
+              children: ['t1', 't2'],
+              accessibility: {
+                label: 'Plain list',
+                description: 'Two items',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+    const v1Surface = v1Processor.model.getSurface('s-list-a11y')!;
+    v1Surface.componentsModel.addComponent(
+      new ComponentModel(
+        'list_ordered',
+        'List',
+        {
+          listStyle: 'ordered',
+          children: ['t1', 't2'],
+          accessibility: {label: 'Ranked steps'},
+        },
+        v1Catalog,
+      ),
+    );
+    v1Surface.componentsModel.addComponent(
+      new ComponentModel(
+        'list_unordered',
+        'List',
+        {
+          listStyle: 'unordered',
+          children: ['t1', 't2'],
+          accessibility: {label: 'Bullet points'},
+        },
+        v1Catalog,
+      ),
+    );
+
+    const el = document.createElement('a2ui-list') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(v1Surface, 'list_none');
+    });
+
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    const divList = el.querySelector('div.a2ui-list');
+    assert.strictEqual(divList?.getAttribute('role'), 'list');
+    assert.strictEqual(divList?.getAttribute('aria-label'), 'Plain list');
+    assert.strictEqual(divList?.getAttribute('aria-description'), 'Two items');
+    const items = el.querySelectorAll('.a2ui-list-item-none');
+    assert.strictEqual(items.length, 2);
+    assert.strictEqual(items[0].getAttribute('role'), 'listitem');
+    assert.strictEqual(items[1].getAttribute('role'), 'listitem');
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(v1Surface, 'list_ordered');
+    });
+    const ol = el.querySelector('ol.a2ui-list');
+    assert.strictEqual(ol?.getAttribute('aria-label'), 'Ranked steps');
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(v1Surface, 'list_unordered');
+    });
+    const ul = el.querySelector('ul.a2ui-list');
+    assert.strictEqual(ul?.getAttribute('aria-label'), 'Bullet points');
   });
 });

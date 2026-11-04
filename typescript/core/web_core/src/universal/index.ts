@@ -26,4 +26,9 @@ export {registerUniversalElement} from './register_universal_element.js';
 export {isWebComponentImplementation} from './is_web_component_implementation.js';
 export {renderA2uiNode} from './render-a2ui-node.js';
 export {sanitizeMediaUrl} from '../common/sanitize_media_url.js';
+export {
+  bindHostAccessibility,
+  createAccessibilityTargets,
+  type AccessibilityTargets,
+} from './host_accessibility.js';
 export type {WebComponentImplementation} from './web_component_implementation.js';

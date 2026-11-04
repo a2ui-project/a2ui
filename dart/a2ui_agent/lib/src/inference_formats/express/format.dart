@@ -18,6 +18,7 @@ import '../../inference_format.dart';
 import '../../utils/catalogs.dart';
 import 'parser.dart';
 import 'prompt_generator.dart';
+import 'response_stream.dart';
 
 /// The Express format: a compact DSL enclosed in `<a2ui>` tags, compiled into
 /// A2UI messages after the response is complete.
@@ -27,12 +28,19 @@ import 'prompt_generator.dart';
 /// The SDK calls [createFormat] with the catalogs of each request, so the
 /// options of the format are given here and passed on to every format created.
 class ExpressFormatFactory extends InferenceFormatFactory {
-  const ExpressFormatFactory({this.allowedMessages});
+  const ExpressFormatFactory({
+    this.allowedMessages,
+    this.progressiveKeys = defaultExpressProgressiveKeys,
+  });
 
   /// The message types the model may write, such as `createSurface`, or null
   /// for all of them. The prompt describes only the statements that compile
   /// to these types.
   final List<String>? allowedMessages;
+
+  /// Property keys whose open string literals are healed progressively during
+  /// streaming.
+  final Set<String> progressiveKeys;
 
   /// Throws [A2uiCatalogError] if two of [catalogs] share an id.
   @override
@@ -43,6 +51,7 @@ class ExpressFormatFactory extends InferenceFormatFactory {
     catalogs,
     examples: examples,
     allowedMessages: allowedMessages,
+    progressiveKeys: progressiveKeys,
   );
 }
 
@@ -59,7 +68,9 @@ class ExpressFormat extends InferenceFormat {
     List<CatalogApi> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
     List<String>? allowedMessages,
-  }) : promptGenerator = ExpressPromptGenerator(
+    Set<String> progressiveKeys = defaultExpressProgressiveKeys,
+  }) : progressiveKeys = Set.unmodifiable(progressiveKeys),
+       promptGenerator = ExpressPromptGenerator(
          List.unmodifiable(catalogs),
          examples: List.unmodifiable(examples),
          allowedMessages: allowedMessages == null
@@ -69,9 +80,17 @@ class ExpressFormat extends InferenceFormat {
     checkDistinctIds(catalogs);
   }
 
+  /// Property keys whose open string literals are healed progressively during
+  /// streaming.
+  final Set<String> progressiveKeys;
+
+  /// Whether this format supports incremental streaming.
+  bool get supportsStreaming => true;
+
   @override
   final ExpressPromptGenerator promptGenerator;
 
   @override
-  ExpressParser createParser() => ExpressParser(promptGenerator.catalogs);
+  ExpressParser createParser() =>
+      ExpressParser(promptGenerator.catalogs, progressiveKeys: progressiveKeys);
 }
