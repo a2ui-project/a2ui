@@ -571,7 +571,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     required Map<String, Object?> otherFields,
     required _DocumentLayout layout,
   })  : components = _indexComponents(id, components),
-        functions = _indexFunctions(id, functions, protocolVersion),
+        functions = _indexFunctions(
+          id,
+          functions,
+          protocolVersion,
+          definitions,
+        ),
         definitions = _frozenCopy(definitions)! as Map<String, Object?>,
         _declaredProtocolVersion = declaredProtocolVersion,
         _otherFields = _frozenCopy(otherFields)! as Map<String, Object?>,
@@ -687,6 +692,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     String catalogId,
     List<T> items,
     A2uiProtocolVersion? protocolVersion,
+    Map<String, Object?> definitions,
   ) {
     final bool allowsV1Features =
         protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
@@ -713,13 +719,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             item.name,
             context: "function identifier '${item.name}'",
           );
-          for (final String arg in _schemaPropertyNames(
+          for (final String arg in _agentFunctionParameterNames(
             item.argumentSchema.value,
+            definitions,
           )) {
             assertUax31Identifier(
               arg,
               context: "argument identifier '$arg' in function '${item.name}'",
-              allowLeadingAt: true,
             );
           }
         } on A2uiCatalogError catch (error) {
@@ -740,18 +746,68 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     return Map.unmodifiable(byName);
   }
 
-  /// The property names an object [schema] declares, including those of its
-  /// `allOf` members.
-  static Iterable<String> _schemaPropertyNames(Object? schema) sync* {
-    if (schema is! Map) return;
-    if (schema['properties'] case final Map<Object?, Object?> properties) {
-      yield* properties.keys.whereType<String>();
+  /// The parameter names an agent function's [schema] declares.
+  ///
+  /// [schema] is the schema of the function's `args`, or a whole function
+  /// definition, whose `args` (or shorthand `parameters`) is read instead.
+  /// Names come from `properties`, from the members of `allOf`, `anyOf` and
+  /// `oneOf`, from local `#/$defs/<name>` references into the schema's own
+  /// `$defs` or the catalog's [definitions], and from a shorthand map of
+  /// parameter names to schemas.
+  static Iterable<String> _agentFunctionParameterNames(
+    Object? schema,
+    Map<String, Object?> definitions,
+  ) {
+    var args = schema;
+    if (schema case {'properties': final Map<Object?, Object?> properties}
+        when (properties.containsKey('@call') ||
+                properties.containsKey('call')) &&
+            properties['args'] is Map) {
+      args = properties['args'];
+    } else if (schema case {'parameters': final Map<Object?, Object?> params}) {
+      args = params;
     }
-    if (schema['allOf'] case final List<Object?> members) {
-      for (final member in members) {
-        yield* _schemaPropertyNames(member);
+    final Object? localDefs = args is Map ? args[r'$defs'] : null;
+    final names = <String>{};
+    final visited = <String>{};
+
+    void collect(Object? node) {
+      if (node is! Map) return;
+      var structured = false;
+      if (node['properties'] case final Map<Object?, Object?> properties) {
+        structured = true;
+        names.addAll(properties.keys.whereType<String>());
+      }
+      for (final key in const ['allOf', 'anyOf', 'oneOf']) {
+        if (node[key] case final List<Object?> members) {
+          structured = true;
+          members.forEach(collect);
+        }
+      }
+      if (node[r'$ref'] case final String ref) {
+        structured = true;
+        const prefix = r'#/$defs/';
+        if (ref.startsWith(prefix)) {
+          final String name = ref.substring(prefix.length).split('/').first;
+          if (visited.add(name)) {
+            collect(
+              (localDefs is Map ? localDefs[name] : null) ?? definitions[name],
+            );
+          }
+        }
+      }
+      if (structured) return;
+      if (node['type'] is! String &&
+          !node.containsKey('not') &&
+          node.values.every((v) => v is Map || v is bool)) {
+        names.addAll(
+          node.keys.whereType<String>().where((k) => !k.startsWith(r'$')),
+        );
       }
     }
+
+    collect(args);
+    return names;
   }
 
   static void _addUnique<T>(

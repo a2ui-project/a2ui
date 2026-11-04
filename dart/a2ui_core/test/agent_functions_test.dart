@@ -503,6 +503,59 @@ void main() {
             },
           ],
         },
+        {
+          'type': 'object',
+          'properties': {
+            '@target': {'type': 'string'},
+          },
+        },
+        {
+          'anyOf': [
+            {
+              'type': 'object',
+              'properties': {
+                'target-currency': {'type': 'string'},
+              },
+            },
+          ],
+        },
+        {
+          'oneOf': [
+            {'type': 'object', 'properties': <String, Object?>{}},
+            {
+              'type': 'object',
+              'properties': {
+                'target-currency': {'type': 'string'},
+              },
+            },
+          ],
+        },
+        {
+          'target-currency': {'type': 'string'},
+        },
+        {
+          r'$ref': r'#/$defs/Pair',
+          r'$defs': {
+            'Pair': {
+              'type': 'object',
+              'properties': {
+                'target-currency': {'type': 'string'},
+              },
+            },
+          },
+        },
+        {
+          'type': 'object',
+          'properties': {
+            '@call': {'const': 'fetchRate'},
+            'args': {
+              'type': 'object',
+              'properties': {
+                'target-currency': {'type': 'string'},
+              },
+            },
+          },
+        },
       ]) {
         final fn = AgentFunction(
           name: 'fetchRate',
@@ -653,6 +706,103 @@ void main() {
             withFn.rendererFunctions['x'] = withFn.functions['formatCurrency']!,
         throwsUnsupportedError,
       );
+    });
+
+    test(
+        'agent function argument names reached through the catalog '
+        'definitions are checked', () {
+      Catalog<ComponentApi, FunctionApi> build(Map<String, Object?> pair) =>
+          Catalog(
+            id: 'cat',
+            protocolVersion: A2uiProtocolVersion.v1_0,
+            components: const <ComponentApi>[],
+            definitions: {'Pair': pair},
+            functions: [
+              AgentFunction(
+                name: 'fetchRate',
+                argumentSchema: Schema.fromMap({
+                  r'$ref': r'#/$defs/Pair',
+                }),
+                handler: _noopHandler,
+              ),
+            ],
+          );
+      expect(
+        () => build({
+          'type': 'object',
+          'properties': {
+            'target-currency': {'type': 'string'},
+          },
+        }),
+        throwsA(
+          isA<A2uiCatalogError>().having(
+            (e) => e.message,
+            'message',
+            contains('target-currency'),
+          ),
+        ),
+      );
+      // A reference cycle ends, and valid names pass.
+      expect(
+        build({
+          'type': 'object',
+          'properties': {
+            'base': {'type': 'string'},
+          },
+          'anyOf': [
+            {r'$ref': r'#/$defs/Pair'},
+          ],
+        }).agentFunctions.keys,
+        ['fetchRate'],
+      );
+    });
+
+    test('valid agent function argument names pass in every form', () {
+      for (final Map<String, Object?> schema in [
+        {
+          'type': 'object',
+          'properties': {
+            'base': {'type': 'string'},
+          },
+        },
+        {
+          'base': {'type': 'string'},
+          'target': true,
+        },
+        {
+          'oneOf': [
+            {
+              'type': 'object',
+              'properties': {
+                'base': {'type': 'string'},
+              },
+            },
+          ],
+        },
+        {
+          r'$ref': r'#/$defs/Pair',
+          r'$defs': {
+            'Pair': {
+              'type': 'object',
+              'properties': {
+                'base': {'type': 'string'},
+              },
+            },
+          },
+        },
+        {r'$ref': r'common_types.json#/$defs/DynamicString'},
+      ]) {
+        final fn = AgentFunction(
+          name: 'fetchRate',
+          argumentSchema: Schema.fromMap(schema),
+          handler: _noopHandler,
+        );
+        expect(
+          _financeCatalog().copyWith(agentFunctions: [fn]).agentFunctions.keys,
+          ['fetchRate'],
+          reason: '$schema',
+        );
+      }
     });
 
     test('rendererFunctions keeps the catalog function type', () {
