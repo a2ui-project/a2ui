@@ -155,6 +155,53 @@
     category: CatalogError
     message: "fetchFxRate"
 
+- name: test_declare_agent_function_from_a_user_activation_declaration_for_the_agent_is_a_catalog_error
+  description: >-
+    A v1.0 catalog allows requiresUserActivation only on rendererOnly functions, so an agent function built (from_api) from a rendererOrAgent declaration that requires user activation is refused.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog:
+        catalogId: conformance/user_activation
+        protocolVersion: "1.0"
+        components: {}
+        functions:
+          confirmPayment:
+            type: object
+            description: Confirms a payment.
+            returnType: boolean
+            allowedCallers: rendererOrAgent
+            requiresUserActivation: true
+            properties:
+              "@call": {const: confirmPayment}
+              args: {type: object, properties: {}}
+            required: ["@call", "args"]
+      agent_functions:
+        confirmPayment:
+          from_api: true
+          behavior: {returns: true}
+  expect_error:
+    category: CatalogError
+
+- name: test_declare_agent_function_with_an_invalid_parameter_name_is_a_catalog_error
+  description: >-
+    On a v1.0 catalog, the parameter names of an agent function must be UAX #31 identifiers, as for a function loaded from a catalog document.
+  action: declare_agent_functions
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          returnType: number
+          args:
+            type: object
+            properties:
+              target-currency: {type: string}
+          behavior: {returns: 1.08}
+  expect_error:
+    category: CatalogError
+    message: "target-currency"
+
 # --- Answering callAgentFunction ---
 
 - name: test_handle_agent_function_returns_the_value_and_copies_the_call_id
@@ -683,6 +730,31 @@
     functionCallId: n-1
     value: {message: Saved}
 
+- name: test_handle_agent_function_with_an_empty_name
+  description: A call whose function name is empty is answered with INVALID_FUNCTION_CALL.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: x-1
+        callFunction:
+          "@call": ""
+          catalogId: conformance/simplified
+          args: {}
+  expect:
+    functionCallId: x-1
+    error:
+      code: INVALID_FUNCTION_CALL
+
 # --- Validating model output that calls agent functions ---
 
 - name: test_validate_payload_with_a_call_to_a_declared_agent_function
@@ -1000,3 +1072,110 @@
           functionCallId: p-2
           error:
             code: INVALID_FUNCTION_CALL
+
+- name: test_process_message_without_a_version
+  description: >-
+    Parsed JSON must have version "1.0", as renderer_to_agent.json requires, so a message without one is a validation error even when no callback would take it.
+  action: process_renderer_message
+  args:
+    message:
+      action:
+        name: submit
+        surfaceId: s1
+        sourceComponentId: b1
+        timestamp: "2026-01-01T00:00:00Z"
+        context: {}
+  expect_error:
+    category: ValidationError
+
+- name: test_process_message_with_another_version
+  description: A message whose version is "v1.0" rather than "1.0" is a validation error, and its callback does not run.
+  action: process_renderer_message
+  args:
+    callbacks: [action]
+    message:
+      version: "v1.0"
+      action:
+        name: submit
+        surfaceId: s1
+        sourceComponentId: b1
+        timestamp: "2026-01-01T00:00:00Z"
+        context: {}
+  expect_error:
+    category: ValidationError
+
+- name: test_process_call_agent_function_with_another_version
+  description: >-
+    The version check comes first for every kind of message, so a callAgentFunction whose version is "0.9" is a validation error, not answered with INVALID_FUNCTION_CALL.
+  action: process_renderer_message
+  args:
+    catalog:
+      catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      agent_functions:
+        fetchFxRate:
+          returnType: number
+          args: {type: object, properties: {base: {type: string}}}
+          behavior: {returns: 1.08}
+    message:
+      version: "0.9"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: v-1
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect_error:
+    category: ValidationError
+
+- name: test_process_action_declined_by_its_callback
+  description: >-
+    A callback may decline a message (by returning false), which then is not handled and has no replies, so it goes on to the model's turn.
+  action: process_renderer_message
+  args:
+    callbacks:
+      - {kind: action, declines: true}
+    message:
+      version: "1.0"
+      action:
+        name: chat
+        surfaceId: s1
+        sourceComponentId: b1
+        timestamp: "2026-01-01T00:00:00Z"
+        context: {}
+  expect:
+    handled: false
+    callback:
+      kind: action
+      message:
+        version: "1.0"
+        action:
+          name: chat
+          surfaceId: s1
+          sourceComponentId: b1
+          timestamp: "2026-01-01T00:00:00Z"
+          context: {}
+
+- name: test_process_with_two_catalogs_of_one_id
+  description: Building the processor from two catalogs with the same id is a catalog error.
+  action: process_renderer_message
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior: {returns: 1.08}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: d-1
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect_error:
+    category: CatalogError

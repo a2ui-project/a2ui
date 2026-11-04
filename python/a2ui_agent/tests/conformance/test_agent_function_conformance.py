@@ -248,22 +248,33 @@ def _run_process(case: Mapping[str, Any]) -> None:
     args = case["args"]
     received: list[tuple[str, Any]] = []
 
-    def record(kind: str) -> Callable[[Any], None]:
-        return lambda message: received.append((kind, message))
+    def record(kind: str, declines: bool) -> Callable[[Any], bool]:
+        def callback(message: Any) -> bool:
+            received.append((kind, message))
+            return not declines
 
-    catalogs = [_catalog(args["catalog"])] if "catalog" in args else []
-    processor = RendererToAgentMessageProcessor(
-        catalogs,
-        **{_CALLBACK_OPTIONS[kind]: record(kind) for kind in args.get("callbacks", [])},
-    )
+        return callback
+
+    callbacks: dict[str, Callable[[Any], bool]] = {}
+    for entry in args.get("callbacks", []):
+        kind = entry if isinstance(entry, str) else entry["kind"]
+        declines = not isinstance(entry, str) and entry.get("declines", False)
+        callbacks[_CALLBACK_OPTIONS[kind]] = record(kind, declines)
+    entries = args.get("catalogs") or ([args["catalog"]] if "catalog" in args else [])
+
+    def build() -> RendererToAgentMessageProcessor:
+        return RendererToAgentMessageProcessor(
+            [_catalog(entry) for entry in entries], **callbacks
+        )
 
     if "expect_error" in case:
         with pytest.raises(Exception) as excinfo:
-            asyncio.run(processor.process_message(args["message"]))
+            asyncio.run(build().process_message(args["message"]))
         _assert_error_matches(excinfo.value, case["expect_error"])
         assert received == []
         return
 
+    processor = build()
     result = asyncio.run(processor.process_message(args["message"]))
     expected = case["expect"]
     assert result.handled is expected["handled"]
