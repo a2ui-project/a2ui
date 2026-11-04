@@ -192,29 +192,29 @@ sequenceDiagram
                     >
                       <defs>
                         <linearGradient id="hc-kyoto-sky" x1="0" y1="0" x2="1" y2="1">
-                          <stop offset="0%" stop-color="#14102c" />
-                          <stop offset="55%" stop-color="#2a1f4a" />
-                          <stop offset="100%" stop-color="#843d52" />
+                          <stop offset="0%" stop-color="#1e1714" />
+                          <stop offset="52%" stop-color="#4e2d23" />
+                          <stop offset="100%" stop-color="#c86d51" />
                         </linearGradient>
                         <linearGradient id="hc-sun-glow" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stop-color="#f472b6" stop-opacity="0.8" />
-                          <stop offset="100%" stop-color="#ec4899" stop-opacity="0" />
+                          <stop offset="0%" stop-color="#fed7aa" stop-opacity="0.78" />
+                          <stop offset="100%" stop-color="#ea580c" stop-opacity="0" />
                         </linearGradient>
                       </defs>
                       <rect width="400" height="94" fill="url(#hc-kyoto-sky)" />
                       <circle cx="318" cy="36" r="24" fill="url(#hc-sun-glow)" />
-                      <circle cx="318" cy="32" r="10" fill="#fbcfe8" opacity="0.9" />
+                      <circle cx="318" cy="32" r="10" fill="#fef3c7" opacity="0.92" />
                       <path
                         d="M0 70 Q65 42 135 58 T275 52 T400 60 L400 94 L0 94 Z"
-                        fill="#1f183c"
-                        opacity="0.85"
+                        fill="#2d1f1a"
+                        opacity="0.88"
                       />
                       <path
                         d="M0 78 Q100 58 195 72 T400 66 L400 94 L0 94 Z"
-                        fill="#130e26"
+                        fill="#1b1310"
                       />
                       <!-- Pagoda silhouette -->
-                      <g fill="#0b0817" transform="translate(268, 22)">
+                      <g fill="#120c0a" transform="translate(268, 22)">
                         <rect x="11" y="0" width="2" height="9" />
                         <path d="M3 12 L12 7 L21 12 Z" />
                         <path d="M1 20 L12 14 L23 20 Z" />
@@ -223,10 +223,10 @@ sequenceDiagram
                       </g>
                       <!-- Torii gate -->
                       <g transform="translate(326, 38)">
-                        <path d="M2 8 Q18 4 34 8 L33 12 Q18 9 3 12 Z" fill="#e11d48" />
-                        <rect x="6" y="15" width="24" height="3" rx="1" fill="#f43f5e" />
-                        <rect x="9" y="11" width="3.2" height="34" fill="#e11d48" />
-                        <rect x="23.8" y="11" width="3.2" height="34" fill="#e11d48" />
+                        <path d="M2 8 Q18 4 34 8 L33 12 Q18 9 3 12 Z" fill="#d45b3e" />
+                        <rect x="6" y="15" width="24" height="3" rx="1" fill="#e06d4f" />
+                        <rect x="9" y="11" width="3.2" height="34" fill="#d45b3e" />
+                        <rect x="23.8" y="11" width="3.2" height="34" fill="#d45b3e" />
                       </g>
                     </svg>
                   </div>
@@ -338,32 +338,40 @@ sequenceDiagram
 
 <style>
   .hc-shell {
-    /* Mobile Chat & Surface Palette: Distinct Indigo / Violet Theme (Not site green) */
-    --hc-phone-bg: #0d0f1f;
-    --hc-phone-card: #151833;
-    --hc-phone-card-subtle: #111429;
-    --hc-phone-border: #2b305c;
-    --hc-phone-text: #f8fafc;
-    --hc-phone-muted: #a5b4fc;
-    --hc-phone-chip-bg: #1c2045;
-    --hc-phone-accent: #6366f1;
-    --hc-phone-accent-hover: #4f46e5;
-    --hc-phone-accent-soft: rgba(99, 102, 241, 0.18);
-    --hc-phone-accent-border: rgba(129, 140, 248, 0.45);
-    --hc-phone-accent-light: #818cf8;
-    --hc-phone-radius-card: 16px;
-    --hc-phone-radius-chip: 10px;
+    /* Mobile App Fonts: Editorial Serif Headline + Clean Consumer Sans (Zero Monospace) */
+    --hc-app-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --hc-app-serif: 'Newsreader', Georgia, 'Times New Roman', serif;
 
-    /* Calm, softer code surface and muted syntax tokens */
-    --hc-code-bg: #090d19;
-    --hc-code-head: #0e1526;
+    /* Mobile App Palette: Warm Boutique Travel (Stone, Espresso, Alabaster & Kyoto Clay) */
+    --hc-app-bg: #181614;
+    --hc-app-bar: #1e1b18;
+    --hc-app-card: #24211e;
+    --hc-app-border: rgba(245, 240, 232, 0.08);
+    --hc-app-divider: rgba(245, 240, 232, 0.07);
+    --hc-app-shadow: 0 3px 12px rgba(0, 0, 0, 0.26);
+    --hc-app-text: #f5f2ed;
+    --hc-app-muted: #a69e94;
+    --hc-app-bubble: #2b2723;
+    --hc-app-bubble-text: #ede8e0;
+    --hc-app-chip-bg: #2f2b26;
+    --hc-app-chip-active-bg: #f5f2ed;
+    --hc-app-chip-active-text: #1c1917;
+    --hc-app-clay: #c86d51;
+    --hc-app-clay-hover: #b65d41;
+    --hc-app-clay-soft: rgba(200, 109, 81, 0.16);
+    --hc-app-clay-text: #fffaf5;
+    --hc-app-held: #4d7c5b;
+
+    /* Left Panel: Calm, Muted Protocol Code Tokens (Aligned with Site Theme) */
+    --hc-code-bg: #080d19;
+    --hc-code-head: #0d1526;
     --hc-syn-base: #94a3b8;
     --hc-syn-comp: #cbd5e1;
-    --hc-syn-fn: #38bdf8;
-    --hc-syn-kw: #818cf8;
-    --hc-syn-path: #93c5fd;
+    --hc-syn-fn: #7dd3fc;
+    --hc-syn-kw: #5eead4;
+    --hc-syn-path: #94a3b8;
     --hc-syn-str: #cbd5e1;
-    --hc-syn-num: #38bdf8;
+    --hc-syn-num: #7dd3fc;
 
     background: var(--surface);
     border: 1px solid var(--border);
@@ -374,26 +382,32 @@ sequenceDiagram
   }
 
   :global(:root[data-theme='light']) .hc-shell {
-    --hc-phone-bg: #f5f6ff;
-    --hc-phone-card: #ffffff;
-    --hc-phone-card-subtle: #f9faff;
-    --hc-phone-border: #dbe0fa;
-    --hc-phone-text: #1e1b4b;
-    --hc-phone-muted: #6366f1;
-    --hc-phone-chip-bg: #eef2ff;
-    --hc-phone-accent: #4f46e5;
-    --hc-phone-accent-hover: #4338ca;
-    --hc-phone-accent-soft: rgba(79, 70, 229, 0.1);
-    --hc-phone-accent-border: rgba(79, 70, 229, 0.35);
-    --hc-phone-accent-light: #4f46e5;
+    --hc-app-bg: #f6f3ee;
+    --hc-app-bar: #fbf9f5;
+    --hc-app-card: #ffffff;
+    --hc-app-border: rgba(28, 25, 23, 0.08);
+    --hc-app-divider: rgba(28, 25, 23, 0.07);
+    --hc-app-shadow: 0 2px 10px rgba(28, 25, 23, 0.05);
+    --hc-app-text: #1c1917;
+    --hc-app-muted: #78716c;
+    --hc-app-bubble: #ebe5dc;
+    --hc-app-bubble-text: #292524;
+    --hc-app-chip-bg: #f2ede6;
+    --hc-app-chip-active-bg: #292524;
+    --hc-app-chip-active-text: #faf8f5;
+    --hc-app-clay: #bf6145;
+    --hc-app-clay-hover: #a85036;
+    --hc-app-clay-soft: rgba(191, 97, 69, 0.12);
+    --hc-app-clay-text: #fffaf5;
+    --hc-app-held: #3f6a4c;
 
     --hc-code-bg: #f8fafc;
     --hc-code-head: #f1f5f9;
     --hc-syn-base: #64748b;
     --hc-syn-comp: #334155;
     --hc-syn-fn: #0284c7;
-    --hc-syn-kw: #4f46e5;
-    --hc-syn-path: #2563eb;
+    --hc-syn-kw: #0d9488;
+    --hc-syn-path: #64748b;
     --hc-syn-str: #475569;
     --hc-syn-num: #0284c7;
   }
@@ -402,8 +416,13 @@ sequenceDiagram
     display: none !important;
   }
 
-  .hc-shell :is(button, input, [tabindex='0']):focus-visible {
-    outline: 2px solid var(--hc-phone-accent-light);
+  .hc-left-col :is(button, [tabindex='0']):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .hc-phone :is(button, input, [tabindex='0']):focus-visible {
+    outline: 2px solid var(--hc-app-clay);
     outline-offset: 2px;
   }
 
@@ -452,7 +471,7 @@ sequenceDiagram
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: var(--hc-phone-accent-light);
+    background: var(--accent);
     opacity: 0.85;
     transition: background-color 0.2s ease, box-shadow 0.2s ease;
   }
@@ -495,7 +514,7 @@ sequenceDiagram
 
   .hc-restart-btn:hover {
     color: var(--text);
-    border-color: var(--hc-phone-accent-light);
+    border-color: var(--accent);
   }
 
   .hc-restart-btn:active {
@@ -531,8 +550,8 @@ sequenceDiagram
   }
 
   .hc-chunk.is-streaming {
-    border-left-color: var(--hc-phone-accent-light);
-    background: var(--hc-phone-accent-soft);
+    border-left-color: var(--accent);
+    background: var(--accent-soft);
   }
 
   .hc-chunk.is-done {
@@ -565,7 +584,7 @@ sequenceDiagram
     display: none;
     width: 6px;
     height: 13px;
-    background: var(--hc-phone-accent-light);
+    background: var(--accent);
     vertical-align: text-bottom;
     margin-left: 2px;
     animation: hc-blink 0.8s steps(2, start) infinite;
@@ -633,12 +652,12 @@ sequenceDiagram
   }
 
   .hc-dm-kv--accent {
-    border-color: var(--hc-phone-accent-border);
-    background: var(--hc-phone-accent-soft);
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
   }
 
   .hc-dm-kv--accent strong {
-    color: var(--hc-phone-accent-light);
+    color: var(--accent-strong);
   }
 
   .hc-dm-kv.is-flash {
@@ -699,9 +718,9 @@ sequenceDiagram
   }
 
   .hc-wire-pill.is-pulsing {
-    background: var(--hc-phone-accent-soft);
-    border-color: var(--hc-phone-accent-border);
-    color: var(--hc-phone-accent-light);
+    background: var(--accent-soft);
+    border-color: var(--accent-border);
+    color: var(--accent-strong);
     transform: translateX(2px);
   }
 
@@ -716,7 +735,7 @@ sequenceDiagram
     color: #b45309;
   }
 
-  /* --- Right Column: Prominent, Distinct Indigo Mobile Chat Frame --- */
+  /* --- Right Column: Neutral Brushed Titanium Frame + Warm Boutique Travel App --- */
   .hc-device-col {
     display: flex;
     justify-content: center;
@@ -727,54 +746,59 @@ sequenceDiagram
     position: relative;
     width: 100%;
     max-width: 444px;
-    border-radius: 36px;
+    border-radius: 38px;
     padding: 9px;
-    background: linear-gradient(155deg, #3730a3 0%, #1e1b4b 55%, #18181b 100%);
-    border: 1.5px solid #4f46e5;
+    background: linear-gradient(155deg, #2d2b29 0%, #1c1b19 55%, #141312 100%);
+    border: 1.5px solid #3c3936;
     box-shadow:
-      0 26px 52px -12px rgba(30, 27, 75, 0.65),
-      inset 0 1px 1.5px rgba(165, 180, 252, 0.35);
+      0 26px 52px -12px rgba(0, 0, 0, 0.6),
+      inset 0 1px 1px rgba(255, 255, 255, 0.14);
     display: flex;
     flex-direction: column;
   }
 
   :global(:root[data-theme='light']) .hc-phone {
-    background: linear-gradient(155deg, #e0e7ff 0%, #c7d2fe 55%, #a5b4fc 100%);
-    border-color: #a5b4fc;
+    background: linear-gradient(155deg, #e7e5e4 0%, #d6d3d1 55%, #c7c2bd 100%);
+    border-color: #bfb9b2;
     box-shadow:
-      0 24px 48px -12px rgba(79, 70, 229, 0.22),
+      0 24px 48px -12px rgba(28, 25, 23, 0.18),
       inset 0 1px 1.5px rgba(255, 255, 255, 0.9);
   }
 
   .hc-phone__screen {
-    background: var(--hc-phone-bg);
-    color: var(--hc-phone-text);
-    border-radius: 28px;
+    background: var(--hc-app-bg);
+    color: var(--hc-app-text);
+    font-family: var(--hc-app-sans);
+    font-variant-numeric: tabular-nums;
+    border-radius: 30px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     height: 618px;
-    border: 1px solid rgba(43, 48, 92, 0.5);
+    border: 1px solid rgba(0, 0, 0, 0.25);
   }
 
-  /* Minimal Chat App Bar */
+  :global(:root[data-theme='light']) .hc-phone__screen {
+    border-color: rgba(28, 25, 23, 0.08);
+  }
+
+  /* Boutique Hospitality App Bar */
   .hc-appbar {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--hc-phone-border);
-    background: var(--hc-phone-card-subtle);
+    gap: 10px;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--hc-app-border);
+    background: var(--hc-app-bar);
     flex-shrink: 0;
   }
 
   .hc-appbar__avatar {
-    width: 28px;
-    height: 28px;
-    border-radius: 9px;
-    background: var(--hc-phone-accent-soft);
-    border: 1px solid var(--hc-phone-accent-border);
-    color: var(--hc-phone-accent-light);
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--hc-app-clay-soft);
+    color: var(--hc-app-clay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -782,15 +806,17 @@ sequenceDiagram
   }
 
   .hc-appbar__name {
-    font-size: 13.5px;
-    font-weight: 700;
-    color: var(--hc-phone-text);
+    font-family: var(--hc-app-serif);
+    font-size: 15.5px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--hc-app-text);
   }
 
-  /* Chat Area Inside Phone (Fixed Height, No Expansion During Stream) */
+  /* Chat Area Inside Phone (Fixed Height, Zero Expansion Jumps) */
   .hc-chat {
     flex: 1 1 0;
-    padding: 14px 16px 16px;
+    padding: 14px 16px 14px;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -805,27 +831,26 @@ sequenceDiagram
 
   .hc-msg-user__bubble {
     max-width: 85%;
-    background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: 500;
+    background: var(--hc-app-bubble);
+    color: var(--hc-app-bubble-text);
+    font-size: 12.8px;
+    font-weight: 450;
     line-height: 1.42;
-    padding: 9px 13px;
+    padding: 9px 14px;
     border-radius: 18px 18px 4px 18px;
-    box-shadow: 0 3px 8px rgba(79, 70, 229, 0.32);
   }
 
   .hc-msg-agent {
     display: flex;
     flex-direction: column;
-    gap: 7px;
+    gap: 8px;
     flex: 1 1 0;
     min-height: 0;
   }
 
   .hc-msg-agent__lead {
     font-size: 12.5px;
-    color: var(--hc-phone-muted);
+    color: var(--hc-app-muted);
     padding: 0 2px;
     flex-shrink: 0;
     transition: opacity 0.25s ease, transform 0.25s ease;
@@ -837,28 +862,23 @@ sequenceDiagram
     pointer-events: none;
   }
 
-  /* Streamed A2UI Surface Inside Chat: Fixed 426px Height Contains the Full 3-Card Surface */
+  /* Bare Root Column([hero, options, summary]): Floating Cards, Fixed 406px Height */
   .hc-surface {
-    background: var(--hc-phone-card-subtle);
-    border: 1px solid var(--hc-phone-border);
-    border-radius: var(--hc-phone-radius-card);
-    padding: 9px;
+    background: transparent;
+    border: 0;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    height: 426px;
+    gap: 9px;
+    height: 406px;
     box-sizing: border-box;
     flex-shrink: 0;
-    transition: opacity 0.25s ease, border-color 0.25s ease;
+    transition: opacity 0.25s ease;
   }
 
   .hc-surface.is-hidden-stage {
     opacity: 0;
     pointer-events: none;
-  }
-
-  .hc-surface.is-streaming {
-    border-color: var(--hc-phone-accent-border);
   }
 
   .hc-ui-stage {
@@ -884,18 +904,19 @@ sequenceDiagram
     }
   }
 
-  /* Shared Inner Mobile Cards (Distinct Styling: Indigo border & Custom Radius) */
+  /* Floating Boutique Cards (Soft Warm Elevation, Subtle Hairline) */
   .hc-card {
-    background: var(--hc-phone-card);
-    border: 1px solid var(--hc-phone-border);
-    border-radius: 12px;
-    padding: 10px 12px;
+    background: var(--hc-app-card);
+    border: 1px solid var(--hc-app-border);
+    box-shadow: var(--hc-app-shadow);
+    border-radius: 16px;
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 9px;
   }
 
-  /* Stage 0: Hero Card (1-to-1: Header Image stacked above Text) */
+  /* Stage 0: Hero Card (Header Image stacked above Editorial Serif Title) */
   .hc-card--hero {
     padding: 0;
     overflow: hidden;
@@ -904,7 +925,7 @@ sequenceDiagram
   }
 
   .hc-hero-img {
-    height: 80px;
+    height: 78px;
     width: 100%;
     overflow: hidden;
   }
@@ -916,32 +937,34 @@ sequenceDiagram
   }
 
   .hc-hero-title {
-    padding: 9px 12px;
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--hc-phone-text);
-    letter-spacing: -0.01em;
+    font-family: var(--hc-app-serif);
+    padding: 10px 14px;
+    font-size: 16.5px;
+    font-weight: 500;
+    line-height: 1.25;
+    color: var(--hc-app-text);
+    letter-spacing: -0.012em;
   }
 
-  /* Stage 1: Options Card (Row + ChoicePicker + Slider + CheckBox) */
+  /* Stage 1: Options Card (Clean Borderless Rows + Full-Pill Chips) */
   .hc-row-inline {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
   }
 
   .hc-icon-arrow {
-    font-family: var(--font-mono);
-    font-size: 13.5px;
-    font-weight: 700;
-    color: var(--hc-phone-accent-light);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--hc-app-clay);
     line-height: 1;
   }
 
   .hc-card__title {
     font-size: 13px;
-    font-weight: 700;
-    color: var(--hc-phone-text);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--hc-app-text);
   }
 
   .hc-chips {
@@ -951,121 +974,117 @@ sequenceDiagram
   }
 
   .hc-chip {
-    border: 1px solid var(--hc-phone-border);
-    background: var(--hc-phone-chip-bg);
-    color: var(--hc-phone-muted);
-    font-family: var(--font-sans);
-    font-size: 11.8px;
-    font-weight: 600;
+    border: 1px solid transparent;
+    background: var(--hc-app-chip-bg);
+    color: var(--hc-app-muted);
+    font-family: var(--hc-app-sans);
+    font-size: 12px;
+    font-weight: 500;
     min-height: 32px;
-    padding: 5px 9px;
-    border-radius: var(--hc-phone-radius-chip);
+    padding: 5px 12px;
+    border-radius: 999px;
     cursor: pointer;
-    transition: all 0.14s ease;
+    transition: all 0.15s ease;
     text-align: center;
     white-space: nowrap;
   }
 
   .hc-chip:hover {
-    border-color: var(--hc-phone-accent-light);
+    color: var(--hc-app-text);
   }
 
   .hc-chip.is-selected {
-    background: var(--hc-phone-accent-soft);
-    border-color: var(--hc-phone-accent-border);
-    color: var(--hc-phone-accent-light);
-    font-weight: 700;
+    background: var(--hc-app-chip-active-bg);
+    color: var(--hc-app-chip-active-text);
+    font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
   }
 
+  /* Clean Borderless Rows Separated by Hairlines (No Inner Boxes) */
   .hc-slider-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    background: var(--hc-phone-chip-bg);
-    border: 1px solid var(--hc-phone-border);
-    border-radius: var(--hc-phone-radius-chip);
-    padding: 5px 11px;
-    min-height: 33px;
+    padding-top: 8px;
+    border-top: 1px solid var(--hc-app-divider);
+    min-height: 28px;
   }
 
   .hc-slider-row__lbl {
     display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--hc-phone-text);
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--hc-app-muted);
     white-space: nowrap;
   }
 
   .hc-slider-row__lbl strong {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--hc-phone-accent-light);
-    min-width: 14px;
+    font-family: var(--hc-app-sans);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--hc-app-text);
+    min-width: 12px;
     text-align: center;
   }
 
   .hc-guest-slider {
-    width: 155px;
-    min-height: 22px;
+    width: 156px;
+    min-height: 20px;
     margin: 0;
-    accent-color: var(--hc-phone-accent);
+    accent-color: var(--hc-app-clay);
     cursor: pointer;
   }
 
   .hc-checkbox {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 9px;
     width: 100%;
-    min-height: 33px;
-    padding: 5px 11px;
-    border-radius: var(--hc-phone-radius-chip);
-    border: 1px solid var(--hc-phone-border);
-    background: var(--hc-phone-chip-bg);
-    color: var(--hc-phone-text);
-    font-family: var(--font-sans);
-    font-size: 12px;
+    padding: 8px 0 1px;
+    border: 0;
+    border-top: 1px solid var(--hc-app-divider);
+    border-radius: 0;
+    background: transparent;
+    color: var(--hc-app-text);
+    font-family: var(--hc-app-sans);
+    font-size: 12.5px;
     cursor: pointer;
     text-align: left;
-    transition: border-color 0.14s ease, background-color 0.14s ease;
-  }
-
-  .hc-checkbox.is-checked {
-    border-color: var(--hc-phone-accent-border);
-    background: var(--hc-phone-accent-soft);
   }
 
   .hc-checkbox__box {
-    width: 15px;
-    height: 15px;
-    border-radius: 4px;
-    border: 1.5px solid var(--hc-phone-muted);
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+    border: 1.5px solid var(--hc-app-muted);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-size: 10px;
-    font-weight: 800;
+    font-weight: 700;
     color: transparent;
     flex-shrink: 0;
+    transition: background-color 0.14s ease, border-color 0.14s ease;
   }
 
   .hc-checkbox.is-checked .hc-checkbox__box {
-    background: var(--hc-phone-accent);
-    border-color: var(--hc-phone-accent);
-    color: #ffffff;
+    background: var(--hc-app-clay);
+    border-color: var(--hc-app-clay);
+    color: var(--hc-app-clay-text);
   }
 
   .hc-checkbox__label {
     flex: 1;
-    font-weight: 600;
+    font-weight: 500;
   }
 
-  /* Stage 2: Summary Card (Row spaceBetween + Primary Button) */
+  /* Stage 2: Summary Card (Proportional Tabular Price + Full-Pill Terracotta CTA) */
   .hc-card--summary {
-    gap: 8px;
+    gap: 10px;
     margin-top: auto;
   }
 
@@ -1078,75 +1097,80 @@ sequenceDiagram
 
   .hc-total-row__label {
     font-size: 12.5px;
-    font-weight: 600;
-    color: var(--hc-phone-muted);
+    font-weight: 500;
+    color: var(--hc-app-muted);
   }
 
   .hc-total-row__val {
-    font-family: var(--font-mono);
-    font-size: 15.5px;
-    font-weight: 800;
-    color: var(--hc-phone-text);
+    font-family: var(--hc-app-sans);
+    font-variant-numeric: tabular-nums;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--hc-app-text);
   }
 
   .hc-cta-btn {
     width: 100%;
     border: 0;
-    border-radius: 10px;
-    min-height: 36px;
-    padding: 7px 14px;
-    background: linear-gradient(135deg, var(--hc-phone-accent) 0%, #4338ca 100%);
-    color: #ffffff;
-    font-family: var(--font-sans);
-    font-size: 12.8px;
-    font-weight: 700;
+    border-radius: 999px;
+    min-height: 38px;
+    padding: 8px 16px;
+    background: var(--hc-app-clay);
+    color: var(--hc-app-clay-text);
+    font-family: var(--hc-app-sans);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
     cursor: pointer;
-    box-shadow: 0 3px 10px rgba(79, 70, 229, 0.35);
-    transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+    transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
   }
 
   .hc-cta-btn:hover {
-    background: linear-gradient(135deg, var(--hc-phone-accent-hover) 0%, #3730a3 100%);
-    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.45);
+    background: var(--hc-app-clay-hover);
+  }
+
+  .hc-cta-btn:active {
+    transform: scale(0.99);
   }
 
   .hc-cta-btn.is-confirmed {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    box-shadow: 0 3px 10px rgba(16, 185, 129, 0.35);
+    background: var(--hc-app-held);
   }
 
-  /* Streaming Skeleton: Fills the Fixed Surface Space Smoothly */
+  /* Streaming Skeleton: Soft Warm Shimmer Card Filling Remaining Surface Height */
   .hc-skeleton {
     flex: 1 1 0;
-    background: var(--hc-phone-card);
-    border: 1px dashed var(--hc-phone-border);
-    border-radius: 12px;
-    padding: 12px 14px;
+    background: var(--hc-app-card);
+    border: 1px solid var(--hc-app-border);
+    border-radius: 16px;
+    padding: 14px 16px;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 8px;
-    min-height: 80px;
+    gap: 9px;
+    min-height: 76px;
   }
 
   .hc-skeleton__bar {
     height: 8px;
-    border-radius: 4px;
+    border-radius: 999px;
     background: linear-gradient(
       90deg,
-      var(--hc-phone-chip-bg) 20%,
-      var(--hc-phone-border) 50%,
-      var(--hc-phone-chip-bg) 80%
+      var(--hc-app-chip-bg) 20%,
+      var(--hc-app-divider) 50%,
+      var(--hc-app-chip-bg) 80%
     );
     background-size: 200% 100%;
     animation: hc-shimmer 1.2s linear infinite;
   }
 
   .hc-skeleton__bar--w60 {
-    width: 58%;
+    width: 56%;
   }
   .hc-skeleton__bar--w90 {
-    width: 86%;
+    width: 84%;
   }
 
   @keyframes hc-shimmer {
@@ -1159,32 +1183,28 @@ sequenceDiagram
   }
 
   .hc-chat-confirm {
-    font-size: 11px;
-    padding: 5px 9px;
-    border-radius: 8px;
-    background: rgba(16, 185, 129, 0.15);
-    border: 1px solid rgba(16, 185, 129, 0.35);
-    color: #34d399;
-    font-weight: 600;
+    font-size: 11.2px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(77, 124, 91, 0.16);
+    border: 1px solid rgba(77, 124, 91, 0.34);
+    color: #9dc5a8;
+    font-weight: 500;
+    align-self: flex-start;
     flex-shrink: 0;
   }
 
   :global(:root[data-theme='light']) .hc-chat-confirm {
-    color: #065f46;
-    border-color: rgba(4, 120, 87, 0.35);
+    background: rgba(63, 106, 76, 0.1);
+    color: #2f543a;
+    border-color: rgba(63, 106, 76, 0.28);
   }
 
   .hc-chat-confirm code {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    padding: 1px 4px;
-    margin: 0 2px;
-    border-radius: 3px;
-    background: rgba(15, 23, 42, 0.22);
-  }
-
-  :global(:root[data-theme='light']) .hc-chat-confirm code {
-    background: rgba(6, 95, 70, 0.1);
+    font-family: var(--hc-app-sans);
+    font-weight: 600;
+    font-size: 11px;
+    margin: 0 1px;
   }
 
   /* --- Responsive Breakpoints --- */
@@ -1236,17 +1256,21 @@ sequenceDiagram
     }
 
     .hc-phone {
-      border-radius: 28px;
+      border-radius: 30px;
       padding: 7px;
     }
 
     .hc-phone__screen {
-      border-radius: 22px;
-      height: 590px;
+      border-radius: 23px;
+      height: 626px;
+    }
+
+    .hc-hero-title {
+      font-size: 15px;
     }
 
     .hc-surface {
-      height: 400px;
+      height: 404px;
     }
 
     .hc-guest-slider {
