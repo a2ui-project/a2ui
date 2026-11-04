@@ -4,6 +4,15 @@ The bot adds `status: needs-triage` to open issues and PRs that need attention f
 
 - [blueprint.md](blueprint.md): the rules the bot follows.
 - [triage.mts](triage.mts): the script that applies the rules.
-- [triage.test.mts](triage.test.mts): tests. Run them from the repository root with `node --test tools/internal/triage/flagging/triage.test.mts`.
+- [triage.test.mts](triage.test.mts): the tests.
+
+Node runs the TypeScript files directly, so the bot and its tests need no build or install. To check the types, run this in this folder:
+
+```sh
+npm ci
+npm run typecheck
+```
+
+`npm test` runs the tests.
 
 The triage process the bot supports is described in [docs/contributing/triage/triage.md](../../../../docs/contributing/triage/triage.md).
