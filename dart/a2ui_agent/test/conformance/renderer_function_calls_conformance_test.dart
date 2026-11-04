@@ -158,22 +158,47 @@ void _runCalls(Map<String, Object?> testCase) {
       if (step['call'] case final Map<String, Object?> spec) {
         final catalogId = spec['catalogId']! as String;
         final name = spec['name']! as String;
-        final callArgs = spec['args'] as Map<String, Object?>?;
+        final Object? rawArgs = spec['args'];
         final surfaceId = spec['surfaceId'] as String?;
+        final functionCallId = spec['functionCallId'] as String?;
         final timeoutMs = spec['timeout_ms'] as int?;
         final Duration? timeout = timeoutMs == null
             ? null
             : Duration(milliseconds: timeoutMs);
 
-        if (step['expect_error'] case final Map<String, Object?> expectedErr) {
+        if (rawArgs != null && rawArgs is! Map) {
+          // test_call_renderer_function_with_args_that_are_not_an_object:
+          // `args` is typed `Map<String, Object?>?` in Dart, so arguments that
+          // aren't an object can't be given to `call` at all. The case is met
+          // by showing they are unrepresentable (the cast throws a
+          // TypeError) rather than by the INVALID_FUNCTION_CALL code that
+          // dynamically typed SDKs return; nothing is sent or registered.
+          expect(step, contains('expect_error'), reason: where);
+          final int pendingBefore = calls.pendingCount;
+          expect(
+            () => calls.call(
+              catalogId: catalogId,
+              name: name,
+              args: rawArgs as Map<String, Object?>,
+              surfaceId: surfaceId,
+              timeout: timeout,
+              functionCallId: functionCallId,
+            ),
+            throwsA(isA<TypeError>()),
+            reason: where,
+          );
+          expect(calls.pendingCount, pendingBefore, reason: where);
+        } else if (step['expect_error']
+            case final Map<String, Object?> expectedErr) {
           Object? caught;
           try {
             calls.call(
               catalogId: catalogId,
               name: name,
-              args: callArgs,
+              args: rawArgs as Map<String, Object?>?,
               surfaceId: surfaceId,
               timeout: timeout,
+              functionCallId: functionCallId,
             );
           } on Object catch (e) {
             caught = e;
@@ -187,9 +212,10 @@ void _runCalls(Map<String, Object?> testCase) {
           ) = calls.call(
             catalogId: catalogId,
             name: name,
-            args: callArgs,
+            args: rawArgs as Map<String, Object?>?,
             surfaceId: surfaceId,
             timeout: timeout,
+            functionCallId: functionCallId,
           );
           final tracked = _TrackedCall();
           future.then(
