@@ -14,13 +14,17 @@
  * limitations under the License.
  */
 
+import {type FunctionApi} from '@a2ui/web_core';
 import {afterEach, describe, expect, test, vi} from 'vitest';
+import {z} from 'zod';
 
 import {
+  A2uiCatalogError,
   A2uiRpcError,
   DEFAULT_RENDERER_CALL_TIMEOUT,
   DEFAULT_RENDERER_CALL_TIMEOUT_MS,
   Catalog,
+  type CatalogApi,
   RendererFunctionCalls,
   RendererToAgentMessageProcessor,
   RpcErrorCode,
@@ -390,5 +394,145 @@ describe('RendererFunctionCalls', () => {
       rendererFunctionResponse: {functionCallId: 'c-no-timeout', value: 'ja'},
     });
     await expect(result).resolves.toBe('ja');
+  });
+
+  describe('with catalogs', () => {
+    const fn = (name: string, extra: Partial<FunctionApi> = {}): FunctionApi => ({
+      name,
+      returnType: 'string',
+      schema: z.object({}),
+      ...extra,
+    });
+    const device: CatalogApi = new Catalog<never, FunctionApi>(
+      'device',
+      '1.0',
+      [],
+      [
+        fn('getLocale', {allowedCallers: 'rendererOrAgent'}),
+        fn('getClock', {allowedCallers: 'agentOnly'}),
+        fn('formatDate', {allowedCallers: 'rendererOnly'}),
+        fn('formatName'),
+        fn('confirm', {allowedCallers: 'rendererOrAgent', requiresUserActivation: true}),
+      ],
+    );
+    const other: CatalogApi = new Catalog<never, FunctionApi>(
+      'other',
+      '1.0',
+      [],
+      [fn('ping', {allowedCallers: 'agentOnly'})],
+    );
+
+    function expectRejected(
+      calls: RendererFunctionCalls,
+      catalogId: string,
+      name: string,
+      code: string,
+      message: string,
+    ): void {
+      vi.useFakeTimers();
+      expect(() => calls.call({catalogId, name, functionCallId: 'c1'})).toThrowError(
+        expect.objectContaining({
+          code,
+          functionCallId: 'c1',
+          message: expect.stringContaining(message),
+        }),
+      );
+      expect(calls.pendingCount).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+    }
+
+    test('calls a rendererOrAgent or agentOnly function', async () => {
+      const calls = new RendererFunctionCalls({catalogs: [device, other]});
+
+      const [message, locale] = calls.call<string>({
+        catalogId: 'device',
+        name: 'getLocale',
+        functionCallId: 'c1',
+      });
+      expect(message.callRendererFunction.callFunction).toEqual({
+        '@call': 'getLocale',
+        catalogId: 'device',
+        args: {},
+      });
+      calls.resolve({
+        version: '1.0',
+        rendererFunctionResponse: {functionCallId: 'c1', value: 'en'},
+      });
+      await expect(locale).resolves.toBe('en');
+
+      const [, clock] = calls.call({catalogId: 'device', name: 'getClock'});
+      const [, ping] = calls.call({catalogId: 'other', name: 'ping'});
+      expect(calls.pendingCount).toBe(2);
+      calls.dispose();
+      await expect(clock).rejects.toMatchObject({code: RpcErrorCode.CANCELLED});
+      await expect(ping).rejects.toMatchObject({code: RpcErrorCode.CANCELLED});
+    });
+
+    test('rejects an unknown catalog or function with UNKNOWN_FUNCTION', () => {
+      const calls = new RendererFunctionCalls({catalogs: [device]});
+
+      expectRejected(calls, 'nope', 'getLocale', RpcErrorCode.UNKNOWN_FUNCTION, "'nope'");
+      expectRejected(calls, 'device', 'missing', RpcErrorCode.UNKNOWN_FUNCTION, "'missing'");
+    });
+
+    test('rejects a rendererOnly function, or one whose allowedCallers is omitted', () => {
+      const calls = new RendererFunctionCalls({catalogs: [device]});
+
+      for (const name of ['formatDate', 'formatName']) {
+        expectRejected(
+          calls,
+          'device',
+          name,
+          RpcErrorCode.INVALID_FUNCTION_CALL,
+          'the agent may not call it',
+        );
+      }
+    });
+
+    test('rejects a function that requires user activation', () => {
+      const calls = new RendererFunctionCalls({catalogs: [device]});
+
+      expectRejected(
+        calls,
+        'device',
+        'confirm',
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        'no user gesture',
+      );
+    });
+
+    test('checks the target after the empty-name, empty-catalogId and duplicate-id checks', () => {
+      const calls = new RendererFunctionCalls({catalogs: [device]});
+      calls.call({catalogId: 'device', name: 'getLocale', functionCallId: 'dup'});
+
+      expect(() => calls.call({catalogId: 'nope', name: ''})).toThrowError(
+        expect.objectContaining({message: expect.stringContaining('needs a function name')}),
+      );
+      expect(() => calls.call({catalogId: '', name: 'missing'})).toThrowError(
+        expect.objectContaining({message: expect.stringContaining('catalogId')}),
+      );
+      expect(() =>
+        calls.call({catalogId: 'nope', name: 'missing', functionCallId: 'dup'}),
+      ).toThrowError(expect.objectContaining({code: RpcErrorCode.DUPLICATE}));
+      calls.dispose();
+    });
+
+    test('does not check calls without catalogs', () => {
+      const calls = new RendererFunctionCalls();
+      const [message] = calls.call({catalogId: 'device', name: 'formatDate'});
+
+      expect(message.callRendererFunction.callFunction['@call']).toBe('formatDate');
+      calls.dispose();
+    });
+
+    test('rejects two catalogs with the same id', () => {
+      expect(
+        () =>
+          new RendererFunctionCalls({
+            catalogs: [device, new Catalog<never, FunctionApi>('device', '1.0', [], [])],
+          }),
+      ).toThrow(A2uiCatalogError);
+      expect(() => new RendererFunctionCalls({catalogs: []})).not.toThrow();
+    });
   });
 });

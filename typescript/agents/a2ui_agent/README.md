@@ -181,6 +181,12 @@ send(message);
 console.log(await locale); // once the renderer's response has gone through messages.processMessage
 ```
 
+Pass the catalogs the renderer was sent as `catalogs`, and `call` checks each call against them before anything is sent: a catalog or function the catalogs don't have is an `A2uiRpcError` with `UNKNOWN_FUNCTION`, and a function the agent may not call (its `allowedCallers` is `rendererOnly` or omitted, or it requires user activation, which a call from the agent can't give) is one with `INVALID_FUNCTION_CALL`. The arguments aren't checked against the function's schema.
+
+```ts
+const calls = new RendererFunctionCalls({catalogs: [catalog]});
+```
+
 Each instance keeps its pending calls in memory, so a response must reach the same instance that made the call, over a connection that stays open such as a WebSocket. A call fails with `TIMEOUT` when no response arrives in time, with `CANCELLED` when it is cancelled or the instance disposed, and with the renderer's error code when the renderer reports one.
 
 ## Development

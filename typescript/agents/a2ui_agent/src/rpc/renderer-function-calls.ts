@@ -15,7 +15,11 @@
  */
 
 import {
+  A2uiCatalogError,
   A2uiRpcError,
+  type CatalogInterface,
+  type ComponentApi,
+  type FunctionApi,
   type CallRendererFunctionMessage,
   isValidUax31Identifier,
   type RendererFunctionResponseMessage,
@@ -80,6 +84,14 @@ export interface RendererFunctionCallsOptions {
    * Pass `null` or omit for no limit.
    */
   readonly maxPending?: number | null;
+  /**
+   * The catalogs the renderer was sent. When given, `call` checks that the
+   * target catalog declares the function and lets the agent call it
+   * (`allowedCallers` is `rendererOrAgent` or `agentOnly`, and it doesn't
+   * require user activation) before anything is sent. Without them, calls
+   * aren't checked against a catalog.
+   */
+  readonly catalogs?: Iterable<CatalogInterface<ComponentApi, FunctionApi>>;
 }
 
 /**
@@ -133,6 +145,7 @@ export class RendererFunctionCalls {
   private readonly _defaultTimeoutMs: number | null;
   private readonly _maxPending: number | null;
   private readonly _pending = new Map<string, PendingEntry>();
+  private readonly _catalogs?: ReadonlyMap<string, CatalogInterface<ComponentApi, FunctionApi>>;
   private _disposed = false;
 
   /**
@@ -140,6 +153,7 @@ export class RendererFunctionCalls {
    *
    * @param options Optional default timeout and maximum pending calls limit.
    * @throws {RangeError} If `defaultTimeoutMs <= 0` or `maxPending < 1`.
+   * @throws {A2uiCatalogError} If two of `catalogs` have the same id.
    */
   constructor(options?: RendererFunctionCallsOptions) {
     if (options?.defaultTimeoutMs === undefined) {
@@ -164,6 +178,16 @@ export class RendererFunctionCalls {
         throw new RangeError('maxPending must be at least 1.');
       }
       this._maxPending = options.maxPending;
+    }
+    if (options?.catalogs !== undefined) {
+      const catalogs = new Map<string, CatalogInterface<ComponentApi, FunctionApi>>();
+      for (const catalog of options.catalogs) {
+        if (catalogs.has(catalog.id)) {
+          throw new A2uiCatalogError(`Two catalogs have the id '${catalog.id}'.`);
+        }
+        catalogs.set(catalog.id, catalog);
+      }
+      this._catalogs = catalogs;
     }
     this.resolve = this.resolve.bind(this);
   }
@@ -257,6 +281,10 @@ export class RendererFunctionCalls {
         RpcErrorCode.INVALID_FUNCTION_CALL,
         callId,
       );
+    }
+
+    if (this._catalogs !== undefined) {
+      this._checkTarget(options.catalogId, options.name, callId);
     }
 
     // An empty surfaceId counts as omitted, since a renderer rejects one.
@@ -422,6 +450,43 @@ export class RendererFunctionCalls {
       pending.resolve(parsed.value);
     }
     return true;
+  }
+
+  /**
+   * Throws if the catalogs don't let the agent call `name` in `catalogId`.
+   */
+  private _checkTarget(catalogId: string, name: string, callId: string): void {
+    const catalog = this._catalogs!.get(catalogId);
+    if (catalog === undefined) {
+      throw new A2uiRpcError(
+        `No catalog has the id '${catalogId}', so the agent can't call '${name}' in it.`,
+        RpcErrorCode.UNKNOWN_FUNCTION,
+        callId,
+      );
+    }
+    const fn = catalog.functions.get(name);
+    if (fn === undefined) {
+      throw new A2uiRpcError(
+        `Catalog '${catalogId}' has no function '${name}'.`,
+        RpcErrorCode.UNKNOWN_FUNCTION,
+        callId,
+      );
+    }
+    const allowedCallers = fn.allowedCallers ?? 'rendererOnly';
+    if (allowedCallers === 'rendererOnly') {
+      throw new A2uiRpcError(
+        `Function '${name}' in catalog '${catalogId}' is rendererOnly, so the agent may not call it.`,
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        callId,
+      );
+    }
+    if (fn.requiresUserActivation === true) {
+      throw new A2uiRpcError(
+        `Function '${name}' in catalog '${catalogId}' requires user activation, and a call from the agent has no user gesture.`,
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        callId,
+      );
+    }
   }
 
   /** Removes a pending call and clears its timer. */
