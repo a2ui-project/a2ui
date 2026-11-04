@@ -262,7 +262,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       },
     ]);
     await asyncUpdate(el, () => {});
-    assert.strictEqual(el.hasAttribute('aria-hidden'), false);
+    assert.strictEqual(el.getAttribute('aria-hidden'), 'false');
     assert.strictEqual(el.inert, false);
     assert.strictEqual(el.hasAttribute('inert'), false);
   });

@@ -20,6 +20,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from ...resolution.data_context import DataContext
+from ...resolution.validation_result_coercion import coerce_dynamic_boolean
 from ...common.events import AbortSignal
 from ...exceptions import A2uiExpressionError
 from ...catalog import (
@@ -466,16 +467,8 @@ OpenUrlImplementation = create_function_implementation(OpenUrlApi, _open_url_exe
 
 
 # Logical
-#
-# The v1.0 validators return a ValidationResult rather than a boolean, so a
-# nested ``and(required(...), or(...))`` receives dicts. A dict with a boolean
-# ``valid`` member is truthy by its validity, not by being a non-empty dict.
 def _is_truthy_or_valid(val: Any) -> bool:
-    if isinstance(val, dict):
-        valid = val.get("valid")
-        if isinstance(valid, bool):
-            return valid
-    return _to_bool(val)
+    return coerce_dynamic_boolean(val)
 
 
 def _and_execute(
