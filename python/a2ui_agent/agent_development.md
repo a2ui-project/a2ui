@@ -826,8 +826,11 @@ if not result.handled:
 
 Serialize replies with `exclude_unset=True`, not `exclude_none=True`: a
 handler that returns `None` sends `"value": null`, which the response must
-carry. `process_messages` processes several messages concurrently and returns
-their results in order.
+carry. Parsed JSON must have `"version": "1.0"`; the v1.0 message classes,
+which `a2ui.rpc` re-exports, are accepted as they are. The processor takes one
+message at a time: to process a batch, call `process_message` for each, so you
+choose whether they run one after another or concurrently and how a failing
+message affects the others.
 
 The processor handles each kind of message as follows:
 
@@ -837,24 +840,29 @@ The processor handles each kind of message as follows:
    `on_action`, `on_error` and `on_renderer_function_response` callbacks, if
    set. The processor validates the message against its v1.0 schema model,
    awaits the callback (sync or async) with the model, and replies with
-   nothing. Without the callback, the message is left unhandled, without
-   being validated, so a framework can pass it on to the model's turn.
-3. Anything else, such as an unknown message or one with two message keys,
-   raises `A2uiValidationError`, as does a malformed message for a callback.
+   nothing. A callback that returns `False` declines the message, which is
+   then not handled, so it can take some messages and leave the rest to the
+   model's turn; returning `None` or `True` means handled. Without the
+   callback, the message is left unhandled, without being validated, so a
+   framework can pass it on to the model's turn.
+3. Anything else, such as an unknown message, one with two message keys or
+   one without `"version": "1.0"`, raises `A2uiValidationError`, as does a
+   malformed message for a callback.
    An exception from a callback propagates.
 
 It answers each `callAgentFunction` as follows:
 
 1. It copies the call's `functionCallId` into the response. A call without one,
    or with an empty one, can't be answered and raises `A2uiValidationError`.
-2. A call with an empty `surfaceId` gets `INVALID_FUNCTION_CALL`.
+2. A call with an empty `surfaceId` or function name gets
+   `INVALID_FUNCTION_CALL`.
 3. A function or `catalogId` that the agent's catalogs don't have gets
    `UNKNOWN_FUNCTION`.
 4. Arguments that fail the function's schema get `INVALID_FUNCTION_CALL`, with
    the validation error in the message. The handler receives the validated
    arguments, with the schema's defaults applied.
-5. A handler that raises gets `EXECUTION_ERROR`, with the exception's message.
-   The traceback is logged and not sent. To send another code, such as
+5. A handler that raises gets `EXECUTION_ERROR`, with the exception's message,
+   even if it raises `TimeoutError`. The traceback is logged and not sent. To send another code, such as
    `PROVIDER_NOT_FOUND`, raise `A2uiRpcError(message, code=...)` from
    `a2ui.core`.
 6. The handler's context, an `AgentFunctionContext`, gives the call's
@@ -863,15 +871,16 @@ It answers each `callAgentFunction` as follows:
 Async handlers run on the caller's event loop. Sync handlers run on a worker
 thread through `asyncio.to_thread`, so a blocking handler doesn't stall the
 loop; make sure a sync handler is safe to run on another thread.
-`agent_function_timeout` (seconds) cancels a handler that takes too long and
-replies `EXECUTION_ERROR`. There's no default, because the renderer already
+`agent_function_timeout` (a finite positive number of seconds) cancels a
+handler that takes too long and replies `EXECUTION_ERROR`. There's no default, because the renderer already
 times out its calls. A sync handler can't be stopped: the reply is sent, but
 its thread runs to the end. Cancelling a `process_message` call cancels its
 handler and sends nothing.
 
 The processor keeps nothing about a message once it has processed it, so one
 processor can serve many conversations, or you can build one per request from
-the active catalogs.
+the active catalogs. Each catalog needs its own ID: two catalogs with one ID
+raise `A2uiCatalogError`.
 
 #### 5c. What Renderers Need
 

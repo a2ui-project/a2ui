@@ -24,6 +24,7 @@ from typing import Any
 import pytest
 
 from a2ui.core import (
+    A2uiCatalogError,
     A2uiRpcError,
     A2uiValidationError,
     AgentFunction,
@@ -399,6 +400,16 @@ class TestErrors:
         assert calls == []
 
     @pytest.mark.asyncio
+    async def test_empty_function_name_is_an_invalid_call(self) -> None:
+        processor = _processor(_fx(_constant(1.08)))
+
+        response = await _handle(processor, _call("", catalog_id=None))
+
+        body = _response(response)
+        assert body["functionCallId"] == "fx-1"
+        assert body["error"]["code"] == "INVALID_FUNCTION_CALL"
+
+    @pytest.mark.asyncio
     async def test_empty_surface_id_is_an_invalid_call(self) -> None:
         calls: list[Any] = []
         processor = _processor(_fx(lambda a, c: calls.append(a)))
@@ -494,9 +505,22 @@ class TestExecution:
 
         assert [_response(r)["value"] for r in responses] == ["a", "b"]
 
-    def test_rejects_a_timeout_that_is_not_positive(self) -> None:
-        with pytest.raises(ValueError, match="timeout"):
-            _processor(agent_function_timeout=0)
+    @pytest.mark.parametrize("timeout", [0, -1, float("nan"), float("inf"), True, "1"])
+    def test_rejects_a_timeout_that_is_not_finite_and_positive(
+        self, timeout: Any
+    ) -> None:
+        with pytest.raises(ValueError, match="finite positive"):
+            _processor(agent_function_timeout=timeout)
+
+    def test_accepts_an_integer_timeout(self) -> None:
+        _processor(agent_function_timeout=5)
+
+    def test_rejects_two_catalogs_with_one_id(self) -> None:
+        with pytest.raises(A2uiCatalogError, match="Duplicate catalog ID"):
+            RendererToAgentMessageProcessor([
+                Catalog(FIN, "1.0"),
+                Catalog(FIN, "1.0", functions=[_fx(_constant(1))]),
+            ])
 
 
 class TestTimeoutsAndCancellation:
@@ -528,6 +552,28 @@ class TestTimeoutsAndCancellation:
         assert body["error"]["code"] == "EXECUTION_ERROR"
         assert "timed out" in body["error"]["message"]
         assert state["cancelled"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("timeout", [None, 30.0])
+    async def test_a_timeout_error_from_the_handler_is_a_handler_error(
+        self, timeout: float | None, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        async def handler(args: dict[str, Any], context: AgentFunctionContext) -> Any:
+            raise TimeoutError("upstream rates API timed out")
+
+        processor = _processor(_fx(handler), agent_function_timeout=timeout)
+
+        with caplog.at_level(logging.ERROR):
+            response = await _handle(processor, _call())
+
+        assert _response(response)["error"] == {
+            "code": "EXECUTION_ERROR",
+            "message": "upstream rates API timed out",
+        }
+        assert any(
+            record.exc_info and record.exc_info[0] is TimeoutError
+            for record in caplog.records
+        ), "the traceback is logged"
 
     @pytest.mark.asyncio
     async def test_cancelling_the_caller_cancels_the_handler_without_reply(

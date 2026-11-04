@@ -16,11 +16,10 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 import inspect
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel, ValidationError
 
@@ -31,25 +30,36 @@ from a2ui.core.schema.v1_0 import (
     AgentToRendererMessage,
     CallAgentFunctionMessage,
     RendererFunctionResponseMessage,
+    RendererToAgentMessage,
 )
 
 from ._agent_function_registry import AgentFunctionRegistry
 
-RendererToAgentMessageInput = BaseModel | Mapping[str, Any]
-"""A renderer-to-agent message, as a schema model or as parsed JSON."""
+RendererToAgentMessageInput = RendererToAgentMessage | Mapping[str, Any]
+"""A v1.0 renderer-to-agent message, as a schema model or as parsed JSON.
+
+Parsed JSON must have `"version": "1.0"`.
+"""
 
 _M = TypeVar("_M", bound=BaseModel)
 
-ActionCallback = Callable[[A2uiRendererActionMessage], Awaitable[None] | None]
-"""Receives a validated `action` message."""
+ActionCallback = Callable[
+    [A2uiRendererActionMessage], Awaitable[bool | None] | bool | None
+]
+"""Receives a validated `action` message. Returns False to decline it."""
 
-ErrorCallback = Callable[[A2uiRendererErrorMessage], Awaitable[None] | None]
-"""Receives a validated `error` message."""
+ErrorCallback = Callable[
+    [A2uiRendererErrorMessage], Awaitable[bool | None] | bool | None
+]
+"""Receives a validated `error` message. Returns False to decline it."""
 
 RendererFunctionResponseCallback = Callable[
-    [RendererFunctionResponseMessage], Awaitable[None] | None
+    [RendererFunctionResponseMessage], Awaitable[bool | None] | bool | None
 ]
-"""Receives a validated `rendererFunctionResponse` message."""
+"""Receives a validated `rendererFunctionResponse` message.
+
+Returns False to decline it.
+"""
 
 _CALL_AGENT_FUNCTION = "callAgentFunction"
 _ACTION = "action"
@@ -94,8 +104,14 @@ class RendererToAgentMessageProcessor:
     2. `action`, `error` and `rendererFunctionResponse` are handled by the
        matching callback, if one is set. The processor validates the message,
        awaits the callback with the schema model, and replies with nothing.
-       Without the callback, the message isn't handled and isn't validated,
-       so an agent framework can pass it on to the model's turn.
+       A callback that returns False declines the message, which is then not
+       handled; returning None or True means handled. Without the callback,
+       the message isn't handled and isn't validated, so an agent framework
+       can pass it on to the model's turn.
+
+    Parsed JSON must have `"version": "1.0"`, as `renderer_to_agent.json`
+    requires. To process several messages, call `process_message` for each,
+    which leaves concurrency and per-message error handling to the caller.
 
     ```python
     processor = RendererToAgentMessageProcessor(request_processor.active_catalogs)
@@ -138,7 +154,9 @@ class RendererToAgentMessageProcessor:
                 messages. None leaves them unhandled.
 
         Raises:
-            ValueError: If `agent_function_timeout` is not positive.
+            A2uiCatalogError: If two catalogs have the same ID.
+            ValueError: If `agent_function_timeout` is not a finite positive
+                number.
         """
         self._agent_functions = AgentFunctionRegistry(
             catalogs, timeout=agent_function_timeout
@@ -162,18 +180,16 @@ class RendererToAgentMessageProcessor:
             Whether the message was handled, and the replies to send.
 
         Raises:
-            A2uiValidationError: If the message isn't one renderer-to-agent
-                message, a `callAgentFunction` has no `functionCallId` or an
-                empty one, or a message for a callback fails its schema.
+            A2uiValidationError: If the message isn't one v1.0
+                renderer-to-agent message (parsed JSON without
+                `"version": "1.0"` included), a `callAgentFunction` has no
+                `functionCallId` or an empty one, or a message for a callback
+                fails its schema.
             Exception: Whatever a callback raises.
         """
         kind = _message_kind(message)
         if kind == _CALL_AGENT_FUNCTION:
-            call = (
-                message
-                if isinstance(message, (CallAgentFunctionMessage, Mapping))
-                else message.model_dump(by_alias=True, exclude_unset=True)
-            )
+            call = cast(CallAgentFunctionMessage | Mapping[str, Any], message)
             return ProcessResult(
                 handled=True, replies=[await self._agent_functions.handle(call)]
             )
@@ -187,53 +203,27 @@ class RendererToAgentMessageProcessor:
             self._on_renderer_function_response,
         )
 
-    async def process_messages(
-        self, messages: Iterable[RendererToAgentMessageInput]
-    ) -> list[ProcessResult]:
-        """Processes several messages concurrently.
-
-        Args:
-            messages: The messages, each as a schema model or as parsed JSON.
-
-        Returns:
-            The result of each message, in the order of `messages`.
-
-        Raises:
-            A2uiValidationError: As `process_message` does, for the first
-                message that fails.
-            Exception: Whatever a callback raises.
-        """
-        return list(
-            await asyncio.gather(
-                *(self.process_message(message) for message in messages)
-            )
-        )
-
 
 async def _dispatch(
     message: RendererToAgentMessageInput,
     model: type[_M],
-    callback: Callable[[_M], Awaitable[None] | None] | None,
+    callback: Callable[[_M], Awaitable[bool | None] | bool | None] | None,
 ) -> ProcessResult:
     """Validates a message and runs its callback, if it has one."""
     if callback is None:
         return ProcessResult(handled=False)
+    parsed: _M
     if isinstance(message, model):
-        parsed = message
+        parsed = cast(_M, message)
     else:
-        payload = (
-            message.model_dump(by_alias=True, exclude_unset=True)
-            if isinstance(message, BaseModel)
-            else message
-        )
         try:
-            parsed = model.model_validate(payload)
+            parsed = model.model_validate(message)
         except ValidationError as e:
             raise A2uiValidationError(f"Malformed {model.__name__}: {e}") from e
     result = callback(parsed)
     if inspect.isawaitable(result):
-        await result
-    return ProcessResult(handled=True)
+        result = await result
+    return ProcessResult(handled=result is not False)
 
 
 def _message_kind(message: RendererToAgentMessageInput) -> str:
@@ -247,11 +237,18 @@ def _message_kind(message: RendererToAgentMessageInput) -> str:
         if isinstance(message, model):
             return kind
     if isinstance(message, BaseModel):
-        message = message.model_dump(by_alias=True, exclude_unset=True)
+        raise A2uiValidationError(
+            f"{type(message).__name__} is not a v1.0 renderer-to-agent message."
+        )
     if not isinstance(message, Mapping):
         raise A2uiValidationError(
             "A renderer-to-agent message must be an object, got"
             f" {type(message).__name__}."
+        )
+    version = message.get("version")
+    if version != "1.0":
+        raise A2uiValidationError(
+            f'A renderer-to-agent message must have "version": "1.0", got {version!r}.'
         )
     keys = [key for key in message if key != "version"]
     if len(keys) != 1:

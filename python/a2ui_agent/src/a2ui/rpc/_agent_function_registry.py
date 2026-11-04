@@ -23,12 +23,14 @@ import asyncio
 from collections.abc import Iterable, Mapping
 import inspect
 import logging
+import math
 from typing import Any
 
 from pydantic import ValidationError
 
 from a2ui.core import (
     STRICT_VALIDATION,
+    A2uiCatalogError,
     A2uiError,
     A2uiRpcError,
     A2uiValidationError,
@@ -57,7 +59,8 @@ class AgentFunctionRegistry:
 
     1. The response copies the call's `functionCallId`. A call without one
        can't be answered, so `handle` raises `A2uiValidationError`.
-    2. A call with an empty `surfaceId` gets `INVALID_FUNCTION_CALL`.
+    2. A call with an empty `surfaceId` or function name gets
+       `INVALID_FUNCTION_CALL`.
     3. A function name or catalog ID that the registry doesn't know gets
        `UNKNOWN_FUNCTION`. Renderers set `catalogId` on every call; a call
        without one runs the agent function of that name if exactly one
@@ -92,13 +95,27 @@ class AgentFunctionRegistry:
                 and the call gets `EXECUTION_ERROR`. None sets no limit.
 
         Raises:
-            ValueError: If `timeout` is not positive.
+            A2uiCatalogError: If two catalogs have the same ID.
+            ValueError: If `timeout` is not a finite positive number.
         """
-        if timeout is not None and timeout <= 0:
-            raise ValueError("The agent function timeout must be positive.")
+        if timeout is not None and (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout)
+            or timeout <= 0
+        ):
+            raise ValueError(
+                "The agent function timeout must be a finite positive number,"
+                f" got {timeout!r}."
+            )
         self._catalogs: dict[str, CatalogApi] = {}
         self._functions: dict[tuple[str, str], AgentFunction] = {}
         for catalog in catalogs:
+            if catalog.catalog_id in self._catalogs:
+                raise A2uiCatalogError(
+                    f"Duplicate catalog ID: '{catalog.catalog_id}'. Pass each"
+                    " catalog once."
+                )
             self._catalogs[catalog.catalog_id] = catalog
             for name, fn in catalog.agent_functions.items():
                 self._functions[(catalog.catalog_id, name)] = fn
@@ -133,6 +150,12 @@ class AgentFunctionRegistry:
                 call_id,
                 RpcErrorCode.INVALID_FUNCTION_CALL,
                 f"The call to '{name}' has an empty surfaceId.",
+            )
+        if not name:
+            return _error(
+                call_id,
+                RpcErrorCode.INVALID_FUNCTION_CALL,
+                "callAgentFunction.callFunction['@call'] must be a non-empty string.",
             )
         catalog_id = call.call_function.catalog_id
         if catalog_id is None:
@@ -189,10 +212,36 @@ class AgentFunctionRegistry:
             surface_id=call.surface_id,
             function_call_id=call_id,
         )
-        try:
-            value = await asyncio.wait_for(
-                _call_handler(fn, args, context), self._timeout
+
+        async def run() -> AgentFunctionResponseMessage:
+            # Catches the handler's own errors, including a TimeoutError it
+            # raises, so that only the processor's deadline below counts as a
+            # timeout.
+            try:
+                value = await _call_handler(fn, args, context)
+            except A2uiRpcError as e:
+                logger.info(
+                    "Agent function '%s' (call %s) failed with %s: %s",
+                    name,
+                    call_id,
+                    e.code,
+                    e.message,
+                )
+                return _error(call_id, e.code, e.message)
+            except Exception as e:
+                logger.exception("Agent function '%s' (call %s) failed.", name, call_id)
+                return _error(call_id, RpcErrorCode.EXECUTION_ERROR, str(e))
+            return AgentFunctionResponseMessage(
+                version="1.0",
+                agentFunctionResponse=FunctionResponse(
+                    functionCallId=call_id, value=value
+                ),
             )
+
+        if self._timeout is None:
+            return await run()
+        try:
+            return await asyncio.wait_for(run(), self._timeout)
         except asyncio.TimeoutError:
             logger.warning(
                 "Agent function '%s' (call %s) timed out after %ss.",
@@ -205,23 +254,6 @@ class AgentFunctionRegistry:
                 RpcErrorCode.EXECUTION_ERROR,
                 f"Function '{name}' timed out after {self._timeout}s.",
             )
-        except A2uiRpcError as e:
-            logger.info(
-                "Agent function '%s' (call %s) failed with %s: %s",
-                name,
-                call_id,
-                e.code,
-                e.message,
-            )
-            return _error(call_id, e.code, e.message)
-        except Exception as e:
-            logger.exception("Agent function '%s' (call %s) failed.", name, call_id)
-            return _error(call_id, RpcErrorCode.EXECUTION_ERROR, str(e))
-
-        return AgentFunctionResponseMessage(
-            version="1.0",
-            agentFunctionResponse=FunctionResponse(functionCallId=call_id, value=value),
-        )
 
 
 async def _call_handler(

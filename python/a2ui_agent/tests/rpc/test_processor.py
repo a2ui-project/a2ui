@@ -199,7 +199,9 @@ class TestCallbacks:
     ) -> None:
         processor = RendererToAgentMessageProcessor(_catalogs())
 
-        result = await processor.process_message({"action": {"name": 3}})
+        result = await processor.process_message(
+            {"version": "1.0", "action": {"name": 3}}
+        )
 
         assert result == ProcessResult(handled=False, replies=[])
 
@@ -248,7 +250,7 @@ class TestInvalidMessages:
         [
             ({"version": "1.0", "updateComponents": {}}, "Unknown"),
             ({"version": "1.0"}, "exactly one"),
-            ({"callAgentFunction": {}, "action": {}}, "exactly one"),
+            ({"version": "1.0", "callAgentFunction": {}, "action": {}}, "exactly one"),
             ("not an object", "must be an object"),
             (None, "must be an object"),
         ],
@@ -266,43 +268,104 @@ class TestInvalidMessages:
             await processor.process_message(message)
 
 
-class TestProcessMessages:
+class TestVersion:
 
     @pytest.mark.asyncio
-    async def test_returns_results_in_input_order(self) -> None:
+    @pytest.mark.parametrize("kind", ["callAgentFunction", *MESSAGES])
+    @pytest.mark.parametrize("version", [None, "v1.0", "0.9", 1.0])
+    async def test_parsed_json_needs_version_1_0(self, kind: str, version: Any) -> None:
         received: list[Any] = []
         processor = RendererToAgentMessageProcessor(
-            _catalogs(), on_action=received.append
+            _catalogs(), **{CALLBACK_OPTIONS.get(kind, "on_action"): received.append}
+        )
+        message = dict({**MESSAGES, "callAgentFunction": CALL}[kind])
+        if version is None:
+            del message["version"]
+        else:
+            message["version"] = version
+
+        with pytest.raises(A2uiValidationError, match="version"):
+            await processor.process_message(message)
+        assert received == []
+
+    @pytest.mark.asyncio
+    async def test_parsed_json_without_version_raises_even_without_callback(
+        self,
+    ) -> None:
+        processor = RendererToAgentMessageProcessor(_catalogs())
+
+        with pytest.raises(A2uiValidationError, match="version"):
+            await processor.process_message({"action": ACTION["action"]})
+
+    @pytest.mark.asyncio
+    async def test_rejects_another_schema_model(self) -> None:
+        from a2ui.core.schema.v0_9 import A2uiClientActionMessage
+
+        processor = RendererToAgentMessageProcessor(
+            _catalogs(), on_action=lambda m: None
+        )
+        message = A2uiClientActionMessage.model_validate({"action": ACTION["action"]})
+
+        with pytest.raises(A2uiValidationError, match="not a v1.0"):
+            await processor.process_message(message)  # type: ignore[arg-type]
+
+
+class TestDeclining:
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("kind", list(MESSAGES))
+    @pytest.mark.parametrize("is_async", [False, True])
+    async def test_a_callback_returning_false_declines(
+        self, kind: str, is_async: bool
+    ) -> None:
+        received: list[Any] = []
+
+        def sync_callback(message: Any) -> bool:
+            received.append(message)
+            return False
+
+        async def async_callback(message: Any) -> bool:
+            received.append(message)
+            return False
+
+        processor = RendererToAgentMessageProcessor(
+            _catalogs(),
+            **{CALLBACK_OPTIONS[kind]: async_callback if is_async else sync_callback},
         )
 
-        results = await processor.process_messages([ACTION, CALL, ERROR])
+        result = await processor.process_message(MESSAGES[kind])
 
-        assert [r.handled for r in results] == [True, True, False]
-        assert [len(r.replies) for r in results] == [0, 1, 0]
+        assert result == ProcessResult(handled=False, replies=[])
         assert len(received) == 1
 
     @pytest.mark.asyncio
-    async def test_runs_messages_concurrently(self) -> None:
-        both_started = asyncio.Event()
-        started = 0
-
-        async def on_action(message: Any) -> None:
-            nonlocal started
-            started += 1
-            if started == 2:
-                both_started.set()
-            await both_started.wait()
-
-        processor = RendererToAgentMessageProcessor(_catalogs(), on_action=on_action)
-
-        results = await asyncio.wait_for(
-            processor.process_messages([ACTION, ACTION]), timeout=5
+    @pytest.mark.parametrize("returned", [True, None, 0, ""])
+    async def test_anything_but_false_means_handled(self, returned: Any) -> None:
+        processor = RendererToAgentMessageProcessor(
+            _catalogs(), on_action=lambda m: returned
         )
 
-        assert [r.handled for r in results] == [True, True]
+        result = await processor.process_message(ACTION)
 
-    @pytest.mark.asyncio
-    async def test_empty(self) -> None:
-        processor = RendererToAgentMessageProcessor(_catalogs())
+        assert result.handled
 
-        assert await processor.process_messages([]) == []
+
+class TestApi:
+
+    def test_has_no_process_messages(self) -> None:
+        assert not hasattr(RendererToAgentMessageProcessor, "process_messages")
+
+    def test_reexports_the_v1_0_message_classes(self) -> None:
+        import a2ui.rpc as rpc
+        from a2ui.core.schema import v1_0
+
+        for name in (
+            "A2uiRendererActionMessage",
+            "A2uiRendererErrorMessage",
+            "AgentFunctionResponseMessage",
+            "CallAgentFunctionMessage",
+            "RendererFunctionResponseMessage",
+            "RendererToAgentMessage",
+        ):
+            assert getattr(rpc, name) is getattr(v1_0, name)
+            assert name in rpc.__all__

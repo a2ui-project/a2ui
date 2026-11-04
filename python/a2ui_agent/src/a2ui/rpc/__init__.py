@@ -17,7 +17,18 @@
 `RendererToAgentMessageProcessor` answers the renderer's `callAgentFunction`
 messages by running the catalogs' agent functions, and passes `action`,
 `error` and `rendererFunctionResponse` messages to optional callbacks.
+
+The v1.0 message classes it takes and returns are re-exported here.
 """
+
+from a2ui.core.schema.v1_0 import (
+    A2uiRendererActionMessage,
+    A2uiRendererErrorMessage,
+    AgentFunctionResponseMessage,
+    CallAgentFunctionMessage,
+    RendererFunctionResponseMessage,
+    RendererToAgentMessage,
+)
 
 from .processor import (
     ActionCallback,
@@ -29,10 +40,16 @@ from .processor import (
 )
 
 __all__ = [
+    "A2uiRendererActionMessage",
+    "A2uiRendererErrorMessage",
     "ActionCallback",
+    "AgentFunctionResponseMessage",
+    "CallAgentFunctionMessage",
     "ErrorCallback",
     "ProcessResult",
     "RendererFunctionResponseCallback",
+    "RendererFunctionResponseMessage",
+    "RendererToAgentMessage",
     "RendererToAgentMessageInput",
     "RendererToAgentMessageProcessor",
 ]
