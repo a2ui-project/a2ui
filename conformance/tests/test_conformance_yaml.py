@@ -116,7 +116,7 @@ def iter_renderer_errors(case):
 
 def get_yaml_files():
     files = []
-    for domain in ["core", "agent", "extensions"]:
+    for domain in ["core", "agent", "extensions", "adapter"]:
         pattern = os.path.join(CONFORMANCE_DIR, domain, "**", "*.yaml")
         files.extend(
             f
@@ -378,6 +378,121 @@ def test_renderer_error_validates_against_spec(valid_renderer_error):
 def test_renderer_error_rejects_spec_violations(invalid_renderer_error):
     with pytest.raises(jsonschema.ValidationError):
         validate_renderer_error_payload(invalid_renderer_error)
+
+
+def test_render_surface_strict_mode_and_expect_theme_absent_schema():
+    valid_case = {
+        "name": "v10_theme_dropped_in_permissive_mode_renders_like_none",
+        "action": "render_surface",
+        "protocolVersion": "1.0",
+        "strictMode": False,
+        "steps": [{
+            "op": "process_messages",
+            "messages": [],
+            "expectThemeAbsent": True,
+            "expectErrors": [],
+        }],
+    }
+    VALIDATOR.validate([valid_case])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{**valid_case, "strictMode": "permissive"}])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{
+            **valid_case,
+            "steps": [{**valid_case["steps"][0], "expectThemeAbsent": "yes"}],
+        }])
+
+
+def test_render_surface_teardown_step_expectations_schema():
+    valid_case = {
+        "name": "teardown_checks",
+        "action": "render_surface",
+        "protocolVersion": "1.0",
+        "steps": [{
+            "op": "process_messages",
+            "messages": [],
+            "expectSurfaceRemoved": True,
+            "expectNewViewIdentity": ["root/children/0"],
+            "expectDisposedNodes": ["old_child"],
+        }],
+    }
+    VALIDATOR.validate([valid_case])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{
+            **valid_case,
+            "steps": [{**valid_case["steps"][0], "expectSurfaceRemoved": "yes"}],
+        }])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{
+            **valid_case,
+            "steps": [
+                {**valid_case["steps"][0], "expectNewViewIdentity": "root/children/0"}
+            ],
+        }])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{
+            **valid_case,
+            "steps": [{**valid_case["steps"][0], "expectDisposedNodes": "old_child"}],
+        }])
+
+
+def test_render_surface_view_tree_node_occupies_layout_and_hints_schema():
+    valid_case = {
+        "name": "fallback_and_hints_checks",
+        "action": "render_surface",
+        "protocolVersion": "1.0",
+        "steps": [{
+            "op": "process_messages",
+            "messages": [],
+            "expectViewTree": {
+                "id": "root",
+                "type": "Column",
+                "children": [
+                    {
+                        "id": "unknown_widget",
+                        "state": "unknown-type",
+                        "occupiesLayout": False,
+                    },
+                    {
+                        "id": "phone_input",
+                        "type": "TextField",
+                        "isValid": True,
+                        "hints": ["Optional: add a phone number"],
+                    },
+                ],
+            },
+        }],
+    }
+    VALIDATOR.validate([valid_case])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{
+            **valid_case,
+            "steps": [{
+                **valid_case["steps"][0],
+                "expectViewTree": {
+                    "id": "root",
+                    "children": [{"id": "u", "occupiesLayout": "no"}],
+                },
+            }],
+        }])
+
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([{
+            **valid_case,
+            "steps": [{
+                **valid_case["steps"][0],
+                "expectViewTree": {
+                    "id": "root",
+                    "children": [{"id": "p", "hints": [123]}],
+                },
+            }],
+        }])
 
 
 @pytest.mark.parametrize(

@@ -314,32 +314,66 @@ A framework adapter wraps a Core SDK and renders its surfaces with a UI framewor
 
 ### Surface rendering and interaction (`core/adapter_conformance.yaml`)
 
-Each case in `core/adapter_conformance.yaml` (`action: render_surface`) loads `catalogPaths` (`catalogs/basic/v1/catalog.json`) plus any inline custom `catalogs` on the case (such as `StatusBadge` in `multi_catalog_mixed_surface_rendering`, which your harness registers with a small view implementation). Register a test `incrementCounter` function implementation for local `functionCall` cases and stub `openUrl` so activation-gated cases do not open a browser. Then run `steps` in order across five `op` types:
+Each case in `core/adapter_conformance.yaml` (`action: render_surface`) loads `catalogPaths` (`catalogs/basic/v1/catalog.json`) plus any inline custom `catalogs` on the case (such as `StatusBadge` in `multi_catalog_mixed_surface_rendering`, which your harness registers with a small view implementation). When `strictMode` is set on the case (`true` or `false`), configure `MessageProcessor` validation accordingly (`strictMode: false` enables permissive v1.0 parsing that drops unsupported fields such as `createSurface.theme`). Register a test `incrementCounter` function implementation for local `functionCall` cases and stub `openUrl` so activation-gated cases do not open a browser. Then run `steps` in order across five `op` types:
 
 1. `process_messages` feeds `messages` into `MessageProcessor`, mounts the surface view if not yet mounted, and waits for framework rendering to settle.
-2. `user_input` writes `inputValue` through the rendered input control for `targetNode` to verify two-way `@path` binding propagation to `DataModel` and dependent views.
-3. `user_gesture` triggers `targetNode` with `userActivation: true` (such as a user click or tap).
+2. `user_input` writes `inputValue` through the rendered input control for `targetNode` (dispatching by the target node's component type across `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`, and `Tabs` tab-index selection) to verify two-way `@path` binding propagation to `DataModel` and dependent views.
+3. `user_gesture` triggers `targetNode` with `userActivation: true` (such as a user click or tap, including activating a `Modal` trigger).
 4. `programmatic_invoke` triggers `targetNode`'s action programmatically with `userActivation: false` so functions with `requiresUserActivation: true` are blocked and report an error on the surface error channel.
 5. `unmount_surface` unmounts and disposes the rendered surface view.
 
-After each step settles, check whichever of the seven assertion fields are present on the step:
+After each step settles, check whichever of the assertion fields are present on the step:
 
-1. `expectViewTree` checks the rendered hierarchy (`id`, `type`, `state` of `resolved`, `pending`, `unknown-type`, or `cyclic`, rendered `text`, `value`, or custom props, `isValid`, `validationErrors`, `validationResults`, and ordered `children`). This covers single-message inline v1.0 surfaces, progressive placeholder upgrades, `List` repeaters with `${@index()}`, fallback placeholders, and check severity (`error` sets `isValid: false`, whereas `warning` keeps `isValid: true`).
-2. `expectSameViewIdentity` lists node paths (`"root"`, `"root/children/0"`) whose underlying DOM element, widget state, or node instance must keep its identity across updates and list mutations rather than remounting.
-3. `expectDataModel` checks the surface data model after inline initialization, two-way user input, or local `functionCall` mutations.
-4. `expectActions` checks outbound action events (`name`, `surfaceId`, `sourceComponentId`, `context`); `[]` asserts that local `functionCall` or blocked programmatic calls emit no outbound event.
-5. `expectErrors` checks surface diagnostics (`code` such as `UNKNOWN_COMPONENT_TYPE` or `CYCLIC_REFERENCE`, `surfaceId`, and `message`).
-6. `expectAccessibilityTree` checks per-component accessibility attributes (`label`, `description`, `live`, `hidden`, `role`), including implicit button label inference from child `Text` and explicit `accessibility.label` overrides.
-7. `expectActiveSubscriptions` checks the remaining reactive listener count held by the mounted surface (`0` after `unmount_surface`).
+1. `expectViewTree` checks the rendered hierarchy (`id`, `type`, `state` of `resolved`, `pending`, `unknown-type`, or `cyclic`, `occupiesLayout`, rendered `text`, `value`, `url`, `name`, `axis`, or custom props, `isValid`, `validationErrors`, `validationResults`, `hints`, and ordered `children`, including the active tab's child for `Tabs` and the mounted `[trigger]` or `[trigger, content]` children for `Modal`). This covers single-message inline v1.0 surfaces, progressive placeholder upgrades, `List` repeaters with `${@index()}`, fallback placeholders (`occupiesLayout: false`), and check severity (`error` sets `isValid: false`, whereas `warning` and `info` keep `isValid: true` and surface non-blocking `hints`).
+2. `expectSameViewIdentity` lists node paths (`"root"`, `"root/children/0"`) whose underlying DOM element, widget state, or node instance must keep its identity across updates and list mutations rather than remounting. `expectNewViewIdentity` asserts the opposite when a component changes type under the same ID: the prior view at each listed path is replaced by a new view instance.
+3. `expectDisposedNodes` lists component IDs removed from a parent's child list during the step and asserts that their prior `ComponentNode` instances have been disposed, unmounted from the view tree, and unsubscribed from the data model.
+4. `expectSurfaceRemoved` (`true`) asserts that after a `deleteSurface` message, the surface has been removed from `SurfaceGroupModel` and the surface view has unmounted.
+5. `expectDataModel` checks the surface data model after inline initialization, two-way user input, or local `functionCall` mutations.
+6. `expectActions` checks outbound action events (`name`, `surfaceId`, `sourceComponentId`, `context`); `[]` asserts that local `functionCall` or blocked programmatic calls emit no outbound event.
+7. `expectErrors` checks surface diagnostics (`code` such as `UNKNOWN_COMPONENT_TYPE` or `CYCLIC_REFERENCE`, `surfaceId`, and `message`).
+8. `expectAccessibilityTree` checks per-component accessibility attributes (`label`, `description`, `live`, `hidden`, `role`), including implicit button label inference from child `Text` and explicit `accessibility.label` overrides.
+9. `expectThemeAbsent` (`true`) asserts that the surface model carries no theme properties (`surface.theme` is empty) and that no custom theme color (`--a2ui-color-primary`, `ThemeData.colorScheme.primary`, or SwiftUI `a2uiTheme`) was applied to the rendered view hierarchy.
+10. `expectActiveSubscriptions` checks the remaining reactive listener count held by the mounted surface (`0` after `unmount_surface` or `deleteSurface`).
+11. `expectOutbound` checks the wire-framed renderer-to-agent protocol envelopes emitted during the step:
+12. Scope: capture every protocol message envelope handed to the renderer's outbound path during the step in emission order, and clear the capture buffer between steps (`expectOutbound: []` asserts that a local `functionCall`, blocked `programmatic_invoke`, or passive render step emits no wire message).
+13. Framing: record complete wire envelopes (`{version, action}` from `onAction` with renderer-local fields such as `@a2ui/web_core`'s `ActionPayload.catalogId` omitted, `{version, error}` from `onError` or the error handler, and `{version, callAgentFunction}` or `{version, rendererFunctionResponse}` from `MessageProcessor`'s `outboundListener`).
+14. Schema validation: validate every captured envelope against the target protocol version's outbound schema ([specification/v1_0/json/renderer_to_agent.json](../specification/v1_0/json/renderer_to_agent.json) for `"1.0"` or [specification/v0_9_1/json/client_to_server.json](../specification/v0_9_1/json/client_to_server.json) for `"v0.9"`) before matching expectations.
+15. Matching: assert that the captured list has the same length as `expectOutbound` and that each captured envelope deep-equals the expected envelope at the same index, except that any field or subtree whose expected value is `{"$match": "any"}` matches any defined non-null actual value (such as generated `timestamp` strings on `action` or `functionCallId` values on `callAgentFunction`).
+16. Static check: [conformance/tests/test_outbound_envelopes.py](tests/test_outbound_envelopes.py) substitutes sample values for `{"$match": "any"}` wildcards (`"2026-01-01T00:00:00Z"` for `timestamp`, `"call-1"` for `functionCallId`) and validates every expected envelope in `expectOutbound` against the specification JSON schemas.
 
 ### Accessibility tree and axe-core (`core/accessibility.yaml`)
 
 Each case in `core/accessibility.yaml` (`action: accessibility_check`) provides both v1.0 protocol `messages` (plus multi-step `steps` with `messages` and `assertions` on `test_accessibility_dynamic_label_and_hidden_binding` for live `updateDataModel` updates) and an inline `surface` map for non-DOM inspection. UI framework adapters (and `web_core`'s universal custom-element runner) mount from `messages` or `steps`, whereas Swift's headless [swift/core/Tests/A2UIConformanceTests/AccessibilityConformanceTests.swift](../swift/core/Tests/A2UIConformanceTests/AccessibilityConformanceTests.swift) inspects `Node.accessibilityAttributes` from `surface` (checking `{path}` binding maps on the top-level `assertions` block before data resolution). Each `assertions` block has two parts:
 
 1. `accessibilityTree` maps each component ID to expected `label`, `description`, `live`, `hidden`, `role` (`button`, `textbox`, `checkbox`, `radiogroup`), and `checked` (`true`) values. Check ARIA attributes (`role`, `aria-label`, `aria-description`, `aria-live`, `aria-hidden`, `aria-checked`) on the DOM for Lit, React, and Angular, `SemanticsNode` properties for Flutter, and `A2UIAccessibilityModifier` state for SwiftUI.
-2. `axeCore` lists axe-core rule IDs (`button-name`, `aria-valid-attr-value`, `aria-allowed-attr`, `aria-hidden-focus`) that the mounted DOM must pass. Web adapters run axe-core on the rendered container; non-web adapters skip `axeCore` with a reason.
+2. `axeCore` lists axe-core rule IDs (`button-name`, `aria-valid-attr-value`, `aria-allowed-attr`, `aria-hidden-focus`) that the mounted DOM must pass. Angular runs axe-core on the rendered container; Lit and React (jsdom/DOM shim) keep the attribute-level subset and list `axeCore` as `UNSUPPORTED` with reason "no layout engine"; non-web adapters skip `axeCore` with a reason.
 
 Where a browser-based test runner cannot read YAML from disk at test time, parse the suite files in the runner configuration and inject them as JSON. For example, [typescript/renderers/angular/karma.conf.js](../typescript/renderers/angular/karma.conf.js) parses `accessibility.yaml`, `adapter_conformance.yaml`, and `catalogs/basic/v1/catalog.json` in Node and exposes them to Jasmine browser specs via `client.conformanceSuites`.
+
+## Extension harnesses (`conformance/extensions/`)
+
+Protocol and agent-framework integrations (such as A2A and ADK) live outside the Core and Inference SDK packages and run the suites under `conformance/extensions/`. Each extension harness dispatches cases through an explicit `RUNNERS` map, rejects unknown actions and unknown `args`, `expect`, or `expectError` keys with `_assert_known_keys` against a per-handler `_KNOWN_KEYS` allowlist, and writes its executed-case manifest to `$A2UI_CONFORMANCE_MANIFEST_DIR`.
+
+### A2A extension (`conformance/extensions/a2a/a2a_integration.yaml`)
+
+1. `create_a2ui_part`: Call `create_a2ui_part(args.data, version=args.version)`, verify `is_a2ui_part(part)` is `true`, extract the data part with `get_a2ui_datapart(part)`, and compare its `metadata.mimeType` with `expect.mimeType`.
+2. `is_a2ui_part`: Build a `DataPart` with `metadata: {"mimeType": args.mimeType}`, call `is_a2ui_part`, and compare the boolean result with `expect`.
+3. `try_activate_extension`: Build a request context with `requested_extensions = args.uris` and an agent card advertising every URI `get_a2ui_extension_uri` produces for `v0.8`, `v0.9`, and `1.0`. Call `try_activate_a2ui_extension(context, card)` and assert `(result is not None) == expect`.
+4. `get_extension`: Call `get_a2ui_agent_extension(args.version)` with optional `accepts_inline_catalogs` (`args.acceptsInlineCatalogs`) and `supported_catalog_ids` (`args.supportedCatalogIds`). Compare `uri` with `expect.uri` and `params` with `expect.params`.
+5. `try_activate`: Build a request context requesting `args.requested` and an agent card advertising `args.advertised`. Call `try_activate_a2ui_extension(context, card)` and verify `expect.activated` (`null` when no extension is activated, or the activated URI together with `expect.version`).
+6. `select_newest`: Call the version selector with `args.requested` and `args.advertised` and compare the selected URI with `expect.newest`.
+
+### ADK extension (`conformance/extensions/adk/adk_extensions.yaml`)
+
+1. `convert_event`: Dispatches to one of two runners based on `args` keys, failing the case if neither key set matches:
+   1. Subagent surface ownership (`subagent` and `message` in `args`, with optional `surfaceId` and `state`): Wrap `args.message` with `create_a2ui_part`, call `A2uiSubagentMap.update_from_server_event(part, subagent, session_service, session)`, and either verify `SurfaceIdAlreadyExistsError` (`expectError.category == "IntegrityError"` and `expectError.message`) or verify that the appended session event's `actions.state_delta` equals `expect.stateDelta`.
+   2. Event converter (`errorCode`, `errorMessage`, `contentText`, or `hasCatalog` in `args`): Construct an ADK `Event` with `error_code` and `error_message` or text `content`, invoke `A2uiEventConverter` with a provider that returns a Direct JSON `A2uiRequestProcessor` when `hasCatalog` is `true` and `None` otherwise, and check `expectEmpty: true` (empty event list) or `expect` (`type`, `state`, and `message`).
+2. `execute_tool`: Construct `SendA2uiToClientToolset`'s tool with a Direct JSON `A2uiRequestProcessor`. Pass `args.a2uiJson` under the tool's payload argument name (or raw `args` when testing missing arguments). Check `expect.success`: when `true`, verify no error key is returned and check `expect.containsValidatedJson`; when `false`, verify the error key is present and check `expect.errorContains`.
+3. `data_model`: Copy `args.clientDataModel`, run `A2uiSubagentMap.strip_unowned_surfaces_from_data_model(args.subagent, client_data_model, args.state)`, and compare the stripped dictionary with `expect.clientDataModel`.
+
+### `UNSUPPORTED` and manifest checking for extensions
+
+If an extension harness does not implement an action or a nested key path, list `"<action>"` or `"<action>.<key path>"` (or `"<suite>#<case>"`) in its `UNSUPPORTED` map with a non-empty reason so matching cases are recorded as `skipped` in the manifest. Any `UNSUPPORTED` or `EXPECTED_FAILURES` entry that matches no case fails the test run. Because `conformance/extensions/` groups suites for separate extension packages, pass `--only 'extensions/a2a/**'` or `--only 'extensions/adk/**'` to `check_executed_cases.py --corpus extensions` so each harness checks its own extension suite.
 
 ## Reference harnesses
 
@@ -377,3 +411,6 @@ Inspect these existing implementations for concrete code examples:
    3. Angular (Karma and Jasmine browser runner): [typescript/renderers/angular/src/adapter_conformance.spec.ts](../typescript/renderers/angular/src/adapter_conformance.spec.ts) and [typescript/renderers/angular/karma.conf.js](../typescript/renderers/angular/karma.conf.js)
    4. Flutter (`flutter_test` widget and `SemanticsNode` tree checks): [dart/a2ui_flutter/test/adapter_conformance_test.dart](../dart/a2ui_flutter/test/adapter_conformance_test.dart)
    5. SwiftUI (`Testing` on `Surface`, `SurfaceViewModel`, and `A2UIAccessibilityModifier`): [swift/swiftui/Tests/A2UISwiftUITests/AdapterConformanceTests.swift](../swift/swiftui/Tests/A2UISwiftUITests/AdapterConformanceTests.swift)
+6. Extension harnesses (`conformance/extensions/`):
+   1. Python A2A (`a2a_integration.yaml`): [python/a2ui_a2a/tests/conformance/test_a2a_integration.py](../python/a2ui_a2a/tests/conformance/test_a2a_integration.py) and [python/a2ui_a2a/tests/conftest.py](../python/a2ui_a2a/tests/conftest.py)
+   2. Python ADK (`adk_extensions.yaml`): [python/a2ui_adk/tests/conformance/test_adk_extensions.py](../python/a2ui_adk/tests/conformance/test_adk_extensions.py) and [python/a2ui_adk/tests/conftest.py](../python/a2ui_adk/tests/conftest.py)

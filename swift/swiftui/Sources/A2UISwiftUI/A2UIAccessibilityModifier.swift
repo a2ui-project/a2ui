@@ -41,6 +41,10 @@ public struct A2UIAccessibilityModifier: ViewModifier {
   /// the component applied them to its own control.
   let appliesLabelAndHint: Bool
 
+  private static let layoutContainerTypes: Set<String> = [
+    "Card", "Column", "List", "Modal", "Row", "Tabs",
+  ]
+
   public init(node: Node) {
     self.init(node: node, appliesLabelAndHint: true)
   }
@@ -49,6 +53,19 @@ public struct A2UIAccessibilityModifier: ViewModifier {
     self.node = node
     self.attributes = node.explicitAccessibilityAttributes
     self.appliesLabelAndHint = appliesLabelAndHint
+  }
+
+  /// The accessibility identifier (`a2ui-<componentId>`) assigned to the rendered view.
+  public var identifier: String {
+    "a2ui-\(node.id)"
+  }
+
+  private var appliesAccessibilityIdentifier: Bool {
+    guard appliesLabelAndHint else { return false }
+    if Self.layoutContainerTypes.contains(node.type) {
+      return label != nil || hint != nil
+    }
+    return true
   }
 
   /// The explicit accessibility label, if the agent set a non-empty one.
@@ -86,6 +103,7 @@ public struct A2UIAccessibilityModifier: ViewModifier {
   public func body(content: Content) -> some View {
     hidden(
       content
+        .a2uiOptionalAccessibilityIdentifier(appliesAccessibilityIdentifier ? identifier : nil)
         .a2uiOptionalAccessibilityLabel(appliesLabelAndHint ? label : nil)
         .a2uiOptionalAccessibilityHint(appliesLabelAndHint ? hint : nil)
     )

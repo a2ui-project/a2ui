@@ -224,12 +224,21 @@ struct MarkdownBlockView: View {
         if !lines.isEmpty { lines.removeLast() }
         result.append(.codeBlock(code: lines.joined(separator: "\n")))
       } else if trimmed.hasPrefix("#") {
-        var level = 0
-        for char in trimmed {
-          if char == "#" { level += 1 } else { break }
+        for line in trimmed.components(separatedBy: "\n") {
+          let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+          guard !trimmedLine.isEmpty else { continue }
+          if trimmedLine.hasPrefix("#") {
+            var level = 0
+            for char in trimmedLine {
+              if char == "#" { level += 1 } else { break }
+            }
+            let headingContent = String(trimmedLine.dropFirst(level)).trimmingCharacters(
+              in: .whitespaces)
+            result.append(.heading(level: level, text: headingContent))
+          } else {
+            result.append(.paragraph(text: trimmedLine))
+          }
         }
-        let headingContent = String(trimmed.dropFirst(level)).trimmingCharacters(in: .whitespaces)
-        result.append(.heading(level: level, text: headingContent))
       } else if trimmed.hasPrefix("> ") {
         let quoteContent = trimmed.components(separatedBy: "\n").map { line in
           line.hasPrefix("> ")
@@ -285,4 +294,28 @@ struct MarkdownBlockView: View {
 
     return result
   }
+
+  func plainText() -> String {
+    blocks.map { block -> String in
+      switch block {
+      case .heading(_, let hText):
+        return String(attributedMarkdown(hText).characters)
+      case .unorderedList(let items):
+        return items.map { String(attributedMarkdown($0).characters) }.joined(separator: " ")
+      case .orderedList(let items):
+        return items.map { String(attributedMarkdown($0.1).characters) }.joined(separator: " ")
+      case .codeBlock(let code):
+        return code
+      case .blockquote(let qText):
+        return String(attributedMarkdown(qText).characters)
+      case .paragraph(let pText):
+        return String(attributedMarkdown(pText).characters)
+      }
+    }.joined(separator: " ")
+  }
+}
+
+/// Extracts the visible plain text produced by `MarkdownBlockView` for a Markdown string.
+func markdownVisibleText(_ text: String) -> String {
+  MarkdownBlockView(text: text).plainText()
 }

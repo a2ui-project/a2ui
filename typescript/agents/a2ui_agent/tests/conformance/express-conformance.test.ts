@@ -14,13 +14,11 @@
  * limitations under the License.
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import {describe, test, expect} from 'vitest';
-import {CONFORMANCE_ROOT, loadCases} from './loader.js';
-import {createFileCatalogConfig} from './fixtures.js';
-import {compileChecked} from './suite-helpers.js';
-import {Catalog, CatalogApi} from '../../src/internal/web-core.js';
+import {readFileSync} from 'fs';
+import {resolve} from 'path';
+
+import {expect} from 'vitest';
+
 import {
   A2uiCatalogError,
   A2uiCompilationError,
@@ -37,6 +35,10 @@ import {
   RawResponsePart,
   ResponsePart,
 } from '../../src/index.js';
+import {Catalog, CatalogApi} from '../../src/internal/web-core.js';
+import {createFileCatalogConfig} from './fixtures.js';
+import {CONFORMANCE_ROOT, loadCases} from './loader.js';
+import {compileChecked, describeSuite} from './suite-helpers.js';
 
 const CONFORMANCE_SURFACE_ID = 'default_surface';
 const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
@@ -175,234 +177,219 @@ function assertPartsMatch(
   }
 }
 
-describe('Express Conformance Suite', () => {
-  const files = [
-    path.resolve(CONFORMANCE_ROOT, 'agent/express/compiler.yaml'),
-    path.resolve(CONFORMANCE_ROOT, 'agent/express/decompiler.yaml'),
-    path.resolve(CONFORMANCE_ROOT, 'agent/express/response_parser.yaml'),
-    path.resolve(CONFORMANCE_ROOT, 'agent/express/prompt_generator.yaml'),
-  ];
+describeSuite(
+  'Express Conformance Suite',
+  loadCases([
+    resolve(CONFORMANCE_ROOT, 'agent/express/compiler.yaml'),
+    resolve(CONFORMANCE_ROOT, 'agent/express/decompiler.yaml'),
+    resolve(CONFORMANCE_ROOT, 'agent/express/response_parser.yaml'),
+    resolve(CONFORMANCE_ROOT, 'agent/express/prompt_generator.yaml'),
+  ]),
+  async testCase => {
+    const {action} = testCase;
+    const args = (testCase.args as Record<string, unknown>) || {};
 
-  const cases = loadCases(files);
+    if (action === 'compile') {
+      const parser = await getParser(args);
+      const payload = testCase.input as string;
 
-  for (const testCase of cases) {
-    const {name, action} = testCase;
-    const isUnsupported = UNSUPPORTED.has(name);
-    const isKnownFailure = KNOWN_FAILURES.has(name);
-
-    const runCase = async () => {
-      const args = (testCase.args as Record<string, unknown>) || {};
-
-      if (action === 'compile') {
-        const parser = await getParser(args);
-        const payload = testCase.input as string;
-
-        if (testCase.expect_error) {
-          assertThrows(
-            () => {
-              compileChecked(parser, payload);
-            },
-            testCase.expect_error as Record<string, unknown>,
-          );
-          return;
-        }
-
-        const compiled = compileChecked(parser, payload);
-
-        if (testCase.expect_present) {
-          for (const pointer of testCase.expect_present as string[]) {
-            const val = resolvePointer(compiled, pointer);
-            expect(val !== null && val !== undefined && val !== '').toBe(true);
-            deletePointer(compiled, pointer);
-          }
-        }
-
-        expect(compiled).toEqual(testCase.expect);
-      } else if (action === 'decompile') {
-        const parser = await getParser(args);
-        const messages = testCase.messages as AgentToRendererMessage[];
-
-        if (testCase.expect_error) {
-          assertThrows(
-            () => {
-              parser.decompile(messages);
-            },
-            testCase.expect_error as Record<string, unknown>,
-          );
-          return;
-        }
-
-        const notation = parser.decompile(messages);
-
-        if (testCase.expect_contains) {
-          for (const fragment of testCase.expect_contains as string[]) {
-            expect(notation).toContain(fragment);
-          }
-        }
-        if (testCase.expect_absent) {
-          for (const fragment of testCase.expect_absent as string[]) {
-            expect(notation).not.toContain(fragment);
-          }
-        }
-
-        if (testCase.expect_round_trip) {
-          expect(compileChecked(parser, notation)).toEqual(messages);
-        }
-        if (testCase.expect_recompiled) {
-          expect(compileChecked(parser, notation)).toEqual(testCase.expect_recompiled);
-        }
-      } else if (action === 'unwrap') {
-        const parser = await getParser(args);
-        const expected = testCase.expect as Array<Record<string, unknown>>;
-        const actual = parser.unwrap(testCase.input as string);
-        assertRawPartsMatch(actual, expected);
-        const hasAny = expected.some(p => 'a2ui_raw' in p);
-        const hasComplete = expected.some(p => 'a2ui_raw' in p && (p.is_final ?? true) === true);
-        expect(parser.hasFormatContent(testCase.input as string)).toBe(hasAny);
-        expect(parser.hasFormatContent(testCase.input as string, {complete: true})).toBe(
-          hasComplete,
+      if (testCase.expect_error) {
+        assertThrows(
+          () => {
+            compileChecked(parser, payload);
+          },
+          testCase.expect_error as Record<string, unknown>,
         );
-      } else if (action === 'has_format_content') {
-        const parser = await getParser(args);
-        const complete = (args.complete as boolean) ?? false;
-        expect(parser.hasFormatContent(testCase.input as string, {complete})).toBe(testCase.expect);
-      } else if (action === 'wrap') {
-        const parser = await getParser(args);
-        const parts = testCase.parts as Array<Record<string, unknown>>;
-        const rawParts: RawResponsePart[] = parts.map(p => {
-          if ('text' in p) {
-            return {type: 'text', text: p.text as string, isFinal: (p.is_final as boolean) ?? true};
-          }
-          return {
-            type: 'a2ui',
-            a2uiRaw: p.a2ui_raw as string,
-            isFinal: (p.is_final as boolean) ?? true,
-          };
-        });
-
-        const output = parser.wrap(rawParts);
-
-        if (testCase.expect_output !== undefined) {
-          expect(output).toBe(testCase.expect_output);
-        }
-        if (testCase.expect_contains) {
-          for (const fragment of testCase.expect_contains as string[]) {
-            expect(output).toContain(fragment);
-          }
-        }
-        if (testCase.expect_round_trip) {
-          const unwrapped = parser.unwrap(output);
-          assertRawPartsMatch(unwrapped, parts);
-        }
-      } else if (action === 'parse_response') {
-        const parser = await getParser(args);
-        const wrapped = (args.wrapped as boolean) ?? true;
-
-        if (testCase.expect_error) {
-          assertThrows(
-            () => {
-              parser.parseResponse(testCase.input as string, {wrapped});
-            },
-            testCase.expect_error as Record<string, unknown>,
-          );
-          return;
-        }
-
-        const parts = parser.parseResponse(testCase.input as string, {wrapped});
-        assertPartsMatch(parts, testCase.expect as Array<Record<string, unknown>>);
-      } else if (action === 'generate_prompt_snippet') {
-        const catEntries =
-          (args.catalogs as Array<{
-            catalog: string;
-            transformers?: Array<Record<string, string[]>>;
-          }>) || [];
-
-        if (testCase.expect_error) {
-          assertThrows(
-            () => {
-              new ExpressFormat([]);
-            },
-            testCase.expect_error as Record<string, unknown>,
-          );
-          return;
-        }
-
-        const loadedCatalogs: CatalogApi[] = [];
-        for (const entry of catEntries) {
-          const fullPath = path.resolve(CONFORMANCE_ROOT, entry.catalog);
-          const schema = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
-          let catalog = Catalog.fromJson(schema);
-
-          if (entry.transformers) {
-            for (const trans of entry.transformers) {
-              if (trans.component_pruning) {
-                catalog = new ComponentPruningTransformer(trans.component_pruning).transform(
-                  catalog,
-                );
-              }
-              if (trans.function_pruning) {
-                catalog = new FunctionPruningTransformer(trans.function_pruning).transform(catalog);
-              }
-            }
-          }
-          loadedCatalogs.push(catalog);
-        }
-
-        let examples: Record<string, AgentToRendererMessage[][]> | undefined;
-        if (Array.isArray(args.examples) && args.examples.length > 0) {
-          examples = {};
-          for (const exPath of args.examples as string[]) {
-            const fullExPath = path.resolve(CONFORMANCE_ROOT, exPath);
-            const exContent = JSON.parse(fs.readFileSync(fullExPath, 'utf8'));
-            const messages: AgentToRendererMessage[] = Array.isArray(exContent)
-              ? exContent
-              : [exContent];
-            const firstMsg = messages[0];
-            const catId =
-              (firstMsg && 'createSurface' in firstMsg
-                ? firstMsg.createSurface.catalogId
-                : undefined) || loadedCatalogs[0]?.id;
-            if (catId) {
-              if (!examples[catId]) {
-                examples[catId] = [];
-              }
-              examples[catId].push(messages);
-            }
-          }
-        }
-
-        const generator = new ExpressPromptGenerator(
-          loadedCatalogs,
-          examples,
-          args.allowed_messages as string[] | undefined,
-        );
-        const output = generator.generate();
-
-        if (testCase.expect_contains) {
-          for (const fragment of testCase.expect_contains as string[]) {
-            expect(output).toContain(fragment);
-          }
-        }
-        if (testCase.expect_absent) {
-          for (const fragment of testCase.expect_absent as string[]) {
-            expect(output).not.toContain(fragment);
-          }
-        }
-        if (testCase.expect_deterministic) {
-          const secondOutput = generator.generate();
-          expect(output).toBe(secondOutput);
-        }
-      } else {
-        throw new Error(`Unsupported action in express conformance: ${action}`);
+        return;
       }
-    };
 
-    if (isUnsupported) {
-      test.skip(`${action} · ${name}`, runCase);
-    } else if (isKnownFailure) {
-      test.fails(`${action} · ${name}`, runCase);
+      const compiled = compileChecked(parser, payload);
+
+      if (testCase.expect_present) {
+        for (const pointer of testCase.expect_present as string[]) {
+          const val = resolvePointer(compiled, pointer);
+          expect(val !== null && val !== undefined && val !== '').toBe(true);
+          deletePointer(compiled, pointer);
+        }
+      }
+
+      expect(compiled).toEqual(testCase.expect);
+    } else if (action === 'decompile') {
+      const parser = await getParser(args);
+      const messages = testCase.messages as AgentToRendererMessage[];
+
+      if (testCase.expect_error) {
+        assertThrows(
+          () => {
+            parser.decompile(messages);
+          },
+          testCase.expect_error as Record<string, unknown>,
+        );
+        return;
+      }
+
+      const notation = parser.decompile(messages);
+
+      if (testCase.expect_contains) {
+        for (const fragment of testCase.expect_contains as string[]) {
+          expect(notation).toContain(fragment);
+        }
+      }
+      if (testCase.expect_absent) {
+        for (const fragment of testCase.expect_absent as string[]) {
+          expect(notation).not.toContain(fragment);
+        }
+      }
+
+      if (testCase.expect_round_trip) {
+        expect(compileChecked(parser, notation)).toEqual(messages);
+      }
+      if (testCase.expect_recompiled) {
+        expect(compileChecked(parser, notation)).toEqual(testCase.expect_recompiled);
+      }
+    } else if (action === 'unwrap') {
+      const parser = await getParser(args);
+      const expected = testCase.expect as Array<Record<string, unknown>>;
+      const actual = parser.unwrap(testCase.input as string);
+      assertRawPartsMatch(actual, expected);
+      const hasAny = expected.some(p => 'a2ui_raw' in p);
+      const hasComplete = expected.some(p => 'a2ui_raw' in p && (p.is_final ?? true) === true);
+      expect(parser.hasFormatContent(testCase.input as string)).toBe(hasAny);
+      expect(parser.hasFormatContent(testCase.input as string, {complete: true})).toBe(hasComplete);
+    } else if (action === 'has_format_content') {
+      const parser = await getParser(args);
+      const complete = (args.complete as boolean) ?? false;
+      expect(parser.hasFormatContent(testCase.input as string, {complete})).toBe(testCase.expect);
+    } else if (action === 'wrap') {
+      const parser = await getParser(args);
+      const parts = testCase.parts as Array<Record<string, unknown>>;
+      const rawParts: RawResponsePart[] = parts.map(p => {
+        if ('text' in p) {
+          return {type: 'text', text: p.text as string, isFinal: (p.is_final as boolean) ?? true};
+        }
+        return {
+          type: 'a2ui',
+          a2uiRaw: p.a2ui_raw as string,
+          isFinal: (p.is_final as boolean) ?? true,
+        };
+      });
+
+      const output = parser.wrap(rawParts);
+
+      if (testCase.expect_output !== undefined) {
+        expect(output).toBe(testCase.expect_output);
+      }
+      if (testCase.expect_contains) {
+        for (const fragment of testCase.expect_contains as string[]) {
+          expect(output).toContain(fragment);
+        }
+      }
+      if (testCase.expect_round_trip) {
+        const unwrapped = parser.unwrap(output);
+        assertRawPartsMatch(unwrapped, parts);
+      }
+    } else if (action === 'parse_response') {
+      const parser = await getParser(args);
+      const wrapped = (args.wrapped as boolean) ?? true;
+
+      if (testCase.expect_error) {
+        assertThrows(
+          () => {
+            parser.parseResponse(testCase.input as string, {wrapped});
+          },
+          testCase.expect_error as Record<string, unknown>,
+        );
+        return;
+      }
+
+      const parts = parser.parseResponse(testCase.input as string, {wrapped});
+      assertPartsMatch(parts, testCase.expect as Array<Record<string, unknown>>);
+    } else if (action === 'generate_prompt_snippet') {
+      const catEntries =
+        (args.catalogs as Array<{
+          catalog: string;
+          transformers?: Array<Record<string, string[]>>;
+        }>) || [];
+
+      if (testCase.expect_error) {
+        assertThrows(
+          () => {
+            new ExpressFormat([]);
+          },
+          testCase.expect_error as Record<string, unknown>,
+        );
+        return;
+      }
+
+      const loadedCatalogs: CatalogApi[] = [];
+      for (const entry of catEntries) {
+        const fullPath = resolve(CONFORMANCE_ROOT, entry.catalog);
+        const schema = JSON.parse(readFileSync(fullPath, 'utf8'));
+        let catalog = Catalog.fromJson(schema);
+
+        if (entry.transformers) {
+          for (const trans of entry.transformers) {
+            if (trans.component_pruning) {
+              catalog = new ComponentPruningTransformer(trans.component_pruning).transform(catalog);
+            }
+            if (trans.function_pruning) {
+              catalog = new FunctionPruningTransformer(trans.function_pruning).transform(catalog);
+            }
+          }
+        }
+        loadedCatalogs.push(catalog);
+      }
+
+      let examples: Record<string, AgentToRendererMessage[][]> | undefined;
+      if (Array.isArray(args.examples) && args.examples.length > 0) {
+        examples = {};
+        for (const exPath of args.examples as string[]) {
+          const fullExPath = resolve(CONFORMANCE_ROOT, exPath);
+          const exContent = JSON.parse(readFileSync(fullExPath, 'utf8'));
+          const messages: AgentToRendererMessage[] = Array.isArray(exContent)
+            ? exContent
+            : [exContent];
+          const firstMsg = messages[0];
+          const catId =
+            (firstMsg && 'createSurface' in firstMsg
+              ? firstMsg.createSurface.catalogId
+              : undefined) || loadedCatalogs[0]?.id;
+          if (catId) {
+            if (!examples[catId]) {
+              examples[catId] = [];
+            }
+            examples[catId].push(messages);
+          }
+        }
+      }
+
+      const generator = new ExpressPromptGenerator(
+        loadedCatalogs,
+        examples,
+        args.allowed_messages as string[] | undefined,
+      );
+      const output = generator.generate();
+
+      if (testCase.expect_contains) {
+        for (const fragment of testCase.expect_contains as string[]) {
+          expect(output).toContain(fragment);
+        }
+      }
+      if (testCase.expect_absent) {
+        for (const fragment of testCase.expect_absent as string[]) {
+          expect(output).not.toContain(fragment);
+        }
+      }
+      if (testCase.expect_deterministic) {
+        const secondOutput = generator.generate();
+        expect(output).toBe(secondOutput);
+      }
     } else {
-      test(`${action} · ${name}`, runCase);
+      throw new Error(`Unsupported action in express conformance: ${action}`);
     }
-  }
-});
+  },
+  {
+    knownFailures: KNOWN_FAILURES,
+    skipReason: testCase => UNSUPPORTED.get(testCase.name),
+  },
+);

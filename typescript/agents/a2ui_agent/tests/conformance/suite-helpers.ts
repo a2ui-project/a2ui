@@ -18,14 +18,14 @@
  * Shared helpers for the harnesses that run the agent suites written against the module
  * blueprint (`conformance/agent/*.yaml` and `conformance/agent/direct-json/*.yaml`).
  *
- * Those suites spell their keys in snake_case (`expect_error`, `catalog_id`), unlike the
+ * Those suites write their keys in snake_case (`expect_error`, `catalog_id`), unlike the
  * legacy suites that `conformance.test.ts` runs.
  */
 
-import * as path from 'path';
-import {expect, test} from 'vitest';
+import {resolve} from 'path';
 
-import {CatalogApi} from '../../src/internal/web-core.js';
+import {describe, expect, test} from 'vitest';
+
 import {
   A2uiCatalogError,
   A2uiCompilationError,
@@ -43,7 +43,9 @@ import {
   Parser,
   validatePayload,
 } from '../../src/index.js';
+import {CatalogApi} from '../../src/internal/web-core.js';
 import {CONFORMANCE_ROOT, LoadedCase} from './loader.js';
+import {recordCase, registerAfterEachManifestRecorder, setActiveCase} from './manifest.js';
 
 /** Error categories the suites name, mapped to the SDK's error classes. */
 const ERROR_BY_CATEGORY: Record<string, new (...args: never[]) => Error> = {
@@ -72,7 +74,7 @@ export function categoryOf(error: unknown): string {
 }
 
 export function conformancePath(relative: string): string {
-  return path.resolve(CONFORMANCE_ROOT, relative);
+  return resolve(CONFORMANCE_ROOT, relative);
 }
 
 /** The error class for the category a case names in `expect_error`. */
@@ -141,7 +143,7 @@ export function expectCatalogContents(
 
 /**
  * Registers one case with vitest, as an expected failure when it is listed in
- * `knownFailures`.
+ * `knownFailures` or as a skip when `skipReason` is given.
  *
  * An expected failure still runs, and the suite asserts that it fails, so fixing the gap
  * turns the test red and prompts removing the entry.
@@ -150,12 +152,51 @@ export function registerCase(
   testCase: LoadedCase,
   knownFailures: ReadonlyMap<string, string>,
   run: () => void | Promise<void>,
+  skipReason?: string,
 ): void {
   const title = `${testCase.action} · ${testCase.name}`;
-  const knownFailure = knownFailures.get(testCase.name);
-  if (knownFailure) {
-    test.fails(`${title} (known gap: ${knownFailure})`, run);
-  } else {
-    test(title, run);
+  if (skipReason) {
+    recordCase(testCase.sourceFile, testCase.name, 'skipped', skipReason);
+    test.skip(`${title} (${skipReason})`, () => {});
+    return;
   }
+  const knownFailure = knownFailures.get(testCase.name) ?? knownFailures.get(title);
+  const wrappedRun = async () => {
+    setActiveCase({
+      suite: testCase.sourceFile,
+      name: testCase.name,
+      knownFailure,
+    });
+    await run();
+  };
+  if (knownFailure) {
+    test.fails(`${title} (known gap: ${knownFailure})`, wrappedRun);
+  } else {
+    test(title, wrappedRun);
+  }
+}
+
+export interface DescribeSuiteOptions {
+  knownFailures?: ReadonlyMap<string, string>;
+  skipReason?: (testCase: LoadedCase) => string | undefined;
+}
+
+/**
+ * Declares a Vitest `describe` block for one or more conformance suites, registers the
+ * `afterEach` manifest recorder, and registers each loaded case.
+ */
+export function describeSuite(
+  suiteTitle: string,
+  cases: readonly LoadedCase[],
+  run: (testCase: LoadedCase) => void | Promise<void>,
+  options: DescribeSuiteOptions = {},
+): void {
+  const knownFailures = options.knownFailures ?? new Map<string, string>();
+  describe(suiteTitle, () => {
+    registerAfterEachManifestRecorder();
+    for (const testCase of cases) {
+      const reason = options.skipReason?.(testCase);
+      registerCase(testCase, knownFailures, () => run(testCase), reason);
+    }
+  });
 }

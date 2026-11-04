@@ -53,7 +53,7 @@ public struct A2UIButton: View {
   }
 
   private var action: ResolvedAction? {
-    node.action(for: "action")
+    node.action(for: "action", userActivation: true)
   }
 
   public var body: some View {

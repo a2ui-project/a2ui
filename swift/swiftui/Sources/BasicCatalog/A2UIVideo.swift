@@ -58,13 +58,38 @@ public struct A2UIVideo: View {
     node.string(for: "posterUrl")
   }
 
+  /// Whether `_AVKit_SwiftUI.VideoPlayer` (`AVPlayerView`) can be safely hosted in the current
+  /// process. On macOS, realizing `VideoPlayer` inside a headless `swiftpm-testing-helper` or
+  /// `xctest` runner aborts in the Swift runtime metadata demangler for `So12AVPlayerViewC`.
+  private static var canHostSystemVideoPlayer: Bool {
+    #if os(macOS)
+      let processInfo = ProcessInfo.processInfo
+      if processInfo.environment["XCTestConfigurationFilePath"] != nil
+        || processInfo.environment["XCTestBundlePath"] != nil
+        || processInfo.environment["A2UI_CONFORMANCE_MANIFEST_DIR"] != nil
+        || processInfo.processName.contains("xctest")
+        || processInfo.processName.contains("testing-helper")
+        || NSClassFromString("AVPlayerView") == nil
+      {
+        return false
+      }
+    #endif
+    return true
+  }
+
   public var body: some View {
     Group {
       if let player = model.player {
         ZStack {
-          VideoPlayer(player: player)
-            .frame(minHeight: 220)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+          if Self.canHostSystemVideoPlayer {
+            VideoPlayer(player: player)
+              .frame(minHeight: 220)
+              .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+          } else {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+              .fill(Color.black.opacity(0.85))
+              .frame(minHeight: 220)
+          }
 
           if isShowingPoster,
             let posterStr = posterURLString,

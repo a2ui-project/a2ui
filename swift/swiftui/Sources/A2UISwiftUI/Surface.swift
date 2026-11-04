@@ -85,7 +85,11 @@ extension Surface {
     using catalogs: [String: Catalog<ComponentImplementation>],
     defaultCatalogID: String? = nil
   ) -> AnyView? {
-    implementation(for: node, using: catalogs, defaultCatalogID: defaultCatalogID)?.builder(node)
+    if node.state != .resolved || node.type == "Placeholder" {
+      return AnyView(EmptyView())
+    }
+    return implementation(for: node, using: catalogs, defaultCatalogID: defaultCatalogID)?.builder(
+      node)
   }
 
   /// Finds the component implementation that `render(node:using:defaultCatalogID:)` uses for a
@@ -104,6 +108,9 @@ extension Surface {
     using catalogs: [String: Catalog<ComponentImplementation>],
     defaultCatalogID: String? = nil
   ) -> ComponentImplementation? {
+    if node.state != .resolved || node.type == "Placeholder" {
+      return nil
+    }
     if let catalogID = node.catalogID,
       let component = catalogs[catalogID]?.components[node.type]
     {

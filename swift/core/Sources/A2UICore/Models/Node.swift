@@ -15,6 +15,14 @@
 import Observation
 import OrderedJSON
 
+/// The resolution state of a component ``Node``.
+public enum NodeState: String, Sendable, Equatable {
+  case resolved = "resolved"
+  case pending = "pending"
+  case unknownType = "unknown-type"
+  case cyclic = "cyclic"
+}
+
 /// A persistent, observable backing store for a resolved component node.
 @MainActor
 package final class NodeBox: Observable {
@@ -23,6 +31,9 @@ package final class NodeBox: Observable {
   nonisolated let id: String
   nonisolated let type: String
   nonisolated let catalogID: String?
+  nonisolated let state: NodeState
+  nonisolated let scopeKey: String?
+  nonisolated let dataContextPath: String
   private var _properties: [String: any Resolved]
   private var _metadata: [String: JSONValue]?
   package private(set) var revision: UInt64 = 0
@@ -42,12 +53,18 @@ package final class NodeBox: Observable {
     id: String,
     type: String,
     catalogID: String? = nil,
+    state: NodeState = .resolved,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/",
     properties: [String: any Resolved],
     metadata: [String: JSONValue]? = nil
   ) {
     self.id = id
     self.type = type
     self.catalogID = catalogID
+    self.state = state
+    self.scopeKey = scopeKey
+    self.dataContextPath = dataContextPath
     self._properties = properties
     self._metadata = metadata
   }
@@ -129,6 +146,9 @@ public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
   public var id: String { box.id }
   public var type: String { box.type }
   public var catalogID: String? { box.catalogID }
+  public var state: NodeState { box.state }
+  public var scopeKey: String? { box.scopeKey }
+  public var dataContextPath: String { box.dataContextPath }
   @MainActor
   public var properties: [String: any Resolved] { box.properties }
   @MainActor
@@ -141,6 +161,9 @@ public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
     id: String,
     type: String,
     catalogID: String? = nil,
+    state: NodeState = .resolved,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/",
     properties: [String: any Resolved],
     metadata: [String: JSONValue]? = nil
   ) {
@@ -148,7 +171,33 @@ public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
       id: id,
       type: type,
       catalogID: catalogID,
+      state: state,
+      scopeKey: scopeKey,
+      dataContextPath: dataContextPath,
       properties: properties,
+      metadata: metadata
+    )
+  }
+
+  /// Creates a placeholder component node for an unresolved, unknown, or cyclic component.
+  public init(
+    placeholderID: String,
+    state: NodeState,
+    declaredType: String? = nil,
+    catalogID: String? = nil,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/",
+    metadata: [String: JSONValue]? = nil
+  ) {
+    let resolvedType = state == .unknownType ? (declaredType ?? "Placeholder") : "Placeholder"
+    self.init(
+      id: placeholderID,
+      type: resolvedType,
+      catalogID: catalogID,
+      state: state,
+      scopeKey: scopeKey,
+      dataContextPath: dataContextPath,
+      properties: [:],
       metadata: metadata
     )
   }
@@ -173,7 +222,9 @@ public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
     if lhs.box === rhs.box {
       return true
     }
-    guard lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID,
+    guard
+      lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID
+        && lhs.state == rhs.state,
       MetadataValidator.areEqual(lhs.metadata, rhs.metadata),
       lhs.properties.count == rhs.properties.count
     else {

@@ -14,12 +14,10 @@
  * limitations under the License.
  */
 
-import {describe, test, expect} from 'vitest';
-import * as path from 'path';
-import {loadCases, CONFORMANCE_ROOT} from './loader.js';
-import {createFileCatalogConfig} from './fixtures.js';
-import {compileChecked} from './suite-helpers.js';
-import {AgentToRendererMessage} from '../../src/internal/web-core.js';
+import {resolve} from 'path';
+
+import {expect} from 'vitest';
+
 import {
   A2uiCompilationParseError,
   A2uiCompilationValidationError,
@@ -29,6 +27,10 @@ import {
   RawResponsePart,
   ResponsePart,
 } from '../../src/index.js';
+import {AgentToRendererMessage} from '../../src/internal/web-core.js';
+import {createFileCatalogConfig} from './fixtures.js';
+import {CONFORMANCE_ROOT, loadCases} from './loader.js';
+import {compileChecked, describeSuite} from './suite-helpers.js';
 
 /** The error classes that count as each category the suites name. */
 const ERRORS_BY_CATEGORY: Record<string, Array<new (...args: never[]) => Error>> = {
@@ -123,143 +125,127 @@ function assertPartsMatch(
   }
 }
 
-describe('Direct JSON Conformance Suite', () => {
-  const files = [
-    path.resolve(CONFORMANCE_ROOT, 'agent/direct_json/compiler.yaml'),
-    path.resolve(CONFORMANCE_ROOT, 'agent/direct_json/decompiler.yaml'),
-    path.resolve(CONFORMANCE_ROOT, 'agent/direct_json/response_parser.yaml'),
-  ];
+const UNSUPPORTED = new Map<string, string>([]);
+const KNOWN_FAILURES = new Map<string, string>([]);
 
-  const cases = loadCases(files);
-  const UNSUPPORTED = new Set<string>([]);
-  const KNOWN_FAILURES = new Map<string, string>([]);
-
-  for (const testCase of cases) {
-    const {name, action} = testCase;
-    const isUnsupported = UNSUPPORTED.has(name);
-
-    const runCase = async () => {
-      const args = (testCase.args as Record<string, unknown>) || {};
-      const catalogPaths: string[] = [];
-      if (Array.isArray(args.catalogs)) {
-        catalogPaths.push(...(args.catalogs as string[]));
-      } else if (typeof args.catalog === 'string') {
-        catalogPaths.push(args.catalog);
-      } else {
-        catalogPaths.push('test_data/catalogs/simplified_catalog_v1_0.json');
-      }
-      const catalogs = catalogPaths.map(p => createFileCatalogConfig(p).catalog);
-      const parser = new DirectJsonParser(catalogs);
-
-      if (action === 'compile') {
-        const payload = testCase.input as string;
-
-        if (testCase.expect_error) {
-          assertThrows(
-            () => {
-              compileChecked(parser, payload);
-            },
-            testCase.expect_error as Record<string, unknown>,
-          );
-          return;
-        }
-
-        const compiled = compileChecked(parser, payload);
-
-        if (testCase.expect_present) {
-          for (const pointer of testCase.expect_present as string[]) {
-            const val = resolvePointer(compiled, pointer);
-            expect(val !== null && val !== undefined && val !== '').toBe(true);
-            deletePointer(compiled, pointer);
-          }
-        }
-
-        expect(compiled).toEqual(testCase.expect);
-      } else if (action === 'decompile') {
-        const messages = testCase.messages as AgentToRendererMessage[];
-
-        const notation = parser.decompile(messages);
-
-        if (testCase.expect_contains) {
-          for (const fragment of testCase.expect_contains as string[]) {
-            expect(notation).toContain(fragment);
-          }
-        }
-
-        if (testCase.expect_round_trip) {
-          expect(compileChecked(parser, notation)).toEqual(messages);
-        }
-      } else if (action === 'unwrap') {
-        const expected = testCase.expect as Array<Record<string, unknown>>;
-        const actual = parser.unwrap(testCase.input as string);
-        assertRawPartsMatch(actual, expected);
-        const hasAny = expected.some(p => 'a2ui_raw' in p);
-        const hasComplete = expected.some(p => 'a2ui_raw' in p && (p.is_final ?? true) === true);
-        expect(parser.hasFormatContent(testCase.input as string)).toBe(hasAny);
-        expect(parser.hasFormatContent(testCase.input as string, {complete: true})).toBe(
-          hasComplete,
-        );
-      } else if (action === 'has_format_content') {
-        const complete = (args.complete as boolean) ?? false;
-        expect(parser.hasFormatContent(testCase.input as string, {complete})).toBe(testCase.expect);
-      } else if (action === 'wrap') {
-        const parts = testCase.parts as Array<Record<string, unknown>>;
-        const rawParts: RawResponsePart[] = parts.map(p => {
-          if ('text' in p) {
-            return {type: 'text', text: p.text as string, isFinal: (p.is_final as boolean) ?? true};
-          }
-          return {
-            type: 'a2ui',
-            a2uiRaw: p.a2ui_raw as string,
-            isFinal: (p.is_final as boolean) ?? true,
-          };
-        });
-
-        const output = parser.wrap(rawParts);
-
-        if (testCase.expect_output !== undefined) {
-          expect(output).toBe(testCase.expect_output);
-        }
-        if (testCase.expect_contains) {
-          for (const fragment of testCase.expect_contains as string[]) {
-            expect(output).toContain(fragment);
-          }
-        }
-        if (testCase.expect_round_trip) {
-          const unwrapped = parser.unwrap(output);
-          assertRawPartsMatch(unwrapped, parts);
-        }
-      } else if (action === 'parse_response') {
-        const wrapped = (args.wrapped as boolean) ?? true;
-
-        if (testCase.expect_error) {
-          assertThrows(
-            () => {
-              parser.parseResponse(testCase.input as string, {wrapped});
-            },
-            testCase.expect_error as Record<string, unknown>,
-          );
-          return;
-        }
-
-        const parts = parser.parseResponse(testCase.input as string, {wrapped});
-        assertPartsMatch(parts, testCase.expect as Array<Record<string, unknown>>);
-      } else {
-        throw new Error(`Unsupported action in direct_json conformance: ${action}`);
-      }
-    };
-
-    if (isUnsupported) {
-      test.skip(`${action} · ${name}`, runCase);
-    } else if (KNOWN_FAILURES.has(`${action} · ${name}`)) {
-      test.fails(
-        `${action} · ${name} (known gap: ${KNOWN_FAILURES.get(`${action} · ${name}`)})`,
-        runCase,
-      );
-    } else if (KNOWN_FAILURES.has(name)) {
-      test.fails(`${action} · ${name} (known gap: ${KNOWN_FAILURES.get(name)})`, runCase);
+describeSuite(
+  'Direct JSON Conformance Suite',
+  loadCases([
+    resolve(CONFORMANCE_ROOT, 'agent/direct_json/compiler.yaml'),
+    resolve(CONFORMANCE_ROOT, 'agent/direct_json/decompiler.yaml'),
+    resolve(CONFORMANCE_ROOT, 'agent/direct_json/response_parser.yaml'),
+  ]),
+  async testCase => {
+    const {action} = testCase;
+    const args = (testCase.args as Record<string, unknown>) || {};
+    const catalogPaths: string[] = [];
+    if (Array.isArray(args.catalogs)) {
+      catalogPaths.push(...(args.catalogs as string[]));
+    } else if (typeof args.catalog === 'string') {
+      catalogPaths.push(args.catalog);
     } else {
-      test(`${action} · ${name}`, runCase);
+      catalogPaths.push('test_data/catalogs/simplified_catalog_v1_0.json');
     }
-  }
-});
+    const catalogs = catalogPaths.map(p => createFileCatalogConfig(p).catalog);
+    const parser = new DirectJsonParser(catalogs);
+
+    if (action === 'compile') {
+      const payload = testCase.input as string;
+
+      if (testCase.expect_error) {
+        assertThrows(
+          () => {
+            compileChecked(parser, payload);
+          },
+          testCase.expect_error as Record<string, unknown>,
+        );
+        return;
+      }
+
+      const compiled = compileChecked(parser, payload);
+
+      if (testCase.expect_present) {
+        for (const pointer of testCase.expect_present as string[]) {
+          const val = resolvePointer(compiled, pointer);
+          expect(val !== null && val !== undefined && val !== '').toBe(true);
+          deletePointer(compiled, pointer);
+        }
+      }
+
+      expect(compiled).toEqual(testCase.expect);
+    } else if (action === 'decompile') {
+      const messages = testCase.messages as AgentToRendererMessage[];
+
+      const notation = parser.decompile(messages);
+
+      if (testCase.expect_contains) {
+        for (const fragment of testCase.expect_contains as string[]) {
+          expect(notation).toContain(fragment);
+        }
+      }
+
+      if (testCase.expect_round_trip) {
+        expect(compileChecked(parser, notation)).toEqual(messages);
+      }
+    } else if (action === 'unwrap') {
+      const expected = testCase.expect as Array<Record<string, unknown>>;
+      const actual = parser.unwrap(testCase.input as string);
+      assertRawPartsMatch(actual, expected);
+      const hasAny = expected.some(p => 'a2ui_raw' in p);
+      const hasComplete = expected.some(p => 'a2ui_raw' in p && (p.is_final ?? true) === true);
+      expect(parser.hasFormatContent(testCase.input as string)).toBe(hasAny);
+      expect(parser.hasFormatContent(testCase.input as string, {complete: true})).toBe(hasComplete);
+    } else if (action === 'has_format_content') {
+      const complete = (args.complete as boolean) ?? false;
+      expect(parser.hasFormatContent(testCase.input as string, {complete})).toBe(testCase.expect);
+    } else if (action === 'wrap') {
+      const parts = testCase.parts as Array<Record<string, unknown>>;
+      const rawParts: RawResponsePart[] = parts.map(p => {
+        if ('text' in p) {
+          return {type: 'text', text: p.text as string, isFinal: (p.is_final as boolean) ?? true};
+        }
+        return {
+          type: 'a2ui',
+          a2uiRaw: p.a2ui_raw as string,
+          isFinal: (p.is_final as boolean) ?? true,
+        };
+      });
+
+      const output = parser.wrap(rawParts);
+
+      if (testCase.expect_output !== undefined) {
+        expect(output).toBe(testCase.expect_output);
+      }
+      if (testCase.expect_contains) {
+        for (const fragment of testCase.expect_contains as string[]) {
+          expect(output).toContain(fragment);
+        }
+      }
+      if (testCase.expect_round_trip) {
+        const unwrapped = parser.unwrap(output);
+        assertRawPartsMatch(unwrapped, parts);
+      }
+    } else if (action === 'parse_response') {
+      const wrapped = (args.wrapped as boolean) ?? true;
+
+      if (testCase.expect_error) {
+        assertThrows(
+          () => {
+            parser.parseResponse(testCase.input as string, {wrapped});
+          },
+          testCase.expect_error as Record<string, unknown>,
+        );
+        return;
+      }
+
+      const parts = parser.parseResponse(testCase.input as string, {wrapped});
+      assertPartsMatch(parts, testCase.expect as Array<Record<string, unknown>>);
+    } else {
+      throw new Error(`Unsupported action in direct_json conformance: ${action}`);
+    }
+  },
+  {
+    knownFailures: KNOWN_FAILURES,
+    skipReason: testCase => UNSUPPORTED.get(testCase.name),
+  },
+);

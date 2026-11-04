@@ -724,7 +724,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         throw err;
       }
     }
-    const itemOps = adapter.extractOperations(item);
+    const itemOps = adapter.extractOperations(item, this.validationConfig);
     const itemVer = envelopeContext.version;
     for (const op of itemOps) {
       if (itemVer && toCanonicalVersion(itemVer)) {

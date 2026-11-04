@@ -39,6 +39,7 @@ extension View {
     let fallback = defaultLabel.flatMap { $0.isEmpty ? nil : $0 }
     return
       self
+      .accessibilityIdentifier(modifier.identifier)
       .a2uiOptionalAccessibilityLabel(modifier.label ?? fallback)
       .a2uiOptionalAccessibilityHint(modifier.hint)
       .preference(key: A2UIAccessibilityControlKey.self, value: true)
@@ -61,6 +62,15 @@ extension View {
     let attributes = node.explicitAccessibilityAttributes
     if attributes?.label?.isEmpty == false || attributes?.description?.isEmpty == false {
       accessibilityElement(children: children)
+    } else {
+      self
+    }
+  }
+
+  @ViewBuilder
+  func a2uiOptionalAccessibilityIdentifier(_ identifier: String?) -> some View {
+    if let identifier {
+      accessibilityIdentifier(identifier)
     } else {
       self
     }

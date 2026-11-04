@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-import {describe, expect, test} from 'vitest';
+import {expect} from 'vitest';
+
 import {ExpressParser} from '../../src/inference-formats/express/parser.js';
 import {StreamPart} from '../../src/parser/response-part.js';
 import {ResponseStream} from '../../src/parser/response-stream.js';
 import {FileSystemCatalogProvider} from '../../src/processor/catalog-providers.js';
 import {LoadedCase, loadCases} from './loader.js';
-import {categoryOf, conformancePath, registerCase} from './suite-helpers.js';
+import {categoryOf, conformancePath, describeSuite} from './suite-helpers.js';
 
 const KNOWN_FAILURES = new Map<string, string>();
 const UNSUPPORTED_VERSIONS = new Map<string, string>([['0.8', 'this SDK does not implement v0.8']]);
@@ -167,14 +168,15 @@ function runCase(testCase: LoadedCase): void {
   }
 }
 
-describe('Conformance: express/response_streaming.yaml', () => {
-  for (const testCase of loadCases([conformancePath('agent/express/response_streaming.yaml')])) {
-    const version = declaredVersion(testCase.args as unknown as StreamingArgs);
-    const unsupported = version ? UNSUPPORTED_VERSIONS.get(version) : undefined;
-    if (unsupported) {
-      test.skip(`${testCase.action} · ${testCase.name} (${unsupported})`, () => {});
-      continue;
-    }
-    registerCase(testCase, KNOWN_FAILURES, () => runCase(testCase));
-  }
-});
+describeSuite(
+  'Conformance: express/response_streaming.yaml',
+  loadCases([conformancePath('agent/express/response_streaming.yaml')]),
+  testCase => runCase(testCase),
+  {
+    knownFailures: KNOWN_FAILURES,
+    skipReason: testCase => {
+      const version = declaredVersion(testCase.args as unknown as StreamingArgs);
+      return version ? UNSUPPORTED_VERSIONS.get(version) : undefined;
+    },
+  },
+);
