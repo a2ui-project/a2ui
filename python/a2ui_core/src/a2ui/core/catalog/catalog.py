@@ -1169,25 +1169,49 @@ def _agent_function_args_schema(fn: AgentFunction) -> Any:
     return schema
 
 
-def _parameter_names(schema: Any) -> list[str]:
+def _parameter_names(
+    schema: Any, catalog_defs: Mapping[str, Any] | None = None
+) -> list[str]:
     """Extracts declared parameter names from a function argument schema."""
     if not isinstance(schema, dict):
         return []
     names: list[str] = []
+    local_defs = schema.get("$defs")
+    defs: dict[str, Any] = {}
+    if isinstance(catalog_defs, Mapping):
+        defs.update(catalog_defs)
+    if isinstance(local_defs, Mapping):
+        defs.update(local_defs)
+    visited: set[str] = set()
 
     def _extract_properties(node: Any) -> None:
         if not isinstance(node, dict):
             return
+        ref = node.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/$defs/") and ref not in visited:
+            visited.add(ref)
+            def_name = (
+                ref[len("#/$defs/") :]
+                .split("/")[0]
+                .replace("~1", "/")
+                .replace("~0", "~")
+            )
+            target = defs.get(def_name)
+            if isinstance(target, dict):
+                _extract_properties(target)
         props = node.get("properties")
         if isinstance(props, dict):
             names.extend(str(k) for k in props.keys())
-        all_of = node.get("allOf")
-        if isinstance(all_of, list):
-            for member in all_of:
-                _extract_properties(member)
+        for keyword in ("allOf", "anyOf", "oneOf"):
+            members = node.get(keyword)
+            if isinstance(members, list):
+                for member in members:
+                    _extract_properties(member)
 
-    if isinstance(schema.get("properties"), dict) or isinstance(
-        schema.get("allOf"), list
+    if (
+        isinstance(schema.get("properties"), dict)
+        or isinstance(schema.get("$ref"), str)
+        or any(isinstance(schema.get(k), list) for k in ("allOf", "anyOf", "oneOf"))
     ):
         _extract_properties(schema)
         return names
@@ -1391,7 +1415,9 @@ class Catalog(Generic[TComponent, TFunction]):
                     f"Invalid UAX #31 function identifier: '{fn.name}'"
                 )
             if validate_identifiers and isinstance(fn, AgentFunction):
-                for arg_name in _parameter_names(_agent_function_args_schema(fn)):
+                for arg_name in _parameter_names(
+                    _agent_function_args_schema(fn), self.defs
+                ):
                     if not is_valid_uax31_identifier(arg_name):
                         raise A2uiCatalogError(
                             f"Invalid UAX #31 argument identifier: '{arg_name}'"

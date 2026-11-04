@@ -19,7 +19,7 @@ from __future__ import annotations
 from typing import Any
 import warnings
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, RootModel
 import pytest
 
 from a2ui.core import AgentFunction, AgentFunctionContext, Catalog, CatalogApi
@@ -411,7 +411,11 @@ class TestCatalogAgentFunctions:
         "schema",
         [
             {"type": "object", "properties": {"target-currency": {"type": "string"}}},
+            {"type": "object", "properties": {"@target": {"type": "string"}}},
             {"allOf": [{"properties": {"target-currency": {"type": "string"}}}]},
+            {"anyOf": [{"properties": {"target-currency": {"type": "string"}}}]},
+            {"oneOf": [{"properties": {"target-currency": {"type": "string"}}}]},
+            {"target-currency": {"type": "string"}},
             {
                 "type": "object",
                 "properties": {
@@ -420,14 +424,22 @@ class TestCatalogAgentFunctions:
                 },
             },
         ],
-        ids=["properties", "allOf", "definition"],
+        ids=[
+            "properties",
+            "leading_at",
+            "allOf",
+            "anyOf",
+            "oneOf",
+            "shorthand",
+            "definition",
+        ],
     )
     def test_rejects_an_agent_function_with_an_invalid_parameter_name(
         self, schema: dict[str, Any]
     ):
         fn = AgentFunction("fetchRate", handler=_handler, schema=schema)
 
-        with pytest.raises(A2uiCatalogError, match="target-currency"):
+        with pytest.raises(A2uiCatalogError, match="(target-currency|@target)"):
             Catalog("c", "1.0", functions=[fn])
 
     def test_rejects_an_invalid_parameter_name_of_a_pydantic_schema(self):
@@ -435,6 +447,21 @@ class TestCatalogAgentFunctions:
             target: str = Field(alias="target-currency")
 
         fn = AgentFunction("fetchRate", handler=_handler, schema=Args)
+
+        with pytest.raises(A2uiCatalogError, match="target-currency"):
+            Catalog("c", "1.0", functions=[fn])
+
+    def test_rejects_an_invalid_parameter_name_in_a_pydantic_union_schema(self):
+        class GoodBranch(BaseModel):
+            base: str
+
+        class BadBranch(BaseModel):
+            target: str = Field(alias="target-currency")
+
+        class UnionArgs(RootModel[GoodBranch | BadBranch]):
+            pass
+
+        fn = AgentFunction("fetchRate", handler=_handler, schema=UnionArgs)
 
         with pytest.raises(A2uiCatalogError, match="target-currency"):
             Catalog("c", "1.0", functions=[fn])
