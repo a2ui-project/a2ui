@@ -256,10 +256,10 @@ class TestResolve:
         call_id = _id(message)
 
         with caplog.at_level(logging.DEBUG, logger="a2ui.rpc"):
-            calls.resolve(_value("never-sent", 0))
-            calls.resolve(_value(call_id, "first"))
-            calls.resolve(_value(call_id, "duplicate"))
-            calls.resolve(_failure(call_id, "EXECUTION_ERROR", "late"))
+            assert calls.resolve(_value("never-sent", 0)) is False
+            assert calls.resolve(_value(call_id, "first")) is True
+            assert calls.resolve(_value(call_id, "duplicate")) is False
+            assert calls.resolve(_failure(call_id, "EXECUTION_ERROR", "late")) is False
 
         assert await _settle(future) == "first"
         ignored = [r for r in caplog.records if "Ignoring" in r.getMessage()]
@@ -274,8 +274,8 @@ class TestResolve:
         message, future = calls.call(catalog_id=CATALOG, name="now")
 
         with caplog.at_level(logging.WARNING, logger="a2ui.rpc"):
-            calls.resolve({"version": "1.0", "rendererFunctionResponse": {}})
-            calls.resolve({"something": "else"})
+            assert not calls.resolve({"version": "1.0", "rendererFunctionResponse": {}})
+            assert not calls.resolve({"something": "else"})
 
         assert len(caplog.records) == 2
         assert not future.done()
@@ -288,14 +288,17 @@ class TestResolve:
         _, other = calls.call(catalog_id=CATALOG, name="other")
 
         # Both `value` and `error`, which the schema forbids.
-        calls.resolve({
-            "version": "1.0",
-            "rendererFunctionResponse": {
-                "functionCallId": _id(message),
-                "value": 1,
-                "error": {"code": "EXECUTION_ERROR", "message": "boom"},
-            },
-        })
+        assert (
+            calls.resolve({
+                "version": "1.0",
+                "rendererFunctionResponse": {
+                    "functionCallId": _id(message),
+                    "value": 1,
+                    "error": {"code": "EXECUTION_ERROR", "message": "boom"},
+                },
+            })
+            is True
+        )
 
         with pytest.raises(A2uiRpcError) as excinfo:
             await _settle(future)
@@ -311,10 +314,13 @@ class TestResolve:
         calls = RendererFunctionCalls()
         _, future = calls.call(catalog_id=CATALOG, name="now")
 
-        calls.resolve({
-            "version": "1.0",
-            "rendererFunctionResponse": {"functionCallId": "unknown"},
-        })
+        assert (
+            calls.resolve({
+                "version": "1.0",
+                "rendererFunctionResponse": {"functionCallId": "unknown"},
+            })
+            is False
+        )
 
         assert not future.done()
         future.cancel()
@@ -344,8 +350,23 @@ class TestResolve:
         assert result.replies == []
         assert await _settle(future) == "Paris"
 
+    @pytest.mark.asyncio
+    async def test_processor_declines_responses_it_does_not_own(self) -> None:
+        calls = RendererFunctionCalls()
+        processor = RendererToAgentMessageProcessor(
+            [], on_renderer_function_response=calls.resolve
+        )
+        message, future = calls.call(catalog_id=CATALOG, name="now")
+        assert (await processor.process_message(_value(_id(message), 1))).handled
+
+        for call_id in ("unknown", _id(message)):  # unknown, then duplicate
+            result = await processor.process_message(_value(call_id, 2))
+            assert not result.handled
+            assert result.replies == []
+        assert await _settle(future) == 1
+
     def test_response_before_any_call_is_ignored(self) -> None:
-        RendererFunctionCalls().resolve(_value("c1", 1))
+        assert RendererFunctionCalls().resolve(_value("c1", 1)) is False
 
     @pytest.mark.asyncio
     async def test_resolve_from_another_thread(self) -> None:

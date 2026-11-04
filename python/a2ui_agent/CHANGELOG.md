@@ -37,9 +37,10 @@
   future from the renderer's `rendererFunctionResponse`, with timeouts (30
   seconds by default), `max_pending` and `dispose()`. Its `resolve` method is
   the `on_renderer_function_response` callback of
-  `RendererToAgentMessageProcessor`; a malformed response that names a pending
-  call fails that call at once. `is_pending` tells whether a response answers
-  one of its calls. `agent_development.md` describes it
+  `RendererToAgentMessageProcessor`: it returns `True` when it settles (or, for
+  a malformed response, fails) a pending call and `False` otherwise, so the
+  processor declines responses to calls it didn't make. `is_pending` tells
+  whether a response answers one of its calls. `agent_development.md` describes it
   ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
 - **BREAKING CHANGE**: (v1_0) The `TextField` builder in
   `a2ui.builder.v1_0.catalogs.basic` requires `value`, following the basic

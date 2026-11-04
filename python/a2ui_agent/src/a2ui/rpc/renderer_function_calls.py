@@ -222,7 +222,7 @@ class RendererFunctionCalls:
         future.add_done_callback(lambda _: self._forget(call_id, future))
         return message, future
 
-    def resolve(self, message: RendererFunctionResponseInput) -> None:
+    def resolve(self, message: RendererFunctionResponseInput) -> bool:
         """Settles the call that a `rendererFunctionResponse` answers.
 
         The response comes from the network, so this never raises for it: a
@@ -234,10 +234,20 @@ class RendererFunctionCalls:
 
         Pass it as `on_renderer_function_response` of a
         `RendererToAgentMessageProcessor`, which validates the message first.
+        It then declines a response to a call it didn't make, or one that is
+        late or a duplicate, so the processor reports it as not handled and
+        the response can go on to the model's turn.
 
         Args:
             message: The `rendererFunctionResponse` message, as a schema model
                 or as parsed JSON.
+
+        Returns:
+            True if the response named a pending call, which it settles or,
+            when malformed, fails. False if no call with its `functionCallId`
+            is pending (unknown, late or duplicate) or it has none. Called
+            from another thread, it reports whether the call was pending at
+            the time; the instance's loop settles it.
         """
         try:
             response = (
@@ -248,16 +258,20 @@ class RendererFunctionCalls:
         except ValidationError as e:
             logger.warning("Ignoring a malformed rendererFunctionResponse: %s", e)
             call_id = _raw_call_id(message)
-            if call_id:
-                self._on_loop(
-                    call_id,
-                    self._fail_malformed,
-                    call_id,
-                    f"Malformed rendererFunctionResponse: {e}",
-                )
-            return
+            if not call_id:
+                return False
+            pending = self.is_pending(call_id)
+            self._on_loop(
+                call_id,
+                self._fail_malformed,
+                call_id,
+                f"Malformed rendererFunctionResponse: {e}",
+            )
+            return pending
         call_id = response.renderer_function_response.function_call_id
+        pending = self.is_pending(call_id)
         self._on_loop(call_id, self._settle, response)
+        return pending
 
     def is_pending(self, function_call_id: str) -> bool:
         """Whether a call with this ID is waiting for its response.

@@ -55,15 +55,6 @@ def is_renderer_rpc_only(parts: list[a2a_types.Part]) -> bool:
     )
 
 
-def renderer_function_response_id(message: Mapping[str, Any]) -> str | None:
-    """The `functionCallId` of a `rendererFunctionResponse`, if it has one."""
-    body = message.get(RENDERER_FUNCTION_RESPONSE)
-    if not isinstance(body, Mapping):
-        return None
-    call_id = body.get("functionCallId")
-    return call_id if isinstance(call_id, str) and call_id else None
-
-
 def genai_part_a2ui_messages(part: genai_types.Part) -> list[dict[str, Any]]:
     """The A2UI messages in a GenAI part that ADK converted from an A2A part.
 

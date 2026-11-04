@@ -151,10 +151,12 @@ async def _run_calls_on_loop(case: Mapping[str, Any], loop: _FakeClockLoop) -> N
                 response["error"] = spec["error"]
             else:
                 response["value"] = spec["value"]
+            owned = calls.is_pending(call_id)
             result = await processor.process_message(
                 {"version": "1.0", "rendererFunctionResponse": response}
             )
-            assert result.handled and not result.replies, where
+            # `resolve` declines a response to a call that isn't pending.
+            assert result.handled == owned and not result.replies, where
         elif "advance_ms" in step:
             loop.advance(step["advance_ms"])
         elif "dispose" in step:

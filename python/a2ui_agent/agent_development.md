@@ -928,12 +928,15 @@ location = await result  # settled when the processor gets the response
    `async with RendererFunctionCalls() as calls:`.
 6. `max_pending` makes `call` raise instead of letting a looping model pile up
    calls that wait for an answer.
-7. `is_pending(function_call_id)` tells whether a response answers one of the
-   instance's calls. The inference formats also compile a function call the
-   model writes on its own, such as `<a2ui>getLocation()</a2ui>`, into a
-   `callRendererFunction` message that `RendererFunctionCalls` never saw, so
-   pass a response that isn't pending on to the model's turn rather than to
-   `resolve`.
+7. `resolve` returns `True` when the response named a pending call and
+   `False` for an unknown, late or duplicate one. As the processor's
+   callback, it therefore declines responses it doesn't own, and
+   `process_message` reports them as not handled. That matters because the
+   inference formats also compile a function call the model writes on its
+   own, such as `<a2ui>getLocation()</a2ui>`, into a `callRendererFunction`
+   message that `RendererFunctionCalls` never saw: pass an unhandled response
+   on to the model's turn. `is_pending(function_call_id)` checks a response
+   without settling it.
 
 The pending calls live in memory, so this suits a server that keeps a
 conversation on one process, such as one holding a streaming connection. A

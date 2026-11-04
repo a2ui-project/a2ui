@@ -51,7 +51,6 @@ Usage Example:
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 import inspect
 import logging
@@ -72,10 +71,8 @@ from a2ui.rpc import RendererFunctionCalls, RendererToAgentMessageProcessor
 from ._rpc import (
     CALL_AGENT_FUNCTION,
     RENDERER_FUNCTION_RESPONSE,
-    RENDERER_RPC_KINDS,
     genai_part_a2ui_messages,
     message_kind,
-    renderer_function_response_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -107,29 +104,30 @@ def a2ui_rpc_callback(
 ) -> A2uiRpcCallback:
     """Returns a `before_agent_callback` that answers A2UI RPC messages.
 
-    The callback reads the user content that started the invocation. When
-    every part of it is an A2UI message that the callback handles, it
-    processes them with a `RendererToAgentMessageProcessor` and returns the
-    replies as the agent's response, so the agent doesn't run:
+    The callback reads the user content that started the invocation and
+    processes each A2UI message in it, one at a time, with a
+    `RendererToAgentMessageProcessor` built from `catalogs`, whose
+    `on_renderer_function_response` is the session's
+    `RendererFunctionCalls.resolve`, from `renderer_calls`:
 
     1. `callAgentFunction` runs the agent function of `catalogs` and replies
        with its `agentFunctionResponse`.
-    2. `rendererFunctionResponse` that answers a pending call of the
-       session's `RendererFunctionCalls`, from `renderer_calls`, settles the
-       call (`RendererFunctionCalls.resolve` is the processor's
-       `on_renderer_function_response`) and sends no reply. A request holding
-       only such responses gets a response with no parts, which
-       `A2aAgentExecutor` ends in the `working` state; `a2ui_rpc_interceptor`
-       ends it `completed` instead.
+    2. `rendererFunctionResponse` that answers a pending call of the session
+       settles the call and sends no reply. `resolve` declines any other
+       response, such as one to a call the model wrote itself (which the
+       inference formats compile into `callRendererFunction`), so it isn't
+       handled.
+    3. `action` and `error` aren't handled.
 
-    For any other content it returns None and the agent runs as usual. That
-    includes text, the renderer's `action` and `error` messages, a mix of RPC
-    messages and other parts, and a `rendererFunctionResponse` that answers no
-    pending call, such as one to a call the model wrote itself, which the
-    inference formats compile into `callRendererFunction`. Even then, any
-    `rendererFunctionResponse` in the request that answers a pending call of
-    the session settles that call first, so it doesn't wait for its timeout;
-    the agent still sees the whole request. A `callAgentFunction` that the
+    When every part is an A2UI message and every message is handled, the
+    callback returns the replies as the agent's response, so the agent doesn't
+    run. A request holding only responses gets a response with no parts,
+    which `A2aAgentExecutor` ends in the `working` state;
+    `a2ui_rpc_interceptor` ends it `completed` instead. For any other content
+    it returns None and the agent runs as usual, with the whole request.
+    Responses are processed first, so a pending call is always settled, even
+    in a request that goes to the agent, and `callAgentFunction` runs only
+    when the request is answered. A `callAgentFunction` that the
     processor can't answer, such as one without a `functionCallId` or with a
     `version` other than `"1.0"`, is logged and dropped. A
     malformed `rendererFunctionResponse` fails the call it names.
@@ -176,105 +174,66 @@ def a2ui_rpc_callback(
 
     async def callback(callback_context: CallbackContext) -> genai_types.Content | None:
         content = callback_context.user_content
-        messages = _rpc_messages(content)
-        kinds = {message_kind(message) for message in messages}
-
+        if content is None or not content.parts:
+            return None
+        per_part = [genai_part_a2ui_messages(part) for part in content.parts]
+        messages = [message for part in per_part for message in part]
+        if not messages:
+            return None
+        calls_processor = RendererToAgentMessageProcessor([])
         calls: RendererFunctionCalls | None = None
-        responses = [
-            message
-            for message in _a2ui_messages(content)
-            if message_kind(message) == RENDERER_FUNCTION_RESPONSE
-        ]
-        if responses and renderer_calls is not None:
-            calls = await _resolve(renderer_calls, callback_context)
-        if not messages or not kinds <= RENDERER_RPC_KINDS:
-            # The request goes to the agent, but responses to the session's
-            # own calls still settle them, so those calls don't time out.
-            _settle_pending(calls, responses)
-            return None
-        if RENDERER_FUNCTION_RESPONSE in kinds and (
-            calls is None
-            or not all(
-                calls.is_pending(renderer_function_response_id(message) or "")
-                for message in responses
-            )
+        if renderer_calls is not None and any(
+            message_kind(message) == RENDERER_FUNCTION_RESPONSE for message in messages
         ):
-            # Some responses answer calls the session didn't make, such as
-            # calls the model wrote, so the agent sees the request; the
-            # session's own calls are settled first.
-            _settle_pending(calls, responses)
+            calls = await _resolve(renderer_calls, callback_context)
+            if calls is not None:
+                calls_processor = RendererToAgentMessageProcessor(
+                    [], on_renderer_function_response=calls.resolve
+                )
+
+        # Everything but agent function calls first: this settles the
+        # session's pending calls whatever happens to the request, and has no
+        # other side effects.
+        handled = [
+            await _process_other(calls_processor, calls, message)
+            for message in messages
+            if message_kind(message) != CALL_AGENT_FUNCTION
+        ]
+        agent_calls = [
+            message
+            for message in messages
+            if message_kind(message) == CALL_AGENT_FUNCTION
+        ]
+        if not all(handled) or not all(per_part):
+            # Text or another part that isn't A2UI, or a message the processor
+            # didn't handle: the agent runs, with the whole request.
             return None
 
-        active: Iterable[CatalogApi] = []
-        if CALL_AGENT_FUNCTION in kinds:
+        replies: list[AgentToRendererMessage] = []
+        if agent_calls:
             resolved: Iterable[CatalogApi] | None = (
                 fixed
                 if provider is None
                 else await _resolve(provider, callback_context)
             )
             if resolved is None:
-                _settle_pending(calls, responses)
                 return None
-            active = resolved
+            # The processor keeps no state, so building one per request is
+            # cheap.
+            processor = RendererToAgentMessageProcessor(
+                resolved, agent_function_timeout=agent_function_timeout
+            )
+            for message in agent_calls:
+                replies.extend(await _process_call(processor, message))
 
-        # The processor keeps no state, so building one per request is cheap.
-        processor = RendererToAgentMessageProcessor(
-            active,
-            agent_function_timeout=agent_function_timeout,
-            on_renderer_function_response=calls.resolve if calls else None,
-        )
-        replies = await asyncio.gather(
-            *(_process(processor, calls, message) for message in messages)
-        )
         parts: list[genai_types.Part] = []
-        for a2a_part in create_a2ui_parts(
-            reply for message_replies in replies for reply in message_replies
-        ):
+        for a2a_part in create_a2ui_parts(replies):
             genai_part = part_converter.convert_a2a_part_to_genai_part(a2a_part)
             if genai_part is not None:
                 parts.append(genai_part)
         return genai_types.Content(role="model", parts=parts)
 
     return callback
-
-
-def _rpc_messages(content: genai_types.Content | None) -> list[dict[str, Any]]:
-    """The A2UI messages of `content`, or none if any part isn't A2UI."""
-    if content is None or not content.parts:
-        return []
-    messages: list[dict[str, Any]] = []
-    for part in content.parts:
-        part_messages = genai_part_a2ui_messages(part)
-        if not part_messages:
-            return []
-        messages.extend(part_messages)
-    return messages
-
-
-def _a2ui_messages(content: genai_types.Content | None) -> list[dict[str, Any]]:
-    """The A2UI messages of every A2UI part of `content`, skipping other parts."""
-    if content is None or not content.parts:
-        return []
-    return [
-        message for part in content.parts for message in genai_part_a2ui_messages(part)
-    ]
-
-
-def _settle_pending(
-    calls: RendererFunctionCalls | None, responses: list[dict[str, Any]]
-) -> None:
-    """Settles the session's pending calls that `responses` answer.
-
-    Responses to calls the session didn't make are left for the agent.
-    `RendererFunctionCalls.resolve` settles each call at most once, on its
-    loop, so a call settled here is ignored if its response comes again.
-    """
-    if calls is None:
-        return
-    for message in responses:
-        call_id = renderer_function_response_id(message)
-        if call_id is not None and calls.is_pending(call_id):
-            calls.resolve(message)
 
 
 async def _resolve(
@@ -287,12 +246,30 @@ async def _resolve(
     return resolved
 
 
-async def _process(
+async def _process_other(
     processor: RendererToAgentMessageProcessor,
     calls: RendererFunctionCalls | None,
     message: Mapping[str, Any],
+) -> bool:
+    """Processes a message that isn't an agent function call.
+
+    Returns whether it was handled. A message that can't be processed isn't,
+    except a malformed response that `calls` takes, which fails the pending
+    call it names at once.
+    """
+    try:
+        return (await processor.process_message(message)).handled
+    except A2uiValidationError as e:
+        logger.warning("Passing an invalid A2UI message on to the agent: %s", e)
+        if calls is not None and message_kind(message) == RENDERER_FUNCTION_RESPONSE:
+            return calls.resolve(message)
+        return False
+
+
+async def _process_call(
+    processor: RendererToAgentMessageProcessor, message: Mapping[str, Any]
 ) -> list[AgentToRendererMessage]:
-    """Processes one message, logging and dropping one that can't be answered."""
+    """Answers one agent function call, logging and dropping one that can't be."""
     try:
         result = await processor.process_message(message)
     except A2uiValidationError as e:
@@ -304,8 +281,5 @@ async def _process(
             type(e).__name__,
         )
         logger.debug("Dropped A2UI RPC message error: %s", e)
-        if calls is not None and message_kind(message) == RENDERER_FUNCTION_RESPONSE:
-            # Fails the pending call the malformed response names, at once.
-            calls.resolve(message)
         return []
     return result.replies

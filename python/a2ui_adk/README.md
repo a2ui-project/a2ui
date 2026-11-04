@@ -65,10 +65,12 @@ Available with the `a2a` extra:
   response. For any other request, including the renderer's `action`, `error`
   and `rendererFunctionResponse` messages, it returns None, so the agent runs.
   With `A2aAgentExecutor`, the replies reach the client as A2UI parts. With
-  `renderer_calls`, it also settles a `rendererFunctionResponse` that answers
-  a pending call of the session's `RendererFunctionCalls`; a response to any
-  other call, such as one the model wrote, goes to the agent. A request that
-  goes to the agent still settles the pending calls its responses answer.
+  `renderer_calls`, its processor's `on_renderer_function_response` is the
+  session's `RendererFunctionCalls.resolve`, which settles a response to a
+  pending call and declines any other, such as one to a call the model wrote.
+  The request is answered without the agent only when every message is
+  handled. A request that goes to the agent still settles the pending calls
+  its responses answer.
 - `a2ui_rpc_interceptor` (also in `a2ui.adk.a2a`) returns an
   `A2aAgentExecutor` interceptor that ends a task `completed` when its request
   held only `callAgentFunction` and `rendererFunctionResponse` messages. ADK's
