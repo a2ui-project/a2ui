@@ -1,0 +1,685 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+---
+
+<div
+  class="ip-root not-content"
+  data-diagram
+  data-diagram-title="inference-pipeline"
+>
+  <div class="ip-banner">
+    <div class="ip-banner__left">
+      <span class="ip-badge">SERVER-SIDE AGENT SDK</span>
+      <span class="ip-banner__title">
+        A2uiRequestProcessor: Swappable Generation &rarr; Standard Wire JSON
+      </span>
+    </div>
+    <div class="ip-banner__pills">
+      <span class="ip-pill ip-pill--teal">Express (Default)</span>
+      <span class="ip-pill ip-pill--blue">Direct JSON</span>
+      <span class="ip-pill ip-pill--amber">Custom Formats</span>
+    </div>
+  </div>
+
+  <div class="ip-grid">
+    <!-- Stage 1: Prompt Synthesis -->
+    <div class="ip-stage ip-stage--purple">
+      <div class="ip-stage__head">
+        <span class="ip-step-num ip-step-num--purple">1</span>
+        <div class="ip-stage__titles">
+          <div class="ip-stage__title">Prompt Synthesis</div>
+          <code class="ip-stage__sub">processor.promptSnippet</code>
+        </div>
+      </div>
+
+      <div class="ip-box">
+        <div class="ip-box__label">Active Catalog Contract</div>
+        <div class="ip-chip-row">
+          <code class="ip-chip">components</code>
+          <code class="ip-chip">functions</code>
+          <code class="ip-chip">instructions</code>
+          <code class="ip-chip">examples</code>
+        </div>
+      </div>
+
+      <div class="ip-arrow-down" aria-hidden="true">&darr; PromptGenerator</div>
+
+      <div class="ip-code-card">
+        <div class="ip-code-card__header">
+          <span class="ip-tag ip-tag--teal">Express Signatures</span>
+          <span class="ip-tag ip-tag--blue">or JSON Schema</span>
+        </div>
+        <div class="ip-code">
+          <div><span class="ip-c"># Positional signatures</span></div>
+          <div>
+            &bull; <span class="ip-fn">Card</span>(<span class="ip-p"
+              >child</span
+            >)
+          </div>
+          <div>
+            &bull; <span class="ip-fn">Text</span>(<span class="ip-p">text</span
+            >, <span class="ip-k">variant?</span>)
+          </div>
+          <div>
+            &bull; <span class="ip-fn">Button</span>(<span class="ip-p"
+              >child</span
+            >, <span class="ip-p">action</span>)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stage 2: Model Generation -->
+    <div class="ip-stage ip-stage--teal">
+      <div class="ip-stage__head">
+        <span class="ip-step-num ip-step-num--teal">2</span>
+        <div class="ip-stage__titles">
+          <div class="ip-stage__title">Model Generation</div>
+          <code class="ip-stage__sub">LLM Response Stream</code>
+        </div>
+      </div>
+
+      <div class="ip-code-card">
+        <div class="ip-code-card__header">
+          <span class="ip-tag ip-tag--teal">Express DSL (~3x fewer tokens)</span
+          >
+        </div>
+        <div class="ip-code">
+          <div><span class="ip-sentinel">&lt;a2ui&gt;</span></div>
+          <div>
+            <span class="ip-p">$/flight/gate</span> = <span class="ip-s"
+              >"B12"</span
+            >
+          </div>
+          <div>
+            <span class="ip-k">root</span> = <span class="ip-fn">Card</span>(
+          </div>
+          <div class="ip-indent">
+            <span class="ip-fn">Text</span>(<span class="ip-p"
+              >$/flight/gate</span
+            >, <span class="ip-s">"caption"</span>)
+          </div>
+          <div>)</div>
+          <div><span class="ip-sentinel">&lt;/a2ui&gt;</span></div>
+        </div>
+      </div>
+
+      <div class="ip-alt-card">
+        <div class="ip-alt-row">
+          <span class="ip-tag ip-tag--blue">Direct JSON</span>
+          <code>&lt;a2ui-json&gt;[...]&lt;/a2ui-json&gt;</code>
+        </div>
+        <div class="ip-alt-row">
+          <span class="ip-tag ip-tag--amber">Custom Format</span>
+          <code>Custom InferenceFormatFactory</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stage 3: Wire Compilation & Validation -->
+    <div class="ip-stage ip-stage--amber">
+      <div class="ip-stage__head">
+        <span class="ip-step-num ip-step-num--amber">3</span>
+        <div class="ip-stage__titles">
+          <div class="ip-stage__title">Wire Compilation &amp; Validation</div>
+          <code class="ip-stage__sub">parseResponse / openStream</code>
+        </div>
+      </div>
+
+      <div class="ip-box">
+        <div class="ip-box__label">Compiler + RendererState Check</div>
+        <div class="ip-checks">
+          <span class="ip-check"
+            >&#10003; Heals open strings (<code>progressiveKeys</code>)</span
+          >
+          <span class="ip-check">&#10003; Flattens nested AST &amp; IDs</span>
+          <span class="ip-check"
+            >&#10003; Validates catalog &amp; root tree</span
+          >
+        </div>
+      </div>
+
+      <div class="ip-arrow-down" aria-hidden="true">
+        &darr; Standard A2UI Wire JSON
+      </div>
+
+      <div class="ip-code-card">
+        <div class="ip-code-card__header">
+          <span class="ip-tag ip-tag--amber">Client MessageProcessor</span>
+        </div>
+        <div class="ip-code">
+          <div>
+            &#123; <span class="ip-k">"version"</span>: <span class="ip-s"
+              >"1.0"</span
+            >,
+          </div>
+          <div class="ip-indent">
+            <span class="ip-k">"createSurface"</span>: &#123; ... &#125; &#125;
+          </div>
+          <div>
+            &#123; <span class="ip-k">"version"</span>: <span class="ip-s"
+              >"1.0"</span
+            >,
+          </div>
+          <div class="ip-indent">
+            <span class="ip-k">"updateComponents"</span>: &#123; ... &#125;
+            &#125;
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent & Accessibility View: Machine-readable spec hidden from human UI -->
+  <script type="text/vnd.mermaid" data-agent-diagram="spec" style="display: none;">
+    flowchart LR
+      subgraph Stage1["1. Prompt Synthesis (PromptGenerator)"]
+        cat["Active Catalogs (components, functions, instructions, examples)"]
+        prompt["Format-Specific System Prompt Snippet (Express signatures or Direct JSON schema)"]
+        cat --> prompt
+      end
+      subgraph Stage2["2. Model Generation (LLM Response Stream)"]
+        express["Express DSL (<a2ui>...</a2ui>)"]
+        djson["Direct JSON (<a2ui-json>...</a2ui-json>)"]
+        custom["Custom InferenceFormat"]
+      end
+      subgraph Stage3["3. Wire Compilation & Validation (Parser / ResponseStream)"]
+        compile["Strip tags, heal progressiveKeys, compile AST to flat components, validate against RendererState"]
+        wire["Standard A2UI Wire JSON (createSurface, updateComponents, updateDataModel)"]
+        compile --> wire
+      end
+      prompt --> express & djson & custom
+      express & djson & custom --> compile
+  </script>
+</div>
+
+<style>
+  .ip-root {
+    margin: 1.5rem 0 2rem;
+    font-family: var(--sl-font);
+    color: #e2e8f0;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #0c1322 0%, #090d16 100%);
+    border: 1px solid #1e293b;
+    overflow: hidden;
+  }
+
+  :root[data-theme='light'] .ip-root {
+    color: #0f172a;
+    background: #f8fafc;
+    border-color: #cbd5e1;
+  }
+
+  .ip-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.8rem 1.15rem;
+    background: rgba(15, 23, 42, 0.85);
+    border-bottom: 1px solid #1e293b;
+  }
+
+  :root[data-theme='light'] .ip-banner {
+    background: #f1f5f9;
+    border-bottom-color: #cbd5e1;
+  }
+
+  .ip-banner__left {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  .ip-badge {
+    font-family: var(--sl-font-mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 0.18rem 0.5rem;
+    border-radius: 4px;
+    background: rgba(20, 184, 166, 0.16);
+    color: #2dd4bf;
+    border: 1px solid rgba(20, 184, 166, 0.35);
+  }
+
+  :root[data-theme='light'] .ip-badge {
+    background: #ccfbf1;
+    color: #0f766e;
+    border-color: #5eead4;
+  }
+
+  .ip-banner__title {
+    font-weight: 700;
+    font-size: 0.84rem;
+  }
+
+  .ip-banner__pills {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .ip-pill {
+    font-family: var(--sl-font-mono);
+    font-size: 0.64rem;
+    font-weight: 600;
+    padding: 0.15rem 0.48rem;
+    border-radius: 999px;
+  }
+
+  .ip-pill--teal {
+    background: rgba(20, 184, 166, 0.15);
+    color: #5eead4;
+    border: 1px solid rgba(20, 184, 166, 0.35);
+  }
+
+  :root[data-theme='light'] .ip-pill--teal {
+    background: #ccfbf1;
+    color: #0f766e;
+    border-color: #5eead4;
+  }
+
+  .ip-pill--blue {
+    background: rgba(56, 189, 248, 0.15);
+    color: #7dd3fc;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+  }
+
+  :root[data-theme='light'] .ip-pill--blue {
+    background: #e0f2fe;
+    color: #0369a1;
+    border-color: #7dd3fc;
+  }
+
+  .ip-pill--amber {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fcd34d;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }
+
+  :root[data-theme='light'] .ip-pill--amber {
+    background: #fef3c7;
+    color: #b45309;
+    border-color: #fcd34d;
+  }
+
+  .ip-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.9rem;
+    padding: 1.05rem 1.15rem;
+    align-items: stretch;
+  }
+
+  .ip-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.8rem;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid #1e293b;
+    min-width: 0;
+  }
+
+  :root[data-theme='light'] .ip-stage {
+    background: #ffffff;
+    border-color: #cbd5e1;
+  }
+
+  .ip-stage--purple {
+    border-top: 3px solid #a855f7;
+  }
+
+  .ip-stage--teal {
+    border-top: 3px solid #14b8a6;
+  }
+
+  .ip-stage--amber {
+    border-top: 3px solid #f59e0b;
+  }
+
+  .ip-stage__head {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .ip-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 6px;
+    font-family: var(--sl-font-mono);
+    font-size: 0.74rem;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .ip-step-num--purple {
+    background: rgba(168, 85, 247, 0.2);
+    color: #d8b4fe;
+    border: 1px solid rgba(168, 85, 247, 0.4);
+  }
+
+  :root[data-theme='light'] .ip-step-num--purple {
+    background: #f3e8ff;
+    color: #6b21a8;
+    border-color: #d8b4fe;
+  }
+
+  .ip-step-num--teal {
+    background: rgba(20, 184, 166, 0.2);
+    color: #5eead4;
+    border: 1px solid rgba(20, 184, 166, 0.4);
+  }
+
+  :root[data-theme='light'] .ip-step-num--teal {
+    background: #ccfbf1;
+    color: #0f766e;
+    border-color: #5eead4;
+  }
+
+  .ip-step-num--amber {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fcd34d;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+  }
+
+  :root[data-theme='light'] .ip-step-num--amber {
+    background: #fef3c7;
+    color: #b45309;
+    border-color: #fcd34d;
+  }
+
+  .ip-stage__titles {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .ip-stage__title {
+    font-weight: 700;
+    font-size: 0.8rem;
+    line-height: 1.2;
+  }
+
+  .ip-stage__sub {
+    font-family: var(--sl-font-mono);
+    font-size: 0.64rem;
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .ip-stage__sub {
+    color: #475569;
+  }
+
+  .ip-box {
+    padding: 0.55rem 0.65rem;
+    border-radius: 7px;
+    background: rgba(2, 6, 23, 0.55);
+    border: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    gap: 0.38rem;
+  }
+
+  :root[data-theme='light'] .ip-box {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  .ip-box__label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .ip-box__label {
+    color: #475569;
+  }
+
+  .ip-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+
+  .ip-chip {
+    font-family: var(--sl-font-mono);
+    font-size: 0.62rem;
+    padding: 0.1rem 0.38rem;
+    border-radius: 4px;
+    background: rgba(168, 85, 247, 0.14);
+    color: #d8b4fe;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+  }
+
+  :root[data-theme='light'] .ip-chip {
+    background: #f3e8ff;
+    color: #6b21a8;
+    border-color: #d8b4fe;
+  }
+
+  .ip-arrow-down {
+    text-align: center;
+    font-family: var(--sl-font-mono);
+    font-size: 0.64rem;
+    font-weight: 600;
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .ip-arrow-down {
+    color: #475569;
+  }
+
+  .ip-code-card {
+    border-radius: 7px;
+    background: rgba(2, 6, 23, 0.78);
+    border: 1px solid #1e293b;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+
+  :root[data-theme='light'] .ip-code-card {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  .ip-code-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    padding: 0.35rem 0.6rem;
+    background: rgba(15, 23, 42, 0.9);
+    border-bottom: 1px solid #1e293b;
+  }
+
+  :root[data-theme='light'] .ip-code-card__header {
+    background: #f1f5f9;
+    border-bottom-color: #e2e8f0;
+  }
+
+  .ip-tag {
+    font-family: var(--sl-font-mono);
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 0.08rem 0.38rem;
+    border-radius: 4px;
+  }
+
+  .ip-tag--teal {
+    background: rgba(20, 184, 166, 0.18);
+    color: #5eead4;
+  }
+
+  :root[data-theme='light'] .ip-tag--teal {
+    background: #ccfbf1;
+    color: #0f766e;
+  }
+
+  .ip-tag--blue {
+    background: rgba(56, 189, 248, 0.16);
+    color: #7dd3fc;
+  }
+
+  :root[data-theme='light'] .ip-tag--blue {
+    background: #e0f2fe;
+    color: #0369a1;
+  }
+
+  .ip-tag--amber {
+    background: rgba(245, 158, 11, 0.18);
+    color: #fcd34d;
+  }
+
+  :root[data-theme='light'] .ip-tag--amber {
+    background: #fef3c7;
+    color: #b45309;
+  }
+
+  .ip-code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.67rem;
+    line-height: 1.5;
+    padding: 0.5rem 0.6rem;
+    overflow-x: auto;
+  }
+
+  .ip-indent {
+    padding-left: 0.85rem;
+  }
+
+  .ip-c {
+    color: #64748b;
+  }
+
+  .ip-fn {
+    color: #38bdf8;
+    font-weight: 700;
+  }
+
+  :root[data-theme='light'] .ip-fn {
+    color: #0369a1;
+  }
+
+  .ip-p {
+    color: #c084fc;
+  }
+
+  :root[data-theme='light'] .ip-p {
+    color: #7e22ce;
+  }
+
+  .ip-k {
+    color: #cbd5e1;
+  }
+
+  :root[data-theme='light'] .ip-k {
+    color: #334155;
+  }
+
+  .ip-s {
+    color: #2dd4bf;
+  }
+
+  :root[data-theme='light'] .ip-s {
+    color: #0f766e;
+  }
+
+  .ip-sentinel {
+    color: #f59e0b;
+    font-weight: 700;
+  }
+
+  :root[data-theme='light'] .ip-sentinel {
+    color: #b45309;
+  }
+
+  .ip-alt-card {
+    padding: 0.5rem 0.6rem;
+    border-radius: 7px;
+    background: rgba(2, 6, 23, 0.55);
+    border: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  :root[data-theme='light'] .ip-alt-card {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+
+  .ip-alt-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    font-size: 0.64rem;
+  }
+
+  .ip-alt-row code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.6rem;
+    color: #94a3b8;
+  }
+
+  :root[data-theme='light'] .ip-alt-row code {
+    color: #475569;
+  }
+
+  .ip-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 0.22rem;
+    font-size: 0.66rem;
+    color: #cbd5e1;
+  }
+
+  :root[data-theme='light'] .ip-checks {
+    color: #334155;
+  }
+
+  .ip-check code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.62rem;
+    color: #fcd34d;
+  }
+
+  :root[data-theme='light'] .ip-check code {
+    color: #b45309;
+  }
+
+  @media (max-width: 960px) {
+    .ip-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
