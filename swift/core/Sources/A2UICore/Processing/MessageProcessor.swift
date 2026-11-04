@@ -995,6 +995,9 @@ public final class MessageProcessor: ObservableObject {
     version: A2UIProtocolVersion,
     timeoutSeconds: TimeInterval = 30.0
   ) async throws -> JSONValue {
+    guard !rpcHandler.isDisposed else {
+      throw FunctionError.disposed(callID: functionCallID ?? UUID().uuidString)
+    }
     guard let listener = outboundListener else {
       throw FunctionError.noListener(name: functionName)
     }

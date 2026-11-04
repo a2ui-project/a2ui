@@ -983,7 +983,7 @@ export class DataContext {
           }
           sig = pendingSig as Signal<V>;
         } else if (result instanceof FailedArgument) {
-          sig = signal((keepPending ? result : undefined) as unknown as V);
+          sig = signal((keepPending ? result : this.atLeastV10 ? null : undefined) as unknown as V);
         } else {
           sig = signal(result as V);
         }
@@ -1071,7 +1071,10 @@ export class DataContext {
             }
           } else if (res instanceof FailedArgument) {
             markFailed();
-            setValue(resultSig, (keepPending ? res : undefined) as V | undefined);
+            setValue(
+              resultSig,
+              (keepPending ? res : this.atLeastV10 ? null : undefined) as V | undefined,
+            );
           } else {
             setValue(resultSig, res);
           }
@@ -1551,7 +1554,7 @@ export class DataContext {
       value => {
         if (abortSignal?.aborted || this.surface?.disposed) return;
         if (value instanceof FailedArgument) {
-          setValue(sig, undefined);
+          setValue(sig, (this.atLeastV10 ? null : undefined) as V | undefined);
         } else if (isSignal(value) && abortSignal) {
           this.forwardSignal(sig, value, abortSignal);
         } else {
@@ -1561,9 +1564,10 @@ export class DataContext {
       (e: unknown) => {
         if (abortSignal?.aborted || this.surface?.disposed) return;
         // A cancelled call is not a failure: re-evaluating it sends it again.
-        if (!isCancellation(e)) onFailure?.();
+        const cancelled = isCancellation(e);
+        if (!cancelled) onFailure?.();
         this.dispatchExpressionError(e, name);
-        setValue(sig, undefined);
+        setValue(sig, (!cancelled && this.atLeastV10 ? null : undefined) as V | undefined);
       },
     );
   }
@@ -1636,6 +1640,7 @@ export class DataContext {
         code: this.isActionExecution && !isAgentFailure ? 'EXECUTION_ERROR' : 'EXPRESSION_ERROR',
         message: errObj.message ?? `An unexpected error occurred in function ${name}.`,
         expression: name,
+        ...(isAgentFailure && e.functionCallId ? {functionCallId: e.functionCallId} : {}),
       });
     }
   }
