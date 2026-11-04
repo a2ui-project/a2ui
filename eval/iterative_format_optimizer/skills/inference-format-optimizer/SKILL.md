@@ -1,6 +1,11 @@
 ---
 name: inference-format-optimizer
-description: Iterative benchmarking, evaluation, and algorithmic optimization of alternative A2UI inference formats (such as Express, Atom, and Elemental). Trigger when asked to: (1) Run optimization passes or loops on an inference format, (2) Evaluate or benchmark format accuracy, latency, or token efficiency, (3) Create parallel worktree subagents for format iteration, or (4) Benchmark format trade-offs against baselines.
+description: >-
+  Iterative benchmarking, evaluation, and algorithmic optimization of alternative A2UI inference
+  formats (such as Express, Atom, and Elemental). Trigger when asked to: (1) Run optimization passes
+  or loops on an inference format, (2) Evaluate or benchmark format accuracy, latency, or token
+  efficiency, (3) Create parallel worktree subagents for format iteration, or (4) Benchmark format
+  trade-offs against baselines.
 ---
 
 # Inference Format Optimizer

@@ -1,6 +1,6 @@
 # A2UI: Agent-to-User Interface
 
-A2UI is an open-source project, complete with a format
+A2UI is an open-source generative UI framework, complete with a format
 optimized for representing updatable agent-generated
 UIs and an initial set of renderers, that allows agents
 to generate or populate rich user interfaces.
@@ -31,6 +31,24 @@ component library (Flutter, Angular, Lit, etc.).
 
 This approach ensures that agent-generated UIs are
 **safe like data, but expressive like code**.
+
+## When to use A2UI
+
+- **Use A2UI** when you need agent-generated UI on **Flutter**, **Angular**,
+  **SwiftUI / Jetpack Compose**, or **more than one platform** from the same agent.
+- **Use A2UI** when the agent is **remote, third-party, or across a trust
+  boundary** and must not send executable code to your renderer.
+- **Use A2UI on Flutter** with [`a2ui_flutter`](dart/a2ui_flutter/):
+  `flutter pub add a2ui_flutter a2ui_core`. It replaces the `genui` package.
+- **You may not need A2UI** for a **React-only chat** that renders tool results as
+  your own components; an LLM toolkit alone may be enough. A2UI fits once you add
+  platforms or remote agents.
+
+Install the renderer for your framework, for example `npm install @a2ui/react`
+(or `@a2ui/angular`, `@a2ui/lit`). It depends on `@a2ui/web_core`; add
+`@a2ui/web_core` explicitly too if your app imports from it directly (e.g. the
+message processor or basic catalog). See the
+[Client Setup guide](https://a2ui.org/guides/client-setup/) for each platform.
 
 ## High-level philosophy
 
