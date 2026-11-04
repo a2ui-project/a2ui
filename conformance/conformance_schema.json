@@ -2317,11 +2317,16 @@
         },
         "raises": {
           "type": "object",
-          "description": "Fails with `message`. With `code`, it fails the way the SDK lets a handler choose the RPC error code of the response; without one, it fails with an ordinary error.",
+          "description": "Fails with `message`. With `code`, it fails the way the SDK lets a handler choose the RPC error code of the response; with `validation: true`, it fails with the SDK's validation error; with neither, it fails with an ordinary error.",
           "properties": {
             "code": {"type": "string"},
-            "message": {"type": "string"}
+            "message": {"type": "string"},
+            "validation": {
+              "const": true,
+              "description": "Fails with the SDK's validation error (A2uiValidationError), which is still a handler error: the response is EXECUTION_ERROR with `message`."
+            }
           },
+          "not": {"required": ["code", "validation"]},
           "required": ["message"],
           "additionalProperties": false
         }

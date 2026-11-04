@@ -521,6 +521,34 @@
       code: EXECUTION_ERROR
       message: "rate service unavailable"
 
+- name: test_handle_agent_function_whose_handler_fails_with_a_validation_error
+  description: >-
+    A handler that fails with the SDK's validation error has failed like any other handler: the call gets EXECUTION_ERROR with the error's message, not INVALID_FUNCTION_CALL, which is only for arguments that fail the function's schema.
+  action: handle_agent_function
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        agent_functions:
+          fetchFxRate:
+            returnType: number
+            args: {type: object, properties: {base: {type: string}}}
+            behavior:
+              raises: {validation: true, message: "unsupported currency pair EUR/XYZ"}
+    message:
+      version: "1.0"
+      callAgentFunction:
+        surfaceId: s1
+        functionCallId: e-3
+        callFunction:
+          "@call": fetchFxRate
+          catalogId: conformance/simplified
+          args: {base: EUR}
+  expect:
+    functionCallId: e-3
+    error:
+      code: EXECUTION_ERROR
+      message: "unsupported currency pair EUR/XYZ"
+
 - name: test_handle_agent_function_whose_handler_fails_with_its_own_code
   description: >-
     A handler that fails with an RPC error code of its choosing sends that code instead of EXECUTION_ERROR.

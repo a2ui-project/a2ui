@@ -162,7 +162,7 @@ In place of a handler a declaration states a `behavior`, so every SDK runs the s
 - `returns`: returns that value, which may be `null`.
 - `returns_args: true`: returns the arguments the handler received, after validation and with the schema's defaults applied.
 - `returns_context: true`: returns the context of the call as `{catalogId, surfaceId, functionCallId}`.
-- `raises`: fails with `message`. With `code`, it fails the way the SDK lets a handler choose the response's RPC error code; without one, it fails with an ordinary error.
+- `raises`: fails with `message`. With `code`, it fails the way the SDK lets a handler choose the response's RPC error code. With `validation: true`, it fails with the SDK's validation error (`A2uiValidationError`), which is still a handler error, answered with `EXECUTION_ERROR`. With neither, it fails with an ordinary error.
 
 The suite has four actions:
 
