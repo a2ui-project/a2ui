@@ -6,6 +6,12 @@ The goals of triage is to continuously make sure that:
 2. Every issue has a priority, and every `P0` and `P1` issue has an assignee who is making progress on it.
 3. Questions and comments get replies from the team.
 
+Queues used in triage:
+
+- [Not first line handled][not-first-line-handled]: new issues for [first line triage](#first-line-triage-daily-by-gardener).
+- [Needs triage][needs-triage-all]: everything the bot flagged.
+- [Needs triage, without team input][needs-triage-minus-waiting]: everything the bot flagged, except items that need team input.
+
 See [list of labels used in triage](labels.md).
 
 ## First line triage (daily, by gardener)
@@ -91,6 +97,7 @@ What may help:
 ```
 
 [not-first-line-handled]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20first-line-handled%22%20sort%3Acreated-asc
+[needs-triage-all]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22
 [needs-triage-minus-waiting]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22+-label%3A%22status%3A+needs-team-input%22
 [needs-team-input]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-team-input%22
 [assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20assigned-for-triage%22
