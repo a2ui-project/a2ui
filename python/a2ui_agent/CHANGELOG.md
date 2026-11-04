@@ -33,7 +33,8 @@
   `PromptGenerator` to write a format of your own.
   [#3568](https://github.com/a2ui-project/a2ui/pull/3568)
 - `RendererFunctionCalls` takes optional `catalogs`. With them, `call` raises
-  `UNKNOWN_FUNCTION` for a function or catalog they lack, and
+  `UNKNOWN_FUNCTION` for a catalog they lack or a name that isn't one of its
+  renderer functions (agent functions included), and
   `INVALID_FUNCTION_CALL` for a `rendererOnly` function or one that requires
   user activation, before anything is registered. Two catalogs with one ID
   raise `A2uiCatalogError`.

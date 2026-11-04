@@ -88,8 +88,9 @@ class RendererFunctionCalls:
                 `call` raises beyond it. None, the default, sets no limit.
             catalogs: The agent's catalogs, such as
                 `A2uiRequestProcessor.active_catalogs`. With them, `call`
-                checks that the function exists and that the agent may call
-                it before anything is registered. None, the default, checks
+                checks that the catalog has a renderer function (not an agent
+                function) of that name and that the agent may call it before
+                anything is registered. None, the default, checks
                 nothing.
 
         Raises:
@@ -165,7 +166,8 @@ class RendererFunctionCalls:
                 is empty, or the message fails the schema (code
                 `INVALID_FUNCTION_CALL`). With `catalogs`, also if
                 `catalog_id` names none of them or that catalog has no
-                function `name` (code `UNKNOWN_FUNCTION`), or the function is
+                renderer function `name`, such as when `name` is an agent
+                function (code `UNKNOWN_FUNCTION`), or the function is
                 `rendererOnly` (also when `allowedCallers` is unset) or
                 requires user activation (code `INVALID_FUNCTION_CALL`).
             RuntimeError: If no event loop is running, or the instance
@@ -356,10 +358,11 @@ class RendererFunctionCalls:
                 code=RpcErrorCode.UNKNOWN_FUNCTION,
                 function_call_id=call_id,
             )
-        function = catalog.functions.get(name)
+        # Agent functions run on the agent, so the renderer can't run them.
+        function = catalog.renderer_functions.get(name)
         if function is None:
             raise A2uiRpcError(
-                f"Catalog '{catalog_id}' has no function '{name}'.",
+                f"Catalog '{catalog_id}' has no renderer function '{name}'.",
                 code=RpcErrorCode.UNKNOWN_FUNCTION,
                 function_call_id=call_id,
             )

@@ -237,7 +237,12 @@ class TestCatalogChecks:
                 "UNKNOWN_FUNCTION",
                 "isn't one",
             ),
-            (CATALOG, "getAltitude", "UNKNOWN_FUNCTION", "no function 'getAltitude'"),
+            (
+                CATALOG,
+                "getAltitude",
+                "UNKNOWN_FUNCTION",
+                "no renderer function 'getAltitude'",
+            ),
             (CATALOG, "formatLocal", "INVALID_FUNCTION_CALL", "may not call"),
             (CATALOG, "unset", "INVALID_FUNCTION_CALL", "may not call"),
             (CATALOG, "vibrate", "INVALID_FUNCTION_CALL", "user gesture"),
@@ -282,7 +287,7 @@ class TestCatalogChecks:
             calls.call(catalog_id="https://example.com/other.json", name="")
 
     @pytest.mark.asyncio
-    async def test_agent_function_with_renderer_only_is_rejected(self) -> None:
+    async def test_rejects_an_agent_function(self) -> None:
         catalog = _device_catalog().copy_with(
             agent_functions=[AgentFunction("lookUp", handler=lambda args: 1)]
         )
@@ -291,7 +296,29 @@ class TestCatalogChecks:
         with pytest.raises(A2uiRpcError) as excinfo:
             calls.call(catalog_id=CATALOG, name="lookUp")
 
-        assert excinfo.value.code == "INVALID_FUNCTION_CALL"
+        assert excinfo.value.code == "UNKNOWN_FUNCTION"
+        assert "no renderer function 'lookUp'" in str(excinfo.value)
+        assert calls.pending_count == 0
+
+    @pytest.mark.asyncio
+    async def test_rejects_an_agent_function_built_from_renderer_or_agent(
+        self,
+    ) -> None:
+        source = _device_catalog()
+        agent_function = AgentFunction.from_api(
+            source.functions["getLocation"], lambda args: "here"
+        )
+        assert agent_function.allowed_callers == "rendererOrAgent"
+        catalog = source.copy_with(agent_functions=[agent_function])
+        calls = RendererFunctionCalls(catalogs=[catalog])
+
+        with pytest.raises(A2uiRpcError) as excinfo:
+            calls.call(catalog_id=CATALOG, name="getLocation", function_call_id="c1")
+
+        assert excinfo.value.code == "UNKNOWN_FUNCTION"
+        assert "no renderer function 'getLocation'" in str(excinfo.value)
+        assert calls.pending_count == 0
+        assert not calls.is_pending("c1")
 
     def test_two_catalogs_with_one_id_are_a_catalog_error(self) -> None:
         with pytest.raises(A2uiCatalogError, match="Duplicate catalog ID"):

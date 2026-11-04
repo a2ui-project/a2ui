@@ -930,8 +930,9 @@ location = await result  # settled when the processor gets the response
    calls that wait for an answer.
 7. `catalogs`, such as `request_processor.active_catalogs`, makes `call` check
    the target before anything is registered or sent:
-   - a `catalog_id` that names none of the catalogs, or a function that
-     catalog doesn't have, raises `A2uiRpcError` with code
+   - a `catalog_id` that names none of the catalogs, or a name that isn't one
+     of that catalog's renderer functions (an agent function included, since
+     it runs on the agent), raises `A2uiRpcError` with code
      `UNKNOWN_FUNCTION`;
    - a `rendererOnly` function (including one that leaves `allowedCallers`
      out), which the agent may not call, raises with code
