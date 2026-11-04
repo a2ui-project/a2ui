@@ -237,20 +237,15 @@ Act:
 ```bash
 cd a2ui/agent
 python3 -m venv .venv
-.venv/bin/pip install --no-deps -r requirements.txt
+.venv/bin/pip install -r requirements.txt
 cd ../..
 ```
 
 Run the pip command from `a2ui/agent`, not from `typescript-starter`. The
 `-e .[dev]` line in `requirements.txt` resolves `.` against the current folder.
-The `--no-deps` flag is required: `requirements.txt` is a full lock of the
-venv, and without the flag pip rejects the pinned git versions (the header of
-`requirements.txt` explains why).
 
-The first install clones the A2UI git repository and takes about a minute.
 Verify: the pip output has a line that starts with `Successfully installed`,
-and that line contains `a2ui-agent-sdk-0.9.1.dev171` and `google-genai-2.31.0`.
-The `.dev171` suffix comes from the pinned git commit. A
+and that line contains `a2ui-agent-sdk-0.10.0` and `google-genai-2.31.0`. A
 `[notice] A new release of pip is available` line after it is harmless.
 
 If pip fails, print the last 30 lines. Retry once. If it fails again, stop.
@@ -272,7 +267,7 @@ PASS yarn: 4.17.1 via npx corepack@0.36.0 (need 4.17.1)
 PASS yarn install: node_modules present
 PASS sidecar deps: @actual-app/api 26.10.0
 PASS seeded budget: a2ui/sidecar/data/A2UI-Demo-Budget-e8183d2
-PASS agent venv: python 3.12.9, a2ui-agent-sdk 0.9.1.dev171, google-genai 2.31.0 (need python >= 3.12)
+PASS agent venv: python 3.12.9, a2ui-agent-sdk 0.10.0, google-genai 2.31.0 (need python >= 3.12)
 doctor: 7/7 checks passed
 ```
 
@@ -416,18 +411,19 @@ retry once after 10 seconds. If it fails again, stop.
 
 Then show it in the browser:
 
-1. Open http://localhost:3001 for the user.
-2. On the welcome screen, click "Try the demo". This opens a demo budget named
-   "Test Budget" in the browser.
-3. If a "Welcome to Actual!" tour message shows, close it.
-4. Click "Assistant" in the sidebar.
-5. The page shows "Ask about your budget" and these 5 suggested prompts:
+1. Open http://localhost:3001 for the user. On a first visit the app opens a
+   demo budget named "Test Budget" and goes straight to the Assistant page, so
+   there is no welcome screen to click through. The budget can be closed or
+   deleted later like any other.
+2. If a "Welcome to Actual!" tour message or an update banner shows, close it.
+   Either one covers the suggested prompts and the Send button.
+3. The page shows "Ask about your budget" and these 5 suggested prompts:
     - Can I afford Japan in March?
     - Where did my money go last month?
     - Find subscriptions I forgot
     - Move $200 from dining to savings
     - Monthly check-in
-6. Click "Where did my money go last month?".
+4. Click "Where did my money go last month?".
 
 Verify: within a few seconds, a card titled "Where your money went in September
 2026" appears. It shows "Total spent $3,184.52" and rows for Rent, Groceries,
@@ -456,8 +452,7 @@ Act:
    paste the key in the drawer ("Add API key" on the Assistant page). The
    drawer key overrides `.env` per request; it stays in the browser's
    localStorage and goes only to the local agent.
-4. Open http://localhost:3001/assistant for the user (click "Try the demo" first
-   if the welcome screen shows).
+4. Open http://localhost:3001 for the user. It lands on the Assistant page.
 5. Ask the user to send "Where did my money go last month?".
 
 Verify: a generated card with the user's spending by category appears. The
@@ -489,15 +484,17 @@ Then tell the user:
   local network can reach port 3001. The sidecar and the agent listen on
   127.0.0.1 only.
 
-### Optional: share one budget between the browser and the agent (sync mode)
+### Sync mode: one budget for the browser and the agent
 
-Local mode (the steps above) stays the default. In local mode, the agent and the
-browser use different budgets. Sync mode adds Actual's own sync server on port
-5006, so the browser opens the same budget as the agent. Then the budget pages
-show the agent's changes (for example, after a confirmed "Move $200 from dining
-to savings").
+Live mode uses sync mode by default, so `node a2ui/run.mjs` already starts
+Actual's own sync server on port 5006 and the browser opens the same budget as
+the agent. The budget pages then show the agent's changes, for example after a
+confirmed "Move $200 from dining to savings".
 
-Only offer this if the user asks for it, or after the proof in Step 8 passed.
+Without it the browser reads its own copy and the agent reads the sidecar's
+copy, and the two drift apart. To turn it off, run `node a2ui/run.mjs
+--no-sync`. Scripted mode serves canned UI and needs no budget, so it does not
+start the sync server.
 
 Check: ports 3001, 5006, 5007 and 8484 are free:
 
@@ -510,11 +507,11 @@ Expected output: nothing. Stop a running `node a2ui/run.mjs` first (Ctrl+C).
 Act:
 
 ```bash
-node a2ui/run.mjs --sync
+node a2ui/run.mjs
 ```
 
-Add `--scripted` for canned answers without a key
-(`node a2ui/run.mjs --scripted --sync`).
+Add `--scripted --sync` for canned answers without a key, if you want the sync
+server in scripted mode as well.
 
 Verify: the output ends with lines like these (the password and the Sync ID
 differ):
@@ -545,10 +542,10 @@ Show it to the user so they can sign in. It is not the Gemini key.
 
 In the browser (give these steps to the user):
 
-1. Open http://localhost:3001. On the welcome screen, choose "Connect to a sync
-   server" and enter `http://localhost:5006`. If a budget is already open, use
-   the Files screen, then the server menu at the top right, then "Start using a
-   server".
+1. Open http://localhost:3001. A budget is already open, so use the Files
+   screen, then the server menu at the top right, then "Start using a server",
+   and enter `http://localhost:5006`. On a welcome screen, choose "Connect to a
+   sync server" instead.
 2. Sign in with the password from the output.
 3. Open `A2UI-Demo-Budget` from the file list.
 
@@ -559,7 +556,7 @@ If `run.mjs` prints
 `the sync server in a2ui/sync-data/data has a different password than a2ui/sync-data/password`,
 the password file was changed or lost. Ask the user before you delete anything.
 With a yes, stop the app, delete `a2ui/sync-data/data` and
-`a2ui/sync-data/sidecar-data`, and run `node a2ui/run.mjs --sync` again. The
+`a2ui/sync-data/sidecar-data`, and run `node a2ui/run.mjs` again. The
 browser must then sign in again and open the new budget.
 
 ## If something fails
