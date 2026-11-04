@@ -189,9 +189,6 @@ function buildSecondaryCatalog(spec: SecondaryCatalogSpec): Catalog<LitComponent
     let element = customElements.get(tagName) as CustomElementConstructor | undefined;
     if (!element) {
       class CustomBadgeElement extends A2uiLitElement<LitComponentApi> {
-        override createRenderRoot() {
-          return this;
-        }
         protected override render() {
           const props = this.controller?.props as Record<string, unknown> | undefined;
           return html`<span class="a2ui-custom-badge">${String(props?.badgeText ?? '')}</span>`;

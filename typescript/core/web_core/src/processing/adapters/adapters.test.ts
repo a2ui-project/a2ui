@@ -21,6 +21,7 @@ import {A2uiValidationError} from '../../errors.js';
 import {VersionAdapterFactory} from './factory.js';
 import {
   InternalCreateSurfaceOp,
+  InternalOperation,
   InternalUpdateComponentsOp,
   InternalUpdateDataModelOp,
   InternalDeleteSurfaceOp,
@@ -62,6 +63,34 @@ describe('VersionAdapterFactory', () => {
     assert.strictEqual(op.sendDataModel, true);
     assert.deepStrictEqual(op.components, [{id: 'root', component: 'Column'}]);
     assert.deepStrictEqual(op.dataModel, {key: 'value'});
+  });
+
+  it('drops theme on v1.0 createSurface operation extraction and rejects it in strict envelope validation', () => {
+    const adapter = new V1Point0Adapter();
+    const payloadWithTheme = {
+      version: '1.0',
+      createSurface: {
+        surfaceId: 's1',
+        catalogId: 'basic',
+        theme: {primaryColor: '#FF0000'},
+      },
+    };
+
+    assert.throws(
+      () => adapter.extractOperations(payloadWithTheme),
+      (err: unknown) => err instanceof A2uiValidationError && /theme/.test(err.message),
+    );
+
+    const rawOps = (
+      adapter as unknown as {
+        extractOperationsFromObject(msgObj: Record<string, unknown>): InternalOperation[];
+      }
+    ).extractOperationsFromObject(payloadWithTheme);
+    assert.strictEqual(rawOps.length, 1);
+    const op = rawOps[0] as InternalCreateSurfaceOp;
+    assert.strictEqual(op.type, 'createSurface');
+    assert.strictEqual(op.surfaceId, 's1');
+    assert.strictEqual(op.theme, undefined);
   });
 
   it('resolves v0.9 adapter and extracts createSurface operations', () => {
@@ -612,6 +641,85 @@ describe('MessageProcessor Dependency Injection', () => {
       (err: any) =>
         err instanceof A2uiValidationError &&
         /message must contain exactly one update action/.test(err.message),
+    );
+  });
+
+  it('scopes union validation errors to the active action branch without dumping unrelated branches', () => {
+    const v10 = VersionAdapterFactory.getAdapter('v1.0');
+    assert.throws(
+      () =>
+        v10.extractOperations({
+          version: '1.0',
+          callRendererFunction: {
+            functionCallId: 'f1',
+            callFunction: {'@call': 'formatString', args: {value: 'x'}},
+          },
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof A2uiValidationError);
+        assert.strictEqual(
+          err.message,
+          'Invalid 1.0 message: callRendererFunction.callFunction.catalogId: Expected string, received undefined',
+        );
+        assert.strictEqual(err.functionCallId, 'f1');
+        return true;
+      },
+    );
+
+    assert.throws(
+      () =>
+        v10.extractOperations({
+          version: 'v1.0',
+          callRendererFunction: {
+            functionCallId: 'f1',
+            callFunction: {'@call': 'formatString', args: {value: 'x'}},
+          },
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof A2uiValidationError);
+        assert.strictEqual(
+          err.message,
+          'Invalid 1.0 message: version: Invalid literal value, expected "1.0"; callRendererFunction.callFunction.catalogId: Expected string, received undefined',
+        );
+        return true;
+      },
+    );
+
+    assert.throws(
+      () =>
+        v10.extractOperations({
+          version: '1.0',
+          callRendererFunction: {
+            functionCallId: 'f1',
+            callFunction: {'@call': 'formatString', catalogId: 'cat-1', args: {value: 'x'}},
+          },
+          extraField: true,
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof A2uiValidationError);
+        assert.strictEqual(
+          err.message,
+          "Invalid 1.0 message: root: Unrecognized key(s) in object: 'extraField'",
+        );
+        return true;
+      },
+    );
+
+    const v09 = VersionAdapterFactory.getAdapter('v0.9');
+    assert.throws(
+      () =>
+        v09.extractOperations({
+          version: 'v0.9',
+          createSurface: {surfaceId: 's1'},
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof A2uiValidationError);
+        assert.strictEqual(
+          err.message,
+          'Invalid v0.9 message: createSurface.catalogId: Expected string, received undefined',
+        );
+        return true;
+      },
     );
   });
 });

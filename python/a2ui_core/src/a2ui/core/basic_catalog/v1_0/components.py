@@ -401,9 +401,7 @@ class TextFieldComponent(ComponentCommon, Checkable):
     component: Literal["TextField"] = "TextField"
     model_config = ConfigDict(extra="forbid")
     label: DynamicString = Field(..., description="The text label for the input field.")
-    value: DynamicString | None = Field(
-        default=None, description="The value of the text field."
-    )
+    value: DynamicString = Field(..., description="The value of the text field.")
     placeholder: DynamicString | None = Field(
         default=None, description="The placeholder text for the input field."
     )

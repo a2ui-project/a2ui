@@ -178,6 +178,45 @@ export const MyProfile = createComponentImplementation(MyProfileApi, ({props, bu
 });
 ```
 
+### 3. Accessibility
+
+A React component renders inside its own host element, `<a2ui-react-<name>>`. The host maps the component's `accessibility` attributes to ARIA without help from the component. It sets `aria-live` from `live`, and `aria-hidden` and `inert` from `hidden`, on itself. By default it also puts `label` and `description` on itself as `aria-label` and `aria-description`, with `role="group"` unless the host already has a `role`.
+
+If the label belongs on an element inside the component, such as its input, pass `accessibilityRef` to that element. The host then puts `aria-label` and `aria-description` there instead:
+
+```tsx
+export const Volume = createComponentImplementation(VolumeApi, ({props, accessibilityRef}) => (
+  <input
+    ref={accessibilityRef}
+    type="range"
+    value={props.value ?? 0}
+    onChange={e => props.setValue(Number(e.target.value))}
+  />
+));
+```
+
+The `accessibilityRef` element also gets the validation state: `aria-invalid="true"` while a check fails. To make screen readers read the error messages with the element, pass `validationErrorsRef` to the element that shows them. While there are errors, the `accessibilityRef` element gets `aria-describedby` pointing at it, and the element gets an `id` if it has none:
+
+```tsx
+export const Email = createComponentImplementation(
+  EmailApi,
+  ({props, accessibilityRef, validationErrorsRef}) => (
+    <div>
+      <input
+        ref={accessibilityRef}
+        value={props.value ?? ''}
+        onChange={e => props.setValue(e.target.value)}
+      />
+      {props.validationErrors?.length ? (
+        <div ref={validationErrorsRef}>{props.validationErrors.join(' ')}</div>
+      ) : null}
+    </div>
+  ),
+);
+```
+
+`createBinderlessComponentImplementation` passes both refs too.
+
 ## Generic Binder Features
 
 The Generic Binder is a framework-agnostic engine that transforms raw JSON payload configurations into a cohesive reactive stream of strongly-typed props.

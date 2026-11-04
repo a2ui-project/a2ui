@@ -103,12 +103,7 @@ public struct A2UISlider: View {
         .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
       }
 
-      if let firstError = node.validationErrors.first {
-        Text(firstError)
-          .font(.caption)
-          .foregroundStyle(Color.red)
-          .accessibilityIdentifier("A2UISlider_Error_\(node.id)")
-      }
+      A2UICheckMessage(node: node, identifierPrefix: "A2UISlider")
     }
   }
 }

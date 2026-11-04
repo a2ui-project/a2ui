@@ -21,6 +21,7 @@ from a2ui.core.resolution import (
     DataContext,
     GenericBinder,
     MissingDataBindingWarning,
+    coerce_dynamic_boolean,
 )
 from a2ui.core.catalog import Catalog, FunctionImplementation
 from a2ui.core.basic_catalog import BasicCatalog, v0_9
@@ -735,7 +736,10 @@ def test_data_context_v10_coerces_validation_result_in_optional_list():
         protocol_version="1.0",
         functions=[
             FunctionImplementation(
-                name="echo", return_type="object", schema=FlagsArgs, execute=echo
+                name="echo",
+                return_type="object",
+                schema=FlagsArgs,
+                execute=echo,
             )
         ],
     )
@@ -765,9 +769,9 @@ def test_data_context_v10_coerces_validation_result_in_optional_list():
     }
 
 
-def test_data_context_v09_leaves_valid_objects_alone():
-    """Before v1.0 the validators return booleans, so an object carrying a
-    ``valid`` key is an ordinary data-model object."""
+def test_data_context_v09_coerces_valid_objects_in_dynamic_boolean():
+    """In v0.9 as in v1.0, a ``ValidationResult`` object resolved into a
+    ``DynamicBoolean`` argument is coerced by its ``valid`` boolean."""
     catalog = v0_9.BasicCatalog()
     surface = SurfaceModel(
         "s1", catalog, data_model=DataModel({"flag": {"valid": False}})
@@ -776,8 +780,86 @@ def test_data_context_v09_leaves_valid_objects_alone():
 
     assert (
         ctx.resolve_dynamic_value({"call": "not", "args": {"value": {"path": "/flag"}}})
-        is False
+        is True
     )
+
+
+def test_dynamic_boolean_coercion_table_for_properties_and_arguments():
+    """Verifies ``coerce_dynamic_boolean`` across every row of the coercion
+    table for both component property resolution and function arguments."""
+    from a2ui.core.basic_catalog import v1_0
+    from a2ui.core.catalog import ComponentApi
+    from a2ui.core.schema.v1_0.common_types import DynamicValue
+
+    cases: list[tuple[Any, bool]] = [
+        (True, True),
+        (False, False),
+        ({"valid": True}, True),
+        ({"valid": False, "message": "Invalid"}, False),
+        ("true", True),
+        ("True", True),
+        ("TRUE", True),
+        ("false", False),
+        ("FALSE", False),
+        ("hello", False),
+        ("", False),
+        ("1", False),
+        (1, True),
+        (-2, True),
+        (0.5, True),
+        (0, False),
+        (0.0, False),
+        (float("nan"), False),
+        (None, False),
+        ({}, False),
+        ({"other": 1}, False),
+        ({"valid": "yes"}, False),
+        ([], False),
+        ([True], False),
+    ]
+
+    for raw, expected in cases:
+        assert coerce_dynamic_boolean(raw) is expected, f"Failed for {raw!r}"
+
+    catalog = v1_0.BasicCatalog()
+    surface = SurfaceModel("s1", catalog, data_model=DataModel({"flag": True}))
+    comp = ComponentModel(
+        "c1",
+        "CheckBox",
+        catalog,
+        {"label": "Flag", "value": {"@path": "/flag"}},
+    )
+    surface.components_model.add_component(comp)
+    comp_ctx = ComponentContext.from_surface(surface, "c1")
+    binder = GenericBinder(comp_ctx)
+    ctx = DataContext(surface, path="/")
+
+    for raw, expected in cases:
+        surface.data_model.set("/flag", raw)
+        assert binder.snapshot["value"] is expected, f"Property failed for {raw!r}"
+        if isinstance(raw, float) and raw != raw:
+            continue
+        assert ctx.resolve_dynamic_value(
+            {"@call": "not", "args": {"value": {"@path": "/flag"}}}
+        ) is (not expected), f"Argument failed for {raw!r}"
+
+    class _PolymorphicBox(StrictBaseModel):
+        id: str
+        component: str
+        any_val: DynamicValue
+
+    custom_cat = Catalog(
+        "custom", "1.0", components=[ComponentApi("PolyBox", _PolymorphicBox)]
+    )
+    poly_surface = SurfaceModel("s2", custom_cat, data_model=DataModel({"v": "hello"}))
+    poly_comp = ComponentModel(
+        "p1", "PolyBox", custom_cat, {"any_val": {"@path": "/v"}}
+    )
+    poly_surface.components_model.add_component(poly_comp)
+    poly_binder = GenericBinder(ComponentContext.from_surface(poly_surface, "p1"))
+    assert poly_binder.snapshot["any_val"] == "hello"
+    poly_surface.data_model.set("/v", 42)
+    assert poly_binder.snapshot["any_val"] == 42
 
 
 def test_data_context_validates_arguments_as_written():
@@ -1516,7 +1598,9 @@ def test_generic_binder_v10_literal_path_no_setter():
 
 
 def test_adapt_ast_part_for_v10_preserves_arg_names():
-    from a2ui.core.basic_catalog.v1_0.function_impls import _adapt_ast_part_for_v10
+    from a2ui.core.basic_catalog.v1_0.function_impls import (
+        _adapt_ast_part_for_v10,
+    )
 
     part = {
         "call": "myFunction",
@@ -1572,3 +1656,65 @@ def test_generic_binder_binds_catalog_defined_dynamic_defs():
     assert binder.current_props["value"] == {"year": 2024, "month": 5, "day": 1}
     assert callable(binder.current_props.get("setValue"))
     binder.dispose()
+
+
+def _boom(args: dict[str, Any], ctx: Any = None, abort: Any = None) -> Any:
+    raise RuntimeError("boom")
+
+
+def _action_button(
+    action: dict[str, Any],
+) -> tuple[GenericBinder, SurfaceModel]:
+    from a2ui.core.basic_catalog import v1_0
+
+    cat = v1_0.BasicCatalog()
+    cat.functions["boom"] = FunctionImplementation(name="boom", execute=_boom)
+    surface = SurfaceModel("s1", cat)
+    comp = ComponentModel("b1", "Button", cat, {"child": "t", "action": action})
+    return (
+        GenericBinder(ComponentContext(comp, DataContext(surface, "/"))),
+        surface,
+    )
+
+
+def test_generic_binder_action_closure_classifies_local_errors_as_execution():
+    """A local function that raises in an action closure is an EXECUTION_ERROR."""
+    binder, surface = _action_button({"functionCall": {"@call": "boom", "args": {}}})
+    errors: list[dict[str, Any]] = []
+    surface.on_error.subscribe(errors.append)
+
+    assert binder.current_props["action"]() is None
+    assert [e["code"] for e in errors] == ["EXECUTION_ERROR"]
+
+
+def test_event_action_local_error_is_execution_error():
+    binder, surface = _action_button(
+        {
+            "event": {
+                "name": "go",
+                "context": {"x": {"@call": "boom", "args": {}}},
+            }
+        }
+    )
+    errors: list[dict[str, Any]] = []
+    actions: list[dict[str, Any]] = []
+    surface.on_error.subscribe(errors.append)
+    surface.on_action.subscribe(actions.append)
+
+    binder.current_props["action"]()
+    assert [e["code"] for e in errors] == ["EXECUTION_ERROR"]
+    assert actions == []
+
+
+@pytest.mark.asyncio
+async def test_generic_binder_action_closure_returns_no_pending_object():
+    import asyncio
+
+    binder, surface = _action_button(
+        {"functionCall": {"@call": "remoteFn", "args": {}}}
+    )
+    loop = asyncio.get_running_loop()
+    surface.agent_function_caller = lambda call: loop.create_future()
+
+    result = binder.current_props["action"]()
+    assert result is None, "the closure returns the current value, not a signal"

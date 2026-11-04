@@ -1,11 +1,526 @@
 ---
-title: 'Catalogs, Components and Functions'
-description: 'Anatomy of component catalogs, property schemas, slots, and functions in A2UI.'
+title: 'Catalogs'
+description: 'How component catalogs define the components, functions, and rules shared between agents and renderers.'
 ---
 
-import {Aside} from '@astrojs/starlight/components';
+import {Tabs, TabItem} from '@astrojs/starlight/components';
+import CatalogAnatomy from '@components/docs/CatalogAnatomy.astro';
 
-<Aside type="note" title="Work in Progress">
-  This page is currently being authored. Refer to the site outline in the repository for the
-  specification and planned content.
-</Aside>
+An A2UI catalog defines the UI components, the functions that populate data or handle user events, and the prompt instructions that an agent and a renderer agree on. Because both sides work from the same catalog contract, the agent only sends component types and properties that the renderer knows how to build natively, never raw HTML, CSS, or executable scripts.
+
+In the diagram below, the renderer advertises the catalogs it supports through `supportedCatalogIds`, and the agent selects a default catalog for a surface by setting `catalogId` in `createSurface`. The shared catalog document has three sections: components such as `FlightStatusCard` and `Column`, functions such as `formatCurrency` and `saveBoardingPass`, and Markdown `instructions` that the agent SDK adds to the LLM system prompt.
+
+<CatalogAnatomy />
+
+## Catalogs
+
+A catalog is a collection of components and functions that acts as a contract between an agent and a renderer. Both agents and renderers can support one or more catalogs at the same time: a renderer advertises its `supportedCatalogIds` when a session starts, and an agent can create surfaces against any of those catalogs or, in v1.0, combine components and functions from multiple catalogs on the same surface by setting `catalogId` on individual entries.
+
+Every catalog has a `catalogId` string, conventionally formatted as a URI such as `https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json` or `https://example.com/catalogs/travel/v1/catalog.json`, along with optional `instructions`, `components`, and `functions`. Both sides of the connection read from that contract:
+
+1. On the agent, the agent SDK (`@a2ui/agent`, `a2ui-agent-sdk`, `a2ui_agent`) reads the component schemas, function signatures, and `instructions` to build the LLM system prompt and validate outgoing messages.
+2. On the renderer, the core and framework SDKs (`@a2ui/web_core`, `a2ui_core`, `A2UICore`) pair each component schema with a native widget and each local function signature with code that runs on the client.
+
+## Components
+
+A component is a UI component that is rendered natively on the client, such as a Flutter widget, a React, Lit, or Angular component, a SwiftUI view, or a Jetpack Compose composable, and composed with other components to form rich UIs. Instead of nesting JSON objects deeply, an A2UI surface stores component instances in a flat list where parent components reference child IDs, making layouts straightforward for an LLM to stream incrementally.
+
+Each entry in a catalog's `components` map is a JSON Schema that describes one component type:
+
+| Part               | How it is declared                                                      | What it does                                                                                                        |
+| :----------------- | :---------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------ |
+| Component type     | `"component": { "const": "FlightStatusCard" }`                          | Names the component type in the surface's flat component list.                                                      |
+| Dynamic properties | `$ref` to `DynamicString`, `DynamicNumber`, `DynamicBoolean`, and so on | Accepts a literal value, a data binding (`@path` in v1.0, `path` in v0.9.1), or a function call (`@call` / `call`). |
+| Children           | `$ref` to `ComponentId` or `ChildList`                                  | Points to child components by ID so the surface stays a flat list instead of a nested tree.                         |
+| Placement rules    | `allowedParents`, `allowedChildren` (v1.0)                              | Limits where the component can appear in the layout.                                                                |
+| Validation         | `$ref` to `Checkable`                                                   | Adds a `checks` array of `{condition, message}` rules to an input.                                                  |
+| Actions            | `$ref` to `Action`                                                      | Says what happens when the user interacts with the component: send an event to the agent or call a function.        |
+
+Here is a custom `FlightStatusCard` component schema in a catalog:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```json
+{
+  "FlightStatusCard": {
+    "type": "object",
+    "description": "Shows a flight's number, fare, and action buttons.",
+    "allowedParents": ["Column", "List"],
+    "properties": {
+      "component": {"const": "FlightStatusCard"},
+      "flightNumber": {
+        "$ref": "common_types.json#/$defs/DynamicString",
+        "description": "IATA flight designator, such as 'NH 105'."
+      },
+      "fareAmount": {
+        "$ref": "common_types.json#/$defs/DynamicNumber",
+        "description": "Ticket fare in the booking currency."
+      },
+      "actions": {
+        "$ref": "common_types.json#/$defs/ChildList",
+        "description": "Buttons shown in the card footer."
+      }
+    },
+    "required": ["component", "flightNumber"]
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Active)">
+
+```json
+{
+  "FlightStatusCard": {
+    "type": "object",
+    "description": "Shows a flight's number, fare, and action buttons.",
+    "allOf": [
+      {
+        "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+      },
+      {
+        "type": "object",
+        "properties": {
+          "component": {"const": "FlightStatusCard"},
+          "flightNumber": {
+            "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+            "description": "IATA flight designator, such as 'NH 105'."
+          },
+          "fareAmount": {
+            "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+            "description": "Ticket fare in the booking currency."
+          },
+          "actions": {
+            "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList",
+            "description": "Buttons shown in the card footer."
+          }
+        },
+        "required": ["component", "flightNumber"]
+      }
+    ],
+    "unevaluatedProperties": false
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+## Functions
+
+A function is named logic used to populate data in the UI, such as formatting a bound property or checking an input rule, or to handle user events when someone interacts with a component.
+
+A2UI supports both renderer-side and agent-side functions:
+
+1. Renderer-side functions are declared in a catalog's `functions` map and run locally on the client. They handle formatting, input validation, boolean logic, and client side effects such as opening a URL. In v1.0, the agent can also invoke an authorized renderer-side function remotely by sending `callRendererFunction` and reading the returned `rendererFunctionResponse`.
+2. Agent-side functions, introduced in v1.0, run on the server, such as checking live seat inventory or verifying a booking code. When a component evaluates a `@call` whose name is not registered in the renderer's local catalog, the renderer treats it as an agent-side function, dispatches `callAgentFunction`, and applies the returned `agentFunctionResponse`. In v0.9.1, function calls run only on the renderer, and components notify the agent of user interactions through `action` events.
+
+Each entry in a catalog's `functions` map declares a `returnType` (`"string"`, `"number"`, `"boolean"`, `"array"`, `"object"`, `"any"`, `"void"`, or, in v1.0, `"validationResult"`) and an `args` schema for its arguments:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0 (Candidate)">
+
+```json
+{
+  "formatCurrency": {
+    "type": "object",
+    "description": "Formats a number as a currency string.",
+    "returnType": "string",
+    "properties": {
+      "@call": {"const": "formatCurrency"},
+      "args": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "$ref": "common_types.json#/$defs/DynamicNumber",
+            "description": "The monetary amount."
+          },
+          "currency": {
+            "$ref": "common_types.json#/$defs/DynamicString",
+            "description": "The ISO 4217 currency code (e.g., 'USD', 'EUR')."
+          }
+        },
+        "required": ["currency", "value"],
+        "unevaluatedProperties": false
+      }
+    },
+    "required": ["@call", "args"]
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1 (Active)">
+
+```json
+{
+  "formatCurrency": {
+    "type": "object",
+    "description": "Formats a number as a currency string.",
+    "properties": {
+      "call": {"const": "formatCurrency"},
+      "args": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicNumber",
+            "description": "The monetary amount."
+          },
+          "currency": {
+            "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+            "description": "The ISO 4217 currency code (e.g., 'USD', 'EUR')."
+          }
+        },
+        "required": ["currency", "value"],
+        "unevaluatedProperties": false
+      },
+      "returnType": {"const": "string"}
+    },
+    "required": ["call", "args"],
+    "unevaluatedProperties": false
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+## Using a catalog in an agent
+
+An agent loads a catalog from its JSON document and passes it to `A2uiGenerator` through a `CatalogConfig`. The generator uses the catalog to build the LLM system prompt and to validate the messages the LLM produces.
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="TypeScript">
+
+```typescript
+import {readFileSync} from 'node:fs';
+
+import {A2uiGenerator, CatalogConfig, ExpressFormatFactory} from '@a2ui/agent';
+import {Catalog} from '@a2ui/web_core';
+
+const travelCatalog = Catalog.fromJson(JSON.parse(readFileSync('./catalogs/travel.json', 'utf8')));
+
+const generator = new A2uiGenerator(
+  [new CatalogConfig(travelCatalog)],
+  undefined,
+  new ExpressFormatFactory(),
+);
+```
+
+  </TabItem>
+  <TabItem label="Python">
+
+```python
+import json
+from pathlib import Path
+
+from a2ui.core import Catalog
+from a2ui.inference_formats import ExpressFormatFactory
+from a2ui.processor import A2uiGenerator, CatalogConfig
+
+travel_catalog = Catalog.from_json(
+    json.loads(Path("./catalogs/travel.json").read_text(encoding="utf-8"))
+)
+
+generator = A2uiGenerator(
+    catalogs=[CatalogConfig(catalog=travel_catalog)],
+    inference_format_factory=ExpressFormatFactory(),
+)
+```
+
+  </TabItem>
+  <TabItem label="Dart">
+
+```dart
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:a2ui_agent/a2ui_agent.dart';
+import 'package:a2ui_core/a2ui_core.dart';
+
+void main() {
+  final travelCatalog = Catalog.fromJson(
+    jsonDecode(File('./catalogs/travel.json').readAsStringSync())
+        as Map<String, Object?>,
+  );
+
+  final generator = A2uiGenerator(
+    catalogs: [CatalogConfig(travelCatalog)],
+    inferenceFormatFactory: const ExpressFormatFactory(),
+  );
+}
+```
+
+  </TabItem>
+</Tabs>
+
+## Registering a catalog in a renderer
+
+A renderer builds a `Catalog` that pairs each component schema with a native widget (`ComponentImplementation`) and each local function signature with code that runs it (`FunctionImplementation`). It then passes the catalog to its message processor or framework provider.
+
+<Tabs syncKey="renderer-framework">
+  <TabItem label="Flutter">
+
+```dart
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
+import 'package:flutter/material.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
+
+final flightStatusCard = ComponentImplementation(
+  name: 'FlightStatusCard',
+  allowedParents: ['Column', 'List'],
+  schema: Schema.object(
+    properties: {
+      'component': Schema.string(enumValues: ['FlightStatusCard']),
+      'flightNumber': CommonSchemasV1.dynamicString,
+      'fareAmount': CommonSchemasV1.dynamicNumber,
+    },
+    required: ['component', 'flightNumber'],
+  ),
+  builder: (context, node, props, buildChild) {
+    final flightNumber = props.string('flightNumber') ?? '';
+    final fare = props.number('fareAmount');
+
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.flight_takeoff),
+        title: Text('Flight $flightNumber'),
+        trailing: fare != null ? Text('\$${fare.toStringAsFixed(2)}') : null,
+      ),
+    );
+  },
+);
+
+final travelCatalog = Catalog<ComponentImplementation, FunctionImplementation>(
+  id: 'https://example.com/catalogs/travel/v1/catalog.json',
+  protocolVersion: A2uiProtocolVersion.v1_0,
+  components: [flightStatusCard],
+  functions: BasicCatalog.v1_0().functions.values.toList(),
+);
+
+final processor = MessageProcessor(catalogs: [travelCatalog]);
+```
+
+  </TabItem>
+  <TabItem label="React">
+
+```tsx
+import {z} from 'zod';
+
+import {createComponentImplementation} from '@a2ui/react';
+import {Catalog, type ComponentApi, MessageProcessor} from '@a2ui/web_core';
+import {BASIC_FUNCTIONS, DynamicNumberSchema, DynamicStringSchema} from '@a2ui/web_core/v1_0';
+
+const FlightStatusCardApi = {
+  name: 'FlightStatusCard',
+  allowedParents: ['Column', 'List'],
+  schema: z.object({
+    flightNumber: DynamicStringSchema,
+    fareAmount: DynamicNumberSchema.optional(),
+  }),
+} satisfies ComponentApi;
+
+const FlightStatusCard = createComponentImplementation(FlightStatusCardApi, ({props}) => {
+  const flightNumber = typeof props.flightNumber === 'string' ? props.flightNumber : '';
+  const fareAmount = typeof props.fareAmount === 'number' ? props.fareAmount : undefined;
+
+  return (
+    <div className="flight-card">
+      <strong>Flight {flightNumber}</strong>
+      {fareAmount !== undefined && <span>${fareAmount.toFixed(2)}</span>}
+    </div>
+  );
+});
+
+export const travelCatalog = new Catalog(
+  'https://example.com/catalogs/travel/v1/catalog.json',
+  '1.0',
+  [FlightStatusCard],
+  BASIC_FUNCTIONS,
+);
+
+const processor = new MessageProcessor([travelCatalog]);
+```
+
+  </TabItem>
+  <TabItem label="Lit">
+
+```typescript
+import {html, nothing} from 'lit';
+import {customElement} from 'lit/decorators.js';
+import {z} from 'zod';
+
+import {A2uiLitElement, type LitComponentApi} from '@a2ui/lit';
+import {Catalog, type ComponentApi, MessageProcessor} from '@a2ui/web_core';
+import {BASIC_FUNCTIONS, DynamicNumberSchema, DynamicStringSchema} from '@a2ui/web_core/v1_0';
+
+const FlightStatusCardApi = {
+  name: 'FlightStatusCard',
+  allowedParents: ['Column', 'List'],
+  schema: z.object({
+    flightNumber: DynamicStringSchema,
+    fareAmount: DynamicNumberSchema.optional(),
+  }),
+} satisfies ComponentApi;
+
+@customElement('flight-status-card')
+export class FlightStatusCardElement extends A2uiLitElement<typeof FlightStatusCardApi> {
+  static readonly tagName = 'flight-status-card';
+  protected override readonly api = FlightStatusCardApi;
+
+  override render() {
+    const rawFlight = this.controller?.props?.flightNumber;
+    const rawFare = this.controller?.props?.fareAmount;
+    const flightNumber = typeof rawFlight === 'string' ? rawFlight : '';
+    const fareAmount = typeof rawFare === 'number' ? rawFare : undefined;
+
+    return html`
+      <div class="flight-card">
+        <strong>Flight ${flightNumber}</strong>
+        ${fareAmount !== undefined ? html`<span>$${fareAmount.toFixed(2)}</span>` : nothing}
+      </div>
+    `;
+  }
+}
+
+const FlightStatusCard = {
+  ...FlightStatusCardApi,
+  tagName: FlightStatusCardElement.tagName,
+  element: FlightStatusCardElement,
+} satisfies LitComponentApi;
+
+export const travelCatalog = new Catalog(
+  'https://example.com/catalogs/travel/v1/catalog.json',
+  '1.0',
+  [FlightStatusCard],
+  BASIC_FUNCTIONS,
+);
+
+const processor = new MessageProcessor([travelCatalog]);
+```
+
+  </TabItem>
+  <TabItem label="Angular">
+
+```typescript
+import {Component, computed} from '@angular/core';
+import {z} from 'zod';
+
+import {
+  AngularCatalog,
+  BASIC_FUNCTIONS,
+  CatalogComponent,
+  createComponentImplementation,
+  provideA2UI,
+} from '@a2ui/angular';
+import {type ComponentApi} from '@a2ui/web_core';
+import {DynamicNumberSchema, DynamicStringSchema} from '@a2ui/web_core/v1_0';
+
+const FlightStatusCardApi = {
+  name: 'FlightStatusCard',
+  allowedParents: ['Column', 'List'],
+  schema: z.object({
+    flightNumber: DynamicStringSchema,
+    fareAmount: DynamicNumberSchema.optional(),
+  }),
+} satisfies ComponentApi;
+
+@Component({
+  selector: 'app-flight-status-card',
+  template: `
+    <div class="flight-card">
+      <strong>Flight {{ flightNumber() }}</strong>
+      @if (formattedFare(); as fare) {
+        <span>\${{ fare }}</span>
+      }
+    </div>
+  `,
+})
+export class FlightStatusCardComponent extends CatalogComponent<typeof FlightStatusCardApi> {
+  readonly flightNumber = computed(() => {
+    const flight = this.props().flightNumber?.value();
+    return typeof flight === 'string' ? flight : '';
+  });
+  readonly formattedFare = computed(() => {
+    const fare = this.props().fareAmount?.value();
+    return typeof fare === 'number' ? fare.toFixed(2) : undefined;
+  });
+}
+
+export const travelCatalog = new AngularCatalog(
+  'https://example.com/catalogs/travel/v1/catalog.json',
+  '1.0',
+  [createComponentImplementation(FlightStatusCardApi, FlightStatusCardComponent)],
+  BASIC_FUNCTIONS,
+);
+
+export const appA2uiProviders = provideA2UI({catalogs: [travelCatalog]});
+```
+
+  </TabItem>
+  <TabItem label="SwiftUI">
+
+```swift
+import A2UICore
+import A2UISwiftUI
+import BasicCatalog
+import JSONSchema
+import SwiftUI
+
+let flightStatusCard = ComponentImplementation(
+  name: "FlightStatusCard",
+  schema: try! Schema(
+    instance: """
+      {
+        "type": "object",
+        "properties": {
+          "component": { "const": "FlightStatusCard" },
+          "flightNumber": { "$ref": "common_types.json#/$defs/DynamicString" },
+          "fareAmount": { "$ref": "common_types.json#/$defs/DynamicNumber" }
+        },
+        "required": ["component", "flightNumber"]
+      }
+      """,
+    remoteSchemas: A2UICommonSchema.allSchemas
+  ),
+  allowedParents: ["Column", "List"]
+) { node in
+  HStack {
+    Image(systemName: "airplane.departure")
+    Text("Flight \(node.string(for: "flightNumber") ?? "")")
+      .font(.headline)
+    Spacer()
+    if let fare = node.double(for: "fareAmount") {
+      Text(String(format: "$%.2f", fare))
+    }
+  }
+  .padding()
+}
+
+let travelCatalog = Catalog(
+  id: "https://example.com/catalogs/travel/v1/catalog.json",
+  protocolVersion: "1.0",
+  components: [flightStatusCard],
+  functions: V10BasicFunctions.allFunctions
+)
+
+let processor = MessageProcessor(catalogs: [travelCatalog])
+```
+
+  </TabItem>
+</Tabs>
+
+## The basic catalog
+
+A2UI publishes a basic catalog with 18 general-purpose components and 14 functions. The v1.0 schema lives at [`catalogs/basic/v1/catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/catalogs/basic/v1/catalog.json), and the v0.9.1 schema lives at [`specification/v0_9_1/catalogs/basic/catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9_1/catalogs/basic/catalog.json).
+
+| Category          | Entries                                                                                                                                                       |
+| :---------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Layout            | `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`                                                                                                   |
+| Display and media | `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`                                                                                                               |
+| Inputs            | `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`                                                                                  |
+| Functions         | `formatString`, `formatNumber`, `formatCurrency`, `formatDate`, `pluralize`, `required`, `regex`, `length`, `numeric`, `email`, `openUrl`, `and`, `or`, `not` |
+
+You do not have to use the basic catalog. You can adopt it as is, restyle its components to match your design system, combine it with domain-specific catalogs on the same surface, or replace it altogether.

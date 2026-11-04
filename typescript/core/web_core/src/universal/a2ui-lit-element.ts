@@ -46,10 +46,10 @@ export type ResolvedChildList = A2uiChildRef[];
  * A base class for A2UI Lit elements that manages the A2uiController lifecycle
  * and provides Light DOM style adoption and scoping.
  *
- * Like `LitElement`, elements render into a `ShadowRoot` by default. Subclasses can
- * opt into Light DOM rendering by overriding `createRenderRoot()` to return `this`, in
- * which case `adoptLightDomStyles()` scopes `static styles` to the element's tag name and
- * adopts them into the enclosing `Document` or `ShadowRoot`.
+ * Elements render into Light DOM by default (`createRenderRoot()` returns `this`), and
+ * `adoptLightDomStyles()` scopes `static styles` to the element's tag name and adopts
+ * them into the enclosing `Document` or `ShadowRoot`. Subclasses that require Shadow DOM
+ * can override `createRenderRoot()` (for example `return this.attachShadow({mode: 'open'})`).
  *
  * @template Api The specific A2UI component API defining the schema for this element.
  * @experimental This class is experimental and subject to change as A2UI transitions
@@ -113,15 +113,24 @@ export abstract class A2uiLitElement<
   }
 
   /**
+   * Renders into Light DOM by default. Subclasses that require Shadow DOM can override
+   * this method (for example `return this.attachShadow({mode: 'open'})`).
+   */
+  protected override createRenderRoot(): HTMLElement | DocumentFragment {
+    return this;
+  }
+
+  /**
    * Adopts and scopes component CSS rules into the containing document or host shadow root.
    *
-   * When an element opts into Light DOM (`createRenderRoot()` returning `this`), it has no
-   * shadow root of its own, so this method locates the nearest enclosing `Document` or
-   * `ShadowRoot` and adopts the stylesheet once per root, scoping `:host` and descendant
-   * selectors to the element's `tagName`.
+   * Because `A2uiLitElement` renders into Light DOM by default (`createRenderRoot()`
+   * returning `this`), it has no shadow root of its own, so this method locates the nearest
+   * enclosing `Document` or `ShadowRoot` and adopts the stylesheet once per root, scoping
+   * `:host` and descendant selectors to the element's `tagName`.
    *
-   * Does nothing when the element renders into a `ShadowRoot` (the default for
-   * `A2uiLitElement`), because Lit already adopts `static styles` into that `ShadowRoot`.
+   * Does nothing when a subclass opts into Shadow DOM (for example by overriding
+   * `createRenderRoot()` to return `this.attachShadow({mode: 'open'})`), because Lit already
+   * adopts `static styles` into that `ShadowRoot`.
    */
   protected adoptLightDomStyles() {
     if (typeof document === 'undefined') return;

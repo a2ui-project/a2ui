@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {AccessibilityTargetDirective} from '@a2ui/angular';
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {AudioPlayerApi} from '@a2ui/web_core/v0_9/basic_catalog';
@@ -31,7 +32,7 @@ import {AudioPlayerApi} from '@a2ui/web_core/v0_9/basic_catalog';
 @Component({
   selector: 'a2ui-v09-audio-player',
   standalone: true,
-  imports: [],
+  imports: [AccessibilityTargetDirective],
   template: `
     <div class="a2ui-audio-player">
       @if (description()) {
@@ -39,7 +40,7 @@ import {AudioPlayerApi} from '@a2ui/web_core/v0_9/basic_catalog';
           {{ description() }}
         </div>
       }
-      <audio [attr.src]="url() || null" controls class="a2ui-audio">
+      <audio a2uiAccessibilityTarget [attr.src]="url() || null" controls class="a2ui-audio">
         Your browser does not support the audio tag.
       </audio>
     </div>

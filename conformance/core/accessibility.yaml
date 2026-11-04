@@ -232,6 +232,7 @@
           - id: "text_input"
             component: "TextField"
             label: "Your Email"
+            value: ""
             accessibility:
               description: "Enter a valid email address"
           - id: "check_box"
@@ -271,6 +272,7 @@
       text_input:
         component: TextField
         label: "Your Email"
+        value: ""
         accessibility:
           description: "Enter a valid email address"
       check_box:

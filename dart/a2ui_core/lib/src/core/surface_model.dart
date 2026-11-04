@@ -129,12 +129,34 @@ class SurfaceModel<T extends ComponentApi> {
   /// no available catalog implements is routed here instead of failing. Null,
   /// the default, keeps such a call a local `EXPRESSION_ERROR`.
   /// `MessageProcessor` wires it to its `RpcHandler`.
-  final AgentFunctionCaller? callAgentFunction;
+  ///
+  /// Once this surface is disposed, the caller sends nothing: each call
+  /// fails with an `A2uiRpcError` whose code is [RpcErrorCode.cancelled],
+  /// which is not reported.
+  AgentFunctionCaller? get callAgentFunction {
+    final AgentFunctionCaller? caller = _callAgentFunction;
+    if (caller == null) return null;
+    return (call) => _disposed
+        ? Future<Object?>.error(
+            A2uiRpcError(
+              "Surface '$id' has been disposed.",
+              RpcErrorCode.cancelled,
+            ),
+          )
+        : caller(call);
+  }
+
+  final AgentFunctionCaller? _callAgentFunction;
 
   final _onAction = EventNotifier<A2uiRendererAction>();
   final _onError = EventNotifier<A2uiRendererError>();
   final _onWarning = EventNotifier<A2uiWarning>();
   bool _disposed = false;
+
+  /// Whether [dispose] has been called. A disposed surface sends no agent
+  /// calls: [callAgentFunction] fails each with an `A2uiRpcError` whose code
+  /// is [RpcErrorCode.cancelled], which is not reported.
+  bool get isDisposed => _disposed;
 
   /// Fires whenever an action is dispatched from this surface.
   EventSource<A2uiRendererAction> get onAction => _onAction;
@@ -172,8 +194,9 @@ class SurfaceModel<T extends ComponentApi> {
     this.protocolVersion,
     this.rootId = 'root',
     Map<String, Object?>? metadata,
-    this.callAgentFunction,
-  })  : availableCatalogs = Map.unmodifiable(
+    AgentFunctionCaller? callAgentFunction,
+  })  : _callAgentFunction = callAgentFunction,
+        availableCatalogs = Map.unmodifiable(
           _indexCatalogs(
             id,
             protocolVersion,

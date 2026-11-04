@@ -388,9 +388,6 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
 
     class CustomPanelElement extends A2uiLitElement<typeof CustomPanelApi> {
       protected override readonly api = CustomPanelApi;
-      override createRenderRoot() {
-        return this;
-      }
       override render() {
         const props = this.controller?.props;
         if (!props) return nothing;

@@ -78,12 +78,7 @@ public struct A2UICheckBox: View {
       .accessibilityIdentifier("A2UICheckBox_\(node.id)")
       .a2uiAccessibilityControl(for: node)
 
-      if let firstError = node.validationErrors.first {
-        Text(firstError)
-          .font(.caption)
-          .foregroundStyle(Color.red)
-          .accessibilityIdentifier("A2UICheckBox_Error_\(node.id)")
-      }
+      A2UICheckMessage(node: node, identifierPrefix: "A2UICheckBox")
     }
   }
 }

@@ -181,6 +181,39 @@ function validateActionSurfaceIds(
 }
 
 /**
+ * Narrows a root-level `invalid_union` `ZodError` to the union branch matching `actionKey`
+ * when the envelope defines a single native action key, avoiding unrelated union-branch noise.
+ */
+function selectActionUnionError(
+  error: z.ZodError,
+  actionKey: string,
+  nativeActionKeys: readonly string[],
+): z.ZodError {
+  if (error.issues.length !== 1) {
+    return error;
+  }
+  const rootIssue = error.issues[0];
+  if (rootIssue.code !== z.ZodIssueCode.invalid_union || rootIssue.path.length !== 0) {
+    return error;
+  }
+  const matchingBranches = rootIssue.unionErrors.filter(
+    branchErr =>
+      !branchErr.issues.some(
+        issue =>
+          (issue.code === z.ZodIssueCode.unrecognized_keys &&
+            issue.path.length === 0 &&
+            issue.keys.includes(actionKey)) ||
+          (issue.code === z.ZodIssueCode.invalid_type &&
+            issue.path.length === 1 &&
+            issue.path[0] !== actionKey &&
+            nativeActionKeys.includes(String(issue.path[0])) &&
+            issue.received === 'undefined'),
+      ),
+  );
+  return matchingBranches.length === 1 ? matchingBranches[0] : error;
+}
+
+/**
  * Base abstract class providing common payload unwrapping, schema validation,
  * and error formatting for protocol version adapters.
  */
@@ -222,7 +255,7 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
     const nativeActionKeys = this.getNativeActionKeys();
     validateActionSurfaceIds(msgObj, nativeActionKeys);
 
-    const presentNativeKeys = nativeActionKeys.filter(k => k in msgObj).sort();
+    const presentNativeKeys = nativeActionKeys.filter(k => Object.hasOwn(msgObj, k)).sort();
 
     if (presentNativeKeys.length > 1) {
       throw new A2uiValidationError(
@@ -255,11 +288,16 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
     const preparedPayload = this.preparePayloadForValidation(msgObj);
     const parseResult = this.schema.safeParse(preparedPayload);
     if (!parseResult.success) {
-      const formattedErrors = parseResult.error.errors.map(formatZodIssue).join('; ');
+      const scopedError = selectActionUnionError(
+        parseResult.error,
+        presentNativeKeys[0],
+        nativeActionKeys,
+      );
+      const formattedErrors = scopedError.errors.map(formatZodIssue).join('; ');
       const envCtx = extractEnvelopeErrorContext(msgObj, this.version);
       const preliminaryErr = new A2uiValidationError(
         `Invalid ${this.version} message: ${formattedErrors}`,
-        parseResult.error,
+        scopedError,
         'VALIDATION_ERROR',
       );
       const mapped = mapErrorToRendererMessage(preliminaryErr, envCtx);
