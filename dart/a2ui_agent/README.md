@@ -226,13 +226,16 @@ message without a callback, or whose callback returns `false`, is left
 unhandled, so the agent can pass it on, for example to the model's next turn:
 
 ```dart
+bool onAction(ActionMessage message) {
+  if (message.action.name != 'refresh') return false; // for the model
+  refresh(message.action.surfaceId);
+  return true;
+}
+
 final processor = RendererToAgentMessageProcessor(
   catalogs: [withHandlers],
-  onAction: (message) {
-    if (message.action.name != 'refresh') return false; // for the model
-    refresh(message.action.surfaceId);
-    return true;
-  },
+  onAction: onAction,
+  onError: (message) => log(message.error.message), // void: handled
 );
 for (final Object? message in request.messages) {
   final ProcessResult result = await processor.processMessage(message);

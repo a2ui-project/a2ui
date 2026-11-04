@@ -688,15 +688,12 @@ void main() {
         catalogs: const [],
         onAction: (message) {
           seen.add(message);
-          return true;
         },
         onError: (message) {
           seen.add(message);
-          return true;
         },
         onRendererFunctionResponse: (message) {
           seen.add(message);
-          return true;
         },
       );
 
@@ -739,15 +736,12 @@ void main() {
         catalogs: const [],
         onAction: (message) {
           seen.add(message);
-          return true;
         },
         onError: (message) {
           seen.add(message);
-          return true;
         },
         onRendererFunctionResponse: (message) {
           seen.add(message);
-          return true;
         },
       );
       final typed = [
@@ -769,7 +763,6 @@ void main() {
         onAction: (message) async {
           await gate.future;
           finished = true;
-          return true;
         },
       );
       final Future<ProcessResult> result = processor.processMessage(
@@ -805,15 +798,12 @@ void main() {
         catalogs: const [],
         onAction: (message) {
           calls++;
-          return true;
         },
         onError: (message) {
           calls++;
-          return true;
         },
         onRendererFunctionResponse: (message) {
           calls++;
-          return true;
         },
       );
       for (final Object message in [
@@ -877,7 +867,7 @@ void main() {
         'error', () async {
       final processor = RendererToAgentMessageProcessor(
         catalogs: const [],
-        onAction: (message) => true,
+        onAction: (message) {},
       );
       for (final Object? message in [
         {'version': '1.0', 'updateComponents': <String, Object?>{}},
@@ -916,7 +906,6 @@ void main() {
         ],
         onAction: (message) {
           calls++;
-          return true;
         },
       );
       final processorWithoutCallbacks = RendererToAgentMessageProcessor(
@@ -966,20 +955,26 @@ void main() {
   group('RendererToAgentMessageProcessor declining callbacks', () {
     test('a callback that returns false declines the message', () async {
       final seen = <String>[];
+      bool onAction(ActionMessage message) {
+        seen.add('action');
+        return message.action.name == 'refresh';
+      }
+
+      Future<bool> onError(ErrorMessage message) async {
+        seen.add('error');
+        return false;
+      }
+
+      Future<bool> onResponse(RendererFunctionResponseMessage message) async {
+        seen.add('response');
+        return true;
+      }
+
       final processor = RendererToAgentMessageProcessor(
         catalogs: const [],
-        onAction: (message) {
-          seen.add('action');
-          return message.action.name == 'refresh';
-        },
-        onError: (message) async {
-          seen.add('error');
-          return false;
-        },
-        onRendererFunctionResponse: (message) async {
-          seen.add('response');
-          return true;
-        },
+        onAction: onAction,
+        onError: onError,
+        onRendererFunctionResponse: onResponse,
       );
 
       final ProcessResult declined = await processor.processMessage(
@@ -1013,11 +1008,38 @@ void main() {
       expect(seen, ['action', 'action', 'error', 'response', 'action']);
     });
 
-    test('a callback that returns null handles the message', () async {
+    test('a void tear-off, a callback returning true, one returning false '
+        'and an async one returning false', () async {
+      final seen = <RendererToAgentMessage>[];
+      bool keep(RendererToAgentMessage message) => true;
       final processor = RendererToAgentMessageProcessor(
         catalogs: const [],
-        onAction: (message) => null,
-        onError: (message) async => null,
+        onAction: seen.add,
+        onError: keep,
+        onRendererFunctionResponse: (message) => false,
+      );
+      final asyncDeclining = RendererToAgentMessageProcessor(
+        catalogs: const [],
+        onAction: (message) async => false,
+      );
+      expect((await processor.processMessage(_actionMsg())).handled, isTrue);
+      expect(seen, hasLength(1));
+      expect((await processor.processMessage(_errorMsg())).handled, isTrue);
+      expect(
+        (await processor.processMessage(_rendererResponseMsg())).handled,
+        isFalse,
+      );
+      expect(
+        (await asyncDeclining.processMessage(_actionMsg())).handled,
+        isFalse,
+      );
+    });
+
+    test('a callback that returns nothing handles the message', () async {
+      final processor = RendererToAgentMessageProcessor(
+        catalogs: const [],
+        onAction: (message) {},
+        onError: (message) async {},
       );
       expect((await processor.processMessage(_actionMsg())).handled, isTrue);
       expect((await processor.processMessage(_errorMsg())).handled, isTrue);

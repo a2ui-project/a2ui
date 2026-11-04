@@ -21,12 +21,12 @@ import 'agent_function_registry.dart';
 /// A callback that receives one kind of message a renderer sent, such as an
 /// [ActionMessage]. It may return a [Future], which is awaited.
 ///
-/// Returning `false` declines the message: the processor then reports it as
-/// not handled, so the caller passes it on, for example to the model's turn.
-/// Returning `true` or `null` (or nothing, from a block body) means the
-/// callback handled it.
+/// Return `false` (or a [Future] that completes with `false`) to decline the
+/// message: the processor then reports it as not handled, so the caller
+/// passes it on, for example to the model's turn. Any other result, including
+/// none, means the callback handled it, so a `void` function works as is.
 typedef RendererMessageCallback<T extends RendererToAgentMessage> =
-    FutureOr<bool?> Function(T message);
+    FutureOr<void> Function(T message);
 
 /// What [RendererToAgentMessageProcessor.processMessage] did with a message.
 final class ProcessResult {
@@ -77,7 +77,8 @@ final class ProcessResult {
 /// ```dart
 /// final processor = RendererToAgentMessageProcessor(
 ///   catalogs: [catalog.copyWith(agentFunctions: [fetchQuote])],
-///   onAction: (action) => action.action.name == 'refresh' ? true : false,
+///   // Handles refresh actions and declines the rest, which go to the model.
+///   onAction: (action) => action.action.name == 'refresh',
 /// );
 /// final ProcessResult result = await processor.processMessage(message);
 /// if (!result.handled) {
@@ -206,7 +207,7 @@ class RendererToAgentMessageProcessor {
   ) async {
     if (callback == null) return ProcessResult(handled: false);
     _parseV1(message.toJson());
-    return ProcessResult(handled: await callback(message) != false);
+    return ProcessResult(handled: await _run(callback, message));
   }
 
   Future<ProcessResult> _dispatchJson<T extends RendererToAgentMessage>(
@@ -215,7 +216,17 @@ class RendererToAgentMessageProcessor {
   ) async {
     if (callback == null) return ProcessResult(handled: false);
     final RendererToAgentMessage parsed = _parseV1(json);
-    return ProcessResult(handled: await callback(parsed as T) != false);
+    return ProcessResult(handled: await _run(callback, parsed as T));
+  }
+
+  /// Runs [callback] on [message] and tells whether it handled the message:
+  /// anything but `false` means it did.
+  static Future<bool> _run<T extends RendererToAgentMessage>(
+    RendererMessageCallback<T> callback,
+    T message,
+  ) async {
+    final Object? result = await (callback(message) as FutureOr<Object?>);
+    return result != false;
   }
 
   /// Parses [json], whose version is `'1.0'`, as a renderer-to-agent message.
