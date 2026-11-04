@@ -92,8 +92,9 @@ struct SwiftUICatalogRenderingTests {
     #expect(lookup("button", catalogID: "a", defaultCatalogID: "b") == schemaA)
     // Without a catalog ID, the default catalog is used.
     #expect(lookup("button", catalogID: nil, defaultCatalogID: "b") == schemaB)
-    // Otherwise any catalog with the type.
-    #expect(lookup("button", catalogID: "missing", defaultCatalogID: "missing") != nil)
+    // When the node's catalog lacks the type, falls back to the default catalog, then sorted keys.
+    #expect(lookup("button", catalogID: "missing", defaultCatalogID: "b") == schemaB)
+    #expect(lookup("button", catalogID: "missing", defaultCatalogID: "missing") == schemaA)
     #expect(lookup("unknown", catalogID: nil, defaultCatalogID: "a") == nil)
   }
 

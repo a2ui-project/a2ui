@@ -78,7 +78,7 @@ extension Surface {
   /// - Parameters:
   ///   - node: The resolved engine node to render.
   ///   - catalogs: The dictionary of available component catalogs.
-  ///   - defaultCatalogID: The fallback default catalog ID if the node has no catalog ID.
+  ///   - defaultCatalogID: The fallback default catalog ID.
   /// - Returns: The rendered `AnyView`, or `nil` if no corresponding view builder was found.
   public static func render(
     node: Node,
@@ -91,32 +91,31 @@ extension Surface {
   /// Finds the component implementation that `render(node:using:defaultCatalogID:)` uses for a
   /// node.
   ///
-  /// Looks in the node's own catalog, then in `node.catalogID ?? defaultCatalogID`, then in any
-  /// catalog that has the node's type.
+  /// Looks in the node's own catalog, then in `defaultCatalogID`, then in any catalog (in sorted
+  /// catalog-ID order) that has the node's type.
   ///
   /// - Parameters:
   ///   - node: The resolved engine node.
   ///   - catalogs: The dictionary of available component catalogs.
-  ///   - defaultCatalogID: The fallback default catalog ID if the node has no catalog ID.
+  ///   - defaultCatalogID: The fallback default catalog ID.
   /// - Returns: The implementation, or `nil` if no catalog has the node's type.
   public static func implementation(
     for node: Node,
     using catalogs: [String: Catalog<ComponentImplementation>],
     defaultCatalogID: String? = nil
   ) -> ComponentImplementation? {
-    if let catalogID = node.catalogID, let catalog = catalogs[catalogID],
-      let component = catalog.components[node.type]
+    if let catalogID = node.catalogID,
+      let component = catalogs[catalogID]?.components[node.type]
     {
       return component
     }
-    let targetCatalogID = node.catalogID ?? defaultCatalogID
-    if let targetCatalogID, let catalog = catalogs[targetCatalogID],
-      let component = catalog.components[node.type]
+    if let defaultCatalogID,
+      let component = catalogs[defaultCatalogID]?.components[node.type]
     {
       return component
     }
-    for catalog in catalogs.values {
-      if let component = catalog.components[node.type] {
+    for key in catalogs.keys.sorted() {
+      if let component = catalogs[key]?.components[node.type] {
         return component
       }
     }

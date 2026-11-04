@@ -13,18 +13,17 @@
 // limitations under the License.
 
 import A2UICore
-import A2UISwiftUI
 
 extension Node {
-  /// The children under `key` that `Surface.render` can draw.
+  /// Returns the children under `key` that `Surface.render` can draw.
   ///
-  /// `ComponentNodeView` renders `EmptyView()` for the others. Stacks leave them out so that they
-  /// take no spacing or `Spacer` slot.
+  /// `ComponentNodeView` renders `EmptyView()` for the others. Layout containers leave them out
+  /// so that they take no spacing or `Spacer` slot.
   @MainActor
-  func renderedChildren(
+  public func renderedChildren(
     for key: String,
     in catalogs: [String: Catalog<ComponentImplementation>],
-    defaultCatalogID: String?
+    defaultCatalogID: String? = nil
   ) -> [Node] {
     children(for: key).filter { child in
       Surface.implementation(for: child, using: catalogs, defaultCatalogID: defaultCatalogID)

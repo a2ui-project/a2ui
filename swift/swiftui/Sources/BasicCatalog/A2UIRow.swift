@@ -57,6 +57,7 @@ public struct A2UIRow: View {
   }
 
   public var body: some View {
+    let renderedChildren = children
     HStack(alignment: verticalAlignment, spacing: spacing) {
       if justify == "end" || justify == "center" || justify == "spaceAround"
         || justify == "spaceEvenly"
@@ -64,17 +65,13 @@ public struct A2UIRow: View {
         Spacer(minLength: 0)
       }
 
-      ForEach(Array(children.enumerated()), id: \.element.id) { index, childNode in
+      ForEach(Array(renderedChildren.enumerated()), id: \.element.id) { index, childNode in
         let isWeighted =
           childNode.double(for: "weight") != nil || childNode.int(for: "weight") != nil
         ComponentNodeView(node: childNode)
           .frame(maxWidth: (isWeighted || justify == "stretch") ? .infinity : nil)
 
-        if justify == "spaceBetween" && index < children.count - 1 {
-          Spacer(minLength: 0)
-        } else if (justify == "spaceAround" || justify == "spaceEvenly")
-          && index < children.count - 1
-        {
+        if isDistributed, index < renderedChildren.count - 1 {
           Spacer(minLength: 0)
         }
       }
